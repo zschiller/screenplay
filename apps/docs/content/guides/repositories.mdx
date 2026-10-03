@@ -73,17 +73,16 @@ instead.
 
 ## Repository settings
 
-| Setting                   | What it does                                                                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **Label**                 | A short name, like `web` or `api`, shown instead of the repository's name.                                                            |
-| **Setup script**          | Runs once when a workspace is created, e.g. `npm install`.                                                                            |
-| **Run script**            | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                                  |
-| **Dev server port**       | _Hosted._ The port your dev server listens on.                                                                                        |
-| **Environment variables** | _Hosted._ `KEY=value` lines injected into every workspace. Stored encrypted; see [who sees the values](#environment-variable-values). |
-| **Files to copy**         | _Desktop._ Glob patterns (default `.env*`) copied from your checkout into each new worktree, so local secrets come along.             |
-| **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                      |
-| **System prompt**         | Extra instructions appended to the agent's prompt, e.g. "This repository's app is the Next.js app in `apps/web`". _(Advanced)_        |
-| **Name**                  | Tells apart several of your repositories from the same GitHub repository, e.g. `web` and `api`. _(Advanced)_                          |
+| Setting                   | What it does                                                                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Setup script**          | Runs once when a workspace is set up, e.g. `npm install`.                                                                           |
+| **Run script**            | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                                |
+| **Dev server port**       | _Hosted._ The port your dev server listens on.                                                                                      |
+| **Environment variables** | _Hosted._ `KEY=value` lines every workspace gets. Stored encrypted; see [who sees the values](#environment-variable-values).        |
+| **Files to copy**         | _Desktop._ Files from your folder to copy into each workspace (default `.env*`), so local secrets come along. One pattern per line. |
+| **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                    |
+| **Agent instructions**    | Extra instructions for the agent in this repository, e.g. "Work in the Next.js app under `apps/web`". _(Advanced)_                  |
+| **Name**                  | Optional. A short name like `web` or `api`, shown instead of the repository's name. Tells apart two setups of one repository.       |
 
 The run script has to serve on the port Screenplay assigns. Most frameworks
 handle this automatically; see [Dev server & ports](/building/dev-server) if
@@ -181,5 +180,5 @@ monorepos, where each app gets its own run script.
 A repository on a canvas previews **one** app. To work on two apps from the
 same monorepo, add it as two of your repositories with different names. For example,
 a `web` one running `pnpm --filter web dev` and a `docs` one running
-`pnpm --filter docs dev`. Use the **System prompt** field to tell the agent
+`pnpm --filter docs dev`. Use the **Agent instructions** field to tell the agent
 which folder is its app's root.

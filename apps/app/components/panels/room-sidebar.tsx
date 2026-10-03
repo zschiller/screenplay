@@ -621,7 +621,7 @@ export function RoomSidebar({
           className="flex h-12 items-center justify-end px-4 pr-3"
         >
           <IconButton
-            label="Collapse sidebar"
+            label="Hide sidebar"
             shortcut="⌘B"
             tooltipSide="right"
             className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent"

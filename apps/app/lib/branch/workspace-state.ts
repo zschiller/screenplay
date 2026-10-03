@@ -79,7 +79,7 @@ function workspaceStatusLine(
     return {
       kind: "error",
       title: failureTitle(branch.statusMessage),
-      detail: branch.error || "Unknown error",
+      detail: branch.error || "No details were recorded.",
     }
   }
   if (branch.status === "creating" || branch.status === "starting") {
@@ -87,7 +87,9 @@ function workspaceStatusLine(
       kind: "progress",
       step:
         stepLabel(branch.statusMessage) ||
-        (branch.status === "creating" ? "Creating workspace" : "Starting"),
+        (branch.status === "creating"
+          ? "Setting up the workspace"
+          : "Starting"),
     }
   }
   const needsYou: WorkspaceStatusLine | null = ctx.planPending

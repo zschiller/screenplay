@@ -43,14 +43,14 @@ describe("createPullRequestAction", () => {
 
   it("refuses a non-member before touching GitHub", async () => {
     openRoom.mockRejectedValueOnce(
-      new Error("You don't have access to this project")
+      new Error("You don't have access to this canvas.")
     )
 
     const result = await createPullRequestAction("room-1", "sandbox-a")
 
     expect(result).toEqual({
       success: false,
-      error: "You don't have access to this project",
+      error: "You don't have access to this canvas.",
     })
     expect(createGitHubPr).not.toHaveBeenCalled()
   })

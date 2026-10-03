@@ -197,7 +197,7 @@ const CASES: {
     name: "setting up with no step on record",
     branch: ws({ status: "creating" }),
     expected: {
-      line: { kind: "progress", step: "Creating workspace" },
+      line: { kind: "progress", step: "Setting up the workspace" },
       section: "working",
       needsYou: false,
     },
@@ -260,7 +260,11 @@ const CASES: {
     name: "a failure with no step or error on record",
     branch: ws({ status: "error" }),
     expected: {
-      line: { kind: "error", title: "Setup failed", detail: "Unknown error" },
+      line: {
+        kind: "error",
+        title: "Setup failed",
+        detail: "No details were recorded.",
+      },
       section: "needs-you",
       needsYou: true,
     },
@@ -296,10 +300,10 @@ describe("workspaceState", () => {
     })
   })
 
-  it("labels a Workspace without a title New Workspace", () => {
+  it("labels a Workspace without a title New chat", () => {
     expect(
       workspaceState(ws({ title: " " }), roomWorkspaceFacts([], [])).label
-    ).toBe("New Workspace")
+    ).toBe("New chat")
   })
 })
 

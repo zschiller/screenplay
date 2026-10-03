@@ -406,7 +406,7 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     n("editDoc") && "edited the document",
     n("readCanvas") && "read the canvas",
     n("readWorkspace") &&
-      `checked ${plural(n("readWorkspace"), "Workspace", "Workspaces")}`,
+      `checked ${plural(n("readWorkspace"), "workspace", "workspaces")}`,
     n("viewFrame") && `viewed ${plural(n("viewFrame"), "frame", "frames")}`,
     n("listChanges") && "listed changes",
     n("canvas") && "changed the canvas",

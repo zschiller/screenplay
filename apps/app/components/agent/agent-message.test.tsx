@@ -453,7 +453,7 @@ describe("AgentMessageItem — frame drive steps", () => {
       code: "/settings",
     })
     expect(row("frame_start_driving", { pace: "show" })).toMatchObject({
-      line: expect.stringContaining("Start driving"),
+      line: expect.stringContaining("Take control"),
       code: null,
     })
   })

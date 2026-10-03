@@ -32,7 +32,7 @@ const execFileAsync = promisify(execFile)
  * guard keeps a stray call from ever touching host state on a server.
  */
 
-const NOT_LOCAL = "Only available on the local desktop build"
+const NOT_LOCAL = "This only works in the desktop app."
 
 export interface GitHubLocalStatus {
   /** Where the resolver is currently getting a token (`null` = no API access). */

@@ -38,14 +38,14 @@ function describeDeletion(
 ): string {
   if (deletedCount === 0) {
     return (
-      "This folder and all of its sub-folders will be deleted. " +
-      "This cannot be undone."
+      "This folder and all of its subfolders will be deleted. " +
+      "You can't undo this."
     )
   }
 
   let body =
     `Deleting this folder permanently deletes ${countOf(deletedCount, "canvas", "canvases")}, ` +
-    "along with all of their sub-folders and contents. This cannot be undone."
+    "along with all of their subfolders and contents. You can't undo this."
 
   if (sharedOwnedCount > 0) {
     body +=

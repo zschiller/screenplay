@@ -62,7 +62,7 @@ const OWNER_LABELS: Record<OwnerFilter, string> = {
  * The canvas list with New canvas and the grid/table toggle. There's no sort
  * menu: the table's column headers set the order, and the grid keeps whatever
  * the table last picked for this surface (last edited until then).
- * `showFolders` adds the folder section + "Add folder" button — on for All
+ * `showFolders` adds the folder section + "New folder" button — on for All
  * files, off for Recents, which stays a flat cross-folder recency view
  * (PRD #475).
  */
@@ -141,14 +141,14 @@ export function RoomsView({
           )}
 
           {showFolders && (
-            <HomeToolbarTooltip label="Add folder">
+            <HomeToolbarTooltip label="New folder">
               <Button
                 variant="outline"
-                aria-label="Add folder"
+                aria-label="New folder"
                 onClick={() => setNewFolderOpen(true)}
               >
                 <FolderPlusIcon />
-                <HomeToolbarLabel>Add folder</HomeToolbarLabel>
+                <HomeToolbarLabel>New folder</HomeToolbarLabel>
               </Button>
             </HomeToolbarTooltip>
           )}
@@ -211,7 +211,7 @@ export function RoomsView({
             <EmptyState
               icon={<FolderOpenIcon />}
               title="This folder is empty"
-              description="Add a folder or a canvas to fill it."
+              description="Create a folder or a canvas to fill it."
               onCreate={newCanvas}
               creating={creating}
             />

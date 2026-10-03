@@ -317,11 +317,11 @@ describe("CanvasSettingsDialog", () => {
     )
 
     const confirm = await screen.findByRole("alertdialog")
-    expect(within(confirm).getByText("Turn off “storefront”?")).not.toBeNull()
+    expect(within(confirm).getByText("Remove “storefront”?")).not.toBeNull()
     expect(within(confirm).getByText(/Its workspace is removed/)).not.toBeNull()
     expect(within(confirm).getByText("Checkout polish")).not.toBeNull()
     expect(onRemoveRepo).not.toHaveBeenCalled()
-    fireEvent.click(within(confirm).getByRole("button", { name: "Turn off" }))
+    fireEvent.click(within(confirm).getByRole("button", { name: "Remove" }))
 
     await waitFor(() =>
       expect(onRemoveRepo).toHaveBeenCalledWith("r1", {
@@ -386,7 +386,7 @@ describe("CanvasSettingsDialog", () => {
     const form = await screen.findByRole("dialog", {
       name: "Repository settings",
     })
-    fireEvent.change(within(form).getByLabelText("Label"), {
+    fireEvent.change(within(form).getByLabelText("Name"), {
       target: { value: "web" },
     })
     fireEvent.click(within(form).getByRole("button", { name: "Save" }))

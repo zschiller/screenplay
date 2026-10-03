@@ -68,7 +68,7 @@ describe("between people, the driver lets you drive", () => {
     })
   })
 
-  it("hands over on Let drive", () => {
+  it("hands over on Give control", () => {
     const record = run(
       [
         { type: "request", by: "ben", at: 1 },

@@ -692,7 +692,7 @@ class ChatStore {
         if (body?.error === "not_steerable") return { kind: "not-steerable" }
         if (body?.error === "session_terminated") {
           throw new Error(
-            "This chat's session has ended and can't be resumed. Please start a new chat to continue."
+            "This chat can't continue. Start a new chat to keep going."
           )
         }
       }

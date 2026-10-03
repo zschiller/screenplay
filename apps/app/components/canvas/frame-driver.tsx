@@ -87,7 +87,7 @@ function ControlRequests({
         >
           <PersonMark person={person} />
           <span className="min-w-0 flex-1 truncate pr-2">
-            {person.name} asks to drive
+            {person.name} asks for control
           </span>
           <Button
             size="sm"
@@ -97,7 +97,7 @@ function ControlRequests({
             Not now
           </Button>
           <Button size="sm" onClick={() => onGrant(person.id)}>
-            Let drive
+            Give control
           </Button>
         </div>
       ))}
@@ -135,10 +135,10 @@ export function FrameDriverButton({
     const name = driver.kind === "agent" ? AGENT_NAME : driver.name
     return (
       <FloatingToolbarButton
-        label={`${name} is driving`}
+        label={`${name} has control`}
         hint={
           driver.kind === "agent"
-            ? "Click to take over"
+            ? "Click to take control"
             : asked
               ? "Asked for control. Click to cancel"
               : "Click to ask for control"
@@ -184,7 +184,7 @@ export function FrameDriverButton({
 }
 
 /**
- * "Agent is driving" on the frame's title line, right-aligned to the frame,
+ * "Agent has control" on the frame's title line, right-aligned to the frame,
  * in the title's type, on the driver's colour: ink for the agent, a person's
  * cursor colour for them. Shown whether or not the frame is selected, so a
  * busy frame reads from across the canvas.
@@ -197,7 +197,7 @@ export function FrameDriverTag({ driver }: { driver: FrameDriverView }) {
         className="flex h-[18px] shrink-0 items-center gap-1 rounded bg-foreground px-1.5 text-xs font-medium whitespace-nowrap text-background"
       >
         <GripSpinner className="size-3" />
-        {AGENT_NAME} is driving
+        {AGENT_NAME} has control
       </span>
     )
   }
@@ -208,7 +208,7 @@ export function FrameDriverTag({ driver }: { driver: FrameDriverView }) {
         className={`flex h-[18px] shrink-0 items-center rounded px-1.5 text-xs font-medium whitespace-nowrap ${presenceInkClass(driver.color)}`}
         style={{ backgroundColor: driver.color }}
       >
-        {driver.name} is driving
+        {driver.name} has control
       </span>
     )
   }

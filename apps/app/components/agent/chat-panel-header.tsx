@@ -6,7 +6,7 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 
 /**
- * The chat panel's 48px header row, led by the Collapse chat button (⌘I). Every
+ * The chat panel's 48px header row, led by the Hide chat button (⌘I). Every
  * state of the panel draws this row — a Workspace or document chat, the
  * Coordinator, the no-repository empty state and the player's placeholder — so
  * the button sits in the same spot whatever the panel shows, and a change to
@@ -30,7 +30,7 @@ export function ChatPanelHeader({
       )}
     >
       <IconButton
-        label="Collapse chat"
+        label="Hide chat"
         shortcut="⌘I"
         tooltipSide="left"
         className="mr-1.5 text-muted-foreground"

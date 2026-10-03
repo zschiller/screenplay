@@ -56,7 +56,7 @@ interface LayerTitleBarProps {
   /** Layer-specific content rendered below the GroupLabel slot. Typically a
    *  title row plus accessories (HMR dot, route picker, branch picker, …). */
   children?: React.ReactNode
-  /** Right-aligned to the layer on the title row, e.g. "Agent is driving"
+  /** Right-aligned to the layer on the title row, e.g. "Agent has control"
    *  (#1387). The title row truncates before it does. */
   tag?: React.ReactNode
 }

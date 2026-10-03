@@ -266,7 +266,7 @@ describe("summarizeSteps", () => {
       }),
       call("4", { title: "Tool: screenplay/list_changes" }),
     ])
-    expect(text).toBe("Read the canvas, checked 1 Workspace, listed changes")
+    expect(text).toBe("Read the canvas, checked 1 workspace, listed changes")
   })
 
   it("counts reads, edits and commands, each file once", () => {

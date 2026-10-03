@@ -68,7 +68,7 @@ export const CORE_SCREENS: Screen[] = [
   {
     name: "settings-coding-agents",
     description:
-      "Settings → Coding agents: the default agent and one row per CLI.",
+      "Settings → Agent: the default model and one row per coding agent.",
     path: "/settings?section=coding-agents",
     fullPage: true,
   },

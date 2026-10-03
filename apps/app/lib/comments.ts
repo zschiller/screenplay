@@ -33,7 +33,7 @@ const commentsEnabled = !isLocalBuild
 
 function requireCommentsEnabled(): void {
   if (!commentsEnabled) {
-    throw new Error("Comments are not available in the local build")
+    throw new Error("Comments aren't in the desktop app yet.")
   }
 }
 

@@ -34,7 +34,7 @@ In a workspace the header reads **Coordinator / _workspace_**: click
 **Coordinator** to go back. The workspace's name with its status icon only
 says where you are; hover it for the workspace's
 [hover card](/guides/workspaces#the-hover-card). To its right are the
-workspace's **+/−** diff and a **Create PR** button (see
+workspace's **+/−** diff and a **Create pull request** button (see
 [Pull requests](/guides/workspaces#pull-requests)).
 
 ## Chats with no repository
@@ -150,7 +150,7 @@ and the message waits in a **Queued** row above the composer, where you can
 
 The model menu sits at the bottom left of the composer and names the current
 model; its list groups models under their coding CLI. New chats start with
-the default agent and model from [Settings](/guides/settings#coding-agents-desktop).
+the default agent and model from [Settings](/guides/settings#agent-desktop).
 Changing the model in a chat changes only that chat, and the menu shows
 **· not default** when it differs. You can switch at any point in a chat: the
 new model answers from your next message on, with the whole conversation so far.
@@ -251,30 +251,30 @@ chats running on Claude Code, Codex or OpenCode.
 Agent replies stream in as they're written. Each tool call is a compact row
 you can expand for details:
 
-| Row                                | Meaning                                      |
-| ---------------------------------- | -------------------------------------------- |
-| **Read** _n_ lines `path`          | Read a file                                  |
-| **Edit** / **Write** `path`        | Changed a file (expand to see the diff)      |
-| **Run command** `command`          | Ran a shell command in the sandbox           |
-| **List files**, **Grep**, **Glob** | Searched the code                            |
-| **Read skill** `name`              | Loaded a skill's instructions                |
-| **Read dev server logs**           | Read the dev server's recent output          |
-| **Restart dev server**             | Restarted the workspace's dev server         |
-| **Stop dev server**                | Stopped the workspace's dev server           |
-| **Run dev server**                 | Started a stopped dev server again           |
-| **View frame**                     | Took a screenshot of a frame                 |
-| **Read frame HTML**                | Read the page in a frame as HTML             |
-| **Start driving**                  | Started driving a frame or mockup            |
-| **Open frame**                     | Opened a frame to drive (desktop app)        |
-| **Read frame elements**            | Read what can be acted on in a frame         |
-| **Look at frame**                  | Looked at a frame as you see it              |
-| **Click**, **Type**, **Press key** | Drove a frame (desktop app)                  |
-| **Scroll**, **Drag**, **Hover**    | Drove a frame (desktop app)                  |
-| **Pick option**                    | Picked from a dropdown in a frame            |
-| **Read document**                  | Read a document on the canvas                |
-| **Create PR**                      | Opened a pull request (shown as a link card) |
-| **Submit plan**                    | Presented a plan for approval                |
-| A question with options            | Asked you to pick an option                  |
+| Row                                | Meaning                                          |
+| ---------------------------------- | ------------------------------------------------ |
+| **Read** _n_ lines `path`          | Read a file                                      |
+| **Edit** / **Write** `path`        | Changed a file (expand to see the diff)          |
+| **Run command** `command`          | Ran a shell command in the sandbox               |
+| **List files**, **Grep**, **Glob** | Searched the code                                |
+| **Read skill** `name`              | Loaded a skill's instructions                    |
+| **Read dev server logs**           | Read the dev server's recent output              |
+| **Restart dev server**             | Restarted the workspace's dev server             |
+| **Stop dev server**                | Stopped the workspace's dev server               |
+| **Start dev server**               | Started a stopped dev server again               |
+| **View frame**                     | Looked at a frame's preview, or its last capture |
+| **Read frame HTML**                | Read the page in a frame as HTML                 |
+| **Take control**                   | Took control of a frame or mockup                |
+| **Open frame**                     | Opened a frame to drive (desktop app)            |
+| **Read frame elements**            | Read what can be acted on in a frame             |
+| **Screenshot frame**               | Took a screenshot of a frame while driving it    |
+| **Click**, **Type**, **Press key** | Drove a frame (desktop app)                      |
+| **Scroll**, **Drag**, **Hover**    | Drove a frame (desktop app)                      |
+| **Pick option**                    | Picked from a dropdown in a frame                |
+| **Read document**                  | Read a document on the canvas                    |
+| **Create pull request**            | Opened a pull request (shown as a link card)     |
+| **Submit plan**                    | Presented a plan for approval                    |
+| A question with options            | Asked you to pick an option                      |
 
 Failed calls are marked in red and always show the error, or say that none
 was reported. Once a turn finishes, its tool calls fold behind one summary
@@ -315,8 +315,8 @@ workspace's title; see [Titles](/guides/workspaces#titles) for when it does.
 
 <Callout type="info">
   **"No coding agent found"** on desktop means no supported CLI is installed.
-  Install one from **Settings → Coding agents** (the composer links there); it
-  shows up without a restart.
+  Install one from **Settings → Agent** (the composer links there); it shows up
+  without a restart.
 </Callout>
 
 ## When something fails

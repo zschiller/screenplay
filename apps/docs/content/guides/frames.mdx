@@ -37,7 +37,7 @@ view, so hot reload, client-side routing, and app state all work as normal.
   />
 
 - Press <kbd>Esc</kbd> or click elsewhere to skip the question. The frame
-  stays and shows **No Workspace**. Click **Start a chat** in it to ask again,
+  stays and shows **No workspace**. Click **Start a chat** in it to ask again,
   or pick a workspace for it from its title (**Choose a workspace**).
 
   <Screenshot
@@ -98,7 +98,7 @@ it. From left to right:
 | Button                | What it does                                                                                                                                                                                                                                                                                                                                          |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Back**, **Forward** | Step through the routes this frame has shown.                                                                                                                                                                                                                                                                                                         |
-| **Address**           | The frame's Workspace and route. Click the route to type a new one. **Reload** reloads the preview, and is highlighted when hot reload has disconnected.                                                                                                                                                                                              |
+| **Address**           | The frame's workspace and route. Click the route to type a new one. **Reload** reloads the preview, and is highlighted when hot reload has disconnected.                                                                                                                                                                                              |
 | **Record flow**       | Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. The address turns red with a screen count while recording.                                                                                                  |
 | **Interact**          | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it, though <kbd>Space</kbd>-drag outside it still pans. Double-clicking a frame does the same. The button and the frame's outline turn pink, and <kbd>Esc</kbd> (even from inside the preview) or a click outside the frame returns to the canvas. |
 | **Knobs**             | Live controls your app declares. See [Knobs](#knobs).                                                                                                                                                                                                                                                                                                 |
@@ -120,7 +120,7 @@ and leaving it lets go.
 
 When the agent drives a frame, the frame shows it:
 
-- **Agent is driving** sits on the frame's title line, at its right edge.
+- **Agent has control** sits on the frame's title line, at its right edge.
 - An unselected frame gets a 2px ring, so you can spot it
   from across the canvas.
 - Selected, the Interact button shows the agent's dots instead of the cursor,
@@ -128,7 +128,7 @@ When the agent drives a frame, the frame shows it:
 
 <Screenshot
   name="frame-claude-driving"
-  alt="A frame with the Agent is driving tag on its title line and a dark ring around it"
+  alt="A frame with the Agent has control tag on its title line and a dark ring around it"
 />
 
 <Screenshot
@@ -142,7 +142,7 @@ you leave Interact, the agent carries on if it asked to.
 
 <Screenshot
   name="frame-tooltip-take-over"
-  alt="The driver button's tooltip: Agent is driving, then Click to take over"
+  alt="The driver button's tooltip: Agent has control, then Click to take control"
 />
 
 ### Shared frames
@@ -152,22 +152,22 @@ sandbox, and everyone who has the frame on screen watches that same browser.
 Two people looking at a frame see the same page in the same state, and when
 one of them clicks through it the others watch it happen live.
 
-Whoever drives the frame is the only one whose clicks, keys and scrolling
-reach it. Press Interact on a frame nobody drives to pick it up. On a frame
-someone else drives, nothing you do reaches the page: its title line says who
-is driving, and the Interact button shows their avatar.
+Whoever has control of the frame is the only one whose clicks, keys and
+scrolling reach it. Press Interact on a frame nobody controls to take control.
+On a frame someone else controls, nothing you do reaches the page: its title
+line says who has control, and the Interact button shows their avatar.
 
 #### Asking for control
 
-To take a turn on a frame someone else drives, click the Interact button
-(its tooltip says **Click to ask for control**). The person driving sees your
-ask under their Interact button and picks **Let drive** or **Not now**. When
-they let you drive, the frame is yours and you're interacting with it. Click
-the button again to take your ask back.
+To take a turn on a frame someone else controls, click the Interact button
+(its tooltip says **Click to ask for control**). The person with control sees
+your ask under their Interact button and picks **Give control** or **Not
+now**. When they give you control, the frame is yours and you're interacting
+with it. Click the button again to take your ask back.
 
 <Screenshot
   name="frame-control-requests"
-  alt="Under the Interact button, Ana asks to drive and Ben asks to drive, each with Not now and Let drive"
+  alt="Under the Interact button, Ana asks for control and Ben asks for control, each with Not now and Give control"
 />
 
 When several people ask at once, the driver sees each of them and picks one;
@@ -233,7 +233,7 @@ How it drives depends on how you ask:
 Each step shows up in the chat as a short line, like **Click** `Save`,
 **Hover** `Info` or **Type** `ada@example.com`, so you can see where it went if something goes
 wrong. When no frame shows what it needs, or you're using the one there,
-the agent opens a new frame beside its Workspace's other frames instead of taking
+the agent opens a new frame beside its workspace's other frames instead of taking
 yours over.
 
 - **Asking is the go-ahead.** Asking the agent in the chat lets it drive, even
@@ -341,8 +341,8 @@ frame and synced to everyone.
 
 While there's no live page, a frame shows where its workspace is:
 
-- **No Workspace** until you pick one for the frame.
-- **Booting sandbox**, then **Starting dev server**, while the workspace boots.
+- **No workspace** until you pick one for the frame.
+- **Setting up the workspace**, then **Starting dev server**, while the workspace starts.
 - **Workspace failed to start** if setup failed, and **Dev server not
   responding** if the server doesn't answer in time. Both offer **Retry** and
   **Open logs**.

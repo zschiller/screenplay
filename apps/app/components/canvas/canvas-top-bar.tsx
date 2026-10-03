@@ -102,7 +102,7 @@ export function CanvasTopBar({
       >
         {sidebarCollapsed && (
           <IconButton
-            label="Expand sidebar"
+            label="Show sidebar"
             shortcut="⌘B"
             tooltipSide="bottom"
             onClick={() => sidebarPanelRef.current?.expand()}

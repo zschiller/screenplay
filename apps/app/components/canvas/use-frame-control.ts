@@ -39,7 +39,7 @@ export type FrameDriverView =
       avatar?: string
     }
 
-/** A person waiting for the driver's Let drive, as the request popover
+/** A person waiting for the driver's Give control, as the request popover
  *  draws them. */
 export type FrameRequesterView = {
   id: string
@@ -66,7 +66,7 @@ export interface FrameControlDeps {
   focusedId: string | null
   setFocusedId: Dispatch<SetStateAction<string | null>>
   /**
-   * Take the driver's seat on a frame this viewer was handed (Let drive, a
+   * Take the driver's seat on a frame this viewer was handed (Give control, a
    * driver who left, a reload). Interact needs the frame selected, so the
    * canvas selects it as well. Defaults to `setFocusedId`.
    */
@@ -87,7 +87,7 @@ export interface FrameControl {
   requestsOf(layerId: string): FrameRequesterView[]
   /** Whether this viewer asked the person driving for control. */
   askedFor(layerId: string): boolean
-  /** Let drive: hand the frame to a person who asked. */
+  /** Give control: hand the frame to a person who asked. */
   grant(layerId: string, to: string): void
   /** Not now: turn a person's request down. */
   decline(layerId: string, to: string): void
@@ -108,8 +108,8 @@ export interface FrameControl {
  *   asks to drive; leaving it (Esc, a deselect, the button) lets go. A stale
  *   seat, from a tab that closed while interacting, is let go on load.
  * - When someone else takes the frame while this viewer interacts (the asker
- *   handing it to the agent from chat, Let drive), Interact ends.
- * - When the frame is handed to this viewer (Let drive, a driver who left),
+ *   handing it to the agent from chat, Give control), Interact ends.
+ * - When the frame is handed to this viewer (Give control, a driver who left),
  *   Interact starts. A shared frame's driver who reloads takes the seat back:
  *   the grace period kept it for them.
  * - Someone a record names who hasn't shown up in awareness yet gets the

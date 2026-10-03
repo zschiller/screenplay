@@ -68,8 +68,8 @@ export function KnobsPopover({
             <div className="flex flex-col gap-2 text-xs text-muted-foreground">
               <p className="font-medium text-foreground">No knobs yet</p>
               <p>
-                Knobs let you tweak this prototype live, like a slider for the
-                card padding.
+                Knobs let you adjust this page live, like a slider for card
+                padding.
               </p>
               {onAskForKnob ? (
                 <Button

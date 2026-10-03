@@ -95,9 +95,9 @@ export interface EnvVarsAccess {
 /** What the env field says under it, by who's looking. Kept to what's true:
  *  values are hidden in settings, not out of reach of the Workspace. */
 function envVarsDescription(access: EnvVarsAccess | undefined): string {
-  const base = "One KEY=value per line, injected into each workspace"
+  const base = "One KEY=value per line. Every workspace gets them."
   if (!access) return base
-  if (access.owned) return `${base}. Only you can see the values.`
+  if (access.owned) return `${base} Only you can see the values.`
   if (access.names.length === 0) return base
   return "Only the person who added this repository can see the values. Add KEY=value here to set your own on this canvas."
 }
@@ -156,7 +156,7 @@ export function RepoSettingsFields({
               className="font-mono"
             />
             <FieldDescription>
-              Runs once when a workspace is created
+              Runs once when a workspace is set up.
             </FieldDescription>
           </Field>
 
@@ -170,7 +170,7 @@ export function RepoSettingsFields({
               className="font-mono"
             />
             <FieldDescription>
-              Starts the dev server for each frame
+              Starts the dev server your frames preview.
             </FieldDescription>
           </Field>
 
@@ -194,7 +194,7 @@ export function RepoSettingsFields({
                 className="font-mono"
               />
               <FieldDescription>
-                Port your dev server binds to (1–65535)
+                The port your dev server listens on.
               </FieldDescription>
             </Field>
           )}
@@ -221,7 +221,8 @@ export function RepoSettingsFields({
                   className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
                 />
                 <FieldDescription>
-                  Glob patterns from your checkout, one per line
+                  Files from your folder to copy into each workspace, like
+                  .env. One pattern per line.
                 </FieldDescription>
               </Field>
             ) : (
@@ -296,24 +297,24 @@ export function RepoSettingsFields({
               value={defaultIframeLayerSizeId}
               onChange={onDefaultIframeLayerSizeIdChange}
             />
-            <FieldDescription>Size new frames open at</FieldDescription>
+            <FieldDescription>The size new frames open at.</FieldDescription>
           </Field>
 
           <Field>
             <FieldLabel htmlFor={`${idPrefix}-system-prompt`}>
-              System prompt
+              Agent instructions
             </FieldLabel>
             <Textarea
               id={`${idPrefix}-system-prompt`}
               value={systemPrompt}
               onChange={(e) => onSystemPromptChange(e.target.value)}
-              placeholder="This config targets the Next.js app under apps/web. Treat apps/web as the app root."
+              placeholder="Work in the Next.js app under apps/web."
               rows={4}
               className="[field-sizing:fixed] max-w-full resize-y text-xs"
             />
             <FieldDescription>
-              Appended to the agent&apos;s instructions — handy for monorepo
-              context
+              Extra instructions for the agent in this repository, like which
+              app folder to work in.
             </FieldDescription>
           </Field>
 
@@ -327,11 +328,10 @@ export function RepoSettingsFields({
                 id={`${idPrefix}-preset-name`}
                 value={presetName ?? ""}
                 onChange={(e) => onPresetNameChange(e.target.value)}
-                placeholder="default"
               />
               <FieldDescription>
-                Optional, e.g. “web” or “api” — tells apart two repositories
-                from the same git repository
+                Optional. A short name like “web” or “api”, to tell apart two
+                setups of one repository.
               </FieldDescription>
             </Field>
           )}

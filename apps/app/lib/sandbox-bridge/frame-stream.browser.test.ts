@@ -329,6 +329,14 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     const first = await a.waitFor(() => a.videos.find((v) => v.frame === "f1"))
     expect(first.key).toBe(true)
     expect(h264CodecOf(first.data)).toMatch(/^avc1\.42/)
+    // It says its colours, matching what viewers' decoders are told.
+    const probe = execFileSync(
+      "ffprobe",
+      ["-v", "error", "-show_streams", "-f", "h264", "-"],
+      { input: Buffer.from(first.data) }
+    ).toString()
+    expect(probe).toContain("color_space=smpte170m")
+    expect(probe).toContain("color_range=tv")
 
     // A viewer who joins mid-stream also starts at a keyframe.
     const b = await connect("ben")
