@@ -47,11 +47,11 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
     placeholder: "Ask the Coordinator… (@ document)",
     emptyTitle: "Ask about this canvas",
     emptyBody:
-      "The Coordinator sees every workspace, frame and document on this canvas.",
+      "The Coordinator sees every chat, frame and document on this canvas.",
     starters: [
       "What's on this canvas?",
-      "Which workspaces have a PR?",
-      "What changed in each workspace?",
+      "Which chats have a PR?",
+      "What changed in each chat?",
     ],
   },
   // A chat with no repository writes pages, not code.

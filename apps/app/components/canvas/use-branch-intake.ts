@@ -824,7 +824,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             error: err instanceof Error ? err.message : undefined,
           }))
           if (!result.success) {
-            toast.warning("Workspace deleted. Its branch is still on GitHub.", {
+            toast.warning("Chat deleted. Its branch is still on GitHub.", {
               description: "Delete it on GitHub if you don't need it.",
             })
           }

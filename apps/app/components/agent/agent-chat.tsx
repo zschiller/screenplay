@@ -501,7 +501,7 @@ export function AgentChat({
       {onOpenWorkspaceChat ? (
         <div className="flex items-center gap-3 border-t border-border p-3 text-sm text-muted-foreground">
           <p className="min-w-0 flex-1 text-balance">
-            An earlier chat, kept to read. This workspace continues in its chat.
+            An earlier chat, kept to read. Work continues in the newest chat.
           </p>
           <Button
             type="button"

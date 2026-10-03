@@ -583,7 +583,7 @@ export function ChatsMenuProvider({
           if (!next) setPendingRenameBranchId(null)
         }}
         title="Rename branch"
-        description="Renames the git branch. The workspace keeps its title."
+        description="Renames the git branch. The chat keeps its title."
         initialValue={renameBranch?.ref ?? ""}
         submitLabel="Rename"
         submittingLabel="Renaming…"
@@ -1266,7 +1266,7 @@ function WorkspaceMenuRow({
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <IconButton
-              label="Workspace options"
+              label="Chat options"
               className="relative text-muted-foreground"
             >
               <DotsThreeIcon />

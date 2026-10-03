@@ -19,6 +19,12 @@ any common noun: canvas, repository, workspace, frame, mockup, document, chat.
 Only **Coordinator** keeps its capital. A label or sentence that starts with
 one capitalises it as usual ("Workspace stopped", the Mockup tool).
 
+**Chat or workspace in UI copy.** A chat is the thing people start, find,
+rename, delete and pick: New chat, the Chats menu, Chat options, Search chats.
+"Workspace" only names the code copy a chat works in: setup, the dev server,
+and what a frame shows ("Choose a workspace", "The workspace is still
+starting…").
+
 ## Language
 
 **Room**:

@@ -181,7 +181,7 @@ const toolLabels: Record<string, string> = {
   submit_plan: "Submit plan",
   read_document: "Read document",
   read_canvas: "Read canvas",
-  read_workspace_chat: "Read workspace chat",
+  read_workspace_chat: "Read chat",
   read_workspace_diff: "Read workspace diff",
   read_workspace_file: "Read workspace file",
   read_code_file: "Read code",
@@ -216,10 +216,10 @@ const toolLabels: Record<string, string> = {
   list_changes: "List changes",
   undo_changes: "Undo changes",
   show_on_canvas: "Show on canvas",
-  create_workspaces: "Create workspaces",
-  stop_workspace: "Stop workspace",
+  create_workspaces: "Start chats",
+  stop_workspace: "Stop chat",
   open_pull_request: "Create pull request",
-  remove_workspace: "Remove workspace",
+  remove_workspace: "Delete chat",
   ask_question: "Ask a question",
 }
 

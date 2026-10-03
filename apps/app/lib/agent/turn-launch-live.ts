@@ -412,13 +412,13 @@ async function launchDelegatedTurn(
     })
   )
   if (result.kind === "target-not-found") {
-    throw new Error("The workspace is gone.")
+    throw new Error("The chat is gone.")
   }
   if (result.kind === "plan-already-resolved") {
-    throw new Error("The workspace's plan changed while sending. Try again.")
+    throw new Error("The chat's plan changed while sending. Try again.")
   }
   if (result.kind === "not-steerable") {
-    throw new Error("The workspace is busy. Try again once its turn ends.")
+    throw new Error("The chat is busy. Try again once its turn ends.")
   }
 }
 

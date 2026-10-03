@@ -346,8 +346,7 @@ function RepositoriesSection({
             </EmptyMedia>
             <EmptyTitle>No repositories yet</EmptyTitle>
             <EmptyDescription>
-              Workspaces run a repository&apos;s code. Set one up to start a
-              workspace on this canvas.
+              Add one to start chats that work on its code.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>{newButton}</EmptyContent>

@@ -122,9 +122,9 @@ describe("read_canvas", () => {
     expect(summary).toContain(
       '- [ws-1] "Fix sign-in redirect" · branch fix-sign-in · acme/web · working · +18 −3 · PR #12 open'
     )
-    // No title: "New workspace", never the branch; no turns yet: fresh (#1182).
+    // No title: "New chat", never the branch; no turns yet: fresh (#1182).
     expect(summary).toContain(
-      '- [ws-2] "New workspace" · branch dark-mode · acme/web · starting · fresh (no turns yet)'
+      '- [ws-2] "New chat" · branch dark-mode · acme/web · starting · fresh (no turns yet)'
     )
     expect(summary).toContain(
       '- [frame-1] "Frame" · /settings · 1280×800 · Workspace ws-1'
@@ -443,7 +443,7 @@ describe("send_to_workspace", () => {
 
     const result = await send({ workspace_id: "ws-1", message: "Make it pink" })
 
-    expect(result).toContain('Queued for "New workspace" [chat chat-1]')
+    expect(result).toContain('Queued for "New chat" [chat chat-1]')
     // Sent by provisioning once the sandbox runs, not now.
     expect(launched).toEqual([])
     expect(collections.branches.get("ws-1")?.pendingSeed).toEqual({

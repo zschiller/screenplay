@@ -1729,7 +1729,7 @@ export function Canvas({
         if (!sent) {
           const agent = agents.find((a) => a.id === answerer.branchId)
           toast.error(
-            `${agent ? workspaceLabel(agent) : "That workspace"} isn't running yet. Ask again once it is.`
+            `${agent ? workspaceLabel(agent) : "That chat"} isn't running yet. Ask again once it is.`
           )
         }
         return
@@ -1782,7 +1782,7 @@ export function Canvas({
         if (!chatId) {
           const agent = agents.find((a) => a.id === answerer.branchId)
           toast.error(
-            `${agent ? workspaceLabel(agent) : "That workspace"} isn't running yet. Ask again once it is.`
+            `${agent ? workspaceLabel(agent) : "That chat"} isn't running yet. Ask again once it is.`
           )
           return
         }

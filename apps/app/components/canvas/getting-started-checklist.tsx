@@ -19,7 +19,7 @@ import type {
 const STEPS: { key: GettingStartedStep; title: string }[] = [
   { key: "project", title: "Add a repository" },
   { key: "ask", title: "Ask the Coordinator for a change" },
-  { key: "open", title: "Open the workspace" },
+  { key: "open", title: "Open the chat" },
 ]
 
 /**
@@ -186,7 +186,7 @@ function StepBody({
             variant="outline"
             onClick={() => onOpenWorkspace(branch.id)}
           >
-            Open workspace
+            Open chat
           </Button>
         </div>
       )}
