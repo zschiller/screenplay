@@ -426,7 +426,7 @@ function RepositoriesSection({
                 Manage in Settings
               </Link>
             </Button>
-            {newButton}
+            <NewRepositoryButton flow={addRepository} variant="outline" />
           </div>
         </>
       )}
@@ -524,7 +524,7 @@ function RunScripts({
   if (scripts.length === 0) return "No scripts set"
   return scripts.map((script, i) => (
     <span key={i}>
-      {i > 0 && <span className="mx-1">·</span>}
+      {i > 0 && <span className="mx-1.5">·</span>}
       <code className="font-mono text-xs">{script}</code>
     </span>
   ))

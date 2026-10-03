@@ -74,8 +74,8 @@ export function MockupStatusMark({ status }: { status: MockupStatus }) {
 /**
  * The status at the end of a Mockup's label (#1310), opening the stock radio
  * menu. Styled like the frame label's "Set workspace" chooser (muted text and
- * an up-down caret), with the status's icon in front. A set-aside Mockup also
- * strikes its name through (see `MockupLayer`).
+ * an up-down caret shown on hover), with the status's icon in front. A
+ * set-aside Mockup also strikes its name through (see `MockupLayer`).
  */
 export function MockupStatusMenu({
   status,
@@ -92,7 +92,7 @@ export function MockupStatusMenu({
           type="button"
           aria-label={`Status: ${MOCKUP_STATUS_LABELS[status]}`}
           className={cn(
-            "flex shrink-0 items-center text-xs outline-none focus-visible:outline-none",
+            "group flex shrink-0 items-center text-xs outline-none focus-visible:outline-none",
             statusColor(status)
           )}
           // Keep the press off the label's drag and select handlers.
@@ -103,7 +103,8 @@ export function MockupStatusMenu({
           <span>{MOCKUP_STATUS_LABELS[status]}</span>
           <CaretUpDownIcon
             aria-hidden
-            className="ml-1 size-3 shrink-0 text-muted-foreground"
+            // Keeps its width at rest so revealing it never moves the name.
+            className="ml-1 size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[state=open]:opacity-100"
           />
         </button>
       </DropdownMenuTrigger>
