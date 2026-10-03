@@ -39,7 +39,10 @@ import {
 } from "@/lib/add-repo/resolver"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { listRepoConfigs, upsertRepoConfig } from "@/lib/repo-configs-actions"
+import {
+  listRepositories,
+  saveRepository,
+} from "@/lib/repository-library/actions"
 
 /** A human-readable label for a picker pick, for the settings-stage header. */
 function pickLabel(pick: RepoPickerSelection): string {
@@ -131,7 +134,7 @@ export function useAddRepositoryFlow() {
   useEffect(() => {
     if (pickerView !== "repos") return
     let cancelled = false
-    listRepoConfigs().then((list) => {
+    listRepositories().then((list) => {
       if (!cancelled) setSavedConfigs(list)
     })
     return () => {
@@ -382,7 +385,7 @@ export function AddRepositoryDialog({
                   true
                 )
                 if (plan) {
-                  upsertRepoConfig(plan)
+                  saveRepository(plan)
                     .then(setSavedConfigs)
                     .catch(() =>
                       toast.error("Couldn't save these settings as a preset.")

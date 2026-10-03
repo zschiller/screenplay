@@ -77,7 +77,7 @@ _Avoid_ as a code identifier: workspace (collides with the `@workspace/ui`
 package and the everyday meaning), project; "agent" (an agent is the AI, not a
 Repo).
 
-**Repo Config** (Repository preset):
+**Repo Config** (Repository; "Repository preset" until #1421):
 A saved, reusable bundle of a repo's run settings — setup/dev scripts, Dev
 Server Port (hosted) or files-to-copy globs (desktop), env vars, default Iframe
 Layer size, and system prompt. Sourced three ways through one shared picker — a
@@ -92,13 +92,17 @@ added to a single Room more than once as distinct Repos (each from a different
 preset), and the preset name is what tells those instances apart in the sidebar
 — not accidental coupling, the whole reason the field exists. User-private and
 stored encrypted in KV
-(`user-workspace-configs:{userId}`), **never** in a Room's Y.Doc. Its sole job
-is to **seed** a live Repo when that repo is added to a Room: the copy is
-**one-way** — afterwards the Repo (`RepoData`) and the preset diverge, and
-editing either never touches the other. Managed on the homescreen Settings
-surface; `RepoConfig` is the code identifier everywhere. The user-facing label
-tracks the Repo's own label, so it was renamed with it (#883).
-_Shown to users as_: "Repository preset".
+(`user-workspace-configs:{userId}`), **never** in a Room's Y.Doc. It **seeds**
+a live Repo when switched on for a Room, and that Repo records it
+(`RepoData.repositoryId`) plus who switched it on (`RepoData.addedBy`); a Repo
+with no `repositoryId` is **unlinked**. Owned by the **repository library**
+(`lib/repository-library`, spec #1420): callers list, save and delete through it,
+and switch a Repository on or off for a Room through it, never writing the KV or
+`repos` directly. Its one-time per-user migration links existing Repos by
+`repoFullName` + `name` (desktop also creates a Repository for each unmatched
+Repo; hosted leaves them unlinked). Managed on Settings › Repositories;
+`RepoConfig` is the code identifier everywhere.
+_Shown to users as_: "Repository" (in Settings, "your repositories").
 _Avoid_: template (implies scaffolding or cloning the repo's source — a preset
 carries only run settings, not code); calling the live in-Room Repo settings a
 "preset" (the preset is the reusable seed, `RepoData` is the instance it seeds);

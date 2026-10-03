@@ -42,6 +42,16 @@ export type RepoData = {
   /** Display order in the in-room sidebar's repo list. Lower values render
    *  first; unset falls back to alphabetical by `repoFullName`. */
   sidebarOrder?: number
+  /**
+   * The id of the Repository (a person's saved `RepoConfig`) this Repo was
+   * switched on from (#1420). Absent = unlinked: added before the repository
+   * library, or its Repository was deleted. Written only by
+   * `lib/repository-library`.
+   */
+  repositoryId?: string
+  /** The user id of whoever switched this Repo on, so the Canvas can show
+   *  whose settings these are. Absent on Repos added before #1420. */
+  addedBy?: string
 }
 
 export type BranchData = {

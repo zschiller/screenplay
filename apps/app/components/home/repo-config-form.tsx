@@ -17,7 +17,7 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { RepoPicker } from "@/components/repo-picker"
 import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
-import { upsertRepoConfig } from "@/lib/repo-configs-actions"
+import { saveRepository } from "@/lib/repository-library/actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { NewRepoSource } from "@/lib/github-local/types"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
@@ -164,7 +164,7 @@ export function RepoConfigForm({
       updatedAt: now,
     }
     try {
-      const updated = await upsertRepoConfig(config)
+      const updated = await saveRepository(config)
       onSaved(updated)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save")
@@ -211,7 +211,7 @@ export function RepoConfigForm({
       <>
         <div className="flex min-w-0 flex-col gap-3 px-5 pb-5">
           <p className="text-sm text-muted-foreground">
-            Choose a git repository for this preset.
+            Choose a git repository.
           </p>
           {folderMode ? (
             <div className="rounded-lg border">
@@ -299,7 +299,7 @@ export function RepoConfigForm({
       >
         <div className="flex flex-col gap-5 p-5">
           <Field>
-            <FieldLabel htmlFor="config-name">Preset name</FieldLabel>
+            <FieldLabel htmlFor="config-name">Name</FieldLabel>
             <Input
               id="config-name"
               // Just after picking a source, carry on in the name field.
@@ -311,8 +311,8 @@ export function RepoConfigForm({
             <FieldDescription>Optional, e.g. “web” or “api”</FieldDescription>
             {nameCollision && (
               <FieldError>
-                A preset named “{trimmedName || "default"}” already exists for
-                this source.
+                A repository named “{trimmedName || "default"}” already exists
+                for this source.
               </FieldError>
             )}
           </Field>

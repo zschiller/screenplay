@@ -428,7 +428,7 @@ export const INTERACTIONS: Interaction[] = [
       for (const name of [
         "Coding agents",
         "GitHub",
-        "Repository presets",
+        "Repositories",
         "Account",
         "General",
       ]) {

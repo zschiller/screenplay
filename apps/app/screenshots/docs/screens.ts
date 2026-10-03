@@ -593,13 +593,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "settings-presets",
-    description: "Settings → Repository presets.",
-    path: "/settings?section=repository-presets",
+    description: "Settings → Repositories.",
+    path: "/settings?section=repositories",
   }),
   screen({
     name: "preset-form",
-    description: "Editing a Repository preset.",
-    path: "/settings?section=repository-presets",
+    description: "Editing a repository in Settings.",
+    path: "/settings?section=repositories",
     prepare: async (page) => {
       await page.getByRole("button", { name: "Edit" }).first().click()
       await sleep(page, 1200)
