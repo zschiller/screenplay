@@ -172,7 +172,7 @@ async function pageAsk(ask: PageAsk): Promise<unknown> {
         )
         w.released = got.release
         return { window: got.window }
-      }, ask.at ?? null)
+      }, ask.at)
     case "release":
       return page.evaluate(() => {
         const w = window as unknown as { released?: () => void }
@@ -208,10 +208,11 @@ function chromeInput(): NativeInput {
             await page.mouse.move(event.x, event.y)
             break
           case "down":
-            await page.mouse.down({ clickCount: event.clickCount })
+            // CDP counts the clicks itself.
+            await page.mouse.down()
             break
           case "up":
-            await page.mouse.up({ clickCount: event.clickCount })
+            await page.mouse.up()
             break
           case "key": {
             const held = modifierKeys(event)
