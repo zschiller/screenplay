@@ -11,12 +11,27 @@ vi.mock("@/lib/skills/sandbox-index", () => ({
 vi.mock("@/lib/files", async () => {
   const { memoryFileStore } = await import("@/lib/files/store")
   const { canvasFilesOn } = await import("@/lib/files/canvas-files")
+  const { accountFilesOn, listFileIndex, memoryFileListStore } =
+    await import("@/lib/files/account-files")
   const fileStore = memoryFileStore()
   return {
     fileStore,
     canvasFiles: (room: RoomDoc) => canvasFilesOn(room, fileStore),
+    // Account Files (#1521) per person, in memory instead of the KV.
+    accountFiles: (userId: string) => {
+      if (!accountFileLists.has(userId))
+        accountFileLists.set(userId, memoryFileListStore())
+      return accountFilesOn(
+        userId,
+        listFileIndex(accountFileLists.get(userId)!),
+        fileStore
+      )
+    },
   }
 })
+const accountFileLists = vi.hoisted(
+  () => new Map<string, import("@/lib/files/account-files").FileListStore>()
+)
 vi.mock("@/lib/terminal-tabs", () => ({
   listTerminalTabs: vi.fn().mockResolvedValue([]),
 }))
@@ -132,6 +147,7 @@ describe("room chat target", () => {
         memory: [],
         files: [],
         accountMemory: [],
+        accountFiles: [],
       },
       BARE_TOOL_NAMING
     )
@@ -149,6 +165,7 @@ describe("room chat target", () => {
         memory: [],
         files: [],
         accountMemory: [],
+        accountFiles: [],
       },
       BARE_TOOL_NAMING
     )
@@ -299,6 +316,7 @@ describe("the Coordinator only delegates", () => {
         memory: [],
         files: [],
         accountMemory: [],
+        accountFiles: [],
       },
       BARE_TOOL_NAMING
     )
@@ -627,6 +645,160 @@ describe("every kind saves memory", () => {
       expect(await readAccountMemory(kvAccountMemoryStore("ana"))).toEqual([])
       await write(tools, { scope: "canvas", action: "add", text: "Use pnpm." })
       expect(readMemory(collections).map((m) => m.text)).toEqual(["Use pnpm."])
+    })
+  }
+})
+
+/**
+ * Account Files (#1521): each kind saves and opens the sender's own files with
+ * `scope: "account"`, a chat on another canvas started by the same person
+ * lists and reads them, another member never sees them, and a turn nobody
+ * sent has none.
+ */
+describe("account files in every kind", () => {
+  function roomOn(roomId: string): RoomDoc {
+    const { collections } = makeHarness()
+    collections.repos.set("repo-1", baseRepo("repo-1"))
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { repoId: "repo-1", sandboxName: "sb-1" })
+    )
+    return {
+      roomId,
+      readDoc: async (fn) => fn(collections),
+      mutateDoc: async (fn) => fn(collections),
+    }
+  }
+
+  type Sender = { userId: string; senderless?: boolean }
+  const kinds = {
+    Workspace: {
+      tools: (room: RoomDoc, target: Sender) =>
+        toolsetOn(
+          workspaceChatTarget.tools(room, {
+            sandboxName: "sb-1",
+            chatId: "chat-1",
+            ...target,
+          }),
+          "in-process"
+        ),
+      prompt: async (room: RoomDoc, target: Sender) => {
+        const ctx = await workspaceChatTarget.loadContext(room, {
+          sandboxName: "sb-1",
+          chatId: "chat-1",
+          ...target,
+        })
+        return workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
+      },
+    },
+    sketch: {
+      tools: (room: RoomDoc, target: Sender) =>
+        toolsetOn(
+          sketchChatTarget.tools(room, { chatId: "chat-1", ...target }),
+          "in-process"
+        ),
+      prompt: async (room: RoomDoc, target: Sender) => {
+        const ctx = await sketchChatTarget.loadContext(room, {
+          chatId: "chat-1",
+          ...target,
+        })
+        return sketchChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
+      },
+    },
+    Coordinator: {
+      tools: (room: RoomDoc, target: Sender) =>
+        toolsetOn(roomChatTarget.tools(room, target), "in-process"),
+      prompt: async (room: RoomDoc, target: Sender) => {
+        const ctx = await roomChatTarget.loadContext(room, target)
+        return roomChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
+      },
+    },
+  }
+
+  const call = async (
+    tools: ToolSet,
+    name: string,
+    input: Record<string, unknown>
+  ) =>
+    (await tools[name]!.execute!(input, {
+      toolCallId: "t1",
+      messages: [],
+      context: {},
+    })) as string
+
+  for (const [kind, { tools, prompt }] of Object.entries(kinds)) {
+    it(`saves the sender's account file from a ${kind} chat, and their chat on another canvas reads it`, async () => {
+      accountFileLists.clear()
+      const here = roomOn("room-1")
+      const out = await call(tools(here, { userId: "ben" }), "save_file", {
+        scope: "account",
+        path: "style/voice.md",
+        content: "Plain sentences.",
+      })
+      expect(out).toMatch(/^Saved style\/voice\.md/)
+      // Not the canvas's: its own list stays empty.
+      expect(
+        await call(tools(here, { userId: "ben" }), "list_saved_files", {})
+      ).toBe("No saved files yet.")
+
+      const elsewhere = roomOn("room-2")
+      for (const other of Object.values(kinds)) {
+        const there = other.tools(elsewhere, { userId: "ben" })
+        expect(
+          await call(there, "list_saved_files", { scope: "account" })
+        ).toContain("style/voice.md")
+        expect(
+          await call(there, "read_saved_file", {
+            scope: "account",
+            path: "style/voice.md",
+          })
+        ).toBe("Plain sentences.")
+        const text = await other.prompt(elsewhere, { userId: "ben" })
+        expect(text).toContain("Account files (")
+        expect(text).toContain("- style/voice.md")
+      }
+    })
+
+    it(`never shows one member's account files to another in a ${kind} chat`, async () => {
+      accountFileLists.clear()
+      const room = roomOn("room-1")
+      await call(tools(room, { userId: "ben" }), "save_file", {
+        scope: "account",
+        path: "ben.md",
+        content: "Ben's.",
+      })
+      const ana = tools(room, { userId: "ana" })
+      expect(await call(ana, "list_saved_files", { scope: "account" })).toBe(
+        "No saved files yet."
+      )
+      expect(
+        await call(ana, "read_saved_file", { scope: "account", path: "ben.md" })
+      ).toMatch(/^Error: No file/)
+      const text = await prompt(room, { userId: "ana" })
+      expect(text).not.toContain("ben.md")
+    })
+
+    it(`gives a ${kind} turn nobody sent no account files`, async () => {
+      accountFileLists.clear()
+      const room = roomOn("room-1")
+      await call(tools(room, { userId: "ana" }), "save_file", {
+        scope: "account",
+        path: "ana.md",
+        content: "Ana's.",
+      })
+      const wake = tools(room, { userId: "ana", senderless: true })
+      for (const name of ["list_saved_files", "save_file"]) {
+        expect(
+          await call(wake, name, {
+            scope: "account",
+            path: "x.md",
+            content: "x",
+          })
+        ).toMatch(/nobody sent this turn/)
+      }
+      const text = await prompt(room, { userId: "ana", senderless: true })
+      expect(text).not.toContain("ana.md")
+      expect(text).toContain("Account files: nobody sent this turn")
     })
   }
 })
@@ -1049,6 +1221,7 @@ describe("sketchChatTarget (a chat with no repository)", () => {
         memory: [],
         files: [],
         accountMemory: [],
+        accountFiles: [],
       },
       BARE_TOOL_NAMING
     )
@@ -1097,6 +1270,7 @@ describe("every kind's prompt names only tools its turn has", () => {
             memory,
             files: [],
             accountMemory: [],
+            accountFiles: [],
           },
           naming
         ),
@@ -1112,6 +1286,7 @@ describe("every kind's prompt names only tools its turn has", () => {
             memory,
             files: [],
             accountMemory: [],
+            accountFiles: [],
           },
           naming
         ),
@@ -1129,6 +1304,7 @@ describe("every kind's prompt names only tools its turn has", () => {
             memory,
             files: [],
             accountMemory: [],
+            accountFiles: [],
           },
           naming
         ),

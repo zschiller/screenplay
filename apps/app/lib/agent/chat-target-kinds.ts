@@ -11,7 +11,9 @@ import {
   type AccountMemoryStore,
 } from "@/lib/memory/account"
 import { kvAccountMemoryStore } from "@/lib/memory/account-store"
-import type { MemoryData } from "@/lib/types"
+import { accountFiles } from "@/lib/files"
+import type { Files } from "@/lib/files/files"
+import type { FileEntryData, MemoryData } from "@/lib/types"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
 
 /**
@@ -129,6 +131,33 @@ export function accountMemoryStore(target: {
 }): AccountMemoryStore | null {
   const sender = turnSender(target)
   return sender ? kvAccountMemoryStore(sender) : null
+}
+
+/**
+ * The Account Files (#1521) of the person who sent the turn, for its system
+ * prompt: like {@link loadAccountMemory}, `null` on a turn nobody sent, and
+ * a failed read leaves the prompt without entries.
+ */
+export async function loadAccountFiles(
+  senderId: string | null
+): Promise<FileEntryData[] | null> {
+  if (!senderId) return null
+  const listed = await accountFiles(senderId)
+    .list()
+    .catch(() => null)
+  return listed?.ok ? listed.value : []
+}
+
+/**
+ * The files the saved-file tools reach for the `account` scope (#1521): the
+ * turn sender's, or `null` on a turn nobody sent, which refuses the scope.
+ */
+export function accountFilesFor(target: {
+  userId: string
+  senderless?: boolean
+}): Files | null {
+  const sender = turnSender(target)
+  return sender ? accountFiles(sender) : null
 }
 
 /** Who sent a target's turn: its member, unless nobody did. */

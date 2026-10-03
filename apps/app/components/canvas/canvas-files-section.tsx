@@ -58,6 +58,48 @@ export function canvasFileUrl(roomId: string, path: string): string {
   return `/api/canvas-files/${encodeURIComponent(roomId)}/${encoded}`
 }
 
+/** Where one of your Account Files (#1521) is read and deleted: yours only. */
+export function accountFileUrl(path: string): string {
+  const encoded = path.split("/").map(encodeURIComponent).join("/")
+  return `/api/account-files/${encoded}`
+}
+
+/** Delete one of your Account Files, or a folder with everything in it. */
+export async function deleteAccountFile(path: string): Promise<void> {
+  const res = await fetch(accountFileUrl(path), { method: "DELETE" })
+  if (!res.ok) throw new Error("Couldn’t delete it. Try again.")
+}
+
+/**
+ * Where a tree's files are read from: a canvas's (by its Room), or anything
+ * else that serves them by path (your Account Files).
+ */
+export type FileSource =
+  { roomId: string } | { fileUrl: (path: string) => string }
+
+function urlFor(source: FileSource, path: string): string {
+  return "fileUrl" in source
+    ? source.fileUrl(path)
+    : canvasFileUrl(source.roomId, path)
+}
+
+/** What a Files tree says, which changes with whose files they are. */
+export interface FilesCopy {
+  /** The line above the tree; `null` where the section's header says it. */
+  intro: string | null
+  emptyDescription: string
+  /** Who loses a file when it's deleted, e.g. "chats on this canvas". */
+  readers: string
+}
+
+const CANVAS_COPY: FilesCopy = {
+  intro:
+    "Files every chat on this canvas can open. Agents save and organize them.",
+  emptyDescription:
+    "Ask a chat to save a file here, and every chat on this canvas can open it.",
+  readers: "chats on this canvas",
+}
+
 /** Delete a file, or a folder with everything in it, for every member. */
 export async function deleteCanvasFile(
   roomId: string,
@@ -83,21 +125,26 @@ export function fileDetail(
  *
  * On the desktop the files are on the Mac, so Open hands a file to its own
  * app and Reveal in Finder shows a file or folder there (`onDesktop`).
+ *
+ * Settings › Files (#1521) shows your Account Files with the same tree, read
+ * through `fileUrl` instead of a Room, with its own `copy`.
  */
 export function FilesSection({
-  roomId,
   files,
   onDelete,
   onDesktop,
   adderName,
-}: {
-  roomId: string
+  copy = CANVAS_COPY,
+  ...source
+}: FileSource & {
   files: FileEntryData[]
   onDelete: (path: string) => Promise<void>
   /** The desktop's Open and Reveal in Finder; absent on hosted. */
   onDesktop?: (path: string, how: "open" | "reveal") => Promise<void>
   /** "Saved by agent", "Added by you", "Added by Sam". */
   adderName: (entry: FileEntryData) => string
+  /** Canvas settings' copy when absent. */
+  copy?: FilesCopy
 }) {
   const [deleting, setDeleting] = useState<FileTreeNode | null>(null)
   // The folders open in the tree, by path.
@@ -146,9 +193,9 @@ export function FilesSection({
 
   return (
     <>
-      <p className="text-sm text-muted-foreground">
-        Files every chat on this canvas can open. Agents save and organize them.
-      </p>
+      {copy.intro && (
+        <p className="text-sm text-muted-foreground">{copy.intro}</p>
+      )}
       {tree.length === 0 ? (
         <Empty className="flex-none border py-8">
           <EmptyHeader>
@@ -156,10 +203,7 @@ export function FilesSection({
               <FolderIcon />
             </EmptyMedia>
             <EmptyTitle>No files yet</EmptyTitle>
-            <EmptyDescription>
-              Ask a chat to save a file here, and every chat on this canvas can
-              open it.
-            </EmptyDescription>
+            <EmptyDescription>{copy.emptyDescription}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -171,7 +215,7 @@ export function FilesSection({
         </SidebarMenu>
       )}
       <CanvasFileDialog
-        roomId={roomId}
+        {...source}
         entry={opened}
         detail={opened ? fileDetail(opened, adderName) : ""}
         onOpenChange={(open) => {
@@ -186,7 +230,9 @@ export function FilesSection({
         verb="Delete"
         itemName={deleting?.name}
         itemNoun={deleting?.entry.kind ?? "file"}
-        description={deleting ? deleteDescription(deleting) : null}
+        description={
+          deleting ? deleteDescription(deleting, copy.readers) : null
+        }
         onConfirm={async () => {
           if (!deleting) return
           await onDelete(deleting.entry.path)
@@ -198,16 +244,20 @@ export function FilesSection({
 }
 
 /** What Delete does, with a folder's blast radius. */
-export function deleteDescription(node: FileTreeNode): string {
+export function deleteDescription(
+  node: FileTreeNode,
+  readers: string = CANVAS_COPY.readers
+): string {
   if (node.entry.kind === "file") {
-    return "Chats on this canvas can no longer open it. You can’t undo this."
+    const who = readers.charAt(0).toUpperCase() + readers.slice(1)
+    return `${who} can no longer open it. You can’t undo this.`
   }
   if (node.descendants === 0) {
     return "The folder is empty. You can’t undo this."
   }
   return node.descendants === 1
-    ? "The 1 item in it goes too, and chats on this canvas can no longer open it. You can’t undo this."
-    : `The ${node.descendants} items in it go too, and chats on this canvas can no longer open them. You can’t undo this.`
+    ? `The 1 item in it goes too, and ${readers} can no longer open it. You can’t undo this.`
+    : `The ${node.descendants} items in it go too, and ${readers} can no longer open them. You can’t undo this.`
 }
 
 /**
@@ -344,16 +394,16 @@ type Loaded =
   | { state: "error" }
 
 /**
- * An opened file (#1517), in a dialog over Canvas settings: an image or PDF as
- * the browser draws it, text as source, and anything else as a download.
+ * An opened file (#1517), in a dialog over Canvas settings (or Settings, for
+ * Account Files): an image or PDF as the browser draws it, text as source,
+ * and anything else as a download.
  */
 export function CanvasFileDialog({
-  roomId,
   entry,
   detail,
   onOpenChange,
-}: {
-  roomId: string
+  ...source
+}: FileSource & {
   /** The open file; none closes the dialog. */
   entry: FileEntryData | undefined
   detail: string
@@ -370,11 +420,11 @@ export function CanvasFileDialog({
               </DialogTitle>
               <DialogDescription>{detail}</DialogDescription>
             </DialogHeader>
-            <FileBody roomId={roomId} entry={entry} />
+            <FileBody url={urlFor(source, entry.path)} entry={entry} />
             <DialogFooter>
               <Button asChild variant="outline">
                 <a
-                  href={canvasFileUrl(roomId, entry.path)}
+                  href={urlFor(source, entry.path)}
                   download={baseName(entry.path)}
                 >
                   <DownloadSimpleIcon />
@@ -389,8 +439,7 @@ export function CanvasFileDialog({
   )
 }
 
-function FileBody({ roomId, entry }: { roomId: string; entry: FileEntryData }) {
-  const url = canvasFileUrl(roomId, entry.path)
+function FileBody({ url, entry }: { url: string; entry: FileEntryData }) {
   // An SVG is drawn as an image (no script runs in an <img>), not as source.
   if (entry.mediaType.startsWith("image/")) {
     return (

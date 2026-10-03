@@ -12,6 +12,7 @@ import type {
 } from "@/lib/types"
 
 import {
+  accountFileFixtures,
   canvasFileFixtures,
   type FixtureChat,
   type FixtureRoom,
@@ -257,6 +258,24 @@ export async function buildDocsWorld(
       { id: "pin-marketing", folderId: ids.folders.marketing, position: 1 },
     ],
     repoConfigs: repoConfigs(now),
+    accountFiles: accountFileFixtures(LOCAL_USER_ID, now - 2 * DAY, [
+      { folder: "writing" },
+      {
+        path: "writing/voice-and-tone.md",
+        mediaType: "text/markdown",
+        body: VOICE_AND_TONE,
+      },
+      {
+        path: "writing/release-notes-template.md",
+        mediaType: "text/markdown",
+        size: 3 * 1024,
+      },
+      {
+        path: "reading-list.md",
+        mediaType: "text/markdown",
+        size: 2 * 1024,
+      },
+    ]),
     accountMemory: [
       {
         id: "mem-account-copy",
@@ -863,3 +882,10 @@ function repoConfigs(now: number): RepoConfig[] {
     },
   ]
 }
+
+const VOICE_AND_TONE = `# Voice and tone
+
+- Plain sentences. Say what something does, not how clever it is.
+- Buttons are one or two words: Save, Add repository.
+- Lead with the answer; cut anything that doesn't change what the reader does next.
+`

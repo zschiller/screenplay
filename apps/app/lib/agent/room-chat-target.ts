@@ -2,7 +2,9 @@ import "server-only"
 
 import { buildRoomSystemPrompt } from "./config"
 import {
+  accountFilesFor,
   accountMemoryStore,
+  loadAccountFiles,
   loadAccountMemory,
   loadCanvasMemory,
   turnSender,
@@ -82,6 +84,8 @@ export interface RoomContext {
   files: FileEntryData[]
   /** The sender's account memory (#1513); `null` on a wake nobody sent. */
   accountMemory: MemoryData[] | null
+  /** The sender's Account Files (#1521); `null` on a turn nobody sent. */
+  accountFiles: FileEntryData[] | null
 }
 
 /** The Coordinator tools module's ports over the live Room doc and database. */
@@ -129,17 +133,26 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   async loadContext(room, target) {
     const ports = liveRoomToolPorts(room, target)
     const terminalTabs = await ports.listTerminalTabs().catch(() => [])
-    const [canvasSummary, canvas, agent, memory, files, accountMemory] =
-      await Promise.all([
-        ports.readDoc((collections) =>
-          summarizeCanvas(collections, terminalTabs)
-        ),
-        loadCanvasSkills(room),
-        loadAgentSkills(agentSkillsFor(target.harnessKey)),
-        loadCanvasMemory(room),
-        loadCanvasFiles(room),
-        loadAccountMemory(turnSender(target)),
-      ])
+    const [
+      canvasSummary,
+      canvas,
+      agent,
+      memory,
+      files,
+      accountMemory,
+      accountFiles,
+    ] = await Promise.all([
+      ports.readDoc((collections) =>
+        summarizeCanvas(collections, terminalTabs)
+      ),
+      loadCanvasSkills(room),
+      loadAgentSkills(agentSkillsFor(target.harnessKey)),
+      loadCanvasMemory(room),
+      loadCanvasFiles(room),
+      loadAccountMemory(turnSender(target)),
+      loadAccountFiles(turnSender(target)),
+      loadAccountFiles(turnSender(target)),
+    ])
     return {
       canvasSummary,
       skills: mergeSkillIndexes({
@@ -150,6 +163,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       memory,
       files,
       accountMemory,
+      accountFiles,
     }
   },
   skillIndex: (ctx) => ctx.skills,
@@ -159,6 +173,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       memory: ctx.memory,
       files: ctx.files,
       accountMemory: ctx.accountMemory,
+      accountFiles: ctx.accountFiles,
       skills: ctx.skills,
       toolNaming: naming,
     })
@@ -178,9 +193,10 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
           canvas: room,
           account: accountMemoryStore(target),
         }),
-        // The canvas's saved files (#1514): text only, with no sandbox.
+        // The canvas's and the sender's saved files (#1514, #1521): text only, with no sandbox.
         ...buildFileTools({
           canvas: canvasFiles(room),
+          account: accountFilesFor(target),
           chatId: target.coordinatorChatId ?? "",
         }),
         // The canvas's Skills and the Coordinator's App Skills (#905, #1555).

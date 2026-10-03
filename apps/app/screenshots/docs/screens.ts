@@ -645,6 +645,17 @@ export const DOCS_SCREENS: DocsScreen[] = [
     },
   }),
   screen({
+    name: "settings-files",
+    description: "Settings → Files: your account files, one folder expanded.",
+    path: "/settings?section=files",
+    prepare: async (page) => {
+      await page.getByRole("button", { name: /^writing/ }).click()
+      await page.getByText("voice-and-tone.md").waitFor()
+      // Off the row, so its ⋯ doesn't cover the item count.
+      await page.mouse.move(0, 0)
+    },
+  }),
+  screen({
     name: "preset-form",
     description: "Editing a repository in Settings.",
     path: "/settings?section=repositories",

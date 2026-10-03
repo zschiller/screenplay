@@ -148,6 +148,38 @@ export function renderCanvasFiles(
 }
 
 /**
+ * Renders the sender's Account Files (#1521) as a block beside Canvas Files:
+ * their own files, from every canvas, which only they see. A turn nobody sent
+ * (a Coordinator wake) passes `null` and gets a line saying it has none, so
+ * it never reaches for the scope. Past {@link FILES_PROMPT_LIMIT} entries it
+ * points at `list_saved_files`.
+ */
+export function renderAccountFiles(
+  files: readonly FileEntryData[] | null | undefined,
+  t: ToolNaming["name"] = BARE_TOOL_NAMING.name
+): string {
+  if (files === undefined) return ""
+  if (files === null) {
+    return "\nAccount files: nobody sent this turn, so it has none. Save and open canvas files only."
+  }
+  const entries = [...files].sort((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+  )
+  const kept = entries.slice(0, FILES_PROMPT_LIMIT)
+  const more = entries.length - kept.length
+  return [
+    "",
+    `Account files (the own files of the person who sent this message, from all their canvases; nobody else on this canvas sees them). Pass \`scope: "account"\` to the saved-file tools to open, save, move or delete one. Save something here only when it's theirs rather than this canvas's work: a file they'll want on every canvas.`,
+    ...(kept.length === 0 ? ["(none yet)"] : kept.map(fileEntryLine)),
+    ...(more > 0
+      ? [
+          `- …and ${more} more: call \`${t("list_saved_files")}\` with \`scope: "account"\` for all of them.`,
+        ]
+      : []),
+  ].join("\n")
+}
+
+/**
  * How any chat keeps a Skill for the canvas (#1555), said in every kind's
  * Skills block beside its index.
  */
@@ -317,6 +349,8 @@ export function buildAgentSystemPrompt(opts: {
   files?: readonly FileEntryData[]
   /** The sender's account memory (#1513); `null` on a turn nobody sent. */
   accountMemory?: readonly MemoryData[] | null
+  /** The sender's Account Files (#1521); `null` on a turn nobody sent. */
+  accountFiles?: readonly FileEntryData[] | null
   toolNaming?: ToolNaming
 }): string {
   const { repoSystemPrompt, layerDirectory, skills, memory } = opts
@@ -343,6 +377,7 @@ export function buildAgentSystemPrompt(opts: {
   const directoryBlock = renderLayerDirectory(layerDirectory, t, opts.chatId)
   const accountBlock = renderAccountMemory(opts.accountMemory)
   const memoryBlock = renderCanvasMemory(memory)
+  const accountFilesBlock = renderAccountFiles(opts.accountFiles, t)
   return (
     agentSystemPromptBase(naming) +
     skillsBlock +
@@ -352,6 +387,7 @@ export function buildAgentSystemPrompt(opts: {
     (accountBlock ? `\n${accountBlock}` : "") +
     (memoryBlock ? `\n${memoryBlock}` : "") +
     `\n${renderCanvasFiles(opts.files, t)}` +
+    (accountFilesBlock ? `\n${accountFilesBlock}` : "") +
     (directoryBlock ? `\n${directoryBlock}` : "")
   )
 }
@@ -371,6 +407,8 @@ export function buildSketchSystemPrompt(opts: {
   files?: readonly FileEntryData[]
   /** The sender's account memory (#1513); `null` on a turn nobody sent. */
   accountMemory?: readonly MemoryData[] | null
+  /** The sender's Account Files (#1521); `null` on a turn nobody sent. */
+  accountFiles?: readonly FileEntryData[] | null
   toolNaming?: ToolNaming
 }): string {
   const t = (opts.toolNaming ?? BARE_TOOL_NAMING).name
@@ -410,6 +448,7 @@ export function buildSketchSystemPrompt(opts: {
     ...(accountBlock ? [accountBlock] : []),
     ...(memoryBlock ? [memoryBlock] : []),
     renderCanvasFiles(opts.files, t),
+    ...[renderAccountFiles(opts.accountFiles, t)].filter(Boolean),
     ...(directoryBlock ? [directoryBlock] : []),
   ].join("\n")
 }
@@ -428,6 +467,8 @@ export function buildRoomSystemPrompt(opts: {
   files?: readonly FileEntryData[]
   /** The sender's account memory (#1513); `null` on a wake nobody sent. */
   accountMemory?: readonly MemoryData[] | null
+  /** The sender's Account Files (#1521); `null` on a wake nobody sent. */
+  accountFiles?: readonly FileEntryData[] | null
   skills?: readonly SkillMetadata[]
   toolNaming?: ToolNaming
 }): string {
@@ -505,5 +546,6 @@ export function buildRoomSystemPrompt(opts: {
     ...[renderAccountMemory(opts.accountMemory)].filter(Boolean),
     renderCanvasMemory(opts.memory) || "\nCanvas memory: (empty)",
     renderCanvasFiles(opts.files, t),
+    ...[renderAccountFiles(opts.accountFiles, t)].filter(Boolean),
   ].join("\n")
 }

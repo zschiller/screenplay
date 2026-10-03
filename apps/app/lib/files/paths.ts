@@ -1,7 +1,8 @@
 import type { FileEntryData } from "@/lib/types"
 
 /**
- * Paths and media types for Canvas Files (#1514). A path is folders joined by
+ * Paths and media types for saved files: Canvas Files (#1514) and Account
+ * Files (#1521). A path is folders joined by
  * `/` with no leading or trailing slash, the way an agent names one and the
  * Files tree shows it.
  */
@@ -12,6 +13,14 @@ import type { FileEntryData } from "@/lib/types"
  */
 export function canvasFileKeyPrefix(roomId: string): string {
   return `canvas/${roomId}`
+}
+
+/**
+ * Where one person's Account Files (#1521) keep their bytes: each file under
+ * `<prefix>/<id>`.
+ */
+export function accountFileKeyPrefix(userId: string): string {
+  return `account/${encodeURIComponent(userId)}`
 }
 
 /** The longest path kept, in characters. */

@@ -17,8 +17,10 @@ import {
 
 /**
  * A chat's saved-file tools (#1514): every chat kind lists, reads, saves,
- * moves and deletes the canvas's files and makes folders in them. Each takes
- * a `scope`; only `canvas` exists until Account Files land.
+ * moves and deletes saved files and makes folders in them. Each takes a
+ * `scope`: `canvas` files are shared with the canvas's members; `account`
+ * files (#1521) are the turn's sender's own, on every canvas, and a turn
+ * nobody sent has none.
  *
  * Their names say "saved" so they never collide with a Workspace chat's own
  * `read_file` and `list_files`, which reach the repository instead.
@@ -26,6 +28,12 @@ import {
 export interface FileToolContext {
   /** The canvas's files. */
   canvas: Files
+  /**
+   * The Account Files of the person who sent the turn; `null` on a turn
+   * nobody sent (a Coordinator wake and the turns it delegates), which
+   * refuses the `account` scope. Absent is the same as `null`.
+   */
+  account?: Files | null
   /** The chat the tools act for: what its saves record as their author. */
   chatId: string
   /**
@@ -50,16 +58,24 @@ const MODEL_IMAGE_TYPES = new Set([
 
 const scopeProperty: JSONSchema7 = {
   type: "string",
-  enum: ["canvas"],
+  enum: ["canvas", "account"],
   description:
-    "Whose files: `canvas` (shared with this canvas's members). The default.",
+    "Whose files: `canvas` (shared with this canvas's members), the default, or `account` (the own files of the person who sent this message, on every canvas, which nobody else sees).",
 }
 
-type Scope = { scope?: "canvas" }
+export type FileScope = "canvas" | "account"
+
+type Scope = { scope?: FileScope }
+
+/** What a tool says when a turn nobody sent asks for account files. */
+const NO_ACCOUNT =
+  "Error: nobody sent this turn, so it has no account files. Use the `canvas` scope instead."
 
 export function buildFileTools(ctx: FileToolContext) {
   const author = { addedBy: "agent" as const, addedById: ctx.chatId }
-  const files = (_scope: Scope["scope"]) => ctx.canvas
+  /** The scope's files, or `null` for account files on a turn nobody sent. */
+  const files = (scope: Scope["scope"]): Files | null =>
+    scope === "account" ? (ctx.account ?? null) : ctx.canvas
 
   const sourceProperty: Record<string, JSONSchema7> = ctx.readSource
     ? {
@@ -74,7 +90,7 @@ export function buildFileTools(ctx: FileToolContext) {
   const tools = {
     list_saved_files: tool({
       description:
-        "List the canvas's saved files: every folder and file, with each file's size and media type. These files are shared with the canvas's members and never shown on the canvas or kept in the repository. Pass `folder` to list only what's inside one.",
+        "List saved files: every folder and file, with each file's size and media type. Canvas files are shared with the canvas's members; account files are the sender's own, on every canvas. Neither is shown on the canvas or kept in the repository. Pass `folder` to list only what's inside one.",
       inputSchema: jsonSchema<Scope & { folder?: string }>({
         type: "object",
         properties: {
@@ -83,7 +99,9 @@ export function buildFileTools(ctx: FileToolContext) {
         },
       }),
       execute: async ({ scope, folder }) => {
-        const result = await files(scope).list(folder)
+        const scoped = files(scope)
+        if (!scoped) return NO_ACCOUNT
+        const result = await scoped.list(folder)
         if (!result.ok) return `Error: ${result.error}`
         if (result.value.length === 0) {
           return folder ? `"${folder}" is empty.` : "No saved files yet."
@@ -94,7 +112,7 @@ export function buildFileTools(ctx: FileToolContext) {
 
     read_saved_file: tool({
       description:
-        "Open one of the canvas's saved files by its path. Text comes back as text; an image or a PDF comes back for you to see. Open only the files the task needs.",
+        "Open a saved file by its path. Text comes back as text; an image or a PDF comes back for you to see. Open only the files the task needs.",
       inputSchema: jsonSchema<Scope & { path: string }>({
         type: "object",
         properties: {
@@ -107,7 +125,9 @@ export function buildFileTools(ctx: FileToolContext) {
         scope,
         path,
       }): Promise<string | ImageToolOutput | FileToolOutput> => {
-        const result = await files(scope).read(path)
+        const scoped = files(scope)
+        if (!scoped) return NO_ACCOUNT
+        const result = await scoped.read(path)
         if (!result.ok) return `Error: ${result.error}`
         const { entry, bytes } = result.value
         const size = formatFileSize(entry.size)
@@ -144,7 +164,7 @@ export function buildFileTools(ctx: FileToolContext) {
 
     save_file: tool({
       description: [
-        "Save a file to the canvas's saved files, where later chats on this canvas can open it. Use it for a result worth keeping that doesn't belong on the canvas or in the repository: research notes, a reference image, a list to come back to. Saving to a path that exists replaces that file; folders in the path are made as needed.",
+        "Save a file where later chats can open it: `canvas` (the default) for a result about this canvas's work, which every chat on the canvas can open (research notes, a reference image, a list to come back to); `account` for something of the sender's own that they'll want on every canvas (a style guide they write to, a reference they reuse). Use it for what doesn't belong on the canvas or in the repository. Saving to a path that exists replaces that file; folders in the path are made as needed.",
         ctx.readSource
           ? "Pass the text as `content`, or a file in your sandbox as `source_path` for an image, a PDF or anything else that isn't text."
           : "Pass the text as `content`.",
@@ -193,7 +213,9 @@ export function buildFileTools(ctx: FileToolContext) {
             ? "Error: pass the file's `content` or its `source_path`."
             : "Error: pass the file's `content`."
         }
-        const result = await files(scope).save({
+        const scoped = files(scope)
+        if (!scoped) return NO_ACCOUNT
+        const result = await scoped.save({
           path,
           bytes,
           mediaType: media_type,
@@ -208,7 +230,7 @@ export function buildFileTools(ctx: FileToolContext) {
 
     move_saved_file: tool({
       description:
-        "Move or rename one of the canvas's saved files, or a folder with everything in it. Folders in the new path are made as needed; nothing may already be at it.",
+        "Move or rename a saved file, or a folder with everything in it. Folders in the new path are made as needed; nothing may already be at it.",
       inputSchema: jsonSchema<Scope & { path: string; to: string }>({
         type: "object",
         properties: {
@@ -219,7 +241,9 @@ export function buildFileTools(ctx: FileToolContext) {
         required: ["path", "to"],
       }),
       execute: async ({ scope, path, to }) => {
-        const result = await files(scope).move(path, to)
+        const scoped = files(scope)
+        if (!scoped) return NO_ACCOUNT
+        const result = await scoped.move(path, to)
         if (!result.ok) return `Error: ${result.error}`
         const { kind, moved } = result.value
         return kind === "folder"
@@ -230,7 +254,7 @@ export function buildFileTools(ctx: FileToolContext) {
 
     delete_saved_file: tool({
       description:
-        "Delete one of the canvas's saved files, or a folder with everything in it. Delete files you made that are wrong or out of date, so later chats aren't misled. It can't be undone.",
+        "Delete a saved file, or a folder with everything in it. Delete files you made that are wrong or out of date, so later chats aren't misled. It can't be undone.",
       inputSchema: jsonSchema<Scope & { path: string }>({
         type: "object",
         properties: {
@@ -240,7 +264,9 @@ export function buildFileTools(ctx: FileToolContext) {
         required: ["path"],
       }),
       execute: async ({ scope, path }) => {
-        const result = await files(scope).remove(path)
+        const scoped = files(scope)
+        if (!scoped) return NO_ACCOUNT
+        const result = await scoped.remove(path)
         if (!result.ok) return `Error: ${result.error}`
         const { kind, removed } = result.value
         return kind === "folder"
@@ -251,7 +277,7 @@ export function buildFileTools(ctx: FileToolContext) {
 
     make_saved_folder: tool({
       description:
-        "Make a folder in the canvas's saved files, to keep related files together. Any folder above it is made too.",
+        "Make a folder in saved files, to keep related files together. Any folder above it is made too.",
       inputSchema: jsonSchema<Scope & { path: string }>({
         type: "object",
         properties: {
@@ -261,7 +287,9 @@ export function buildFileTools(ctx: FileToolContext) {
         required: ["path"],
       }),
       execute: async ({ scope, path }) => {
-        const result = await files(scope).makeFolder(path, author)
+        const scoped = files(scope)
+        if (!scoped) return NO_ACCOUNT
+        const result = await scoped.makeFolder(path, author)
         if (!result.ok) return `Error: ${result.error}`
         return result.value.created
           ? "Made the folder."
