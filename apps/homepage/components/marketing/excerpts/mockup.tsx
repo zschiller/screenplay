@@ -1,6 +1,4 @@
-import { badgeVariants } from "@workspace/ui/components/badge"
-import { CaretDownIcon } from "@workspace/ui/components/icons"
-import { cn } from "@workspace/ui/lib/utils"
+import { CircleIcon } from "@workspace/ui/components/icons"
 
 import { Frame, FrameBar, versions } from "./canvas"
 import { Fit } from "./fit"
@@ -13,17 +11,15 @@ import { Northwind } from "./northwind"
  * Mockup's label ends with its status, as the app's MockupStatusMenu draws it.
  */
 
-/** A Mockup's status at the end of its label: an outline badge and caret. */
+/**
+ * A Mockup's status at the end of its label: its icon and name in muted
+ * text (the up-down caret shows only on hover).
+ */
 function Status({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      className={cn(
-        badgeVariants({ variant: "outline" }),
-        "shrink-0 gap-1 pr-1.5 leading-none text-muted-foreground"
-      )}
-    >
+    <span className="flex shrink-0 items-center text-xs text-muted-foreground">
+      <CircleIcon aria-hidden className="mr-1 size-3 shrink-0" />
       {children}
-      <CaretDownIcon className="size-3 text-[color-mix(in_oklab,var(--muted-foreground)_60%,var(--foreground))]" />
     </span>
   )
 }
@@ -53,11 +49,7 @@ export function MockupExcerpt() {
         >
           <Northwind version={live.version} />
         </Frame>
-        <FrameBar
-          workspace={live.title}
-          className="z-[5]"
-          style={{ left: 8, top: 290, width: 360 }}
-        />
+        <FrameBar className="z-[5]" style={{ left: 8, top: 290, width: 360 }} />
         <Frame
           label={`Take A · ${take.title}`}
           trailing={<Status>Current</Status>}

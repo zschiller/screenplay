@@ -176,7 +176,7 @@ function ThreadCard({ className }: { className?: string }) {
 }
 
 /**
- * The selected frame with its bar, Sam in control of the shared frame, their
+ * The selected frame, live, with its bar, Sam in control of it, their
  * cursor on its headline and a
  * pinned comment open on its button, the next Workspace's frame beside it,
  * and the people pill above. Laid out at a fixed size and scaled to the
@@ -204,7 +204,8 @@ export function TeamExcerpt() {
         </Frame>
         <DriverTag name="Sam" color={people[1].color} />
         <FrameBar
-          workspace="Hero gradient & trust line"
+          live
+          driver={{ initial: "S", color: people[1].color }}
           className="z-[5]"
           style={{ left: 32, top: 344, width: 400 }}
         />
@@ -225,7 +226,9 @@ export function TeamExcerpt() {
           <div className="absolute bottom-0 left-0">
             <Pin number={1} />
           </div>
-          <ThreadCard className="top-[-26px] left-[34px]" />
+          {/* Beside the pin, centred on it, so the bar under the frame
+              stays in view. */}
+          <ThreadCard className="top-[-110px] left-[34px]" />
         </div>
       </div>
     </Fit>
