@@ -147,8 +147,19 @@ pnpm --filter desktop release patch   # or minor, major, or an exact X.Y.Z
 It bumps the version, builds a signed and notarized `.dmg`, checks it with
 Gatekeeper, then commits the bump, tags `desktop-v<version>` and publishes a
 [GitHub Release](https://github.com/zschiller/screenplay/releases) with the
-`.dmg` attached. Nothing is tagged or published unless the build verifies. It
-needs Node 23 or later, the `gh` CLI signed in, a clean working tree, and the
+`.dmg` attached, once under its version and once as `Screenplay.dmg`, the name
+the homepage's Download buttons link to. Nothing is tagged or published unless
+the build verifies.
+
+The Release's notes are a short changelog for people using the app, not a list
+of commits. Before the build, the script collects the pull requests merged
+since the last release that change the app (skipping the homepage, docs, tests
+and CI), and asks `claude -p` to write them up as New, Improved and Fixed. It
+shows the draft so you can accept it, edit it in `$EDITOR`, or stop. Without
+Claude Code installed, the draft lists the pull request titles. To write the
+notes yourself, pass a Markdown file with `--notes notes.md`.
+
+Releasing needs Node 23 or later, the `gh` CLI signed in, a clean working tree, and the
 Apple signing keys in `apps/desktop/.env.release` (copy
 `.env.release.example`).
 

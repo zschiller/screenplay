@@ -1,4 +1,4 @@
-import { docsUrl, githubUrl, releasesUrl } from "@/lib/app-url"
+import { docsUrl, downloadUrl, githubUrl } from "@/lib/app-url"
 import { cn } from "@workspace/ui/lib/utils"
 import { focusRing, measure, monoLabel } from "./site/editorial"
 import { Wordmark } from "./wordmark"
@@ -10,7 +10,7 @@ const columns = [
       { href: "#how", label: "How it works" },
       { href: "#self-hosting", label: "For teams" },
       { href: "#features", label: "Features" },
-      { href: releasesUrl, label: "Download", external: true },
+      { href: downloadUrl, label: "Download" },
     ],
   },
   {
