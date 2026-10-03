@@ -228,6 +228,7 @@ const TITLE_CATEGORY: Record<string, Category> = {
   frame_scroll: "drive",
   frame_select: "drive",
   frame_drag: "drive",
+  frame_hover: "drive",
   frame_stop_driving: "drive",
   list_changes: "listChanges",
   show_on_canvas: "view",

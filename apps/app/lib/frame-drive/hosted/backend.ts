@@ -24,8 +24,8 @@ import { agentGrant, viewToken } from "@/lib/frame-stream/token"
  * one shared browser, over the Workspace's Frame Stream
  * (`lib/sandbox-bridge/frame-stream.mjs`), which applies each gesture as real
  * input over CDP. So nothing the Mac can't do (focus, typing keys, Tab,
- * hover, native popups) is a gap here, and everyone watching the frame sees
- * each step live. The screenshot is the shared page itself.
+ * native popups) is a gap here, hover is the browser's own rather than
+ * forced, and everyone watching the frame sees each step live. The screenshot is the shared page itself.
  *
  * The app connects to the stream as the agent. Each gesture carries an agent
  * grant signed here, after the agent's driver asked Frame Control; the stream

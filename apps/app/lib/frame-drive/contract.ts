@@ -3,7 +3,7 @@
  * ticket #1389).
  *
  * The agent drives a frame with a fixed set of gestures (click, type, key,
- * scroll, select, drag) and reads (the page's interactive elements, a
+ * scroll, select, drag, hover) and reads (the page's interactive elements, a
  * screenshot). There is no op that runs the agent's own script in the page:
  * driving a frame must never become running arbitrary code (#1367).
  *
@@ -61,6 +61,9 @@ export type DriveGesture = Paced &
     | { op: "scroll"; target?: DriveTarget; dx?: number; dy?: number }
     | { op: "select"; target: DriveTarget; value: string }
     | { op: "drag"; target: DriveTarget; to: DriveTarget }
+    /** Rest the pointer on the target until the next gesture moves it:
+     *  tooltips, hover cards and menus open, and hover styles show. */
+    | { op: "hover"; target: DriveTarget }
   )
 
 /** The reads. They don't change the page, so they don't need control. */
@@ -79,6 +82,7 @@ export const DRIVE_OPS = [
   "scroll",
   "select",
   "drag",
+  "hover",
   "elements",
 ] as const satisfies readonly DriveOp["op"][]
 

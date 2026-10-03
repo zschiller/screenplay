@@ -203,7 +203,7 @@ on your Mac.
 ## The agent driving a frame
 
 A Workspace chat's agent can use a frame: click, type, press keys, scroll,
-pick options and drag, like you would. It reads the page's buttons, links and
+pick options, drag and hover, like you would. It reads the page's buttons, links and
 fields to find what to act on, and looks at the frame after each step to
 check it worked. Ask it to show you what it built, or to get a frame into a
 state for you.
@@ -216,8 +216,8 @@ How it drives depends on how you ask:
 - **"Get it into that state"** jumps straight to the end. There's no cursor,
   and your view of the canvas doesn't move.
 
-Each step shows up in the chat as a short line, like **Click** `Save` or
-**Type** `ada@example.com`, so you can see where it went if something goes
+Each step shows up in the chat as a short line, like **Click** `Save`,
+**Hover** `Info` or **Type** `ada@example.com`, so you can see where it went if something goes
 wrong. When no frame shows what it needs, or you're using the one there,
 the agent opens a new frame beside its Workspace's other frames instead of taking
 yours over.
@@ -263,8 +263,12 @@ On the Mac it can't:
 - type into rich-text editors, or move the keyboard focus (including with
   <kbd>Tab</kbd>), so anything that reacts to focus won't;
 - open a native dropdown, date or colour picker, though it can still set the
-  value;
-- trigger hover styles made with CSS.
+  value.
+
+It can hover: tooltips, hover cards and menus that open on hover do, and the
+page's hover styles show, until its next step moves the pointer on. Hover
+styles from a stylesheet on another site (a font or icon CDN, say) don't show,
+and moving your own mouse over the frame hands hover back to you.
 
 When a step needs one of these, the agent says which and asks you to do it in
 the frame. Tell it in the chat when you're done, and it carries on from there.
