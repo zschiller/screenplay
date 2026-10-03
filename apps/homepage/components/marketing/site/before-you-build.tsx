@@ -7,7 +7,7 @@ import { SectionHeading } from "./section-heading"
 const items = [
   {
     title: "Mockups",
-    body: "A chat draws takes as static pages beside the live frame. Mark each one Current, Set aside or Built, then ask it to build the one you want.",
+    body: "A chat draws takes as static pages beside the live frame. Ask it to build the one you want.",
   },
   {
     title: "Documents",

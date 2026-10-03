@@ -210,8 +210,6 @@ interface LayerTitleTextProps {
   onRename?: (next: string) => void
   /** Placeholder shown when the title is empty. */
   placeholder?: string
-  /** Strike the name through (a Mockup set aside). Not while renaming. */
-  struck?: boolean
 }
 
 /**
@@ -230,7 +228,6 @@ export function LayerTitleText({
   onSelectLayer,
   onRename,
   placeholder,
-  struck,
 }: LayerTitleTextProps) {
   // Local selection (the canvas selection token) wins; a remote selector's color applies only
   // when we haven't selected the layer ourselves.
@@ -259,10 +256,7 @@ export function LayerTitleText({
         // Clip the read-only label inside the row's max-width; during edit
         // let the caret/text grow naturally so the user can see what they're
         // typing past the truncate boundary.
-        viewClassName={cn(
-          "cursor-grab truncate active:cursor-grabbing",
-          struck && "line-through"
-        )}
+        viewClassName="cursor-grab truncate active:cursor-grabbing"
         editClassName={cn(
           editableTextFieldClass,
           "-mx-0.5 -my-0.5 min-w-0 flex-1 px-0.5 py-0.5"
@@ -275,7 +269,6 @@ export function LayerTitleText({
     <span
       className={cn(
         "min-w-0 cursor-grab truncate text-xs font-medium active:cursor-grabbing",
-        struck && "line-through",
         colorClass
       )}
       style={colorStyle}
@@ -291,9 +284,6 @@ interface LayerLabelRowProps extends LayerTitleTextProps {
   leading?: React.ReactNode
   /** Content after the name (a frame's route picker). */
   trailing?: React.ReactNode
-  /** Shown after the name only while the title bar is compact (far out), in
-   *  place of `trailing`: a Mockup's Built check. */
-  compactTrailing?: React.ReactNode
   style?: React.CSSProperties
 }
 
@@ -308,7 +298,6 @@ interface LayerLabelRowProps extends LayerTitleTextProps {
 export function LayerLabelRow({
   leading,
   trailing,
-  compactTrailing,
   style,
   ...titleProps
 }: LayerLabelRowProps) {
@@ -320,11 +309,6 @@ export function LayerLabelRow({
       {leading && <AccessorySlot>{leading}</AccessorySlot>}
       <LayerTitleText {...titleProps} />
       {trailing && <AccessorySlot>{trailing}</AccessorySlot>}
-      {compactTrailing && (
-        <div className="hidden group-data-compact/title-bar:contents">
-          {compactTrailing}
-        </div>
-      )}
     </div>
   )
 }

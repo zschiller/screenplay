@@ -734,7 +734,6 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       width: 1280,
       height: 800,
       title: "Option A · Illustrated",
-      status: "set-aside",
     },
     {
       id: "mockup-cart-suggestions",
@@ -742,7 +741,6 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       width: 1280,
       height: 800,
       title: "Option B · Suggestions",
-      status: "current",
     },
     {
       id: "mockup-receipt",
@@ -750,7 +748,6 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       width: 720,
       height: 800,
       title: "Order receipt email",
-      status: "built",
     },
   ]
 

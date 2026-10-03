@@ -34,7 +34,6 @@ import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import { isSketchChat, sketchChatSession } from "@/lib/chat/sketch-chat"
-import { MOCKUP_STATUS_LABELS, mockupStatusOf } from "@/lib/mockup-status"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import type {
   BranchData,
@@ -969,7 +968,6 @@ export function summarizeCanvas(
       [
         `- [${m.id}] "${clip(m.title || "Untitled")}"`,
         `${Math.round(m.width)}×${Math.round(m.height)}`,
-        MOCKUP_STATUS_LABELS[mockupStatusOf(m)],
         m.ownerChatId && ownerOf(m.ownerChatId),
         groupOf.get(m.id) && `Group ${groupOf.get(m.id)}`,
       ]

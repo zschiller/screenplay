@@ -11,9 +11,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -32,14 +29,7 @@ import {
   LayerShell,
   LAYER_SURFACE_CLASS,
 } from "@/components/canvas/layer-shell"
-import type { MockupLayerData, MockupStatus } from "@/lib/types"
-import { mockupStatusOf } from "@/lib/mockup-status"
-import {
-  MockupStatusMark,
-  MockupStatusMenu,
-  MockupStatusRadioGroup,
-  StatusIcon,
-} from "@/components/canvas/mockup-status-menu"
+import type { MockupLayerData } from "@/lib/types"
 import {
   LivePageContent,
   LivePageControls,
@@ -113,7 +103,6 @@ interface MockupLayerProps {
   /** Adjust the mockup's own box; the Group anchor shifts for left/top edges. */
   onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
   onRename: (id: string, title: string) => void
-  onSetStatus: (id: string, status: MockupStatus) => void
   /** The bar's ⋯ Duplicate: a copy at the end of the mockup's Group. */
   onDuplicate?: (id: string) => void
   /** The bar's ⋯ Delete, the same removal as the Delete key (⌘Z undoes it). */
@@ -248,7 +237,6 @@ export function MockupLayer({
   onGroupDragEnd,
   onResize,
   onRename,
-  onSetStatus,
   onDuplicate,
   onRemove,
   pickActive,
@@ -398,31 +386,23 @@ export function MockupLayer({
           style={{ maxWidth: layer.width * zoom }}
           title={layer.title}
           placeholder="Untitled"
-          struck={mockupStatusOf(layer) === "set-aside"}
-          compactTrailing={<MockupStatusMark status={mockupStatusOf(layer)} />}
           selected={selected || groupSelected}
           color={remoteSelectedColor}
           onSelectLayer={api.deferSelect}
           onRename={(next) => onRename(layer.id, next)}
           trailing={
-            <>
-              {ownerWorkspace && (
-                <MaybeWorkspaceHoverCard
-                  branchId={ownerWorkspace.branchId}
-                  side="bottom"
-                >
-                  {/* The mention doesn't take the trigger's props; this span
-                    does. Names win: the Workspace gives up its width first. */}
-                  <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
-                    <CompactWorkspaceMention workspace={ownerWorkspace} />
-                  </span>
-                </MaybeWorkspaceHoverCard>
-              )}
-              <MockupStatusMenu
-                status={mockupStatusOf(layer)}
-                onChange={(status) => onSetStatus(layer.id, status)}
-              />
-            </>
+            ownerWorkspace && (
+              <MaybeWorkspaceHoverCard
+                branchId={ownerWorkspace.branchId}
+                side="bottom"
+              >
+                {/* The mention doesn't take the trigger's props; this span
+                  does. Names win: the Workspace gives up its width first. */}
+                <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
+                  <CompactWorkspaceMention workspace={ownerWorkspace} />
+                </span>
+              </MaybeWorkspaceHoverCard>
+            )
           }
         />
       )}
@@ -481,21 +461,9 @@ export function MockupLayer({
                         Duplicate
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <StatusIcon status={mockupStatusOf(layer)} />
-                        Status
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        <MockupStatusRadioGroup
-                          status={mockupStatusOf(layer)}
-                          onChange={(status) => onSetStatus(layer.id, status)}
-                        />
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
                     {onRemove && (
                       <>
-                        <DropdownMenuSeparator />
+                        {onDuplicate && <DropdownMenuSeparator />}
                         <DropdownMenuItem
                           variant="destructive"
                           onSelect={() => onRemove(layer.id)}
