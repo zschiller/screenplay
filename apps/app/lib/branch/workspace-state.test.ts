@@ -25,8 +25,10 @@ const streaming: BranchBusyChat = { branchId: "ws", isStreaming: true }
 const CASES: {
   name: string
   branch: WorkspaceStateBranch
-  chats?: BranchBusyChat[]
+  chats?: (BranchBusyChat & { id?: string })[]
   plans?: Plan[]
+  /** Chats, by id, whose transcript ends on an unanswered question. */
+  questions?: string[]
   expected: Omit<WorkspaceState, "label" | "agentWorking">
 }[] = [
   {
@@ -131,6 +133,66 @@ const CASES: {
       line: { kind: "idle", state: "working", text: "Agent working" },
       section: "working",
       needsYou: false,
+    },
+  },
+  {
+    name: "needs you for a question waiting",
+    branch: ws(),
+    chats: [{ id: "c1", branchId: "ws" }],
+    questions: ["c1"],
+    expected: {
+      line: { kind: "idle", state: "needs-you", text: "Question waiting" },
+      section: "needs-you",
+      needsYou: true,
+    },
+  },
+  {
+    name: "a question in a closed chat doesn't count",
+    branch: ws(),
+    chats: [{ id: "c1", branchId: "ws", closedAt: 1 }],
+    questions: ["c1"],
+    expected: {
+      line: { kind: "idle", state: "ready", text: "Ready" },
+      section: "idle",
+      needsYou: false,
+    },
+  },
+  {
+    name: "a question in another Workspace's chat doesn't count",
+    branch: ws(),
+    chats: [{ id: "c2", branchId: "other" }],
+    questions: ["c2"],
+    expected: {
+      line: { kind: "idle", state: "ready", text: "Ready" },
+      section: "idle",
+      needsYou: false,
+    },
+  },
+  {
+    name: "a pending plan wins over a question",
+    branch: ws({ prState: "open", prBlocked: true }),
+    chats: [{ id: "c1", branchId: "ws" }],
+    plans: [{ branchId: "ws", status: "pending" }],
+    questions: ["c1"],
+    expected: {
+      line: {
+        kind: "idle",
+        state: "needs-you",
+        text: "Plan waiting for approval",
+      },
+      section: "needs-you",
+      needsYou: true,
+    },
+  },
+  {
+    name: "a question wins over a blocked merge, even when stopped",
+    branch: ws({ status: "stopped", prState: "open", prBlocked: true }),
+    chats: [{ id: "c1", branchId: "ws" }],
+    questions: ["c1"],
+    expected: {
+      line: { kind: "idle", state: "needs-you", text: "Question waiting" },
+      section: "needs-you",
+      needsYou: true,
     },
   },
   {
@@ -290,15 +352,23 @@ const CASES: {
 ]
 
 describe("workspaceState", () => {
-  it.each(CASES)("$name", ({ branch, chats = [], plans = [], expected }) => {
-    expect(workspaceState(branch, roomWorkspaceFacts(chats, plans))).toEqual({
-      label: "Sticky header",
-      agentWorking: chats.some(
-        (c) => c.branchId === branch.id && c.isStreaming && !c.closedAt
-      ),
-      ...expected,
-    })
-  })
+  it.each(CASES)(
+    "$name",
+    ({ branch, chats = [], plans = [], questions = [], expected }) => {
+      expect(
+        workspaceState(
+          branch,
+          roomWorkspaceFacts(chats, plans, new Set(questions))
+        )
+      ).toEqual({
+        label: "Sticky header",
+        agentWorking: chats.some(
+          (c) => c.branchId === branch.id && c.isStreaming && !c.closedAt
+        ),
+        ...expected,
+      })
+    }
+  )
 
   it("labels a Workspace without a title New chat", () => {
     expect(

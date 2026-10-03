@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { parseQuestion, questionAnswers } from "./question"
+import { hasOpenQuestion, parseQuestion, questionAnswers } from "./question"
 import type { AgentMessage } from "@/lib/agent/types"
 
 const ask = (
@@ -116,5 +116,36 @@ describe("questionAnswers (#1312)", () => {
       { role: "user", content: "Compact", wakeFrom: "branch-1" },
     ])
     expect(answers.has("q1")).toBe(false)
+  })
+})
+
+describe("hasOpenQuestion", () => {
+  it("is open while no user message follows the question", () => {
+    expect(
+      hasOpenQuestion([
+        { role: "user", content: "Make it nicer" },
+        ask("q1", layout),
+        { role: "assistant", content: "Pick one and I'll carry on." },
+      ])
+    ).toBe(true)
+  })
+
+  it("closes once the user answers", () => {
+    expect(
+      hasOpenQuestion([ask("q1", layout), { role: "user", content: "Roomy" }])
+    ).toBe(false)
+  })
+
+  it("stays open through a Coordinator wake", () => {
+    expect(
+      hasOpenQuestion([
+        ask("q1", layout),
+        { role: "user", content: "Status?", wakeFrom: "branch-1" },
+      ])
+    ).toBe(true)
+  })
+
+  it("is closed in a transcript with no question", () => {
+    expect(hasOpenQuestion([{ role: "user", content: "Hi" }])).toBe(false)
   })
 })

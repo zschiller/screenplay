@@ -17,8 +17,9 @@ import { workspaceLabel } from "@/lib/workspace-label"
  * stopped or Done (#976), or that setup failed. Its PR is not a state: rows
  * show it at their end (#963), except that a PR which can't merge needs you.
  *
- * Needs you means the person has to act: a plan waiting for approval, a PR
- * whose merge is blocked, or (as the error line) a failed setup. An open,
+ * Needs you means the person has to act: a plan waiting for approval, a
+ * question card waiting for an answer, a PR whose merge is blocked, or (as
+ * the error line) a failed setup. An open,
  * healthy PR waits on its reviewers, so it's Ready.
  *
  * Pure, so `workspace-state.test.ts` asserts it from one fixture table with no
@@ -36,6 +37,8 @@ interface StatusLineContext {
   agentWorking: boolean
   /** One of this Workspace's plans waits for approval. */
   planPending?: boolean
+  /** Its chat asked a question and waits for the answer. */
+  questionPending?: boolean
 }
 
 export type WorkspaceStatusLine =
@@ -94,10 +97,12 @@ function workspaceStatusLine(
   }
   const needsYou: WorkspaceStatusLine | null = ctx.planPending
     ? { kind: "idle", state: "needs-you", text: "Plan waiting for approval" }
-    : branch.prState === "open" && branch.prBlocked
-      ? { kind: "idle", state: "needs-you", text: "Merge blocked" }
-      : null
-  // A stopped sandbox still waits on the person for its plan or its PR.
+    : ctx.questionPending
+      ? { kind: "idle", state: "needs-you", text: "Question waiting" }
+      : branch.prState === "open" && branch.prBlocked
+        ? { kind: "idle", state: "needs-you", text: "Merge blocked" }
+        : null
+  // A stopped sandbox still waits on the person for its plan, question or PR.
   if (branch.status === "stopped")
     return needsYou ?? { kind: "idle", state: "stopped", text: "Stopped" }
   if (ctx.agentWorking)
@@ -140,7 +145,8 @@ export type WorkspaceSection = "working" | "needs-you" | "idle"
 /**
  * Which live section a (not Done) Workspace sits in, from its status line: an
  * agent working or setup running is Working; a failed setup, a plan waiting
- * for approval or a blocked PR is Needs you; anything else, an open PR
+ * for approval, a question waiting for its answer or a blocked PR is Needs
+ * you; anything else, an open PR
  * waiting on review included, is Idle.
  */
 function sectionOf(line: WorkspaceStatusLine): WorkspaceSection {
@@ -162,30 +168,44 @@ export interface WorkspaceState {
   agentWorking: boolean
   /** Its Chats menu section; Done keeps its own. */
   section: WorkspaceSection | "done"
-  /** A plan to approve, a blocked merge or a failed setup waits on you. */
+  /** A plan to approve, a question to answer, a blocked merge or a failed
+   *  setup waits on you. */
   needsYou: boolean
 }
 
 /**
- * The Room's facts about its Workspaces, read from its Chat Sessions and
- * plans in one pass: which have a turn in flight and which have a plan
- * waiting for approval.
+ * The Room's facts about its Workspaces, read from its Chat Sessions, plans
+ * and transcripts in one pass: which have a turn in flight, which have a plan
+ * waiting for approval and which have a question waiting for its answer.
  */
 export interface RoomWorkspaceFacts {
   busy: ReadonlySet<string>
   planPending: ReadonlySet<string>
+  questionPending: ReadonlySet<string>
 }
 
+const NO_CHATS: ReadonlySet<string> = new Set()
+
+/**
+ * `openQuestions` are the chats, by id, whose transcript ends on a question
+ * card nobody has answered (`hasOpenQuestion` in `lib/agent/question.ts`).
+ * Transcripts live in the chat store, not the Room doc, so the caller reads
+ * them (`useOpenQuestionChats`) and passes the ids in.
+ */
 export function roomWorkspaceFacts(
-  chats: readonly BranchBusyChat[],
-  plans: readonly Pick<PlanData, "branchId" | "status">[]
+  chats: readonly (BranchBusyChat & { id?: string })[],
+  plans: readonly Pick<PlanData, "branchId" | "status">[],
+  openQuestions: ReadonlySet<string> = NO_CHATS
 ): RoomWorkspaceFacts {
   const busy = new Set<string>()
+  const questionPending = new Set<string>()
   for (const chat of chats) {
-    if (chat.branchId && isBranchBusy(chat.branchId, [chat]))
-      busy.add(chat.branchId)
+    if (!chat.branchId) continue
+    if (isBranchBusy(chat.branchId, [chat])) busy.add(chat.branchId)
+    if (chat.id && !chat.closedAt && openQuestions.has(chat.id))
+      questionPending.add(chat.branchId)
   }
-  return { busy, planPending: planPendingBranchIds(plans) }
+  return { busy, planPending: planPendingBranchIds(plans), questionPending }
 }
 
 export function workspaceState(
@@ -195,6 +215,7 @@ export function workspaceState(
   const context = {
     agentWorking: room.busy.has(branch.id),
     planPending: room.planPending.has(branch.id),
+    questionPending: room.questionPending.has(branch.id),
   }
   const line = workspaceStatusLine(branch, context)
   const section = branch.doneAt ? "done" : sectionOf(line)

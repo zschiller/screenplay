@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { AgentChat } from "@/components/agent/agent-chat"
 import { WorkspaceTasksProvider } from "@/components/agent/workspace-task-row"
+import { useOpenQuestionChats } from "@/hooks/use-open-question-chats"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
 import { coordinatorStart } from "@/lib/fresh-workspace"
 import {
@@ -44,6 +45,7 @@ export function CoordinatorChat({
   const branches = useBranches()
   const chatSessions = useChatSessions()
   const plans = usePlans()
+  const openQuestions = useOpenQuestionChats(chatSessions)
   const repos = useRepos()
   // A fresh canvas's empty chat asks what should change (#1182).
   const roomStart = useMemo(
@@ -55,13 +57,14 @@ export function CoordinatorChat({
       branches,
       chatSessions,
       plans,
+      openQuestions,
       onOpen: onOpenWorkspace,
       // A frame, document or mockup a reply names: fit it in this member's
       // view, as the Coordinator's own `show_on_canvas` does.
       onShow: (layerId: string) =>
         viewRequests.emit({ chatId, ids: [layerId] }),
     }),
-    [branches, chatSessions, plans, onOpenWorkspace, chatId]
+    [branches, chatSessions, plans, openQuestions, onOpenWorkspace, chatId]
   )
 
   const requestedRef = useRef(false)

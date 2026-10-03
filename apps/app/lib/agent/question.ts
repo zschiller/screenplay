@@ -130,3 +130,18 @@ function chosenOption(question: Question | null, reply: string): number | null {
 function normalize(text: string): string {
   return text.trim().replace(/\s+/g, " ").toLowerCase()
 }
+
+/**
+ * Whether a transcript ends on a question card still waiting for its answer:
+ * a question call no user message follows, by the same rule as
+ * {@link questionAnswers}. The chat then waits on a person, so its Workspace
+ * needs you ("Question waiting", `lib/branch/workspace-state.ts`).
+ */
+export function hasOpenQuestion(messages: readonly AgentMessage[]): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.role === "user" && !message.wakeFrom) return false
+    if (isQuestionCall(message)) return true
+  }
+  return false
+}

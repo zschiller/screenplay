@@ -231,22 +231,24 @@ export interface WorkspaceTaskStatus {
  * A chat card's state, read live from the Room: the tool call still running
  * (`sending`), the Workspace gone (`removed`), else the Workspace's own state
  * from {@link workspaceState}: Done when a member marked it done, setup
- * running or failed, its agent working, needing you (a plan to approve or a
- * blocked merge), stopped, or Ready once the turn ended. A created Workspace
+ * running or failed, its agent working, needing you (a plan to approve, a
+ * question to answer or a blocked merge), stopped, or Ready once the turn ended. A created Workspace
  * counts as starting until its seed message is sent.
  */
 export function workspaceTaskState(input: {
   callRunning: boolean
   branch: (WorkspaceStateBranch & Pick<BranchData, "pendingSeed">) | undefined
-  chats: readonly BranchBusyChat[]
+  chats: readonly (BranchBusyChat & { id?: string })[]
   plans: readonly Pick<PlanData, "branchId" | "status">[]
+  /** Chats, by id, waiting on an answer to a question card. */
+  openQuestions?: ReadonlySet<string>
 }): WorkspaceTaskStatus {
   const { branch, callRunning } = input
   if (callRunning) return { state: "sending", line: null }
   if (!branch) return { state: "removed", line: null }
   const { line } = workspaceState(
     branch,
-    roomWorkspaceFacts(input.chats, input.plans)
+    roomWorkspaceFacts(input.chats, input.plans, input.openQuestions)
   )
   if (line.kind === "error") return { state: "failed", line }
   if (line.kind === "progress") return { state: "starting", line }
