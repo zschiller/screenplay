@@ -965,9 +965,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     // The pill names the model alone; the menu's group labels say which
     // Harness it runs on.
     const currentModelLabel = currentModel?.label ?? (model || "Loading…")
-    const defaultModelInfo = models.find((m) => m.id === defaultModel)
-    const offDefault =
-      !!currentModel && !!defaultModelInfo && model !== defaultModel
 
     const modelGroups = useMemo(() => groupModelsByProvider(models), [models])
 
@@ -1023,11 +1020,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                             className="text-xs text-foreground"
                           >
                             {currentModelLabel}
-                            {offDefault && (
-                              <span className="font-normal text-muted-foreground">
-                                · not default
-                              </span>
-                            )}
                             <CaretDownIcon />
                           </InputGroupButton>
                         </DropdownMenuTrigger>
@@ -1094,7 +1086,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 hint={
                   targetEligible
                     ? undefined
-                    : "Open this workspace's preview first"
+                    : "Show this workspace in a frame first."
                 }
                 disabled={noAgents || !targetEligible}
                 onClick={triggerPick}

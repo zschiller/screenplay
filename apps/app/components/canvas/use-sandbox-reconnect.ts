@@ -82,7 +82,7 @@ export function useSandboxReconnect({
           updateAgentInStorage(agent.id, {
             status: "error",
             statusMessage: undefined,
-            error: "Sandbox creation was interrupted — delete and try again",
+            error: "Setup was interrupted. Delete this workspace and try again.",
           })
           break
 
@@ -109,7 +109,7 @@ export function useSandboxReconnect({
           updateAgentInStorage(agent.id, {
             status: "stopped",
             statusMessage: "",
-            error: "Workspace not found — click refresh to retry",
+            error: "Couldn't find this workspace. Press Retry.",
           })
           break
 
@@ -136,7 +136,7 @@ export function useSandboxReconnect({
             // miss now that the silent reclone fallback is gone (ADR 0005).
             updateAgentInStorage(agent.id, {
               status: "starting",
-              statusMessage: "Recreating expired sandbox…",
+              statusMessage: "Restarting the workspace…",
               error: "",
             })
             recreateSandbox(
@@ -160,7 +160,7 @@ export function useSandboxReconnect({
                   statusMessage: "",
                   error:
                     restartResult.error ||
-                    "Sandbox could not be restarted — click refresh to retry",
+                    "Couldn't restart the workspace. Press Retry.",
                 })
               }
             })

@@ -48,29 +48,29 @@ itself when sign-in finishes.
 On the hosted app, GitHub comes from your sign-in instead: you sign in with
 GitHub, and Screenplay uses that account for cloning, pushing, and PRs.
 
-## Coding agents *(desktop)*
+## Agent *(desktop)*
 
 On desktop, the agent is a coding CLI on your machine. There's one row per
 supported CLI: **Claude Code**, **Codex**, and **opencode**. Each row shows
 whether it's **Signed in**, **Signed out** or **Not installed**:
 
-- **Install & sign in** installs the CLI, then runs its own login in an inline
+- **Install and sign in** installs the CLI, then runs its own login in an inline
   terminal.
 - **Sign in** appears when it's installed but signed out.
-- **Re-run sign-in** appears when it's already connected.
+- **Sign in again** appears when it's already connected.
 
 If an install or sign-in doesn't finish, the row says so under its name, and
 the same button tries again.
 
-**Default agent**, at the top of the section, picks the agent and model that
-new chats and new workspaces start with. On the hosted app the same choice is
-**Default model**, in the **Agent** section.
+**Default model**, at the top of the section, picks the agent and model that
+new chats and new workspaces start with. The hosted app has the same choice in
+its own **Agent** section.
 
 A CLI you connect here shows up in the model picker and the new-terminal menu
 straight away, with no restart. The app never uninstalls a CLI or signs you
 out of it.
 
-<Screenshot name="settings-coding-agents" alt="Settings → Coding agents: the default agent, and Claude Code signed in" />
+<Screenshot name="settings-coding-agents" alt="Settings → Agent: the default model, and Claude Code signed in" />
 
 ## Repositories
 

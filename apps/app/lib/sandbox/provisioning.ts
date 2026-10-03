@@ -156,7 +156,8 @@ export async function provisionSandbox(
         return {
           success: false,
           error:
-            (!created.success && created.error) || "Failed to create branch",
+            (!created.success && created.error) ||
+            "Couldn't set up the workspace.",
         }
       }
     }
@@ -176,7 +177,8 @@ export async function provisionSandbox(
         return {
           success: false,
           error:
-            (!created.success && created.error) || "Failed to create branch",
+            (!created.success && created.error) ||
+            "Couldn't set up the workspace.",
         }
       }
     }

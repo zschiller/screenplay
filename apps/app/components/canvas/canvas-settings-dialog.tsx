@@ -466,7 +466,6 @@ function RepositoriesSection({
         }}
       />
       <RemoveRepositoryDialog
-        verb={isLocalBuild ? "Turn off" : "Remove"}
         repo={repos.find((r) => r.id === turningOffId) ?? null}
         branches={branches}
         onOpenChange={(open) => {

@@ -347,7 +347,7 @@ export function AgentChat({
     return (
       <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center text-sm text-balance text-muted-foreground">
         <span className="flex items-center gap-2">
-          <Spinner className="size-4" /> Waiting for the sandbox to start…
+          <Spinner className="size-4" /> The workspace is still starting…
         </span>
       </div>
     )

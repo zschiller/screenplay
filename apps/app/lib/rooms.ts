@@ -312,7 +312,7 @@ export async function canAccess(
 }
 
 /** The error {@link requireMember} throws for a signed-in non-member. */
-export const NOT_A_MEMBER = "You don't have access to this project"
+export const NOT_A_MEMBER = "You don't have access to this canvas."
 
 export async function requireMember(
   roomId: string,
@@ -332,9 +332,9 @@ export async function requireOwner(
   userId: string
 ): Promise<RoomRecord> {
   const room = await getRoom(roomId)
-  if (!room) throw new Error("Project not found")
+  if (!room) throw new Error("This canvas doesn't exist anymore.")
   if (room.ownerId !== userId) {
-    throw new Error("Only the project owner can do this")
+    throw new Error("Only the canvas owner can do this.")
   }
   return room
 }

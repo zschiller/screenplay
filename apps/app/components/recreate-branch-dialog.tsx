@@ -47,11 +47,8 @@ export function RecreateBranchDialog({
       itemNoun="workspace"
       description={
         <>
-          This recreates the sandbox for{" "}
-          <span className="font-mono">{branchName}</span> by cloning the branch
-          fresh from git. Any uncommitted changes in the sandbox will be{" "}
-          <strong>permanently discarded</strong>. To restart while keeping your
-          working tree, use “
+          Recreate rebuilds this workspace from git. Uncommitted changes are{" "}
+          <strong>permanently discarded</strong>. To keep them, use “
           {isLocalBuild ? "Restart dev server" : "Restart sandbox"}” instead.
         </>
       }

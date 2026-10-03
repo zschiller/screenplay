@@ -16,7 +16,7 @@ import { writeDefaultModel } from "@/lib/default-model-store"
 import { useModelCatalog } from "@/lib/use-model-catalog"
 
 /**
- * The "Default agent" control in Settings: the agent and model new chats and
+ * The "Default model" control in Settings: the agent and model new chats and
  * new Workspaces start from. Lists the same catalog as the composer's model
  * picker, and sits on whatever a new chat would pick today until the user
  * chooses, so it never shows a default that isn't the real one.

@@ -628,7 +628,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "settings-coding-agents",
-    description: "Settings → Coding agents.",
+    description: "Settings → Agent.",
     path: "/settings?section=coding-agents",
   }),
   screen({
@@ -1312,7 +1312,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: [
       "[data-slot=tooltip-content]",
       "button[aria-label^='Device']",
-      "button[aria-label='Open agent']",
+      "button[aria-label='Show chat']",
     ],
     beforeNavigate: warmPlay,
     crop: [760, 440, 520, 360],

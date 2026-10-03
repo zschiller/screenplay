@@ -609,7 +609,7 @@ for their selection side effects rather than poking raw setters. Same shape as
 the Tab Pool: decide purely, apply at the call site (the call site is the
 controller). With nothing selected the panel shows the Room: `ChatPanel` takes a
 `room` target too and draws the Coordinator chat under the same header
-(`ChatPanelHeader`, the one Collapse chat button) as a Workspace.
+(`ChatPanelHeader`, the one Hide chat button) as a Workspace.
 _Avoid_: conflating _which_ target is shown (this) with the tabs within it (Tab
 Pool); reaching around the controller to set `selectedAgentId` / `selectedChatId`
 directly; folding the pure decisions into the controller.

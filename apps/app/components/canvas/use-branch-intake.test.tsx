@@ -85,15 +85,17 @@ describe("removeBranch — local teardown vs. the remote branch", () => {
     expect(clearIfSelected).toHaveBeenCalledWith("branch-1")
     expect(deleteSandboxes).toHaveBeenCalledWith(["sandbox-branch-1"])
 
-    // …and the remote failure surfaces as a warning that names it, never as a
+    // …and the remote failure surfaces as a warning, never as a
     // thrown error the dialog would render inline over a deleted Workspace.
     await vi.waitFor(() => expect(toast.warning).toHaveBeenCalledOnce())
     const [title, options] = toast.warning.mock.calls[0] as [
       string,
       { description?: string },
     ]
-    expect(title).toContain("feature-a")
-    expect(options.description).toBe("No GitHub token")
+    expect(title).toBe("Workspace deleted. Its branch is still on GitHub.")
+    expect(options.description).toBe(
+      "Delete it on GitHub if you don't need it."
+    )
   })
 
   it("does not throw when the remote delete rejects outright", async () => {

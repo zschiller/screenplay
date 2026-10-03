@@ -44,7 +44,7 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
     skills: false,
     planMode: false,
     elementPicking: false,
-    placeholder: "Ask the Coordinator… (@ to mention a document)",
+    placeholder: "Ask the Coordinator… (@ document)",
     emptyTitle: "Ask about this canvas",
     emptyBody:
       "The Coordinator sees every Workspace, frame and Document on this canvas.",

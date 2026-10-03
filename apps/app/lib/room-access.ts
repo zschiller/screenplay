@@ -55,7 +55,7 @@ function roomDoc(roomId: string): RoomDoc {
 
 /**
  * Open a Room for the current session. Throws `"Unauthorized"` with no session
- * and `"You don't have access to this project"` for a signed-in non-member,
+ * and `"You don't have access to this canvas."` for a signed-in non-member,
  * before anything touches the room doc.
  */
 export async function openRoom(roomId: string): Promise<RoomAccess> {

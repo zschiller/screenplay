@@ -66,7 +66,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
     if (items.length === 0) {
       return (
         <div className="rounded-md border border-border bg-popover px-2 py-1.5 text-xs text-muted-foreground shadow-md">
-          No layers found
+          No matches
         </div>
       )
     }

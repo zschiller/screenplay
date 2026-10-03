@@ -103,7 +103,7 @@ describe("AgentChat — affordances per Chat Target", () => {
     expect(
       screen.queryByRole("button", { name: /target an element/i })
     ).toBeNull()
-    expect(placeholder()).toBe("Ask the Coordinator… (@ to mention a document)")
+    expect(placeholder()).toBe("Ask the Coordinator… (@ document)")
     expect(screen.getByText("Ask about this canvas")).toBeTruthy()
     expect(
       screen.getByRole("button", { name: "What's on this canvas?" })

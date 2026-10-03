@@ -468,14 +468,14 @@ function WorkspaceChatPanel({
               }
               title={
                 isAgentBusy
-                  ? "Sandbox still starting…"
+                  ? "The workspace is still starting…"
                   : anyChatStreaming
-                    ? "Agent is working in this workspace…"
+                    ? "The agent is still working."
                     : undefined
               }
             >
               <GitPullRequestIcon />
-              Create PR
+              Create pull request
             </Button>
           )}
         </div>

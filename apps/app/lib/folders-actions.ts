@@ -81,7 +81,7 @@ export async function renameFolder(
   // Owner-scoped lookup gates the rename: a folder the caller doesn't own reads
   // as not found, so one user can never rename another's folder (PRD #475).
   const folder = await getOwnedFolder(folderId, ownerId)
-  if (!folder) throw new Error("Folder not found")
+  if (!folder) throw new Error("This folder doesn't exist anymore.")
   const trimmed = name.trim() || "Untitled folder"
   await renameFolderRecord(folderId, trimmed)
 }
@@ -99,14 +99,14 @@ export async function moveFolder(
 ): Promise<void> {
   const ownerId = await requireUserId()
   const folder = await getOwnedFolder(folderId, ownerId)
-  if (!folder) throw new Error("Folder not found")
+  if (!folder) throw new Error("This folder doesn't exist anymore.")
   if (parentFolderId !== null) {
     const target = await getOwnedFolder(parentFolderId, ownerId)
-    if (!target) throw new Error("Folder not found")
+    if (!target) throw new Error("This folder doesn't exist anymore.")
   }
   const folders = await listFoldersForUser(ownerId)
   if (!canMoveFolder(folders, folderId, parentFolderId)) {
-    throw new Error("Cannot move a folder into itself or one of its subfolders")
+    throw new Error("A folder can't go inside itself.")
   }
   await updateFolderParent(folderId, parentFolderId)
 }
@@ -147,7 +147,7 @@ export async function deleteFolder(
   // Owner-scoped lookup gates the delete: a folder the caller doesn't own reads
   // as not found, so one user can never delete another's tree (PRD #475).
   const folder = await getOwnedFolder(folderId, ownerId)
-  if (!folder) throw new Error("Folder not found")
+  if (!folder) throw new Error("This folder doesn't exist anymore.")
 
   const folders = await listFoldersForUser(ownerId)
   const branch = new Set(descendantFolderIds(folderId, folders))
@@ -224,7 +224,7 @@ export async function placeRoom(
   const userId = await requireUserId()
   if (folderId !== null) {
     const owned = await getOwnedFolder(folderId, userId)
-    if (!owned) throw new Error("Folder not found")
+    if (!owned) throw new Error("This folder doesn't exist anymore.")
   }
   await placeRoomInFolder({ userId, roomId, folderId })
 }

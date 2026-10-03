@@ -41,8 +41,7 @@ describe("describeTurnError", () => {
 
 describe("describeSendError", () => {
   it("keeps the server's own sentence", () => {
-    const ended =
-      "This chat's session has ended and can't be resumed. Please start a new chat to continue."
+    const ended = "This chat can't continue. Start a new chat to keep going."
     expect(describeSendError(ended)).toBe(ended)
     expect(describeSendError("The agent couldn't be reached")).toBe(
       "The agent couldn't be reached."

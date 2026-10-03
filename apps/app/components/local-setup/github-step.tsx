@@ -142,7 +142,7 @@ export function GitHubStep({
                   onClick={() => connection.start(action.kind)}
                 >
                   {action.kind === "install"
-                    ? "Install GitHub CLI and connect"
+                    ? "Install and connect"
                     : "Sign in to GitHub"}
                 </Button>
               )}
@@ -156,7 +156,7 @@ export function GitHubStep({
                   className="text-muted-foreground"
                   onClick={() => setDeviceOpen(true)}
                 >
-                  Use a device code
+                  Use a device code instead
                 </Button>
               )}
             </>
