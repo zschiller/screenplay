@@ -19,7 +19,8 @@ import { BRIDGE_JS } from "./index"
 // The Frame Stream service end to end (#1392, #1393), in the style of the
 // #1366 prototype's bench: a real Xvfb, Chromium and ffmpeg behind the
 // service's WebSocket, a stand-in dev server, and viewers that speak the wire
-// protocol. Skipped where the browser stack isn't installed.
+// protocol. Skipped where the browser stack isn't installed. CI runs it in its
+// own job (the *.browser.test.ts files), apart from the sharded unit tests.
 
 const SCRIPT = fileURLToPath(new URL("./frame-stream.mjs", import.meta.url))
 
@@ -45,6 +46,11 @@ const HAS_STACK =
   !!CHROME &&
   !!which("Xvfb") &&
   !!which("ffmpeg")
+// CI's browser job installs the stack; there a missing piece is a failure,
+// not a skip, so the test can't drop out of CI unnoticed.
+if (process.env.SCREENPLAY_REQUIRE_BROWSER_STACK && !HAS_STACK) {
+  throw new Error("Chrome, Xvfb and ffmpeg are required but not all found")
+}
 
 const KEY = "test-stream-key"
 
