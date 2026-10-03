@@ -42,9 +42,9 @@ export const metadata: Metadata = {
   // `pnpm og-image`. X, Slack and iMessage read these tags.
   openGraph: { siteName: "Screenplay", type: "website" },
   twitter: { card: "summary_large_image" },
-  title: "Screenplay — every branch, side by side",
+  title: "Screenplay — from idea to code, on one canvas",
   description:
-    "Run your coding agents on separate branches and see every result live on one canvas. Free and open source, for Mac.",
+    "Coding agents plan, mock up and build from your own repo, with every version live side by side. Free and open source, for Mac.",
 }
 
 export default function RootLayout({

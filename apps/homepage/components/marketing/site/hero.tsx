@@ -15,14 +15,14 @@ export function Hero() {
             data-veil
             className="font-headline text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance"
           >
-            Every branch,
+            From idea to code,
             <br />
-            <em>side by side</em>.
+            <em>on one canvas</em>.
           </h1>
           <div className="mt-14 grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
             <p className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]">
-              Run your coding agents on separate branches and see every result
-              live on one canvas.
+              Coding agents plan, mock up and build from your own repo, with
+              every version live side by side.
             </p>
             <div>
               <div className="flex flex-wrap gap-3 max-sm:flex-col">
