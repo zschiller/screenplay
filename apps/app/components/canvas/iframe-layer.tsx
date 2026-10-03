@@ -157,7 +157,7 @@ interface IframeLayerProps {
    * frame is one shared browser in the Sandbox, shown from its Frame Stream
    * instead of a per-viewer iframe.
    */
-  sharedStream?: { connection: FrameStreamConnection; roomId: string }
+  sharedStream?: FrameStreamConnection
   /** This viewer shows its own local copy of the shared frame (#1397). */
   localCopy?: boolean
   /** Switch this viewer's view of the shared frame to a local copy. */
@@ -448,22 +448,19 @@ export function IframeLayer({
   // A shared frame (#1392) has no iframe: reloads and routes go to the shared
   // browser over its stream.
   const shared = !!sharedStream
-  const sharedStreamRef = useRef(sharedStream)
+  const sharedFrame = sharedStream?.frame(iframeLayer.id)
+  const sharedFrameRef = useRef(sharedFrame)
   useEffect(() => {
-    sharedStreamRef.current = sharedStream
+    sharedFrameRef.current = sharedFrame
   })
 
   // The page's Sandbox Bridge: the iframe's, or the shared page's over the
   // stream (#1394), so pins, Knobs, the picker and Fit to content work on
   // both alike.
   const iframePort = useIframeBridgePort(iframeRef)
-  const streamConnection = sharedStream?.connection
   const port = useMemo(
-    () =>
-      streamConnection
-        ? streamConnection.bridgePort(iframeLayer.id)
-        : iframePort,
-    [streamConnection, iframeLayer.id, iframePort]
+    () => (sharedStream ? sharedStream.bridgePort(iframeLayer.id) : iframePort),
+    [sharedStream, iframeLayer.id, iframePort]
   )
 
   // The URL the iframe is *supposed* to show. reloadIframe reloads onto this,
@@ -558,9 +555,9 @@ export function IframeLayer({
   )
 
   const reloadIframe = useCallback(() => {
-    const stream = sharedStreamRef.current
-    if (stream) {
-      stream.connection.send({ t: "reload", frame: iframeLayer.id })
+    const frame = sharedFrameRef.current
+    if (frame) {
+      frame.reload()
       return
     }
     const iframe = iframeRef.current
@@ -579,14 +576,14 @@ export function IframeLayer({
       const i = iframeRef.current
       if (i) i.src = src
     })
-  }, [iframeLayer.id])
+  }, [])
 
   const handleReady = useCallback(
     async (_id: string, reportedVersion: string | undefined) => {
       // The page is up and interactive — hide the loading overlay immediately,
       // regardless of the bridge-version housekeeping below. A shared frame
       // is ready when its picture is.
-      if (!sharedStreamRef.current) setContentReady(true)
+      if (!sharedFrameRef.current) setContentReady(true)
       if (!iframeLayer.branchId) return
       const expected = await fetchExpectedBridgeVersion()
       if (!expected || expected === reportedVersion) return
@@ -1216,11 +1213,10 @@ export function IframeLayer({
             had already fetched it once, serializing two full loads. Now the
             iframe loads in parallel with the probe and the overlay below just
             hides it until the dev server is confirmed reachable. */}
-            {sharedStream && iframeLayer.iframeUrl && (
+            {sharedStream && sharedFrame && iframeLayer.iframeUrl && (
               <FrameStreamView
-                stream={sharedStream.connection}
-                roomId={sharedStream.roomId}
-                frameId={iframeLayer.id}
+                stream={sharedStream}
+                frame={sharedFrame}
                 width={iframeLayer.width}
                 height={iframeLayer.height}
                 route={shownRoute}
