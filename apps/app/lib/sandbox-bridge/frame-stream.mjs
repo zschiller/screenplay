@@ -61,6 +61,13 @@ const ORIGIN = (
   process.env.SCREENPLAY_FRAME_ORIGIN || "http://127.0.0.1:4000"
 ).replace(/\/+$/, "")
 const CHROME = process.env.SCREENPLAY_CHROME || "google-chrome"
+// A viewer's mouse goes to the display as real X input when xte (from
+// xautomation) is installed: it reaches what CDP's input can't, such as a
+// native <select>'s popup and date and colour pickers. CDP is the fallback.
+const XTE =
+  process.env.SCREENPLAY_XTE ??
+  ["/usr/bin/xte", "/usr/local/bin/xte"].find((p) => existsSync(p)) ??
+  ""
 const FPS = Number(process.env.SCREENPLAY_STREAM_FPS) || 30
 // Frames are encoded at twice their CSS size so they stay sharp up to 200%
 // zoom, within a pixel budget per frame (larger frames encode at less).
@@ -669,6 +676,10 @@ class Frame {
     try {
       this.chrome?.kill("SIGKILL")
     } catch {}
+    try {
+      this.xte?.kill("SIGKILL")
+    } catch {}
+    this.xte = null
     // TERM, so Xvfb removes its lock and the display can be used again.
     try {
       this.xvfb?.kill("SIGTERM")
@@ -1379,6 +1390,7 @@ class Frame {
         ? msg.type
         : null
       if (!type) return
+      if (this.xInput(type, msg)) return
       await this.page("Input.dispatchMouseEvent", {
         type,
         x: num(msg.x),
@@ -1420,6 +1432,58 @@ class Frame {
       if (typeof msg.text !== "string") return
       await this.page("Input.insertText", { text: msg.text.slice(0, 10_000) })
     }
+  }
+
+  /**
+   * A viewer's mouse event as real X input, through one xte per browser that
+   * reads its commands from stdin. The page's CSS pixels are its display's
+   * pixels at the capture scale, from the top left (the browser is a kiosk
+   * window there). The browser counts double clicks from the events' timing,
+   * as for a real mouse. False when xte
+   * isn't installed or the browser isn't up, for CDP to send it instead.
+   */
+  xInput(type, msg) {
+    if (!XTE || this.display === undefined) return false
+    if (!this.xte) {
+      const xte = spawn(XTE, [], {
+        stdio: ["pipe", "ignore", "ignore"],
+        env: { ...process.env, DISPLAY: `:${this.display}` },
+      })
+      xte.on("exit", () => {
+        if (this.xte === xte) this.xte = null
+      })
+      xte.stdin.on("error", () => {})
+      this.xte = xte
+    }
+    const num = (n) => (Number.isFinite(n) ? n : 0)
+    const scale = this.capture?.scale ?? SCALE
+    const x = Math.round(Math.min(Math.max(num(msg.x), 0), this.width) * scale)
+    const y = Math.round(Math.min(Math.max(num(msg.y), 0), this.height) * scale)
+    const lines = [`mousemove ${x} ${y}`]
+    const button = { left: 1, middle: 2, right: 3 }[msg.button]
+    if (type !== "mouseMoved" && button) {
+      // Held modifiers: shift-click, ⌘-click.
+      const mods = num(msg.modifiers)
+      const keys = [
+        [1, "Alt_L"],
+        [2, "Control_L"],
+        [4, "Super_L"],
+        [8, "Shift_L"],
+      ]
+        .filter(([bit]) => mods & bit)
+        .map(([, key]) => key)
+      const verb = type === "mousePressed" ? "mousedown" : "mouseup"
+      lines.push(
+        ...keys.map((k) => `keydown ${k}`),
+        // Presses that arrive together (the network batched them) still
+        // need time between them for the browser to count a double click.
+        "usleep 2000",
+        `${verb} ${button}`,
+        ...keys.map((k) => `keyup ${k}`)
+      )
+    }
+    this.xte.stdin.write(lines.join("\n") + "\n")
+    return true
   }
 
   // ---- the agent (#1396) ----

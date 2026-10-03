@@ -45,11 +45,12 @@ const HAS_STACK =
   process.platform === "linux" &&
   !!CHROME &&
   !!which("Xvfb") &&
-  !!which("ffmpeg")
+  !!which("ffmpeg") &&
+  !!which("xte")
 // CI's browser job installs the stack; there a missing piece is a failure,
 // not a skip, so the test can't drop out of CI unnoticed.
 if (process.env.SCREENPLAY_REQUIRE_BROWSER_STACK && !HAS_STACK) {
-  throw new Error("Chrome, Xvfb and ffmpeg are required but not all found")
+  throw new Error("Chrome, Xvfb, ffmpeg and xte are required but not all found")
 }
 
 const KEY = "test-stream-key"
@@ -118,6 +119,16 @@ const COPY = `<!doctype html><body>
       e.clipboardData.setData("text/plain", "from the page")
       e.preventDefault()
     })
+</script></body>`
+
+// A native select, whose popup only real X input reaches. It reports what's
+// picked.
+const SELECT = `<!doctype html><body style="margin:0">
+<select id="s" style="position:absolute;left:20px;top:20px;font-size:20px">
+<option>one</option><option>two</option><option>three</option></select>
+<script>
+  const s = document.getElementById("s")
+  s.onchange = () => fetch("/picked?v=" + s.value)
 </script></body>`
 
 // The paused frame's grace period and the browser cap, short and small.
@@ -286,7 +297,9 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
             ? APP
             : url.startsWith("/copy")
               ? COPY
-              : PAGE(url)
+              : url === "/select"
+                ? SELECT
+                : PAGE(url)
       )
     })
     await new Promise<void>((r) => devServer.listen(0, "127.0.0.1", r))
@@ -461,6 +474,36 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
         (m) => m.t === "route" && m.path === "/other"
       )
     ).toBe(false)
+  }, 30_000)
+
+  it("picks from a native select's popup with the driver's mouse", async () => {
+    const [a] = viewers.slice(-2) as [Viewer, Viewer]
+    a.send({ t: "navigate", frame: "f1", route: "/select" })
+    await a.waitFor(() => routeOf(a, "f1")?.path === "/select" || undefined)
+    const click = (x: number, y: number) => {
+      for (const type of ["mousePressed", "mouseReleased"] as const)
+        a.send({
+          t: "input",
+          frame: "f1",
+          kind: "mouse",
+          type,
+          x,
+          y,
+          button: "left",
+          buttons: type === "mousePressed" ? 1 : 0,
+          clickCount: 1,
+          modifiers: 0,
+        })
+    }
+    // Open the popup, then click its third option, below the field: each
+    // option is about 30px tall. The page may still be loading at first.
+    for (let i = 0; i < 20 && !requests.includes("/picked?v=three"); i++) {
+      click(40, 32)
+      await new Promise((r) => setTimeout(r, 500))
+      click(40, 122)
+      await new Promise((r) => setTimeout(r, 500))
+    }
+    expect(requests).toContain("/picked?v=three")
   }, 30_000)
 
   it("copies and cuts the page's selection for the driver only", async () => {
