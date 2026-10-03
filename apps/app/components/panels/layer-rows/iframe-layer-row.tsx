@@ -33,6 +33,7 @@ import {
   useWorkspaceHoverProps,
 } from "@/lib/workspace-hover-store"
 import { renameOnF2 } from "./rename-key"
+import { frameRowActionClass, frameRowButtonClass } from "./row-action"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
 
 /** Per-row props the iframeLayer renderer needs that the generic
@@ -105,7 +106,8 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
         <SidebarMenuButton
           {...hoverProps}
           className={cn(
-            "w-full !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible",
+            "w-full !transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible",
+            frameRowButtonClass,
             highlightClass
           )}
           isActive={selected}
@@ -131,7 +133,8 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
           type="button"
           {...hoverProps}
           className={cn(
-            "w-full cursor-pointer !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible",
+            "w-full cursor-pointer !transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible",
+            frameRowButtonClass,
             highlightClass
           )}
           onClick={(e) => {
@@ -180,11 +183,10 @@ export function IframeLayerRowMenu({
       <DropdownMenuTrigger asChild>
         <IconButton label="Frame options" tooltipSide="right" asChild>
           <SidebarMenuAction
-            className={
-              isSub
-                ? "!top-1/2 -translate-y-1/2 group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-                : "group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-            }
+            className={cn(
+              frameRowActionClass,
+              isSub && "!top-1/2 -translate-y-1/2"
+            )}
           >
             <DotsThreeIcon />
           </SidebarMenuAction>

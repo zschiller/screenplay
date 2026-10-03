@@ -28,6 +28,7 @@ import { markdownLayerKind } from "@/lib/layer-kinds/markdown-layer"
 import { mockupLayerKind } from "@/lib/layer-kinds/mockup-layer"
 import type { LayerKindDescriptor } from "@/lib/layer-kinds/types"
 import { renameOnF2 } from "./rename-key"
+import { frameRowActionClass, frameRowButtonClass } from "./row-action"
 import type {
   LayerRowComponents,
   LayerRowMenuProps,
@@ -89,7 +90,10 @@ function TitledLayerRow<T extends TitledLayer>({
   if (variant === "flat") {
     return (
       <SidebarMenuButton
-        className="w-full !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+        className={cn(
+          "w-full !transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible",
+          frameRowButtonClass
+        )}
         isActive={selected}
         onClick={(e) => {
           e.stopPropagation()
@@ -110,7 +114,10 @@ function TitledLayerRow<T extends TitledLayer>({
     <SidebarMenuSubButton asChild isActive={selected}>
       <button
         type="button"
-        className="w-full cursor-pointer !pr-2 !transition-[width,height] group-focus-within/frame-row:!pr-7 group-hover/frame-row:!pr-7 group-has-data-[state=open]/frame-row:!pr-7 has-[[data-editable-text=editing]]:overflow-visible"
+        className={cn(
+          "w-full cursor-pointer !transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible",
+          frameRowButtonClass
+        )}
         onClick={(e) => {
           e.stopPropagation()
           onSelect(item.id, e.shiftKey)
@@ -155,11 +162,10 @@ function TitledLayerRowMenu<T extends TitledLayer>({
       <DropdownMenuTrigger asChild>
         <IconButton label={optionsLabel} tooltipSide="right" asChild>
           <SidebarMenuAction
-            className={
-              isSub
-                ? "!top-1/2 -translate-y-1/2 group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-                : "group-focus-within/frame-row:opacity-100 group-hover/frame-row:opacity-100 aria-expanded:opacity-100 md:opacity-0"
-            }
+            className={cn(
+              frameRowActionClass,
+              isSub && "!top-1/2 -translate-y-1/2"
+            )}
           >
             <DotsThreeIcon />
           </SidebarMenuAction>
