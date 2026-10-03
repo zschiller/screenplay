@@ -10,8 +10,9 @@ const appDir = fileURLToPath(new URL("../../", import.meta.url))
 
 /**
  * Where user-facing copy lives. `app/api` answers other code, `lib/agent`
- * writes prompts and tool descriptions for the model, and tests quote copy
- * rather than render it — none of them is read by a person as UI.
+ * and `lib/frame-drive/tools.ts` write prompts and tool descriptions for the
+ * model, and tests quote copy rather than render it — none of them is read
+ * by a person as UI.
  */
 function uiSourceFiles(): string[] {
   return execFileSync(
@@ -26,6 +27,7 @@ function uiSourceFiles(): string[] {
     .filter((f) => /\.tsx?$/.test(f))
     .filter((f) => !/\.test\.tsx?$/.test(f))
     .filter((f) => !f.startsWith("app/api/") && !f.startsWith("lib/agent/"))
+    .filter((f) => f !== "lib/frame-drive/tools.ts")
     .filter((f) => !f.startsWith("lib/ui-copy/"))
 }
 
@@ -55,6 +57,8 @@ describe("findCopyViolations", () => {
     ["Back to room", "room → canvas"],
     ["Search workspaces...", "use the … character"],
     ["Choose a branch", "branch → workspace"],
+    ["Drove Checkout", "drive → control (or use)"],
+    ["Driving {}", "drive → control (or use)"],
   ])("flags %j", (text, rule) => {
     expect(findCopyViolations(text).map((v) => v.rule)).toContain(rule)
   })
@@ -69,6 +73,8 @@ describe("findCopyViolations", () => {
     "Restart sandbox",
     "No repositories found.",
     "Add repository",
+    "Used Checkout",
+    "Take control",
   ])("passes %j", (text) => {
     expect(findCopyViolations(text)).toEqual([])
   })

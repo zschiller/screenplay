@@ -88,6 +88,7 @@ describe("desktop: a canvas repo follows its repository", () => {
   })
 
   it("doesn't name who added a repo", () => {
+    expect(policy.removesForEveryone).toBe(false)
     expect(policy.showsAddedBy).toBe(false)
   })
 })
@@ -121,6 +122,7 @@ describe("hosted: a canvas's copy belongs to the canvas", () => {
   })
 
   it("names who added a repo", () => {
+    expect(policy.removesForEveryone).toBe(true)
     expect(policy.showsAddedBy).toBe(true)
   })
 })

@@ -35,6 +35,9 @@ export interface RepositoryLinkPolicy {
     branches: readonly BranchData[],
     repositories: readonly RepoConfig[]
   ): boolean
+  /** Whether removing the Repo takes the Canvas's copy, and everyone's
+   *  edits to it, away for everyone on the Canvas; its confirm says so. */
+  removesForEveryone: boolean
   /** Whether the list names who added each Repo ("Added by X"). */
   showsAddedBy: boolean
 }
@@ -60,6 +63,7 @@ export const desktopLinkPolicy: RepositoryLinkPolicy = {
       desktopLinkPolicy.isCustomized(repo, repositories)
     )
   },
+  removesForEveryone: false,
   showsAddedBy: false,
 }
 
@@ -72,6 +76,7 @@ export const hostedLinkPolicy: RepositoryLinkPolicy = {
   isCustomized: () => false,
   // The canvas's copy, and anyone's edits to it, go for everyone here.
   removeConfirms: () => true,
+  removesForEveryone: true,
   showsAddedBy: true,
 }
 

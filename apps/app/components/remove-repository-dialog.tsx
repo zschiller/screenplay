@@ -20,6 +20,8 @@ export function RemoveRepositoryDialog({
   changesLost,
   onOpenChange,
   onRemoveRepo,
+  forEveryone = false,
+  addedByName,
 }: {
   /** The repository to confirm removing; `null` keeps the dialog closed. */
   repo: RepoData | null
@@ -31,6 +33,10 @@ export function RemoveRepositoryDialog({
     id: string,
     options: { deleteBranchesOnRemote: boolean }
   ) => void | Promise<void>
+  /** The canvas is shared, so removing it is for everyone (hosted). */
+  forEveryone?: boolean
+  /** Who added it, when it wasn't you. */
+  addedByName?: string
 }) {
   const githubTokenAvailable = useGitHubTokenAvailable()
   const stateOf = useWorkspaceStates()
@@ -64,6 +70,8 @@ export function RemoveRepositoryDialog({
       canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(repo)}
       localBranchKept={isLocalBuild}
       changesLost={changesLost}
+      sharedCanvas={forEveryone}
+      addedByName={addedByName}
       onConfirm={async ({ deleteBranchesOnRemote }) => {
         if (!repo) return
         await onRemoveRepo(repo.id, { deleteBranchesOnRemote })

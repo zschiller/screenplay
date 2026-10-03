@@ -191,3 +191,35 @@ describe("deleting a repository", () => {
     ).not.toBeNull()
   })
 })
+
+describe("editing a repository", () => {
+  const openEdit = async (policy: RepositoryLinkPolicy) => {
+    vi.mocked(listRepositories).mockResolvedValueOnce([WEB])
+    render(
+      <RepoConfigsPanel
+        header={(action) => <div>{action}</div>}
+        policy={policy}
+      />
+    )
+    fireEvent.click(await screen.findByRole("button", { name: /^Edit/ }))
+    return screen.findByRole("dialog")
+  }
+
+  it("on desktop, says saving updates the canvases that use it", async () => {
+    const form = await openEdit(desktopLinkPolicy)
+    expect(
+      within(form).getByText(
+        "A repository’s scripts. Saving updates every canvas that uses it, unless it’s customized there."
+      )
+    ).not.toBeNull()
+  })
+
+  it("on hosted, says it applies when added", async () => {
+    const form = await openEdit(hostedLinkPolicy)
+    expect(
+      within(form).getByText(
+        "A repository’s scripts, applied when you add it to a canvas."
+      )
+    ).not.toBeNull()
+  })
+})

@@ -303,9 +303,9 @@ export function recreate(
   return runSandboxRecovery(
     id,
     {
-      startingMessage: "Recreating sandbox…",
-      successMessage: "Sandbox recreated",
-      failureTitle: "Couldn't recreate sandbox",
+      startingMessage: "Recreating from scratch…",
+      successMessage: "Recreated from scratch",
+      failureTitle: "Couldn't recreate from scratch",
       run: (agent, repo) =>
         recreateSandbox(agent.sandboxName, repo, agent.ref, deps.roomId),
     },

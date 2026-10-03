@@ -210,7 +210,7 @@ viewing, git and managing actions:
 | **Rename**                                         | Renames the workspace's title. The git branch stays as it is.                                                                          |
 | **Restart**                                        | See [Restarting](#restarting).                                                                                                         |
 | **Mark as done** / **Reopen**                      | See [Marking a workspace done](#marking-a-workspace-done).                                                                             |
-| **Delete**                                         | Removes the workspace, and optionally its branch on GitHub.                                                                            |
+| **Delete**                                         | Deletes the chat with its workspace and frames, and optionally its branch on GitHub.                                                   |
 
 ## Restarting
 
@@ -280,10 +280,10 @@ needs a GitHub connection.
 
 ## Deleting
 
-**… → Delete** removes the workspace, its chat and its frames from the
-canvas, and shuts down its sandbox. The dialog lists what it **Removes** and
-what it **Keeps** (the git branch itself isn't deleted), and warns when
-uncommitted changes, or on the hosted app unpushed commits, would be lost. If
+**… → Delete** deletes the chat, its workspace and its frames, and shuts down
+its sandbox. The dialog says in a sentence what's deleted and that the git
+branch stays, and warns when uncommitted changes, or on the hosted app
+unpushed commits, would be lost. If
 you're connected to GitHub and the repository has a GitHub remote, it also offers
 **Also delete the branch on GitHub**, which also closes an open PR. It's off
 by default. If the remote
@@ -292,7 +292,7 @@ left on the remote.
 
 <Screenshot
   name="delete-branch-dialog"
-  alt="The Delete workspace dialog with the Also delete the branch on GitHub option"
+  alt="The Delete chat dialog with the Also delete the branch on GitHub option"
 />
 
 Documents and mockups the chat made stay on the canvas. Any other chat can

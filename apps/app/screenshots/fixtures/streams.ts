@@ -6,7 +6,7 @@ import { encodeOutput } from "@/lib/terminal/ttyd-protocol"
  * Stubbed **streams** for screens whose content arrives over the network rather
  * than from the fixture world: the terminal's ttyd WebSocket and the sandbox
  * logs stream. The fixture world has no running sandbox, so without these a
- * terminal shows "Couldn't reach the sandbox terminal." and the logs panel a
+ * terminal shows "Couldn't reach the terminal." and the logs panel a
  * 404 — true, but not the surface a design-polish ticket needs to review.
  *
  * Installed through a Screen's `beforeNavigate` hook, before the first navigation: both

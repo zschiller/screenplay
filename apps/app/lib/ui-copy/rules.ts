@@ -11,6 +11,9 @@
  * - **No "project".** It used to label a Repo; since #880 the canvas is what
  *   works like a project, so the word names neither and stays off the screen.
  * - **The ellipsis character.** `…`, never three ASCII dots.
+ * - **Control, not drive.** Taking over a frame is "control" ("Take
+ *   control", "Ana has control"); a tool row says the agent "Used" a page.
+ *   "Frame Drive" is the code's name for it and stays there.
  *
  * "Sandbox" is deliberately absent: it is a UI label in its own right
  * ("Restart sandbox"), so its misuse is a review call, not a lint.
@@ -28,6 +31,10 @@ const ALWAYS_BANNED: Array<{ rule: string; pattern: RegExp }> = [
   { rule: "project → repository (or canvas)", pattern: /\bprojects?\b/i },
   { rule: "iframeLayer → frame", pattern: /\biframe ?layers?\b/i },
   { rule: "use the … character", pattern: /\.\.\./ },
+  {
+    rule: "drive → control (or use)",
+    pattern: /\b(driv(e|es|en|ing|ers?)|drove)\b/i,
+  },
 ]
 
 /** Structural terms that are fine in git-level copy and nowhere else. */

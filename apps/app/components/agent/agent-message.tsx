@@ -714,7 +714,7 @@ export function TaskGroup({
 }
 
 /**
- * A Frame Drive folded into one row ({@link foldFrameDrives}): "Drove
+ * A Frame Drive folded into one row ({@link foldFrameDrives}): "Used
  * Checkout", with its step count, opening onto the steps. The person watches
  * the frame while it's driven, so it stays closed while it runs; its spinner
  * and count carry the progress, and a failed step marks the row.
@@ -747,8 +747,8 @@ export function FrameDriveGroup({
         )
       }
       title={
-        <TruncatedTitle fullText={`${running ? "Driving" : "Drove"} ${page}`}>
-          {running ? "Driving" : "Drove"} <span data-row-detail>{page}</span>
+        <TruncatedTitle fullText={`${running ? "Using" : "Used"} ${page}`}>
+          {running ? "Using" : "Used"} <span data-row-detail>{page}</span>
         </TruncatedTitle>
       }
       meta={

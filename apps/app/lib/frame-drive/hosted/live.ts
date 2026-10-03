@@ -83,10 +83,10 @@ async function sharedFrame(
   const { layer, branch } = found
   if (!layer) return "The frame isn't on the canvas anymore."
   if (!branch) {
-    return "The frame isn't in a Workspace, so there's no shared browser to drive."
+    return "The frame isn't in a workspace, so there's no shared browser to use."
   }
   if (!branch.previewDomain) {
-    return "The Workspace's dev server isn't running, so its frame has nothing to show."
+    return "The workspace's dev server isn't running, so its frame has nothing to show."
   }
   const stream = await workspaceStream(branch.sandboxName, branch.port)
   if (typeof stream === "string") return stream
@@ -124,10 +124,10 @@ async function workspaceStream(
   const result = await ensureFrameStream(sandboxName, devPort)
   if (!result.success) {
     streams.delete(sandboxName)
-    return `The Workspace's shared browser didn't start: ${result.error}`
+    return `The workspace's shared browser didn't start: ${result.error}`
   }
   if (!result.value) {
-    return "This Workspace's frames aren't shared (its Sandbox predates shared frames), so they can't be driven here."
+    return "This workspace was set up before frames were shared, so its frames can't be used here."
   }
   const stream = {
     url: result.value.url,

@@ -45,6 +45,14 @@ type DeleteRepoDialogProps = {
   localBranchKept: boolean
   /** The Repo was customized for this canvas, so its edits go with it (#1424). */
   changesLost?: boolean
+  /**
+   * A hosted canvas is shared: the Repo, and everyone's edits to it, go for
+   * everyone on it (#1427).
+   */
+  sharedCanvas?: boolean
+  /** Who added the Repo, when it wasn't you; said on a shared canvas, since
+   *  only they can add it back. */
+  addedByName?: string
   onConfirm: (options: { deleteBranchesOnRemote: boolean }) => Promise<void>
 }
 
@@ -62,6 +70,8 @@ export function DeleteRepoDialog({
   canDeleteOnRemote,
   localBranchKept,
   changesLost = false,
+  sharedCanvas = false,
+  addedByName,
   onConfirm,
 }: DeleteRepoDialogProps) {
   const [deleteBranchesOnRemote, setDeleteBranchesOnRemote] = useState(false)
@@ -93,16 +103,11 @@ export function DeleteRepoDialog({
       verb="Remove"
       itemName={repoName}
       itemNoun="repository"
-      description={[
-        count === 0
-          ? "The repository is removed from this canvas."
-          : count === 1
-            ? "Its workspace is removed from this canvas, with its chats and frames."
-            : `Its ${count} workspaces are removed from this canvas, with their chats and frames.`,
-        changesLost && "Its changes on this canvas are lost.",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      description={removeDescription(count, {
+        sharedCanvas,
+        addedByName,
+        changesLost,
+      })}
       onConfirm={() => onConfirm({ deleteBranchesOnRemote: remote })}
     >
       {({ pending }) =>
@@ -145,6 +150,43 @@ export function DeleteRepoDialog({
       }
     </ConfirmDialog>
   )
+}
+
+/** What goes with the repository, in plain sentences: its chats (a chat
+ *  is what people see; each has its workspace) and, on a shared canvas, the
+ *  canvas's copy for everyone. */
+export function removeDescription(
+  count: number,
+  {
+    sharedCanvas = false,
+    addedByName,
+    changesLost = false,
+  }: {
+    sharedCanvas?: boolean
+    addedByName?: string
+    changesLost?: boolean
+  } = {}
+): string {
+  if (!sharedCanvas) {
+    return [
+      count === 0
+        ? "The repository is removed from this canvas."
+        : count === 1
+          ? "Its chat is removed from this canvas, with its frames."
+          : `Its ${count} chats are removed from this canvas, with their frames.`,
+      changesLost && "Its changes on this canvas are lost.",
+    ]
+      .filter(Boolean)
+      .join(" ")
+  }
+  return [
+    "It's removed for everyone on this canvas, with any changes made here.",
+    count === 1 && "Its chat and its frames go too.",
+    count > 1 && `Its ${count} chats and their frames go too.`,
+    addedByName && `${addedByName} added it.`,
+  ]
+    .filter(Boolean)
+    .join(" ")
 }
 
 function StateChip({

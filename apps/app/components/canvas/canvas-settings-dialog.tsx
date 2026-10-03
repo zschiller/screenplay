@@ -455,6 +455,12 @@ function RepositoriesSection({
       />
       <RemoveRepositoryDialog
         repo={removing}
+        forEveryone={policy.removesForEveryone}
+        addedByName={
+          shared && removing && removing.addedBy !== userId
+            ? member(removing.addedBy)?.name
+            : undefined
+        }
         branches={branches}
         changesLost={
           removing ? policy.isCustomized(removing, repositories) : false

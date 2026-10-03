@@ -303,7 +303,7 @@ describe("summarizeSteps", () => {
       call("4", { title: "frame_type", status: "failed" }),
       call("5", { title: "frame_screenshot" }),
     ])
-    expect(text).toBe("Viewed 1 frame, drove 1 frame")
+    expect(text).toBe("Viewed 1 frame, used 1 frame")
     expect(failures).toEqual(["Frame step"])
   })
 
