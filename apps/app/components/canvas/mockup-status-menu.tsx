@@ -48,7 +48,6 @@ export function MockupStatusMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="w-auto min-w-36"
         onPointerDown={(e) => e.stopPropagation()}
       >
         <DropdownMenuRadioGroup

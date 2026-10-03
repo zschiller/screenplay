@@ -305,7 +305,7 @@ export function BranchOverflowMenuContent({
           <ArrowsClockwiseIcon />
           Restart
         </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="w-48">
+        <DropdownMenuSubContent>
           {/*
             Restart dev server bounces the dev process inside the existing
             Sandbox — no VM cycle, working tree untouched — so it stays enabled

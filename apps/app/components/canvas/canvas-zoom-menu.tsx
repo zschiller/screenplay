@@ -68,7 +68,6 @@ export function CanvasZoomMenu({
         alignOffset={-4}
         sideOffset={8}
         collisionPadding={8}
-        className="w-52"
       >
         <DropdownMenuItem
           disabled={percent >= ZOOM_MAX * 100}
