@@ -34,6 +34,7 @@ import { hasGitHubRemote } from "@/lib/repo-identity"
 import type { CanvasOps } from "@/lib/canvas/ops"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { BranchData, IframeLayerData, RepoData } from "@/lib/types"
+import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
 
 /**
  * Branch Intake controller (PRD #562) — the Repo → Branch → Sandbox lifecycle
@@ -432,7 +433,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
               gitUrl: repo.cloneUrl,
               ref: branch,
               previewDomain: "",
-              port: repo.devServerPort ?? 3000,
+              port: repo.devServerPort ?? DEFAULT_DEV_SERVER_PORT,
               status: "creating",
               statusMessage: "Setting up the workspace…",
               createdAt: Date.now(),
@@ -555,7 +556,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           gitUrl: repo.cloneUrl,
           ref: branch,
           previewDomain: "",
-          port: repo.devServerPort ?? 3000,
+          port: repo.devServerPort ?? DEFAULT_DEV_SERVER_PORT,
           status: "creating",
           statusMessage: "Cloning repository…",
           createdAt: Date.now(),

@@ -19,12 +19,20 @@ import {
   RepoDialogFooter,
   RepoDialogHeader,
 } from "@/components/repo-dialog-layout"
-import { RepoSettingsFields } from "@/components/repo-settings-fields"
-import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
+import {
+  RepoSettingsFields,
+  runSettingsFieldProps,
+} from "@/components/repo-settings-fields"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { resetCanvasRepoEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
 import { useCanvasRepoEnvField } from "@/lib/repo-env/use-env-field"
 import { isCustomized, repositorySettings } from "@/lib/repository-library"
+import {
+  parseRunSettings,
+  runSettingsFields,
+  sameRunSettings,
+  type RunSettingsFields,
+} from "@/lib/run-settings"
 import type { RepoData } from "@/lib/types"
 
 /**
@@ -120,11 +128,9 @@ function RepoSettingsForm({
   onClose: () => void
 }) {
   const [name, setName] = useState(repo.name ?? "")
-  const [setupScript, setSetupScript] = useState(repo.setupScript)
-  const [devScript, setDevScript] = useState(repo.devScript)
-  const [devServerPort, setDevServerPort] = useState(
-    String(repo.devServerPort ?? 3000)
-  )
+  const [fields, setFields] = useState(() => runSettingsFields(repo))
+  const setField = (field: keyof RunSettingsFields) => (value: string) =>
+    setFields((prev) => ({ ...prev, [field]: value }))
   const env = useCanvasRepoEnvField({
     roomId,
     repo,
@@ -132,33 +138,16 @@ function RepoSettingsForm({
     onRevealError: () =>
       toast.error("Couldn't load the environment variables."),
   })
-  const [copyPatterns, setCopyPatterns] = useState(repo.copyPatterns ?? "")
-  const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
-    repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
-  )
-  const [systemPrompt, setSystemPrompt] = useState(repo.systemPrompt ?? "")
   const canSaveToAll = Boolean(repository && onSaveToAll)
   const [saveToAll, setSaveToAll] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const parsedPort = Number.parseInt(devServerPort, 10)
-  const portIsValid =
-    Number.isFinite(parsedPort) && parsedPort > 0 && parsedPort < 65536
-
-  const trimmedSystemPrompt = systemPrompt.trim()
+  const parsed = parseRunSettings(fields)
 
   const handleSave = useCallback(async () => {
-    if (!portIsValid) return
-    const settings = {
-      name: name.trim(),
-      setupScript,
-      devScript,
-      devServerPort: parsedPort,
-      copyPatterns: copyPatterns.trim() ? copyPatterns : undefined,
-      defaultIframeLayerSizeId,
-      systemPrompt: trimmedSystemPrompt || undefined,
-    }
+    if (!parsed) return
+    const settings = { name: name.trim(), ...parsed }
     setSaving(true)
     setError(null)
     // Stored, then named in the doc, on the server (#1492).
@@ -190,14 +179,8 @@ function RepoSettingsForm({
     onUpdate(repo.id, settings)
     onClose()
   }, [
-    portIsValid,
+    parsed,
     name,
-    setupScript,
-    devScript,
-    parsedPort,
-    copyPatterns,
-    defaultIframeLayerSizeId,
-    trimmedSystemPrompt,
     env,
     roomId,
     repo.id,
@@ -226,21 +209,15 @@ function RepoSettingsForm({
 
   const hasChanges =
     name.trim() !== (repo.name ?? "") ||
-    setupScript !== repo.setupScript ||
-    devScript !== repo.devScript ||
-    parsedPort !== (repo.devServerPort ?? 3000) ||
     env.changed ||
-    copyPatterns !== (repo.copyPatterns ?? "") ||
-    defaultIframeLayerSizeId !==
-      (repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
-    trimmedSystemPrompt !== (repo.systemPrompt ?? "").trim()
+    (parsed !== undefined && !sameRunSettings(parsed, repo))
 
   // Ticked, an unedited form can still save: it sends this canvas's
   // customized settings out to the rest.
   const differsFromRepository =
     repository !== undefined && isCustomized(repo, repository)
   const canSave =
-    portIsValid &&
+    parsed !== undefined &&
     !saving &&
     (hasChanges || (saveToAll && differsFromRepository))
 
@@ -269,21 +246,10 @@ function RepoSettingsForm({
 
         <RepoSettingsFields
           idPrefix="repo-settings"
-          setupScript={setupScript}
-          onSetupScriptChange={setSetupScript}
-          devScript={devScript}
-          onDevScriptChange={setDevScript}
-          devServerPort={devServerPort}
-          onDevServerPortChange={setDevServerPort}
+          {...runSettingsFieldProps(fields, setField)}
           envVars={env.value}
           onEnvVarsChange={env.onChange}
           envVarsAccess={env.access}
-          copyPatterns={copyPatterns}
-          onCopyPatternsChange={setCopyPatterns}
-          defaultIframeLayerSizeId={defaultIframeLayerSizeId}
-          onDefaultIframeLayerSizeIdChange={setDefaultIframeLayerSizeId}
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
         />
       </RepoDialogBody>
 

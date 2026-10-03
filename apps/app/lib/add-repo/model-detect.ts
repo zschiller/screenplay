@@ -1,5 +1,6 @@
 import type { DetectFileSystem } from "@/lib/add-repo/detect-fs"
 import type { DetectedSettings } from "@/lib/add-repo/resolver"
+import { parseDevServerPort } from "@/lib/run-settings"
 
 /**
  * Model-assisted settings detection: the second pass after the deterministic
@@ -226,9 +227,9 @@ function command(
 }
 
 function port(value: unknown): number | undefined {
-  const n = typeof value === "string" ? Number.parseInt(value, 10) : value
-  if (typeof n !== "number" || !Number.isInteger(n)) return undefined
-  return n > 0 && n < 65536 ? n : undefined
+  if (typeof value === "string") return parseDevServerPort(value)
+  if (typeof value !== "number" || !Number.isInteger(value)) return undefined
+  return parseDevServerPort(String(value))
 }
 
 /**

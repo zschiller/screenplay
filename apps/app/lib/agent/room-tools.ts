@@ -34,6 +34,7 @@ import {
   type WorkspaceCreateOutcome,
 } from "@/lib/agent/workspace-task"
 import { hasGitHubRemote } from "@/lib/repo-identity"
+import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
 import { getSkill, getSkillIndex } from "@/lib/skills"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { createRoomCollections } from "@/lib/yjs/schema"
@@ -506,7 +507,7 @@ async function createWorkspaces(
             ref,
             title,
             previewDomain: "",
-            port: repo.devServerPort ?? 3000,
+            port: repo.devServerPort ?? DEFAULT_DEV_SERVER_PORT,
             status: "creating",
             statusMessage: "Setting up the workspace…",
             createdAt: Date.now(),

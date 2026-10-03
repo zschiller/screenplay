@@ -1,5 +1,10 @@
 import type { RepoPickerSelection } from "@/components/repo-picker"
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import {
+  pickRunSettings,
+  type RunSettings,
+  type RunSettingsFields,
+} from "@/lib/run-settings"
 
 /**
  * The run settings the confirm-and-configure add modal resolves before anything
@@ -8,18 +13,8 @@ import type { RepoConfig } from "@/lib/repo-configs.types"
  * the expander reveals (#681). They arrive already resolved from the modal's
  * form state.
  */
-export interface ResolvedRepoSettings {
-  setupScript: string
-  devScript: string
-  devServerPort: number
+export interface ResolvedRepoSettings extends RunSettings {
   envVars: string
-  /** Desktop-only glob patterns; only meaningful for a `localPath` Repo. */
-  copyPatterns?: string
-  /** Advanced-section default frame size; `undefined` leaves the render-time
-   *  default in place. */
-  defaultIframeLayerSizeId?: string
-  /** Advanced-section system prompt; `undefined`/empty means none. */
-  systemPrompt?: string
   /**
    * The optional name from the advanced section (#681). Empty/undefined
    * targets the repo's "default" Repository. A given name keys the idempotent
@@ -35,22 +30,20 @@ export interface ResolvedRepoSettings {
  * prompt are never detected. The port rides as a number here (detection's
  * native shape); the modal's text field mirrors it as a string.
  */
-export interface DetectedSettings {
-  setupScript: string
-  devScript: string
-  devServerPort: number
-}
+export type DetectedSettings = Pick<
+  RunSettings,
+  "setupScript" | "devScript" | "devServerPort"
+>
 
 /**
  * The subset of the add-modal's form that detection can seed. All strings — the
  * port is a text input — so this is the shape the merge reads and writes; the
- * component holds these three in one state object and feeds them straight in.
+ * component holds them in its one `RunSettingsFields` object.
  */
-export interface DetectableFields {
-  setupScript: string
-  devScript: string
-  devServerPort: string
-}
+export type DetectableFields = Pick<
+  RunSettingsFields,
+  "setupScript" | "devScript" | "devServerPort"
+>
 
 export type DetectableField = keyof DetectableFields
 
@@ -153,19 +146,16 @@ export function resolveNewRepository(
   // repo's "default" Repository, a given name its own — so "web" and "api"
   // across a monorepo never collide.
   const name = settings.presetName?.trim() ?? ""
+  const { defaultIframeLayerSizeId, systemPrompt, ...essential } =
+    pickRunSettings(settings)
   const resolvedSettings = {
-    setupScript: settings.setupScript,
-    devScript: settings.devScript,
-    devServerPort: settings.devServerPort,
+    ...essential,
     envVars: settings.envVars,
-    copyPatterns: settings.copyPatterns,
     // Only overwrite the advanced fields the modal actually set — an untouched
     // field is left `undefined` by the modal and preserved from the match below
     // rather than clobbered to empty.
-    ...(settings.defaultIframeLayerSizeId
-      ? { defaultIframeLayerSizeId: settings.defaultIframeLayerSizeId }
-      : {}),
-    ...(settings.systemPrompt ? { systemPrompt: settings.systemPrompt } : {}),
+    ...(defaultIframeLayerSizeId ? { defaultIframeLayerSizeId } : {}),
+    ...(systemPrompt ? { systemPrompt } : {}),
   }
 
   const match = existing.find(
