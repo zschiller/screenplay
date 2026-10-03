@@ -498,12 +498,15 @@ describe("CanvasSettingsDialog", () => {
       within(form).getByRole("button", { name: "Reset to Settings" })
     )
 
-    expect(onUpdateRepo).toHaveBeenCalledWith(
-      "r1",
-      expect.objectContaining({
-        devScript: "pnpm dev",
-        setupScript: "pnpm install",
-      })
+    // The values are stored first; the doc follows (#1476).
+    await waitFor(() =>
+      expect(onUpdateRepo).toHaveBeenCalledWith(
+        "r1",
+        expect.objectContaining({
+          devScript: "pnpm dev",
+          setupScript: "pnpm install",
+        })
+      )
     )
   })
 
