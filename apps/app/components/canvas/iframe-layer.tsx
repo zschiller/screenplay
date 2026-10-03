@@ -6,9 +6,9 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowsOutSimpleIcon,
+  ChatCircleIcon,
   CopyIcon,
   DotsThreeIcon,
-  GitBranchIcon,
   PlayIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
@@ -627,10 +627,9 @@ export function IframeLayer({
   // so its presence is the gate.
   const showOpenInBrowser = !!onOpenInBrowser
   // The `…` menu holds this frame's own actions (device size, fit,
-  // duplicate, delete); the Workspace's own menu (H4), the same one as its
-  // chat header's …, sits in its Workspace submenu so it doesn't read as frame
-  // actions. Outside the Chats menu's provider that's just the prototype
-  // player and open in browser.
+  // duplicate, delete); the chat's menu (H4), the same one as its header's …,
+  // sits in a Chat submenu so it doesn't read as frame actions. Outside the
+  // Chats menu's provider that's just the prototype player and open in browser.
   const workspaceMenu = useChatsMenu()
   const hasWorkspaceMenu = useHasWorkspaceMenu(iframeLayer.branchId)
   const pendingWorkspaceRenameRef = useRef(false)
@@ -1179,8 +1178,8 @@ export function IframeLayer({
                         <DropdownMenuSeparator />
                         <DropdownMenuSub>
                           <DropdownMenuSubTrigger>
-                            <GitBranchIcon />
-                            Workspace
+                            <ChatCircleIcon />
+                            Chat
                           </DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
                             {hasWorkspaceMenu && iframeLayer.branchId ? (

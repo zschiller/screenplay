@@ -8,7 +8,10 @@ description: Open a workspace full screen as a clickable prototype, at any devic
 Play mode (the **prototype player**) opens a workspace's app full screen, with
 no canvas around it. Use it to test a flow properly or present a prototype.
 
-<Screenshot name="play-desktop" alt="The prototype player showing the Northwind homepage full screen, with the player controls in the corner" />
+<Screenshot
+  name="play-desktop"
+  alt="The prototype player showing the Northwind homepage full screen, with the player controls in the corner"
+/>
 
 Open it from:
 
@@ -17,7 +20,7 @@ Open it from:
   frame's route and with its knob values.
 
 The player opens in a new browser tab (on desktop, in your default browser),
-titled **▶ *canvas name***. Its link opens the player on the route and knob
+titled **▶ _canvas name_**. Its link opens the player on the route and knob
 values the frame had when you opened it; it doesn't follow you as you click
 around. On the hosted app, anyone with access to the canvas can open the
 link.
@@ -29,14 +32,14 @@ corner; the position is remembered.
 
 <Screenshot name="play-hud" alt="The player control bar" />
 
-| Control | What it does |
-| --- | --- |
-| **← Back to *canvas*** | *Hosted.* Returns to the canvas. |
-| **Device** | Switches device size without reloading, so you stay on the same page. Phones and tablets appear in a device outline, scaled to fit, with touch input. |
-| **Knobs** | Opens the knobs panel. |
-| **Comment** (<kbd>C</kbd>) | *Hosted.* Comment on an element of the live page, anchored the same way as comments on a frame. |
-| **Comments** | *Hosted.* This workspace's comment threads, the current route's first. The same threads show on the canvas. |
-| **Show chat** | Opens a chat side panel for this workspace, so you can ask for changes while you test. |
+| Control                    | What it does                                                                                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **← Back to _canvas_**     | _Hosted._ Returns to the canvas.                                                                                                                      |
+| **Device**                 | Switches device size without reloading, so you stay on the same page. Phones and tablets appear in a device outline, scaled to fit, with touch input. |
+| **Knobs**                  | Opens the knobs panel.                                                                                                                                |
+| **Comment** (<kbd>C</kbd>) | _Hosted._ Comment on an element of the live page, anchored the same way as comments on a frame.                                                       |
+| **Comments**               | _Hosted._ This workspace's comment threads, the current route's first. The same threads show on the canvas.                                           |
+| **Show chat**              | Opens a chat side panel for this workspace, so you can ask for changes while you test.                                                                |
 
 <Screenshot name="play-device-menu" alt="The device menu in the player" />
 
@@ -45,7 +48,10 @@ corner; the position is remembered.
 Pick a phone to preview inside a device outline. Pointer input switches to
 touch, so tap targets and scrolling behave like the real device.
 
-<Screenshot name="play-mobile" alt="The player showing the homepage inside an iPhone 17 Pro outline" />
+<Screenshot
+  name="play-mobile"
+  alt="The player showing the homepage inside an iPhone 17 Pro outline"
+/>
 
 ## Knobs and the agent
 
@@ -58,4 +64,7 @@ frame on the canvas keeps its own values.
 **Show chat** docks the workspace's chat beside the prototype. The preview
 updates live as the agent changes the code.
 
-<Screenshot name="play-agent" alt="The player with the agent panel docked on the right" />
+<Screenshot
+  name="play-agent"
+  alt="The player with the agent panel docked on the right"
+/>
