@@ -1987,6 +1987,14 @@ export function Canvas({
     [selectAgentForLogs]
   )
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  // A collapsed panel is inert (H1): nothing in it takes Tab or typing, and
+  // ⌘B / ⌘I still reopen it from the window key handler. Read from the layout
+  // as it changes, not the panel's later resize, so a chat expanded and
+  // focused in one go isn't still inert when its composer takes focus.
+  const onLayoutChange = useCallback((layout: PanelLayout) => {
+    if ("sidebar" in layout) setSidebarCollapsed(layout.sidebar === 0)
+    if ("chat" in layout) setChatCollapsed(layout.chat === 0)
+  }, [])
   const onLayoutChanged = useCallback((layout: PanelLayout) => {
     writePanelLayout("canvas-layout", layout)
   }, [])
@@ -2061,6 +2069,7 @@ export function Canvas({
             orientation="horizontal"
             className="fixed inset-0 bg-canvas-plane"
             defaultLayout={initialLayout}
+            onLayoutChange={onLayoutChange}
             onLayoutChanged={onLayoutChanged}
           >
             {/* Sidebar */}
@@ -2073,6 +2082,7 @@ export function Canvas({
               collapsedSize="0px"
               groupResizeBehavior="preserve-pixel-size"
               panelRef={sidebarPanelRef}
+              inert={sidebarCollapsed}
               onResize={(size, _id, prev) => {
                 setSidebarCollapsed(size.inPixels === 0)
                 if (prev) {
@@ -2668,6 +2678,7 @@ export function Canvas({
               collapsedSize="0px"
               groupResizeBehavior="preserve-pixel-size"
               panelRef={chatPanelRef}
+              inert={chatCollapsed}
               onResize={(size) => setChatCollapsed(size.inPixels === 0)}
             >
               <ChatPanelHost

@@ -5,6 +5,7 @@ import {
   Fragment,
   useCallback,
   useContext,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -102,6 +103,7 @@ import {
   IframeLayerRowMenu,
   makeIframeLayerRow,
 } from "@/components/panels/layer-rows/iframe-layer-row"
+import { renameOnF2 } from "@/components/panels/layer-rows/rename-key"
 
 import {
   documentRow,
@@ -197,6 +199,11 @@ const canvasCollision: CollisionDetection = (args) => {
   return closestCenter(args).filter((c) => eligible(c.id))
 }
 
+/** The button that selects a sidebar row: its one Tab stop and its keyboard
+ *  drag handle. The row's … menu is a `menu-action`, not matched here. */
+const ROW_BUTTON_SELECTOR =
+  ":scope > [data-sidebar=menu-button], :scope > [data-sidebar=menu-sub-button]"
+
 /**
  * A row wired into dnd-kit's sortable context. We intentionally DON'T
  * apply `useSortable`'s `transform`/`transition` to the rendered div:
@@ -236,13 +243,25 @@ function SortableRow({
         ? "into"
         : hint.edge
       : null
+  // A row is one Tab stop: its select button (H9). That button is also the
+  // keyboard drag handle, so Space on it picks the row up while Enter still
+  // selects; the row div keeps the pointer listeners and isn't a stop itself.
+  const rowRef = useRef<HTMLDivElement | null>(null)
+  const roleDescription = attributes["aria-roledescription"]
+  const describedBy = attributes["aria-describedby"]
+  useLayoutEffect(() => {
+    const handle =
+      rowRef.current?.querySelector<HTMLElement>(ROW_BUTTON_SELECTOR) ?? null
+    setActivatorNodeRef(handle)
+    if (!handle) return
+    handle.setAttribute("aria-roledescription", roleDescription)
+    handle.setAttribute("aria-describedby", describedBy)
+  })
   return (
     <div
       ref={(node) => {
+        rowRef.current = node
         setNodeRef(node)
-        // Only keys pressed on the row itself start a keyboard drag, not ones
-        // from a control inside it (a title, its … menu).
-        setActivatorNodeRef(node)
       }}
       style={{ opacity: isDragging ? 0 : undefined }}
       className={cn(
@@ -253,7 +272,6 @@ function SortableRow({
         indicator === "into" && "z-10 rounded-md ring-2 ring-canvas-selection",
         className
       )}
-      {...attributes}
       {...listeners}
       {...rest}
     >
@@ -523,7 +541,15 @@ export function RoomSidebar({
     // Activation distance lets clicks/double-clicks (no movement) through to
     // selection + zoom handlers, but any real drag past 6px starts moving.
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    // Space picks a row up; Enter on its button selects, as it always has.
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: {
+        start: ["Space"],
+        cancel: ["Escape"],
+        end: ["Space", "Enter"],
+      },
+    })
   )
 
   const [activeDragRow, setActiveDragRow] = useState<SidebarDragRow | null>(
@@ -732,6 +758,9 @@ export function RoomSidebar({
                                             e.stopPropagation()
                                             onZoomToGroup(group.id)
                                           }}
+                                          onKeyDown={(e) =>
+                                            renameOnF2(e, groupNameRef)
+                                          }
                                         >
                                           <CollapsibleTrigger
                                             asChild
@@ -757,6 +786,7 @@ export function RoomSidebar({
                                               )
                                             }
                                             placeholder="Group"
+                                            tabIndex={-1}
                                             className="min-w-0 font-medium text-sidebar-foreground/70"
                                             viewClassName="truncate"
                                             editClassName={cn(

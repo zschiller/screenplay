@@ -32,6 +32,7 @@ import {
   useIsFrameHighlighted,
   useWorkspaceHoverProps,
 } from "@/lib/workspace-hover-store"
+import { renameOnF2 } from "./rename-key"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
 
 /** Per-row props the iframeLayer renderer needs that the generic
@@ -89,6 +90,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
         value={label}
         onCommit={(next) => onRename(item.id, next)}
         placeholder="Untitled"
+        tabIndex={-1}
         className="min-w-0"
         viewClassName="truncate"
         editClassName={cn(
@@ -111,6 +113,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
             e.stopPropagation()
             onSelect(item.id, e.shiftKey)
           }}
+          onKeyDown={(e) => renameOnF2(e, editableRef)}
           onDoubleClick={(e) => {
             e.stopPropagation()
             onActivate?.(item.id)
@@ -135,6 +138,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
             e.stopPropagation()
             onSelect(item.id, e.shiftKey)
           }}
+          onKeyDown={(e) => renameOnF2(e, editableRef)}
           onDoubleClick={(e) => {
             e.stopPropagation()
             onActivate?.(item.id)
