@@ -15,7 +15,6 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
@@ -84,12 +83,7 @@ import type {
   MemoryData,
   RepoData,
 } from "@/lib/types"
-import {
-  CanvasFileView,
-  deleteCanvasFile,
-  fileDetail,
-  FilesSection,
-} from "./canvas-files-section"
+import { deleteCanvasFile, FilesSection } from "./canvas-files-section"
 import { MemorySection } from "./canvas-memory-section"
 
 /** The sections of Canvas settings. Members may join later. */
@@ -112,8 +106,7 @@ const SECTIONS: {
  * and your others to add, and edits them through the same flows as the
  * sidebar. What it edits lives in the Room's Y.Doc, so every
  * collaborator shares it. Memory (#902) lists the canvas memory every chat
- * reads, and Files (#1517) the files every chat can open. An opened item goes
- * onto the breadcrumb in place of the section, never into a second dialog.
+ * reads, and Files (#1517) the files every chat can open.
  */
 export function CanvasSettingsDialog({
   roomId,
@@ -168,14 +161,6 @@ export function CanvasSettingsDialog({
   const [activeId, setActiveId] =
     useState<CanvasSettingsSection>("repositories")
   const active = SECTIONS.find((s) => s.id === activeId) ?? SECTIONS[0]!
-  // Files: the folders open in the tree, and the file open on the breadcrumb
-  // (gone again if an agent deletes or moves it meanwhile).
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
-  const [openPath, setOpenPath] = useState<string | null>(null)
-  const openFile =
-    active.id === "files" && openPath !== null
-      ? files.find((f) => f.path === openPath && f.kind === "file")
-      : undefined
   const members = useCanvasMembers(
     roomId,
     policy.showsAddedBy && active.id === "files"
@@ -186,10 +171,6 @@ export function CanvasSettingsDialog({
       : entry.addedById === userId
         ? "Added by you"
         : `Added by ${members.find((m) => m.userId === entry.addedById)?.name ?? "a member"}`
-  const showSection = (id: CanvasSettingsSection) => {
-    setActiveId(id)
-    setOpenPath(null)
-  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -215,7 +196,7 @@ export function CanvasSettingsDialog({
                       <SidebarMenuItem key={section.id}>
                         <SidebarMenuButton
                           isActive={section.id === active.id}
-                          onClick={() => showSection(section.id)}
+                          onClick={() => setActiveId(section.id)}
                         >
                           <section.icon />
                           <span>{section.title}</span>
@@ -239,54 +220,17 @@ export function CanvasSettingsDialog({
                   <BreadcrumbSeparator className="hidden text-muted-foreground/60 md:block">
                     /
                   </BreadcrumbSeparator>
-                  {openFile ? (
-                    <>
-                      <BreadcrumbItem>
-                        <BreadcrumbLink asChild>
-                          <button
-                            type="button"
-                            onClick={() => setOpenPath(null)}
-                          >
-                            {active.title}
-                          </button>
-                        </BreadcrumbLink>
-                      </BreadcrumbItem>
-                      <BreadcrumbSeparator className="text-muted-foreground/60">
-                        /
-                      </BreadcrumbSeparator>
-                      <BreadcrumbItem className="min-w-0">
-                        <BreadcrumbPage className="truncate">
-                          {openFile.path.split("/").pop()}
-                        </BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </>
-                  ) : (
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>{active.title}</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  )}
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{active.title}</BreadcrumbPage>
+                  </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
             </header>
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5">
-              {openFile ? (
-                <CanvasFileView
-                  roomId={roomId}
-                  entry={openFile}
-                  detail={fileDetail(openFile, adderName)}
-                />
-              ) : active.id === "files" ? (
+              {active.id === "files" ? (
                 <FilesSection
+                  roomId={roomId}
                   files={files}
-                  expanded={expanded}
-                  onToggle={(path) =>
-                    setExpanded((prev) => {
-                      const next = new Set(prev)
-                      if (!next.delete(path)) next.add(path)
-                      return next
-                    })
-                  }
-                  onOpen={setOpenPath}
                   onDelete={(path) => deleteFile(roomId, path)}
                   adderName={adderName}
                 />

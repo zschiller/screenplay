@@ -972,7 +972,7 @@ describe("CanvasSettingsDialog", () => {
       ).toBeNull()
     })
 
-    it("opens a file on the breadcrumb, not in a second dialog, and goes back", async () => {
+    it("opens a file in a dialog over Canvas settings, and closes it", async () => {
       vi.stubGlobal(
         "fetch",
         vi.fn().mockResolvedValue(new Response("# Zebra notes"))
@@ -983,16 +983,23 @@ describe("CanvasSettingsDialog", () => {
         within(await menu("zebra.md")).getByRole("menuitem", { name: "Open" })
       )
 
-      expect(await screen.findByText("# Zebra notes")).toBeTruthy()
+      const file = await screen.findByRole("dialog", { name: "zebra.md" })
+      expect(await within(file).findByText("# Zebra notes")).toBeTruthy()
+      expect(within(file).getByText("2.1 KB · Added by you")).toBeTruthy()
       expect(fetch).toHaveBeenCalledWith("/api/canvas-files/room-1/zebra.md")
-      expect(screen.getAllByRole("dialog")).toHaveLength(1)
-      const crumbs = screen.getByRole("navigation", { name: "breadcrumb" })
       expect(
-        within(crumbs).getByText("zebra.md").getAttribute("aria-current")
-      ).toBe("page")
+        within(file)
+          .getByRole("link", { name: "Download" })
+          .getAttribute("href")
+      ).toBe("/api/canvas-files/room-1/zebra.md")
 
-      fireEvent.click(within(crumbs).getByRole("button", { name: "Files" }))
-      expect(rowNames()).toEqual(["research", "zebra.md"])
+      fireEvent.keyDown(file, { key: "Escape" })
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "zebra.md" })).toBeNull()
+      )
+      expect(
+        screen.getByRole("dialog", { name: "Canvas settings" })
+      ).toBeTruthy()
     })
 
     it("confirms deleting a file with its name", async () => {

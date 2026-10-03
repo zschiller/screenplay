@@ -15,6 +15,14 @@ import {
 } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -32,7 +40,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { LoadErrorState } from "@/components/home/load-error"
 import { SettingsRow, SettingsRowList } from "@/components/home/settings-row"
-import { formatFileSize, isTextMediaType } from "@/lib/files/paths"
+import { baseName, formatFileSize, isTextMediaType } from "@/lib/files/paths"
 import { fileTree, itemCount, type FileTreeNode } from "@/lib/files/tree"
 import type { FileEntryData } from "@/lib/types"
 
@@ -62,29 +70,34 @@ export function fileDetail(
 /**
  * Canvas settings › Files (#1517): the canvas's files as one expanding tree,
  * read-only for people. Agents save and organize files; a person can open one
- * (pushed onto the dialog's breadcrumb, {@link CanvasFileView}) or delete a
- * file or folder for every member, after a confirm.
+ * ({@link CanvasFileDialog}, over Canvas settings, as Repositories' Edit is)
+ * or delete a file or folder for every member, after a confirm.
  */
 export function FilesSection({
+  roomId,
   files,
-  expanded,
-  onToggle,
-  onOpen,
   onDelete,
   adderName,
 }: {
+  roomId: string
   files: FileEntryData[]
-  /** The folders open in the tree, by path. Kept by the dialog, so they stay
-   *  open while a file is shown. */
-  expanded: ReadonlySet<string>
-  onToggle: (path: string) => void
-  onOpen: (path: string) => void
   onDelete: (path: string) => Promise<void>
   /** "Saved by agent", "Added by you", "Added by Sam". */
   adderName: (entry: FileEntryData) => string
 }) {
   const [deleting, setDeleting] = useState<FileTreeNode | null>(null)
+  // The folders open in the tree, by path.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  // The file open in its dialog; gone if an agent deletes or moves it.
+  const [openPath, setOpenPath] = useState<string | null>(null)
+  const opened = files.find((f) => f.path === openPath && f.kind === "file")
   const tree = fileTree(files)
+  const onToggle = (path: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(path)) next.add(path)
+      return next
+    })
 
   const rows = (nodes: FileTreeNode[], depth: number): React.ReactNode[] =>
     nodes.flatMap((node) => {
@@ -101,7 +114,7 @@ export function FilesSection({
               : fileDetail(node.entry, adderName)
           }
           onToggle={() => onToggle(node.entry.path)}
-          onOpen={() => onOpen(node.entry.path)}
+          onOpen={() => setOpenPath(node.entry.path)}
           onDelete={() => setDeleting(node)}
         />,
         ...(open ? rows(node.children, depth + 1) : []),
@@ -129,6 +142,14 @@ export function FilesSection({
       ) : (
         <SettingsRowList>{rows(tree, 0)}</SettingsRowList>
       )}
+      <CanvasFileDialog
+        roomId={roomId}
+        entry={opened}
+        detail={opened ? fileDetail(opened, adderName) : ""}
+        onOpenChange={(open) => {
+          if (!open) setOpenPath(null)
+        }}
+      />
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => {
@@ -281,73 +302,91 @@ type Loaded =
   | { state: "error" }
 
 /**
- * An opened file (#1517), shown in place of the tree with its name on the
- * breadcrumb: an image or PDF as the browser draws it, text as source, and
- * anything else as a download.
+ * An opened file (#1517), in a dialog over Canvas settings: an image or PDF as
+ * the browser draws it, text as source, and anything else as a download.
  */
-export function CanvasFileView({
+export function CanvasFileDialog({
   roomId,
   entry,
   detail,
+  onOpenChange,
 }: {
   roomId: string
-  entry: FileEntryData
+  /** The open file; none closes the dialog. */
+  entry: FileEntryData | undefined
   detail: string
+  onOpenChange: (open: boolean) => void
 }) {
+  return (
+    <Dialog open={entry !== undefined} onOpenChange={onOpenChange}>
+      <DialogContent className="flex h-[min(640px,85vh)] flex-col sm:max-w-2xl">
+        {entry && (
+          <>
+            <DialogHeader className="min-w-0 pr-8">
+              <DialogTitle className="truncate">
+                {baseName(entry.path)}
+              </DialogTitle>
+              <DialogDescription>{detail}</DialogDescription>
+            </DialogHeader>
+            <FileBody roomId={roomId} entry={entry} />
+            <DialogFooter>
+              <Button asChild variant="outline">
+                <a
+                  href={canvasFileUrl(roomId, entry.path)}
+                  download={baseName(entry.path)}
+                >
+                  <DownloadSimpleIcon />
+                  Download
+                </a>
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function FileBody({ roomId, entry }: { roomId: string; entry: FileEntryData }) {
   const url = canvasFileUrl(roomId, entry.path)
   // An SVG is drawn as an image (no script runs in an <img>), not as source.
-  const kind =
-    entry.mediaType === "application/pdf"
-      ? "pdf"
-      : entry.mediaType.startsWith("image/")
-        ? "image"
-        : isTextMediaType(entry.mediaType)
-          ? "text"
-          : "other"
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="truncate text-xs text-muted-foreground">{detail}</p>
-        <Button asChild size="sm" variant="outline">
-          <a href={url} download={entry.path.split("/").pop()}>
-            <DownloadSimpleIcon />
-            Download
-          </a>
-        </Button>
-      </div>
-      {kind === "image" ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element -- a private
-              route's bytes, not an optimizable asset */}
-          <img
-            src={url}
-            alt={entry.path}
-            className="max-h-full max-w-full object-contain"
-          />
-        </div>
-      ) : kind === "pdf" ? (
-        <iframe
+  if (entry.mediaType.startsWith("image/")) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border p-3">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a private
+            route's bytes, not an optimizable asset */}
+        <img
           src={url}
-          title={entry.path}
-          className="min-h-0 w-full flex-1 rounded-lg border"
+          alt={entry.path}
+          className="max-h-full max-w-full object-contain"
         />
-      ) : kind === "text" ? (
-        <TextFile url={url} name={entry.path} updatedAt={entry.updatedAt} />
-      ) : (
-        <Empty className="flex-1 border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FileIcon />
-            </EmptyMedia>
-            <EmptyTitle>No preview for this file</EmptyTitle>
-            <EmptyDescription>
-              Download it to open it on your computer.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      )}
-    </div>
+      </div>
+    )
+  }
+  if (entry.mediaType === "application/pdf") {
+    return (
+      <iframe
+        src={url}
+        title={entry.path}
+        className="min-h-0 w-full flex-1 rounded-lg border"
+      />
+    )
+  }
+  if (isTextMediaType(entry.mediaType)) {
+    return <TextFile url={url} name={entry.path} updatedAt={entry.updatedAt} />
+  }
+  return (
+    <Empty className="flex-1 border">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FileIcon />
+        </EmptyMedia>
+        <EmptyTitle>No preview for this file</EmptyTitle>
+        <EmptyDescription>
+          Download it to open it on your computer.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   )
 }
 
