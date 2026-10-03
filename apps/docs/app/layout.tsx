@@ -53,6 +53,8 @@ const navbar = (
         </span>
       </span>
     }
+    // The Introduction lives in the Guides tab.
+    logoLink="/guides"
     projectLink="https://github.com/zschiller/screenplay"
   />
 )

@@ -19,7 +19,7 @@ const columns = [
       { href: docsUrl, label: "Docs" },
       { href: githubUrl, label: "GitHub", external: true },
       { href: `${docsUrl}/self-hosting`, label: "Self-hosting guide" },
-      { href: `${docsUrl}/building/knobs`, label: "Knobs guide" },
+      { href: `${docsUrl}/guides/building/knobs`, label: "Knobs guide" },
     ],
   },
 ]
