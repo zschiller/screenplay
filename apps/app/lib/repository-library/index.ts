@@ -11,6 +11,7 @@ export {
   isCustomized,
   linkCanvasRepos,
   linkedRepo,
+  repositorySettings,
   resetToRepository,
   runSettings,
   sameRepository,

@@ -42,7 +42,9 @@ vi.mock("@/lib/room-access", () => ({
 vi.mock("@/lib/local-mode", () => ({ isLocalBuild: false }))
 
 import {
+  copyInCanvasRepoEnv,
   migrateCanvasEnv,
+  resetCanvasRepoEnv,
   revealCanvasRepoEnv,
   saveCanvasRepoEnv,
 } from "./actions"
@@ -186,90 +188,85 @@ describe("migrateCanvasRepoEnv", () => {
 })
 
 describe("the env var server actions", () => {
-  it("save stores values and hands back names and digest, never values", async () => {
-    access.room = canvas(repo("r1", { addedBy: "ada" })).room
+  it("save stores values and names them in the room doc, never the values", async () => {
+    const { doc, c, room } = canvas(repo("r1", { addedBy: "ada" }))
+    access.room = room
 
-    const fields = await saveCanvasRepoEnv(
-      "room-1",
-      "r1",
-      "A=1\nB=2",
-      "replace"
-    )
+    await saveCanvasRepoEnv("room-1", "r1", "A=1\nB=sk_live_secret")
 
-    expect(fields).toEqual({
+    expect(c.repos.get("r1")).toMatchObject({
       envVarNames: ["A", "B"],
-      envVarsDigest: envVarsDigest("A=1\nB=2"),
+      envVarsDigest: envVarsDigest("A=1\nB=sk_live_secret"),
     })
-    expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1\nB=2")
+    expect(docText(doc)).not.toContain("sk_live_secret")
+    expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe(
+      "A=1\nB=sk_live_secret"
+    )
   })
 
-  it("merge lays a member's typed values over the stored ones", async () => {
+  it("lays another member's typed values over the stored ones", async () => {
     access.room = canvas(repo("r1", { addedBy: "grace" })).room
     await kvCanvasRepoEnvStore.set("room-1", "r1", "A=1\nB=2")
 
-    await saveCanvasRepoEnv("room-1", "r1", "B=mine", "merge")
+    await saveCanvasRepoEnv("room-1", "r1", "B=mine")
+    expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1\nB=mine")
 
+    // Clearing the field wipes nothing they can't see (#1475).
+    await saveCanvasRepoEnv("room-1", "r1", "")
     expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1\nB=mine")
   })
 
-  it("replace is refused for a member who can't reveal, and nothing changes", async () => {
-    access.room = canvas(repo("r1", { addedBy: "grace" })).room
-    await kvCanvasRepoEnvStore.set("room-1", "r1", "A=1\nB=2")
-
-    await expect(
-      saveCanvasRepoEnv("room-1", "r1", "", "replace")
-    ).rejects.toThrow(
-      "Only the person who added this repository can replace its values"
-    )
-    await expect(
-      saveCanvasRepoEnv("room-1", "r1", "A=mine", "replace")
-    ).rejects.toThrow()
-    access.role = "owner"
-    await expect(
-      saveCanvasRepoEnv("room-1", "r1", "A=mine", "replace")
-    ).rejects.toThrow()
-
-    expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1\nB=2")
-  })
-
-  it("the adder can replace, and the owner when there's no adder", async () => {
+  it("the adder replaces the whole set, and the owner when there's no adder", async () => {
     access.room = canvas(repo("r1", { addedBy: "grace" })).room
     await kvCanvasRepoEnvStore.set("room-1", "r1", "A=1\nB=2")
     access.userId = "grace"
-    await saveCanvasRepoEnv("room-1", "r1", "C=3", "replace")
+    await saveCanvasRepoEnv("room-1", "r1", "C=3")
     expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("C=3")
 
     access.room = canvas(repo("r2")).room
     await kvCanvasRepoEnvStore.set("room-1", "r2", "A=1")
     access.userId = "ada"
     access.role = "owner"
-    await saveCanvasRepoEnv("room-1", "r2", "D=4", "replace")
+    await saveCanvasRepoEnv("room-1", "r2", "D=4")
     expect(await kvCanvasRepoEnvStore.get("room-1", "r2")).toBe("D=4")
   })
 
-  it("a just-added repository not yet in the room doc saves while nothing is stored", async () => {
-    access.room = canvas().room
+  it("reset is refused for a member who can't reveal, and nothing changes", async () => {
+    access.room = canvas(repo("r1", { addedBy: "grace" })).room
+    await kvCanvasRepoEnvStore.set("room-1", "r1", "A=1\nB=2")
 
-    await saveCanvasRepoEnv("room-1", "r1", "A=1", "replace")
+    await expect(resetCanvasRepoEnv("room-1", "r1", "")).rejects.toThrow(
+      "Only the person who added this repository can replace its values"
+    )
+    access.role = "owner"
+    await expect(resetCanvasRepoEnv("room-1", "r1", "A=9")).rejects.toThrow()
+
+    expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1\nB=2")
+  })
+
+  it("copies a Repository's values in for a Repo not on the Canvas yet, only once", async () => {
+    const { c, room } = canvas()
+    access.room = room
+
+    expect(await copyInCanvasRepoEnv("room-1", "r1", "A=1")).toEqual({
+      envVarNames: ["A"],
+      envVarsDigest: envVarsDigest("A=1"),
+    })
     expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1")
+    expect(c.repos.get("r1")).toBeUndefined()
 
-    await expect(
-      saveCanvasRepoEnv("room-1", "r1", "", "replace")
-    ).rejects.toThrow()
+    await expect(copyInCanvasRepoEnv("room-1", "r1", "")).rejects.toThrow()
     expect(await kvCanvasRepoEnvStore.get("room-1", "r1")).toBe("A=1")
   })
 
   it("non-members and viewers can't save", async () => {
     access.room = canvas(repo("r1")).room
     access.member = false
-    await expect(
-      saveCanvasRepoEnv("room-1", "r1", "A=1", "replace")
-    ).rejects.toThrow()
+    await expect(saveCanvasRepoEnv("room-1", "r1", "A=1")).rejects.toThrow()
     access.member = true
     access.role = "viewer"
-    await expect(
-      saveCanvasRepoEnv("room-1", "r1", "A=1", "replace")
-    ).rejects.toThrow()
+    await expect(saveCanvasRepoEnv("room-1", "r1", "A=1")).rejects.toThrow()
+    await expect(copyInCanvasRepoEnv("room-1", "r2", "A=1")).rejects.toThrow()
     expect(kvRows.size).toBe(0)
   })
 

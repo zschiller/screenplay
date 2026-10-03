@@ -69,14 +69,26 @@ const digest = (text: string) =>
     ? `d:${[...text.trim()].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)}`
     : undefined
 
-/** Canvas env var values the library stored, as [canvas, repo, text]. */
-function memoryEnv() {
+/** Canvas env var values the library stored, as [canvas, repo, text]. Like
+ *  the Canvas Repo env module, a write names the values on the Repo after
+ *  storing them. */
+function memoryEnv(
+  canvases: Record<string, ReturnType<typeof makeHarness>> = {}
+) {
   const sets: Array<[string, string, string]> = []
   return {
     sets,
     env: {
-      set: async (roomId: string, repoId: string, text: string) => {
+      write: async (roomId: string, repoId: string, text: string) => {
         sets.push([roomId, repoId, text])
+        const names = text
+          .split("\n")
+          .filter(Boolean)
+          .map((l) => l.split("=")[0]!)
+        canvases[roomId]?.ops.patch("repos", repoId, {
+          envVarNames: names.length > 0 ? names : undefined,
+          envVarsDigest: digest(text),
+        })
       },
       digest,
     },
@@ -99,7 +111,7 @@ function setup({
 } = {}) {
   let n = 0
   const store = memoryStore(repositories)
-  const { env, sets } = memoryEnv()
+  const { env, sets } = memoryEnv(canvases)
   const library = createRepositoryLibrary({
     userId,
     store,
@@ -614,7 +626,7 @@ describe("customizing a repository on a canvas", () => {
     expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(false)
   })
 
-  it("Reset to Settings restores the repository's settings", () => {
+  it("Reset to Settings restores the repository's settings, leaving env vars to the env module", () => {
     const web = repository("web", {
       envVars: "A=1",
       envVarsDigest: digest("A=1"),
@@ -634,10 +646,16 @@ describe("customizing a repository on a canvas", () => {
     expect(repoOf(canvas, "repo-1")).toMatchObject({
       name: "",
       devServerPort: 3000,
+      envVarNames: ["A", "B"],
+      envVarsDigest: digest("A=2\nB=3"),
+    })
+    expect(repoOf(canvas, "repo-1")?.systemPrompt).toBeUndefined()
+
+    // The env module's reset names the Repository's values once stored.
+    canvas.ops.patch("repos", "repo-1", {
       envVarNames: ["A"],
       envVarsDigest: digest("A=1"),
     })
-    expect(repoOf(canvas, "repo-1")?.systemPrompt).toBeUndefined()
     expect(isCustomized(repoOf(canvas, "repo-1")!, web)).toBe(false)
   })
 })

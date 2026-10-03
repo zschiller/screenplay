@@ -22,13 +22,9 @@ import { Label } from "@workspace/ui/components/label"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import { revealCanvasRepoEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
-import {
-  envVarNames,
-  mergeEnvVars,
-  repoEnvVarNames,
-} from "@/lib/repo-env/names"
-import { isCustomized, runSettings } from "@/lib/repository-library"
+import { resetCanvasRepoEnv, saveCanvasRepoEnv } from "@/lib/repo-env/actions"
+import { useCanvasRepoEnvField } from "@/lib/repo-env/use-env-field"
+import { isCustomized, repositorySettings } from "@/lib/repository-library"
 import type { RepoData } from "@/lib/types"
 
 /**
@@ -39,7 +35,8 @@ import type { RepoData } from "@/lib/types"
  * differs from, the footer offers Reset to Settings (#1424). Given
  * `onSaveToAll` too, an unchecked box saves the edit to that Repository and
  * every canvas using it instead (#1425). Env var values never pass through
- * the room doc: they're saved and revealed through server actions, and only
+ * the room doc: the Canvas Repo env module saves and reveals them on the
+ * server and records their names there itself (#1492), and only
  * `canRevealEnv` (the Repo's adder) sees them (#1416).
  */
 export function RepoSettingsDialog({
@@ -119,14 +116,13 @@ function RepoSettingsForm({
   const [devServerPort, setDevServerPort] = useState(
     String(repo.devServerPort ?? 3000)
   )
-  // The values live on the server (#1416). The adder's field stays locked
-  // until they reveal it, then saves back whole; anyone else starts empty, and
-  // the lines they type replace just those variables.
-  const hasStoredEnv = repoEnvVarNames(repo).length > 0
-  const [envVars, setEnvVars] = useState("")
-  const [loadedEnv, setLoadedEnv] = useState<string | null>(null)
-  const [revealing, setRevealing] = useState(false)
-  const [hidden, setHidden] = useState(true)
+  const env = useCanvasRepoEnvField({
+    roomId,
+    repo,
+    canReveal: canRevealEnv,
+    onRevealError: () =>
+      toast.error("Couldn't load the environment variables."),
+  })
   const [copyPatterns, setCopyPatterns] = useState(repo.copyPatterns ?? "")
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
     repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
@@ -143,52 +139,6 @@ function RepoSettingsForm({
 
   const trimmedSystemPrompt = systemPrompt.trim()
 
-  // The adder's stored values can be shown and hidden again; hiding keeps
-  // any edit, it only masks the field.
-  const envHideable = canRevealEnv && hasStoredEnv
-  const envLocked = envHideable && (loadedEnv === null || hidden)
-  const envChanged =
-    loadedEnv !== null ? envVars !== loadedEnv : !envLocked && envVars !== ""
-
-  const reveal = () => {
-    if (loadedEnv !== null) {
-      setHidden(false)
-      return
-    }
-    setRevealing(true)
-    revealCanvasRepoEnv(roomId, repo.id)
-      .then((text) => {
-        setLoadedEnv(text)
-        setEnvVars(text)
-        setHidden(false)
-      })
-      .catch(() => toast.error("Couldn't load the environment variables."))
-      .finally(() => setRevealing(false))
-  }
-
-  // The values Save to all sends: this canvas's, as far as this form knows
-  // them. Only the adder can read the stored ones; anyone else's typed lines
-  // go over the Repository's own.
-  const envForAll = useCallback(
-    async (from: RepoConfig): Promise<string> => {
-      if (canRevealEnv) {
-        if (envChanged || loadedEnv !== null) return envVars
-        if (hasStoredEnv) return revealCanvasRepoEnv(roomId, repo.id)
-        return ""
-      }
-      return envChanged ? mergeEnvVars(from.envVars, envVars) : from.envVars
-    },
-    [
-      canRevealEnv,
-      envChanged,
-      envVars,
-      hasStoredEnv,
-      loadedEnv,
-      roomId,
-      repo.id,
-    ]
-  )
-
   const handleSave = useCallback(async () => {
     if (!portIsValid) return
     const settings = {
@@ -200,18 +150,12 @@ function RepoSettingsForm({
       defaultIframeLayerSizeId,
       systemPrompt: trimmedSystemPrompt || undefined,
     }
-    const patch: Partial<RepoData> = { ...settings }
     setSaving(true)
     setError(null)
-    if (envChanged) {
+    // Stored, then named in the doc, on the server (#1492).
+    if (env.changed) {
       try {
-        const fields = await saveCanvasRepoEnv(
-          roomId,
-          repo.id,
-          envVars,
-          canRevealEnv ? "replace" : "merge"
-        )
-        Object.assign(patch, fields, { envVars: undefined })
+        await saveCanvasRepoEnv(roomId, repo.id, env.text)
       } catch {
         setError("Couldn't save the environment variables.")
         setSaving(false)
@@ -223,7 +167,7 @@ function RepoSettingsForm({
         await onSaveToAll({
           ...repository,
           ...settings,
-          envVars: await envForAll(repository),
+          envVars: await env.valuesForAll(),
           updatedAt: Date.now(),
         })
       } catch (e) {
@@ -234,7 +178,7 @@ function RepoSettingsForm({
     }
     // This canvas takes the edit itself as well, so it shows at once rather
     // than when the server's write syncs back.
-    onUpdate(repo.id, patch)
+    onUpdate(repo.id, settings)
     onClose()
   }, [
     portIsValid,
@@ -245,15 +189,12 @@ function RepoSettingsForm({
     copyPatterns,
     defaultIframeLayerSizeId,
     trimmedSystemPrompt,
-    envChanged,
+    env,
     roomId,
     repo.id,
-    envVars,
-    canRevealEnv,
     saveToAll,
     repository,
     onSaveToAll,
-    envForAll,
     onUpdate,
     onClose,
   ])
@@ -263,20 +204,14 @@ function RepoSettingsForm({
   const resetToSettings = async (from: RepoConfig) => {
     setSaving(true)
     setError(null)
-    let fields
     try {
-      fields = await saveCanvasRepoEnv(roomId, repo.id, from.envVars, "replace")
+      await resetCanvasRepoEnv(roomId, repo.id, from.envVars)
     } catch {
       setError("Couldn't restore the environment variables.")
       setSaving(false)
       return
     }
-    onUpdate(repo.id, {
-      name: from.name,
-      ...runSettings(from),
-      ...fields,
-      envVars: undefined,
-    })
+    onUpdate(repo.id, repositorySettings(from))
     onClose()
   }
 
@@ -285,7 +220,7 @@ function RepoSettingsForm({
     setupScript !== repo.setupScript ||
     devScript !== repo.devScript ||
     parsedPort !== (repo.devServerPort ?? 3000) ||
-    envChanged ||
+    env.changed ||
     copyPatterns !== (repo.copyPatterns ?? "") ||
     defaultIframeLayerSizeId !==
       (repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
@@ -332,18 +267,9 @@ function RepoSettingsForm({
           onDevScriptChange={setDevScript}
           devServerPort={devServerPort}
           onDevServerPortChange={setDevServerPort}
-          envVars={envLocked ? "" : envVars}
-          onEnvVarsChange={setEnvVars}
-          envVarsAccess={{
-            names:
-              loadedEnv !== null ? envVarNames(envVars) : repoEnvVarNames(repo),
-            owned: canRevealEnv,
-            hideable: envHideable,
-            locked: envLocked,
-            revealing,
-            onReveal: reveal,
-            onHide: () => setHidden(true),
-          }}
+          envVars={env.value}
+          onEnvVarsChange={env.onChange}
+          envVarsAccess={env.access}
           copyPatterns={copyPatterns}
           onCopyPatternsChange={setCopyPatterns}
           defaultIframeLayerSizeId={defaultIframeLayerSizeId}
