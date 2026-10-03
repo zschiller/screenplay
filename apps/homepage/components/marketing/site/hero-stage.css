@@ -18,6 +18,9 @@
   pointer-events: none;
   perspective: 800px;
   perspective-origin: 50% 90%;
+  /* The far side also sinks into the dark under the grain, so whatever the
+     pointer reveals there still recedes. */
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.2), #000 45%);
 }
 /* The headline's first line sinks into the nearest row, where the veil turns
    solid. */
@@ -74,7 +77,16 @@
     width: 260px;
   }
 }
+/* The rows keep their copies in 3D so each label can stand up off the floor
+   and face the viewer, instead of lying flat and foreshortened. */
+.hc-rows,
+.hc-track,
+.hc-copy {
+  transform-style: preserve-3d;
+}
 .hc-head {
+  transform: rotateX(-50deg);
+  transform-origin: 50% 100%;
   position: absolute;
   bottom: 100%;
   left: 0;

@@ -9,8 +9,8 @@ import { createFluid } from "./fluid"
  * layer fades into the background at both ends the same way.
  *
  * The threshold is interleaved gradient noise, which scatters the grain like
- * blue noise instead of Bayer's checkerboard, and a value noise roughens the
- * edge. The veil holds still until the pointer stirs it. Each grain is solid or a soft wash, so what's underneath
+ * blue noise instead of Bayer's checkerboard, over an even ramp. The veil
+ * holds still until the pointer stirs it. Each grain is solid or a soft wash, so what's underneath
  * fades under a smooth gradient and the dots only add texture.
  *
  * The canvas must fill its parent (`width/height: 100%`): a positioned canvas
@@ -55,7 +55,7 @@ export function createDitherVeil(
   const ign = (x: number, y: number) =>
     fract(52.9829189 * fract(0.06711056 * x + 0.00583715 * y))
 
-  // The spacing of the grid the edge noise and the peek are worked out on, in
+  // The spacing of the grid the peek is worked out on, in
   // CSS px.
   const COARSE = 8
   // How far around the pointer the veil clears, in CSS px.
@@ -72,21 +72,14 @@ export function createDitherVeil(
   let rows = 0
   let img: ImageData | null = null
   let dist = new Float32Array(0)
-  // Each grain's opacity before the edge noise and the peek.
+  // Each grain's opacity before the peek.
   let base = new Float32Array(0)
-  // The grains in the fade, the only ones that change from frame to frame,
-  // with where each sits on the coarse grid for reading the edge noise.
+  // The grains in the fade, the only ones that change from frame to frame.
   let band = new Int32Array(0)
   let bandC = new Uint16Array(0)
   let bandR = new Uint16Array(0)
-  let bandAt = new Int32Array(0)
-  let bandFx = new Float32Array(0)
-  let bandFy = new Float32Array(0)
   let inBand = new Uint8Array(0)
-  // The edge noise on the coarse grid: it's smooth, so reading it there and
-  // interpolating looks the same as working it out per grain.
   let gc = 0
-  let edge = new Float32Array(0)
   // The marbling noise at each node of the fluid, this frame.
   let marble = new Float32Array(0)
   // The dye shown this frame, on the same grid.
@@ -133,12 +126,6 @@ export function createDitherVeil(
 
     gc = Math.ceil(W / COARSE) + 2
     const gr = Math.ceil(H / COARSE) + 2
-    edge = new Float32Array(gc * gr)
-    for (let j = 0; j < edge.length; j++)
-      edge[j] = noise(
-        (j % gc) * COARSE * 0.007,
-        Math.floor(j / gc) * COARSE * 0.007
-      )
     marble = new Float32Array(gc * gr)
     shown = new Float32Array(gc * gr)
     const [top, solid, far] = span()
@@ -152,7 +139,7 @@ export function createDitherVeil(
       const y = r * cell + cell / 2
       // Above the far span's solid line the veil is solid too.
       const d = far && y <= far[0] ? 0 : Math.max(solid - y, 0)
-      // Below the line it stays solid whatever the edge noise does. Above
+      // Below the line it stays solid. Above
       // it the veil eases in, so the upper part of the span stays clear,
       // and eases in again towards the far span's solid line.
       const t = 1 - d / fall
@@ -164,16 +151,13 @@ export function createDitherVeil(
       for (let c = 0; c < cols; c++, i++) {
         dist[i] = d
         base[i] = k
-        if (k < 1 && k > -0.4) fade[n++] = i
+        if (k < 1 && k > 0) fade[n++] = i
       }
     }
     band = fade.subarray(0, n)
     bandC = new Uint16Array(n)
     bandR = new Uint16Array(n)
-    bandAt = new Int32Array(n)
     sweepAt = 0
-    bandFx = new Float32Array(n)
-    bandFy = new Float32Array(n)
     inBand = new Uint8Array(cols * rows)
     for (let b = 0; b < n; b++) {
       const i = fade[b]!
@@ -182,11 +166,6 @@ export function createDitherVeil(
       const r = (i - c) / cols
       bandC[b] = c
       bandR[b] = r
-      const gx = (c * cell) / COARSE
-      const gy = (r * cell) / COARSE
-      bandAt[b] = Math.floor(gy) * gc + Math.floor(gx)
-      bandFx[b] = gx - Math.floor(gx)
-      bandFy[b] = gy - Math.floor(gy)
     }
     fluid = createFluid(gc, gr)
     touched = null
@@ -248,11 +227,6 @@ export function createDitherVeil(
     fluid.step()
   }
 
-  function lerpEdge(j: number, fx: number, fy: number) {
-    const top = edge[j]! + (edge[j + 1]! - edge[j]!) * fx
-    const bot = edge[j + gc]! + (edge[j + gc + 1]! - edge[j + gc]!) * fx
-    return top + (bot - top) * fy
-  }
   function lerpMarble(j: number, fx: number, fy: number) {
     const top = marble[j]! + (marble[j + 1]! - marble[j]!) * fx
     const bot = marble[j + gc]! + (marble[j + gc + 1]! - marble[j + gc]!) * fx
@@ -260,7 +234,7 @@ export function createDitherVeil(
   }
 
   // Redraws the grains in `rect` that can change: the fade by distance, its
-  // noisy edge and, with `peek`, a hole where the pointer is. Grains in `skip` are left alone; below the line, without
+  // and, with `peek`, a hole where the pointer is. Grains in `skip` are left alone; below the line, without
   // `peek`, grains go back to solid.
   function paint(
     rect: [number, number, number, number],
@@ -287,7 +261,7 @@ export function createDitherVeil(
         const x0 = Math.floor(gx)
         const fx = gx - x0
         const j = y0 * gc + x0
-        let k = base[i]! + (lerpEdge(j, fx, fy) - 0.5) * 0.55
+        let k = base[i]!
         if (peek && d) {
           const top = d[j]! + (d[j + 1]! - d[j]!) * fx
           const p =
@@ -316,8 +290,7 @@ export function createDitherVeil(
       const r = bandR[b]!
       if (box && c >= box[0] && c <= box[2] && r >= box[1] && r <= box[3])
         continue
-      let k = base[band[b]!]!
-      k += (lerpEdge(bandAt[b]!, bandFx[b]!, bandFy[b]!) - 0.5) * 0.55
+      const k = base[band[b]!]!
       const kk = k < 0 ? 0 : k > 1 ? 1 : k
       const v = kk * kk * (3 - 2 * kk)
       data[band[b]! * 4 + 3] = v > ign(c, r) ? 255 : v * 150

@@ -43,9 +43,11 @@ const SEED = [[], [1, 4], [0], [2, 6], [7], [9, 6], [10, 1], [5, 8], [11, 3]]
 
 // Rows on the canvas floor, far to near.
 const ROWS = 8
-// How far below the top of the floor the veil starts thickening, in CSS px,
-// so the far rows fade only into the dark above them.
-const HAZE = 60
+// How far above the headline the veil starts thickening, in CSS px, and how
+// far down the floor the far fade reaches, so a band of rows between the two
+// shows with no grain at all.
+const NEAR = 200
+const FAR = 0.42
 
 const PAGE = `
   <div class="hc-page">
@@ -101,19 +103,20 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     const host = stage.current!
     const rowsEl = strip.current!
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
-    // Clear on the far floor, solid halfway down the headline's first
-    // line, so that line sits on the densest grain.
+    // Clear across the middle of the floor, solid halfway down the
+    // headline's first line, so that line sits on the densest grain.
     const veil = createDitherVeil(canvas.current!, () => {
       const s = host.getBoundingClientRect().top
       const head = host.querySelector<HTMLElement>("[data-veil]")!
       const size = parseFloat(getComputedStyle(head).fontSize)
       const floor = rowsEl.parentElement!.getBoundingClientRect()
+      const solid = head.getBoundingClientRect().top - s + size * 0.6
       return [
-        rowsEl.getBoundingClientRect().top - s + HAZE,
-        head.getBoundingClientRect().top - s + size * 0.6,
+        solid - NEAR,
+        solid,
         // The far side of the floor dissolves into the dark under the nav
         // through the same grain.
-        [floor.top - s + 90, floor.top - s + floor.height * 0.7],
+        [floor.top - s + 90, floor.top - s + floor.height * FAR],
       ]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()
