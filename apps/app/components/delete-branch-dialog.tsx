@@ -78,23 +78,26 @@ export function DeleteBranchDialog({
   // Whether the git branch is on origin: the checkout says, and an open PR
   // implies it while the checkout is unread.
   const onOrigin = work?.onOrigin ?? !!openPrNumber
-  // The branch name is already in the title, so the facts name places, not
-  // refs: "the git branch on this computer and GitHub".
+  // The facts never read the option, so ticking it changes only the checkbox:
+  // no line rewraps, no Keeps row comes or goes, and the centred dialog
+  // doesn't jump. When the option is offered it speaks for GitHub's side (the
+  // branch, and the PR it closes); otherwise Keeps does. The branch name is
+  // already in the title, so the facts name places, not refs: "the git branch
+  // on this computer and GitHub".
   const removes: string[] = []
   if (chatCount > 0) removes.push(count(chatCount, "chat", "chats"))
   if (frameCount > 0) removes.push(count(frameCount, "frame", "frames"))
   removes.push("its sandbox")
-  if (remote) removes.push("the git branch on GitHub")
 
   const branchKeptOn = [
     localBranchKept && "this computer",
-    !remote && onOrigin && "GitHub",
+    !canDeleteOnRemote && onOrigin && "GitHub",
   ].filter(Boolean)
   const keeps: string[] = []
   if (branchKeptOn.length > 0) {
     keeps.push(`the git branch on ${branchKeptOn.join(" and ")}`)
   }
-  if (!remote && openPrNumber) keeps.push(`PR #${openPrNumber}`)
+  if (!canDeleteOnRemote && openPrNumber) keeps.push(`PR #${openPrNumber}`)
 
   const warning = work
     ? lostWorkWarning(lostWork(work, { localBranchKept }))

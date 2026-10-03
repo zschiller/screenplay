@@ -91,22 +91,35 @@ describe("DeleteBranchDialog remote-delete offer", () => {
 
 describe("DeleteBranchDialog says what you lose", () => {
   it("lists what goes and what stays", () => {
-    renderDialog({ openPrNumber: 482 })
+    renderDialog({ openPrNumber: 482, canDeleteOnRemote: false })
 
     expect(text()).toContain("Removes3 chats, 2 frames and its sandbox")
     expect(text()).toContain("Keepsthe git branch on GitHub and PR #482")
   })
 
-  it("moves the branch to Removes and says the PR closes when ticked", () => {
-    renderDialog({ openPrNumber: 482 })
+  it("leaves GitHub's side to the option when it's offered", () => {
+    renderDialog({ openPrNumber: 482, localBranchKept: true })
 
+    expect(text()).toContain("Removes3 chats, 2 frames and its sandbox")
+    expect(text()).toContain("Keepsthe git branch on this computer")
+    expect(text()).not.toContain("Keepsthe git branch on this computer and")
     expect(screen.getByText("Closes PR #482")).toBeDefined()
+  })
+
+  it("changes nothing but the checkbox when ticked, so the dialog can't jump", () => {
+    renderDialog({
+      openPrNumber: 482,
+      localBranchKept: true,
+    })
+    const before = text()
+
     fireEvent.click(screen.getByRole("checkbox"))
 
-    expect(text()).toContain(
-      "Removes3 chats, 2 frames, its sandbox and the git branch on GitHub"
+    expect(screen.getByRole("checkbox")).toHaveProperty(
+      "dataset.state",
+      "checked"
     )
-    expect(text()).not.toContain("Keeps")
+    expect(text()).toBe(before)
   })
 
   it("warns only when the checkout has work that would be lost", () => {
