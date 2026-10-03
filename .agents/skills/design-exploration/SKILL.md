@@ -26,13 +26,16 @@ Keep captures **targeted**: only the handful of screens where the thing appears.
 
 ## 3. Build the page
 
-One Artifact per exploration, built from `exploration-template.html` next to this file. Load `artifact-design` first, then fill in the template's `QUESTION`, `TODAY` and `ROUNDS` data and swap its `:root` tokens for the repo's brand. The template draws the round toggle, Today, each option's captures and badges, and a reaction form with Copy reaction.
+One Artifact per exploration, built from `exploration-template.html` next to this file. Load `artifact-design` first, then fill in the template's `PAGE`, `TODAY` and `ROUNDS` data and swap its `:root` tokens for the repo's brand. The owner reads the page on a phone as often as on a desktop, so the template leads with the open round: tabs for the open round, Today and Earlier rounds; each question a deck of cards (Today, then the options) that swipes one card at a time on a phone and sits side by side on a wide screen; a Pick button on each option; and a bar pinned to the bottom with the picks, a note and Copy reaction.
 
-- **Today** first, then 3 or 4 options. Each option gets its letter and a short name ("B: Panel's home"), its captures or wireframe, a few sentences of rationale, and what it costs or breaks.
+- **Today** is the Today tab and the first card of every open question, so each option compares against it in the same spot. Its facts are short lines with the measured numbers.
+- A round holds one or more **questions**, each with its own options and pick. Give a question a title when the round has more than one.
+- A question with **one option is a sign-off**: the template shows Looks good and Needs changes instead of Pick. Use it when the round shows the picks put together for the owner to approve.
+- A question has 2 to 4 options, or one for a sign-off. Each option gets its letter and a short name ("B: Panel's home"), its captures or a drawn wireframe (`html`), a few sentences of rationale, and what it costs or breaks. What every option in the round shares goes in the round's `every` list, not in each option.
 - Options are **distinct**: a different answer to the question, not a spacing tweak of another option. When the owner says a round looks samey, the next round goes further apart.
 - Stay inside the product's system: its component library and existing variants, its tokens, and the conventions of the tools the owner names. When an option needs a new variant or a one-off component, list that as its cost.
-- Mark one **recommended** option and give the reason in one sentence. Prefer the small fix inside today's UX over the redesign when both answer the question.
-- Later rounds go on the same Artifact so the link never changes: add each new round at the front of `ROUNDS` with the owner's feedback, and mark earlier options `picked` or `rejected`. An Artifact version holds at most 511 files: delete captures from rejected rounds (`null` in `files`) before adding more.
+- Mark one **recommended** option per question and give the reason in one sentence. Prefer the small fix inside today's UX over the redesign when both answer the question.
+- Later rounds go on the same Artifact so the link never changes: add each new round at the front of `ROUNDS` with the owner's feedback, and mark the previous round's options `picked` or `rejected`, which is what the Earlier rounds tab lists for each round. An Artifact version holds at most 511 files: delete captures from rejected rounds (`null` in `files`) before adding more.
 
 ## 4. Critique before showing
 
@@ -42,7 +45,7 @@ Done when every capture has been looked at in every theme and nothing visibly of
 
 ## 5. Ask for the pick
 
-Reply with the link and one line on the recommendation. The owner can react on the page and paste back its copied text. Ask each open question on its own, with 2 to 4 options and the recommendation marked. Use a decision card when the chat surface has one.
+Reply with the link and one line on the recommendation. The owner can pick on the page and paste back its copied reaction. Ask each open question on its own, with 2 to 4 options and the recommendation marked; use a decision card when the chat surface has one. A sign-off round asks no question: post the link and say what is being signed off, and the owner answers on the page or in chat.
 
 When the owner reacts:
 
