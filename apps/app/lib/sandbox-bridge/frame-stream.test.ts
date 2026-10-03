@@ -416,10 +416,11 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     const [a] = viewers.slice(-2) as [Viewer, Viewer]
     const before = a.videos.length
     const requestsBefore = requests.length
-    // The frame's browser process (not its helpers).
+    // The frame's browser process (not its helpers): this service's child,
+    // so another test's service (Frame Drive's) keeps its own.
     const pids = execFileSync("sh", [
       "-c",
-      "pgrep -f 'remote-debugging-pipe' || true",
+      `pgrep -P ${service.pid} -f 'remote-debugging-pipe' || true`,
     ])
       .toString()
       .split("\n")

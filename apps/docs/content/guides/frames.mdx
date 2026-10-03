@@ -202,11 +202,11 @@ on your Mac.
 
 ## The agent driving a frame
 
-In the desktop app, a Workspace chat's agent can use a frame you have open:
-click, type, press keys, scroll, pick options and drag, like you would. It
-reads the page's buttons, links and fields to find what to act on, and looks
-at the frame after each step to check it worked. Ask it to show you what it
-built, or to get a frame into a state for you.
+A Workspace chat's agent can use a frame: click, type, press keys, scroll,
+pick options and drag, like you would. It reads the page's buttons, links and
+fields to find what to act on, and looks at the frame after each step to
+check it worked. Ask it to show you what it built, or to get a frame into a
+state for you.
 
 How it drives depends on how you ask:
 
@@ -222,19 +222,37 @@ wrong. When no frame shows what it needs, or you're using the one there,
 the agent opens a new frame beside its Workspace's other frames instead of taking
 yours over.
 
-- **It drives your own frame.** The steps happen in the frame on your canvas,
-  and nothing is sent anywhere else.
 - **Asking is the go-ahead.** Asking the agent in the chat lets it drive, even
   while you're interacting with the frame, so there's no second prompt.
-- **Screenplay has to be open.** The agent drives only while the canvas is
-  open in the desktop app. The window can be in the background while it works.
-  With the canvas closed, the agent tells you so in the chat instead.
 - **You can take over at any moment.** Click the driver button (or
   double-click the frame) and the agent stops at once. It tells you where it got
   to and asks before it carries on; when you leave Interact, the frame is
   the agent's again.
 - **It hands the frame back.** When it's done, or after a minute without a
   step, the frame stops showing the agent as its driver.
+
+### On a shared canvas
+
+On hosted Screenplay, the agent drives the frame's one shared browser, so
+everyone who has the frame on screen watches each step as it happens. Anyone
+can take the frame from the agent; between people, the usual
+[asking for control](#asking-for-control) applies. The agent can drive a frame
+nobody is looking at, too: it keeps running while the agent works on it.
+When you ask it to show you something, everyone watching sees its cursor, but
+only your view moves to the frame.
+
+The agent's clicks and keys reach the shared browser as real input, the same
+as yours: focus, typing, <kbd>Tab</kbd> and hover styles all work, and native
+dropdowns and date pickers open as they would for you. The one thing it can't
+do is choose a file: when a step needs one, it asks you to pick it yourself.
+
+### In the desktop app
+
+- **It drives your own frame.** The steps happen in the frame on your canvas,
+  and nothing is sent anywhere else.
+- **Screenplay has to be open.** The agent drives only while the canvas is
+  open in the desktop app. The window can be in the background while it works.
+  With the canvas closed, the agent tells you so in the chat instead.
 
 The agent's clicks and keys are simulated inside the page, so they do what the
 page's own code listens for but not what the browser does for a real gesture.

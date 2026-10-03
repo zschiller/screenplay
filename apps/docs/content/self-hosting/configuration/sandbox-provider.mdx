@@ -42,6 +42,10 @@ to the canvas over one WebSocket on the sandbox's forwarded port `7682`. The
 canvas decodes it with WebCodecs. Viewers authenticate with a short-lived
 token signed with a per-sandbox key derived from `TERMINAL_AUTH_SECRET`, and
 only the person driving a frame gets a token that lets their input through.
+When Claude drives a frame, the app connects to the same service and sends
+each step with its own short-lived grant; the service applies it as real
+input over the Chrome DevTools Protocol, and a person's newer grant takes the
+frame back at once.
 
 A frame being watched costs about 0.75 of a vCPU while its page is still, and
 about 1.6 while it animates. Only pictures that changed are encoded and sent.

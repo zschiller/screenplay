@@ -32,9 +32,22 @@ import {
  * The agent's Frame Drive tools (#1389): the contract's gestures and reads as
  * one tool each, over whichever backend runs the frame. They drive Mockups
  * too (#1391), which run the same bridge. They only parse and phrase; Frame
- * Control and the backend live behind {@link AgentFrameDriver}. There is
- * deliberately no tool that runs a script in the page.
+ * Control and the backend live behind the driver ({@link AgentFrameDriver},
+ * or on hosted one per kind of page, #1396). There is deliberately no tool
+ * that runs a script in the page.
  */
+
+/** What the tools drive through: an {@link AgentFrameDriver}, or one that
+ *  hands each page to the right one. */
+export type FrameDriver = Pick<
+  AgentFrameDriver,
+  | "run"
+  | "start"
+  | "screenshot"
+  | "canvasUnavailable"
+  | "frameUnavailable"
+  | "letGo"
+>
 
 type Room = {
   readDoc<T>(fn: (collections: RoomCollections) => T | Promise<T>): Promise<T>
@@ -72,13 +85,14 @@ const modifiersSchema = z
 const TELL_IN_CHAT = "Tell the person in chat instead of driving."
 
 export function buildFrameDriveTools(
-  driver: AgentFrameDriver,
+  driver: FrameDriver,
   room: Room,
   scope: Extract<FrameReadScope, { kind: "chat" }>,
   opts: {
     /** Who the chat's turn is for: the person whose ask grants control. */
     asker: string
-    /** Whether this runtime drives frames, or Mockups only (hosted, #1391). */
+    /** Whether this runtime drives frames, or Mockups only (a hosted
+     *  deployment without shared frames, #1391). */
     frames?: boolean
     sleep?: (ms: number) => Promise<void>
   }
@@ -185,7 +199,7 @@ export function buildFrameDriveTools(
     }),
 
     frame_elements: tool({
-      description: `Read what can be acted on in ${page} the person has open: its links, buttons, fields and other controls, each with a selector to target it by, plus the page's path and title. Pass \`selector\` to also read one element's text and value. Read this before acting, and again after a step to see what changed. Read-only.`,
+      description: `Read what can be acted on in ${page} on the canvas: its links, buttons, fields and other controls, each with a selector to target it by, plus the page's path and title. Pass \`selector\` to also read one element's text and value. Read this before acting, and again after a step to see what changed. Read-only.`,
       inputSchema: z.object({
         frameId,
         selector: z
@@ -225,7 +239,7 @@ export function buildFrameDriveTools(
     }),
 
     frame_click: tool({
-      description: `Click an element in ${page} the person has open, as they would. Links follow, buttons and menus open, checkboxes toggle. Find the target with frame_elements first.`,
+      description: `Click an element in ${page}, as a person would. Links follow, buttons and menus open, checkboxes toggle. Find the target with frame_elements first.`,
       inputSchema: z.object({ frameId, target: targetSchema }),
       execute: ({ frameId, target }) =>
         gesture(frameId, { op: "click", target: cleanTarget(target) }),
@@ -526,9 +540,9 @@ function waitLine(
     | { status: "wait"; driver: string | null; takenOver: boolean }
 ): string {
   if (outcome.status === "taken" || outcome.takenOver) {
-    return `The person took control of ${frameName}, so that step didn't run. Stop driving it: tell them in chat where you got to, and ask before you carry on. You'll get the frame back when they leave Interact.`
+    return `Someone took control of ${frameName}, so that step didn't run. Stop driving it: tell them in chat where you got to, and ask before you carry on. You'll get the frame back when they leave Interact.`
   }
-  return `The person is interacting with ${frameName}, so you can't drive it now. Ask them in chat to leave Interact (Esc) if they want you to carry on; you'll get the frame when they do.`
+  return `Someone is interacting with ${frameName}, so you can't drive it now. Ask in chat for them to leave Interact (Esc) if they want you to carry on; you'll get the frame when they do.`
 }
 
 function renderElements(frameName: string, page: DriveElements): string {

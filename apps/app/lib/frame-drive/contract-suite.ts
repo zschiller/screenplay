@@ -13,7 +13,8 @@ import {
  * The Frame Drive contract (#1389): one scenario every backend runs, so the
  * agent's tools behave the same wherever Screenplay runs. The Mac backend runs
  * it against the Sandbox Bridge in a test page (`mac/mac-backend.test.ts`);
- * the hosted backend (#1396) will run it against a real headless Chromium.
+ * the hosted backend (#1396) runs it against a real headless Chromium
+ * (`hosted/hosted-backend.test.ts`).
  *
  * Everything is checked from outside, through the contract's own ops: the
  * suite loads a page, drives it, and reads what changed.
@@ -38,9 +39,11 @@ export function frameDriveContract(
     /** The gestures this runtime can't make for real (the Mac's #1367
      *  gaps). Each must come back as that gap; any other must not. */
     gaps: readonly DriveGap[]
+    /** Skip it where the runtime can't run (no browser stack). */
+    skip?: boolean
   }
 ) {
-  describe(`Frame Drive contract: ${name}`, () => {
+  describe.skipIf(!!opts.skip)(`Frame Drive contract: ${name}`, () => {
     let h: FrameDriveHarness
     beforeAll(async () => {
       h = await opts.setup()

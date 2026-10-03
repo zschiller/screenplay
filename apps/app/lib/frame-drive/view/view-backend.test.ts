@@ -267,10 +267,11 @@ describe("docRelaySocket", () => {
     socket.close()
   })
 
-  it("brings a Mockup into the asker's view only, for showing (#1390)", async () => {
+  it("brings a Mockup or a shared frame into the asker's view only, for showing (#1390, #1396)", async () => {
     expect(await backend.reveal(MOCKUP)).toBeNull()
-    expect(revealed[ADA]).toEqual([MOCKUP])
+    expect(await backend.reveal(FRAME)).toBeNull()
+    expect(revealed[ADA]).toEqual([MOCKUP, FRAME])
     expect(revealed[BEN]).toEqual([])
-    expect(await backend.reveal(FRAME)).toMatch(/can't drive a frame/)
+    expect(await backend.reveal("nope")).toMatch(/no Mockup nope/)
   })
 })
