@@ -23,6 +23,13 @@ start from its settings. On a shared canvas these settings are shared with
 everyone on it, so a collaborator's new workspaces start the same way as
 yours.
 
+_Hosted._ There are no switches. The list comes in two parts: **On this
+canvas**, every repository anyone on the canvas has added, each with
+**Remove**, then **Your other repositories**, the ones of yours it doesn't use
+yet, each with **Add**. On a shared canvas, a repository a teammate added says
+who after its name. Removing one always asks first, since it goes for
+everyone on the canvas.
+
 The Chats menu lists chats, not repositories: when a canvas has two
 or more repositories, each [workspace](/guides/workspaces)'s row ends with its
 repository's short name.
@@ -106,7 +113,14 @@ that encodes a value some other way, can still read them.
 
 ### Customizing a repository for one canvas
 
-**Edit** in Canvas settings changes the repository on this canvas only. Once
+**Edit** in Canvas settings changes the repository on this canvas only.
+
+On hosted, that's all there is to it: adding a repository copies your
+settings onto the canvas once, and from then on the canvas's copy is its own.
+Edits made on the canvas, by you or anyone else on it, stay on that canvas,
+and edits you make in Settings don't reach it.
+
+On desktop, the canvas's copy stays linked to your repository. Once
 its label or any setting differs from [your repository](#your-repositories)
 in Settings, a small orange dot follows its name, with the tooltip
 **Customized for this canvas**. That includes environment variable values
@@ -119,14 +133,13 @@ To make an edit everywhere instead, tick **Also update Settings and my other
 canvases** before you click **Save**. It's off by default. The edit goes to
 your repository in Settings and to every canvas that uses it, including ones
 where it was customized, so none of them has the dot afterwards. A canvas
-keeps its own environment variable values if you changed them there. The box
-only appears for your own repositories, since a repository someone else turned
-on belongs to their Settings.
+keeps its own environment variable values if you changed them there.
 
 ## Turning a repository off
 
 In Canvas settings, turn off a repository's switch. Without workspaces it
-comes off this canvas straight away. When workspaces use it, a confirm says
+comes off this canvas straight away. On hosted, click **Remove** instead,
+which always asks first. When workspaces use it, the confirm says
 how many and lists each one, since they come off the canvas with it, and
 warns if uncommitted work would be lost. When you're connected to GitHub, it
 also offers **Also delete these _N_ branches on GitHub**, which is off by
@@ -138,9 +151,11 @@ default. The repository stays in Settings, so you can turn it back on later.
 Every repository you add from a canvas lands here. To set one up before any
 canvas needs it, click **New repository** in Settings: it opens the same
 picker and **Configure repository** form, and only saves the repository.
-Editing a repository in Settings updates every canvas that uses it, except the
-ones where it's [customized](#customizing-a-repository-for-one-canvas). A
-canvas keeps its own environment variable values if someone changed them there.
+On desktop, editing a repository in Settings updates every canvas that uses
+it, except the ones where it's
+[customized](#customizing-a-repository-for-one-canvas). A canvas keeps its
+own environment variable values if someone changed them there. On hosted, an
+edit in Settings only changes what canvases get when you add it next.
 
 <Screenshot
   name="settings-presets"
@@ -151,10 +166,11 @@ On desktop, every repository on your canvases also has a home in Settings:
 the first time you open Settings after updating, any canvas repository that
 matches none of yours is added to the list.
 
-Deleting a repository in Settings doesn't take it off your canvases. The
-confirm says how many canvases use it; each keeps its copy, which keeps
-running its workspaces but stops getting your edits from Settings. It no
-longer shows a dot, and you can still edit it on its canvas.
+Deleting a repository in Settings doesn't take it off your canvases. On
+desktop, the confirm says how many canvases use it; each keeps its copy, which
+keeps running its workspaces but stops getting your edits from Settings. It no
+longer shows a dot, and you can still edit it on its canvas. On hosted, every
+canvas already has its own copy, so nothing changes on them.
 
 Your repositories are private to you and stored encrypted. Name them (`web`,
 `api`, `docs`) to keep several from one GitHub repository. This is handy in
