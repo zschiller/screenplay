@@ -5,13 +5,18 @@
  * the server (`./actions` for callers, `./store` for the KV).
  */
 export {
+  applyRepositoryEdit,
   canvasRepositoryRows,
+  isCustomized,
   linkCanvasRepos,
   linkedRepo,
+  resetToRepository,
+  runSettings,
   sameRepository,
   switchOff,
   switchOn,
   type CanvasRepositoryRow,
+  type RunSettings,
   type SwitchOffResult,
 } from "./canvas"
 export {
