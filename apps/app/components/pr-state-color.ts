@@ -12,3 +12,15 @@ export function prStateColor(state: BranchPrInfo["state"]): string {
       ? "text-destructive"
       : "text-success"
 }
+
+/**
+ * {@link prStateColor} for a Button: the stock variants' hover sets the text to
+ * the foreground colour, so the hover repeats the state colour to keep it.
+ */
+export function prStateButtonColor(state: BranchPrInfo["state"]): string {
+  return state === "merged"
+    ? "text-merged hover:text-merged"
+    : state === "closed"
+      ? "text-destructive hover:text-destructive"
+      : "text-success hover:text-success"
+}

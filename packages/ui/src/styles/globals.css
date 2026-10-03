@@ -19,5 +19,9 @@
     }
   html {
     @apply font-sans;
+    /* Every underline sits a little below the text. Inherited, so links,
+       prose and `underline` utilities all take it; don't set an
+       `underline-offset-*` per component. */
+    text-underline-offset: 0.35em;
     }
 }
