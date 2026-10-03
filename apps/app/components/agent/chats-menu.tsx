@@ -541,7 +541,7 @@ export function ChatsMenuProvider({
         verb="Delete"
         itemName={deleteSketchChat?.label ?? ""}
         itemNoun="chat"
-        description="Its messages go. The Mockups and Documents it made stay on the canvas."
+        description="Its messages go. The mockups and documents it made stay on the canvas."
         onConfirm={() => {
           if (deleteSketchChat) props.onDeleteSketchChat(deleteSketchChat.id)
           setPendingDeleteSketchId(null)

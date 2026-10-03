@@ -19,7 +19,7 @@ import type {
 const STEPS: { key: GettingStartedStep; title: string }[] = [
   { key: "project", title: "Add a repository" },
   { key: "ask", title: "Ask the Coordinator for a change" },
-  { key: "open", title: "Open the Workspace" },
+  { key: "open", title: "Open the workspace" },
 ]
 
 /**
@@ -144,7 +144,7 @@ function StepBody({
   if (step === "ask") {
     return (
       <>
-        <Hint>Your first ask runs in the Workspace on the canvas.</Hint>
+        <Hint>Your first ask runs in the workspace on the canvas.</Hint>
         <div>
           <Button type="button" size="sm" onClick={onShowCoordinator}>
             Ask the Coordinator
@@ -186,7 +186,7 @@ function StepBody({
             variant="outline"
             onClick={() => onOpenWorkspace(branch.id)}
           >
-            Open Workspace
+            Open workspace
           </Button>
         </div>
       )}

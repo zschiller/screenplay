@@ -502,7 +502,7 @@ function WorkspaceChatPanel({
               </EmptyMedia>
               <EmptyTitle>No chat yet</EmptyTitle>
               <EmptyDescription>
-                Start this Workspace&apos;s chat.
+                Start this workspace&apos;s chat.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>

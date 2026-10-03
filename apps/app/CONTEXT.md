@@ -14,6 +14,11 @@ Y.Doc keys, props, routes — always uses the structural term; the UI labels
 appear only in rendered user-facing strings, never as identifiers. The word
 **agent** in code refers to the AI runtime (the Engine), never to a Branch.
 
+**UI copy casing.** Mid-sentence, UI copy writes these labels lowercase like
+any common noun: canvas, repository, workspace, frame, mockup, document, chat.
+Only **Coordinator** keeps its capital. A label or sentence that starts with
+one capitalises it as usual ("Workspace stopped", the Mockup tool).
+
 ## Language
 
 **Room**:
@@ -1347,6 +1352,9 @@ by the layer, that every viewer reads and writes.
 `useFrameControl` is the React adapter: **Interact is the driver's seat**
 (entering asks to drive, leaving lets go). The Interact button is the driver
 button, and the Layer Shell draws the title-line tag.
+_Shown to users as_: control. "Ana has control", "Click to ask for control",
+"Give control" / "Not now"; the agent's steps are "Take control" and "Give
+back control". "Drive" stays the code word.
 _Avoid_: a second affordance for control beside Interact; writing `driver`
 outside the reducer; one record per frame for copies that aren't shared.
 

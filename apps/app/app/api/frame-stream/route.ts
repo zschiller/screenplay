@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
   const branch = await room.readDoc((c) => c.branches.get(branchId))
   if (!branch) {
-    return Response.json({ error: "No such Workspace" }, { status: 404 })
+    return Response.json({ error: "No such workspace" }, { status: 404 })
   }
 
   const result = await ensureFrameStream(branch.sandboxName, branch.port)

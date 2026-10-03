@@ -300,10 +300,10 @@ describe("workspaceState", () => {
     })
   })
 
-  it("labels a Workspace without a title New Workspace", () => {
+  it("labels a Workspace without a title New workspace", () => {
     expect(
       workspaceState(ws({ title: " " }), roomWorkspaceFacts([], [])).label
-    ).toBe("New Workspace")
+    ).toBe("New workspace")
   })
 })
 

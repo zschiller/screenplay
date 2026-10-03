@@ -1416,7 +1416,7 @@ export function Canvas({
     (mockupId: string) => {
       const mockup = mockupLayers.find((m) => m.id === mockupId)
       if (!mockup) return
-      const prompt = `Add a knob to the Mockup "${mockup.title || "Untitled"}" that controls `
+      const prompt = `Add a knob to the mockup "${mockup.title || "Untitled"}" that controls `
       const chat = chatSessions.find((c) => c.id === mockup.ownerChatId)
       // A Mockup a chat with no repository made.
       if (chat && isSketchChat(chat)) {
@@ -1729,7 +1729,7 @@ export function Canvas({
         if (!sent) {
           const agent = agents.find((a) => a.id === answerer.branchId)
           toast.error(
-            `${agent ? workspaceLabel(agent) : "That Workspace"} isn't running yet. Ask again once it is.`
+            `${agent ? workspaceLabel(agent) : "That workspace"} isn't running yet. Ask again once it is.`
           )
         }
         return
@@ -1782,7 +1782,7 @@ export function Canvas({
         if (!chatId) {
           const agent = agents.find((a) => a.id === answerer.branchId)
           toast.error(
-            `${agent ? workspaceLabel(agent) : "That Workspace"} isn't running yet. Ask again once it is.`
+            `${agent ? workspaceLabel(agent) : "That workspace"} isn't running yet. Ask again once it is.`
           )
           return
         }

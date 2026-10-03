@@ -242,7 +242,7 @@ describe("useFrameControl", () => {
       })
     })
 
-    it("shows the driver who asked, and hands over on Let drive", () => {
+    it("shows the driver who asked, and hands over on Give control", () => {
       const { ana, ben } = threeViewers()
       act(() => ana.result.current.control.interact(FRAME))
       act(() => ben.result.current.control.interact(FRAME))

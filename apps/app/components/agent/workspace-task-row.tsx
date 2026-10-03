@@ -143,7 +143,7 @@ export function WorkspaceTaskRow({
         <StateIcon state={state} line={line} />
         <span className="min-w-0 flex-1 truncate text-sm">
           {!branch
-            ? "Removed Workspace"
+            ? "Removed workspace"
             : !branch.title && task.title
               ? task.title
               : workspaceLabel(branch)}

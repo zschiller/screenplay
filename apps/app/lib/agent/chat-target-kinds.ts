@@ -239,13 +239,13 @@ export function liveRoomToolPorts(
     readDoc: (fn) => room.readDoc(fn),
     mutateDoc: (fn) => room.mutateDoc(fn),
     launchWorkspaceTurn:
-      launchWorkspaceTurn ?? unavailable("Messaging Workspaces"),
+      launchWorkspaceTurn ?? unavailable("Messaging workspaces"),
     launchSketchTurn: launchSketchTurn ?? unavailable("Messaging chats"),
     provisionWorkspace:
-      provisionWorkspace ?? unavailable("Starting Workspaces"),
-    stopWorkspaceTurn: stopWorkspaceTurn ?? unavailable("Stopping Workspaces"),
+      provisionWorkspace ?? unavailable("Starting workspaces"),
+    stopWorkspaceTurn: stopWorkspaceTurn ?? unavailable("Stopping workspaces"),
     openPullRequest: openPullRequest ?? unavailable("Opening pull requests"),
-    deleteSandbox: deleteSandbox ?? unavailable("Removing Workspaces"),
+    deleteSandbox: deleteSandbox ?? unavailable("Removing workspaces"),
     requesterId: requesterId ?? userId,
     coordinatorChatId: coordinatorChatId ?? "",
     listTerminalTabs: async () =>
