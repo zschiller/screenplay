@@ -7,6 +7,13 @@
 // per Workspace, which carries every frame in it. The canvas decodes with
 // WebCodecs. WebRTC can't connect from a Vercel Sandbox (#1366).
 //
+// A frame nobody watches pauses (#1393): a few seconds after its last viewer
+// leaves, capture and encoding stop and its page is frozen in the running
+// browser, so it keeps its state. The next viewer gets the last picture at once, then the
+// stream. Past a cap of running browsers, the least recently viewed paused
+// frame closes its browser; viewed again, it reopens at its URL with its
+// cookies and storage (in-memory state is lost).
+//
 // Only the frame's driver reaches the page: a viewer's input is applied
 // through CDP only while it holds a drive grant the app signed for that
 // frame, which the app hands out to whoever Frame Control says drives it.
@@ -59,6 +66,17 @@ const MAX_MESSAGE = 1 << 20
 // A viewer this far behind skips to the next keyframe instead of buffering.
 const MAX_BACKLOG = 8 << 20
 const RESTART_DELAY_MS = 500
+// How long a frame keeps encoding after its last viewer leaves, so a viewer
+// scrolling past or reloading comes back to a running stream.
+const IDLE_PAUSE_MS = Number(process.env.SCREENPLAY_STREAM_IDLE_MS) || 5000
+// Browsers kept running per Workspace, paused or not. A paused frame holds
+// about 500 MB (Chrome 370, its display 130) and a watched one 640 (ffmpeg
+// adds 100); the 4 vCPU (8 GB) Sandbox also runs the dev server and the
+// agent. Measurements are on #1393.
+const MAX_BROWSERS = Number(process.env.SCREENPLAY_STREAM_MAX_FRAMES) || 6
+// What closing a paused browser may wait on: its storage snapshot, then a
+// clean exit that flushes its profile to disk.
+const EVICT_TIMEOUT_MS = 3000
 const PLACEHOLDER_RETRY_MS = 1000
 // The host page's way out to this server (a CDP binding).
 const BINDING = "__screenplayFrameHost"
@@ -388,6 +406,17 @@ class Frame {
     // to answer: a new primary hears them, so it can push the room's values.
     this.knobs = null
     this.unanswered = null
+    // The picture a paused frame shows its next viewer while encoding
+    // resumes: the last group of pictures, from its keyframe.
+    this.still = []
+    this.idleTimer = null
+    this.lastViewed = Date.now()
+    // A closed (evicted) frame's cookies and storage, restored when it
+    // reopens. Its profile directory is kept too.
+    this.saved = null
+    this.restoreScript = null
+    this.evicting = false
+    this.frozen = false
   }
 
   // ---- lifecycle ----
@@ -396,7 +425,8 @@ class Frame {
     const gen = ++this.generation
     this.setStatus(this.status === "live" ? "restarting" : this.status)
     this.display = takeDisplay()
-    this.userDataDir = mkdtempSync(join(tmpdir(), "screenplay-frame-"))
+    // An evicted frame reopens on the profile it closed with.
+    this.userDataDir ??= mkdtempSync(join(tmpdir(), "screenplay-frame-"))
     this.xvfb = spawn(
       "Xvfb",
       [
@@ -483,6 +513,8 @@ class Frame {
         this.onNavigated(p.frame.url)
       } else if (msg.method === "Page.navigatedWithinDocument") {
         if (p.frameId === this.appFrame) this.onNavigated(p.url)
+      } else if (msg.method === "Page.loadEventFired") {
+        this.onLoaded()
       } else if (
         msg.method === "Network.responseReceived" &&
         p.type === "Document" &&
@@ -507,11 +539,13 @@ class Frame {
     await this.page("Network.enable")
     await this.page("Emulation.setFocusEmulationEnabled", { enabled: true })
     await this.applySize()
+    await this.restore()
     await this.page("Page.navigate", { url: hostUrl(this.path) })
     if (gen !== this.generation) return
     this.setStatus("live")
     this.restarts = 0
     if (this.viewers.size) this.startEncoder()
+    else this.idleTimer ??= setTimeout(() => this.pause(), IDLE_PAUSE_MS)
   }
 
   page(method, params) {
@@ -541,32 +575,194 @@ class Frame {
     this.setStatus("failed")
   }
 
-  teardown() {
+  /** Stop the browser and its display. An evicted frame keeps its profile
+   *  to reopen on. */
+  teardown({ keepProfile = false } = {}) {
     this.stopEncoder()
+    this.still = []
+    clearTimeout(this.idleTimer)
+    this.idleTimer = null
     try {
       this.chrome?.kill("SIGKILL")
     } catch {}
+    // TERM, so Xvfb removes its lock and the display can be used again.
     try {
-      this.xvfb?.kill("SIGKILL")
+      this.xvfb?.kill("SIGTERM")
     } catch {}
     if (this.display !== undefined) usedDisplays.delete(this.display)
     // The browser's helpers can still be writing the profile for a moment
     // after it dies, so removing it can fail; never let that stop a restart.
-    if (this.userDataDir)
+    if (this.userDataDir && !keepProfile) {
       rm(this.userDataDir, {
         recursive: true,
         force: true,
         maxRetries: 10,
         retryDelay: 200,
       }).catch((e) => log(`frame ${this.id}: ${e.message}`))
+      this.userDataDir = undefined
+      this.saved = null
+    }
     this.chrome = this.xvfb = this.cdp = null
-    this.display = this.userDataDir = undefined
+    this.display = undefined
+    this.restoreScript = null
+    this.frozen = false
   }
 
   close() {
     this.closed = true
     this.generation++
     this.teardown()
+  }
+
+  // ---- pause and eviction ----
+
+  /** Running a browser, paused or not. */
+  get running() {
+    return (
+      this.status === "starting" ||
+      this.status === "live" ||
+      this.status === "restarting"
+    )
+  }
+
+  /** Watched by nobody, and no longer encoding. */
+  get paused() {
+    return this.status === "live" && !this.viewers.size && !this.enc
+  }
+
+  /** Stop capturing and encoding; the browser keeps running. The last
+   *  pictures stay for the next viewer. */
+  pause() {
+    clearTimeout(this.idleTimer)
+    this.idleTimer = null
+    if (this.viewers.size || this.status !== "live") return
+    if (this.gop.length) this.still = this.gop
+    this.stopEncoder()
+    // Frozen, the page runs no scripts, and with its animations held it
+    // stops painting, so a paused frame costs next to nothing (an animated
+    // page drops from about 16% of a core to 3%). Its memory, and so its
+    // state, stays.
+    this.frozen = true
+    this.page("Page.setWebLifecycleState", { state: "frozen" }).catch(() => {})
+    this.page("Animation.setPlaybackRate", { playbackRate: 0 }).catch(() => {})
+    log(`frame ${this.id}: paused`)
+    enforceCap()
+  }
+
+  /** Let a paused page run again. */
+  async thaw() {
+    if (!this.frozen) return
+    this.frozen = false
+    await Promise.all([
+      this.page("Page.setWebLifecycleState", { state: "active" }),
+      this.page("Animation.setPlaybackRate", { playbackRate: 1 }),
+    ])
+  }
+
+  /** Close a paused frame's browser to make room, keeping what reopening it
+   *  at its URL needs: its cookies and storage, and its profile. */
+  async evict() {
+    if (this.evicting || !this.paused) return
+    this.evicting = true
+    try {
+      const gen = this.generation
+      const saved = await withTimeout(
+        this.thaw().then(() => this.snapshot()),
+        EVICT_TIMEOUT_MS
+      ).catch(() => null)
+      // Someone looked again meanwhile: it stays.
+      if (gen !== this.generation || !this.paused) return
+      this.generation++
+      const chrome = this.chrome
+      // A clean exit writes the profile (IndexedDB and the rest) to disk.
+      if (chrome && chrome.exitCode === null) {
+        const exited = new Promise((r) => chrome.once("exit", r))
+        this.cdp?.send("Browser.close").catch(() => {})
+        await withTimeout(exited, EVICT_TIMEOUT_MS).catch(() => {})
+      }
+      this.teardown({ keepProfile: true })
+      this.saved = saved
+      this.status = "evicted"
+      log(`frame ${this.id}: closed its browser to stay under the cap`)
+      // Someone looked again while it closed: it reopens.
+      if (this.viewers.size) this.reopen()
+    } finally {
+      this.evicting = false
+    }
+  }
+
+  /** Start a failed or closed frame again, at its URL. */
+  reopen() {
+    this.status = "starting"
+    this.broadcastState()
+    this.start().catch((e) => this.fail(e))
+    enforceCap()
+  }
+
+  /** The page's cookies (session ones too, which a restarted browser would
+   *  drop) and its local and session storage. */
+  async snapshot() {
+    const { cookies } = await this.cdp.send("Storage.getCookies")
+    if (!this.appFrame) return { cookies, storage: null }
+    // The app is the host page's iframe: read its storage from a world of
+    // its own in that frame.
+    const { executionContextId } = await this.page("Page.createIsolatedWorld", {
+      frameId: this.appFrame,
+      worldName: "screenplay-snapshot",
+    })
+    const origin = new URL(ORIGIN).origin
+    const { result } = await this.page("Runtime.evaluate", {
+      contextId: executionContextId,
+      expression: `(() => {
+        if (location.origin !== ${JSON.stringify(origin)}) return null
+        const dump = (s) => {
+          const o = {}
+          for (let i = 0; i < s.length; i++) o[s.key(i)] = s.getItem(s.key(i))
+          return o
+        }
+        return { local: dump(localStorage), session: dump(sessionStorage) }
+      })()`,
+      returnByValue: true,
+    })
+    return { cookies, storage: result?.value ?? null }
+  }
+
+  /** Put a reopened frame's cookies and storage back before its page loads. */
+  async restore() {
+    const saved = this.saved
+    this.saved = null
+    if (!saved) return
+    if (saved.cookies?.length)
+      await this.cdp
+        .send("Storage.setCookies", { cookies: saved.cookies.map(cookieParam) })
+        .catch((e) => log(`frame ${this.id}: cookies not restored:`, e.message))
+    if (!saved.storage) return
+    // Runs before the page's own scripts, on its first document; removed
+    // once that has loaded, so later navigations keep the page's changes.
+    const origin = new URL(ORIGIN).origin
+    const { identifier } = await this.page(
+      "Page.addScriptToEvaluateOnNewDocument",
+      {
+        source: `(() => {
+          if (location.origin !== ${JSON.stringify(origin)}) return
+          const saved = ${JSON.stringify(saved.storage)}
+          try {
+            for (const [k, v] of Object.entries(saved.local)) localStorage.setItem(k, v)
+            for (const [k, v] of Object.entries(saved.session)) sessionStorage.setItem(k, v)
+          } catch {}
+        })()`,
+      }
+    )
+    this.restoreScript = identifier
+  }
+
+  onLoaded() {
+    const identifier = this.restoreScript
+    if (!identifier) return
+    this.restoreScript = null
+    this.page("Page.removeScriptToEvaluateOnNewDocument", {
+      identifier,
+    }).catch(() => {})
   }
 
   /** The proxy answers with a placeholder while the dev server starts. A
@@ -631,6 +827,8 @@ class Frame {
     if (width === this.width && height === this.height) return
     this.width = width
     this.height = height
+    // A picture at the old size is no picture of the frame now.
+    this.still = []
     if (this.status !== "live") return
     await this.applySize()
     this.broadcastState()
@@ -691,6 +889,10 @@ class Frame {
         `${width}x${height}`,
         "-i",
         `:${this.display}.0+0,0`,
+        // Unchanged pictures are dropped before encoding, so a still page
+        // sends nothing. Exact: any changed pixel goes through.
+        "-vf",
+        "mpdecimate=hi=0:lo=0:frac=0",
         ...codecArgs,
         "-pix_fmt",
         "yuv420p",
@@ -793,7 +995,10 @@ class Frame {
     const message = Buffer.concat([head, this.idBytes, au])
     // Keep the current group of pictures, so a viewer who joins mid-stream
     // starts at its keyframe.
-    if (key) this.gop = []
+    if (key) {
+      this.gop = []
+      this.still = []
+    }
     if (this.gop.length || key) this.gop.push(message)
     for (const v of this.viewers) v.sendVideo(this.id, message, key)
   }
@@ -803,25 +1008,34 @@ class Frame {
   addViewer(conn) {
     this.viewers.add(conn)
     conn.watching.add(this.id)
+    this.lastViewed = Date.now()
+    clearTimeout(this.idleTimer)
+    this.idleTimer = null
     conn.sendJson(this.stateMessage())
     conn.sendJson({ t: "route", frame: this.id, path: this.path })
-    for (const message of this.gop)
+    // The current pictures, or a paused frame's last ones while its encoder
+    // starts again.
+    const pictures = this.gop.length ? this.gop : this.still
+    for (const message of pictures)
       conn.sendVideo(this.id, message, message[1] === 1)
+    this.thaw().catch(() => {})
     this.startEncoder()
     this.checkPrimary()
   }
 
   removeViewer(conn) {
-    this.viewers.delete(conn)
+    if (!this.viewers.delete(conn)) return
     conn.watching.delete(this.id)
     conn.needsKey.delete(this.id)
     if (this.driver?.conn === conn) this.driver = null
     for (const [id, req] of this.requests)
       if (req.conn === conn) this.requests.delete(id)
     this.checkPrimary()
-    // Nobody watching: stop encoding. The browser keeps running, so the page
-    // keeps its state. (#1393 adds the grace period and the last picture.)
-    if (!this.viewers.size) this.stopEncoder()
+    if (this.viewers.size) return
+    // Nobody watching: pause after a grace period, keeping the browser.
+    this.lastViewed = Date.now()
+    clearTimeout(this.idleTimer)
+    this.idleTimer = setTimeout(() => this.pause(), IDLE_PAUSE_MS)
   }
 
   stateMessage() {
@@ -1059,6 +1273,52 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}</st
 </body></html>`
 }
 
+/** Past the cap, close the least recently viewed paused browsers. Frames
+ *  someone watches are never closed, so the cap can be passed while they are
+ *  all watched. */
+function enforceCap() {
+  const running = [...frames.values()].filter((f) => f.running && !f.evicting)
+  let over = running.length - MAX_BROWSERS
+  if (over <= 0) return
+  const paused = running
+    .filter((f) => f.paused)
+    .sort((a, b) => a.lastViewed - b.lastViewed)
+  for (const frame of paused) {
+    if (over-- <= 0) break
+    frame.evict().catch((e) => log(`frame ${frame.id}: ${e.message}`))
+  }
+}
+
+/** A cookie from `Storage.getCookies` as `Storage.setCookies` takes it. */
+function cookieParam(c) {
+  const param = {
+    name: c.name,
+    value: c.value,
+    domain: c.domain,
+    path: c.path,
+    secure: c.secure,
+    httpOnly: c.httpOnly,
+  }
+  if (c.sameSite) param.sameSite = c.sameSite
+  if (c.priority) param.priority = c.priority
+  if (c.sourceScheme) param.sourceScheme = c.sourceScheme
+  if (typeof c.sourcePort === "number") param.sourcePort = c.sourcePort
+  if (c.partitionKey) param.partitionKey = c.partitionKey
+  if (!c.session && typeof c.expires === "number" && c.expires > 0)
+    param.expires = c.expires
+  return param
+}
+
+function withTimeout(promise, ms) {
+  let timer
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("timed out")), ms)
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
+
 function hasIdr(buf, start, end) {
   for (let i = start; i + 4 < end; i++) {
     if (
@@ -1096,13 +1356,13 @@ async function handleMessage(conn, msg) {
         )
         frames.set(id, frame)
         frame.start().catch((e) => frame.fail(e))
+        enforceCap()
       }
+      // A frame that failed to start is retried when someone looks again,
+      // and a closed one reopens at its URL.
+      if (frame.status === "failed" || frame.status === "evicted")
+        frame.reopen()
       frame.addViewer(conn)
-      // A frame that failed to start is retried when someone looks again.
-      if (frame.status === "failed") {
-        frame.status = "starting"
-        frame.start().catch((e) => frame.fail(e))
-      }
       return
     }
     case "unwatch":

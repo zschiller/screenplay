@@ -51,7 +51,9 @@ interface FrameStreamViewProps {
  * stream; the service applies them only under a drive grant the app signed
  * for the driver, so nobody else's input reaches it.
  *
- * Only frames on screen are watched.
+ * Only frames on screen in a visible tab are watched. The service pauses a
+ * frame nobody watches (#1393); the canvas keeps its last picture meanwhile,
+ * and the service sends that picture back first when watching resumes.
  */
 export function FrameStreamView({
   stream,
@@ -184,17 +186,25 @@ export function FrameStreamView({
     const stop = () => {
       unwatch?.()
       unwatch = null
+      resetDecoder()
     }
 
+    let onScreen = false
+    const update = () =>
+      onScreen && document.visibilityState === "visible" ? watch() : stop()
     const observer = new IntersectionObserver(
-      ([entry]) => (entry?.isIntersecting ? watch() : stop()),
+      ([entry]) => {
+        onScreen = !!entry?.isIntersecting
+        update()
+      },
       { rootMargin: WATCH_MARGIN }
     )
     observer.observe(canvas)
+    document.addEventListener("visibilitychange", update)
     return () => {
       observer.disconnect()
+      document.removeEventListener("visibilitychange", update)
       stop()
-      resetDecoder()
     }
   }, [stream, frameId])
 

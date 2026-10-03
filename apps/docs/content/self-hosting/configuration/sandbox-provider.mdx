@@ -44,8 +44,13 @@ token signed with a per-sandbox key derived from `TERMINAL_AUTH_SECRET`, and
 only the person driving a frame gets a token that lets their input through.
 
 A frame being watched costs about 0.75 of a vCPU while its page is still, and
-about 1.6 while it animates. A frame nobody watches stops encoding and keeps
-its page. Sandboxes created before shared frames don't forward the stream
+about 1.6 while it animates. Only pictures that changed are encoded and sent.
+A few seconds after its last viewer leaves, a frame pauses: encoding stops and
+its page is frozen in its browser, about 500 MB of memory and a few percent of
+a vCPU. It resumes in a moment, its state intact. To fit the 8 GB sandbox, a
+workspace keeps at most six frames' browsers running; past that, the least
+recently viewed paused frame closes its browser, keeping its cookies, storage
+and profile, and reopens at its URL when viewed again. Sandboxes created before shared frames don't forward the stream
 port, so their frames stay per-viewer until the sandbox restarts. Set
 `SHARED_FRAMES=off` to keep every hosted frame per-viewer.
 
