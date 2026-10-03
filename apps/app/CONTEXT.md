@@ -567,7 +567,7 @@ _Shown to users as_: "chat with no repository"; "No repository" where a Repo
 is picked.
 _Avoid_: repo-less Workspace, empty sandbox.
 
-**Room Target** (planned, wayfinder #856):
+**Room Target** (wayfinder #856):
 The Chat Target of a chat that works on the whole Room rather than one Branch
 or document: it sees every Repo, Branch and Layer, arranges the Canvas, creates
 Branches, and hands work to their agents through **Delegated Messages**. It
@@ -758,7 +758,7 @@ Settings › Memory.
 _Shown to users as_: "Memory" (Settings).
 _Avoid_: profile, preferences (as a noun for the store), user memory.
 
-**Account Files** (planned, spec #1511):
+**Account Files** (spec #1511):
 One person's files, which every turn they send can list and open, on any
 canvas; private to them. Browsed read-only in Settings › Files.
 _Shown to users as_: "Files".

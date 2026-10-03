@@ -655,9 +655,15 @@ function CommentPin({
             }
           }}
           onClick={(e) => e.stopPropagation()}
-          // Without this the popover auto-focuses the first focusable
-          // element (Resolve), which pops its tooltip every time.
-          onOpenAutoFocus={(e) => e.preventDefault()}
+          // The card itself takes focus, so Tab goes on to its controls and
+          // Escape closes it. Left alone, the popover would focus the first
+          // control (Resolve), which pops its tooltip every time.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            ;(e.currentTarget as HTMLElement | null)?.focus({
+              preventScroll: true,
+            })
+          }}
         >
           {children}
         </PopoverContent>

@@ -99,6 +99,10 @@ import {
   makeIframeLayerRow,
 } from "@/components/panels/layer-rows/iframe-layer-row"
 import { renameOnF2 } from "@/components/panels/layer-rows/rename-key"
+import {
+  ROW_BUTTON_SELECTOR,
+  useFocusNeighbourOnDelete,
+} from "@/components/panels/layer-rows/row-focus"
 import { LayerMenuContent } from "@/components/canvas/layer-menu"
 import {
   frameGroupRowActionClass,
@@ -199,11 +203,6 @@ const canvasCollision: CollisionDetection = (args) => {
   return closestCenter(args).filter((c) => eligible(c.id))
 }
 
-/** The button that selects a sidebar row: its one Tab stop and its keyboard
- *  drag handle. The row's … menu is a `menu-action`, not matched here. */
-const ROW_BUTTON_SELECTOR =
-  ":scope > [data-sidebar=menu-button], :scope > [data-sidebar=menu-sub-button]"
-
 /**
  * A row wired into dnd-kit's sortable context. We intentionally DON'T
  * apply `useSortable`'s `transform`/`transition` to the rendered div:
@@ -263,6 +262,7 @@ function SortableRow({
         rowRef.current = node
         setNodeRef(node)
       }}
+      data-sidebar-row={id.startsWith("group:") ? "group" : "row"}
       style={{ opacity: isDragging ? 0 : undefined }}
       className={cn(
         "relative",
@@ -731,7 +731,10 @@ export function RoomSidebar({
                                   className="group/frame-collapsible flex flex-col"
                                 >
                                   <WithEditableRef>
-                                    {({ ref: groupNameRef }) => (
+                                    {({
+                                      ref: groupNameRef,
+                                      deleteFocus: groupDeleteFocus,
+                                    }) => (
                                       <SortableRow
                                         id={`group:${group.id}`}
                                         groupId={group.id}
@@ -812,8 +815,15 @@ export function RoomSidebar({
                                             ) : null
                                           })()}
                                         </GroupRowButton>
-                                        <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
+                                        <DropdownMenu
+                                          onOpenChange={
+                                            groupDeleteFocus.onOpenChange
+                                          }
+                                        >
+                                          <DropdownMenuTrigger
+                                            ref={groupDeleteFocus.triggerRef}
+                                            asChild
+                                          >
                                             <IconButton
                                               label="Group options"
                                               tooltipSide="right"
@@ -838,6 +848,9 @@ export function RoomSidebar({
                                             }}
                                             onRename={() =>
                                               groupNameRef.current?.startEditing()
+                                            }
+                                            onCloseAutoFocus={
+                                              groupDeleteFocus.onCloseAutoFocus
                                             }
                                             side="right"
                                             align="start"
@@ -922,10 +935,13 @@ function WithEditableRef({
 }: {
   children: (api: {
     ref: React.RefObject<EditableTextHandle | null>
+    /** Moves focus to the neighbouring row when the menu deletes this one. */
+    deleteFocus: ReturnType<typeof useFocusNeighbourOnDelete>
   }) => React.ReactNode
 }) {
   const ref = useRef<EditableTextHandle | null>(null)
-  return <>{children({ ref })}</>
+  const deleteFocus = useFocusNeighbourOnDelete()
+  return <>{children({ ref, deleteFocus })}</>
 }
 
 /** Renders one layer-row's `<Row />` + `<Menu />` pair, owning the

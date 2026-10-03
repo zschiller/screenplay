@@ -1114,6 +1114,9 @@ export function IframeLayer({
             {stage && (
               <FrameStatus
                 stage={stage}
+                zoom={zoom}
+                frameWidth={iframeLayer.width}
+                frameHeight={iframeLayer.height}
                 detail={
                   stage === "workspace-failed"
                     ? workspace?.error

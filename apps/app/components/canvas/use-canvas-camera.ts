@@ -21,6 +21,7 @@ import { isFixtureWorld } from "@/lib/fixture-world"
 import type { CanvasPresence } from "@/lib/yjs/react"
 import type { ViewportData } from "@/lib/types"
 import type { WheelForward } from "@/hooks/use-screenplay-dom"
+import type { LiveZoom } from "./live-zoom"
 
 /**
  * Canvas Camera controller (PRD #567) — one owner for zoom, viewport position,
@@ -98,6 +99,9 @@ export interface CanvasCamera {
     subscribe(listener: () => void): () => void
     get(): number
   }
+  /** The exact zoom, notifying on every transform frame — for the few
+   *  elements that counter-scale imperatively mid-zoom (see `live-zoom.ts`). */
+  liveZoom: LiveZoom
   followingConnectionId: number | null
   /** Follow a peer's viewport (or `null` to stop following). */
   follow(connectionId: number | null): void
@@ -247,7 +251,13 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   // only when the rounded percent changes, so a zoom re-renders just the menu.
   const liveZoomPercentRef = useRef(100)
   const liveZoomListenersRef = useRef(new Set<() => void>())
+  const liveZoomRef = useRef(1)
+  const liveZoomScaleListenersRef = useRef(new Set<() => void>())
   const setLiveZoom = useCallback((scale: number) => {
+    if (scale !== liveZoomRef.current) {
+      liveZoomRef.current = scale
+      for (const listener of liveZoomScaleListenersRef.current) listener()
+    }
     const percent = Math.round(scale * 100)
     if (percent === liveZoomPercentRef.current) return
     liveZoomPercentRef.current = percent
@@ -262,6 +272,18 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
         }
       },
       get: () => liveZoomPercentRef.current,
+    }),
+    []
+  )
+  const liveZoom = useMemo<LiveZoom>(
+    () => ({
+      subscribe(listener: () => void) {
+        liveZoomScaleListenersRef.current.add(listener)
+        return () => {
+          liveZoomScaleListenersRef.current.delete(listener)
+        }
+      },
+      get: () => liveZoomRef.current,
     }),
     []
   )
@@ -954,6 +976,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     isDragPanning,
     isZooming,
     liveZoomPercent,
+    liveZoom,
     followingConnectionId,
     follow,
     breakFollow,

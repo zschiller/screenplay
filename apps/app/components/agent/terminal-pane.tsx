@@ -32,6 +32,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import {
   isTerminalPaneToggle,
+  paneCloseFallback,
   type PaneTerminal,
 } from "@/lib/chat/terminal-pane"
 import {
@@ -246,14 +247,36 @@ export function TerminalPane({
   }, [toggle])
 
   // A shell's × asks first when it's running something, then selection falls
-  // to its neighbour before the tab goes.
+  // to its neighbour before the tab goes. Focus follows it there: the × it was
+  // on is gone, and the browser would drop it to the page.
   const shellClosing = pane.shellClosing
   const closeGuard = useTerminalCloseGuard({
     roomId,
     agent,
     onClose: (id) => {
+      const next =
+        selectedId === id ? paneCloseFallback(terminals, id) : selectedId
       shellClosing(id)
       onCloseShell?.(id)
+      // Next frame, once the tab is gone. Focus elsewhere (the close dialog
+      // aside) moved on purpose, so leave it.
+      requestAnimationFrame(() => {
+        const root = rootRef.current
+        const active = document.activeElement
+        if (
+          !root ||
+          (active &&
+            active !== document.body &&
+            !root.contains(active) &&
+            !active.closest("[role=alertdialog]"))
+        )
+          return
+        root
+          .querySelector<HTMLElement>(
+            `[data-tab-id="${CSS.escape(next)}"] [role="tab"]`
+          )
+          ?.focus()
+      })
     },
   })
 
