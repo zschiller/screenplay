@@ -302,6 +302,31 @@ describe("bridge headless read", () => {
   })
 })
 
+describe("bridge Frame Drive on a page still parsing", () => {
+  it("reads once the document has parsed, not the part parsed so far", async () => {
+    let state: DocumentReadyState = "loading"
+    Object.defineProperty(document, "readyState", {
+      configurable: true,
+      get: () => state,
+    })
+    try {
+      // The parser has made the paragraph but not yet its text.
+      document.body.innerHTML = `<p id="out"></p>`
+      const read = send({
+        type: "screenplay:drive",
+        op: { op: "elements", selector: "#out" },
+      }) as Promise<{ value: { read: { text: string } } }>
+      await new Promise((r) => setTimeout(r, 20))
+      document.getElementById("out")!.textContent = "alone"
+      state = "interactive"
+      document.dispatchEvent(new Event("DOMContentLoaded"))
+      expect((await read).value.read.text).toBe("alone")
+    } finally {
+      delete (document as { readyState?: unknown }).readyState
+    }
+  })
+})
+
 describe("bridge navigate", () => {
   const navigate = (path: string) =>
     send({ type: "screenplay:navigate", path }) as Promise<boolean>

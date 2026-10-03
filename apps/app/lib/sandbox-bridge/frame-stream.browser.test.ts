@@ -144,6 +144,9 @@ type Viewer = {
   waitFor<T>(pick: () => T | undefined, timeout?: number): Promise<T>
 }
 
+/** How long the run's first browser may take to start. */
+const FIRST_START_MS = 60_000
+
 async function waitUntil<T>(
   pick: () => T | undefined,
   timeout = 20_000
@@ -364,10 +367,13 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     await ready()
     const a = await connect("ana")
     a.send({ t: "watch", frame: "f1", route: "/", width: 640, height: 400 })
-    const live = await a.waitFor(() =>
-      a.messages.find(
-        (m) => m.t === "frame" && m.frame === "f1" && m.status === "live"
-      )
+    // The first browser of the run starts cold, and slowly on a CI runner.
+    const live = await a.waitFor(
+      () =>
+        a.messages.find(
+          (m) => m.t === "frame" && m.frame === "f1" && m.status === "live"
+        ),
+      FIRST_START_MS
     )
     // Encoded at twice the CSS size.
     expect(live).toMatchObject({
@@ -394,7 +400,7 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     const joined = await b.waitFor(() => b.videos.find((v) => v.frame === "f1"))
     expect(joined.key).toBe(true)
     expect(routeOf(b, "f1")).toMatchObject({ path: "/" })
-  }, 40_000)
+  }, 100_000)
 
   it("applies only the driver's input, and both viewers see where it went", async () => {
     const [a, b] = viewers.slice(-2) as [Viewer, Viewer]

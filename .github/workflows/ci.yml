@@ -121,6 +121,12 @@ jobs:
             sudo apt-get install -y --no-install-recommends xvfb ffmpeg xautomation
           }
 
+      # A runner's first Chrome launch reads its install from a cold disk and
+      # can take over 20s, which the tests' first frame would otherwise pay
+      # for. Launch it once here; the time it took is in the log.
+      - name: Warm up Chrome
+        run: time google-chrome --headless=new --no-sandbox --disable-gpu --dump-dom about:blank >/dev/null
+
       # Required: a missing piece of the stack fails the job rather than
       # skipping the tests.
       - name: Test

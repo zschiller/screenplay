@@ -1185,8 +1185,20 @@
     await wait(SHOW_SCROLL_MS)
   }
 
+  // A page still parsing has only part of its body: Frame Drive reads and
+  // acts on the whole document, so it waits for the parse to finish.
+  function parsed() {
+    if (document.readyState !== "loading") return Promise.resolve()
+    return new Promise((resolve) =>
+      document.addEventListener("DOMContentLoaded", () => resolve(), {
+        once: true,
+      })
+    )
+  }
+
   async function drive(op) {
     if (!op || typeof op !== "object") throw new Error("missing drive op")
+    await parsed()
     if (op.op === "elements") {
       return { status: "read", value: driveElements(op.selector) }
     }
@@ -1584,6 +1596,7 @@
   // the target into view (a drag's drop point). `show`: scroll it into view
   // smoothly, at show pace.
   async function driveLocate(d) {
+    await parsed()
     const t = d.target
     let el =
       d.scroller || d.inPlace

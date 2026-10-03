@@ -86,6 +86,9 @@ type Viewer = {
   send(msg: FrameStreamClientMessage): void
 }
 
+/** How long the run's first browser may take to start. */
+const FIRST_START_MS = 60_000
+
 async function waitUntil<T>(
   pick: () => T | undefined | Promise<T | undefined>,
   timeout = 20_000
@@ -199,12 +202,15 @@ beforeAll(async () => {
   })
   ana = await connect("ana")
   ana.send({ t: "watch", frame: FRAME, route, ...SIZE })
-  await waitUntil(() =>
-    ana.messages.find(
-      (m) => m.t === "frame" && m.frame === FRAME && m.status === "live"
-    )
+  // The first browser of the run starts cold, and slowly on a CI runner.
+  await waitUntil(
+    () =>
+      ana.messages.find(
+        (m) => m.t === "frame" && m.frame === FRAME && m.status === "live"
+      ),
+    FIRST_START_MS
   )
-}, 60_000)
+}, 90_000)
 
 afterAll(async () => {
   ana?.ws.close()
