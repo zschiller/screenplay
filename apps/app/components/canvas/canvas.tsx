@@ -65,6 +65,7 @@ import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
 
 import { ShareRoomDialog } from "@/components/share-room-dialog"
 
+import type { RepoConfig } from "@/lib/repo-configs.types"
 import { switchOn } from "@/lib/repository-library"
 import { renameRoom } from "@/lib/rooms-actions"
 
@@ -1461,7 +1462,6 @@ export function Canvas({
   // handoff, lifted into `useBranchIntake`. The component calls the verbs; the
   // controller owns the ordering invariants and the Sandbox Provider calls.
   const {
-    createRepo,
     createBranch,
     createBranchFromGitBranch,
     removeRepo: removeRepoIntake,
@@ -2002,8 +2002,19 @@ export function Canvas({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // Every Add repository outside Canvas settings (the empty canvas, the chat
   // panel, the getting-started checklist, the Chats menu) goes straight to
-  // the picker and closes when the repository is added (#1182).
+  // the picker and closes when the repository is added (#1182). Adding saves
+  // it to your Repositories and switches it on here (#1423).
   const addRepository = useAddRepositoryFlow()
+  const switchOnHere = useCallback(
+    (repository: RepoConfig) => {
+      switchOn(collections, repository, {
+        id: nanoid(),
+        createdAt: Date.now(),
+        addedBy: userId ?? "anonymous",
+      })
+    },
+    [collections, userId]
+  )
   // A new canvas opens on the chat panel (#1182): while no Workspace has had a
   // turn, the Coordinator, or where to add a repository, is the first thing
   // you meet. The panel's size is shared by every canvas, so this runs once
@@ -2585,23 +2596,16 @@ export function Canvas({
                 />
                 <AddRepositoryDialog
                   flow={addRepository}
-                  onCreateRepo={createRepo}
+                  onAdded={switchOnHere}
                 />
                 <CanvasSettingsDialog
                   open={canvasSettingsOpen}
                   onOpenChange={setCanvasSettingsOpen}
                   repos={repos}
                   branches={agents}
-                  onCreateRepo={createRepo}
                   onUpdateRepo={updateRepoInStorage}
                   onRemoveRepo={removeRepoIntake}
-                  onSwitchOn={(repository) =>
-                    switchOn(collections, repository, {
-                      id: nanoid(),
-                      createdAt: Date.now(),
-                      addedBy: userId ?? "anonymous",
-                    })
-                  }
+                  onSwitchOn={switchOnHere}
                   memories={memories}
                   onAddMemory={(text) =>
                     addMemory(collections, { text, source: "member" })

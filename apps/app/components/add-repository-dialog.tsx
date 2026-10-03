@@ -10,7 +10,12 @@ import {
 } from "react"
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
-import { FolderOpenIcon, GlobeIcon } from "@workspace/ui/components/icons"
+import {
+  FolderOpenIcon,
+  GlobeIcon,
+  PlusIcon,
+} from "@workspace/ui/components/icons"
+import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
   DialogContent,
@@ -33,12 +38,10 @@ import {
   refineFolderSettings,
   refineRepoSettings,
 } from "@/lib/add-repo/actions"
-import {
-  resolvePresetUpsert,
-  type ResolvedRepoSettings,
-} from "@/lib/add-repo/resolver"
+import { resolveNewRepository } from "@/lib/add-repo/resolver"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import { sameRepository } from "@/lib/repository-library"
 import {
   listRepositories,
   saveRepository,
@@ -47,18 +50,14 @@ import {
 /** A human-readable label for a picker pick, for the settings-stage header. */
 function pickLabel(pick: RepoPickerSelection): string {
   if (pick.kind === "repo") return pick.repo.fullName
-  if (pick.kind === "config")
-    return pick.config.name
-      ? `${pick.config.repoFullName} · ${pick.config.name}`
-      : pick.config.repoFullName
   return pick.source.repoFullName || pick.source.localPath || "this repository"
 }
 
 /**
  * The add-repository flow's state (issues #604, #676, #781): which screen of
  * the dialog shows, and the pick waiting in the settings stage. Held by
- * whoever offers Add repository (the sidebar, Canvas settings) and handed to
- * {@link AddRepositoryDialog} and {@link AddRepositoryMenuItems}.
+ * whoever offers New repository (the canvas, Canvas settings, Settings) and
+ * handed to {@link AddRepositoryDialog} and {@link AddRepositoryMenuItems}.
  */
 export function useAddRepositoryFlow() {
   // A small view-state machine: the repository/URL picker, the folder-path
@@ -84,7 +83,9 @@ export function useAddRepositoryFlow() {
   const [folderInitial, setFolderInitial] = useState<
     { path: string; error?: string } | undefined
   >(undefined)
-  const [savedConfigs, setSavedConfigs] = useState<RepoConfig[]>([])
+  // Your Repositories, so confirming a repository you already have updates
+  // it rather than adding a second (the upsert's match, #681).
+  const [repositories, setRepositories] = useState<RepoConfig[]>([])
 
   const closePicker = useCallback(() => {
     setPickerView(null)
@@ -131,19 +132,24 @@ export function useAddRepositoryFlow() {
   }, [])
   const openGitHub = useCallback(() => setPickerView("repos"), [])
 
+  const open = pickerView !== null
   useEffect(() => {
-    if (pickerView !== "repos") return
+    if (!open) return
     let cancelled = false
-    listRepositories().then((list) => {
-      if (!cancelled) setSavedConfigs(list)
-    })
+    listRepositories()
+      .then((list) => {
+        if (!cancelled) setRepositories(list)
+      })
+      // The save still upserts by identity on the server; this list only
+      // lets the form keep a match's advanced fields.
+      .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [pickerView])
+  }, [open])
 
   return {
-    open: pickerView !== null,
+    open,
     pickerView,
     setPickerView,
     pendingPick,
@@ -151,8 +157,7 @@ export function useAddRepositoryFlow() {
     settingsBackTo,
     setSettingsBackTo,
     folderInitial,
-    savedConfigs,
-    setSavedConfigs,
+    repositories,
     closePicker,
     stepBack,
     openLocalFolder,
@@ -196,6 +201,44 @@ export function AddRepositoryMenuItems({
         Open GitHub repository
       </DropdownMenuItem>
     </>
+  )
+}
+
+/**
+ * New repository (#1423), at the end of Canvas settings' list and on
+ * Settings › Repositories: on desktop a menu of Open folder / Open GitHub
+ * repository first (#604), on the web the GitHub picker straight away.
+ */
+export function NewRepositoryButton({
+  flow,
+  variant = "default",
+}: {
+  flow: AddRepositoryFlow
+  variant?: "default" | "outline"
+}) {
+  const button = (
+    <Button
+      size="sm"
+      variant={variant}
+      onClick={isLocalBuild ? undefined : flow.openGitHub}
+    >
+      <PlusIcon />
+      New repository
+    </Button>
+  )
+  if (!isLocalBuild) return button
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        // Both items open a dialog (or the native folder picker); handing
+        // focus back to the trigger would pull it out of that dialog.
+        onCloseAutoFocus={(event) => event.preventDefault()}
+      >
+        <AddRepositoryMenuItems flow={flow} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -254,17 +297,17 @@ export function AddRepositoryTrigger({
 
 /**
  * The add-repository dialog: the GitHub picker (or the folder form), then the
- * confirm-and-configure settings stage before anything is added.
+ * confirm-and-configure settings stage. Confirm saves the Repository to your
+ * Repositories (#1423) and hands it to `onAdded`: a Canvas switches it on
+ * there, Settings just shows it.
  */
 export function AddRepositoryDialog({
   flow,
-  onCreateRepo,
+  onAdded,
 }: {
   flow: AddRepositoryFlow
-  onCreateRepo: (
-    pick: RepoPickerSelection,
-    settings?: ResolvedRepoSettings
-  ) => void
+  /** Runs once the Repository is saved, with your Repositories after it. */
+  onAdded: (repository: RepoConfig, repositories: RepoConfig[]) => void
 }) {
   const {
     pickerView,
@@ -274,8 +317,7 @@ export function AddRepositoryDialog({
     settingsBackTo,
     setSettingsBackTo,
     folderInitial,
-    savedConfigs,
-    setSavedConfigs,
+    repositories,
     closePicker,
     stepBack,
   } = flow
@@ -367,31 +409,26 @@ export function AddRepositoryDialog({
               (pendingPick.kind === "source" &&
                 Boolean(pendingPick.source.localPath))
             }
-            onConfirm={(settings, { savePreset }) => {
-              onCreateRepo(pendingPick, settings)
-              if (savePreset) {
-                // Best-effort (#680): remember the resolved settings
-                // as this repo's default preset so re-adding it is
-                // one click. The resolver upserts by key — a repo
-                // already saved updates in place. A failed save
-                // never blocks or undoes the add above; at most a
-                // toast.
-                const now = Date.now()
-                const plan = resolvePresetUpsert(
-                  pendingPick,
-                  settings,
-                  savedConfigs,
-                  { id: nanoid(), createdAt: now, updatedAt: now },
-                  true
-                )
-                if (plan) {
-                  saveRepository(plan)
-                    .then(setSavedConfigs)
-                    .catch(() =>
-                      toast.error("Couldn't save these settings as a preset.")
-                    )
-                }
-              }
+            onConfirm={(settings) => {
+              const now = Date.now()
+              const repository = resolveNewRepository(
+                pendingPick,
+                settings,
+                repositories,
+                { id: nanoid(), createdAt: now, updatedAt: now }
+              )
+              const label = pickLabel(pendingPick)
+              // Saved first, so a Canvas switches on a Repository that
+              // exists. The server upserts by identity too, so a list that
+              // was stale here still lands on the one you already have.
+              saveRepository(repository)
+                .then((list) => {
+                  const saved =
+                    list.find((r) => r.id === repository.id) ??
+                    list.find((r) => sameRepository(r, repository))
+                  if (saved) onAdded(saved, list)
+                })
+                .catch(() => toast.error(`Couldn't add ${label}.`))
               setPendingPick(null)
               setPickerView(null)
             }}
@@ -423,22 +460,14 @@ export function AddRepositoryDialog({
           (pickerView === "settings" && settingsBackTo === "repos")) && (
           <div hidden={pickerView !== "repos"}>
             <RepoPicker
-              configs={savedConfigs}
               // The local build can add a Repo with no GitHub auth at
               // all — by clone URL — and offers the on-demand
               // device-flow connect (PRD #428).
               localSources={isLocalBuild}
               onSelect={(pick) => {
-                // Every unconfigured pick — a GitHub repo or a pasted
-                // clone-URL source — is interposed with the
-                // confirm-and-configure settings stage (#676, #682)
-                // instead of provisioning on select. Only a
-                // saved-preset pick keeps today's one-click add.
-                if (pick.kind === "config") {
-                  onCreateRepo(pick)
-                  setPickerView(null)
-                  return
-                }
+                // Every pick — a GitHub repo or a pasted clone-URL source —
+                // goes through the confirm-and-configure settings stage
+                // (#676, #682) before anything is saved.
                 setPendingPick(pick)
                 setSettingsBackTo("repos")
                 setPickerView("settings")
@@ -446,7 +475,7 @@ export function AddRepositoryDialog({
             />
           </div>
         )}
-      </DialogContent>{" "}
+      </DialogContent>
     </Dialog>
   )
 }

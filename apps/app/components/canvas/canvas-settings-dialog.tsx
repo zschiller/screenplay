@@ -1,11 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import {
-  BookBookmarkIcon,
-  BrainIcon,
-  PlusIcon,
-} from "@workspace/ui/components/icons"
+import { BookBookmarkIcon, BrainIcon } from "@workspace/ui/components/icons"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,11 +16,6 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
 import {
   Empty,
   EmptyContent,
@@ -52,7 +43,7 @@ import {
 } from "@workspace/ui/components/tooltip"
 import {
   AddRepositoryDialog,
-  AddRepositoryMenuItems,
+  NewRepositoryButton,
   useAddRepositoryFlow,
 } from "@/components/add-repository-dialog"
 import { LoadErrorRow } from "@/components/home/load-error"
@@ -62,10 +53,8 @@ import {
   SettingsRowSkeleton,
 } from "@/components/home/settings-row"
 import { RemoveRepositoryDialog } from "@/components/remove-repository-dialog"
-import type { RepoPickerSelection } from "@/components/repo-picker"
 import { RepoSettingsDialog } from "@/components/repo-settings-dialog"
 import { NeedsYouDot } from "@/components/workspace-mention"
-import type { ResolvedRepoSettings } from "@/lib/add-repo/resolver"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { repoShortName } from "@/lib/repo-identity"
@@ -103,7 +92,6 @@ export function CanvasSettingsDialog({
   onOpenChange,
   repos,
   branches,
-  onCreateRepo,
   onUpdateRepo,
   onRemoveRepo,
   onSwitchOn,
@@ -121,16 +109,13 @@ export function CanvasSettingsDialog({
   onAddMemory: (text: string) => void
   onEditMemory: (id: string, text: string) => void
   onRemoveMemory: (id: string) => void
-  onCreateRepo: (
-    pick: RepoPickerSelection,
-    settings?: ResolvedRepoSettings
-  ) => void
   onUpdateRepo: (id: string, data: Partial<RepoData>) => void
   onRemoveRepo: (
     id: string,
     options: { deleteBranchesOnRemote: boolean }
   ) => void | Promise<void>
-  /** Turn one of your Repositories on for this canvas (#1422). */
+  /** Turn one of your Repositories on for this canvas (#1422); New
+   *  repository saves one and turns it on here (#1423). */
   onSwitchOn: (repository: RepoConfig) => void
 }) {
   const [activeId, setActiveId] =
@@ -203,7 +188,6 @@ export function CanvasSettingsDialog({
                 <RepositoriesSection
                   repos={repos}
                   branches={branches}
-                  onCreateRepo={onCreateRepo}
                   onUpdateRepo={onUpdateRepo}
                   onRemoveRepo={onRemoveRepo}
                   onSwitchOn={onSwitchOn}
@@ -229,17 +213,12 @@ export function CanvasSettingsDialog({
 function RepositoriesSection({
   repos,
   branches,
-  onCreateRepo,
   onUpdateRepo,
   onRemoveRepo,
   onSwitchOn,
 }: {
   repos: RepoData[]
   branches: BranchData[]
-  onCreateRepo: (
-    pick: RepoPickerSelection,
-    settings?: ResolvedRepoSettings
-  ) => void
   onUpdateRepo: (id: string, data: Partial<RepoData>) => void
   onRemoveRepo: (
     id: string,
@@ -285,30 +264,7 @@ function RepositoriesSection({
     else void onRemoveRepo(repo.id, { deleteBranchesOnRemote: false })
   }
 
-  const addButton = isLocalBuild ? (
-    // Desktop: a menu first, like the sidebar's Add repository (#604).
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button size="sm">
-          <PlusIcon />
-          Add repository
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        // Both items open a dialog (or the native folder picker); handing
-        // focus back to the trigger would pull it out of that dialog.
-        onCloseAutoFocus={(event) => event.preventDefault()}
-      >
-        <AddRepositoryMenuItems flow={addRepository} />
-      </DropdownMenuContent>
-    </DropdownMenu>
-  ) : (
-    <Button size="sm" onClick={addRepository.openGitHub}>
-      <PlusIcon />
-      Add repository
-    </Button>
-  )
+  const newButton = <NewRepositoryButton flow={addRepository} />
 
   return (
     <>
@@ -333,11 +289,11 @@ function RepositoriesSection({
             </EmptyMedia>
             <EmptyTitle>No repositories yet</EmptyTitle>
             <EmptyDescription>
-              Workspaces run a repository&apos;s code. Add one to start a
+              Workspaces run a repository&apos;s code. Set one up to start a
               workspace on this canvas.
             </EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>{addButton}</EmptyContent>
+          <EmptyContent>{newButton}</EmptyContent>
         </Empty>
       ) : (
         <>
@@ -382,10 +338,16 @@ function RepositoriesSection({
               )
             })}
           </SettingsRowList>
-          <div className="flex justify-end">{addButton}</div>
+          <div className="flex justify-end">{newButton}</div>
         </>
       )}
-      <AddRepositoryDialog flow={addRepository} onCreateRepo={onCreateRepo} />
+      <AddRepositoryDialog
+        flow={addRepository}
+        onAdded={(repository, list) => {
+          setRepositories(list)
+          onSwitchOn(repository)
+        }}
+      />
       <RepoSettingsDialog
         repo={repos.find((r) => r.id === editingId) ?? null}
         repository={repositories.find(

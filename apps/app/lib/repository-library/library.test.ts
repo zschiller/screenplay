@@ -77,6 +77,7 @@ function setup({
     mint: () => ({ id: `new-${++n}`, now: 100 + n }),
     rooms: {
       list: async () => Object.keys(canvases),
+      read: async (roomId, fn) => fn(canvases[roomId]!.collections),
       mutate: async (roomId, fn) => fn(canvases[roomId]!.collections),
     },
   })
@@ -359,6 +360,9 @@ describe("migration", () => {
       mint: () => ({ id: "new", now: 1 }),
       rooms: {
         list: async () => ["broken", "good"],
+        read: async () => {
+          throw new Error("unused")
+        },
         mutate: async (roomId, fn) => {
           if (roomId === "broken" && broken) throw new Error("offline")
           return fn((roomId === "good" ? good : makeHarness()).collections)
@@ -609,5 +613,76 @@ describe("saving to all from a canvas", () => {
     const { library, store } = setup({ repositories: [repository("web")] })
     await store.markMigrated()
     await expect(library.saveToAll(repository("other"))).rejects.toThrow()
+  })
+})
+
+describe("deleting a repository", () => {
+  it("counts the canvases that use it, and none that don't", async () => {
+    const web = repository("web")
+    const a = makeHarness()
+    const b = makeHarness()
+    const other = canvasWith(baseRepo("r-x", { repoFullName: "acme/web" }))
+    switchOn(a.collections, web, { id: "a", createdAt: 5, addedBy: "zack" })
+    switchOn(b.collections, web, { id: "b", createdAt: 5, addedBy: "zack" })
+    const { library, store } = setup({
+      repositories: [web, repository("api", { name: "api" })],
+      canvases: { a, b, other },
+    })
+    await store.markMigrated()
+    expect(await library.canvasCount("web")).toBe(2)
+    expect(await library.canvasCount("api")).toBe(0)
+  })
+
+  it("keeps each linked canvas repo, unlinked and editable", async () => {
+    const web = repository("web")
+    const plain = makeHarness()
+    const custom = makeHarness()
+    switchOn(plain.collections, web, { id: "p", createdAt: 5, addedBy: "zack" })
+    switchOn(custom.collections, web, {
+      id: "c",
+      createdAt: 5,
+      addedBy: "zack",
+    })
+    plain.collections.branches.set("b1", baseBranch("b1", { repoId: "p" }))
+    custom.ops.patch("repos", "c", { devServerPort: 4000 })
+    const { library, store } = setup({
+      repositories: [web],
+      canvases: { plain, custom },
+    })
+    await store.markMigrated()
+
+    expect(await library.delete("web")).toEqual([])
+
+    expect(repoOf(plain, "p")).toMatchObject({
+      repoFullName: "acme/web",
+      devScript: "pnpm dev",
+      addedBy: "zack",
+    })
+    expect(repoOf(plain, "p")?.repositoryId).toBeUndefined()
+    expect(plain.collections.branches.get("b1")).toBeDefined()
+    expect(repoOf(custom, "c")).toMatchObject({ devServerPort: 4000 })
+    expect(repoOf(custom, "c")?.repositoryId).toBeUndefined()
+    // Unlinked: the switch list shows it on, with no Repository behind it.
+    expect(canvasRepositoryRows([], [repoOf(plain, "p")!])).toEqual([
+      { on: true, repo: repoOf(plain, "p") },
+    ])
+    // Editable on its Canvas, and Settings no longer reaches it.
+    plain.ops.patch("repos", "p", { devScript: "pnpm start" })
+    await library.save(web)
+    expect(repoOf(plain, "p")?.devScript).toBe("pnpm start")
+  })
+
+  it("with no canvas using it, just deletes it", async () => {
+    const canvas = canvasWith(baseRepo("r1", { repoFullName: "acme/api" }))
+    const { library, store } = setup({
+      repositories: [repository("web")],
+      canvases: { canvas },
+    })
+    await store.markMigrated()
+    expect(await library.canvasCount("web")).toBe(0)
+    expect(await library.delete("web")).toEqual([])
+    expect(repoOf(canvas, "r1")).toEqual(
+      baseRepo("r1", { repoFullName: "acme/api" })
+    )
   })
 })

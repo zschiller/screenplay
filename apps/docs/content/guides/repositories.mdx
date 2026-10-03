@@ -29,25 +29,29 @@ repository's short name.
 
 ## Adding a repository
 
-Click **Add repository** in Canvas settings. On a canvas with no repository
-yet, **Add repository** on the empty canvas and in the **Get started**
-checklist goes straight to the same choice, without opening Canvas settings,
-and closes once the repository is added. Adding a repository only adds it: no
-workspace starts until you ask for a change.
+To set up a repository that isn't in your list yet, click **New repository**
+at the end of the list in Canvas settings. It saves the repository to
+[your repositories](#your-repositories) and turns it on for this canvas in one
+step. On a canvas with no repository yet, **Add repository** on the empty
+canvas and in the **Get started** checklist goes straight to the same choice,
+without opening Canvas settings, and closes once the repository is added.
+Adding a repository only adds it: no workspace starts until you ask for a
+change.
 
-<Screenshot name="add-project-menu" alt="The Add repository menu" />
+<Screenshot name="add-project-menu" alt="The New repository menu" />
 
 - **Open folder** _(desktop)_ picks a folder on your machine, usually your
   existing clone. Screenplay creates a separate worktree for each workspace
   and never touches your own checkout.
-- **Open GitHub repository** opens a searchable picker. **Your repositories**
-  (the ones in [Settings → Repositories](#your-repositories)) are listed first,
-  then **Other GitHub repositories**. On desktop you can also paste any clone
-  URL, including non-GitHub hosts, and pick **Add _url_**.
+- **Open GitHub repository** opens a searchable picker of your GitHub
+  repositories. On desktop you can also paste any clone URL, including
+  non-GitHub hosts, and pick **Add _url_**.
 
-Picking one of your repositories adds it straight away. Otherwise
-**Configure repository** opens with settings already detected from the
+**Configure repository** then opens with settings already detected from the
 repository (**Detecting settings…**). Check them and click **Add repository**.
+Picking a repository you already have, with the same name, updates that one
+rather than adding a second; to use one you already have, turn its switch on
+instead.
 
 <Screenshot
   name="configure-project"
@@ -72,7 +76,7 @@ repository (**Detecting settings…**). Check them and click **Add repository**.
 | **Files to copy**         | _Desktop._ Glob patterns (default `.env*`) copied from your checkout into each new worktree, so local secrets come along.      |
 | **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                               |
 | **System prompt**         | Extra instructions appended to the agent's prompt, e.g. "This repository's app is the Next.js app in `apps/web`". _(Advanced)_ |
-| **Preset name**           | Tells apart several of your repositories from the same GitHub repository, e.g. `web` and `api`. _(Advanced)_                   |
+| **Name**                  | Tells apart several of your repositories from the same GitHub repository, e.g. `web` and `api`. _(Advanced)_                   |
 
 The run script has to serve on the port Screenplay assigns. Most frameworks
 handle this automatically; see [Dev server & ports](/building/dev-server) if
@@ -113,11 +117,12 @@ default. The repository stays in Settings, so you can turn it back on later.
 ## Your repositories
 
 **Settings → Repositories** lists your repositories and how each one runs.
-Check **Save as a preset** when adding a repository to keep it there, or click
-**New repository** in Settings. Editing a repository in Settings updates every
-canvas that uses it, except the ones where it's
-[customized](#customizing-a-repository-for-one-canvas). A canvas keeps its own
-environment variable values if you changed them there.
+Every repository you add from a canvas lands here. To set one up before any
+canvas needs it, click **New repository** in Settings: it opens the same
+picker and **Configure repository** form, and only saves the repository.
+Editing a repository in Settings updates every canvas that uses it, except the
+ones where it's [customized](#customizing-a-repository-for-one-canvas). A
+canvas keeps its own environment variable values if you changed them there.
 
 <Screenshot
   name="settings-presets"
@@ -127,6 +132,11 @@ environment variable values if you changed them there.
 On desktop, every repository on your canvases also has a home in Settings:
 the first time you open Settings after updating, any canvas repository that
 matches none of yours is added to the list.
+
+Deleting a repository in Settings doesn't take it off your canvases. The
+confirm says how many canvases use it; each keeps its copy, which keeps
+running its workspaces but stops getting your edits from Settings. It no
+longer shows a dot, and you can still edit it on its canvas.
 
 Your repositories are private to you and stored encrypted. Name them (`web`,
 `api`, `docs`) to keep several from one GitHub repository. This is handy in

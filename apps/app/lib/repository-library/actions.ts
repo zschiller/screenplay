@@ -18,6 +18,10 @@ async function library() {
     store: kvRepositoryStore(userId),
     rooms: {
       list: async () => (await listRoomsForUser(userId)).map((r) => r.id),
+      read: async (roomId, fn) =>
+        (await openRoom(roomId)).readDoc((c) =>
+          fn(createRoomCollections(c.doc))
+        ),
       // A fresh collections view per write: nothing observes a server doc,
       // so a cached view's snapshot could hide this write's own changes.
       mutate: async (roomId, fn) =>
@@ -52,7 +56,16 @@ export async function saveRepositoryToAll(
   return (await library()).saveToAll(repository)
 }
 
-/** Delete one of your Repositories; returns the new list. */
+/** How many of your Canvases use one of your Repositories (the delete
+ *  confirm's count). */
+export async function repositoryCanvasCount(
+  repositoryId: string
+): Promise<number> {
+  return (await library()).canvasCount(repositoryId)
+}
+
+/** Delete one of your Repositories; returns the new list. Canvases using it
+ *  keep their copy, unlinked. */
 export async function deleteRepository(
   repositoryId: string
 ): Promise<RepoConfig[]> {

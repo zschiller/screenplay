@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { nanoid } from "nanoid"
-import { FolderOpenIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { DialogFooter } from "@workspace/ui/components/dialog"
 import {
@@ -14,22 +13,19 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { RepoPicker } from "@/components/repo-picker"
-import { chooseLocalFolder, LocalFolderForm } from "@/components/local-folder"
 import { RepoSettingsFields } from "@/components/repo-settings-fields"
 import { saveRepository } from "@/lib/repository-library/actions"
 import type { RepoConfig } from "@/lib/repo-configs.types"
-import type { NewRepoSource } from "@/lib/github-local/types"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
-import { isLocalBuild } from "@/lib/local-mode"
 import { cn } from "@workspace/ui/lib/utils"
 
 interface RepoConfigFormProps {
-  /** The preset being edited; saving updates it in place. */
+  /** The Repository being edited; saving updates it in place. */
   initial?: RepoConfig
   /**
-   * A preset to start a new one from (Duplicate, #784): its source and fields
-   * seed the form, but saving creates a new preset.
+   * A Repository to start a new one from (Duplicate, #784): its source and
+   * fields seed the form, but saving creates a new one. One of `initial` or
+   * `template` is required; New repository goes through the add flow (#1423).
    */
   template?: RepoConfig
   existingConfigs: RepoConfig[]
@@ -39,21 +35,10 @@ interface RepoConfigFormProps {
   onCancel: () => void
 }
 
-type RepoIdentity = Pick<
-  RepoConfig,
-  | "repoFullName"
-  | "repoOwner"
-  | "repoName"
-  | "defaultBranch"
-  | "cloneUrl"
-  | "localPath"
-  | "private"
->
-
 /**
- * The body of the preset editor dialog (the caller owns the `Dialog` and its
- * header): pick a source, then edit the preset's fields in the dialog's one
- * scroll area, with Cancel/Save pinned in the footer.
+ * The body of the Repository editor dialog (the caller owns the `Dialog` and
+ * its header): edit an existing Repository's fields, or a duplicate's, in the
+ * dialog's one scroll area, with Cancel/Save pinned in the footer.
  */
 export function RepoConfigForm({
   initial,
@@ -63,49 +48,28 @@ export function RepoConfigForm({
   onSaved,
   onCancel,
 }: RepoConfigFormProps) {
-  const seed = initial ?? template
-  const [repo, setRepo] = useState<RepoIdentity | null>(
-    seed
-      ? {
-          repoFullName: seed.repoFullName,
-          repoOwner: seed.repoOwner,
-          repoName: seed.repoName,
-          defaultBranch: seed.defaultBranch,
-          cloneUrl: seed.cloneUrl,
-          localPath: seed.localPath,
-          private: seed.private,
-        }
-      : null
-  )
-  // Desktop folder-path fallback when the native directory dialog is
-  // unreachable (story 27) — mirrors the in-Room add flow (#604).
-  const [folderMode, setFolderMode] = useState(false)
-  // A folder the native dialog picked but couldn't use, kept for the form.
-  const [folderError, setFolderError] = useState<
-    { path: string; error: string } | undefined
-  >(undefined)
-  const [name, setName] = useState(seed?.name ?? "")
-  const [setupScript, setSetupScript] = useState(seed?.setupScript ?? "")
-  const [devScript, setDevScript] = useState(seed?.devScript ?? "")
+  const seed = (initial ?? template)!
+  const repo = seed
+  const [name, setName] = useState(seed.name ?? "")
+  const [setupScript, setSetupScript] = useState(seed.setupScript ?? "")
+  const [devScript, setDevScript] = useState(seed.devScript ?? "")
   const [devServerPort, setDevServerPort] = useState(
-    String(seed?.devServerPort ?? 3000)
+    String(seed.devServerPort ?? 3000)
   )
-  const [envVars, setEnvVars] = useState(seed?.envVars ?? "")
-  const [copyPatterns, setCopyPatterns] = useState(
-    seed ? (seed.copyPatterns ?? "") : ".env*"
-  )
+  const [envVars, setEnvVars] = useState(seed.envVars ?? "")
+  const [copyPatterns, setCopyPatterns] = useState(seed.copyPatterns ?? "")
   const [defaultIframeLayerSizeId, setDefaultIframeLayerSizeId] = useState(
-    seed?.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
+    seed.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID
   )
-  const [systemPrompt, setSystemPrompt] = useState(seed?.systemPrompt ?? "")
+  const [systemPrompt, setSystemPrompt] = useState(seed.systemPrompt ?? "")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Everything Save would write, as one comparable value; the form is dirty
   // once it differs from the value it opened with, so Cancel can ask first.
   const snapshot = JSON.stringify([
-    repo?.repoFullName,
-    repo?.localPath,
+    repo.repoFullName,
+    repo.localPath,
     name,
     setupScript,
     devScript,
@@ -126,20 +90,17 @@ export function RepoConfigForm({
     Number.isFinite(parsedPort) && parsedPort > 0 && parsedPort < 65536
 
   const trimmedName = name.trim()
-  const nameCollision = Boolean(
-    repo &&
-    existingConfigs.some(
-      (c) =>
-        c.id !== initial?.id &&
-        c.repoFullName === repo.repoFullName &&
-        c.name === trimmedName
-    )
+  const nameCollision = existingConfigs.some(
+    (c) =>
+      c.id !== initial?.id &&
+      c.repoFullName === repo.repoFullName &&
+      c.name === trimmedName
   )
 
-  const canSave = Boolean(repo) && portIsValid && !nameCollision
+  const canSave = portIsValid && !nameCollision
 
   const handleSave = async () => {
-    if (!repo || !canSave) return
+    if (!canSave) return
     setSaving(true)
     setError(null)
     const now = Date.now()
@@ -172,122 +133,11 @@ export function RepoConfigForm({
     }
   }
 
-  // Seed the preset's identity from a local-build source (a pasted clone URL or
-  // a folder). Identity prefers the detected remote — `inspectLocalRepoPath`
-  // already fills `repoFullName`/`cloneUrl` from a folder's `origin`, falling
-  // back to the basename when remote-less (ADR 0013). We can't know visibility,
-  // so `private` defaults to false (only the folder/lock icon reads it). The
-  // `localPath` rides along: the remote names the preset, the path opens it.
-  const applySource = (source: NewRepoSource) => {
-    setRepo({
-      repoFullName: source.repoFullName,
-      repoOwner: source.repoOwner,
-      repoName: source.repoName,
-      defaultBranch: source.defaultBranch,
-      cloneUrl: source.cloneUrl,
-      localPath: source.localPath,
-      private: false,
-    })
-    setFolderMode(false)
-  }
-
-  // "Open a folder" fires the native OS directory dialog directly; only when no
-  // native picker is reachable (sidecar driven from a browser) do we fall back
-  // to the path-input form (#604).
-  const openFolder = async () => {
-    const result = await chooseLocalFolder()
-    if (result.kind === "source") applySource(result.source)
-    else if (result.kind === "error") {
-      setFolderError({ path: result.path, error: result.error })
-      setFolderMode(true)
-    } else if (result.kind === "fallback") {
-      setFolderError(undefined)
-      setFolderMode(true)
-    }
-  }
-
-  if (!repo) {
-    return (
-      <>
-        <div className="flex min-w-0 flex-col gap-3 px-5 pb-5">
-          <p className="text-sm text-muted-foreground">
-            Choose a git repository.
-          </p>
-          {folderMode ? (
-            <div className="rounded-lg border">
-              <LocalFolderForm
-                initial={folderError}
-                onBack={() => setFolderMode(false)}
-                onResolved={applySource}
-              />
-            </div>
-          ) : (
-            <>
-              <div className="rounded-lg border">
-                <RepoPicker
-                  // Same sources as the canvas add flow: a GitHub pick, or — on
-                  // the local build — a pasted clone URL folded into the search
-                  // box (#605). Folder sources come through the button below
-                  // (#604/#606), not the picker itself.
-                  localSources={isLocalBuild}
-                  onSelect={(pick) => {
-                    if (pick.kind === "repo") {
-                      setRepo({
-                        repoFullName: pick.repo.fullName,
-                        repoOwner: pick.repo.owner,
-                        repoName: pick.repo.name,
-                        defaultBranch: pick.repo.defaultBranch,
-                        cloneUrl: pick.repo.cloneUrl,
-                        private: pick.repo.private,
-                      })
-                    } else if (pick.kind === "source") {
-                      // A pasted clone URL. The picker here lists no saved
-                      // configs, so `kind: "config"` never occurs.
-                      applySource(pick.source)
-                    }
-                  }}
-                />
-              </div>
-              {isLocalBuild && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start gap-2 font-normal"
-                  onClick={openFolder}
-                >
-                  <FolderOpenIcon className="size-4 text-muted-foreground" />
-                  Open a folder
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-        <DialogFooter className="px-5 pb-5">
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-        </DialogFooter>
-      </>
-    )
-  }
-
   return (
     <>
-      <div className="flex min-w-0 items-center justify-between gap-2 px-5 pb-3">
-        <div className="min-w-0 truncate text-sm">
-          <span className="text-muted-foreground">Source </span>
-          <span className="font-mono">{repo.repoFullName}</span>
-        </div>
-        {!initial && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs"
-            onClick={() => setRepo(null)}
-          >
-            Change
-          </Button>
-        )}
+      <div className="min-w-0 truncate px-5 pb-3 text-sm">
+        <span className="text-muted-foreground">Source </span>
+        <span className="font-mono">{repo.repoFullName}</span>
       </div>
 
       {/* The dialog's only scroll. The max-height must land on the Radix
@@ -302,8 +152,6 @@ export function RepoConfigForm({
             <FieldLabel htmlFor="config-name">Name</FieldLabel>
             <Input
               id="config-name"
-              // Just after picking a source, carry on in the name field.
-              autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="default"
@@ -351,7 +199,7 @@ export function RepoConfigForm({
         </Button>
         <Button onClick={handleSave} disabled={!canSave || saving}>
           {saving && <Spinner className="size-4" />}
-          {initial ? "Save changes" : "Create preset"}
+          {initial ? "Save changes" : "Create repository"}
         </Button>
       </DialogFooter>
     </>
