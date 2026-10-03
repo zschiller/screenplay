@@ -520,3 +520,94 @@ describe("editing a repository in Settings", () => {
     expect(repoOf(canvas, "r1")?.devScript).not.toBe("pnpm start")
   })
 })
+
+describe("saving to all from a canvas", () => {
+  const on = (
+    canvas: ReturnType<typeof makeHarness>,
+    from: RepoConfig,
+    id: string
+  ) => switchOn(canvas.collections, from, { id, createdAt: 5, addedBy: "zack" })
+
+  it("updates the repository and every linked canvas, clearing customizations", async () => {
+    const web = repository("web", { envVars: "A=1" })
+    const editing = makeHarness()
+    const plain = makeHarness()
+    const custom = makeHarness()
+    const unlinked = canvasWith(
+      baseRepo("r-x", { repoFullName: "acme/web", name: "" })
+    )
+    on(editing, web, "e")
+    on(plain, web, "p")
+    on(custom, web, "c")
+    editing.ops.patch("repos", "e", { devScript: "pnpm dev --turbo" })
+    custom.ops.patch("repos", "c", { name: "frontend", devServerPort: 4000 })
+    const { library, store } = setup({
+      repositories: [web],
+      canvases: { editing, plain, custom, unlinked },
+    })
+    await store.markMigrated()
+
+    const list = await library.saveToAll({
+      ...web,
+      devScript: "pnpm dev --turbo",
+      updatedAt: 9,
+    })
+
+    expect(list).toEqual([
+      { ...web, devScript: "pnpm dev --turbo", updatedAt: 9 },
+    ])
+    for (const [canvas, id] of [
+      [editing, "e"],
+      [plain, "p"],
+      [custom, "c"],
+    ] as const) {
+      expect(repoOf(canvas, id)).toMatchObject({
+        name: "",
+        devScript: "pnpm dev --turbo",
+        devServerPort: 3000,
+      })
+      expect(isCustomized(repoOf(canvas, id)!, list[0]!)).toBe(false)
+    }
+    expect(repoOf(unlinked, "r-x")?.devScript).toBe("")
+  })
+
+  it("keeps a canvas's own env var values", async () => {
+    const web = repository("web", { envVars: "A=1" })
+    const mine = makeHarness()
+    const other = makeHarness()
+    on(mine, web, "m")
+    on(other, web, "o")
+    mine.ops.patch("repos", "m", { envVars: "A=mine" })
+    const { library, store } = setup({
+      repositories: [web],
+      canvases: { mine, other },
+    })
+    await store.markMigrated()
+
+    await library.saveToAll({ ...web, envVars: "A=9" })
+
+    expect(repoOf(mine, "m")?.envVars).toBe("A=mine")
+    expect(repoOf(other, "o")?.envVars).toBe("A=9")
+  })
+
+  it("leaves another person's linked repos alone", async () => {
+    const web = repository("web")
+    const canvas = makeHarness()
+    on(canvas, repository("theirs"), "t")
+    const { library, store } = setup({
+      repositories: [web],
+      canvases: { canvas },
+    })
+    await store.markMigrated()
+
+    await library.saveToAll({ ...web, devScript: "pnpm start" })
+
+    expect(repoOf(canvas, "t")?.devScript).toBe("pnpm dev")
+  })
+
+  it("refuses a repository that isn't yours", async () => {
+    const { library, store } = setup({ repositories: [repository("web")] })
+    await store.markMigrated()
+    await expect(library.saveToAll(repository("other"))).rejects.toThrow()
+  })
+})

@@ -44,6 +44,14 @@ export async function saveRepository(
   return (await library()).save(repository)
 }
 
+/** Save a Canvas edit to one of your Repositories and every Canvas using it,
+ *  clearing their customizations; returns the new list. */
+export async function saveRepositoryToAll(
+  repository: RepoConfig
+): Promise<RepoConfig[]> {
+  return (await library()).saveToAll(repository)
+}
+
 /** Delete one of your Repositories; returns the new list. */
 export async function deleteRepository(
   repositoryId: string
