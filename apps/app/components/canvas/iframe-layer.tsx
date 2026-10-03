@@ -58,6 +58,7 @@ import {
 } from "./live-page"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
+import { recordsLiveRoute } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
@@ -526,18 +527,16 @@ export function IframeLayer({
     [onRouteChange]
   )
 
-  // Where the shared page went. The driver's view records it, as an iframe
-  // records its own navigation; with nobody driving (a redirect, a reload)
-  // any view does, since they all write the same route. Joining reports where
-  // the page already is, which is never a new step.
+  // Where the shared page went, recorded as an iframe records its own
+  // navigation (`recordsLiveRoute` says which views write it). Joining
+  // reports where the page already is, which is never a new step.
   const driverRef = useRef(driver)
   useEffect(() => {
     driverRef.current = driver
   })
   const handleSharedRoute = useCallback(
     (path: string, first: boolean) => {
-      const kind = driverRef.current.kind
-      if (kind !== "you" && kind !== "none") return
+      if (!recordsLiveRoute(driverRef.current)) return
       handleNavigation(iframeLayer.id, path, first)
     },
     [handleNavigation, iframeLayer.id]
