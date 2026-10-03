@@ -1255,7 +1255,7 @@ class Frame {
 
   /** The page's path, cookies and local storage on the frame origin, which a
    *  viewer's local copy starts from. In-memory state can't come along. */
-  async snapshot() {
+  async localCopy() {
     if (this.status !== "live") throw new Error("not live")
     const origin = new URL(ORIGIN).origin
     const host = new URL(ORIGIN).hostname
@@ -2015,7 +2015,7 @@ async function handleMessage(conn, msg) {
       const reqId = typeof msg.id === "string" ? msg.id.slice(0, 64) : ""
       try {
         if (!frame) throw new Error("no such frame")
-        const snapshot = await frame.snapshot()
+        const snapshot = await frame.localCopy()
         conn.sendJson({ t: "snapshot", frame: id, id: reqId, ...snapshot })
       } catch (e) {
         conn.sendJson({ t: "snapshot", frame: id, id: reqId, error: e.message })
