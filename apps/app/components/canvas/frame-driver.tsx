@@ -217,11 +217,10 @@ export function FrameDriverTag({ driver }: { driver: FrameDriverView }) {
 
 /**
  * "Detached" on the frame's title line, where the driver tag goes, while
- * this viewer shows its own copy of a shared frame (#1397), with the way
- * back beside it. Quiet, in the title's type: nobody else sees it, and
- * nothing here is anyone's alert.
+ * this viewer shows its own copy of a shared frame (#1397). Quiet, in the
+ * title's type: nobody else sees it, and nothing here is anyone's alert.
  */
-export function FrameLocalCopyTag({ onRejoin }: { onRejoin?: () => void }) {
+export function FrameLocalCopyTag() {
   return (
     <span
       data-frame-local-copy-tag=""
@@ -229,22 +228,20 @@ export function FrameLocalCopyTag({ onRejoin }: { onRejoin?: () => void }) {
     >
       <MonitorIcon className="size-3" />
       Detached
-      {onRejoin && (
-        <Button
-          variant="outline"
-          size="xxs"
-          className="-my-px ml-1"
-          // The canvas would take the press as a drag on the title.
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation()
-            onRejoin()
-          }}
-        >
-          Rejoin
-        </Button>
-      )}
     </span>
+  )
+}
+
+/**
+ * Takes the driver button's place in the frame bar while this viewer shows
+ * its own copy (#1376): there's nobody to drive with, and the way back is
+ * the one thing to do here.
+ */
+export function FrameRejoinButton({ onRejoin }: { onRejoin: () => void }) {
+  return (
+    <Button variant="outline" size="xs" onClick={onRejoin}>
+      Rejoin
+    </Button>
   )
 }
 

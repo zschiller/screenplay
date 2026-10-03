@@ -6,6 +6,7 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowsOutSimpleIcon,
+  ArrowUUpLeftIcon,
   CopyIcon,
   DotsThreeIcon,
   GitBranchIcon,
@@ -66,6 +67,7 @@ import {
   FrameDriverButton,
   FrameDriverTag,
   FrameLocalCopyTag,
+  FrameRejoinButton,
 } from "./frame-driver"
 import { FrameStreamView } from "./frame-stream-view"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
@@ -1004,7 +1006,7 @@ export function IframeLayer({
       resizable={!focused && !drivenByOther(driver)}
       titleTag={
         localCopy ? (
-          <FrameLocalCopyTag onRejoin={onRejoin} />
+          <FrameLocalCopyTag />
         ) : drivenByOther(driver) ? (
           <FrameDriverTag driver={driver} />
         ) : undefined
@@ -1100,22 +1102,26 @@ export function IframeLayer({
                   }
                 />
                 <FloatingToolbarSeparator />
-                <FrameDriverButton
-                  driver={driver}
-                  asked={askedForControl}
-                  requests={controlRequests}
-                  onClick={() => onFocus(focused ? null : iframeLayer.id)}
-                  onGrant={
-                    onGrantControl
-                      ? (to) => onGrantControl(iframeLayer.id, to)
-                      : undefined
-                  }
-                  onDecline={
-                    onDeclineControl
-                      ? (to) => onDeclineControl(iframeLayer.id, to)
-                      : undefined
-                  }
-                />
+                {onRejoin ? (
+                  <FrameRejoinButton onRejoin={onRejoin} />
+                ) : (
+                  <FrameDriverButton
+                    driver={driver}
+                    asked={askedForControl}
+                    requests={controlRequests}
+                    onClick={() => onFocus(focused ? null : iframeLayer.id)}
+                    onGrant={
+                      onGrantControl
+                        ? (to) => onGrantControl(iframeLayer.id, to)
+                        : undefined
+                    }
+                    onDecline={
+                      onDeclineControl
+                        ? (to) => onDeclineControl(iframeLayer.id, to)
+                        : undefined
+                    }
+                  />
+                )}
                 <KnobsPopover
                   knobs={iframeLayer.knobs}
                   values={iframeLayer.knobValues}
@@ -1155,6 +1161,12 @@ export function IframeLayer({
                       <DropdownMenuItem onSelect={onGoLocal}>
                         <MonitorIcon />
                         Detach from shared frame
+                      </DropdownMenuItem>
+                    )}
+                    {onRejoin && (
+                      <DropdownMenuItem onSelect={onRejoin}>
+                        <ArrowUUpLeftIcon />
+                        Rejoin shared frame
                       </DropdownMenuItem>
                     )}
                     {showWorkspaceMenu && (
