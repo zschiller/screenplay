@@ -40,8 +40,6 @@ import {
   ChatCircleIcon,
   PencilSimpleIcon,
   TrashIcon,
-  ChatsIcon,
-  CheckIcon,
   DotsThreeIcon,
   GitBranchIcon,
   PlusIcon,
@@ -135,8 +133,6 @@ import {
   type WorkspaceState,
 } from "@/lib/branch/workspace-state"
 
-import { ROOM_CHAT_LABEL } from "@/lib/chat/room-chat"
-
 import type { BranchPrInfo } from "@/lib/github-actions"
 
 import { listRepoBranches } from "@/lib/github-actions"
@@ -180,11 +176,11 @@ import { isSketchChat } from "@/lib/chat/sketch-chat"
 /**
  * The chat panel's Chats menu (#1152, #1317): one button pinned to the far
  * right of the panel header that opens the list of every chat on the canvas.
- * The Coordinator leads it, then each Workspace's one chat (#1315) by its
- * title and Workspace state icon, never its branch, with what the sidebar used
- * to hold (sort, grouping, Done, row menus, drag). Documents have no chats of
- * their own (#1314). It is the one way to move between chats; the header's
- * breadcrumb only says where you are.
+ * It lists each Workspace's one chat (#1315) by its title and Workspace state
+ * icon, never its branch, with what the sidebar used to hold (sort, grouping,
+ * Done, row menus, drag). Documents have no chats of their own (#1314). It
+ * opens from the Coordinator's header only, so it doesn't list the
+ * Coordinator: a Workspace chat's Coordinator crumb goes back up.
  *
  * {@link ChatsMenuProvider} sits around the panel and owns everything
  * that outlives the menu (the dialogs its rows and actions open, the create
@@ -192,13 +188,6 @@ import { isSketchChat } from "@/lib/chat/sketch-chat"
  * renders the button in whichever header is showing. Without a provider (the
  * prototype player's chat) the button renders nothing.
  */
-
-/** Which chat the panel shows, for the menu's check marks. */
-export type ChatsMenuCurrent =
-  | { kind: "room" }
-  | { kind: "agent"; id: string }
-  | { kind: "sketch"; id: string }
-  | { kind: "none" }
 
 export interface ChatsMenuProviderProps {
   userId: string
@@ -210,8 +199,6 @@ export interface ChatsMenuProviderProps {
   diffStats: Map<string, DiffStats>
   /** GitHub-polled PR state per branch, shared with the chat header. */
   branchPrs: Map<string, BranchPrInfo>
-  current: ChatsMenuCurrent
-  onShowRoomChat: () => void
   /** Open a Workspace's chat; `expandPanel` defaults to true. */
   onSelectWorkspace: (id: string, options?: { expandPanel?: boolean }) => void
   /** Open a chat with no repository (a Sketch Chat). */
@@ -736,7 +723,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   const {
     userId,
     roomId,
-    current,
     sortedRepos,
     reposById,
     activeBranches,
@@ -807,23 +793,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
       />
       <CommandList className="max-h-[min(28rem,var(--radix-popover-content-available-height))]">
         <CommandEmpty>No matches.</CommandEmpty>
-        <CommandGroup>
-          <CommandItem
-            value={ROOM_CHAT_LABEL}
-            onSelect={() => pick(menu.onShowRoomChat)}
-          >
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              <ChatsIcon className="size-3.5 opacity-70" />
-            </span>
-            <span className="truncate">{ROOM_CHAT_LABEL}</span>
-            <CheckIcon
-              className={cn(
-                "ml-auto size-3.5",
-                current.kind !== "room" && "opacity-0"
-              )}
-            />
-          </CommandItem>
-        </CommandGroup>
 
         {sortedRepos.length === 0 ? (
           // A canvas with no repository has chats with none, which write
@@ -1027,7 +996,7 @@ function WorkspacesLabel({
 
 /**
  * One chat with no repository in the menu: its title (renamed inline from its
- * … menu), the … menu with Rename and Delete, and a check on the open one.
+ * … menu) and the … menu with Rename and Delete.
  */
 function SketchChatMenuRow({
   menu,
@@ -1040,8 +1009,6 @@ function SketchChatMenuRow({
   const pendingEditRef = useRef(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
-  const isCurrent =
-    menu.current.kind === "sketch" && menu.current.id === chat.id
   return (
     <CommandItem
       value={`${chat.label} ${chat.id}`}
@@ -1080,8 +1047,7 @@ function SketchChatMenuRow({
           )}
         />
       </span>
-      {/* The … sits over the row's end, check column included, as on a
-          Workspace row. */}
+      {/* The … sits over the row's end, as on a Workspace row. */}
       <span
         {...isolate}
         className={cn(
@@ -1131,7 +1097,6 @@ function SketchChatMenuRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </span>
-      <CheckIcon className={cn("size-3.5", !isCurrent && "opacity-0")} />
     </CommandItem>
   )
 }
@@ -1139,7 +1104,7 @@ function SketchChatMenuRow({
 /**
  * One Workspace's chat in the menu: its Workspace state icon, title (a chat
  * and its Workspace share one, #1315; renamed inline from its … menu), PR
- * badge or line count, the … menu, and a check on the open one.
+ * badge or line count, and the … menu.
  * Hovering it outlines its frames on the canvas (#793) and opens its hover
  * card (#882), as the sidebar row did.
  */
@@ -1171,8 +1136,6 @@ function WorkspaceMenuRow({
   const pr = menu.branchPrs.get(branch.id)
   const stats = menu.diffStats.get(branch.id)
   const hasStats = !!stats && (stats.additions > 0 || stats.deletions > 0)
-  const isCurrent =
-    menu.current.kind === "agent" && menu.current.id === branch.id
   const label = workspaceLabel(branch)
   const showRepoNames = menu.sortedRepos.length > 1
 
@@ -1251,11 +1214,9 @@ function WorkspaceMenuRow({
       )}
       {/* The … sits over the row's end, like a chat tab's close button, so
           it holds no slot at rest and the row stays as tall as the
-          Coordinator row (#1165). It shows on hover, when the
-          row is arrowed to, and while it holds focus; a fade in the row's
-          colour runs under the meta it covers. It sits at the row's end,
-          over the check column, so it never leaves a gap for a check the row
-          doesn't have. */}
+          other rows (#1165). It shows on hover, when the row is arrowed to,
+          and while it holds focus; a fade in the row's colour runs under the
+          meta it covers. */}
       <span
         {...isolate}
         className={cn(
@@ -1312,7 +1273,6 @@ function WorkspaceMenuRow({
           />
         </DropdownMenu>
       </span>
-      <CheckIcon className={cn("size-3.5", !isCurrent && "opacity-0")} />
     </CommandItem>
   )
 

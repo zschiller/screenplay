@@ -80,7 +80,6 @@ function branch(over: Partial<BranchData>): BranchData {
 
 function renderMenu(branches: BranchData[]) {
   const noop = () => {}
-  const onShowRoomChat = vi.fn()
   const onSelectWorkspace = vi.fn()
   render(
     <ChatsMenuProvider
@@ -92,8 +91,6 @@ function renderMenu(branches: BranchData[]) {
       iframeLayers={[]}
       diffStats={new Map()}
       branchPrs={new Map()}
-      current={{ kind: "room" }}
-      onShowRoomChat={onShowRoomChat}
       onSelectWorkspace={onSelectWorkspace}
       onSelectSketchChat={noop}
       onCreateSketchChat={noop}
@@ -119,7 +116,7 @@ function renderMenu(branches: BranchData[]) {
       <ChatsMenuButton />
     </ChatsMenuProvider>
   )
-  return { onShowRoomChat, onSelectWorkspace }
+  return { onSelectWorkspace }
 }
 
 function openMenu() {
@@ -135,7 +132,7 @@ const rowTexts = (menu: HTMLElement) =>
   )
 
 describe("Chats menu", () => {
-  it("is labelled Chats and lists the Coordinator first, then each chat by title", () => {
+  it("is labelled Chats and lists each chat by title, without the Coordinator", () => {
     renderMenu([
       branch({}),
       branch({
@@ -148,9 +145,10 @@ describe("Chats menu", () => {
     const menu = openMenu()
     expect(within(menu).getByPlaceholderText("Search chats…")).toBeTruthy()
     const rows = rowTexts(menu)
-    expect(rows[0]).toContain("Coordinator")
-    expect(rows[1]).toContain("Checkout polish")
-    expect(rows[2]).toContain("Empty cart state")
+    // It opens from the Coordinator's header, so it doesn't list it.
+    expect(menu.textContent).not.toContain("Coordinator")
+    expect(rows[0]).toContain("Checkout polish")
+    expect(rows[1]).toContain("Empty cart state")
     // A chat reads by its title, never its branch.
     expect(menu.textContent).not.toContain("checkout-polish")
     expect(menu.textContent).not.toContain("empty-cart-state")
@@ -178,12 +176,10 @@ describe("Chats menu", () => {
   })
 
   it("switches the panel to the picked chat", () => {
-    const { onShowRoomChat, onSelectWorkspace } = renderMenu([branch({})])
+    const { onSelectWorkspace } = renderMenu([branch({})])
     fireEvent.click(within(openMenu()).getByText("Checkout polish"))
     expect(onSelectWorkspace).toHaveBeenCalledWith("b1", {
       expandPanel: false,
     })
-    fireEvent.click(within(openMenu()).getByText("Coordinator"))
-    expect(onShowRoomChat).toHaveBeenCalled()
   })
 })

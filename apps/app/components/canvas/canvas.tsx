@@ -2172,14 +2172,6 @@ export function Canvas({
           iframeLayers={iframeLayers}
           diffStats={diffStats}
           branchPrs={branchPrs}
-          current={
-            chatTarget.target?.kind === "agent"
-              ? { kind: "agent", id: chatTarget.target.agent.id }
-              : chatTarget.target?.kind === "sketch"
-                ? { kind: "sketch", id: chatTarget.target.chat.id }
-                : { kind: "room" }
-          }
-          onShowRoomChat={chatTarget.showRoomChat}
           onSelectWorkspace={chatTarget.selectAgent}
           onSelectSketchChat={chatTarget.selectSketchChat}
           onCreateSketchChat={createSketchChat}

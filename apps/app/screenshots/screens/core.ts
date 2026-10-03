@@ -122,7 +122,7 @@ export const CORE_SCREENS: Screen[] = [
   {
     name: "workspaces-menu",
     description:
-      "The Chats menu open from the Coordinator (#1152, #1317): search, the Coordinator checked, every chat with + and …, and Done.",
+      "The Chats menu open from the Coordinator (#1152, #1317): search, every chat with + and …, and Done.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     prepare: async (page) => {
