@@ -67,6 +67,20 @@ describe("useFrameControl", () => {
     expect(result.current.control.driverOf(FRAME)).toEqual({ kind: "agent" })
   })
 
+  it("names who drives the live copy to a viewer on their own copy", () => {
+    const c = createRoomCollections(new Y.Doc())
+    c.frameControl.set(frameControlKey(FRAME, ME, true), {
+      live: true,
+      driver: AGENT_PARTY,
+      requests: [],
+    })
+    const { result } = renderFrameControl(c)
+    expect(result.current.control.driverOf(FRAME)).toEqual({ kind: "none" })
+    expect(result.current.control.liveDriverOf(FRAME)).toEqual({
+      kind: "agent",
+    })
+  })
+
   it("makes you the driver at once when you click while the agent drives", () => {
     const [server, client] = syncedPair()
     const serverRoom = createRoomCollections(server)

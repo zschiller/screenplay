@@ -34,6 +34,8 @@ const LIVE_FRAME_FIELDS: ReadonlySet<string> = new Set([
   "scrollY",
   "knobs",
   "sharedState",
+  // Going live is the frame's, like its route: not an edit to undo (#1516).
+  "live",
 ])
 
 /** Collections whose records carry a running page's fields: frames, and

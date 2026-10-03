@@ -1,68 +1,77 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 
+import {
+  frameControlKey,
+  type FrameControlRecord,
+} from "@/lib/canvas/frame-control"
 import {
   frameStreamFor,
   type FrameStreamConnection,
 } from "@/lib/frame-stream/client"
+import {
+  NOT_LIVE,
+  liveFrames,
+  type LiveFrame,
+} from "@/lib/frame-stream/live-frames"
 import { seedLocalFrame } from "@/lib/frame-stream/seed"
+import type { CanvasPresence } from "@/lib/yjs/react"
+import type { YjsCollection } from "@/lib/yjs/schema"
 import type { BranchData, IframeLayerData } from "@/lib/types"
 
-/** This viewer's own copy of a shared frame (#1397). */
-export interface LocalCopy {
-  /** The route the copy shows. It navigates on its own, never the room's. */
-  route: string
-}
-
-type LocalEntry = LocalCopy & {
-  branchId: string
-  /** False while the copy takes the shared page's cookies and storage; the
-   *  viewer keeps seeing the shared frame until then. */
-  ready: boolean
-}
+const EMPTY: ReadonlySet<string> = new Set()
 
 export interface SharedFrames {
   roomId: string
-  /** The Workspace's Frame Stream, when its frames are shared. */
+  /** The Workspace's Frame Stream, when its frames can go live. */
   streamOf(branchId: string | undefined): FrameStreamConnection | undefined
-  /** True until the app says whether the Workspace's frames are shared. */
-  checking(branchId: string | undefined): boolean
-  /** The Iframe Layers that are one shared browser, for this viewer: a
-   *  frame this viewer took a local copy of isn't. */
+  /** Whether the frame is live, who is on it, and whether this viewer is. */
+  liveOf(layerId: string): LiveFrame
+  /** The Iframe Layers this viewer sees live: one shared browser in the
+   *  Sandbox, streamed. Every other frame is this viewer's own copy. */
   sharedIds: ReadonlySet<string>
-  /** This viewer's local copy of a shared frame, once it's ready. */
-  localCopyOf(
-    layer: Pick<IframeLayerData, "id" | "branchId">
-  ): LocalCopy | undefined
-  /** Switch this viewer's view of a shared frame to a local iframe, starting
-   *  from the shared page's URL, cookies and local storage. */
-  goLocal(layer: Pick<IframeLayerData, "id" | "branchId" | "route">): void
-  /** Drop the local copy and show the shared frame as it is now. */
-  rejoin(layerId: string): void
-  /** Where the local copy navigated, or was sent from its address bar. */
-  setLocalRoute(layerId: string, route: string): void
 }
 
 /**
- * Which frames on a hosted canvas are shared (#1392): every frame of a
- * Workspace whose dev server is up and whose Sandbox runs a Frame Stream.
- * Asks the app once per Workspace. The desktop app (`enabled` false) keeps
- * today's per-viewer iframes, and so does a Workspace the app says isn't
- * shared.
+ * Live frames on a hosted canvas (#1516, spec #1512). Frames are each
+ * viewer's own copy (a local iframe that follows the room's route, shared
+ * state and Knobs) until someone turns one live: then it's one browser in the
+ * Workspace's Sandbox, streamed to everyone on the canvas (#1392). Going live
+ * is the frame's, like its route, so it happens to everyone; the rule in
+ * `lib/frame-stream/live-frames.ts` decides. Asks the app once per Workspace
+ * whether its frames can go live; the desktop app (`enabled` false) and
+ * `SHARED_FRAMES=off` never can.
  *
- * A viewer can take a local copy of a shared frame, for devtools or a gesture
- * the stream can't carry (#1397). Only their view switches, and nothing done
- * in it reaches the shared frame; rejoining discards it.
+ * When a frame stops being live, each viewer keeps seeing the stream until
+ * their own copy holds the live page's cookies and local storage, so it opens
+ * where the live frame was.
  */
 export function useSharedFrames({
   roomId,
   enabled,
   agents,
   iframeLayers,
+  viewerId,
+  others,
+  frameControl,
 }: {
   roomId: string
   enabled: boolean
   agents: readonly Pick<BranchData, "id" | "previewDomain">[]
-  iframeLayers: readonly Pick<IframeLayerData, "id" | "branchId">[]
+  iframeLayers: readonly Pick<IframeLayerData, "id" | "branchId" | "live">[]
+  /** This viewer's user id; null until the session loads. */
+  viewerId: string | null
+  /** Other people's awareness states: who else is on a live frame. */
+  others: ReadonlyArray<{ presence: CanvasPresence }>
+  /** The Room's Frame Control records: the agent's control keeps a frame
+   *  live. */
+  frameControl: YjsCollection<FrameControlRecord>
 }): SharedFrames {
   const liveBranchKey = enabled
     ? agents
@@ -90,10 +99,6 @@ export function useSharedFrames({
     return () => unsubscribe.forEach((u) => u())
   }, [streams])
 
-  const [local, setLocal] = useState<ReadonlyMap<string, LocalEntry>>(
-    () => new Map()
-  )
-
   const streamOf = useCallback(
     (branchId: string | undefined) => {
       void version
@@ -103,107 +108,84 @@ export function useSharedFrames({
     [streams, version]
   )
 
-  // A copy lasts while its frame shows the Workspace it was taken from and
-  // that Workspace still shares its frames.
-  const localCopyOf = useCallback(
-    (layer: Pick<IframeLayerData, "id" | "branchId">) => {
-      const entry = local.get(layer.id)
-      if (!entry?.ready || entry.branchId !== layer.branchId) return undefined
-      if (!streamOf(layer.branchId)) return undefined
-      return { route: entry.route }
-    },
-    [local, streamOf]
+  const controlRecords = useSyncExternalStore(
+    useCallback((cb) => frameControl.observe(cb), [frameControl]),
+    () => frameControl.toMap(),
+    () => frameControl.toMap()
   )
 
-  // Bumped per switch, so a copy that's still taking its storage when the
-  // viewer rejoins (or goes local again) doesn't open afterwards.
-  const switchSeqRef = useRef(new Map<string, number>())
+  const frames = useMemo(() => {
+    const eligible = iframeLayers.filter((l) => streamOf(l.branchId))
+    const turned = new Set(eligible.filter((l) => l.live).map((l) => l.id))
+    return liveFrames({
+      frameIds: eligible.map((l) => l.id),
+      turnedLive: (id) => turned.has(id),
+      viewerId,
+      others: others.map(({ presence }) => presence.identity.id),
+      drivers: (id) =>
+        controlRecords.get(frameControlKey(id, "", true))?.driver,
+    })
+  }, [iframeLayers, streamOf, viewerId, others, controlRecords])
+
+  // The frames this viewer shows live: the live ones, plus frames that just
+  // stopped being live, until this viewer's own copy is seeded from them.
+  const onKey = [...frames]
+    .filter(([, f]) => f.viewerOn)
+    .map(([id]) => id)
+    .join(",")
+  const [prevOnKey, setPrevOnKey] = useState(onKey)
+  const [ending, setEnding] = useState<ReadonlySet<string>>(EMPTY)
+  if (onKey !== prevOnKey) {
+    const on = new Set(onKey ? onKey.split(",") : [])
+    const dropped = (prevOnKey ? prevOnKey.split(",") : []).filter(
+      (id) => !on.has(id)
+    )
+    setPrevOnKey(onKey)
+    if (dropped.length) setEnding(new Set([...ending, ...dropped]))
+  }
+
+  const seedingRef = useRef(new Set<string>())
   const agentsRef = useRef(agents)
   useEffect(() => {
     agentsRef.current = agents
   })
-
-  const goLocal = useCallback(
-    (layer: Pick<IframeLayerData, "id" | "branchId" | "route">) => {
-      const branchId = layer.branchId
-      const stream = streamOf(branchId)
+  useEffect(() => {
+    for (const id of ending) {
+      if (seedingRef.current.has(id)) continue
+      seedingRef.current.add(id)
+      const layer = iframeLayers.find((l) => l.id === id)
+      const stream = streamOf(layer?.branchId)
       const previewUrl = agentsRef.current.find(
-        (a) => a.id === branchId
+        (a) => a.id === layer?.branchId
       )?.previewDomain
-      if (!branchId || !stream || !previewUrl) return
-      const seq = (switchSeqRef.current.get(layer.id) ?? 0) + 1
-      switchSeqRef.current.set(layer.id, seq)
-      const route = layer.route || "/"
-      setLocal((m) =>
-        new Map(m).set(layer.id, { branchId, route, ready: false })
-      )
       void (async () => {
-        // Without the shared page's state (an older Sandbox, a page that
-        // isn't up), the copy still opens, at the room's route.
-        const snapshot = await stream.snapshot(layer.id)
-        if (snapshot) await seedLocalFrame(previewUrl, snapshot)
-        if (switchSeqRef.current.get(layer.id) !== seq) return
-        setLocal((m) => {
-          const entry = m.get(layer.id)
-          if (!entry) return m
-          return new Map(m).set(layer.id, {
-            ...entry,
-            route: snapshot?.path || entry.route,
-            ready: true,
-          })
+        // Without the live page's state (an older Sandbox, a page that
+        // isn't up), the copy still opens.
+        const snapshot = stream && previewUrl ? await stream.snapshot(id) : null
+        if (snapshot && previewUrl) await seedLocalFrame(previewUrl, snapshot)
+        seedingRef.current.delete(id)
+        setEnding((s) => {
+          if (!s.has(id)) return s
+          const next = new Set(s)
+          next.delete(id)
+          return next
         })
       })()
-    },
-    [streamOf]
+    }
+  }, [ending, iframeLayers, streamOf])
+
+  const shown = useMemo(
+    () => new Set([...(onKey ? onKey.split(",") : []), ...ending]),
+    [onKey, ending]
   )
 
-  const rejoin = useCallback((layerId: string) => {
-    switchSeqRef.current.set(
-      layerId,
-      (switchSeqRef.current.get(layerId) ?? 0) + 1
-    )
-    setLocal((m) => {
-      if (!m.has(layerId)) return m
-      const next = new Map(m)
-      next.delete(layerId)
-      return next
-    })
-  }, [])
-
-  const setLocalRoute = useCallback((layerId: string, route: string) => {
-    setLocal((m) => {
-      const entry = m.get(layerId)
-      if (!entry || entry.route === route) return m
-      return new Map(m).set(layerId, { ...entry, route })
-    })
-  }, [])
-
-  return useMemo(() => {
-    const checking = (branchId: string | undefined) =>
-      !!branchId && streams.get(branchId)?.availability === "checking"
-    const sharedIds = new Set(
-      iframeLayers
-        .filter((l) => streamOf(l.branchId) && !localCopyOf(l))
-        .map((l) => l.id)
-    )
-    return {
+  return useMemo(
+    () => ({
       roomId,
       streamOf,
-      checking,
-      sharedIds,
-      localCopyOf,
-      goLocal,
-      rejoin,
-      setLocalRoute,
-    }
-  }, [
-    roomId,
-    streams,
-    iframeLayers,
-    streamOf,
-    localCopyOf,
-    goLocal,
-    rejoin,
-    setLocalRoute,
-  ])
+      liveOf: (layerId: string) => frames.get(layerId) ?? NOT_LIVE,
+      sharedIds: shown,
+    }),
+    [roomId, streamOf, frames, shown]
+  )
 }

@@ -1,0 +1,150 @@
+// @vitest-environment jsdom
+import { act, cleanup, renderHook } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import * as Y from "yjs"
+
+import { AGENT_PARTY } from "@/lib/canvas/frame-control"
+import type { FrameSnapshot } from "@/lib/frame-stream/protocol"
+import type { CanvasPresence } from "@/lib/yjs/react"
+import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
+import { useSharedFrames } from "./use-shared-frames"
+
+/** A Workspace's Frame Stream that says its frames can go live. */
+const fakeStream = {
+  availability: "shared" as "checking" | "shared" | "unshared",
+  check: vi.fn(),
+  subscribeAvailability: vi.fn(() => () => {}),
+  snapshot: vi.fn(async (): Promise<FrameSnapshot | null> => ({
+    path: "/checkout",
+    cookies: [],
+    localStorage: [],
+  })),
+}
+vi.mock("@/lib/frame-stream/client", () => ({
+  frameStreamFor: () => fakeStream,
+}))
+const seedLocalFrame = vi.fn(async () => true)
+vi.mock("@/lib/frame-stream/seed", () => ({
+  seedLocalFrame: (...args: unknown[]) => seedLocalFrame(...(args as [])),
+}))
+
+const ME = "zack"
+const FRAME = { id: "frame-1", branchId: "ws-1" }
+const AGENTS = [{ id: "ws-1", previewDomain: "https://ws-1.preview.test" }]
+
+function person(id: string) {
+  return {
+    presence: {
+      identity: { id, name: id },
+      pointer: null,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      color: "#FFB74D",
+      selectedIframeLayerIds: [],
+    } satisfies CanvasPresence,
+  }
+}
+
+function renderShared({
+  others = [] as ReturnType<typeof person>[],
+  live = false,
+  enabled = true,
+  room = createRoomCollections(new Y.Doc()),
+} = {}) {
+  const hook = renderHook(
+    ({ others, live }) =>
+      useSharedFrames({
+        roomId: "room-1",
+        enabled,
+        agents: AGENTS,
+        iframeLayers: [{ ...FRAME, live }],
+        viewerId: ME,
+        others,
+        frameControl: room.frameControl,
+      }),
+    { initialProps: { others, live } }
+  )
+  return { ...hook, room }
+}
+
+beforeEach(() => {
+  fakeStream.availability = "shared"
+  seedLocalFrame.mockClear()
+  fakeStream.snapshot.mockClear()
+})
+afterEach(cleanup)
+
+describe("useSharedFrames", () => {
+  it("opens every frame as your own copy, streaming nothing", () => {
+    const { result } = renderShared({ others: [person("ana")] })
+    expect(result.current.liveOf(FRAME.id)).toEqual({
+      live: false,
+      on: [],
+      viewerOn: false,
+    })
+    expect(result.current.sharedIds.size).toBe(0)
+  })
+
+  it("puts everyone on a frame someone turns live", () => {
+    const { result, rerender } = renderShared({ others: [person("ana")] })
+    rerender({ others: [person("ana")], live: true })
+    expect(result.current.liveOf(FRAME.id)).toEqual({
+      live: true,
+      on: [ME, "ana"],
+      viewerOn: true,
+    })
+    expect(result.current.sharedIds.has(FRAME.id)).toBe(true)
+  })
+
+  it("lands you on a frame that's live when the canvas opens", () => {
+    const { result } = renderShared({ live: true })
+    expect(result.current.liveOf(FRAME.id).viewerOn).toBe(true)
+    expect(result.current.sharedIds.has(FRAME.id)).toBe(true)
+  })
+
+  it("ends live into an own copy seeded from the live page", async () => {
+    const { result, rerender } = renderShared({ live: true })
+    await act(async () => rerender({ others: [], live: false }))
+    expect(fakeStream.snapshot).toHaveBeenCalledWith(FRAME.id)
+    expect(seedLocalFrame).toHaveBeenCalledWith(
+      "https://ws-1.preview.test",
+      expect.objectContaining({ path: "/checkout" })
+    )
+    expect(result.current.liveOf(FRAME.id).live).toBe(false)
+    expect(result.current.sharedIds.has(FRAME.id)).toBe(false)
+  })
+
+  it("keeps showing the stream until the own copy is seeded", async () => {
+    let finish = (_: FrameSnapshot | null) => {}
+    fakeStream.snapshot.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    const { result, rerender } = renderShared({ live: true })
+    act(() => rerender({ others: [], live: false }))
+    expect(result.current.sharedIds.has(FRAME.id)).toBe(true)
+    await act(async () => finish(null))
+    expect(result.current.sharedIds.has(FRAME.id)).toBe(false)
+  })
+
+  it("makes the frame live while the agent has control", () => {
+    const room: RoomCollections = createRoomCollections(new Y.Doc())
+    room.frameControl.set(FRAME.id, {
+      live: true,
+      driver: AGENT_PARTY,
+      requests: [],
+    })
+    const { result } = renderShared({ room })
+    expect(result.current.liveOf(FRAME.id).on).toEqual([ME, AGENT_PARTY])
+  })
+
+  it("offers no live frames where frames can't go live", () => {
+    fakeStream.availability = "unshared"
+    const { result } = renderShared({ live: true })
+    expect(result.current.liveOf(FRAME.id).live).toBe(false)
+    expect(result.current.streamOf(FRAME.branchId)).toBeUndefined()
+  })
+
+  it("offers nothing on the desktop app", () => {
+    const { result } = renderShared({ enabled: false })
+    expect(result.current.streamOf(FRAME.branchId)).toBeUndefined()
+  })
+})

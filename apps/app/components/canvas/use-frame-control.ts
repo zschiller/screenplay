@@ -76,6 +76,9 @@ export interface FrameControlDeps {
 export interface FrameControl {
   /** Who drives `layerId`, as this viewer sees it. */
   driverOf(layerId: string): FrameDriverView
+  /** Who drives the frame's live copy (#1516), whether or not this viewer is
+   *  on it: the title-line tag names them to everyone. */
+  liveDriverOf(layerId: string): FrameDriverView
   /**
    * The driver button: interact with the frame, taking it from the agent at
    * once. When another person drives, it asks them instead, and the frame
@@ -93,7 +96,7 @@ export interface FrameControl {
   decline(layerId: string, to: string): void
   /**
    * Step away from the frame: leave Interact, stop driving it and withdraw
-   * any ask to. Going local from a shared frame, or rejoining it (#1397),
+   * any ask to. Going live on a frame, or leaving it (#1516),
    * switches which record governs the frame, so it lets go of the old one
    * first.
    */
@@ -210,9 +213,8 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
     [collection, keyOf, sharedIds]
   )
 
-  const driverOf = useCallback(
-    (layerId: string): FrameDriverView => {
-      const key = keyOf(layerId)
+  const viewOf = useCallback(
+    (key: string | null): FrameDriverView => {
       const driver: FrameDriver = frameDriverFor(
         key ? revision.get(key) : undefined,
         viewerId
@@ -227,7 +229,18 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
         avatar: person?.avatar,
       }
     },
-    [keyOf, revision, viewerId, peopleById]
+    [revision, viewerId, peopleById]
+  )
+
+  const driverOf = useCallback(
+    (layerId: string): FrameDriverView => viewOf(keyOf(layerId)),
+    [keyOf, viewOf]
+  )
+
+  const liveDriverOf = useCallback(
+    (layerId: string): FrameDriverView =>
+      viewOf(frameControlKey(layerId, "", true)),
+    [viewOf]
   )
 
   const askedFor = useCallback(
@@ -421,6 +434,7 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
   return useMemo(
     () => ({
       driverOf,
+      liveDriverOf,
       interact,
       requestsOf,
       askedFor,
@@ -428,6 +442,15 @@ export function useFrameControl(deps: FrameControlDeps): FrameControl {
       decline,
       letGo,
     }),
-    [driverOf, interact, requestsOf, askedFor, grant, decline, letGo]
+    [
+      driverOf,
+      liveDriverOf,
+      interact,
+      requestsOf,
+      askedFor,
+      grant,
+      decline,
+      letGo,
+    ]
   )
 }

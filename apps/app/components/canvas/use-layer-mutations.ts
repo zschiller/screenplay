@@ -68,6 +68,8 @@ export interface LayerMutations {
   updateKnobValues: (id: string, knobValues: JsonObject) => void
   /** Persist a shared frame's Theme knob. */
   updateColorScheme: (id: string, colorScheme: "light" | "dark") => void
+  /** Turn a frame live for everyone on the canvas, or back (#1516). */
+  updateLive: (id: string, live: boolean) => void
   /** Persist the frame's shared state. */
   updateSharedState: (id: string, sharedState: JsonObject) => void
   /**
@@ -175,6 +177,13 @@ export function useLayerMutations({
   const updateColorScheme = useCallback(
     (id: string, colorScheme: "light" | "dark") => {
       ops.patch("iframeLayers", id, { colorScheme })
+    },
+    [ops]
+  )
+
+  const updateLive = useCallback(
+    (id: string, live: boolean) => {
+      ops.patch("iframeLayers", id, { live })
     },
     [ops]
   )
@@ -376,6 +385,7 @@ export function useLayerMutations({
       updateKnobs,
       updateKnobValues,
       updateColorScheme,
+      updateLive,
       updateSharedState,
       updateRoute,
       fitToContent,
@@ -398,6 +408,7 @@ export function useLayerMutations({
       updateKnobs,
       updateKnobValues,
       updateColorScheme,
+      updateLive,
       updateSharedState,
       updateRoute,
       fitToContent,

@@ -35,8 +35,10 @@ effect after a restart that loses every running process.
 
 ### Shared frames
 
-Each hosted frame is one Chrome page running in its workspace's sandbox,
-next to the dev server. A small service in the sandbox encodes every frame as
+A hosted frame someone has made live (**Go live** in the frame's toolbar) is
+one Chrome page running in its workspace's sandbox, next to the dev server.
+Every other frame is a preview in each viewer's own browser and runs nothing in
+the sandbox. A small service in the sandbox encodes every frame as
 H.264 video at up to twice its size, 30 frames a second, and streams them
 to the canvas over one WebSocket on the sandbox's forwarded port `7682`. The
 canvas decodes it with WebCodecs. Viewers authenticate with a short-lived
@@ -55,8 +57,8 @@ a vCPU. It resumes in a moment, its state intact. To fit the 8 GB sandbox, a
 workspace keeps at most six frames' browsers running; past that, the least
 recently viewed paused frame closes its browser, keeping its cookies, storage
 and profile, and reopens at its URL when viewed again. Sandboxes created before shared frames don't forward the stream
-port, so their frames stay per-viewer until the sandbox restarts. Set
-`SHARED_FRAMES=off` to keep every hosted frame per-viewer.
+port, so their frames can't go live until the sandbox restarts. Set
+`SHARED_FRAMES=off` to hide **Go live** and keep every hosted frame per-viewer.
 
 ### Sandbox image
 
