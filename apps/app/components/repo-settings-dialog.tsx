@@ -278,7 +278,7 @@ function RepoSettingsForm({
     copyPatterns !== (repo.copyPatterns ?? "") ||
     defaultIframeLayerSizeId !==
       (repo.defaultIframeLayerSizeId ?? DEFAULT_IFRAME_LAYER_SIZE_ID) ||
-    trimmedSystemPrompt !== (repo.systemPrompt ?? "")
+    trimmedSystemPrompt !== (repo.systemPrompt ?? "").trim()
 
   // Ticked, an unedited form can still save: it sends this canvas's
   // customized settings out to the rest.
