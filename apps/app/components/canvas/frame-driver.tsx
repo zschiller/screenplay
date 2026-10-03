@@ -247,10 +247,14 @@ export function FrameLiveTag() {
 export function FrameGoLiveToggle({
   live,
   onToggle,
+  unavailable = false,
 }: {
   /** The frame is live. */
   live: boolean
   onToggle: () => void
+  /** Nothing can run the page live right now: a Mockup with no Workspace
+   *  running (#1523). Disabled, and the tooltip says why. */
+  unavailable?: boolean
 }) {
   return (
     <FloatingToolbarButton
@@ -258,9 +262,12 @@ export function FrameGoLiveToggle({
       hint={
         live
           ? "Click to end live for everyone"
-          : "Everyone on the canvas sees it live"
+          : unavailable
+            ? "A workspace has to be running"
+            : "Everyone on the canvas sees it live"
       }
       pressed={live}
+      disabled={!live && unavailable}
       onClick={onToggle}
     >
       <BroadcastIcon />

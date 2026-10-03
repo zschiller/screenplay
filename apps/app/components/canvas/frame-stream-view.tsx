@@ -33,6 +33,9 @@ interface FrameStreamViewProps {
   route: string
   /** The room's colour scheme for the page: the frame's Theme knob. */
   scheme: FrameColorScheme
+  /** A Mockup's page (#1523): the shared browser shows it in place of the
+   *  app, and shows each change to it. */
+  doc?: string
   /** This viewer is in Interact on the frame: forward its input. */
   interactive: boolean
   /** Frame Control says this viewer drives the frame. */
@@ -64,6 +67,7 @@ export function FrameStreamView({
   height,
   route,
   scheme,
+  doc,
   interactive,
   drives,
   onRoute,
@@ -80,6 +84,7 @@ export function FrameStreamView({
     height,
     route,
     scheme,
+    doc,
     onRoute,
     onLive,
     onActivity,
@@ -90,6 +95,7 @@ export function FrameStreamView({
       height,
       route,
       scheme,
+      doc,
       onRoute,
       onLive,
       onActivity,
@@ -216,10 +222,10 @@ export function FrameStreamView({
 
     const watch = () => {
       if (unwatch) return
-      const { route, width, height, scheme } = latest.current
+      const { route, width, height, scheme, doc } = latest.current
       firstRoute = true
       unwatch = frame.watch(
-        { route, width, height, scheme },
+        { route, width, height, scheme, ...(doc === undefined ? {} : { doc }) },
         {
           onMessage,
           onVideo,
@@ -282,6 +288,9 @@ export function FrameStreamView({
   useEffect(() => {
     frame.update({ scheme })
   }, [frame, scheme])
+  useEffect(() => {
+    if (doc !== undefined) frame.update({ doc })
+  }, [frame, doc])
 
   // ---- driving ----
 

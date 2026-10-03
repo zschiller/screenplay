@@ -47,6 +47,8 @@ export type FrameWatch = {
   width: number
   height: number
   scheme?: FrameColorScheme
+  /** A Mockup's page (#1523), shown in place of the app. */
+  doc?: string
 }
 
 export type FrameStreamHandlers = {
@@ -84,7 +86,8 @@ export type FrameStreamDeps = {
 export type FrameStreamFrame = {
   /** Stream the frame to `handlers` until the returned function is called. */
   watch(watch: FrameWatch, handlers: FrameStreamHandlers): () => void
-  /** The frame's size, the room's route or its colour scheme changed. */
+  /** The frame's size, the room's route, its colour scheme or a Mockup's
+   *  page changed. */
   update(patch: Partial<FrameWatch>): void
   /**
    * Drive the frame until the returned function is called: asks the app for
@@ -433,6 +436,9 @@ export class FrameStreamConnection {
     }
     if (patch.scheme !== undefined && patch.scheme !== before.scheme) {
       this.send({ t: "scheme", frame, scheme: patch.scheme })
+    }
+    if (patch.doc !== undefined && patch.doc !== before.doc) {
+      this.send({ t: "doc", frame, doc: patch.doc })
     }
   }
 

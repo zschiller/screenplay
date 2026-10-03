@@ -240,6 +240,37 @@ describe("FrameStreamConnection", () => {
     ])
   })
 
+  it("watches a Mockup with its page and sends each change to it", async () => {
+    const { conn, sockets } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    conn.watch(
+      "m1",
+      { route: "/", width: 10, height: 10, doc: "<p>one</p>" },
+      handlers()
+    )
+    await flush()
+    const socket = sockets[0]!
+    socket.open()
+    socket.serverSays({ t: "ready", codec: "h264" })
+
+    conn.update("m1", { doc: "<p>two</p>" })
+    conn.update("m1", { doc: "<p>two</p>" })
+    expect(socket.sent.slice(1)).toEqual([
+      {
+        t: "watch",
+        frame: "m1",
+        route: "/",
+        width: 10,
+        height: 10,
+        doc: "<p>one</p>",
+      },
+      { t: "doc", frame: "m1", doc: "<p>two</p>" },
+    ])
+  })
+
   it("reconnects and watches again at the current route", async () => {
     const { conn, sockets, timers } = setup({
       shared: true,

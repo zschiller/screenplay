@@ -43,8 +43,8 @@ import type {
  * Mockups are both one; they differ only in where the page comes from:
  *
  * - `url`: a frame's own copy, an iframe on the Workspace's preview.
- * - `stream`: a live frame, the shared browser seen through its Frame Stream
- *   (#1392, #1516).
+ * - `stream`: a live frame or Mockup, the shared browser seen through its
+ *   Frame Stream (#1392, #1516, #1523).
  * - `srcdoc`: a Mockup's static HTML (#1309), in an opaque-origin iframe that
  *   may run scripts and nothing else.
  *
@@ -76,6 +76,9 @@ export type LivePageSource =
       hasPage: boolean
       route: string
       scheme: FrameColorScheme
+      /** A Mockup's page (#1523), which the shared browser shows in place
+       *  of the Workspace's preview. */
+      doc?: string
       /** Where the shared page went; `first` is the report on joining. */
       onRoute: (path: string, first: boolean) => void
       /** The picture is up (or gone). */
@@ -313,6 +316,7 @@ export function LivePageContent({
         height={page.height}
         route={source.route}
         scheme={source.scheme}
+        doc={source.doc}
         interactive={page.interactive}
         drives={page.driver.kind === "you"}
         onRoute={source.onRoute}
@@ -451,6 +455,7 @@ export function LivePageControls({
   onDeclineControl,
   live = false,
   onToggleLive,
+  liveUnavailable = false,
   onAskForKnob,
   theme,
 }: {
@@ -466,6 +471,9 @@ export function LivePageControls({
   live?: boolean
   /** Go live or end it, for everyone; absent where the page can't go live. */
   onToggleLive?: () => void
+  /** The page could go live but nothing can run it now (no Workspace is
+   *  running): the toggle shows, disabled. */
+  liveUnavailable?: boolean
   onAskForKnob?: () => void
   /** The Theme knob, on a shared page. */
   theme?: {
@@ -487,7 +495,11 @@ export function LivePageControls({
         }
       />
       {onToggleLive && (
-        <FrameGoLiveToggle live={live} onToggle={onToggleLive} />
+        <FrameGoLiveToggle
+          live={live}
+          onToggle={onToggleLive}
+          unavailable={liveUnavailable}
+        />
       )}
       <KnobsPopover
         knobs={record.knobs}

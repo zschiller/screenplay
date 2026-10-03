@@ -48,7 +48,11 @@ import {
   useLivePage,
   type LivePageWrites,
 } from "@/components/canvas/live-page"
-import type { FrameDriverView } from "@/components/canvas/use-frame-control"
+import type {
+  FrameDriverView,
+  FrameRequesterView,
+} from "@/components/canvas/use-frame-control"
+import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import { useLayerToolbar } from "@/components/canvas/use-layer-toolbar"
 import type { GroupWorkspace } from "@/components/canvas/group-label"
 import type { FrameWorkspace } from "@/components/canvas/frame-nav"
@@ -135,9 +139,39 @@ interface MockupLayerProps {
   focused?: boolean
   /**
    * Who drives the mockup (#1391), as on a frame: the agent drives it in the
-   * asker's own view. The driver button, tag and ring show it.
+   * asker's own view, or the live page. The driver button, tag and ring show
+   * it.
    */
   driver?: FrameDriverView
+  /** This viewer asked the person driving the live mockup for control. */
+  askedForControl?: boolean
+  /** People asking this viewer, the driver, for control. */
+  controlRequests?: readonly FrameRequesterView[]
+  onGrantControl?: (id: string, to: string) => void
+  onDeclineControl?: (id: string, to: string) => void
+  /** This viewer's input reached the live page (Frame Control's idle clock). */
+  onControlActivity?: (id: string) => void
+  /**
+   * Set while this viewer sees the mockup live (#1523): its page runs in one
+   * browser in a Workspace's Sandbox, shown from that Workspace's Frame
+   * Stream, as a live frame's does.
+   */
+  sharedStream?: FrameStreamConnection
+  /** Someone turned the mockup live, for everyone. */
+  live?: boolean
+  /** Who drives the live page, for the title-line tag and the resize
+   *  handles. */
+  liveDriver?: FrameDriverView
+  /**
+   * Go live or end it, for everyone (the Go live toggle). Absent where
+   * mockups can't go live: the desktop app, `SHARED_FRAMES=off`.
+   */
+  onToggleLive?: () => void
+  /** No Workspace is running to host the live page: the toggle is disabled
+   *  and says so. */
+  liveUnavailable?: boolean
+  /** The live page's Theme knob. */
+  onColorSchemeChange?: (id: string, scheme: "light" | "dark") => void
   onFocus?: (id: string | null) => void
   /** Comment placement owns the pointer, so a double-click doesn't Interact,
    *  and the overlay tracks the element a comment would pin. */
@@ -147,6 +181,8 @@ interface MockupLayerProps {
 }
 
 const NOBODY_DRIVES: FrameDriverView = { kind: "none" }
+const ignoreRoute = () => {}
+const ignoreLive = () => {}
 
 /**
  * The Mockup Layer (#1309) — a static HTML page a chat wrote, plugged into
@@ -167,6 +203,11 @@ const NOBODY_DRIVES: FrameDriverView = { kind: "none" }
  * with every viewer (`screenplay.shareState`), like a frame's app. The agent
  * drives it through the same bridge (#1391), in the asker's view only, and
  * the Interact button is the driver button, as on a frame.
+ *
+ * On hosted, Go live (#1523) runs the page in one browser in a Workspace's
+ * Sandbox and streams it to everyone on the canvas, as a live frame's is
+ * (#1516): everyone sees, and the agent drives, the same page, and a change
+ * to the HTML shows in it.
  *
  * An empty page is a Mockup someone drew and sent to a chat (#1359) that the
  * chat hasn't filled yet, so it shows the model at work (the 9-dot).
@@ -211,6 +252,17 @@ export function MockupLayer({
   onAskForKnob,
   focused = false,
   driver = NOBODY_DRIVES,
+  askedForControl,
+  controlRequests,
+  onGrantControl,
+  onDeclineControl,
+  onControlActivity,
+  sharedStream,
+  live = false,
+  liveDriver = NOBODY_DRIVES,
+  onToggleLive,
+  liveUnavailable = false,
+  onColorSchemeChange,
   onFocus,
   commentMode = false,
   onWheel,
@@ -223,16 +275,30 @@ export function MockupLayer({
   const toolbarRef = useRef<HTMLDivElement>(null)
 
   const hasPage = !!html.trim()
+  // The runtime arrives once per session; until then the page waits rather
+  // than load twice.
+  const srcDoc =
+    hasPage && runtime !== null ? mockupSrcDoc(html, runtime) : undefined
+  const shared = !!sharedStream
   const page = useLivePage({
     id: layer.id,
-    source: {
-      kind: "srcdoc",
-      // The runtime arrives once per session; until then the page waits
-      // rather than load twice.
-      srcDoc:
-        hasPage && runtime !== null ? mockupSrcDoc(html, runtime) : undefined,
-      title: layer.title || "Mockup",
-    },
+    // This viewer's own iframe, or the live page's stream.
+    source: sharedStream
+      ? {
+          kind: "stream",
+          stream: sharedStream,
+          hasPage: srcDoc !== undefined,
+          route: "/",
+          scheme: layer.colorScheme ?? "light",
+          doc: srcDoc,
+          // A Mockup has one page: nowhere to navigate.
+          onRoute: ignoreRoute,
+          onLive: ignoreLive,
+          onActivity: onControlActivity
+            ? () => onControlActivity(layer.id)
+            : undefined,
+        }
+      : { kind: "srcdoc", srcDoc, title: layer.title || "Mockup" },
     record: layer,
     writes,
     interactive: focused,
@@ -248,7 +314,13 @@ export function MockupLayer({
     // screenshot there is rendered from a read of the page.
     snapshot: true,
   })
-  const chrome = livePageChrome({ driver, focused })
+  const chrome = livePageChrome({
+    driver,
+    focused,
+    live,
+    liveDriver,
+    onLiveCopy: shared,
+  })
 
   const toolbarTarget = useLayerToolbar({
     show: selected && !multiSelected,
@@ -362,7 +434,23 @@ export function MockupLayer({
                   page={page}
                   focused={focused}
                   onFocus={onFocus}
+                  askedForControl={askedForControl}
+                  controlRequests={controlRequests}
+                  onGrantControl={onGrantControl}
+                  onDeclineControl={onDeclineControl}
+                  live={live}
+                  onToggleLive={onToggleLive}
+                  liveUnavailable={liveUnavailable}
                   onAskForKnob={onAskForKnob}
+                  theme={
+                    shared && onColorSchemeChange
+                      ? {
+                          value: layer.colorScheme ?? "light",
+                          onChange: (scheme) =>
+                            onColorSchemeChange(layer.id, scheme),
+                        }
+                      : undefined
+                  }
                 />
                 {/* Trailing ⋯, as on the frame bar (H2): the menu is the
                   only home for these, no right-click menu. */}

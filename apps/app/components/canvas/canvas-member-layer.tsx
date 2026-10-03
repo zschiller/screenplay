@@ -439,9 +439,18 @@ function CanvasMemberLayerImpl({
           if (member.kind === "mockup-layer") {
             const mockup = mockupsById.get(member.id)
             if (!mockup) return null
+            // A Mockup goes live as a frame does (#1523), in a Workspace it
+            // borrows to run its page.
+            const mockupLive = sharedFrames.liveOf(mockup.id)
+            const liveWorkspace = sharedFrames.mockupWorkspaceOf(mockup.id)
+            const mockupStream = sharedFrames.sharedIds.has(mockup.id)
+              ? sharedFrames.streamOf(liveWorkspace)
+              : undefined
             return (
               <MockupLayer
-                key={mockup.id}
+                // Going live or ending it starts the view afresh, as on a
+                // frame.
+                key={mockupStream ? `${mockup.id}:live` : mockup.id}
                 layer={mockup}
                 // The chat that made it, unless the group label names it
                 // (#1309), as a chat-made Document does.
@@ -504,6 +513,29 @@ function CanvasMemberLayerImpl({
                 writes={layerMutations.mockupPage}
                 focused={focusedIframeLayerId === mockup.id}
                 driver={frameControl.driverOf(mockup.id)}
+                askedForControl={frameControl.askedFor(mockup.id)}
+                controlRequests={frameControl.requestsOf(mockup.id)}
+                onGrantControl={frameControl.grant}
+                onDeclineControl={frameControl.decline}
+                onControlActivity={frameControl.active}
+                sharedStream={mockupStream}
+                live={mockupLive.live}
+                liveDriver={frameControl.liveDriverOf(mockup.id)}
+                liveUnavailable={!liveWorkspace}
+                onToggleLive={
+                  sharedFrames.mockupsGoLive
+                    ? () => {
+                        // As on a frame: let go of the record that governed it.
+                        frameControl.letGo(mockup.id)
+                        layerMutations.updateMockupLive(
+                          mockup.id,
+                          !mockupLive.live,
+                          liveWorkspace
+                        )
+                      }
+                    : undefined
+                }
+                onColorSchemeChange={layerMutations.updateMockupColorScheme}
                 onFocus={focusPage}
                 commentMode={commentMode}
                 onWheel={onIframeWheel}

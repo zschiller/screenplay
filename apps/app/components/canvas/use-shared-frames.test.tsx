@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import * as Y from "yjs"
 
 import { AGENT_PARTY } from "@/lib/canvas/frame-control"
+import { NOT_LIVE } from "@/lib/frame-stream/live-frames"
 import type { FrameSnapshot } from "@/lib/frame-stream/protocol"
 import type { CanvasPresence } from "@/lib/yjs/react"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
@@ -146,5 +147,83 @@ describe("useSharedFrames", () => {
   it("offers nothing on the desktop app", () => {
     const { result } = renderShared({ enabled: false })
     expect(result.current.streamOf(FRAME.branchId)).toBeUndefined()
+  })
+})
+
+describe("useSharedFrames with Mockups (#1523)", () => {
+  const MOCKUP = "mockup-1"
+
+  function renderMockup({
+    agents = AGENTS as { id: string; previewDomain: string }[],
+    mockup = {} as { live?: boolean; liveBranchId?: string },
+    owner = "ws-1" as string | undefined,
+    enabled = true,
+  } = {}) {
+    const room = createRoomCollections(new Y.Doc())
+    return renderHook(
+      ({ mockup }) =>
+        useSharedFrames({
+          roomId: "room-1",
+          enabled,
+          agents,
+          iframeLayers: [],
+          mockupLayers: [{ id: MOCKUP, ...mockup }],
+          mockupOwners: new Map(owner ? [[MOCKUP, owner]] : []),
+          viewerId: ME,
+          others: [person("ana")],
+          frameControl: room.frameControl,
+        }),
+      { initialProps: { mockup } }
+    )
+  }
+
+  it("opens a Mockup as your own copy, ready to go live in its chat's Workspace", () => {
+    const { result } = renderMockup()
+    expect(result.current.liveOf(MOCKUP)).toEqual(NOT_LIVE)
+    expect(result.current.sharedIds.has(MOCKUP)).toBe(false)
+    expect(result.current.mockupWorkspaceOf(MOCKUP)).toBe("ws-1")
+    expect(result.current.mockupsGoLive).toBe(true)
+  })
+
+  it("puts everyone on a Mockup someone turns live", () => {
+    const { result, rerender } = renderMockup()
+    rerender({ mockup: { live: true, liveBranchId: "ws-1" } })
+    expect(result.current.liveOf(MOCKUP)).toEqual({
+      live: true,
+      on: [ME, "ana"],
+      viewerOn: true,
+    })
+    expect(result.current.sharedIds.has(MOCKUP)).toBe(true)
+  })
+
+  it("ends live straight back to your own copy", async () => {
+    const { result, rerender } = renderMockup({
+      mockup: { live: true, liveBranchId: "ws-1" },
+    })
+    await act(async () => rerender({ mockup: { live: false } }))
+    expect(fakeStream.snapshot).not.toHaveBeenCalled()
+    expect(result.current.sharedIds.has(MOCKUP)).toBe(false)
+  })
+
+  it("isn't live once the Workspace it ran in stops", () => {
+    const { result } = renderMockup({
+      mockup: { live: true, liveBranchId: "ws-gone" },
+    })
+    expect(result.current.liveOf(MOCKUP).live).toBe(false)
+    expect(result.current.mockupWorkspaceOf(MOCKUP)).toBe("ws-1")
+  })
+
+  it("can't go live with no Workspace running, and says so", () => {
+    const { result } = renderMockup({ agents: [] })
+    expect(result.current.mockupWorkspaceOf(MOCKUP)).toBeUndefined()
+    expect(result.current.mockupsGoLive).toBe(true)
+  })
+
+  it("offers no Go live where frames can't go live", () => {
+    fakeStream.availability = "unshared"
+    expect(renderMockup().result.current.mockupsGoLive).toBe(false)
+    expect(renderMockup({ enabled: false }).result.current.mockupsGoLive).toBe(
+      false
+    )
   })
 })

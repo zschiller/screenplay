@@ -4,7 +4,7 @@ import type { FrameDriver } from "@/lib/frame-drive/tools"
 /**
  * A hosted chat's driver (#1396): each page goes to the driver for its kind.
  * A frame goes to its one shared browser, a Mockup to the asker's own view
- * (#1391). Showing a shared frame brings it into the asker's view (#1390)
+ * (#1391), unless it's live: then it too has one shared browser (#1523). Showing a shared frame brings it into the asker's view (#1390)
  * through their canvas; the Mockups' driver does that itself.
  */
 export function routeChatDriver(deps: {
@@ -13,12 +13,16 @@ export function routeChatDriver(deps: {
   /** The asker's driver for Mockups. */
   mockups: FrameDriver
   isMockup(id: string): Promise<boolean>
+  /** The Mockup is live, its page in a shared browser. */
+  isLiveMockup(id: string): Promise<boolean>
   /** The asker's canvas. */
   canvas: Pick<AskerCanvas, "reveal">
 }): FrameDriver {
   const { shared, mockups, canvas } = deps
   const pick = async (id: string) =>
-    (await deps.isMockup(id)) ? mockups : shared
+    (await deps.isMockup(id)) && !(await deps.isLiveMockup(id))
+      ? mockups
+      : shared
   return {
     run: async (id, op) => (await pick(id)).run(id, op),
     async start(id, opts) {

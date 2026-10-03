@@ -5,7 +5,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 /**
- * A drive grant for a shared frame (#1392): signed only for the person Frame
+ * A drive grant for a shared frame (#1392) or live Mockup (#1523): signed only for the person Frame
  * Control says drives it, so a watcher's input never reaches the page. The
  * client sends it over the stream and asks again before it expires.
  */
@@ -27,8 +27,11 @@ export async function POST(req: Request) {
   if (room instanceof Response) return room
 
   const found = await room.readDoc((c) => {
-    const layer = c.iframeLayers.get(frameId)
-    const branch = layer?.branchId ? c.branches.get(layer.branchId) : undefined
+    // A live Mockup's page runs in the Workspace it went live in (#1523).
+    const branchId =
+      c.iframeLayers.get(frameId)?.branchId ??
+      c.mockupLayers.get(frameId)?.liveBranchId
+    const branch = branchId ? c.branches.get(branchId) : undefined
     return { branch, driver: c.frameControl.get(frameId)?.driver ?? null }
   })
   if (!found.branch) {

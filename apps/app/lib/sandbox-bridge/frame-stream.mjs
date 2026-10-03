@@ -33,12 +33,16 @@
 // postMessage: reads go back to whoever asked, and what writes to the room
 // (state, Knobs, scroll) goes through one viewer, the frame's primary.
 //
+// A Mockup goes live the same way (#1523): its frame carries the page's
+// whole document instead of a route, and the host page shows it as the
+// canvas does, in an iframe sandboxed to scripts only.
+//
 // No dependencies: it runs from /tmp/screenplay with Node's built-ins only,
 // so the WebSocket server below is a minimal RFC 6455 implementation.
 //
 // Wire protocol (see lib/frame-stream/protocol.ts for the client side):
 //   client → server, JSON text: auth, watch, unwatch, size, navigate,
-//     reload, drive, release, input, clipboard, bridge, snapshot; the agent:
+//     reload, doc, drive, release, input, clipboard, bridge, snapshot; the agent:
 //     agent, agent-shot
 //   server → client, JSON text: ready, frame, route, error, bridge,
 //     clipboard, snapshot; the agent: agent-result, agent-shot
@@ -79,7 +83,8 @@ const FIRST_DISPLAY = Number(process.env.SCREENPLAY_STREAM_DISPLAY) || 90
 // Each display is a fixed square; a frame's capture is its top-left corner.
 const SCREEN = 4096
 const AUTH_TIMEOUT_MS = 5000
-const MAX_MESSAGE = 1 << 20
+// A Mockup's whole page comes in one message (#1523), so this is roomy.
+const MAX_MESSAGE = 8 << 20
 // A viewer this far behind skips to the next keyframe instead of buffering.
 const MAX_BACKLOG = 8 << 20
 const RESTART_DELAY_MS = 500
@@ -437,13 +442,21 @@ function validScheme(scheme) {
   return scheme === "light" || scheme === "dark"
 }
 
+/** A Mockup's page (#1523): its whole document, runtime and CSP included. */
+function validDoc(doc) {
+  return typeof doc === "string" && doc.length < MAX_MESSAGE
+}
+
 const AUD = Buffer.from([0, 0, 0, 1, 9])
 
 class Frame {
-  constructor(id, route, width, height, scheme = "light") {
+  constructor(id, route, width, height, scheme = "light", doc = null) {
     this.id = id
     this.idBytes = Buffer.from(id, "utf8")
     this.path = route
+    // A Mockup's page (#1523): static HTML the host page shows in place of
+    // the app, sandboxed as the canvas sandboxes a Mockup. Null for a frame.
+    this.doc = doc
     this.width = width
     this.height = height
     // What the page's prefers-color-scheme matches: the frame's Theme knob.
@@ -631,7 +644,7 @@ class Frame {
     await this.applySize()
     await this.applyScheme()
     await this.restore()
-    await this.page("Page.navigate", { url: hostUrl(this.path) })
+    await this.page("Page.navigate", { url: this.hostUrl() })
     if (gen !== this.generation) return
     this.setStatus("live")
     this.restarts = 0
@@ -921,15 +934,44 @@ class Frame {
     }, PLACEHOLDER_RETRY_MS)
   }
 
+  /** The host page this frame's browser opens: the app at its route, or
+   *  the Mockup's page. */
+  hostUrl(route = this.path) {
+    return this.doc === null
+      ? hostUrl(route)
+      : `http://127.0.0.1:${PORT}/frame-host?mockup=${encodeURIComponent(this.id)}`
+  }
+
   /** Point the app's iframe at a route; a host page that's gone (it never
-   *  should be) is opened again there. */
+   *  should be) is opened again there. A Mockup has one page: it loads it
+   *  again. */
   async go(route) {
+    if (this.doc !== null) return this.showDoc()
     const { result } = await this.page("Runtime.evaluate", {
       expression: `!!window.__screenplayHost && (__screenplayHost.go(${JSON.stringify(ORIGIN + route)}), true)`,
       returnByValue: true,
     })
     if (!result?.value)
       await this.page("Page.navigate", { url: hostUrl(route) })
+  }
+
+  /** A Mockup's page changed (its chat updated it): show the new one. Every
+   *  viewer sends it; only a change applies. */
+  async setDoc(doc) {
+    if (this.doc === null || doc === this.doc) return
+    this.doc = doc
+    // A browser still starting opens on it.
+    if (this.status === "live") await this.showDoc()
+  }
+
+  /** Load the Mockup's page into the host's iframe again. */
+  async showDoc() {
+    const { result } = await this.page("Runtime.evaluate", {
+      expression: `!!window.__screenplayHost && (__screenplayHost.doc(${JSON.stringify(this.doc)}), true)`,
+      returnByValue: true,
+    })
+    if (!result?.value)
+      await this.page("Page.navigate", { url: this.hostUrl() })
   }
 
   // ---- size ----
@@ -2019,18 +2061,25 @@ const scriptJson = (value) => JSON.stringify(value).replace(/</g, "\\u003c")
  * as on the canvas; what it posts goes out through the binding, and the
  * server's messages come in through `__screenplayHost.post`. Only messages
  * from the app on the frame origin pass, and only to it.
+ *
+ * A Mockup's page (`doc`, #1523) goes in as the iframe's `srcdoc`, sandboxed
+ * to scripts only as on the canvas: its origin is opaque, so its messages
+ * come from "null" and go to it with "*", the iframe being the only window
+ * they reach.
  */
-function hostPage(route) {
-  const origin = new URL(ORIGIN).origin
+function hostPage(route, doc = null) {
+  const mockup = doc !== null
+  const origin = mockup ? "null" : new URL(ORIGIN).origin
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>Screenplay frame</title>
 <style>html,body{margin:0;height:100%;overflow:hidden;background:#fff}
 iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}</style>
 </head><body>
-<iframe id="app" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+<iframe id="app" sandbox="${mockup ? "allow-scripts" : "allow-scripts allow-same-origin allow-forms allow-popups"}"></iframe>
 <script>
 (() => {
   const ORIGIN = ${scriptJson(origin)}
+  const TARGET = ${scriptJson(mockup ? "*" : origin)}
   const app = document.getElementById("app")
   const out = window[${scriptJson(BINDING)}]
   window.addEventListener("message", (e) => {
@@ -2041,13 +2090,14 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}</st
   })
   window.__screenplayHost = {
     post(json) {
-      if (app.contentWindow) app.contentWindow.postMessage(JSON.parse(json), ORIGIN)
+      if (app.contentWindow) app.contentWindow.postMessage(JSON.parse(json), TARGET)
     },
     go(url) { app.src = url },
+    doc(html) { app.srcdoc = html },
   }
   // Keys go to the app, as they would to a page opened on its own.
   app.addEventListener("load", () => app.focus())
-  app.src = ${scriptJson(ORIGIN + route)}
+  ${mockup ? `app.srcdoc = ${scriptJson(doc)}` : `app.src = ${scriptJson(ORIGIN + route)}`}
 })()
 </script>
 </body></html>`
@@ -2129,13 +2179,15 @@ async function handleMessage(conn, msg) {
         !validSize(msg.height)
       )
         return
+      if (msg.doc !== undefined && !validDoc(msg.doc)) return
       if (!frame) {
         frame = new Frame(
           id,
           msg.route,
           Math.round(msg.width),
           Math.round(msg.height),
-          validScheme(msg.scheme) ? msg.scheme : "light"
+          validScheme(msg.scheme) ? msg.scheme : "light",
+          msg.doc ?? null
         )
         frames.set(id, frame)
         frame.start().catch((e) => frame.fail(e))
@@ -2147,6 +2199,11 @@ async function handleMessage(conn, msg) {
         frame.reopen()
       frame.addViewer(conn)
       if (validScheme(msg.scheme)) await frame.setScheme(msg.scheme)
+      // A Mockup's page that changed while nobody watched.
+      if (msg.doc !== undefined) {
+        await frame.thaw()
+        await frame.setDoc(msg.doc)
+      }
       return
     }
     case "unwatch":
@@ -2185,6 +2242,10 @@ async function handleMessage(conn, msg) {
       return
     case "reload":
       if (frame.status === "live") await frame.go(frame.path)
+      return
+    case "doc":
+      // The Mockup's page. Every viewer sends it; only a change shows.
+      if (validDoc(msg.doc)) await frame.setDoc(msg.doc)
       return
     case "scheme":
       // The room's Theme knob. Every viewer sends it; only a change applies.
@@ -2263,14 +2324,17 @@ async function handleAgent(conn, id, msg) {
     if (
       !validRoute(msg.route) ||
       !validSize(msg.width) ||
-      !validSize(msg.height)
+      !validSize(msg.height) ||
+      (msg.doc !== undefined && !validDoc(msg.doc))
     )
       return unavailable("The frame's route or size isn't valid.")
     frame = new Frame(
       id,
       msg.route,
       Math.round(msg.width),
-      Math.round(msg.height)
+      Math.round(msg.height),
+      "light",
+      msg.doc ?? null
     )
     frames.set(id, frame)
     frame.start().catch((e) => frame.fail(e))
@@ -2291,6 +2355,9 @@ async function handleAgent(conn, id, msg) {
       await sleep(100)
     }
     await frame.thaw()
+    // A Mockup's page the agent knows is newer than the one shown (nobody
+    // watching sent the change): it shows first.
+    if (msg.doc !== undefined && validDoc(msg.doc)) await frame.setDoc(msg.doc)
     if (shot) return answer({ shot: await frame.agentShot() })
     return answer({ result: await frame.agentRun(op, grantExp) })
   } catch (e) {
@@ -2324,13 +2391,16 @@ const server = http.createServer((req, res) => {
     url.pathname === "/frame-host" &&
     /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(String(req.headers.host))
   ) {
+    const mockupId = url.searchParams.get("mockup")
     const route = url.searchParams.get("route")
-    if (!validRoute(route)) return res.writeHead(400).end()
+    const doc = mockupId === null ? null : (frames.get(mockupId)?.doc ?? null)
+    if (mockupId === null ? !validRoute(route) : doc === null)
+      return res.writeHead(400).end()
     res.writeHead(200, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
     })
-    return res.end(hostPage(route))
+    return res.end(hostPage(route ?? "/", doc))
   }
   res.writeHead(404).end()
 })

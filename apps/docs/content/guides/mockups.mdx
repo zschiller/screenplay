@@ -140,6 +140,32 @@ A mockup's page can also [share its state](/building/shared-state#on-a-mockup),
 such as the open tab or what's in a cart, so everyone looking at it sees the
 same thing as you click through it in Interact.
 
+## Going live
+
+On a hosted canvas, a mockup starts as your own copy, running in your
+browser, like a [frame](/guides/frames#live-frames). To look at the very same
+page together, click **Go live** (the broadcast button after **Interact**
+under the selected mockup). Going live works as it does on a frame: it
+happens for everyone on the canvas. The mockup's page opens in one browser in
+a workspace's sandbox, everyone's copy switches to it, and the title line
+reads **Live**. Anyone who opens the canvas while the mockup is live lands on
+it live.
+
+A mockup has no workspace of its own, so it borrows one to run in: the
+workspace of the chat that made it, or another running workspace when that
+one isn't running. With no workspace running, **Go live** is disabled and its
+tooltip says a workspace has to be running.
+
+On a live mockup, whoever has control is the only one whose clicks, keys and
+scrolling reach the page, and others can
+[ask for control](/guides/frames#asking-for-control), as on a live frame.
+When the chat rewrites the mockup, the live page shows the new version for
+everyone. Its Knobs gain the same **Theme** knob as a live frame's.
+
+Click **Go live** again to end it for everyone: each of you is back on your
+own copy. What the live page held only in memory, like a half typed form,
+doesn't come along. The desktop app has no **Go live**.
+
 ## The agent driving a mockup
 
 A chat's agent can click through a mockup for you, the way it
@@ -155,6 +181,9 @@ workspace chat or a [chat with no repository](/guides/agent#chats-with-no-reposi
 - **The canvas has to be open.** The agent drives only while the canvas is
   open in your browser or the desktop app. With it closed, the agent says so in the
   chat instead.
+- **A live mockup is the exception.** On a [live](#going-live) mockup the agent
+  drives the one live page, so everyone on the canvas watches each step, and
+  it works with nobody's canvas open.
 - **It shows the same signs as a frame.** **Agent has control** sits on the
   mockup's title line, an unselected mockup gets a ring, the Interact button
   shows the agent's dots, and the mockup has no resize handles while the
@@ -174,7 +203,7 @@ workspace chat or a [chat with no repository](/guides/agent#chats-with-no-reposi
   says **Click to take control**) or double-click the mockup, and the agent stops at
   once and asks before it carries on.
 
-The agent's clicks and keys are simulated inside the page, so it can't open a
+On your own copy, the agent's clicks and keys are simulated inside the page, so it can't open a
 file picker, use the clipboard or move the keyboard focus. When a step needs
 one of these, it asks you to do it. It can hover: tooltips and menus that
 open on hover do, and the mockup's hover styles show.
@@ -183,4 +212,5 @@ open on hover do, and the mockup's hover styles show.
 
 A mockup's page runs in a locked-down frame: it can run its own scripts, but
 it can't reach Screenplay, your session or the rest of the canvas, and it
-doesn't load anything from the network. Mockups are self-contained pages.
+doesn't load anything from the network. Mockups are self-contained pages. A
+live mockup runs locked down the same way, in its workspace's sandbox.

@@ -36,6 +36,8 @@ const LIVE_FRAME_FIELDS: ReadonlySet<string> = new Set([
   "sharedState",
   // Going live is the frame's, like its route: not an edit to undo (#1516).
   "live",
+  // Where a Mockup's live page runs, set as it goes live (#1523).
+  "liveBranchId",
 ])
 
 /** Collections whose records carry a running page's fields: frames, and
