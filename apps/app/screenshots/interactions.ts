@@ -521,7 +521,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     name: "add-project",
     description:
-      "Add repository: pick a GitHub repo, step Back to the list with the search kept, then add a folder and step Back to its path.",
+      "New repository: pick a GitHub repo, step Back to the list with the search kept, then add a folder and step Back to its path.",
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureGitHub(),
     run: async (page) => {

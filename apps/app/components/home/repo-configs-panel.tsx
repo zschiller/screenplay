@@ -5,7 +5,6 @@ import {
   CopyIcon,
   DotsThreeIcon,
   FolderIcon,
-  PlusIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
@@ -31,6 +30,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
+import {
+  AddRepositoryDialog,
+  NewRepositoryButton,
+  useAddRepositoryFlow,
+} from "@/components/add-repository-dialog"
 import { LoadErrorRow } from "@/components/home/load-error"
 import { RepoConfigForm } from "@/components/home/repo-config-form"
 import {
@@ -49,21 +53,20 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 
 type Mode =
   | { kind: "list" }
-  | { kind: "new" }
   | { kind: "edit"; config: RepoConfig }
   | { kind: "duplicate"; config: RepoConfig }
 
 const DIALOG_TITLE: Record<Exclude<Mode["kind"], "list">, string> = {
-  new: "New repository",
   edit: "Edit repository",
   duplicate: "Duplicate repository",
 }
 
 /**
  * Manages your Repositories (per-repo setup/dev/port/env), one settings row
- * each, sorted by project. Lives on the Settings page; new/edit/duplicate opens
- * the form in a dialog over the list, so the editor never nests a scroll area
- * inside the page's own scroll.
+ * each, sorted by project. Lives on the Settings page. New repository opens the
+ * same picker and detected settings form as a Canvas's, and only saves
+ * (#1423); edit/duplicate open the form in a dialog over the list, so the
+ * editor never nests a scroll area inside the page's own scroll.
  */
 export function RepoConfigsPanel({
   header,
@@ -81,6 +84,7 @@ export function RepoConfigsPanel({
   // form asks first (#784). A ref, since only the close path reads it.
   const formDirty = useRef(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const addRepository = useAddRepositoryFlow()
 
   useEffect(() => {
     let cancelled = false
@@ -137,15 +141,8 @@ export function RepoConfigsPanel({
   // with the full path in its facts line.
   const sortedGroups = groupConfigs(configs)
 
-  const newPreset = (variant: "default" | "outline") => (
-    <Button
-      size="sm"
-      variant={variant}
-      onClick={() => openForm({ kind: "new" })}
-    >
-      <PlusIcon className="size-3.5" />
-      New repository
-    </Button>
+  const newRepository = (variant: "default" | "outline") => (
+    <NewRepositoryButton flow={addRepository} variant={variant} />
   )
 
   // With repositories listed, New repository sits on the section's title row. The empty
@@ -154,7 +151,7 @@ export function RepoConfigsPanel({
 
   return (
     <>
-      {header(hasList ? newPreset("outline") : undefined)}
+      {header(hasList ? newRepository("outline") : undefined)}
       <div className="flex min-w-0 flex-col gap-3">
         {loading ? (
           <SettingsRowSkeleton label="Loading repositories…" count={2} />
@@ -176,7 +173,7 @@ export function RepoConfigsPanel({
                 it.
               </EmptyDescription>
             </EmptyHeader>
-            <EmptyContent>{newPreset("default")}</EmptyContent>
+            <EmptyContent>{newRepository("default")}</EmptyContent>
           </Empty>
         ) : (
           <SettingsRowList>
@@ -287,9 +284,7 @@ export function RepoConfigsPanel({
               <RepoConfigForm
                 // A fresh form per open, so switching presets never carries
                 // one's edits into another.
-                key={
-                  mode.kind === "new" ? "new" : `${mode.kind}:${mode.config.id}`
-                }
+                key={`${mode.kind}:${mode.config.id}`}
                 initial={mode.kind === "edit" ? mode.config : undefined}
                 template={
                   mode.kind === "duplicate"
@@ -312,6 +307,11 @@ export function RepoConfigsPanel({
             )}
           </DialogContent>
         </Dialog>
+
+        <AddRepositoryDialog
+          flow={addRepository}
+          onAdded={(_, list) => setConfigs(list)}
+        />
 
         <ConfirmDialog
           open={confirmDiscard}

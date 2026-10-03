@@ -229,7 +229,7 @@ export const CORE_SCREENS: Screen[] = [
   {
     name: "add-project-github",
     description:
-      "Add repository → Open GitHub repository: presets named once over the signed-in account's repos.",
+      "New repository → Open GitHub repository: the signed-in account's repos.",
     path: `/${ids.rooms.checkout}`,
     cookies: fixtureGitHub(),
     prepare: async (page) => {
