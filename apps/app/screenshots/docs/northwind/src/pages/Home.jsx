@@ -1,9 +1,9 @@
 import { useKnob } from "@screenplay.space/knobs"
 import { Link } from "../router.jsx"
 export function Home() {
-  const headline = useKnob({ id: "headline", type: "string", label: "Headline", default: "Know what your users actually do" })
-  const showLogos = useKnob({ id: "show-logos", type: "boolean", label: "Show customer logos", default: true })
-  const layout = useKnob({ id: "hero-layout", type: "select", label: "Hero layout", default: "center", options: [{ value: "center", label: "Centered" }, { value: "left", label: "Left aligned" }] })
+  const headline = useKnob({ id: "headline", type: "string", label: "Headline", group: "Hero", default: "Know what your users actually do" })
+  const showLogos = useKnob({ id: "show-logos", type: "boolean", label: "Show customer logos", description: "The logo strip under the hero", group: "Hero", default: true })
+  const layout = useKnob({ id: "hero-layout", type: "tabs", label: "Hero layout", group: "Hero", default: "center", options: [{ value: "center", label: "Center" }, { value: "left", label: "Left" }] })
   return (
     <main>
       <section className={`hero ${layout}`}>

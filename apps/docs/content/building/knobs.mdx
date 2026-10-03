@@ -12,7 +12,7 @@ updates the running app instantly, for everyone viewing it, with no rebuild.
 
 <Screenshot
   name="knobs-popover"
-  alt="The Knobs popover on the Northwind homepage frame: Accent color, Corner radius, Headline, Show customer logos, Hero layout"
+  alt="The Knobs popover on the Northwind homepage frame: Accent color and Corner radius under Brand, then Headline, Show customer logos and Hero layout under Hero"
 />
 
 Use knobs for things you want to try rather than decide in code: accent
@@ -44,12 +44,15 @@ export function App() {
     id: "accent",
     type: "color",
     label: "Accent color",
+    group: "Brand",
     default: "#4f46e5",
   })
   const radius = useKnob({
     id: "radius",
     type: "slider",
     label: "Corner radius",
+    description: "Buttons, cards and inputs",
+    group: "Brand",
     min: 0,
     max: 28,
     step: 1,
@@ -76,14 +79,38 @@ throughout these docs.
 | `color`   | Color picker | `default` (string, e.g. `"#1d4ed8"`)               |
 
 Use `tabs` for two or three short options you'll flip between, like light
-and dark or grid and list. Tabs sit beside their label, so keep each option to
-one short word (about 20 characters across them all). A `tabs` knob with more
+and dark or grid and list. Tabs fill the control column, so keep each option to
+one short word (about 15 characters across them all). A `tabs` knob with more
 than three options shows as a dropdown, and anything longer belongs in a
 `select`.
 
 Every knob takes an optional `label` (defaults to the `id`). It can also take
 a `validator: (value) => value`, which runs inside your app on every incoming
 value so you can clamp or sanitize it.
+
+## Descriptions and groups
+
+Each knob is one row: its label on the left, its control in a column on the
+right. Two optional fields shape the panel further:
+
+- **`description`**: a short phrase on what the knob affects. The label gets
+  an info icon, and hovering, focusing or clicking it shows the description.
+- **`group`**: knobs with the same `group` sit under one heading, in the
+  order the group's first knob was declared. Knobs without a group come
+  first.
+
+```tsx
+const radius = useKnob({
+  id: "radius",
+  type: "slider",
+  label: "Corner radius",
+  description: "Buttons, cards and inputs",
+  group: "Brand",
+  min: 0,
+  max: 28,
+  default: 14,
+})
+```
 
 ## How values behave
 

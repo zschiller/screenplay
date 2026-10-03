@@ -6,8 +6,8 @@ import { Customers } from "./pages/Customers.jsx"
 
 export function App() {
   const path = usePath()
-  const accent = useKnob({ id: "accent", type: "color", label: "Accent color", default: "#4f46e5" })
-  const radius = useKnob({ id: "radius", type: "slider", label: "Corner radius", min: 0, max: 28, step: 1, default: 14 })
+  const accent = useKnob({ id: "accent", type: "color", label: "Accent color", group: "Brand", default: "#4f46e5" })
+  const radius = useKnob({ id: "radius", type: "slider", label: "Corner radius", description: "Buttons, cards and inputs", group: "Brand", min: 0, max: 28, step: 1, default: 14 })
   const Page = path.startsWith("/pricing") ? Pricing : path.startsWith("/customers") ? Customers : Home
   return (
     <div style={{ "--accent": accent, "--radius": `${radius}px` }}>

@@ -8,6 +8,11 @@ interface KnobBase<TValue, TType extends string> {
   type: TType
   label?: string
   default: TValue
+  /** One short phrase on what the knob affects, shown in a tooltip on the
+   *  label's info icon. */
+  description?: string
+  /** Knobs with the same group sit under one heading in the panel. */
+  group?: string
   /** Optional clamp/sanitize function applied locally to every incoming value. */
   validator?: (value: TValue) => TValue
 }
