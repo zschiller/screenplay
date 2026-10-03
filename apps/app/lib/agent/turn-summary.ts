@@ -189,6 +189,7 @@ type Category =
   | "listChanges"
   | "memory"
   | "view"
+  | "drive"
 
 const TITLE_CATEGORY: Record<string, Category> = {
   read_file: "read",
@@ -209,6 +210,8 @@ const TITLE_CATEGORY: Record<string, Category> = {
   rename: "canvas",
   remove: "canvas",
   undo_changes: "canvas",
+  // A Workspace chat opening a frame to drive (#1390).
+  frame_open: "canvas",
   // The Coordinator's reads (#893).
   read_canvas: "readCanvas",
   read_workspace_chat: "readWorkspace",
@@ -217,6 +220,15 @@ const TITLE_CATEGORY: Record<string, Category> = {
   read_frame_html: "viewFrame",
   frame_elements: "viewFrame",
   frame_screenshot: "viewFrame",
+  // Driving a frame (#1389, #1390): every step counts toward one frame.
+  frame_start_driving: "drive",
+  frame_click: "drive",
+  frame_type: "drive",
+  frame_key: "drive",
+  frame_scroll: "drive",
+  frame_select: "drive",
+  frame_drag: "drive",
+  frame_stop_driving: "drive",
   list_changes: "listChanges",
   show_on_canvas: "view",
   write_memory: "memory",
@@ -297,20 +309,24 @@ function failureName(call: ToolCallMessage): string {
   if (category === "listChanges") return "List changes"
   if (category === "memory") return "Save to memory"
   if (category === "view") return "Show on canvas"
+  if (category === "drive") return "Frame step"
   return "A step"
 }
 
 /** The Workspace or frame a Coordinator read names, so repeats count once. */
 function inputId(
   call: ToolCallMessage,
-  category: "readWorkspace" | "viewFrame"
+  category: "readWorkspace" | "viewFrame" | "drive"
 ): string | null {
   const raw = call.rawInput
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
-  const id = (raw as Record<string, unknown>)[
-    category === "viewFrame" ? "frameId" : "workspaceId"
-  ]
-  return typeof id === "string" && id ? id : null
+  const record =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {}
+  const id = record[category === "readWorkspace" ? "workspaceId" : "frameId"]
+  if (typeof id === "string" && id) return id
+  // A Frame Drive call with no frameId acts on the chat's own frame.
+  return bareToolName(call.title).startsWith("frame_") ? "own frame" : null
 }
 
 function plural(n: number, one: string, many: string): string {
@@ -351,6 +367,7 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     listChanges: new Set(),
     memory: new Set(),
     view: new Set(),
+    drive: new Set(),
   }
   let other = 0
   const failures = failed.map(failureName)
@@ -363,7 +380,9 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     const key =
       category === "read" || category === "edit"
         ? (callPath(call) ?? call.toolCallId)
-        : category === "readWorkspace" || category === "viewFrame"
+        : category === "readWorkspace" ||
+            category === "viewFrame" ||
+            category === "drive"
           ? (inputId(call, category) ?? call.toolCallId)
           : call.toolCallId
     seen[category].add(key)
@@ -392,6 +411,7 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     n("canvas") && "changed the canvas",
     n("memory") && "saved to memory",
     n("view") && "moved the view",
+    n("drive") && `drove ${plural(n("drive"), "frame", "frames")}`,
     runs.length > 0 && `ran ${runs.join(" and ")}`,
     n("search") && `searched ${plural(n("search"), "time", "times")}`,
   ].filter((p): p is string => typeof p === "string")

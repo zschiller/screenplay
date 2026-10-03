@@ -46,6 +46,7 @@ let dataDir: string
 let agentDrives = true
 const controlListeners = new Set<() => void>()
 const snapshots: unknown[] = []
+const reveals: string[] = []
 const frames = createRelayFrames()
 let relay: { close(): void } | null = null
 
@@ -57,6 +58,10 @@ function connectRelay(url: string) {
     subscribeControl: (listener) => {
       controlListeners.add(listener)
       return () => controlListeners.delete(listener)
+    },
+    reveal: async (frameId) => {
+      reveals.push(frameId)
+      return frameId === FRAME
     },
   })
 }
@@ -200,6 +205,69 @@ describe("Mac drive channel", () => {
     const result = await backend.screenshot(FRAME)
     expect(result.status).toBe("shot")
     expect(snapshots).toEqual([{ x: 0, y: 0, width: 400, height: 300 }])
+  })
+
+  it("asks the canvas showing the frame to bring it into view", async () => {
+    reveals.length = 0
+    expect(await backend.reveal(FRAME)).toBeNull()
+    expect(reveals).toEqual([FRAME])
+    expect(await backend.reveal("not-here")).toMatch(/isn't loaded/)
+  })
+
+  it("draws the agent's cursor at show pace, typing a character at a time", async () => {
+    document.body.innerHTML = `<input id="name" aria-label="Name">`
+    const inputs: string[] = []
+    document
+      .getElementById("name")!
+      .addEventListener("input", (e) =>
+        inputs.push((e.target as HTMLInputElement).value)
+      )
+    const typing = backend.run(FRAME, {
+      op: "type",
+      target: { selector: "#name" },
+      text: "Ada",
+      pace: "show",
+    })
+    await new Promise((r) => setTimeout(r, 100))
+    const cursor = document.getElementById("__screenplay-drive-cursor")
+    expect(cursor?.textContent).toBe("Agent")
+    expect(cursor?.style.pointerEvents).toBe("none")
+    // The field is untouched while the cursor glides to it.
+    expect(inputs).toEqual([])
+    expect(await typing).toMatchObject({ status: "done" })
+    expect(inputs).toEqual(["A", "Ad", "Ada"])
+    // Reads never list it.
+    const page = await backend.run(FRAME, { op: "elements" })
+    expect(JSON.stringify(page)).not.toContain("Agent")
+    // A step at jump pace clears it at once.
+    await backend.run(FRAME, {
+      op: "click",
+      target: { selector: "#name" },
+      pace: "jump",
+    })
+    expect(document.getElementById("__screenplay-drive-cursor")).toBeNull()
+  })
+
+  it("stops a show-pace step that's still gliding when control moves away", async () => {
+    document.body.innerHTML = `<button id="save">Save</button><p id="out">idle</p>`
+    let clicked = false
+    document.getElementById("save")!.addEventListener("click", () => {
+      clicked = true
+    })
+    const click = backend.run(FRAME, {
+      op: "click",
+      target: { selector: "#save" },
+      pace: "show",
+    })
+    await new Promise((r) => setTimeout(r, 100))
+    agentDrives = false
+    controlListeners.forEach((listener) => listener())
+    try {
+      expect(await click).toEqual({ status: "taken" })
+      expect(clicked).toBe(false)
+    } finally {
+      agentDrives = true
+    }
   })
 
   it("says the canvas isn't open when no canvas shows the Room", async () => {

@@ -18,6 +18,9 @@ import {
  * Everything is checked from outside, through the contract's own ops: the
  * suite loads a page, drives it, and reads what changed.
  */
+/** The least a step at show pace takes: the cursor's glide and pause. */
+export const SHOW_STEP_MIN_MS = 700
+
 export interface FrameDriveHarness {
   backend: FrameDriveBackend
   /** The frame the backend drives. */
@@ -202,6 +205,34 @@ export function frameDriveContract(
         expect(
           await run({ op: "click", target: { selector: "#nope" } })
         ).toMatchObject({ status: "not-found" })
+      })
+
+      // "Show me" (#1390): the same outcome, at a pace a person can watch.
+      it("plays a gesture at show pace, slower but to the same end", async () => {
+        const startedShow = Date.now()
+        expectDone(
+          await run({ op: "click", target: { text: "Save" }, pace: "show" })
+        )
+        const show = Date.now() - startedShow
+        expect(await out()).toBe("saved")
+        const startedJump = Date.now()
+        expectDone(
+          await run({ op: "click", target: { text: "Save" }, pace: "jump" })
+        )
+        const jump = Date.now() - startedJump
+        expect(show).toBeGreaterThanOrEqual(SHOW_STEP_MIN_MS)
+        expect(jump).toBeLessThan(SHOW_STEP_MIN_MS)
+      })
+
+      it("types at show pace, ending with the whole text", async () => {
+        const typed = await run({
+          op: "type",
+          target: { selector: "#name" },
+          text: "Ada",
+          pace: "show",
+        })
+        expect(typed).toMatchObject({ status: "done", value: { value: "Ada" } })
+        expect(await out()).toBe("typed Ada")
       })
     })
 

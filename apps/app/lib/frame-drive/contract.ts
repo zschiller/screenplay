@@ -35,19 +35,32 @@ export type DriveModifiers = {
   metaKey?: boolean
 }
 
+/**
+ * How fast a gesture plays (#1383), set by what the person asked for.
+ * - `show` ("show me"): at a pace they can watch. A cursor glides to the
+ *   target and pauses before acting, typing goes in a character at a time,
+ *   and scrolls and drags move smoothly.
+ * - `jump` ("get it into that state"): at once, with nothing drawn.
+ */
+export type DrivePace = "show" | "jump"
+
+type Paced = { pace?: DrivePace }
+
 /** The gestures. Each one changes the page, so each one needs control. */
-export type DriveGesture =
-  | { op: "click"; target: DriveTarget }
-  | { op: "type"; target: DriveTarget; text: string; replace?: boolean }
-  | {
-      op: "key"
-      key: string
-      modifiers?: DriveModifiers
-      target?: DriveTarget
-    }
-  | { op: "scroll"; target?: DriveTarget; dx?: number; dy?: number }
-  | { op: "select"; target: DriveTarget; value: string }
-  | { op: "drag"; target: DriveTarget; to: DriveTarget }
+export type DriveGesture = Paced &
+  (
+    | { op: "click"; target: DriveTarget }
+    | { op: "type"; target: DriveTarget; text: string; replace?: boolean }
+    | {
+        op: "key"
+        key: string
+        modifiers?: DriveModifiers
+        target?: DriveTarget
+      }
+    | { op: "scroll"; target?: DriveTarget; dx?: number; dy?: number }
+    | { op: "select"; target: DriveTarget; value: string }
+    | { op: "drag"; target: DriveTarget; to: DriveTarget }
+  )
 
 /** The reads. They don't change the page, so they don't need control. */
 export type DriveRead = { op: "elements"; selector?: string }
@@ -193,4 +206,9 @@ export interface FrameDriveBackend {
   unavailable(frameId?: string): Promise<string | null>
   run(frameId: string, op: DriveOp): Promise<DriveResult>
   screenshot(frameId: string): Promise<DriveScreenshotResult>
+  /**
+   * Bring the frame into view on the canvas of the person who asked, and
+   * nobody else's (#1383). Null when it did, otherwise why not.
+   */
+  reveal(frameId: string): Promise<string | null>
 }

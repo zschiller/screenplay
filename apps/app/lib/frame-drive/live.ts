@@ -23,6 +23,6 @@ export function chatFrameDriveTools(opts: {
       : viewAgentDriver(opts.room, opts.userId),
     opts.room,
     { kind: "chat", sandboxName: opts.sandboxName },
-    { frames: isLocalBuild }
+    { asker: opts.userId, frames: isLocalBuild }
   )
 }

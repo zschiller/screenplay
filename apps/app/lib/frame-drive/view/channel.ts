@@ -31,6 +31,8 @@ import type { RoomDoc } from "@/lib/room-access"
 const OP_TIMEOUT_MS = 15_000
 /** How long a read of the page for a screenshot may take. */
 const SNAPSHOT_TIMEOUT_MS = 8_000
+/** How long bringing a Mockup into the asker's view may take. */
+const REVEAL_TIMEOUT_MS = 5_000
 /** How often the turn looks for the answer. */
 const POLL_MS = 150
 
@@ -127,6 +129,19 @@ export function viewFrameDriveBackend(
       return answer.type === "result"
         ? answer.result
         : { status: "failed", reason: "unexpected answer" }
+    },
+
+    async reveal(frameId) {
+      const reason = await notDrivable(frameId)
+      if (reason) return reason
+      const answer = await ask(
+        { type: "reveal", id: randomUUID(), frameId },
+        REVEAL_TIMEOUT_MS
+      )
+      if (!answer) return NO_ANSWER
+      return answer.type === "revealed" && answer.ok
+        ? null
+        : "The Mockup isn't on the open canvas."
     },
 
     async screenshot(frameId): Promise<DriveScreenshotResult> {

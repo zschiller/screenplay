@@ -339,6 +339,8 @@ describe("a Workspace chat's MCP route", () => {
       "start_dev_server",
       "view_frame",
       "read_frame_html",
+      "frame_start_driving",
+      "frame_open",
       "frame_elements",
       "frame_screenshot",
       "frame_click",

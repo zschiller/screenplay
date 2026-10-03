@@ -51,6 +51,7 @@ const rendered: FrameSnapshot[] = []
 let agentDrives = true
 const relays: { close(): void }[] = []
 const benRan: unknown[] = []
+const revealed: Record<string, string[]> = { [ADA]: [], [BEN]: [] }
 
 function backendFor(viewer: string, opTimeoutMs = 3000) {
   return viewFrameDriveBackend(room, viewer, {
@@ -87,6 +88,10 @@ function connectCanvas(
       frames,
       agentDrives: () => agentDrives,
       subscribeControl: () => () => {},
+      reveal: async (frameId) => {
+        revealed[viewer]?.push(frameId)
+        return true
+      },
     })
   )
 }
@@ -260,5 +265,12 @@ describe("docRelaySocket", () => {
     expect(got).toEqual([])
     expect(asks.has("old")).toBe(false)
     socket.close()
+  })
+
+  it("brings a Mockup into the asker's view only, for showing (#1390)", async () => {
+    expect(await backend.reveal(MOCKUP)).toBeNull()
+    expect(revealed[ADA]).toEqual([MOCKUP])
+    expect(revealed[BEN]).toEqual([])
+    expect(await backend.reveal(FRAME)).toMatch(/can't drive a frame/)
   })
 })
