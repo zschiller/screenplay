@@ -118,7 +118,7 @@ export async function POST(req: Request) {
       }))
     } catch {
       return NextResponse.json(
-        { error: "Couldn't reach the sandbox terminal." },
+        { error: "Couldn't reach the terminal." },
         { status: 502 }
       )
     }

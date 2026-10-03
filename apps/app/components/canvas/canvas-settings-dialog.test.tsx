@@ -343,7 +343,7 @@ describe("CanvasSettingsDialog", () => {
 
     const confirm = await screen.findByRole("alertdialog")
     expect(within(confirm).getByText("Remove “storefront”?")).not.toBeNull()
-    expect(within(confirm).getByText(/Its workspace is removed/)).not.toBeNull()
+    expect(within(confirm).getByText(/Its chat is removed/)).not.toBeNull()
     expect(within(confirm).getByText("Checkout polish")).not.toBeNull()
     expect(within(confirm).queryByText(/changes on this canvas/)).toBeNull()
     expect(onRemoveRepo).not.toHaveBeenCalled()
@@ -710,6 +710,11 @@ describe("CanvasSettingsDialog", () => {
 
       const confirm = await screen.findByRole("alertdialog")
       expect(within(confirm).getByText("Remove “docs”?")).not.toBeNull()
+      expect(
+        within(confirm).getByText(
+          "It's removed for everyone on this canvas, with any changes made here."
+        )
+      ).not.toBeNull()
       expect(onRemoveRepo).not.toHaveBeenCalled()
       fireEvent.click(within(confirm).getByRole("button", { name: "Remove" }))
 
@@ -736,6 +741,20 @@ describe("CanvasSettingsDialog", () => {
           deleteBranchesOnRemote: false,
         })
       )
+    })
+
+    it("says who added a teammate's repository when removing it", async () => {
+      renderHosted([STOREFRONT, DOCS, MIAS_WEB])
+      await screen.findByText("Added by Mia")
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove web" }))
+
+      const confirm = await screen.findByRole("alertdialog")
+      expect(
+        within(confirm).getByText(
+          "It's removed for everyone on this canvas, with any changes made here. Mia added it."
+        )
+      ).not.toBeNull()
     })
 
     it("names a teammate who added a repository", async () => {

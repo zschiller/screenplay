@@ -353,7 +353,7 @@ export async function keepAliveSandbox(
       return { success: true, value: undefined }
     }
     if (!sandbox.isRunning()) {
-      return { success: false, error: "Sandbox is not running" }
+      return { success: false, error: "The workspace isn't running." }
     }
     await sandbox.extendTimeout(SANDBOX_TIMEOUT)
     return { success: true, value: undefined }
@@ -523,7 +523,7 @@ export async function restartSandbox(
       return {
         success: false,
         error:
-          "Couldn't snapshot the sandbox to restart it. Use “Recreate from scratch” to rebuild it from git (this discards uncommitted changes).",
+          "Couldn't take a snapshot to restart from. Use “Recreate from scratch” to rebuild the workspace from git, which discards uncommitted changes.",
       }
     }
 
@@ -642,7 +642,7 @@ export async function restartDevServer(
       resume: false,
     })
     if (!isSandboxRunning(sandbox)) {
-      return { success: false, error: "Sandbox is not running" }
+      return { success: false, error: "The workspace isn't running." }
     }
     const safeEnv = await getEnvVars(sandboxName)
     const previewDomain = await launchDevAndProxy(

@@ -1535,7 +1535,7 @@ describe("AgentMessageItem — tool row output", () => {
       />
     )
     const header = screen.getByTestId("frame-drive")
-    expect(header.textContent).toContain("Drove Checkout")
+    expect(header.textContent).toContain("Used Checkout")
     expect(header.textContent).toContain("2 steps")
     expect(screen.queryAllByTestId("tool-call")).toHaveLength(0)
     fireEvent.click(header)

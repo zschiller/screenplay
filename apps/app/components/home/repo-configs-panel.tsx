@@ -307,7 +307,11 @@ export function RepoConfigsPanel({
           >
             <RepoDialogHeader
               title={mode.kind !== "list" && DIALOG_TITLE[mode.kind]}
-              description="A repository’s scripts, applied when you add it to a canvas."
+              description={
+                policy.propagatesEdits
+                  ? "A repository’s scripts. Saving updates every canvas that uses it, unless it’s customized there."
+                  : "A repository’s scripts, applied when you add it to a canvas."
+              }
               source={mode.kind !== "list" ? mode.config.repoFullName : ""}
             />
             {mode.kind !== "list" && (

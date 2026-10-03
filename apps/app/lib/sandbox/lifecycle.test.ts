@@ -714,7 +714,7 @@ describe("restartDevServer", () => {
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
-    expect(result.error).toContain("not running")
+    expect(result.error).toBe("The workspace isn't running.")
     // No relaunch, and still no VM cycle — waking a stopped VM is restartSandbox's
     // job, not the dev-server bounce's.
     expect(relaunched).toBe(false)

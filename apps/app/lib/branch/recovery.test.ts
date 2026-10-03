@@ -169,13 +169,13 @@ describe("recreate (Recreate)", () => {
       "room-1"
     )
     expect(lifecycle.restartSandbox).not.toHaveBeenCalled()
-    expect(deps.patches[0].patch.statusMessage).toBe("Recreating sandbox…")
+    expect(deps.patches[0].patch.statusMessage).toBe("Recreating from scratch…")
     expect(deps.patches.map((p) => p.patch.status)).toEqual([
       "starting",
       "running",
     ])
     expect(deps.toasts).toEqual([
-      { kind: "success", message: "Sandbox recreated" },
+      { kind: "success", message: "Recreated from scratch" },
     ])
   })
 
@@ -198,7 +198,7 @@ describe("recreate (Recreate)", () => {
     ])
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
-      message: "Couldn't recreate sandbox",
+      message: "Couldn't recreate from scratch",
       description: "clone failed",
     })
   })

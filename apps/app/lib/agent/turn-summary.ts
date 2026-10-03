@@ -260,7 +260,7 @@ export function summarizeSteps(steps: GroupedMessage[]): TurnSummary {
     n("canvas") && "changed the canvas",
     n("memory") && "saved to memory",
     n("view") && "moved the view",
-    n("drive") && `drove ${plural(n("drive"), "frame", "frames")}`,
+    n("drive") && `used ${plural(n("drive"), "frame", "frames")}`,
     runs.length > 0 && `ran ${runs.join(" and ")}`,
     n("search") && `searched ${plural(n("search"), "time", "times")}`,
   ].filter((p): p is string => typeof p === "string")

@@ -102,9 +102,9 @@ export function acceptFrameDriveConnection(
 }
 
 const NO_CANVAS =
-  "Screenplay isn't showing this canvas, so its frames can't be driven. It drives only while the canvas is open in the Screenplay app (the window can be in the background)."
+  "Screenplay isn't showing this canvas, so its frames can't be used. The agent can use them only while the canvas is open in the Screenplay app (the window can be in the background)."
 const NO_FRAME =
-  "This frame isn't loaded on the open canvas, so it can't be driven."
+  "This frame isn't loaded on the open canvas, so it can't be used."
 const CANVAS_CLOSED = "The canvas closed before the frame answered."
 const NO_ANSWER = "The canvas didn't answer in time."
 

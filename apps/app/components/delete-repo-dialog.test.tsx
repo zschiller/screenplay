@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import {
   DeleteRepoDialog,
+  removeDescription,
   type DeleteRepoWorkspace,
 } from "./delete-repo-dialog"
 import {
@@ -131,5 +132,25 @@ describe("DeleteRepoDialog", () => {
     renderDialog({ canDeleteOnRemote: false })
 
     expect(screen.queryByRole("checkbox")).toBeNull()
+  })
+
+  it("says chats, and on a shared canvas that it goes for everyone", () => {
+    expect(removeDescription(0)).toBe(
+      "The repository is removed from this canvas."
+    )
+    expect(removeDescription(1)).toBe(
+      "Its chat is removed from this canvas, with its frames."
+    )
+    expect(removeDescription(3)).toBe(
+      "Its 3 chats are removed from this canvas, with their frames."
+    )
+    expect(removeDescription(0, { sharedCanvas: true })).toBe(
+      "It's removed for everyone on this canvas, with any changes made here."
+    )
+    expect(
+      removeDescription(3, { sharedCanvas: true, addedByName: "Ana" })
+    ).toBe(
+      "It's removed for everyone on this canvas, with any changes made here. Its 3 chats and their frames go too. Ana added it."
+    )
   })
 })
