@@ -1,13 +1,7 @@
 import { isLocalBuild } from "@/lib/local-mode"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { BranchData, RepoData } from "@/lib/types"
-import { isCustomized, type CanvasRepositoryRow } from "./canvas"
-
-/** One labelled run of a Canvas's Repositories list; `null` = no heading. */
-export interface CanvasRepositoryGroup {
-  label: string | null
-  rows: CanvasRepositoryRow[]
-}
+import { isCustomized } from "./canvas"
 
 /**
  * Whether a Canvas Repo follows the Repository it was switched on from, and
@@ -35,12 +29,12 @@ export interface RepositoryLinkPolicy {
   ): RepoConfig | undefined
   /** Whether the Repo differs from the Repository it follows. */
   isCustomized(repo: RepoData, repositories: readonly RepoConfig[]): boolean
-  /** A switch per Repository, or Add / Remove buttons. */
-  control: "switch" | "add-remove"
-  /** The Canvas's Repositories list, in its groups. */
-  groups(rows: CanvasRepositoryRow[]): CanvasRepositoryGroup[]
   /** Whether removing the Repo from the Canvas asks first. */
-  removeConfirms(repo: RepoData, branches: readonly BranchData[]): boolean
+  removeConfirms(
+    repo: RepoData,
+    branches: readonly BranchData[],
+    repositories: readonly RepoConfig[]
+  ): boolean
   /** Whether the list names who added each Repo ("Added by X"). */
   showsAddedBy: boolean
 }
@@ -58,11 +52,14 @@ export const desktopLinkPolicy: RepositoryLinkPolicy = {
     const repository = linked(repo, repositories)
     return repository !== undefined && isCustomized(repo, repository)
   },
-  control: "switch",
-  groups: (rows) => (rows.length > 0 ? [{ label: null, rows }] : []),
-  // Your Repository stays in Settings, so only Workspaces make it worth asking.
-  removeConfirms: (repo, branches) =>
-    branches.some((b) => b.repoId === repo.id),
+  // Your Repository stays in Settings, so only Workspaces, or edits made on
+  // this Canvas alone, make it worth asking.
+  removeConfirms(repo, branches, repositories) {
+    return (
+      branches.some((b) => b.repoId === repo.id) ||
+      desktopLinkPolicy.isCustomized(repo, repositories)
+    )
+  },
   showsAddedBy: false,
 }
 
@@ -73,13 +70,6 @@ export const hostedLinkPolicy: RepositoryLinkPolicy = {
   deleteUnlinksCanvases: false,
   followedRepository: () => undefined,
   isCustomized: () => false,
-  control: "add-remove",
-  // Every member's Repos first.
-  groups: (rows) =>
-    [
-      { label: "On this canvas", rows: rows.filter((row) => row.on) },
-      { label: "Your other repositories", rows: rows.filter((row) => !row.on) },
-    ].filter((group) => group.rows.length > 0),
   // The canvas's copy, and anyone's edits to it, go for everyone here.
   removeConfirms: () => true,
   showsAddedBy: true,
