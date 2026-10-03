@@ -22,7 +22,7 @@ describe("CHAT_CAPABILITIES", () => {
 
   it("names the Coordinator in the Room chat's placeholder", () => {
     expect(CHAT_CAPABILITIES.room.placeholder).toBe(
-      "Ask the Coordinator… (@ to mention a document)"
+      "Ask the Coordinator… (@ document)"
     )
   })
 

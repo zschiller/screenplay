@@ -30,7 +30,7 @@ const access = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/room-access", () => ({
   openRoom: async (roomId: string) => {
-    if (!access.member) throw new Error("You don't have access to this project")
+    if (!access.member) throw new Error("You don't have access to this canvas.")
     return {
       ...access.room!,
       roomId,

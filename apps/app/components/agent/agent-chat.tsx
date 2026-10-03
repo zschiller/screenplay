@@ -347,7 +347,7 @@ export function AgentChat({
     return (
       <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center text-sm text-balance text-muted-foreground">
         <span className="flex items-center gap-2">
-          <Spinner className="size-4" /> Waiting for the sandbox to start…
+          <Spinner className="size-4" /> The workspace is still starting…
         </span>
       </div>
     )
@@ -501,7 +501,7 @@ export function AgentChat({
       {onOpenWorkspaceChat ? (
         <div className="flex items-center gap-3 border-t border-border p-3 text-sm text-muted-foreground">
           <p className="min-w-0 flex-1 text-balance">
-            An earlier chat, kept to read. This Workspace continues in its chat.
+            An earlier chat, kept to read. Work continues in the newest chat.
           </p>
           <Button
             type="button"
@@ -607,9 +607,9 @@ function ChatEmptyState({
         </p>
         <p className="text-xs text-muted-foreground">
           {fresh
-            ? "Your first ask runs in the Workspace on the canvas."
+            ? "Your first ask runs in the workspace on the canvas."
             : noRepository
-              ? "Ask for a Mockup or a Document and a chat starts to make it."
+              ? "Ask for a mockup or a document and a chat starts to make it."
               : capabilities.emptyBody}
         </p>
       </div>

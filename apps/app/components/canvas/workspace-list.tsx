@@ -88,7 +88,7 @@ export function WorkspaceCommandList({
   branches,
   currentBranchId,
   onPick,
-  placeholder = "Search workspaces…",
+  placeholder = "Search chats…",
   footer,
   newChat,
   sketch,
@@ -117,7 +117,7 @@ export function WorkspaceCommandList({
     <Command>
       <CommandInput placeholder={placeholder} />
       <CommandList>
-        <CommandEmpty>No workspaces found.</CommandEmpty>
+        <CommandEmpty>No chats found.</CommandEmpty>
         <CommandGroup>
           {newChat && (
             <CommandItem value="New chat" onSelect={newChat.onPick}>

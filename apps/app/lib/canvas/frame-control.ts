@@ -10,7 +10,7 @@
  * The rules (decided in #981, #1370 and the #1376 exploration):
  * - Anyone picks up a frame nobody drives.
  * - Between people, the driver lets you drive: a request waits for the
- *   driver's Let drive (`grant`) or Not now (`decline`). Requests made at
+ *   driver's Give control (`grant`) or Not now (`decline`). Requests made at
  *   the same moment queue, and the driver picks one.
  * - A driver who leaves keeps control for {@link FRAME_CONTROL_GRACE_MS}, so a
  *   reload is harmless. After that, control passes to the oldest online
@@ -73,7 +73,7 @@ export type FrameControlAction =
   /** Ask to drive: picks up an undriven frame, takes it from the agent (if a
    *  person asks), and otherwise queues. What the driver button does. */
   | { type: "request"; by: string; at: number }
-  /** The driver lets a waiting party drive (Let drive). */
+  /** The driver lets a waiting party drive (Give control). */
   | { type: "grant"; by: string; to: string }
   /** The driver turns a request down (Not now). */
   | { type: "decline"; by: string; to: string }

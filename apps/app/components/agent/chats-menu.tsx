@@ -541,7 +541,7 @@ export function ChatsMenuProvider({
         verb="Delete"
         itemName={deleteSketchChat?.label ?? ""}
         itemNoun="chat"
-        description="Its messages go. The Mockups and Documents it made stay on the canvas."
+        description="Its messages go. The mockups and documents it made stay on the canvas."
         onConfirm={() => {
           if (deleteSketchChat) props.onDeleteSketchChat(deleteSketchChat.id)
           setPendingDeleteSketchId(null)
@@ -556,11 +556,6 @@ export function ChatsMenuProvider({
         // Remote deletion goes through the GitHub API, so it is only offered
         // when a token resolves and the Repository names a GitHub remote.
         canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(deleteRepo)}
-        chatCount={
-          deleteBranch
-            ? chatSessions.filter((c) => c.branchId === deleteBranch.id).length
-            : 0
-        }
         frameCount={
           deleteBranch
             ? iframeLayers.filter((l) => l.branchId === deleteBranch.id).length
@@ -583,7 +578,7 @@ export function ChatsMenuProvider({
           if (!next) setPendingRenameBranchId(null)
         }}
         title="Rename branch"
-        description="Renames the git branch. The workspace keeps its title."
+        description="Renames the git branch. The chat keeps its title."
         initialValue={renameBranch?.ref ?? ""}
         submitLabel="Rename"
         submittingLabel="Renaming…"
@@ -1266,7 +1261,7 @@ function WorkspaceMenuRow({
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <IconButton
-              label="Workspace options"
+              label="Chat options"
               className="relative text-muted-foreground"
             >
               <DotsThreeIcon />

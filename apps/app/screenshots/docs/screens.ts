@@ -628,7 +628,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "settings-coding-agents",
-    description: "Settings → Coding agents.",
+    description: "Settings → Agent.",
     path: "/settings?section=coding-agents",
   }),
   screen({
@@ -977,14 +977,14 @@ export const DOCS_SCREENS: DocsScreen[] = [
     crop: [760, 40, 520, 340],
     focus: [
       "[data-slot=tooltip-content]",
-      "button[aria-label='Agent is driving']",
+      "button[aria-label='Agent has control']",
     ],
     beforeNavigate: claudeDrivesHome,
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
       await page.mouse.move(
-        ...xy(await centerOf(page, frameToolbar("Agent is driving")))
+        ...xy(await centerOf(page, frameToolbar("Agent has control")))
       )
       await showTooltip(page)
     },
@@ -1312,7 +1312,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: [
       "[data-slot=tooltip-content]",
       "button[aria-label^='Device']",
-      "button[aria-label='Open agent']",
+      "button[aria-label='Show chat']",
     ],
     beforeNavigate: warmPlay,
     crop: [760, 440, 520, 360],

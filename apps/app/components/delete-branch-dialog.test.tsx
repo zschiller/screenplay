@@ -31,7 +31,6 @@ function renderDialog(
       onOpenChange={vi.fn()}
       branchName="feature-a"
       canDeleteOnRemote
-      chatCount={3}
       frameCount={2}
       work={{ onOrigin: true, unpushedCommits: 0, uncommittedFiles: 0 }}
       localBranchKept={false}
@@ -90,23 +89,35 @@ describe("DeleteBranchDialog remote-delete offer", () => {
 })
 
 describe("DeleteBranchDialog says what you lose", () => {
-  it("lists what goes and what stays", () => {
-    renderDialog({ openPrNumber: 482 })
-
-    expect(text()).toContain("Removes3 chats, 2 frames and its sandbox")
-    expect(text()).toContain("Keepsthe git branch on GitHub and PR #482")
-  })
-
-  it("moves the branch to Removes and says the PR closes when ticked", () => {
-    renderDialog({ openPrNumber: 482 })
-
-    expect(screen.getByText("Closes PR #482")).toBeDefined()
-    fireEvent.click(screen.getByRole("checkbox"))
+  it("says what goes and what stays in plain sentences", () => {
+    renderDialog({ openPrNumber: 482, canDeleteOnRemote: false })
 
     expect(text()).toContain(
-      "Removes3 chats, 2 frames, its sandbox and the git branch on GitHub"
+      "Its workspace and 2 frames are deleted. The branch stays on GitHub. PR #482 stays open."
     )
-    expect(text()).not.toContain("Keeps")
+  })
+
+  it("leaves GitHub to the option when it's offered", () => {
+    renderDialog({ openPrNumber: 482, localBranchKept: true })
+
+    expect(text()).toContain(
+      "Its workspace and 2 frames are deleted. The branch stays on this computer."
+    )
+    expect(text()).not.toContain("stays open")
+    expect(screen.getByText("Closes PR #482")).toBeDefined()
+  })
+
+  it("changes nothing but the checkbox when ticked, so the dialog can't jump", () => {
+    renderDialog({ openPrNumber: 482, localBranchKept: true })
+    const before = text()
+
+    fireEvent.click(screen.getByRole("checkbox"))
+
+    expect(screen.getByRole("checkbox")).toHaveProperty(
+      "dataset.state",
+      "checked"
+    )
+    expect(text()).toBe(before)
   })
 
   it("warns only when the checkout has work that would be lost", () => {
@@ -137,7 +148,7 @@ describe("DeleteBranchDialog says what you lose", () => {
       work: { onOrigin: false, unpushedCommits: 4, uncommittedFiles: 1 },
     })
 
-    expect(text()).toContain("Keepsthe git branch on this computer")
+    expect(text()).toContain("The branch stays on this computer.")
     expect(screen.getByRole("alert").textContent).toBe(
       "1 uncommitted file will be lost."
     )

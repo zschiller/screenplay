@@ -42,7 +42,7 @@ The **New chat** dialog can start several at once:
   them all.
 - On desktop with no coding agent installed, each row says **No coding agent found** in
   place of its model picker and **Create chat** stays off until you
-  install one from **Settings → Coding agents**.
+  install one from **Settings → Agent**.
 
 A new workspace's frame appears on the canvas straight away, and the canvas
 zooms to it. The workspace goes through **creating** and **starting** while
@@ -74,7 +74,7 @@ from depends on how the workspace started:
   and its branch is named from that title when it's created. Its first
   message renames neither.
 - **From Open existing git branch**, its first message changes neither the
-  branch nor the title. It reads **New Workspace** until you rename it.
+  branch nor the title. It reads **New chat** until you rename it.
 
 Earlier chats on a canvas from before workspaces had one chat keep their own
 names and never change the workspace's title or branch.
@@ -125,7 +125,7 @@ Each chat row shows:
   **Copy error**;
 - the chat's **title**, which is its workspace's title, never its branch. A
   workspace without one (created before titles
-  existed, or not asked anything yet) reads **New Workspace** until you
+  existed, or not asked anything yet) reads **New chat** until you
   rename it or its first chat message names it;
 - at the end, the workspace's **pull request** as a small outlined badge:
   its icon in GitHub's colours (green open, purple merged, red closed) and
@@ -270,7 +270,7 @@ starts again and its frames return where they were.
 
 There are three ways to open a PR:
 
-- **Create PR** in the agent panel header. It opens the PR directly, using
+- **Create pull request** in the agent panel header. It opens the PR directly, using
   the branch's commit messages for the title and body, and the button then
   turns into a link to it.
 - **Create pull request** in the workspace menu.

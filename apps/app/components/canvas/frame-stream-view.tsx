@@ -7,6 +7,7 @@ import {
   type FrameStreamConnection,
 } from "@/lib/frame-stream/client"
 import {
+  FRAME_STREAM_COLOR_SPACE,
   h264CodecOf,
   modifiersOf,
   mouseButtonOf,
@@ -20,6 +21,9 @@ const DRIVE_REFRESH_MS = 30_000
 // Frame Control's record can reach the server a moment after this viewer
 // wrote it, so a refused grant is asked for again a few times.
 const DRIVE_RETRY_MS = [0, 300, 800, 2000]
+// The service's default device scale: a picture's CSS size until the
+// frame's state says otherwise.
+const SCALE = 2
 const RESIZE_SETTLE_MS = 150
 // Watch frames a little before they scroll into view.
 const WATCH_MARGIN = "200px"
@@ -68,6 +72,10 @@ export function FrameStreamView({
   onLive,
 }: FrameStreamViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
+  // The CSS size the picture on show was captured at. While a resize waits
+  // for the stream, the picture keeps this size, never stretched.
+  const pictureSize = useRef({ width, height })
   const latest = useRef({ width, height, route, onRoute, onLive })
   useEffect(() => {
     latest.current = { width, height, route, onRoute, onLive }
@@ -78,6 +86,11 @@ export function FrameStreamView({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    // Until a picture comes, the canvas covers the frame.
+    if (!canvas.style.width) {
+      canvas.style.width = `${pictureSize.current.width}px`
+      canvas.style.height = `${pictureSize.current.height}px`
+    }
     let decoder: VideoDecoder | null = null
     let configured: string | null = null
     let waitingForKey = true
@@ -85,6 +98,9 @@ export function FrameStreamView({
     let live = false
     let firstRoute = true
     let videoSize = { width: 0, height: 0 }
+    // Each encoded size's CSS size, from the frame's state messages: the
+    // service lowers the scale for a frame past its pixel budget.
+    const cssSizes = new Map<string, { width: number; height: number }>()
     let unwatch: (() => void) | null = null
 
     const setLive = (next: boolean) => {
@@ -101,12 +117,21 @@ export function FrameStreamView({
     }
 
     const draw = (picture: VideoFrame) => {
-      if (
+      const resized =
         canvas.width !== picture.displayWidth ||
         canvas.height !== picture.displayHeight
-      ) {
+      if (resized) {
         canvas.width = picture.displayWidth
         canvas.height = picture.displayHeight
+        const css = cssSizes.get(
+          `${picture.displayWidth}x${picture.displayHeight}`
+        ) ?? {
+          width: picture.displayWidth / SCALE,
+          height: picture.displayHeight / SCALE,
+        }
+        pictureSize.current = css
+        canvas.style.width = `${css.width}px`
+        canvas.style.height = `${css.height}px`
       }
       canvas.getContext("2d")?.drawImage(picture, 0, 0)
       picture.close()
@@ -127,7 +152,11 @@ export function FrameStreamView({
           configured = null
         }
         if (codec !== configured) {
-          decoder.configure({ codec, optimizeForLatency: true })
+          decoder.configure({
+            codec,
+            optimizeForLatency: true,
+            colorSpace: FRAME_STREAM_COLOR_SPACE,
+          })
           configured = codec
         }
         waitingForKey = false
@@ -153,6 +182,10 @@ export function FrameStreamView({
           setLive(false)
           resetDecoder()
         }
+        cssSizes.set(`${msg.videoWidth}x${msg.videoHeight}`, {
+          width: msg.width,
+          height: msg.height,
+        })
         if (
           msg.videoWidth !== videoSize.width ||
           msg.videoHeight !== videoSize.height
@@ -207,6 +240,18 @@ export function FrameStreamView({
       stop()
     }
   }, [stream, frameId])
+
+  // Room the picture doesn't cover yet, while the frame grows ahead of the
+  // stream, shows the page's own background: its bottom-right pixel.
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const box = boxRef.current
+    if (!canvas?.width || !box) return
+    const [r, g, b, a] = canvas
+      .getContext("2d")!
+      .getImageData(canvas.width - 1, canvas.height - 1, 1, 1).data
+    if (a) box.style.backgroundColor = `rgb(${r}, ${g}, ${b})`
+  }, [width, height])
 
   // The frame's size and the room's route follow the layer. A resize drag
   // settles first: each new size restarts the frame's encoder.
@@ -267,12 +312,13 @@ export function FrameStreamView({
     const send = (input: FrameStreamInput) =>
       stream.send({ t: "input", frame: frameId, ...input })
     // Client pixels to the page's CSS pixels: the canvas is drawn at the
-    // frame's size inside the zoomed world.
+    // picture's size inside the zoomed world.
     const at = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect()
+      const { width, height } = pictureSize.current
       return {
-        x: ((e.clientX - rect.left) * latest.current.width) / rect.width,
-        y: ((e.clientY - rect.top) * latest.current.height) / rect.height,
+        x: ((e.clientX - rect.left) * width) / rect.width,
+        y: ((e.clientY - rect.top) * height) / rect.height,
       }
     }
     const mouse =
@@ -367,13 +413,20 @@ export function FrameStreamView({
     }
   }, [active, stream, frameId])
 
+  // The picture sits at its own size, top left: a resize crops it or shows
+  // the page's background beside it until the stream catches up.
   return (
-    <canvas
-      ref={canvasRef}
-      tabIndex={active ? 0 : -1}
-      data-frame-stream=""
-      className="absolute inset-0 h-full w-full bg-white outline-none dark:bg-neutral-900"
-      style={{ pointerEvents: interactive ? "auto" : "none" }}
-    />
+    <div
+      ref={boxRef}
+      className="absolute inset-0 overflow-hidden bg-white dark:bg-neutral-900"
+    >
+      <canvas
+        ref={canvasRef}
+        tabIndex={active ? 0 : -1}
+        data-frame-stream=""
+        className="absolute top-0 left-0 outline-none"
+        style={{ pointerEvents: interactive ? "auto" : "none" }}
+      />
+    </div>
   )
 }

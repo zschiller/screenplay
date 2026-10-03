@@ -187,6 +187,19 @@ export function mouseButtonOf(
 }
 
 /**
+ * The colours the Frame Stream service encodes in: BT.601 limited range from
+ * the sRGB screen, the conversion ffmpeg makes by default. The decoder must be
+ * told so: a browser guesses BT.709 for a stream that doesn't say, which
+ * shifts saturated colours by up to a tenth (#1392 follow-up). The H.264
+ * stream also carries this in its headers.
+ */
+export const FRAME_STREAM_COLOR_SPACE: VideoColorSpaceInit = {
+  primaries: "bt709",
+  transfer: "iec61966-2-1",
+  matrix: "smpte170m",
+  fullRange: false,
+}
+/**
  * The WebCodecs codec string for an H.264 stream, from the first sequence
  * parameter set in an Annex B access unit (`avc1.PPCCLL`: profile,
  * constraint flags, level). Null when the unit carries no SPS. A keyframe

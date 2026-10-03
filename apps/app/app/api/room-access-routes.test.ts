@@ -238,7 +238,7 @@ describe("a signed-in non-member gets a 403 and nothing runs", () => {
     const res = await routes.branchCreate(branchBody)
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({
-      error: "You don't have access to this project",
+      error: "You don't have access to this canvas.",
     })
     expectNoSideEffects()
   })

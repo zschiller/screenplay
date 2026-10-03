@@ -84,7 +84,7 @@ describe("DeleteRepoDialog", () => {
       "Checkout polishPR #482, open",
       "Empty cart state2 unpushed",
       // Untitled: never its branch (#1182).
-      "New WorkspaceClean",
+      "New chatClean",
     ])
     expect(
       screen.getAllByRole("img").map((i) => i.getAttribute("aria-label"))

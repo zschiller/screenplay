@@ -270,7 +270,9 @@ function MoveToForm({
       await onMove(selected)
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to move")
+      setError(
+        err instanceof Error ? err.message : "Couldn't move it. Try again."
+      )
       setPending(false)
     }
   }

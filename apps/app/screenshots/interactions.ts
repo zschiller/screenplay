@@ -426,7 +426,7 @@ export const INTERACTIONS: Interaction[] = [
     run: async (page) => {
       const nav = page.getByRole("navigation", { name: "Settings" })
       for (const name of [
-        "Coding agents",
+        "Agent",
         "GitHub",
         "Repositories",
         "Account",

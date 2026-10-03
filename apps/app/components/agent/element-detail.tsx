@@ -1,9 +1,9 @@
 /**
  * The body of an element token's HoverCard — the detail its terse label hides:
- * the full CSS selector, then the route and frame as a label/value list (the
- * delete dialog's Removes/Keeps shape), or, for an element in a Mockup, which
- * has no route, the Mockup's title. Shared by the composer's node view and the
- * sent-message bubble so the two cards read the same.
+ * the full CSS selector, then the route and frame as a label/value list, or,
+ * for an element in a Mockup, which has no route, the Mockup's title. Shared
+ * by the composer's node view and the sent-message bubble so the two cards
+ * read the same.
  */
 export function ElementDetail({
   selector,

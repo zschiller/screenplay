@@ -176,7 +176,7 @@ describe("canvasShortcutGroups", () => {
       "⇧",
       "1",
     ])
-    expect(lines.find((s) => s.label === "Toggle chat")?.keys).toEqual([
+    expect(lines.find((s) => s.label === "Show or hide chat")?.keys).toEqual([
       "⌘",
       "I",
     ])

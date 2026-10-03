@@ -124,9 +124,9 @@ describe("ChatPanel with the Room target", () => {
     expect(screen.queryByRole("tablist")).toBeNull()
   })
 
-  it("collapses from the header's one Collapse chat button", () => {
+  it("collapses from the header's one Hide chat button", () => {
     const { onCollapse } = renderRoomPanel()
-    const buttons = screen.getAllByRole("button", { name: /Collapse chat/ })
+    const buttons = screen.getAllByRole("button", { name: /Hide chat/ })
     expect(buttons).toHaveLength(1)
     fireEvent.click(buttons[0])
     expect(onCollapse).toHaveBeenCalledOnce()

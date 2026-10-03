@@ -158,7 +158,7 @@ export function GitHubConnectionPanel() {
           className="-ml-2.5 font-normal text-muted-foreground"
           onClick={() => setDeviceOpen(true)}
         >
-          Connect with a device code instead
+          Use a device code instead
         </Button>
       )}
 
@@ -277,16 +277,15 @@ function runPlan(kind: SetupActionKind, brewPresent: boolean): RunPlan {
     return {
       command: buildGhInstallAndAuthArgv(brewPresent),
       message:
-        "Installing the GitHub CLI, then signing you in — follow the prompts " +
-        "below. Once the browser flow finishes, this closes and the connection " +
-        "updates automatically.",
+        "Installing the GitHub CLI, then signing you in. Follow the prompts " +
+        "below; this closes when you're done.",
     }
   }
   return {
     command: buildGhAuthLoginArgv(),
     message:
-      "Signing in to GitHub — follow the prompts below. Once the browser flow " +
-      "finishes, this closes and the connection updates automatically.",
+      "Signing in to GitHub. Follow the prompts below; this closes when " +
+      "you're done.",
   }
 }
 
@@ -363,9 +362,8 @@ export function ConnectGitHubDialog({
         <DialogHeader>
           <DialogTitle>Connect GitHub</DialogTitle>
           <DialogDescription>
-            Authorize Screenplay in your browser to browse your GitHub
-            repositories and open pull requests. This is API access only — there
-            is still no login.
+            Authorize Screenplay in your browser so it can list your GitHub
+            repositories and open pull requests.
           </DialogDescription>
         </DialogHeader>
         {state.step === "starting" && (
@@ -439,9 +437,9 @@ function detectionResult(status: GitHubLocalStatus): DetectionResult {
 
 /**
  * The setup affordance, if any. From the disconnected not-installed state, one
- * primary **Install & connect** installs `gh` and chains straight into sign-in
+ * primary **Install and connect** installs `gh` and chains straight into sign-in
  * (issue #649); a signed-out-but-installed `gh` gets a primary **Sign in**; a
- * `gh` connection gets only a secondary **Re-run sign-in** to refresh a lapsed
+ * `gh` connection gets only a secondary **Sign in again** to refresh a lapsed
  * login (no other clutter — no logout, ADR 0014). A device connection (with or
  * without `gh`) already has API access, so it offers nothing here.
  */
@@ -449,14 +447,14 @@ export function setupAction(
   status: GitHubLocalStatus
 ): { kind: SetupActionKind; label: string; primary: boolean } | null {
   if (status.tokenSource === "gh") {
-    return { kind: "auth", label: "Re-run sign-in", primary: false }
+    return { kind: "auth", label: "Sign in again", primary: false }
   }
   if (status.tokenSource === null) {
     if (status.gh === "installed-not-authenticated") {
       return { kind: "auth", label: "Sign in", primary: true }
     }
     if (status.gh === "not-installed") {
-      return { kind: "install", label: "Install & connect", primary: true }
+      return { kind: "install", label: "Install and connect", primary: true }
     }
   }
   return null

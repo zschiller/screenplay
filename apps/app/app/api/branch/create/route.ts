@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const ghToken = (await getGitHubToken()) ?? undefined
   if (!ghToken && !isLocalBuild) {
     return NextResponse.json(
-      { error: "No GitHub token — please re-authenticate with GitHub" },
+      { error: "Sign in with GitHub again to start this workspace." },
       { status: 401 }
     )
   }

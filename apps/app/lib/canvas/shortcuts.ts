@@ -275,15 +275,15 @@ const SHEET: { title: string; lines: SheetLine[] }[] = [
   {
     title: "Panels",
     lines: [
-      { label: "Toggle sidebar", action: "toggle-sidebar" },
-      { label: "Toggle chat", action: "toggle-chat" },
+      { label: "Show or hide sidebar", action: "toggle-sidebar" },
+      { label: "Show or hide chat", action: "toggle-chat" },
       // The Terminal Pane under a Workspace's chat listens for it itself.
       {
-        label: "Toggle terminal",
+        label: "Show or hide terminal",
         keys: ["⌃", "`"],
         handledBy: "terminal-pane",
       },
-      { label: "Toggle both panels", action: "toggle-panels" },
+      { label: "Show or hide both panels", action: "toggle-panels" },
       { label: "Keyboard shortcuts", action: "shortcut-sheet" },
     ],
   },

@@ -226,7 +226,7 @@ function RepoSettingsForm({
           updatedAt: Date.now(),
         })
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to save")
+        setError(e instanceof Error ? e.message : "Couldn't save. Try again.")
         setSaving(false)
         return
       }
@@ -300,7 +300,7 @@ function RepoSettingsForm({
 
       <div className="-mx-5 flex max-h-[60vh] flex-col gap-5 overflow-y-auto px-5">
         <Field>
-          <FieldLabel htmlFor="repo-settings-name">Label</FieldLabel>
+          <FieldLabel htmlFor="repo-settings-name">Name</FieldLabel>
           <Input
             id="repo-settings-name"
             value={name}
@@ -308,7 +308,8 @@ function RepoSettingsForm({
             placeholder={repo.repoFullName}
           />
           <FieldDescription>
-            A short name for this repository, like “web” or “api”.
+            Optional. A short name like “web” or “api”, to tell apart two setups
+            of one repository.
           </FieldDescription>
         </Field>
 

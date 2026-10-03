@@ -75,12 +75,13 @@ const SECTIONS: SettingsSection[] = [
     ? [
         {
           id: "coding-agents",
-          title: "Coding agents",
-          description: "The CLIs that back chats and terminals on this device.",
+          title: "Agent",
+          description:
+            "The coding agents that run chats and terminals on this device.",
           content: (header: SectionHeader) => (
             <>
               {header()}
-              <DefaultAgentPicker label="Default agent" />
+              <DefaultAgentPicker label="Default model" />
               <HarnessSetupPanel />
             </>
           ),
@@ -88,7 +89,8 @@ const SECTIONS: SettingsSection[] = [
         {
           id: "github",
           title: "GitHub",
-          description: "How Screenplay reaches the GitHub API on this device.",
+          description:
+            "Lets Screenplay list your repositories and open pull requests.",
           content: (header: SectionHeader) => (
             <>
               {header()}
@@ -101,7 +103,7 @@ const SECTIONS: SettingsSection[] = [
         {
           id: "agent",
           title: "Agent",
-          description: "The model new chats and Workspaces start with.",
+          description: "The model new chats start with.",
           content: (header: SectionHeader) => (
             <>
               {header()}

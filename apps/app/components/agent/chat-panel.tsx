@@ -45,7 +45,7 @@ import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
-import { prStateColor } from "@/components/pr-state-color"
+import { prStateButtonColor } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
 import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
 import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
@@ -356,7 +356,7 @@ function WorkspaceChatPanel({
     : displayPr?.state === "merged"
       ? GitMergeIcon
       : GitPullRequestIcon
-  const prColor = prStateColor(
+  const prColor = prStateButtonColor(
     prBlocked ? "closed" : (displayPr?.state ?? "open")
   )
   const isAgentBusy = agent.status === "creating" || agent.status === "starting"
@@ -468,14 +468,14 @@ function WorkspaceChatPanel({
               }
               title={
                 isAgentBusy
-                  ? "Sandbox still starting…"
+                  ? "The workspace is still starting…"
                   : anyChatStreaming
-                    ? "Agent is working in this workspace…"
+                    ? "The agent is still working."
                     : undefined
               }
             >
               <GitPullRequestIcon />
-              Create PR
+              Create pull request
             </Button>
           )}
         </div>
@@ -502,7 +502,7 @@ function WorkspaceChatPanel({
               </EmptyMedia>
               <EmptyTitle>No chat yet</EmptyTitle>
               <EmptyDescription>
-                Start this Workspace&apos;s chat.
+                Start this workspace&apos;s chat.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
