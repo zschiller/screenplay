@@ -24,7 +24,10 @@ import {
 } from "@/components/canvas/layer-shell"
 import type { MockupLayerData, MockupStatus } from "@/lib/types"
 import { mockupStatusOf } from "@/lib/mockup-status"
-import { MockupStatusMenu } from "@/components/canvas/mockup-status-menu"
+import {
+  MockupStatusMark,
+  MockupStatusMenu,
+} from "@/components/canvas/mockup-status-menu"
 import { KnobsPopover } from "@/components/canvas/knobs-popover"
 import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
 import {
@@ -350,6 +353,7 @@ export function MockupLayer({
           title={layer.title}
           placeholder="Untitled"
           struck={mockupStatusOf(layer) === "set-aside"}
+          compactTrailing={<MockupStatusMark status={mockupStatusOf(layer)} />}
           selected={selected || groupSelected}
           color={remoteSelectedColor}
           onSelectLayer={api.deferSelect}
