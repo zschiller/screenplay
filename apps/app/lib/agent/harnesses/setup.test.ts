@@ -108,6 +108,7 @@ describe("rows (the live read + the dedupe rule)", () => {
     expect(opencodeRows).toHaveLength(1)
     expect(opencodeRows[0]).toMatchObject({
       key: "opencode-gateway",
+      label: "OpenCode",
       hostBinary: "opencode",
       installed: true,
       authenticated: true,

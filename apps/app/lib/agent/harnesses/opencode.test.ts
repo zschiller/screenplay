@@ -11,7 +11,9 @@ import {
 import {
   opencodeCompatHarness,
   opencodeConfigJson,
+  opencodeDirectoriesEnv,
   opencodeGatewayHarness,
+  opencodePrintModel,
   probeOpencodeAuth,
 } from "./opencode"
 import type { HarnessProcessRunner } from "./types"
@@ -374,19 +376,70 @@ describe("opencode setup descriptor fields (ADR 0015)", () => {
   })
 })
 
-describe("opencode is out of scope for model-backed naming (#679)", () => {
-  it("wires no printModel on either slot, because neither is chat-capable", () => {
-    // Naming rides the first detected *chat-capable* harness's print mode
-    // (`runHostModel`). A harness is chat-capable only when it has an ACP adapter
-    // to back the external Engine; both opencode slots are terminal-only today
-    // (`acpAdapter: null`), so the chat-capability filter drops them and they are
-    // deliberately left without a print-argv field — the "not chat-capable ⇒
-    // left alone" acceptance criterion, asserted so a later ACP wiring can't
-    // silently regress the invariant.
+describe("opencode in chats (#1589)", () => {
+  it("backs chat on both slots through `opencode acp`, with a print-mode call for naming", () => {
     for (const harness of [opencodeGatewayHarness, opencodeCompatHarness]) {
-      expect(harness.acpAdapter).toBeNull()
-      expect(harness.printModel).toBeUndefined()
+      expect(harness.acpAdapter).toMatchObject({
+        command: "opencode",
+        args: ["acp"],
+        planAsReply: true,
+      })
+      expect(harness.hostLabel).toBe("OpenCode")
+      expect(harness.printModel).toBe(opencodePrintModel)
     }
+  })
+
+  it("runs a one-shot prompt as `opencode run` and reads its stdout text", () => {
+    expect(opencodePrintModel.buildArgv("name this")).toEqual([
+      "opencode",
+      "run",
+      "name this",
+    ])
+    expect(opencodePrintModel.parseOutput("  Login page\n")).toBe("Login page")
+    expect(opencodePrintModel.parseOutput(" \n")).toBeNull()
+  })
+})
+
+describe("opencodeDirectoriesEnv", () => {
+  it("allows each folder for external_directory and adds its .agents/skills", () => {
+    const env = opencodeDirectoriesEnv(["/a", "/b"], {})
+    expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT!)).toEqual({
+      permission: {
+        external_directory: { "/a/*": "allow", "/b/*": "allow" },
+      },
+      skills: { paths: ["/a/.agents/skills", "/b/.agents/skills"] },
+    })
+  })
+
+  it("sets nothing when there are no folders", () => {
+    expect(opencodeDirectoriesEnv([], {})).toEqual({})
+  })
+
+  it("keeps a config the host env already sets", () => {
+    const env = opencodeDirectoriesEnv(["/ctx"], {
+      OPENCODE_CONFIG_CONTENT: JSON.stringify({
+        model: "anthropic/claude-sonnet-5-5",
+        permission: { bash: "ask", external_directory: "deny" },
+        skills: { paths: ["~/mine"] },
+      }),
+    })
+    expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT!)).toEqual({
+      model: "anthropic/claude-sonnet-5-5",
+      permission: {
+        bash: "ask",
+        external_directory: { "*": "deny", "/ctx/*": "allow" },
+      },
+      skills: { paths: ["~/mine", "/ctx/.agents/skills"] },
+    })
+  })
+
+  it("replaces an unparseable host config rather than failing the turn", () => {
+    const env = opencodeDirectoriesEnv(["/ctx"], {
+      OPENCODE_CONFIG_CONTENT: "{not json",
+    })
+    expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT!).skills).toEqual({
+      paths: ["/ctx/.agents/skills"],
+    })
   })
 })
 

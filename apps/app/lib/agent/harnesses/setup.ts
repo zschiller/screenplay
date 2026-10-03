@@ -6,7 +6,7 @@ import type { DetectionResult } from "@/lib/host-tool/setup-step"
 import { harnessAvailability, type HarnessResolver } from "./availability"
 import {
   defaultHostBinaryProber,
-  distinctByHostBinary,
+  hostHarnesses,
   probeHostFacts,
   type HostBinaryProber,
 } from "./host-binary"
@@ -165,9 +165,7 @@ export function createHarnessSetup(
   const facts = opts.facts ?? (() => probeHostFacts(probe))
 
   const rows = () =>
-    Promise.all(
-      distinctByHostBinary(harnesses).map((harness) => resolveRow(harness))
-    )
+    Promise.all(hostHarnesses(harnesses).map((harness) => resolveRow(harness)))
 
   /**
    * One row: probe presence, then — only for an installed binary whose
@@ -188,7 +186,7 @@ export function createHarnessSetup(
 
   const readiness = () =>
     Promise.all(
-      distinctByHostBinary(harnesses).map(async (harness) => {
+      hostHarnesses(harnesses).map(async (harness) => {
         const installed = await probe(harness.hostBinary)
         const authenticated =
           installed && harness.probeAuth ? await harness.probeAuth(run) : null
@@ -213,7 +211,10 @@ export function createHarnessSetup(
               authOnly
             )
           : authOnly
-      return { command, message: runMessage(kind, harness.label) }
+      return {
+        command,
+        message: runMessage(kind, harness.hostLabel ?? harness.label),
+      }
     },
 
     async markConnected() {

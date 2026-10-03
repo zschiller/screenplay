@@ -935,6 +935,26 @@ function claudeCodeBuiltIn(
   return null
 }
 
+/**
+ * OpenCode's built-in tools whose titles `opencode acp` rewrites as they run
+ * (#1589): its skill tool ends titled "Loaded skill: <name>".
+ */
+function opencodeBuiltIn(call: ToolCallMessage, input: Input): Harness | null {
+  const skill = call.title.match(/^Loaded skill: (.+)$/)?.[1]
+  if (skill || (call.title === "skill" && str(input.name))) {
+    return {
+      label: {
+        verb: "Read skill",
+        detail: skill ?? str(input.name)!,
+        as: "code",
+      },
+      icon: "skill",
+      quiet: true,
+    }
+  }
+  return null
+}
+
 /** The shell wrapper codex-acp's raw command carries (`/bin/zsh -lc '…'`). */
 const SHELL_WRAPPER = /^(?:\/bin\/)?(?:bash|zsh|sh)\s+-/
 
@@ -961,6 +981,11 @@ function byKind(call: ToolCallMessage, input: Input): RowLabel {
       detail: relativePath(path, call.title),
       as: "code",
     }
+  }
+  // OpenCode titles a finished search with its bare pattern (#1589).
+  const pattern = str(input.pattern)
+  if (call.kind === "search" && pattern) {
+    return { verb: "Search", detail: pattern, as: "code" }
   }
   // A harness's PascalCase tool name as words: `NotebookRead` → "Notebook read".
   if (/^[A-Z][a-z]+(?:[A-Z][a-z]+)+$/.test(call.title)) {
@@ -1082,7 +1107,10 @@ export function describeToolCall(
     else if (entry.output && entry.output !== "outcome") output = entry.output
     if (entry.gesture && restatesGesture(call)) quiet = true
   } else {
-    const known = codexProse(call.title) ?? claudeCodeBuiltIn(call, input)
+    const known =
+      codexProse(call.title) ??
+      claudeCodeBuiltIn(call, input) ??
+      opencodeBuiltIn(call, input)
     if (known) {
       label = known.label
       quiet = !!known.quiet

@@ -415,6 +415,55 @@ describe("a harness's own tools", () => {
     ).toEqual({ verb: "Edit notebook", detail: "a.ipynb", as: "code" })
   })
 
+  it("reads OpenCode's built-ins, whose titles change as they run (#1589)", () => {
+    for (const title of ["skill", "Loaded skill: tidy-copy"]) {
+      expect(
+        describe_({ title, kind: "other", rawInput: { name: "tidy-copy" } })
+      ).toMatchObject({
+        label: { verb: "Read skill", detail: "tidy-copy" },
+        icon: "skill",
+        quiet: true,
+      })
+    }
+    // A finished grep or glob is titled with its bare pattern.
+    expect(
+      describe_({
+        title: "useFoo",
+        kind: "search",
+        rawInput: { pattern: "useFoo" },
+      })
+    ).toMatchObject({
+      label: { verb: "Search", detail: "useFoo" },
+      icon: "search",
+      category: "search",
+    })
+    // A finished read or write is titled with the path; a command, with itself.
+    expect(
+      label({
+        title: "src/a.ts",
+        kind: "read",
+        rawInput: { filePath: "/Users/zack/app/src/a.ts" },
+      })
+    ).toMatchObject({ verb: "Read", detail: "src/a.ts" })
+    expect(
+      label({
+        title: "src/a.ts",
+        kind: "edit",
+        rawInput: { filePath: "src/a.ts", content: "x" },
+      })
+    ).toMatchObject({ verb: "Edit", detail: "src/a.ts" })
+    expect(
+      label({
+        title: "ls -a",
+        kind: "execute",
+        rawInput: { command: "ls -a", description: "List files" },
+      })
+    ).toEqual({ verb: "Run command", detail: "ls -a", as: "code" })
+    expect(label({ title: "screenplay_read_canvas" })).toEqual(
+      label({ title: "read_canvas" })
+    )
+  })
+
   it("reads Codex's prose titles", () => {
     expect(label({ title: "Read file 'src/a.ts'" })).toMatchObject({
       verb: "Read",

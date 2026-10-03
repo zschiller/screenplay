@@ -219,8 +219,13 @@ export class ExternalEngine implements Engine {
         // An agent planning through its collaboration mode (#1337) raises
         // ordinary tool approvals on a plan turn too; only its request to carry
         // out the finished plan is the gate.
+        // One whose plan is its last reply (#1589) never asks to carry it
+        // out, so every request it raises is an ordinary one.
         const collaborationPlan = session?.plansByCollaborationMode === true
-        if (collaborationPlan && !asksToCarryOutPlan(request)) {
+        if (
+          collaborationPlan &&
+          (session?.plansByReply || !asksToCarryOutPlan(request))
+        ) {
           return { approved: true }
         }
 
@@ -286,8 +291,17 @@ export class ExternalEngine implements Engine {
       } else {
         stopReason = await session.prompt(blocks, turnSignal)
       }
-      await inOrder(() => releaseHeld())
+      // A plan turn whose last reply is the plan (#1589) ends with that
+      // reply raised as the gate, the way another agent's request to carry
+      // out its plan is.
+      const gated =
+        session.plansByReply &&
+        stopReason === "end_turn" &&
+        !signal.aborted &&
+        (await inOrder(() => raiseReplyPlan(held, sink, session!, turn.runId)))
+      if (!gated) await inOrder(() => releaseHeld())
       ended = true
+      if (gated) return
 
       // The plan gate already closed the turn through the consumer; emitting a
       // terminal update now would be a no-op (the consumer guards a double
@@ -540,6 +554,32 @@ function planGate(
 }
 
 /**
+ * Raise the held last reply of a plan turn as its plan gate (#1589), for an
+ * agent whose plan is its answer: screenplay's own plan request, as
+ * {@link planGate} makes for an agent that asks. False when there is no
+ * reply to raise (the turn ended on a tool call), so the turn ends as usual.
+ */
+async function raiseReplyPlan(
+  held: HeldReply | null,
+  sink: EngineUpdateSink,
+  session: AcpSession,
+  runId: string
+): Promise<boolean> {
+  const plan = held?.text().trim()
+  if (!held || !plan) return false
+  held.release()
+  await sink({
+    kind: "permission_request",
+    request: planPermissionRequest({
+      sessionId: session.id,
+      toolCallId: `${runId}:plan`,
+      plan,
+    }),
+  })
+  return true
+}
+
+/**
  * The latest reply of a plan turn on an agent that plans through its
  * collaboration mode (#1337), held until something else arrives. Codex's
  * adapter sends the finished plan as a reply of its own just before asking to
@@ -568,13 +608,18 @@ class HeldReply {
 
   /** Everything held, dropping it when it is the plan the gate shows. */
   withoutPlan(plan: string): SessionUpdate[] {
-    const text = this.chunks
+    const text = this.text()
+    const held = this.release()
+    return text.trim() === plan.trim() ? [] : held
+  }
+
+  /** The held reply's text. */
+  text(): string {
+    return this.chunks
       .map((u) =>
         u.sessionUpdate === "agent_message_chunk" ? blockText(u.content) : ""
       )
       .join("")
-    const held = this.release()
-    return text.trim() === plan.trim() ? [] : held
   }
 
   /** Everything held, in arrival order. */
@@ -774,8 +819,8 @@ function endsToolCall(update: SessionUpdate): boolean {
  * Run tasks one at a time, in the order they were given. Each call resolves
  * with its own task's outcome; a failed task doesn't stop the ones after it.
  */
-function serially(): (task: () => Promise<void>) => Promise<void> {
-  let tail: Promise<void> = Promise.resolve()
+function serially(): <T>(task: () => Promise<T>) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve()
   return (task) => {
     const next = tail.then(task)
     tail = next.catch(() => {})

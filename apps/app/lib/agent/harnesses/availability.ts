@@ -6,6 +6,7 @@ import { HARNESSES, resolveLaunchArgv, selectHarnesses } from "./index"
 import {
   defaultHostBinaryProber,
   detectInstalledHarnessKeys,
+  hostHarnesses,
   type HostBinaryProber,
 } from "./host-binary"
 import { encodeHarnessModelId } from "./model-id"
@@ -235,7 +236,8 @@ export function createHostedResolver(
 
 /**
  * The desktop resolver: lists every catalog harness whose `hostBinary` the
- * injected prober reports present on the host PATH (no broker, no install). The
+ * injected prober reports present on the host PATH (no broker, no install),
+ * one per binary under its desktop name ({@link hostHarnesses}). The
  * probe runs **once per app launch** and is cached — a freshly-installed CLI
  * shows up after a restart, by design (live re-probe is out of scope) — so two
  * `list()` calls share one detection. `probe` defaults to the production
@@ -258,7 +260,7 @@ export function createDesktopResolver(
     async list() {
       detected ??= detectInstalledHarnessKeys(harnesses, probe)
       const present = await detected
-      return harnesses
+      return hostHarnesses(harnesses)
         .filter((harness) => present.has(harness.key))
         .map((harness) => ({
           harness,

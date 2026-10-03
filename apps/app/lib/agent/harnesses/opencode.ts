@@ -3,7 +3,9 @@ import "server-only"
 import type { SandboxInstance } from "@/lib/sandbox/types"
 import {
   commitAndPushRuleMarkdown,
+  type AcpAdapter,
   type Harness,
+  type HarnessPrintModel,
   type HarnessProcessRunner,
   type HostFacts,
 } from "./types"
@@ -145,28 +147,134 @@ export async function probeOpencodeAuth(
 }
 
 /**
+ * opencode's non-interactive call for the desktop
+ * {@link import("../host-model").runHostModel} seam (#674), now that it backs
+ * chat (#1589): `opencode run "<prompt>"`. With stdout not a terminal, it
+ * writes only the model's text there; its header and tool lines go to stderr.
+ * So the parse is a trim, as for `claude -p`. Exported for the descriptor test.
+ */
+export const opencodePrintModel: HarnessPrintModel = {
+  buildArgv: (prompt) => ["opencode", "run", prompt],
+  parseOutput: (stdout) => {
+    const text = stdout.trim()
+    return text.length > 0 ? text : null
+  },
+}
+
+/** opencode's global Skill folders, its own then Claude's and Codex's. */
+const opencodeOwnSkills = {
+  agentName: "OpenCode",
+  dirs: [".config/opencode/skills", ".claude/skills", ".agents/skills"],
+}
+
+/**
  * The desktop "Coding agents" setup trio shared by **both** opencode slots (ADR
  * 0015): one binary, one install, one login. The setup surface already collapses
  * the two slots to a single `opencode` row keyed on `hostBinary`
  * (the **Harness Setup** module's rows), so whichever slot is the row's representative
- * carries the same probe/install/sign-in — spread into each descriptor so they
- * stay identical by construction.
+ * carries the same probe/install/sign-in (and print-mode call) — spread into
+ * each descriptor so they stay identical by construction.
  */
-/** opencode's global Skill folders, its own then Claude's and Codex's. */
-const opencodeOwnSkills = {
-  agentName: "opencode",
-  dirs: [".config/opencode/skills", ".claude/skills", ".agents/skills"],
-}
-
 const opencodeSetup = {
   probeAuth: probeOpencodeAuth,
+  printModel: opencodePrintModel,
   buildInstallCommand: buildOpencodeInstallCommand,
   // `opencode auth login` runs the CLI's provider sign-in (a browser/OAuth or
   // device flow shown in the terminal) and exits when it resolves — the PTY exit
   // is the setup step's completion signal to re-detect. The credential it writes
   // under the opencode data dir is exactly what `probeOpencodeAuth` reads back.
   authCommand: ["opencode", "auth", "login"],
-} satisfies Pick<Harness, "probeAuth" | "buildInstallCommand" | "authCommand">
+} satisfies Pick<
+  Harness,
+  "probeAuth" | "buildInstallCommand" | "authCommand" | "printModel"
+>
+
+/**
+ * The env var opencode merges over its own config files, as the highest-
+ * priority source; it carries JSON in `opencode.json`'s shape.
+ */
+export const OPENCODE_CONFIG_CONTENT = "OPENCODE_CONFIG_CONTENT"
+
+/**
+ * The config that lets `opencode acp` read the chat's context folder (#1524)
+ * and load the Skills saved there (#1559) without asking. opencode's adapter
+ * doesn't take ACP `additionalDirectories` (it doesn't advertise them), and
+ * its tools ask before touching a path outside the working directory through
+ * the `external_directory` permission. So each folder gets an `allow` rule
+ * (opencode's last matching rule wins, and this config is merged last), and
+ * its `.agents/skills` goes on `skills.paths`, which opencode reads the way
+ * Codex reads the folder's `.agents/skills` (research #1528). A config the
+ * host env already sets is kept, with these added to it. Exported for the
+ * descriptor test.
+ */
+export function opencodeDirectoriesEnv(
+  directories: string[],
+  env: Record<string, string>
+): Record<string, string> {
+  if (directories.length === 0) return {}
+  const config = parseConfig(env[OPENCODE_CONFIG_CONTENT])
+  const permission = record(config.permission)
+  const external = permission.external_directory
+  const skills = record(config.skills)
+  const paths = Array.isArray(skills.paths) ? skills.paths : []
+  return {
+    [OPENCODE_CONFIG_CONTENT]: JSON.stringify({
+      ...config,
+      permission: {
+        ...permission,
+        external_directory: {
+          // A bare action is opencode's shorthand for every path.
+          ...(typeof external === "string"
+            ? { "*": external }
+            : record(external)),
+          ...Object.fromEntries(
+            directories.map((dir) => [`${dir}/*`, "allow"])
+          ),
+        },
+      },
+      skills: {
+        ...skills,
+        paths: [...paths, ...directories.map((dir) => `${dir}/.agents/skills`)],
+      },
+    }),
+  }
+}
+
+function parseConfig(text: string | undefined): Record<string, unknown> {
+  if (!text) return {}
+  try {
+    return record(JSON.parse(text))
+  } catch {
+    return {}
+  }
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+/**
+ * opencode's own ACP adapter, `opencode acp`, backing agent chat on desktop
+ * (#1589). It ships in the CLI, so it rides the user's own `opencode auth`
+ * login and providers, and needs nothing installed beside it.
+ */
+const opencodeAcpAdapter: AcpAdapter = {
+  command: "opencode",
+  args: ["acp"],
+  // It advertises a `model` config option whose values are opencode's
+  // `provider/model` ids, from the providers the user signed in to.
+  modelOption: "model",
+  // A second prompt doesn't join the running turn, and it takes no steering
+  // request, so a message sent mid-turn queues.
+  promptQueueing: false,
+  // It plans through its `mode` option's read-only `plan` agent, which ends
+  // the turn with the plan as its answer and never asks to carry it out
+  // (opencode's `plan_exit` tool is CLI-only).
+  planAsReply: true,
+  directoriesEnv: opencodeDirectoriesEnv,
+}
 
 /** opencode's global config + agents file live under `~/.config/opencode`. */
 const opencodeConfigDir = (homeDir: string) => `${homeDir}/.config/opencode`
@@ -267,10 +375,9 @@ export const opencodeGatewayHarness: Harness = {
   launchArgv: ["opencode"],
   // Both opencode slots share one host binary; detection probes `opencode` once.
   hostBinary: "opencode",
+  hostLabel: "OpenCode",
   ownSkills: opencodeOwnSkills,
-  // Terminal-only today: no ACP adapter wired, so the chat-capability filter
-  // drops it (opencode backs the Terminal Tab, not the external Engine).
-  acpAdapter: null,
+  acpAdapter: opencodeAcpAdapter,
   seed: seedOpencode(
     opencodeConfigJson({
       providerId: "gateway",
@@ -315,10 +422,9 @@ export const opencodeCompatHarness: Harness = {
   launchArgv: ["opencode"],
   // Both opencode slots share one host binary; detection probes `opencode` once.
   hostBinary: "opencode",
+  hostLabel: "OpenCode",
   ownSkills: opencodeOwnSkills,
-  // Terminal-only today: no ACP adapter wired, so the chat-capability filter
-  // drops it (opencode backs the Terminal Tab, not the external Engine).
-  acpAdapter: null,
+  acpAdapter: opencodeAcpAdapter,
   seed: seedOpencode(
     opencodeConfigJson({
       providerId: "compat",
