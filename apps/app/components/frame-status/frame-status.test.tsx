@@ -33,7 +33,7 @@ describe("FrameStatus on an unanswered frame (#1358)", () => {
 })
 
 describe("FrameStatus zoomed out (I17)", () => {
-  it("counter-scales into the frame's on-screen box", () => {
+  it("counter-scales the block, not the frame's background", () => {
     const { container } = render(
       <FrameStatus
         stage="booting"
@@ -43,8 +43,11 @@ describe("FrameStatus zoomed out (I17)", () => {
       />
     )
     const root = container.firstElementChild as HTMLElement
-    expect(root.style.transform).toBe("scale(2.5)")
-    expect(root.style.width).toBe("40%")
+    expect(root.style.transform).toBe("")
+    const block = root.querySelector<HTMLElement>(
+      "[data-slot=frame-status-block]"
+    )
+    expect(block?.style.transform).toBe("scale(2.5)")
   })
 
   it("scales with the canvas at 100% and closer", () => {
@@ -56,8 +59,10 @@ describe("FrameStatus zoomed out (I17)", () => {
         frameHeight={900}
       />
     )
-    const root = container.firstElementChild as HTMLElement
-    expect(root.style.transform).toBe("")
+    const block = container.querySelector<HTMLElement>(
+      "[data-slot=frame-status-block]"
+    )
+    expect(block?.style.transform).toBe("")
   })
 })
 
