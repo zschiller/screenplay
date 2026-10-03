@@ -9,13 +9,13 @@ import { mergeSkillIndexes, type OriginTaggedSkill } from "./merged"
  * Sandbox exists). Its `/` menu draws from this one resolver so it never
  * promises a Skill it cannot yet see:
  *
- *  - **No Sandbox** (`repo === null`): App Skills only, each tagged `"app"`.
+ *  - **No Sandbox** (`repo === null`): the canvas's and App Skills, Canvas
+ *    shadowing App on a name collision.
  *    Repo Skills live in a Branch's `.claude/skills/` and simply don't exist
- *    until the Branch is checked out, so the menu offers the bundled
- *    `screenplay-*` App Skills and nothing else — no error, no empty bail.
+ *    until the Branch is checked out, so the menu offers no Repo Skills — no
+ *    error, no empty bail.
  *  - **Sandbox present** (`repo` is an array, possibly empty): the merged
- *    App ∪ Repo set with Repo shadowing App on a name collision, exactly as
- *    {@link mergeSkillIndexes} defines it.
+ *    Repo, Canvas and App set, ranked as {@link mergeSkillIndexes} defines.
  *
  * Passing `null` rather than `[]` for the no-Sandbox case keeps the distinction
  * explicit at the call site: a missing Sandbox means "don't even look for Repo
@@ -24,13 +24,9 @@ import { mergeSkillIndexes, type OriginTaggedSkill } from "./merged"
  * trip — is what this seam is for.
  */
 export function resolveSkillMenuSource(
-  app: SkillMetadata[],
-  repo: OriginTaggedSkill[] | null
+  app: readonly SkillMetadata[],
+  repo: readonly SkillMetadata[] | null,
+  canvas: readonly SkillMetadata[] = []
 ): OriginTaggedSkill[] {
-  if (repo === null) {
-    return app
-      .map((s) => ({ ...s, origin: "app" as const }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }
-  return mergeSkillIndexes(app, repo)
+  return mergeSkillIndexes({ app, canvas, ...(repo ? { repo } : {}) })
 }

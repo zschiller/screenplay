@@ -265,6 +265,21 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     output: "markdown",
     label: subject("name", "code"),
   },
+  // The canvas's saved Skills (#1555).
+  save_skill: {
+    verb: "Save skill",
+    icon: "skill",
+    kind: "edit",
+    category: "edit",
+    label: subject("name", "code"),
+  },
+  delete_skill: {
+    verb: "Delete skill",
+    icon: "trash",
+    kind: "delete",
+    category: "edit",
+    label: subject("name", "code"),
+  },
   read_dev_server_logs: {
     verb: "Read dev server logs",
     icon: "logs",

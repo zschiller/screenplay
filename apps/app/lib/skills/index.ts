@@ -111,3 +111,14 @@ export function hasSkill(
 ): boolean {
   return skills.get(name)?.audience === audience
 }
+
+/** The App Skills `audience` sees, as a Skill source for the Skill tools. */
+export function appSkillSource(audience: SkillAudience = "workspace"): {
+  index(): SkillMetadata[]
+  read(name: string): string | null
+} {
+  return {
+    index: () => getSkillIndex(audience),
+    read: (name) => getSkill(name, audience),
+  }
+}

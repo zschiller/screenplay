@@ -29,6 +29,8 @@ export async function launchEngineTurn(params: {
   chatId: string
   runId: string
   systemPrompt: string
+  /** The turn's Skill index, for a resumed harness session (#1555). */
+  skillsNote?: string
   model: string
   tools: Record<string, Tool>
   /** Whether the turn was sent in plan mode (the external engine maps it to ACP). */
@@ -47,6 +49,7 @@ export async function launchEngineTurn(params: {
     chatId,
     runId,
     systemPrompt,
+    skillsNote,
     model,
     planMode,
     wake,
@@ -66,7 +69,17 @@ export async function launchEngineTurn(params: {
     const history = await loadAcpHistoryForModel(chatId)
     await driveEngineTurn(
       engine,
-      { chatId, runId, roomId, systemPrompt, model, history, tools, planMode },
+      {
+        chatId,
+        runId,
+        roomId,
+        systemPrompt,
+        skillsNote,
+        model,
+        history,
+        tools,
+        planMode,
+      },
       consumer,
       {
         isRunActive,

@@ -12,30 +12,52 @@ import type { FileStore } from "./store"
  * file store under `canvas/<roomId>/`.
  */
 
-/** Every Canvas Files entry in `collections`, read from the raw Y.Map. */
-export function readCanvasFiles(collections: RoomCollections): FileEntryData[] {
+/** The Room collections that hold a files module index. */
+export type RoomFileCollection = "files" | "skills"
+
+/** Every entry of one of the Room's file indexes, read from the raw Y.Map. */
+export function readRoomFileEntries(
+  collections: RoomCollections,
+  key: RoomFileCollection
+): FileEntryData[] {
   // The raw Y.Map, not `toArray()`: its cache only refreshes while something
   // observes it, and nothing does on the server.
   return Object.values(
-    collections.doc.getMap(COLLECTION_KEYS.files).toJSON()
+    collections.doc.getMap(COLLECTION_KEYS[key]).toJSON()
   ) as FileEntryData[]
 }
 
-/** The Canvas Files index over a Room's doc. */
-export function canvasFileIndex(room: RoomDoc): FileIndex {
+/** Every Canvas Files entry in `collections`. */
+export function readCanvasFiles(collections: RoomCollections): FileEntryData[] {
+  return readRoomFileEntries(collections, "files")
+}
+
+/**
+ * A files module index over one of a Room's collections: Canvas Files'
+ * (`files`), or Canvas Skills' (`skills`, `lib/skills/saved.ts`).
+ */
+export function roomFileIndex(
+  room: RoomDoc,
+  key: RoomFileCollection
+): FileIndex {
   return {
-    entries: () => room.readDoc(readCanvasFiles),
+    entries: () => room.readDoc((c) => readRoomFileEntries(c, key)),
     mutate: (fn) =>
       room.mutateDoc(({ doc }) => {
         // A fresh view per write: nothing observes a server doc.
         const c = createRoomCollections(doc)
         return fn({
-          all: () => readCanvasFiles(c),
-          set: (entry) => c.files.set(entry.id, entry),
-          delete: (id) => c.files.delete(id),
+          all: () => readRoomFileEntries(c, key),
+          set: (entry) => c[key].set(entry.id, entry),
+          delete: (id) => c[key].delete(id),
         })
       }),
   }
+}
+
+/** The Canvas Files index over a Room's doc. */
+export function canvasFileIndex(room: RoomDoc): FileIndex {
+  return roomFileIndex(room, "files")
 }
 
 /** A Room's Canvas Files over `store`. */

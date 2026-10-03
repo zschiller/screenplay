@@ -2,16 +2,19 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react"
 import { BookOpenIcon } from "@workspace/ui/components/icons"
+import type { SkillOrigin } from "@/lib/skills/merged"
 
 /**
  * Item shape for the `/` skill picker. `origin` is shown as a tag on each row
  * so the collaborator can tell where a Skill comes from: "App" for a bundled
- * Skill, "Repo" for one the Branch ships in its own `.claude/skills/`.
+ * Skill, "Repo" for one the Branch ships in its own `.claude/skills/`,
+ * "Canvas" for one a chat saved to the canvas. How each source shows is
+ * settled by #1556's design exploration.
  */
 export interface SkillMentionItem {
   name: string
   description: string
-  origin: "app" | "repo"
+  origin: SkillOrigin
 }
 
 export interface SkillMentionListHandle {
@@ -29,6 +32,7 @@ interface SkillMentionListProps {
 const ORIGIN_LABEL: Record<SkillMentionItem["origin"], string> = {
   app: "App",
   repo: "Repo",
+  canvas: "Canvas",
 }
 
 /**

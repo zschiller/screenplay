@@ -40,6 +40,13 @@ export interface EngineTurn {
   runId: string
   roomId: string
   systemPrompt: string
+  /**
+   * The turn's Skill index as a note (#1555). The system prompt carries it
+   * too, so an Engine that sends the prompt every turn ignores this; one that
+   * resumes a session holding its first turn's prompt leads the new user
+   * message with it, so a Skill saved since is known.
+   */
+  skillsNote?: string
   model: string
   /** ACP-native conversation history (prior turns + the new user message). */
   history: AcpMessageRecord[]

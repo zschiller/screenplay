@@ -524,12 +524,13 @@ export function AgentChat({
         <Composer
           ref={composerRef}
           markdownLayers={markdownLayers}
-          // The `/` menu lists this Branch's merged App ∪ Repo Skills, fetched
-          // when the chat opens (so reopening after editing a Repo Skill
-          // refreshes it); Document and Coordinator chats have no Skills.
+          // The `/` menu lists this Branch's Repo Skills, the canvas's and
+          // the App Skills, fetched when the chat opens (so reopening after a
+          // Skill changes refreshes it); Coordinator and sketch chats have no
+          // `/` menu yet (#1556).
           skillSource={
             capabilities.skills
-              ? { sandboxName: capabilities.skillSandboxName }
+              ? { sandboxName: capabilities.skillSandboxName, roomId }
               : undefined
           }
           model={model}

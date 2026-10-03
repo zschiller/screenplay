@@ -1,19 +1,15 @@
 import "server-only"
 
 import { sandboxProvider } from "@/lib/sandbox"
-import type { SandboxInstance } from "@/lib/sandbox"
 
-import { getSkill, getSkillIndex } from "./index"
+import type { SkillMetadata } from "./frontmatter"
+import { getSkillIndex } from "./index"
 import {
   enumerateRepoSkills,
-  readRepoSkillBody,
   sandboxRepoSkillFs,
+  type RepoSkillFs,
 } from "./repo-skills"
-import {
-  mergeSkillIndexes,
-  resolveSkillBody,
-  type OriginTaggedSkill,
-} from "./merged"
+import type { OriginTaggedSkill } from "./merged"
 import { resolveSkillMenuSource } from "./menu-source"
 
 /**
@@ -28,7 +24,11 @@ import { resolveSkillMenuSource } from "./menu-source"
  * Skill on a branch can't take down the whole chat. The App Skills always show.
  */
 
-async function enumerateRepoSkillsForSandbox(
+/**
+ * A Branch's Repo Skills, best-effort: an unreachable sandbox or a malformed
+ * Repo Skill reads as none.
+ */
+export async function enumerateRepoSkillsForSandbox(
   sandboxName: string
 ): Promise<OriginTaggedSkill[]> {
   try {
@@ -44,57 +44,34 @@ async function enumerateRepoSkillsForSandbox(
 }
 
 /**
- * The merged, origin-tagged Skill index for a Branch's sandbox: App Skills
- * (always) plus its Repo Skills (best-effort), deduped Repo-wins. Baked into
- * the per-Agent system prompt at chat init — so editing a Repo Skill on a
- * branch and reopening the chat rolls a fresh prompt — and used for the
- * unknown-name listing in `read_skill`.
- */
-export async function getMergedSkillIndexForSandbox(
-  sandboxName: string
-): Promise<OriginTaggedSkill[]> {
-  const repo = await enumerateRepoSkillsForSandbox(sandboxName)
-  return mergeSkillIndexes(getSkillIndex(), repo)
-}
-
-/**
  * The `/`-menu Skill source for a Composer, honest about the pre-Sandbox case.
- * With a `sandboxName` it returns the Branch's merged App ∪ Repo index
- * (Repo-wins on collision); without one — the seed Composer of the
- * New-Workspace dialog, which renders before any Sandbox exists — it returns
- * App Skills only, so the menu offers the bundled `screenplay-*` Skills rather
- * than bailing. Repo enumeration is skipped entirely when there is no Sandbox.
+ * With a `sandboxName` it returns the Branch's merged index (Repo, then
+ * Canvas, then App); without one (the seed Composer of the New-Workspace
+ * dialog, which renders before any Sandbox exists) it leaves out Repo Skills
+ * rather than bailing. `canvas` is the canvas's saved Skills, when the
+ * Composer is on one.
  */
 export async function getSkillMenuSource(
-  sandboxName?: string | null
+  sandboxName: string | null | undefined,
+  canvas: readonly SkillMetadata[] = []
 ): Promise<OriginTaggedSkill[]> {
   const repo = sandboxName
     ? await enumerateRepoSkillsForSandbox(sandboxName)
     : null
-  return resolveSkillMenuSource(getSkillIndex(), repo)
+  return resolveSkillMenuSource(getSkillIndex(), repo, canvas)
 }
 
 /**
- * Resolve a Skill's body for `read_skill`, sandbox-first then app. Reads the
- * Branch's Repo Skill of that name if present (so an override wins), otherwise
- * the bundled App Skill. Returns `null` when neither has it.
+ * A Branch's Repo Skill filesystem, or `null` when its sandbox is
+ * unreachable, so `read_skill` falls through to the other sources instead of
+ * failing.
  */
-export async function resolveSkillBodyForSandbox(
-  sandboxName: string,
-  name: string
-): Promise<string | null> {
-  return resolveSkillBody(name, {
-    readRepoBody: async (n) => {
-      try {
-        const sandbox: SandboxInstance = await sandboxProvider.get({
-          name: sandboxName,
-        })
-        return await readRepoSkillBody(sandboxRepoSkillFs(sandbox), n)
-      } catch {
-        // Sandbox unreachable — fall through to the App Skill.
-        return null
-      }
-    },
-    readAppBody: (n) => getSkill(n),
-  })
+export async function repoSkillFsForSandbox(
+  sandboxName: string
+): Promise<RepoSkillFs | null> {
+  try {
+    return sandboxRepoSkillFs(await sandboxProvider.get({ name: sandboxName }))
+  } catch {
+    return null
+  }
 }

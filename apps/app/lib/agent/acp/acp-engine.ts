@@ -257,8 +257,10 @@ export class ExternalEngine implements Engine {
       // its context is seeded (the first turn reduces to just the new message),
       // and lead with the system prompt so the agent's instructions (the
       // always-commit-and-push rule, plan-mode protocol, skill index) reach it.
+      // A resumed session's prompt is its first turn's, so the turn's Skill
+      // index leads the new message: a Skill saved since is known (#1555).
       const blocks = resumed
-        ? promptBlocks(turn.history)
+        ? withSystemPrompt(turn.skillsNote ?? "", promptBlocks(turn.history))
         : withSystemPrompt(turn.systemPrompt, replayBlocks(turn.history))
       // Only a Harness that queues prompts (#1191) or takes a steering request
       // (#1192) can be steered; the run records the answer now its session is

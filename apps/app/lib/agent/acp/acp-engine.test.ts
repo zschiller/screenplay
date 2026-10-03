@@ -614,4 +614,43 @@ describe("ExternalEngine — native session resume", () => {
 
     expect(rec.prompted()).toEqual([{ type: "text", text: "second question" }])
   })
+
+  /**
+   * A Skill saved since the session's first turn isn't in the prompt it holds
+   * (#1555), so a resumed turn leads with the turn's Skill index; a fresh one
+   * has it in the system prompt already.
+   */
+  it("leads a resumed turn with its Skill index", async () => {
+    const rec = recordingFactory()
+    const engine = new ExternalEngine({
+      sessionFactory: rec.factory,
+      loadSessionId: "stored-sess",
+    })
+
+    await engine.run(
+      { ...turn("ALWAYS commit and push"), skillsNote: "[Skills: review]" },
+      () => {},
+      new AbortController().signal
+    )
+
+    expect(rec.prompted()).toEqual([
+      { type: "text", text: "[Skills: review]" },
+      { type: "text", text: "second question" },
+    ])
+  })
+
+  it("doesn't add the Skill index to a fresh session's prompt", async () => {
+    const rec = recordingFactory()
+    const engine = new ExternalEngine({ sessionFactory: rec.factory })
+
+    await engine.run(
+      { ...turn("SYSTEM"), skillsNote: "[Skills: review]" },
+      () => {},
+      new AbortController().signal
+    )
+
+    const texts = (rec.prompted() ?? []).map((b) => blockText(b))
+    expect(texts[0]).toBe("SYSTEM")
+    expect(texts.join("\n")).not.toContain("[Skills: review]")
+  })
 })

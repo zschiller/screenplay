@@ -13,7 +13,10 @@ import { buildDocumentTools } from "./document-tools"
 import { buildMockupTools } from "./mockup-tools"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
-import { buildSketchSkillTools, sketchSkillIndex } from "./sketch-tools"
+import { sketchAppSkills, sketchSkillIndex } from "./sketch-tools"
+import { buildSkillTools } from "./skill-tools"
+import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
+import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import { buildFileTools } from "./file-tools"
 import { chatFrameDriveTools } from "@/lib/frame-drive/live"
 import { canvasFiles } from "@/lib/files"
@@ -34,6 +37,8 @@ export interface SketchTarget {
 export interface SketchContext {
   chatId: string
   layerDirectory: LayerDirectory
+  /** The canvas's Skills, then its Mockup App Skills; no repository. */
+  skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
   /** The sender's account memory (#1513). */
@@ -44,25 +49,29 @@ export interface SketchContext {
 export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
   kind: "sketch",
   async loadContext(room, target) {
-    const [layerDirectory, memory, files, accountMemory] = await Promise.all([
-      loadLayerDirectory(room),
-      loadCanvasMemory(room),
-      loadCanvasFiles(room),
-      loadAccountMemory(turnSender(target)),
-    ])
+    const [layerDirectory, canvas, memory, files, accountMemory] =
+      await Promise.all([
+        loadLayerDirectory(room),
+        loadCanvasSkills(room),
+        loadCanvasMemory(room),
+        loadCanvasFiles(room),
+        loadAccountMemory(turnSender(target)),
+      ])
     return {
       chatId: target.chatId,
       layerDirectory,
+      skills: mergeSkillIndexes({ canvas, app: sketchSkillIndex() }),
       memory,
       files,
       accountMemory,
     }
   },
+  skillIndex: (ctx) => ctx.skills,
   buildSystemPrompt(ctx, naming) {
     return buildSketchSystemPrompt({
       layerDirectory: ctx.layerDirectory,
       chatId: ctx.chatId,
-      skills: sketchSkillIndex(),
+      skills: ctx.skills,
       memory: ctx.memory,
       files: ctx.files,
       accountMemory: ctx.accountMemory,
@@ -76,8 +85,12 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
         ...buildMockupTools({ room, chatId }),
         // Driving a Mockup in the asker's view (#1391).
         ...chatFrameDriveTools({ room, userId }),
-        // The Mockup App Skills.
-        ...buildSketchSkillTools(),
+        // The canvas's Skills and the Mockup App Skills (#1555).
+        ...buildSkillTools({
+          canvas: canvasSkills(room),
+          chatId,
+          app: sketchAppSkills,
+        }),
         ...buildLayerReadTools({ room }),
         ...buildQuestionTools(),
         // The canvas's saved files (#1514): text only, with no sandbox.

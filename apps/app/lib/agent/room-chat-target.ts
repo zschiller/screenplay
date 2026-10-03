@@ -16,7 +16,10 @@ import { liveWorkspaceReadPorts } from "./room-read-ports"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
-import { getSkillIndex } from "@/lib/skills"
+import { appSkillSource, getSkillIndex } from "@/lib/skills"
+import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
+import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
+import { buildSkillTools } from "./skill-tools"
 import type { RoomDoc } from "@/lib/room-access"
 import { buildFileTools } from "./file-tools"
 import { canvasFiles } from "@/lib/files"
@@ -66,6 +69,8 @@ export interface RoomTarget {
 
 export interface RoomContext {
   canvasSummary: string
+  /** The canvas's Skills, then the Coordinator's App Skills; no Repo Skills. */
+  skills: OriginTaggedSkill[]
   memory: MemoryData[]
   files: FileEntryData[]
   /** The sender's account memory (#1513); none on a wake. */
@@ -117,23 +122,32 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   async loadContext(room, target) {
     const ports = liveRoomToolPorts(room, target)
     const terminalTabs = await ports.listTerminalTabs().catch(() => [])
-    const [canvasSummary, memory, files, accountMemory] = await Promise.all([
-      ports.readDoc((collections) =>
-        summarizeCanvas(collections, terminalTabs)
-      ),
-      loadCanvasMemory(room),
-      loadCanvasFiles(room),
-      loadAccountMemory(turnSender(target)),
-    ])
-    return { canvasSummary, memory, files, accountMemory }
+    const [canvasSummary, canvas, memory, files, accountMemory] =
+      await Promise.all([
+        ports.readDoc((collections) =>
+          summarizeCanvas(collections, terminalTabs)
+        ),
+        loadCanvasSkills(room),
+        loadCanvasMemory(room),
+        loadCanvasFiles(room),
+        loadAccountMemory(turnSender(target)),
+      ])
+    return {
+      canvasSummary,
+      skills: mergeSkillIndexes({ canvas, app: getSkillIndex("coordinator") }),
+      memory,
+      files,
+      accountMemory,
+    }
   },
+  skillIndex: (ctx) => ctx.skills,
   buildSystemPrompt(ctx, naming) {
     return buildRoomSystemPrompt({
       canvasSummary: ctx.canvasSummary,
       memory: ctx.memory,
       files: ctx.files,
       accountMemory: ctx.accountMemory,
-      skills: getSkillIndex("coordinator"),
+      skills: ctx.skills,
       toolNaming: naming,
     })
   },
@@ -151,6 +165,12 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
         ...buildFileTools({
           canvas: canvasFiles(room),
           chatId: target.coordinatorChatId ?? "",
+        }),
+        // The canvas's Skills and the Coordinator's App Skills (#905, #1555).
+        ...buildSkillTools({
+          canvas: canvasSkills(room),
+          chatId: target.coordinatorChatId ?? "",
+          app: appSkillSource("coordinator"),
         }),
       },
     }
