@@ -975,7 +975,8 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     devServerPort: 3000,
     createdAt: daysAgo(now, 7),
     sidebarOrder: 1,
-    // Another member's, so its env var values are hidden from you (#1416).
+    // Another member's (Priya's), so its env var values are hidden from you
+    // (#1416) and hosted Canvas settings names who added it (#1427).
     addedBy: COLLABORATOR_ID,
   }
   const branch: BranchData = {
@@ -1029,7 +1030,8 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
       // (#884) have a two-repository canvas to show.
       repos: [repo, apiRepo],
       repoEnv: {
-        [apiRepo.id]: "DATABASE_URL=postgres://api@db.acme.test/api\nSTRIPE_SECRET_KEY=sk_test_51Hx9fixture",
+        [apiRepo.id]:
+          "DATABASE_URL=postgres://api@db.acme.test/api\nSTRIPE_SECRET_KEY=sk_test_51Hx9fixture",
       },
       branches: [branch, apiBranch],
       iframeLayers: [

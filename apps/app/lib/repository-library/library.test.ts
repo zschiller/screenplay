@@ -707,6 +707,70 @@ describe("saving to all from a canvas", () => {
   })
 })
 
+describe("on hosted, a canvas's copy belongs to the canvas", () => {
+  /** Zack switched his "web" on a canvas he shares with Ada, and on his own. */
+  function shared() {
+    const web = repository("web")
+    const team = makeHarness()
+    const solo = makeHarness()
+    switchOn(team.collections, web, { id: "t", createdAt: 5, addedBy: "zack" })
+    switchOn(solo.collections, web, { id: "s", createdAt: 5, addedBy: "zack" })
+    const zack = setup({
+      repositories: [web],
+      canvases: { team, solo },
+      mode: "hosted",
+    })
+    const ada = setup({
+      canvases: { team },
+      mode: "hosted",
+      userId: "ada",
+    })
+    return { web, team, solo, zack, ada }
+  }
+
+  it("a Settings edit reaches no canvas, shared or solo", async () => {
+    const { web, team, solo, zack } = shared()
+    await zack.store.markMigrated()
+
+    await zack.library.save({ ...web, devScript: "pnpm start" })
+
+    expect(await zack.library.list()).toEqual([
+      { ...web, devScript: "pnpm start" },
+    ])
+    expect(repoOf(team, "t")?.devScript).toBe("pnpm dev")
+    expect(repoOf(solo, "s")?.devScript).toBe("pnpm dev")
+  })
+
+  it("a teammate's edit stays on the shared canvas", async () => {
+    const { web, team, solo, zack, ada } = shared()
+    await zack.store.markMigrated()
+    await ada.store.markMigrated()
+
+    // Ada's Save in the edit form: the canvas's own write, nothing else.
+    team.ops.patch("repos", "t", { devScript: "pnpm dev --turbo" })
+
+    expect(await zack.library.list()).toEqual([web])
+    expect(await ada.library.list()).toEqual([])
+    expect(repoOf(solo, "s")?.devScript).toBe("pnpm dev")
+  })
+
+  it("refuses save to all, even from whoever added it", async () => {
+    const { web, team, solo, zack, ada } = shared()
+    await zack.store.markMigrated()
+    await ada.store.markMigrated()
+    await ada.store.save([web])
+
+    for (const { library } of [zack, ada]) {
+      await expect(
+        library.saveToAll({ ...web, devScript: "pnpm start" })
+      ).rejects.toThrow()
+    }
+    expect(await zack.store.load()).toEqual([web])
+    expect(repoOf(team, "t")?.devScript).toBe("pnpm dev")
+    expect(repoOf(solo, "s")?.devScript).toBe("pnpm dev")
+  })
+})
+
 describe("deleting a repository", () => {
   it("counts the canvases that use it, and none that don't", async () => {
     const web = repository("web")
