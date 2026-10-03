@@ -1,7 +1,7 @@
 import { tool } from "ai"
 import { z } from "zod"
 
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { annotateTools } from "@/lib/mcp/tool-server"
 
 /**
  * A Workspace agent's handle on its own dev server: the supervised `devScript`
@@ -53,7 +53,7 @@ const RESTART_TAIL_LINES = 40
 const MAX_LOG_CHARS = 20_000
 
 export function buildDevServerTools(ports: DevServerPorts) {
-  return {
+  const tools = {
     read_dev_server_logs: tool({
       description:
         "Read the output of this Workspace's dev server (the one behind the live preview): compile errors, runtime errors, request logs. Screenplay runs the dev server in the background, so its output never shows up in your own shell. Also reports whether the server is answering and the local URL it listens on, which you can curl. Use this first whenever the preview is blank, erroring or stale.",
@@ -124,6 +124,30 @@ export function buildDevServerTools(ports: DevServerPorts) {
       execute: () => launch(ports, "started", "start"),
     }),
   }
+  // For a harness reaching these tools over MCP, so none of them prompts.
+  return annotateTools(tools, {
+    read_dev_server_logs: { readOnlyHint: true, openWorldHint: false },
+    // Bounces a process the supervisor would restart anyway; no data is lost.
+    restart_dev_server: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    // Stops and starts the same process; no data is lost either way.
+    stop_dev_server: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    start_dev_server: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  })
 }
 
 /** Restart and Start: the same launch, told apart only in their words. */
@@ -148,33 +172,6 @@ async function launch(
 }
 
 export type DevServerTools = ReturnType<typeof buildDevServerTools>
-
-/** For a harness reaching these tools over MCP, so none of them prompts. */
-export const DEV_SERVER_TOOL_ANNOTATIONS: Readonly<
-  Record<keyof DevServerTools, McpToolAnnotations>
-> = {
-  read_dev_server_logs: { readOnlyHint: true, openWorldHint: false },
-  // Bounces a process the supervisor would restart anyway; no data is lost.
-  restart_dev_server: {
-    readOnlyHint: false,
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: false,
-  },
-  // Stops and starts the same process; no data is lost either way.
-  stop_dev_server: {
-    readOnlyHint: false,
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: false,
-  },
-  start_dev_server: {
-    readOnlyHint: false,
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: false,
-  },
-}
 
 function describeStatus(status: DevServerStatus): string {
   if (status.stopped) {

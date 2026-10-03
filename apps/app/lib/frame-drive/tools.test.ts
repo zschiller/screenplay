@@ -15,10 +15,10 @@ import {
 import {
   buildFrameDriveTools,
   findDrivable,
-  FRAME_DRIVE_TOOL_ANNOTATIONS,
   phrase,
 } from "@/lib/frame-drive/tools"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
+import { toolAnnotations } from "@/lib/mcp/tool-server"
 
 const EVAL_LIKE = /eval|script|exec|run_js|javascript|inject|function/i
 
@@ -125,9 +125,7 @@ describe("Frame Drive tools", () => {
     const { tools: all } = tools(() => ({ status: "failed", reason: "" }))
     for (const name of Object.keys(all)) expect(name).not.toMatch(EVAL_LIKE)
     for (const op of DRIVE_OPS) expect(op).not.toMatch(EVAL_LIKE)
-    expect(Object.keys(FRAME_DRIVE_TOOL_ANNOTATIONS).sort()).toEqual(
-      Object.keys(all).sort()
-    )
+    for (const t of Object.values(all)) expect(toolAnnotations(t)).toBeDefined()
   })
 
   it("drives the Workspace's own frame by default", async () => {

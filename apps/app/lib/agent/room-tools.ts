@@ -16,8 +16,7 @@ import {
   buildWorkspaceReadTools,
   type WorkspaceReadPorts,
 } from "@/lib/agent/room-read-tools"
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
-import { QUESTION_TOOL_ANNOTATIONS } from "@/lib/agent/question-tools"
+import { annotateTools } from "@/lib/mcp/tool-server"
 import {
   addMemory,
   editMemory,
@@ -147,65 +146,6 @@ export type TerminalTabSummary = {
 }
 
 /**
- * MCP annotations for the Coordinator's tools, by tool name, sent when a
- * desktop harness lists them (#903). Give each tool the honest hints: no
- * Screenplay tool asks the user first on either harness (#1217), and that is
- * the harness's configuration, not the hints. Claude Code pre-allows every
- * tool on the server (`COORDINATOR_ALLOWED_TOOLS`). Codex asks for a tool
- * that isn't `readOnlyHint` or both `destructiveHint: false` and
- * `openWorldHint: false`, but it asks the ACP client, and the external
- * engine allows every such request on a Coordinator turn, which is never in
- * plan mode (`acp-engine.ts`).
- */
-export const ROOM_TOOL_ANNOTATIONS: Readonly<
-  Record<string, McpToolAnnotations>
-> = {
-  read_canvas: { readOnlyHint: true, openWorldHint: false },
-  // Workspace reads (`room-read-tools.ts`).
-  read_workspace_chat: { readOnlyHint: true, openWorldHint: false },
-  read_workspace_diff: { readOnlyHint: true, openWorldHint: false },
-  read_workspace_file: { readOnlyHint: true, openWorldHint: false },
-  view_frame: { readOnlyHint: true, openWorldHint: false },
-  read_frame_html: { readOnlyHint: true, openWorldHint: false },
-  // Writes only canvas memory (#902), which the spec lets act right away.
-  write_memory: {
-    readOnlyHint: false,
-    destructiveHint: false,
-    openWorldHint: false,
-  },
-  // Starts a turn in a Workspace chat the user can see and take over.
-  send_to_workspace: { destructiveHint: false, openWorldHint: false },
-  // Creates Workspaces the user can remove again (#898).
-  create_workspaces: { destructiveHint: false, openWorldHint: false },
-  // Stops a turn the user can resume by messaging the Workspace again.
-  stop_workspace: { destructiveHint: false, openWorldHint: false },
-  // Chats with no repository: Documents and Mockups only.
-  start_chat: { destructiveHint: false, openWorldHint: false },
-  send_to_chat: { destructiveHint: false, openWorldHint: false },
-  // A PR on GitHub, and a removal that tears the sandbox down for good (#901).
-  open_pull_request: { destructiveHint: false, openWorldHint: true },
-  remove_workspace: { destructiveHint: true, openWorldHint: false },
-  // Reads a bundled Coordinator App Skill (#905).
-  read_skill: { readOnlyHint: true, openWorldHint: false },
-  // Shared by every chat's toolset (`layer-read-tools.ts`, `question-tools.ts`).
-  read_document: { readOnlyHint: true, openWorldHint: false },
-  ...QUESTION_TOOL_ANNOTATIONS,
-  // Arrange tools (`room-arrange-tools.ts`): canvas-only writes, every one
-  // undoable with `undo_changes`, so none is destructive.
-  create_frames: { destructiveHint: false, openWorldHint: false },
-  move_group: { destructiveHint: false, openWorldHint: false },
-  arrange_groups: { destructiveHint: false, openWorldHint: false },
-  move_to_group: { destructiveHint: false, openWorldHint: false },
-  merge_groups: { destructiveHint: false, openWorldHint: false },
-  rename: { destructiveHint: false, openWorldHint: false },
-  remove: { destructiveHint: false, openWorldHint: false },
-  undo_changes: { destructiveHint: false, openWorldHint: false },
-  list_changes: { readOnlyHint: true, openWorldHint: false },
-  // Moves only the asker's own view (`room-view-tools.ts`).
-  show_on_canvas: { readOnlyHint: true, openWorldHint: false },
-}
-
-/**
  * The Coordinator's tools for one turn: each call builds a new turn's tool set,
  * and the canvas changes its tools make are logged under that turn.
  */
@@ -214,9 +154,7 @@ export function buildRoomTools(
   ports: RoomToolPorts,
   turnId: string = nanoid()
 ): ToolSet {
-  return {
-    ...buildArrangeTools(ports.mutateDoc, turnId),
-    ...buildViewTools(ports.readDoc),
+  const tools = {
     read_canvas: tool({
       description:
         "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), Groups (name, position, what they hold), frames (label, route, size, Workspace), documents, mockups and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
@@ -232,7 +170,6 @@ export function buildRoomTools(
         return summary || `Canvas ${roomId} is empty.`
       },
     }),
-    ...buildWorkspaceReadTools(ports),
     write_memory: tool({
       description: `Add, edit or remove an entry of canvas memory: the preferences, decisions and facts about the repositories that every chat on this canvas reads in its system prompt. Add one short, self-contained sentence per entry (at most ${MEMORY_ENTRY_MAX_LENGTH} characters). Edit or remove by the id shown in brackets in the Canvas memory block of your prompt. Never save secrets or credentials.`,
       inputSchema: jsonSchema<WriteMemoryInput>({
@@ -413,6 +350,47 @@ export function buildRoomTools(
       execute: async ({ name }) =>
         getSkill(name, "coordinator") ??
         `Unknown skill: "${name}". Available skills:\n${coordinatorSkillListing()}`,
+    }),
+  }
+  return {
+    ...buildArrangeTools(ports.mutateDoc, turnId),
+    ...buildViewTools(ports.readDoc),
+    ...buildWorkspaceReadTools(ports),
+    // MCP annotations, sent when a desktop harness lists the tools (#903).
+    // Give each tool the honest hints: no Screenplay tool asks the user first
+    // on either harness (#1217), and that is the harness's configuration, not
+    // the hints. Claude Code pre-allows every tool on the server
+    // (`COORDINATOR_ALLOWED_TOOLS`). Codex asks for a tool that isn't
+    // `readOnlyHint` or both `destructiveHint: false` and `openWorldHint:
+    // false`, but it asks the ACP client, and the external engine allows
+    // every such request on a Coordinator turn, which is never in plan mode
+    // (`acp-engine.ts`).
+    ...annotateTools(tools, {
+      read_canvas: { readOnlyHint: true, openWorldHint: false },
+      // Writes only canvas memory (#902), which the spec lets act right away.
+      write_memory: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+      // Starts a turn in a Workspace chat the user can see and take over.
+      send_to_workspace: { destructiveHint: false, openWorldHint: false },
+      // Creates Workspaces the user can remove again (#898).
+      [CREATE_WORKSPACES_TOOL]: {
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+      // Stops a turn the user can resume by messaging the Workspace again.
+      stop_workspace: { destructiveHint: false, openWorldHint: false },
+      // Chats with no repository: Documents and Mockups only.
+      start_chat: { destructiveHint: false, openWorldHint: false },
+      send_to_chat: { destructiveHint: false, openWorldHint: false },
+      // A PR on GitHub, and a removal that tears the sandbox down for good
+      // (#901).
+      [OPEN_PULL_REQUEST_TOOL]: { destructiveHint: false, openWorldHint: true },
+      [REMOVE_WORKSPACE_TOOL]: { destructiveHint: true, openWorldHint: false },
+      // Reads a bundled Coordinator App Skill (#905).
+      read_skill: { readOnlyHint: true, openWorldHint: false },
     }),
   }
 }

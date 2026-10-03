@@ -44,6 +44,27 @@ export interface ToolNaming {
 export const BARE_TOOL_NAMING: ToolNaming = { name: (tool) => tool }
 
 /**
+ * `naming`, limited to the tools a turn has (#1487): naming any other tool
+ * throws, so a prompt built with it can't tell the model to call a tool that
+ * isn't there.
+ */
+export function namingWithin(
+  naming: ToolNaming,
+  tools: Iterable<string>
+): ToolNaming {
+  const has = new Set(tools)
+  return {
+    ...naming,
+    name(tool) {
+      if (!has.has(tool)) {
+        throw new Error(`A prompt names ${tool}, which its turn doesn't have.`)
+      }
+      return naming.name(tool)
+    },
+  }
+}
+
+/**
  * The naming for a harness that reaches our tools as the MCP server `server`.
  * Claude Code's names are fixed (`mcp__<server>__<tool>`, the form
  * {@link bareToolName} strips), so its prompt names them exactly. Other

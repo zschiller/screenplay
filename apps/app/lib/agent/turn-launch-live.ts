@@ -1,19 +1,12 @@
 import "server-only"
 
 import { after } from "next/server"
-import { buildAgentSystemPrompt } from "./config"
-import { getMergedSkillIndexForSandbox } from "@/lib/skills/sandbox-index"
-import { toolsetFor } from "./toolset"
-import type { ToolContext } from "./tools"
+import { toolsetOn } from "./toolset"
 import type { RoomDoc } from "@/lib/room-access"
-import {
-  agentChatTarget,
-  loadCanvasMemory,
-  loadLayerDirectory,
-  prepareChatTarget,
-  roomChatTarget,
-  sketchChatTarget,
-} from "./chat-target-kinds"
+import { prepareChatTarget } from "./chat-target-kinds"
+import { workspaceChatTarget } from "./workspace-chat-target"
+import { roomChatTarget, type RoomTarget } from "./room-chat-target"
+import { sketchChatTarget } from "./sketch-chat-target"
 import { ensureRoomChat } from "@/lib/room-chat"
 import {
   isSketchChat,
@@ -75,7 +68,6 @@ import {
   type SketchTurnRequest,
   type WorkspaceTurnRequest,
 } from "./room-tools"
-import type { RoomTarget } from "./chat-target-kinds"
 import { startBranchProvisioning } from "@/lib/branch/provisioning-live"
 import { isLocalBuild } from "@/lib/local-mode"
 import { createGitHubPr } from "@/lib/github-pr"
@@ -263,12 +255,9 @@ export function roomTurn(input: {
       await ensureRoomChat(room)
       const prepared = await prepareChatTarget(
         room,
-        roomChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
-        coordinatorTarget(room, chatId, {
-          requesterId: input.requesterId,
-        }) as unknown as never,
-        undefined,
-        { toolNaming: toolNamingForTurn(input.model) }
+        roomChatTarget,
+        coordinatorTarget(room, chatId, { requesterId: input.requesterId }),
+        toolNamingForTurn(input.model)
       )
       if (!prepared) return null
 
@@ -476,43 +465,20 @@ export function sandboxTurn(input: {
       // than the client-supplied `isFirstChat`.
       const isNewChat = (await loadAcpHistory(chatId)).length === 0
       const model = input.model || DEFAULT_MODEL
-      const toolCtx: ToolContext = { sandboxName, room, userId }
-
-      // Repo-scoped optional system prompt + the merged App∪Repo Skill index,
-      // enumerated from this Branch's sandbox (`.claude/skills/`) and baked into
-      // the per-Agent prompt.
-      const [branchState, layerDirectory, skills, memory, , secrets] =
-        await Promise.all([
-          room
-            .readDoc(({ branches, repos }) => {
-              // `toArray` is a cached snapshot; read the Branch itself fresh.
-              const id = branches
-                .toArray()
-                .find((a) => a.sandboxName === sandboxName)?.id
-              const branch = id ? branches.get(id) : undefined
-              if (!branch) return undefined
-              return {
-                ref: branch.ref,
-                autoNamed: branch.autoNamedBranch !== false,
-                systemPrompt: repos.get(branch.repoId)?.systemPrompt,
-              }
-            })
-            .catch(() => undefined),
-          loadLayerDirectory(room),
-          getMergedSkillIndexForSandbox(sandboxName),
-          loadCanvasMemory(room),
-          // Recent activity (#885): this Workspace just saw a turn start.
-          stampWorkspaceActivity(room, sandboxName, Date.now()).catch(() => {}),
-          sandboxSecrets(sandboxName),
-        ])
-      const systemPrompt = buildAgentSystemPrompt({
-        repoSystemPrompt: branchState?.systemPrompt ?? undefined,
-        layerDirectory,
-        chatId,
-        skills,
-        memory,
-        toolNaming: toolNamingForTurn(input.model),
-      })
+      const [prepared, , secrets] = await Promise.all([
+        prepareChatTarget(
+          room,
+          workspaceChatTarget,
+          { sandboxName, chatId, userId },
+          toolNamingForTurn(input.model)
+        ),
+        // Recent activity (#885): this Workspace just saw a turn start.
+        stampWorkspaceActivity(room, sandboxName, Date.now()).catch(() => {}),
+        sandboxSecrets(sandboxName),
+      ])
+      if (!prepared) return null
+      const { systemPrompt, context } = prepared
+      const branchState = context.branch
 
       await upsertChat({ chatId, roomId, sandboxName, model, systemPrompt })
 
@@ -558,15 +524,10 @@ export function sandboxTurn(input: {
       return {
         systemPrompt,
         model,
-        tools: toolsetFor({
-          kind: "sandbox",
-          room,
-          sandbox: toolCtx,
-          chatId,
-        }),
+        tools: prepared.tools,
         // The Chat Target spec owns the marker policy (branch only on the
         // first message) and delegates the format to the Message Markers codec.
-        userText: agentChatTarget.decorateUserMessage!(message, {
+        userText: prepared.decorateUserMessage(message, {
           planMode,
           branch: effectiveBranch,
           isFirstMessage: isNewChat,
@@ -630,10 +591,9 @@ export function sketchTurn(input: {
       if (!isSketchChat(chat)) return null
       const prepared = await prepareChatTarget(
         room,
-        sketchChatTarget as unknown as Parameters<typeof prepareChatTarget>[1],
-        { chatId, userId: room.userId } as unknown as never,
-        undefined,
-        { toolNaming: toolNamingForTurn(input.model) }
+        sketchChatTarget,
+        { chatId, userId: room.userId },
+        toolNamingForTurn(input.model)
       )
       if (!prepared) return null
 
@@ -694,20 +654,18 @@ export function planResumeTurn(input: {
   const { room, chatId, userId, message, chat } = input
   return {
     async prepare() {
-      const toolCtx: ToolContext = {
-        sandboxName: chat.sandboxName,
-        room,
-        userId,
-      }
       return {
         systemPrompt: chat.systemPrompt,
         model: chat.model,
-        tools: toolsetFor({
-          kind: "sandbox",
-          room,
-          sandbox: toolCtx,
-          chatId,
-        }),
+        // Only the in-process engine has plan decisions (`submit_plan`).
+        tools: toolsetOn(
+          workspaceChatTarget.tools(room, {
+            sandboxName: chat.sandboxName,
+            chatId,
+            userId,
+          }),
+          "in-process"
+        ),
         userText: message,
         secrets: await sandboxSecrets(chat.sandboxName),
         commentRequest: {

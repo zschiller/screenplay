@@ -61,7 +61,11 @@ import {
   getGitIdentityForUser,
 } from "@/lib/auth-helpers"
 
-import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
+import {
+  buildPrAndSkillTools,
+  buildSandboxTools,
+  type ToolContext,
+} from "@/lib/agent/tools"
 
 const ctx: ToolContext = {
   sandboxName: "sandbox-a",
@@ -434,7 +438,7 @@ describe("glob", () => {
 
 describe("read_skill", () => {
   it("lists available skills when the name is unknown", async () => {
-    const out = await buildSandboxTools(ctx).read_skill.execute!(
+    const out = await buildPrAndSkillTools(ctx).read_skill.execute!(
       { name: "does-not-exist" },
       {} as never
     )
@@ -452,7 +456,7 @@ describe("read_skill", () => {
       })
     )
 
-    const out = await buildSandboxTools(ctx).read_skill.execute!(
+    const out = await buildPrAndSkillTools(ctx).read_skill.execute!(
       { name: "deploy" },
       {} as never
     )
@@ -465,7 +469,7 @@ describe("read_skill", () => {
     // through to the bundled App Skill of the same name.
     fake.setInstance(fakeSandbox({ files: {} }))
 
-    const out = await buildSandboxTools(ctx).read_skill.execute!(
+    const out = await buildPrAndSkillTools(ctx).read_skill.execute!(
       { name: "screenplay-add-knob" },
       {} as never
     )
@@ -485,7 +489,7 @@ describe("read_skill", () => {
       })
     )
 
-    const out = await buildSandboxTools(ctx).read_skill.execute!(
+    const out = await buildPrAndSkillTools(ctx).read_skill.execute!(
       { name: "nope" },
       {} as never
     )

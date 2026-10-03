@@ -24,17 +24,13 @@ import {
   resolveSkillBody,
 } from "@/lib/skills/merged"
 import { applyTextEdit } from "@/lib/agent/edit"
-import { buildDevServerTools } from "@/lib/agent/dev-server-tools"
-import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
-import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
-import { chatFrameDriveTools } from "@/lib/frame-drive/live"
 import {
   findCodeFiles,
   readCodeFile,
   searchCode,
 } from "@/lib/agent/code-read-tools"
 import { truncateOutput } from "@/lib/agent/search"
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { annotateTools } from "@/lib/mcp/tool-server"
 
 /**
  * Everything a sandbox tool needs to act on behalf of the acting collaborator:
@@ -50,12 +46,15 @@ export interface ToolContext {
 }
 
 /**
- * The sandbox-backed toolset for an agent chat target. Each tool follows the
+ * A Workspace chat's native tools: the in-process engine's own file, shell
+ * and plan tools, which a desktop harness brings its own of. The Workspace
+ * Chat Target lists them beside the tools both engines share
+ * (`workspace-chat-target.ts`). Each tool follows the
  * AI SDK grain: `tool({ description, inputSchema, execute })` with a zod schema
  * that hands `execute` typed, validated input — no `as unknown as` casts, and
  * bad arguments are rejected before `execute` runs.
  *
- * Output redaction is **not** done here: the assembly point (`toolsetFor`)
+ * Output redaction is **not** done here: the assembly point (`toolsetOn`)
  * wraps every tool with `withRedactedOutput`, so secrets are scrubbed uniformly
  * regardless of which tool produced them. Per-tool `execute` only does its own
  * formatting (e.g. `run_command`'s framing + truncation).
@@ -219,23 +218,6 @@ export function buildSandboxTools(ctx: ToolContext) {
         findCodeFiles(await getSandbox(ctx), { pattern, path }),
     }),
 
-    // Opening the branch's PR and loading Skills, which a harness reaches
-    // over MCP too (#1480).
-    ...buildPrAndSkillTools(ctx),
-
-    // The Workspace's own dev server: its log and Dev Server Restart.
-    ...buildDevServerTools(
-      liveDevServerPorts({ sandboxName: ctx.sandboxName, room: ctx.room })
-    ),
-
-    // Any frame on the canvas, its own by default: a screenshot and the
-    // page's HTML (#1311).
-    ...chatFrameReadTools(ctx),
-
-    // Driving a frame: your own on the Mac (#1389), the shared one on hosted
-    // (#1396).
-    ...chatFrameDriveTools(ctx),
-
     // Human-in-the-loop: no execute. The loop halts on this tool call and
     // /api/agent/plan supplies the result after the user decides.
     submit_plan: tool({
@@ -255,7 +237,7 @@ export type SandboxTools = ReturnType<typeof buildSandboxTools>
  * Skill from the Workspace's merged index.
  */
 export function buildPrAndSkillTools(ctx: ToolContext) {
-  return {
+  const tools = {
     create_pr: tool({
       description:
         "Open a GitHub pull request from this agent's branch into the workspace's default branch. Call this when the user asks to create, open, or submit a PR.",
@@ -301,14 +283,11 @@ export function buildPrAndSkillTools(ctx: ToolContext) {
       },
     }),
   }
-}
-
-/** Their MCP annotations: a PR changes GitHub; reading a Skill changes nothing. */
-export const PR_AND_SKILL_TOOL_ANNOTATIONS: Readonly<
-  Record<keyof ReturnType<typeof buildPrAndSkillTools>, McpToolAnnotations>
-> = {
-  create_pr: { destructiveHint: false, openWorldHint: true },
-  read_skill: { readOnlyHint: true, openWorldHint: false },
+  // Their MCP annotations: a PR changes GitHub; reading a Skill changes nothing.
+  return annotateTools(tools, {
+    create_pr: { destructiveHint: false, openWorldHint: true },
+    read_skill: { readOnlyHint: true, openWorldHint: false },
+  })
 }
 
 async function getSandbox(ctx: ToolContext): Promise<SandboxInstance> {

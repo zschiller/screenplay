@@ -5,7 +5,7 @@ import {
   imageModelOutput,
   type ImageToolOutput,
 } from "@/lib/agent/image-output"
-import type { McpToolAnnotations } from "@/lib/mcp/tool-server"
+import { annotateTools } from "@/lib/mcp/tool-server"
 import type { PageSnapshot } from "@/lib/sandbox-bridge/page-snapshot"
 import { workspaceLabel } from "@/lib/workspace-label"
 import type { BranchData, IframeLayerData } from "@/lib/types"
@@ -82,7 +82,7 @@ export function buildFrameReadTools(
         )
     : z.string().describe("The frame id from read_canvas")
 
-  return {
+  const tools = {
     view_frame: tool({
       description: chat
         ? "Look at a frame on the canvas, from any Workspace: returns a screenshot of its live preview at the frame's size, or its last stored capture when the preview isn't running. Use it to see what the user sees, or what the app really looks like before you sketch a change."
@@ -152,17 +152,14 @@ export function buildFrameReadTools(
       },
     }),
   }
+  // For a harness reaching these tools over MCP, so none of them prompts.
+  return annotateTools(tools, {
+    view_frame: { readOnlyHint: true, openWorldHint: false },
+    read_frame_html: { readOnlyHint: true, openWorldHint: false },
+  })
 }
 
 export type FrameReadTools = ReturnType<typeof buildFrameReadTools>
-
-/** For a harness reaching these tools over MCP, so none of them prompts. */
-export const FRAME_READ_TOOL_ANNOTATIONS: Readonly<
-  Record<keyof FrameReadTools, McpToolAnnotations>
-> = {
-  view_frame: { readOnlyHint: true, openWorldHint: false },
-  read_frame_html: { readOnlyHint: true, openWorldHint: false },
-}
 
 export type FoundFrame = {
   id: string

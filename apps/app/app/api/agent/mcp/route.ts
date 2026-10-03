@@ -1,52 +1,19 @@
 import { openRoomForRoute } from "@/lib/room-access"
 import { isLocalBuild } from "@/lib/local-mode"
-import { roomChatTarget } from "@/lib/agent/chat-target-kinds"
-import {
-  buildDocumentTools,
-  DOCUMENT_TOOL_ANNOTATIONS,
-} from "@/lib/agent/document-tools"
-import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
-import {
-  CODE_READ_TOOL_ANNOTATIONS,
-  otherWorkspacesCodeReadTools,
-} from "@/lib/agent/code-read-tools"
 import {
   COORDINATOR_MCP_SERVER_NAME,
   isAllowedMcpOrigin,
   resolveCoordinatorToken,
 } from "@/lib/agent/coordinator-mcp"
-import { ROOM_TOOL_ANNOTATIONS } from "@/lib/agent/room-tools"
 import { findActiveRun } from "@/lib/agent/persistence"
 import { coordinatorTarget } from "@/lib/agent/turn-launch-live"
-import {
-  buildDevServerTools,
-  DEV_SERVER_TOOL_ANNOTATIONS,
-} from "@/lib/agent/dev-server-tools"
-import { liveDevServerPorts } from "@/lib/agent/dev-server-ports"
-import { FRAME_READ_TOOL_ANNOTATIONS } from "@/lib/agent/frame-read-tools"
-import { chatFrameReadTools } from "@/lib/agent/frame-read-ports"
-import { chatFrameDriveTools } from "@/lib/frame-drive/live"
-import { FRAME_DRIVE_TOOL_ANNOTATIONS } from "@/lib/frame-drive/tools"
-import {
-  buildMockupTools,
-  MOCKUP_TOOL_ANNOTATIONS,
-} from "@/lib/agent/mockup-tools"
-import { toolsetFor, withRedactedOutput } from "@/lib/agent/toolset"
-import {
-  buildPrAndSkillTools,
-  PR_AND_SKILL_TOOL_ANNOTATIONS,
-} from "@/lib/agent/tools"
+import { roomChatTarget } from "@/lib/agent/room-chat-target"
+import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
+import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
+import { toolsetOn, withRedactedOutput } from "@/lib/agent/toolset"
 import { sandboxSecrets } from "@/lib/env-store"
-import { SKETCH_TOOL_ANNOTATIONS } from "@/lib/agent/sketch-tools"
-import {
-  buildQuestionTools,
-  QUESTION_TOOL_ANNOTATIONS,
-} from "@/lib/agent/question-tools"
-import {
-  handleMcpMessage,
-  parseErrorResponse,
-  type McpToolServer,
-} from "@/lib/mcp/tool-server"
+import { handleMcpMessage, parseErrorResponse } from "@/lib/mcp/tool-server"
+import type { ToolSet } from "ai"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -82,113 +49,64 @@ export async function POST(req: Request) {
   const room = await openRoomForRoute(binding.roomId, binding.chatId)
   if (room instanceof Response) return room
 
-  // A Workspace chat's harness gets its own dev server's tools, the frame
-  // reads and Frame Drive (#1389), bound to the Sandbox its token was minted for, its Document and
-  // Mockup (#1309) tools, bound to its chat, Question Cards (#1312),
-  // read-only access to the other Workspaces' code (#1315), and its PR and
-  // Skill tools (#1480). Output is scrubbed of the Sandbox's env var values,
-  // as on the in-process engine (#1416).
-  if (binding.sandboxName) {
-    const toolCtx = {
-      sandboxName: binding.sandboxName,
-      room,
-      userId: room.userId,
-    }
+  // Each binding gets its Chat Target's toolset on a harness: the tools its
+  // in-process turn has, less the file, shell and plan tools the harness
+  // brings its own of (#1487).
+  const serve = async (tools: ToolSet, connected: string) => {
     const response = await handleMcpMessage(
       {
         name: COORDINATOR_MCP_SERVER_NAME,
         version: "1",
-        tools: withRedactedOutput(
-          {
-            ...buildDevServerTools(
-              liveDevServerPorts({ sandboxName: binding.sandboxName, room })
-            ),
-            ...chatFrameReadTools(toolCtx),
-            ...chatFrameDriveTools(toolCtx),
-            ...buildDocumentTools({ room, chatId: binding.chatId }),
-            ...buildMockupTools({ room, chatId: binding.chatId }),
-            ...otherWorkspacesCodeReadTools({
-              room,
-              sandboxName: binding.sandboxName,
-            }),
-            ...buildLayerReadTools({ room }),
-            ...buildQuestionTools(),
-            ...buildPrAndSkillTools(toolCtx),
-          },
-          await sandboxSecrets(binding.sandboxName)
-        ),
-        annotations: {
-          ...DEV_SERVER_TOOL_ANNOTATIONS,
-          ...FRAME_READ_TOOL_ANNOTATIONS,
-          ...FRAME_DRIVE_TOOL_ANNOTATIONS,
-          ...DOCUMENT_TOOL_ANNOTATIONS,
-          ...MOCKUP_TOOL_ANNOTATIONS,
-          ...QUESTION_TOOL_ANNOTATIONS,
-          ...CODE_READ_TOOL_ANNOTATIONS,
-          ...PR_AND_SKILL_TOOL_ANNOTATIONS,
-        },
+        tools,
+        // A wrong URL or token only ever shows up as "the tools aren't
+        // there", so log each handshake to tell a missing one apart.
         onInitialize: (client) =>
-          console.info(
-            `[workspace-mcp] ${client.name ?? "client"} connected for ${binding.sandboxName}`
-          ),
+          console.info(`${client.name ?? "client"} connected for ${connected}`),
       },
       message
     )
     if (!response) return new Response(null, { status: 202 })
     return Response.json(response)
   }
-  // A Sketch Chat's harness gets the same tools as its in-process turn: its
-  // Document and Mockup tools, the layer reads and Question Cards.
-  if (binding.sketch) {
-    const response = await handleMcpMessage(
-      {
-        name: COORDINATOR_MCP_SERVER_NAME,
-        version: "1",
-        tools: toolsetFor({
-          kind: "sketch",
-          room,
-          chatId: binding.chatId,
-          userId: room.userId,
-        }),
-        annotations: {
-          ...DOCUMENT_TOOL_ANNOTATIONS,
-          ...FRAME_DRIVE_TOOL_ANNOTATIONS,
-          ...MOCKUP_TOOL_ANNOTATIONS,
-          ...QUESTION_TOOL_ANNOTATIONS,
-          ...SKETCH_TOOL_ANNOTATIONS,
-        },
-        onInitialize: (client) =>
-          console.info(
-            `[sketch-mcp] ${client.name ?? "client"} connected for chat ${binding.chatId}`
-          ),
-      },
-      message
+
+  // A Workspace chat's tools are bound to the Sandbox its token was minted
+  // for and to its chat. Output is scrubbed of the Sandbox's env var values,
+  // as on the in-process engine (#1416).
+  if (binding.sandboxName) {
+    const tools = workspaceChatTarget.tools(room, {
+      sandboxName: binding.sandboxName,
+      chatId: binding.chatId,
+      userId: room.userId,
+    })
+    return serve(
+      withRedactedOutput(
+        toolsetOn(tools, "harness"),
+        await sandboxSecrets(binding.sandboxName)
+      ),
+      `[workspace-mcp] ${binding.sandboxName}`
     )
-    if (!response) return new Response(null, { status: 202 })
-    return Response.json(response)
+  }
+  if (binding.sketch) {
+    const tools = sketchChatTarget.tools(room, {
+      chatId: binding.chatId,
+      userId: room.userId,
+    })
+    return serve(
+      toolsetOn(tools, "harness"),
+      `[sketch-mcp] chat ${binding.chatId}`
+    )
   }
   // Each request builds a fresh tool set, so log canvas changes under the
   // Coordinator's running turn: "undo that" then undoes the whole reply.
   const run = await findActiveRun(binding.chatId).catch(() => null)
-
-  const server: McpToolServer = {
-    name: COORDINATOR_MCP_SERVER_NAME,
-    version: "1",
-    tools: roomChatTarget.buildTools(
-      room,
-      coordinatorTarget(room, binding.chatId, { turnId: run?.id })
-    ),
-    annotations: ROOM_TOOL_ANNOTATIONS,
-    // A wrong URL or token only ever shows up as "the tools aren't there", so
-    // log each handshake to tell a missing one apart.
-    onInitialize: (client) =>
-      console.info(
-        `[coordinator-mcp] ${client.name ?? "client"} connected for room ${binding.roomId}`
-      ),
-  }
-  const response = await handleMcpMessage(server, message)
-  if (!response) return new Response(null, { status: 202 })
-  return Response.json(response)
+  const tools = roomChatTarget.tools(
+    room,
+    coordinatorTarget(room, binding.chatId, { turnId: run?.id })
+  )
+  return serve(
+    toolsetOn(tools, "harness"),
+    `[coordinator-mcp] room ${binding.roomId}`
+  )
 }
 
 export async function GET(req: Request) {

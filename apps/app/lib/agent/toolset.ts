@@ -3,67 +3,49 @@ import "server-only"
 import type { Tool, ToolSet } from "ai"
 
 import { redactDeep, redactSensitiveInfo } from "@/lib/agent/redact"
-import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
-import { buildDocumentTools } from "@/lib/agent/document-tools"
-import { buildMockupTools } from "@/lib/agent/mockup-tools"
-import { otherWorkspacesCodeReadTools } from "@/lib/agent/code-read-tools"
-import { buildLayerReadTools } from "@/lib/agent/layer-read-tools"
-import { buildQuestionTools } from "@/lib/agent/question-tools"
-import type { RoomDoc } from "@/lib/room-access"
-import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
-import { buildSketchTools } from "@/lib/agent/sketch-tools"
+import {
+  BARE_TOOL_NAMING,
+  namingWithin,
+  type ToolNaming,
+} from "@/lib/agent/tool-name"
 
 /**
- * What a chat target needs to assemble its toolset. The sandbox kind carries a
- * {@link ToolContext} (which VM, room, acting user) and its chat, which owns
- * the Documents (#1314) and Mockups (#1309) it makes; the room kind carries the ports the
- * Coordinator tools module drives. All carry the turn's Room (from Room
- * Access) so the cross-cutting read tools can resolve peer layers.
+ * A Chat Target kind's tools, listed once by the kind (#1487). `shared` reach
+ * every Engine: the in-process engine runs them, and the agent MCP route
+ * serves them to a desktop harness, each with the MCP annotations it carries.
+ * `native` are the in-process engine's own file, shell and plan tools, which
+ * a harness brings its own of.
  */
-export type ToolTarget =
-  | { kind: "sandbox"; room: RoomDoc; sandbox: ToolContext; chatId: string }
-  /** A Sketch Chat: no repository, so Documents and Mockups only. `userId`
-   *  is the asker, in whose view it drives a Mockup (#1391). */
-  | { kind: "sketch"; room: RoomDoc; chatId: string; userId: string }
-  | {
-      kind: "room"
-      room: RoomDoc
-      ports: RoomToolPorts
-      /** The turn the tools' canvas changes are logged under (a new one by default). */
-      turnId?: string
-    }
+export interface ChatTools {
+  shared: ToolSet
+  native?: ToolSet
+}
+
+/** Where a turn runs: the in-process engine, or a desktop harness over MCP. */
+export type ToolEngine = "in-process" | "harness"
 
 /**
- * The single assembly point for an agent loop's tools. Picks the target's own
- * write tools, mixes in the cross-cutting read tools every chat shares, and
- * wraps the whole set in {@link withRedactedOutput} so no tool can spill a
- * secret regardless of which one produced the output.
- *
- * Adding a new chat target kind is one new case here; adding a new tool is one
- * edit to a builder.
+ * The toolset a Chat Target's turn has on `engine`: its shared tools, plus
+ * its native ones in process. Wrapped in {@link withRedactedOutput} so no
+ * tool can spill a secret regardless of which one produced the output.
  */
-export function toolsetFor(target: ToolTarget): ToolSet {
-  const read = buildLayerReadTools({ room: target.room })
-  const ask = buildQuestionTools()
-  const own =
-    target.kind === "sandbox"
-      ? {
-          ...buildSandboxTools(target.sandbox),
-          ...buildDocumentTools({ room: target.room, chatId: target.chatId }),
-          ...buildMockupTools({ room: target.room, chatId: target.chatId }),
-          ...otherWorkspacesCodeReadTools({
-            room: target.room,
-            sandboxName: target.sandbox.sandboxName,
-          }),
-        }
-      : target.kind === "sketch"
-        ? buildSketchTools({
-            room: target.room,
-            chatId: target.chatId,
-            userId: target.userId,
-          })
-        : buildRoomTools(target.room.roomId, target.ports, target.turnId)
-  return withRedactedOutput({ ...own, ...read, ...ask })
+export function toolsetOn(tools: ChatTools, engine: ToolEngine): ToolSet {
+  return withRedactedOutput(
+    engine === "harness" ? tools.shared : { ...tools.native, ...tools.shared }
+  )
+}
+
+/**
+ * A turn's toolset on the Engine `naming` is for, and that naming limited to
+ * it, so the prompt built with it can only tell the model to call a tool the
+ * turn has.
+ */
+export function turnToolset(
+  tools: ChatTools,
+  naming: ToolNaming = BARE_TOOL_NAMING
+): { tools: ToolSet; naming: ToolNaming } {
+  const toolset = toolsetOn(tools, naming.harness ? "harness" : "in-process")
+  return { tools: toolset, naming: namingWithin(naming, Object.keys(toolset)) }
 }
 
 /**

@@ -1,4 +1,4 @@
-import { asSchema, type ToolResultPart, type ToolSet } from "ai"
+import { asSchema, type Tool, type ToolResultPart, type ToolSet } from "ai"
 
 type ToolResultOutput = ToolResultPart["output"]
 
@@ -22,12 +22,34 @@ export interface McpToolAnnotations {
   openWorldHint?: boolean
 }
 
+/**
+ * Give each tool in `tools` its MCP annotations, which it then carries
+ * wherever its toolset goes: a tool builder writes them beside its tools, and
+ * the server lists them from the tool itself. Every tool needs an entry.
+ */
+export function annotateTools<T extends ToolSet>(
+  tools: T,
+  annotations: { readonly [K in keyof T]: McpToolAnnotations }
+): T {
+  const annotated: ToolSet = {}
+  for (const [name, tool] of Object.entries(tools)) {
+    annotated[name] = Object.assign({}, tool, {
+      annotations: annotations[name],
+    })
+  }
+  return annotated as T
+}
+
+/** The annotations {@link annotateTools} gave a tool, if any. */
+export function toolAnnotations(tool: Tool): McpToolAnnotations | undefined {
+  return (tool as { annotations?: McpToolAnnotations }).annotations
+}
+
 export interface McpToolServer {
   name: string
   version: string
+  /** The tools it serves, each listed with the annotations it carries. */
   tools: ToolSet
-  /** Per-tool annotations by tool name. A tool without an entry has none. */
-  annotations?: Readonly<Record<string, McpToolAnnotations>>
   /** Called when a client completes `initialize`, for logging. */
   onInitialize?(client: { name?: string; version?: string }): void
 }
@@ -108,7 +130,7 @@ export function parseErrorResponse(): JsonRpcResponse {
 async function listTools(server: McpToolServer) {
   return Promise.all(
     Object.entries(server.tools).map(async ([name, tool]) => {
-      const annotations = server.annotations?.[name]
+      const annotations = toolAnnotations(tool)
       return {
         name,
         ...(tool.description ? { description: tool.description } : {}),

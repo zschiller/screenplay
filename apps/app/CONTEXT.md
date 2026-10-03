@@ -530,7 +530,12 @@ activity; a third spinner style.
 What a Chat Session talks to — a Branch's **sandbox**, the whole **Room**
 (see **Room Target**), or nothing but the Canvas (see **Sketch Chat**). A Document is not one: a Workspace chat writes
 Documents with its own tools (#1314). The target decides the
-system prompt and which Tools the model is given. On the client it is one
+system prompt and which Tools the model is given. On the server each kind is
+one module (`lib/agent/workspace-chat-target`, `room-chat-target`,
+`sketch-chat-target`) that lists its Tools once (#1487): the in-process turn
+runs all of them, a desktop harness gets them over MCP less the file, shell
+and plan Tools it brings its own of, and the prompt can name only Tools its
+turn has. On the client it is one
 value, `ChatTarget` in `lib/chat/chat-target` (kinds `agent`, `room`, `sketch`), which the chat store maps to the wire target in one place. What the
 Composer offers for each kind (skills, plan mode, element picking, placeholder,
 empty state and starters) is one row of the capability table in

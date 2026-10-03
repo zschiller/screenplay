@@ -9,12 +9,16 @@ vi.mock("@/lib/terminal-tabs", () => ({
   listTerminalTabs: vi.fn().mockResolvedValue([]),
 }))
 
+import type { ChatTargetSpec } from "@/lib/agent/chat-target-kinds"
+import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
+import { roomChatTarget } from "@/lib/agent/room-chat-target"
+import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
+import { toolsetOn, turnToolset, type ChatTools } from "@/lib/agent/toolset"
 import {
-  agentChatTarget,
-  roomChatTarget,
-  sketchChatTarget,
-  type ChatTargetSpec,
-} from "@/lib/agent/chat-target-kinds"
+  BARE_TOOL_NAMING,
+  harnessToolNaming,
+  type ToolNaming,
+} from "@/lib/agent/tool-name"
 import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
 import { addMemory } from "@/lib/canvas/memory"
 import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
@@ -22,7 +26,6 @@ import { buildViewTools } from "@/lib/agent/room-view-tools"
 import { buildDocumentTools } from "@/lib/agent/document-tools"
 import { buildMockupTools } from "@/lib/agent/mockup-tools"
 import type { RoomDoc } from "@/lib/room-access"
-import type { ToolContext } from "@/lib/agent/tools"
 import {
   documentFragment,
   fragmentBodyToPlainText,
@@ -39,9 +42,12 @@ import {
 
 const MESSAGE = "bold the dates"
 
+/** A kind's toolset on the in-process engine. */
+const inProcess = (tools: ChatTools) => toolsetOn(tools, "in-process")
+
 // The decorator's signature is independent of the spec's target/context type
 // params, so this picks out just that field's type and sidesteps the variance
-// of `loadContext`/`buildTools` when handing either spec to the helper below.
+// of `loadContext`/`tools` when handing either spec to the helper below.
 type Decorator = ChatTargetSpec<never, never>["decorateUserMessage"]
 
 const decorate = (
@@ -56,7 +62,7 @@ const decorate = (
  */
 describe("decorateUserMessage — per target kind", () => {
   it("prepends the plan marker for a sandbox-backed agent chat", () => {
-    const out = decorate(agentChatTarget.decorateUserMessage, {
+    const out = decorate(workspaceChatTarget.decorateUserMessage, {
       planMode: true,
       isFirstMessage: false,
     })
@@ -88,7 +94,7 @@ describe("room chat target", () => {
   it("bakes the canvas summary into its system prompt", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
       { canvasSummary: 'Documents (1):\n- [doc-1] "Launch spec"', memory: [] },
-      {}
+      BARE_TOOL_NAMING
     )
 
     expect(prompt).toContain("Coordinator")
@@ -99,7 +105,7 @@ describe("room chat target", () => {
   it("sends the next ask to a fresh Workspace instead of planning one (#1182)", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
       { canvasSummary: "", memory: [] },
-      {}
+      BARE_TOOL_NAMING
     )
 
     expect(prompt).toContain(
@@ -110,7 +116,7 @@ describe("room chat target", () => {
   it("lists the Coordinator's Skills, and only those, in its prompt (#905)", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
       { canvasSummary: "", memory: [] },
-      {}
+      BARE_TOOL_NAMING
     )
 
     expect(prompt).toContain("**screenplay-try-variants**")
@@ -127,7 +133,7 @@ describe("room chat target", () => {
         throw new Error("not written while building tools")
       },
     }
-    const tools = roomChatTarget.buildTools(room, { userId: "user-1" })
+    const tools = inProcess(roomChatTarget.tools(room, { userId: "user-1" }))
 
     expect(Object.keys(tools).sort()).toEqual([
       "arrange_groups",
@@ -188,7 +194,9 @@ describe("the Coordinator only delegates", () => {
   ]
 
   it("gives the Coordinator no tool that creates or edits a Document or Mockup", () => {
-    const tools = names(roomChatTarget.buildTools(room, { userId: "user-1" }))
+    const tools = names(
+      inProcess(roomChatTarget.tools(room, { userId: "user-1" }))
+    )
 
     expect(documentAndMockupWrites).toEqual(
       expect.arrayContaining(["create_document", "create_mockup"])
@@ -207,12 +215,13 @@ describe("the Coordinator only delegates", () => {
   })
 
   it("gives a Workspace chat no arrange or camera tools", () => {
-    const sandbox: ToolContext = { sandboxName: "sb-1", room, userId: "user-1" }
     const tools = names(
-      agentChatTarget.buildTools(
-        room,
-        { sandboxName: "sb-1", branch: "main", chatId: "chat-1" },
-        sandbox
+      inProcess(
+        workspaceChatTarget.tools(room, {
+          sandboxName: "sb-1",
+          chatId: "chat-1",
+          userId: "user-1",
+        })
       )
     )
 
@@ -228,7 +237,7 @@ describe("the Coordinator only delegates", () => {
   it("tells the Coordinator to start a chat for a Document or Mockup", () => {
     const prompt = roomChatTarget.buildSystemPrompt(
       { canvasSummary: "", memory: [] },
-      {}
+      BARE_TOOL_NAMING
     )
 
     expect(prompt).toContain("You can't write or edit a document or a mockup.")
@@ -266,12 +275,12 @@ describe("canvas memory in every kind's system prompt", () => {
 
   it("includes memory in a Workspace agent's prompt", async () => {
     const room = roomWithMemory()
-    const ctx = await agentChatTarget.loadContext(room, {
+    const ctx = await workspaceChatTarget.loadContext(room, {
       sandboxName: "sb-1",
-      branch: "main",
       chatId: "chat-1",
+      userId: "user-1",
     })
-    const prompt = agentChatTarget.buildSystemPrompt(ctx!, {})
+    const prompt = workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
 
     expect(prompt).toContain("Canvas memory")
     expect(prompt).toContain("- Use pnpm, never npm.")
@@ -280,7 +289,7 @@ describe("canvas memory in every kind's system prompt", () => {
   it("includes memory, with the ids it edits by, in the Coordinator's prompt", async () => {
     const room = roomWithMemory()
     const ctx = await roomChatTarget.loadContext(room, { userId: "user-1" })
-    const prompt = roomChatTarget.buildSystemPrompt(ctx!, {})
+    const prompt = roomChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
 
     expect(prompt).toMatch(/- \[mem-[^\]]+\] Use pnpm, never npm\./)
     expect(prompt).toContain("write_memory")
@@ -323,9 +332,8 @@ describe("a Workspace chat's Document tools", () => {
       readDoc: async (fn) => fn(collections),
       mutateDoc: async (fn) => fn(collections),
     }
-    const sandbox: ToolContext = { sandboxName: "sb-1", room, userId: "user-1" }
-    const target = { sandboxName: "sb-1", branch: "main", chatId: "chat-1" }
-    const tools = agentChatTarget.buildTools(room, target, sandbox)
+    const target = { sandboxName: "sb-1", chatId: "chat-1", userId: "user-1" }
+    const tools = inProcess(workspaceChatTarget.tools(room, target))
     const run = (name: string, input: object) =>
       (
         tools[name as keyof typeof tools] as {
@@ -417,8 +425,8 @@ describe("a Workspace chat's Document tools", () => {
       baseDoc("mine", { title: "My plan", ownerChatId: "chat-1" })
     )
 
-    const ctx = await agentChatTarget.loadContext(room, target)
-    const prompt = agentChatTarget.buildSystemPrompt(ctx!, {})
+    const ctx = await workspaceChatTarget.loadContext(room, target)
+    const prompt = workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
 
     expect(prompt).toContain("create_document")
     expect(prompt).toMatch(/My plan.*\(yours\)/)
@@ -456,10 +464,12 @@ describe("frame reads in every chat (#1311)", () => {
   }
 
   const toolsOf = (room: RoomDoc) => ({
-    workspace: agentChatTarget.buildTools(
-      room,
-      { sandboxName: "sb-1", branch: "sign-in", chatId: "chat-1" },
-      { sandboxName: "sb-1", room, userId: "user-1" }
+    workspace: inProcess(
+      workspaceChatTarget.tools(room, {
+        sandboxName: "sb-1",
+        chatId: "chat-1",
+        userId: "user-1",
+      })
     ),
   })
 
@@ -505,7 +515,7 @@ describe("sketchChatTarget (a chat with no repository)", () => {
       },
     }
     const names = Object.keys(
-      sketchChatTarget.buildTools(room, { chatId: "s-1", userId: "u-1" })
+      inProcess(sketchChatTarget.tools(room, { chatId: "s-1", userId: "u-1" }))
     )
     expect(names).toEqual(
       expect.arrayContaining([
@@ -530,9 +540,107 @@ describe("sketchChatTarget (a chat with no repository)", () => {
         layerDirectory: { documents: [] },
         memory: [],
       },
-      {}
+      BARE_TOOL_NAMING
     )
     expect(prompt).toMatch(/no repository/i)
     expect(prompt).toContain("create_mockup")
+  })
+})
+
+/**
+ * A prompt names tools only through its turn's toolset (#1487): naming one
+ * the turn doesn't have throws, and no tool name is written into a prompt by
+ * hand past that check.
+ */
+describe("every kind's prompt names only tools its turn has", () => {
+  const room: RoomDoc = {
+    roomId: "room-1",
+    readDoc: async () => {
+      throw new Error("not read while building tools")
+    },
+    mutateDoc: async () => {
+      throw new Error("not written while building tools")
+    },
+  }
+  const memory = [{ id: "mem-1", text: "Use pnpm.", source: "member" }] as never
+  const layerDirectory = {
+    documents: [{ id: "doc-1", title: "Plan", ownerChatId: "chat-1" }],
+  }
+  const kinds = [
+    {
+      kind: "Workspace",
+      tools: () =>
+        workspaceChatTarget.tools(room, {
+          sandboxName: "sb-1",
+          chatId: "chat-1",
+          userId: "user-1",
+        }),
+      prompt: (naming: ToolNaming) =>
+        workspaceChatTarget.buildSystemPrompt(
+          {
+            chatId: "chat-1",
+            repoSystemPrompt: "A Next.js app.",
+            layerDirectory,
+            skills: [
+              { name: "screenplay-add-knob", description: "x", origin: "app" },
+            ],
+            memory,
+          },
+          naming
+        ),
+    },
+    {
+      kind: "Coordinator",
+      tools: () => roomChatTarget.tools(room, { userId: "user-1" }),
+      prompt: (naming: ToolNaming) =>
+        roomChatTarget.buildSystemPrompt(
+          { canvasSummary: "Documents (1)", memory },
+          naming
+        ),
+    },
+    {
+      kind: "Sketch",
+      tools: () =>
+        sketchChatTarget.tools(room, { chatId: "chat-1", userId: "user-1" }),
+      prompt: (naming: ToolNaming) =>
+        sketchChatTarget.buildSystemPrompt(
+          { chatId: "chat-1", layerDirectory, memory },
+          naming
+        ),
+    },
+  ]
+  const engines: [string, ToolNaming][] = [
+    ["in process", BARE_TOOL_NAMING],
+    ["on Claude Code", harnessToolNaming("claude-code", "screenplay")],
+    ["on Codex", harnessToolNaming("codex", "screenplay")],
+  ]
+  /** Every tool any kind has, the names a prompt could write by hand. */
+  const everyTool = new Set(
+    kinds.flatMap(({ tools }) => Object.keys(inProcess(tools())))
+  )
+
+  for (const { kind, tools, prompt } of kinds) {
+    for (const [engine, naming] of engines) {
+      it(`a ${kind} chat ${engine}`, () => {
+        const toolset = turnToolset(tools(), naming)
+        const text = prompt(toolset.naming)
+        const has = Object.keys(toolset.tools)
+        // Multi-word names only: `rename`, `grep` and the like are words too.
+        for (const name of everyTool) {
+          if (!name.includes("_") || has.includes(name)) continue
+          expect(text).not.toMatch(
+            new RegExp(`(?<![a-z0-9])${name}(?![a-z0-9_])`)
+          )
+        }
+      })
+    }
+  }
+
+  it("refuses a prompt that names a tool its turn doesn't have", () => {
+    const { naming } = turnToolset(
+      sketchChatTarget.tools(room, { chatId: "chat-1", userId: "user-1" })
+    )
+    expect(naming.name("create_mockup")).toBe("create_mockup")
+    expect(() => naming.name("run_command")).toThrow(/run_command/)
   })
 })

@@ -99,7 +99,7 @@ const inProcessWorkflowPrompt = (
   t: ToolNaming["name"]
 ) => `When the user asks you to make changes:
 1. First read relevant files to understand the current code
-2. If the user's message starts with ${PLAN_MODE_MARKER}, you MUST call submit_plan with a markdown plan before making ANY file changes. The plan should describe:
+2. If the user's message starts with ${PLAN_MODE_MARKER}, you MUST call ${t("submit_plan")} with a markdown plan before making ANY file changes. The plan should describe:
    - What files you will change and why
    - What specific changes you will make in each file
    - Any dependencies to install or commands to run
@@ -108,26 +108,26 @@ const inProcessWorkflowPrompt = (
 4. Make precise, targeted edits
 5. If needed, run commands to install dependencies, and call ${t("restart_dev_server")} when a change needs the dev server restarted
 
-When plan mode is enabled, you MUST call submit_plan and wait for approval before using write_file or edit_file. Do not skip this step.
+When plan mode is enabled, you MUST call ${t("submit_plan")} and wait for approval before using ${t("write_file")} or ${t("edit_file")}. Do not skip this step.
 
 CRITICAL — YOU MUST ALWAYS GIT COMMIT AND PUSH:
-After ANY file change (write_file, edit_file), you MUST run all three of these commands before responding to the user. Never skip this step. Never forget. This is the most important rule.
-   1. run_command with command "git" and args ["add", "-A"]
-   2. run_command with command "git" and args ["commit", "-m", "<concise description of changes>"]
-   3. run_command with command "git" and args ["push"]
+After ANY file change (${t("write_file")}, ${t("edit_file")}), you MUST run all three of these commands before responding to the user. Never skip this step. Never forget. This is the most important rule.
+   1. ${t("run_command")} with command "git" and args ["add", "-A"]
+   2. ${t("run_command")} with command "git" and args ["commit", "-m", "<concise description of changes>"]
+   3. ${t("run_command")} with command "git" and args ["push"]
 If you do not push, the user will not see your changes. Always push.
 
-IMPORTANT run_command rules:
-- Do NOT chain commands with && or || — each command must be a separate run_command call.
+IMPORTANT ${t("run_command")} rules:
+- Do NOT chain commands with && or || — each command must be a separate ${t("run_command")} call.
 - For commands with arguments that contain spaces (like commit messages), always use the "args" array parameter instead of putting everything in "command". For example: command="git", args=["commit", "-m", "fix button color to blue"].
 
 Reading, searching, and editing files:
-- read_file output is line-numbered in \`cat -n\` style (a right-aligned line number, a tab, then the line). That prefix is for reference only — you MUST strip it before reusing a line as edit_file's old_string, or the edit won't match.
-- edit_file requires old_string to match exactly once. If it reports the match is ambiguous, add surrounding context to make it unique, or pass replace_all to change every occurrence.
-- Use grep to search file contents (returns file:line: text) and glob to find files by name (e.g. \`**/*.tsx\`) instead of shelling out with run_command.
+- ${t("read_file")} output is line-numbered in \`cat -n\` style (a right-aligned line number, a tab, then the line). That prefix is for reference only — you MUST strip it before reusing a line as ${t("edit_file")}'s old_string, or the edit won't match.
+- ${t("edit_file")} requires old_string to match exactly once. If it reports the match is ambiguous, add surrounding context to make it unique, or pass replace_all to change every occurrence.
+- Use ${t("grep")} to search file contents (returns file:line: text) and ${t("glob")} to find files by name (e.g. \`**/*.tsx\`) instead of shelling out with ${t("run_command")}.
 
 Opening a pull request:
-When the user asks to open, create, or submit a pull request (PR), call the create_pr tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use run_command with "gh pr create" — always use create_pr.`
+When the user asks to open, create, or submit a pull request (PR), call the ${t("create_pr")} tool. Generate a concise title from the changes on the branch and an optional short markdown body summarizing what changed. Do not use ${t("run_command")} with "gh pr create" — always use ${t("create_pr")}.`
 
 /**
  * How a harness works a change, with its own file and shell tools. Plan mode
@@ -161,7 +161,7 @@ const canvasViewPrompt = `A user message may end with a \`${CANVAS_VIEW_FOOTER_T
 const agentSystemPromptTail = (naming: ToolNaming) => {
   const t = naming.name
   // A harness runs commands with its own shell tool, not run_command.
-  const shell = naming.harness ? "your shell" : "run_command"
+  const shell = naming.harness ? "your shell" : t("run_command")
   return `
 
 Screenplay runs the project's dev server in the background and shows it in the live preview, which updates automatically when you save files. Its output never reaches ${shell}: call ${t("read_dev_server_logs")} to see compile and runtime errors when the preview breaks, and ${t("restart_dev_server")} to restart it. The user can stop it from the terminal pane; ${t("stop_dev_server")} and ${t("start_dev_server")} do the same. Never start another dev server with ${shell}.

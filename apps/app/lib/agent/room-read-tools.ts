@@ -15,6 +15,7 @@ import { summarizeSteps } from "@/lib/agent/turn-summary"
 import type { AgentMessage } from "@/lib/agent/types"
 import { buildTargetedElementsFooter } from "@/lib/agent/message-markers"
 import { workspaceLabel } from "@/lib/workspace-label"
+import { annotateTools } from "@/lib/mcp/tool-server"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
 import type { ChatSessionData } from "@/lib/types"
 
@@ -71,7 +72,7 @@ type Reader = {
 }
 
 export function buildWorkspaceReadTools(ports: WorkspaceReadPorts & Reader) {
-  return {
+  const tools = {
     read_workspace_chat: tool({
       description:
         "Read what a Workspace's agent did: by default the last thing it was asked, a one-line summary of its last turn (files read and edited, commands run, failures) and its last reply. Pass `full: true` only when you need the whole transcript. Reads the Workspace's newest chat unless you pass `chatId`.",
@@ -177,7 +178,14 @@ export function buildWorkspaceReadTools(ports: WorkspaceReadPorts & Reader) {
         }
       },
     }),
-
+  }
+  return {
+    // They only read, so a harness never asks first.
+    ...annotateTools(tools, {
+      read_workspace_chat: { readOnlyHint: true, openWorldHint: false },
+      read_workspace_diff: { readOnlyHint: true, openWorldHint: false },
+      read_workspace_file: { readOnlyHint: true, openWorldHint: false },
+    }),
     ...buildFrameReadTools(ports, { kind: "canvas" }),
   }
 }
