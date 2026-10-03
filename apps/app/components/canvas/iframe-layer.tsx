@@ -56,8 +56,10 @@ import {
   useLivePage,
   type LivePageWrites,
 } from "./live-page"
+import type { LiveFace } from "./use-shared-frames"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
+import { recordsLiveRoute } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
 import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
@@ -156,12 +158,17 @@ interface IframeLayerProps {
   /** Someone turned the frame live, for everyone: the title line says Live
    *  (#1516). */
   live?: boolean
+  /** The faces on the live frame, for the Live tag (#1519). */
+  liveFaces?: readonly LiveFace[]
   /** Who drives the live copy, for the title-line tag and the resize handles
    *  of a viewer on their own copy. */
   liveDriver?: FrameDriverView
   /** Go live or end it, for everyone (the Go live toggle). Absent where frames can't go live:
    *  the desktop app, `SHARED_FRAMES=off`. */
   onToggleLive?: () => void
+  /** This viewer turned the frame live and waits for its first picture
+   *  (#1520): the toggle spins. */
+  liveStarting?: boolean
   /** Create Flow mode: iframe is interactive AND each navigation leaves a history clone in the group. */
   createFlow: boolean
   selected: boolean
@@ -367,8 +374,10 @@ export function IframeLayer({
   onControlActivity,
   sharedStream,
   live = false,
+  liveFaces,
   liveDriver = NOBODY_DRIVES,
   onToggleLive,
+  liveStarting = false,
   createFlow,
   selected,
   onFocus,
@@ -526,18 +535,16 @@ export function IframeLayer({
     [onRouteChange]
   )
 
-  // Where the shared page went. The driver's view records it, as an iframe
-  // records its own navigation; with nobody driving (a redirect, a reload)
-  // any view does, since they all write the same route. Joining reports where
-  // the page already is, which is never a new step.
+  // Where the shared page went, recorded as an iframe records its own
+  // navigation (`recordsLiveRoute` says which views write it). Joining
+  // reports where the page already is, which is never a new step.
   const driverRef = useRef(driver)
   useEffect(() => {
     driverRef.current = driver
   })
   const handleSharedRoute = useCallback(
     (path: string, first: boolean) => {
-      const kind = driverRef.current.kind
-      if (kind !== "you" && kind !== "none") return
+      if (!recordsLiveRoute(driverRef.current)) return
       handleNavigation(iframeLayer.id, path, first)
     },
     [handleNavigation, iframeLayer.id]
@@ -720,6 +727,7 @@ export function IframeLayer({
     focused,
     live,
     liveDriver,
+    liveFaces,
     onLiveCopy: shared,
   })
 
@@ -1033,6 +1041,7 @@ export function IframeLayer({
                   onDeclineControl={onDeclineControl}
                   live={live}
                   onToggleLive={onToggleLive}
+                  liveStarting={liveStarting}
                   onAskForKnob={onAskForKnob}
                   theme={
                     shared && onColorSchemeChange

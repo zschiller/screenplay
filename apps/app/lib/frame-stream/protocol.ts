@@ -25,6 +25,9 @@ export type FrameStreamClientMessage =
       width: number
       height: number
       scheme?: FrameColorScheme
+      /** A Mockup's page (#1523): its whole document, shown in place of the
+       *  app. The service shows a change to it. */
+      doc?: string
     }
   | { t: "unwatch"; frame: string }
   /** The frame's CSS size changed. */
@@ -33,6 +36,8 @@ export type FrameStreamClientMessage =
    *  already on it. */
   | { t: "navigate"; frame: string; route: string }
   | { t: "reload"; frame: string }
+  /** A Mockup's page changed; the browser shows it unless it already does. */
+  | { t: "doc"; frame: string; doc: string }
   /** The room's colour scheme for the frame's page (its Theme knob). */
   | { t: "scheme"; frame: string; scheme: FrameColorScheme }
   /** A drive grant the app signed for this viewer and frame. */
@@ -65,6 +70,8 @@ export type AgentFrame = {
   route: string
   width: number
   height: number
+  /** A Mockup's page, which it starts on instead of the app (#1523). */
+  doc?: string
 }
 
 /** Driver input, in the frame's CSS pixels. Applied only for the driver. */

@@ -17,6 +17,7 @@ import type {
   FrameDriverView,
   FrameRequesterView,
 } from "@/components/canvas/use-frame-control"
+import type { LiveFace } from "@/components/canvas/use-shared-frames"
 import { useIframeBridgePort } from "@/hooks/use-bridge-port"
 import { usePostMessage } from "@/hooks/use-postmessage"
 import {
@@ -43,8 +44,8 @@ import type {
  * Mockups are both one; they differ only in where the page comes from:
  *
  * - `url`: a frame's own copy, an iframe on the Workspace's preview.
- * - `stream`: a live frame, the shared browser seen through its Frame Stream
- *   (#1392, #1516).
+ * - `stream`: a live frame or Mockup, the shared browser seen through its
+ *   Frame Stream (#1392, #1516, #1523).
  * - `srcdoc`: a Mockup's static HTML (#1309), in an opaque-origin iframe that
  *   may run scripts and nothing else.
  *
@@ -76,6 +77,9 @@ export type LivePageSource =
       hasPage: boolean
       route: string
       scheme: FrameColorScheme
+      /** A Mockup's page (#1523), which the shared browser shows in place
+       *  of the Workspace's preview. */
+      doc?: string
       /** Where the shared page went; `first` is the report on joining. */
       onRoute: (path: string, first: boolean) => void
       /** The picture is up (or gone). */
@@ -313,6 +317,7 @@ export function LivePageContent({
         height={page.height}
         route={source.route}
         scheme={source.scheme}
+        doc={source.doc}
         interactive={page.interactive}
         drives={page.driver.kind === "you"}
         onRoute={source.onRoute}
@@ -451,6 +456,8 @@ export function LivePageControls({
   onDeclineControl,
   live = false,
   onToggleLive,
+  liveUnavailable = false,
+  liveStarting = false,
   onAskForKnob,
   theme,
 }: {
@@ -466,6 +473,12 @@ export function LivePageControls({
   live?: boolean
   /** Go live or end it, for everyone; absent where the page can't go live. */
   onToggleLive?: () => void
+  /** The page could go live but nothing can run it now (no Workspace is
+   *  running): the toggle shows, disabled. */
+  liveUnavailable?: boolean
+  /** This viewer turned the page live and waits for its first picture
+   *  (#1520): the toggle spins. */
+  liveStarting?: boolean
   onAskForKnob?: () => void
   /** The Theme knob, on a shared page. */
   theme?: {
@@ -487,7 +500,12 @@ export function LivePageControls({
         }
       />
       {onToggleLive && (
-        <FrameGoLiveToggle live={live} onToggle={onToggleLive} />
+        <FrameGoLiveToggle
+          live={live}
+          pending={liveStarting}
+          onToggle={onToggleLive}
+          unavailable={liveUnavailable}
+        />
       )}
       <KnobsPopover
         knobs={record.knobs}
@@ -512,6 +530,7 @@ export function livePageChrome({
   focused,
   live = false,
   liveDriver,
+  liveFaces,
   onLiveCopy = false,
 }: {
   driver: FrameDriverView
@@ -520,6 +539,8 @@ export function livePageChrome({
   live?: boolean
   /** Who drives the live copy. */
   liveDriver?: FrameDriverView
+  /** The faces on the live page, for the Live tag (#1519). */
+  liveFaces?: readonly LiveFace[]
   /** This viewer sees the live copy (not their own). */
   onLiveCopy?: boolean
 }): { titleTag: ReactNode; resizable: boolean } {
@@ -531,7 +552,7 @@ export function livePageChrome({
     titleTag: drivenByOther(tagDriver) ? (
       <FrameDriverTag driver={tagDriver} />
     ) : live ? (
-      <FrameLiveTag />
+      <FrameLiveTag faces={liveFaces} />
     ) : undefined,
     resizable: !focused && !drivenByOther(tagDriver),
   }

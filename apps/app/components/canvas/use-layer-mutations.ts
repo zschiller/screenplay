@@ -105,6 +105,15 @@ export interface LayerMutations {
   /** Rename a mockup (its title lives on the record alone). */
   renameMockup: (id: string, title: string) => void
   setMockupStatus: (id: string, status: MockupStatus) => void
+  /**
+   * Turn a mockup live for everyone on the canvas, in the Workspace whose
+   * Sandbox runs it, or back (#1523).
+   */
+  updateMockupLive: (id: string, live: boolean, branchId?: string) => void
+  /** Where a mockup's page is scrolled, synced to every copy. */
+  updateMockupScroll: (id: string, scrollX: number, scrollY: number) => void
+  /** A live mockup's Theme knob, as a frame's. */
+  updateMockupColorScheme: (id: string, colorScheme: "light" | "dark") => void
 
   // --- Live Page writers (#1493) ---
   /** A frame's page's Knobs and shared state, on its record. */
@@ -305,6 +314,31 @@ export function useLayerMutations({
     [ops]
   )
 
+  const updateMockupLive = useCallback(
+    (id: string, live: boolean, branchId?: string) => {
+      ops.patch(
+        "mockupLayers",
+        id,
+        live && branchId ? { live, liveBranchId: branchId } : { live }
+      )
+    },
+    [ops]
+  )
+
+  const updateMockupScroll = useCallback(
+    (id: string, scrollX: number, scrollY: number) => {
+      ops.patch("mockupLayers", id, { scrollX, scrollY })
+    },
+    [ops]
+  )
+
+  const updateMockupColorScheme = useCallback(
+    (id: string, colorScheme: "light" | "dark") => {
+      ops.patch("mockupLayers", id, { colorScheme })
+    },
+    [ops]
+  )
+
   const framePage = useMemo(
     () => livePageWrites(ops, collections, "iframeLayers"),
     [ops, collections]
@@ -349,6 +383,9 @@ export function useLayerMutations({
       resizeMockup,
       renameMockup,
       setMockupStatus,
+      updateMockupLive,
+      updateMockupScroll,
+      updateMockupColorScheme,
       framePage,
       mockupPage,
     }),
@@ -368,6 +405,9 @@ export function useLayerMutations({
       resizeMockup,
       renameMockup,
       setMockupStatus,
+      updateMockupLive,
+      updateMockupScroll,
+      updateMockupColorScheme,
       framePage,
       mockupPage,
     ]

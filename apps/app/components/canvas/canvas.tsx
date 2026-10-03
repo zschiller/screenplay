@@ -584,6 +584,13 @@ export function Canvas({
     () => new Set(mockupLayers.map((layer) => layer.id)),
     [mockupLayers]
   )
+  const chatSessions = useChatSessions()
+  // Each chat-made Document's and Mockup's Workspace (#1314, #1309), for its
+  // label and the Group's, and where it goes live (#1523).
+  const documentWorkspaces = useMemo(
+    () => documentWorkspaceIds(sizedLayers, chatSessions),
+    [sizedLayers, chatSessions]
+  )
   // Live frames (#1516): on hosted, a frame someone turns live is one browser
   // in its Workspace's Sandbox, streamed to everyone on the canvas; every
   // other frame is each viewer's own iframe, as on the desktop app.
@@ -592,7 +599,10 @@ export function Canvas({
     enabled: !isLocalBuild,
     agents,
     iframeLayers,
+    mockupLayers,
+    mockupOwners: documentWorkspaces,
     viewerId: userId ?? null,
+    self,
     others,
     frameControl: collections.frameControl,
   })
@@ -773,13 +783,6 @@ export function Canvas({
   // dimmed frames), the hit-test and the highlight sequencing live in the
   // React-free core it wraps; Escape during a pick goes through the shared
   // precedence the keyboard controller applies.
-  const chatSessions = useChatSessions()
-  // Each chat-made Document's and Mockup's Workspace (#1314, #1309), for its
-  // label and the Group's.
-  const documentWorkspaces = useMemo(
-    () => documentWorkspaceIds(sizedLayers, chatSessions),
-    [sizedLayers, chatSessions]
-  )
   // What a pick can hit: frames, and Mockups as their owning chat's Workspace's
   // (#1309), so a chat can target an element in a Mockup it made.
   const targetLayers = useMemo<TargetLayer[]>(

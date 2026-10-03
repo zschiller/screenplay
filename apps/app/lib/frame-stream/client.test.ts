@@ -240,6 +240,37 @@ describe("FrameStreamConnection", () => {
     ])
   })
 
+  it("watches a Mockup with its page and sends each change to it", async () => {
+    const { conn, sockets } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    conn.watch(
+      "m1",
+      { route: "/", width: 10, height: 10, doc: "<p>one</p>" },
+      handlers()
+    )
+    await flush()
+    const socket = sockets[0]!
+    socket.open()
+    socket.serverSays({ t: "ready", codec: "h264" })
+
+    conn.update("m1", { doc: "<p>two</p>" })
+    conn.update("m1", { doc: "<p>two</p>" })
+    expect(socket.sent.slice(1)).toEqual([
+      {
+        t: "watch",
+        frame: "m1",
+        route: "/",
+        width: 10,
+        height: 10,
+        doc: "<p>one</p>",
+      },
+      { t: "doc", frame: "m1", doc: "<p>two</p>" },
+    ])
+  })
+
   it("reconnects and watches again at the current route", async () => {
     const { conn, sockets, timers } = setup({
       shared: true,
@@ -675,6 +706,77 @@ describe("going local (#1397)", () => {
     const slow = slowConn.snapshot("f1")
     slowTimers.at(-1)!()
     expect(await slow).toBeNull()
+  })
+})
+
+describe("going live (#1520)", () => {
+  async function connected() {
+    const setupResult = setup({ shared: true, url: "wss://s", token: "t" })
+    setupResult.conn.check()
+    await flush()
+    const socket = setupResult.sockets[0]!
+    socket.open()
+    socket.serverSays({ t: "ready", codec: "h264" })
+    return { ...setupResult, socket }
+  }
+
+  it("settles once the frame's first picture arrives", async () => {
+    const { conn, socket, timers } = await connected()
+    const first = conn.frame("f1").firstPicture()
+    socket.onmessage?.({ data: videoMessage("f2", true, [1]) })
+    socket.onmessage?.({ data: videoMessage("f1", true, [1]) })
+    expect(await first).toBeNull()
+    expect(timers.at(-1)!.cleared).toBe(true)
+  })
+
+  it("settles at once on a frame still watched with a picture showing", async () => {
+    const { conn, socket } = await connected()
+    const stop = conn.watch(
+      "f1",
+      { route: "/", width: 640, height: 400 },
+      handlers()
+    )
+    socket.onmessage?.({ data: videoMessage("f1", true, [1]) })
+    expect(await conn.frame("f1").firstPicture()).toBeNull()
+    stop()
+    let settled = false
+    void conn
+      .frame("f1")
+      .firstPicture()
+      .then(() => (settled = true))
+    await flush()
+    expect(settled).toBe(false)
+  })
+
+  it("says the browser failed when the frame reports it", async () => {
+    const { conn, socket } = await connected()
+    const first = conn.frame("f1").firstPicture()
+    socket.serverSays({
+      t: "frame",
+      frame: "f1",
+      status: "failed",
+      width: 640,
+      height: 400,
+      videoWidth: 0,
+      videoHeight: 0,
+    })
+    expect(await first).toBe("failed")
+  })
+
+  it("times out, saying whether the stream ever came up", async () => {
+    const { conn, timers } = await connected()
+    const slow = conn.frame("f1").firstPicture()
+    timers.at(-1)!()
+    expect(await slow).toBe("timeout")
+
+    const { conn: downConn, timers: downTimers } = setup({
+      shared: true,
+      url: "wss://s",
+      token: "t",
+    })
+    const unreachable = downConn.frame("f1").firstPicture()
+    downTimers.at(-1)!()
+    expect(await unreachable).toBe("unreachable")
   })
 })
 

@@ -369,7 +369,9 @@ body {
   background-color: var(--chat-code-bg);
   border-radius: var(--radius);
   padding: 0.1em 0.3em;
-  font-size: 0.875em;
+  /* 12px beside 14px body text, never under 12px, and still scaling with a
+     heading. */
+  font-size: max(0.75rem, calc(12em / 14));
   font-weight: 400;
   color: var(--chat-code-fg);
   overflow-wrap: anywhere;

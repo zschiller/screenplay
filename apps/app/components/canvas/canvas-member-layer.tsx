@@ -1,6 +1,7 @@
 "use client"
 
-import { memo, useMemo } from "react"
+import { memo, useCallback, useMemo } from "react"
+import { toast } from "sonner"
 
 import { getGroupMembers } from "@/lib/canvas/layout"
 import {
@@ -37,6 +38,7 @@ import { frameWorkspaceOf } from "./frame-nav"
 import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
+import { useGoLive } from "./use-go-live"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -242,6 +244,40 @@ function CanvasMemberLayerImpl({
     () => hiddenLayerLabels(effectiveIframeLayerLayouts.values(), zoom),
     [effectiveIframeLayerLayouts, zoom]
   )
+  // Going live (#1520): the toggle spins until the first picture, and a
+  // failure turns the frame back off and says why.
+  const liveIds = useMemo(
+    () =>
+      new Set(
+        [...iframeLayers, ...mockupLayers]
+          .filter((l) => sharedFrames.liveOf(l.id).live)
+          .map((l) => l.id)
+      ),
+    [iframeLayers, mockupLayers, sharedFrames]
+  )
+  const letGo = frameControl.letGo
+  const updateLive = layerMutations.updateLive
+  const updateMockupLive = layerMutations.updateMockupLive
+  const mockupIds = useMemo(
+    () => new Set(mockupLayers.map((l) => l.id)),
+    [mockupLayers]
+  )
+  const mockupWorkspaceOf = sharedFrames.mockupWorkspaceOf
+  const goLive = useGoLive({
+    liveIds,
+    setLive: useCallback(
+      (id: string, live: boolean) => {
+        // Going live or ending it switches which Frame Control record
+        // governs the frame: let go of the old one.
+        letGo(id)
+        // A Mockup records the Workspace it borrows to run in (#1523).
+        if (mockupIds.has(id)) updateMockupLive(id, live, mockupWorkspaceOf(id))
+        else updateLive(id, live)
+      },
+      [letGo, updateLive, updateMockupLive, mockupIds, mockupWorkspaceOf]
+    ),
+    onFailed: useCallback((message: string) => toast.error(message), []),
+  })
 
   return (
     <>
@@ -439,9 +475,18 @@ function CanvasMemberLayerImpl({
           if (member.kind === "mockup-layer") {
             const mockup = mockupsById.get(member.id)
             if (!mockup) return null
+            // A Mockup goes live as a frame does (#1523), in a Workspace it
+            // borrows to run its page.
+            const mockupLive = sharedFrames.liveOf(mockup.id)
+            const liveWorkspace = sharedFrames.mockupWorkspaceOf(mockup.id)
+            const mockupStream = sharedFrames.sharedIds.has(mockup.id)
+              ? sharedFrames.streamOf(liveWorkspace)
+              : undefined
             return (
               <MockupLayer
-                key={mockup.id}
+                // Going live or ending it starts the view afresh, as on a
+                // frame.
+                key={mockupStream ? `${mockup.id}:live` : mockup.id}
                 layer={mockup}
                 // The chat that made it, unless the group label names it
                 // (#1309), as a chat-made Document does.
@@ -504,6 +549,33 @@ function CanvasMemberLayerImpl({
                 writes={layerMutations.mockupPage}
                 focused={focusedIframeLayerId === mockup.id}
                 driver={frameControl.driverOf(mockup.id)}
+                askedForControl={frameControl.askedFor(mockup.id)}
+                controlRequests={frameControl.requestsOf(mockup.id)}
+                onGrantControl={frameControl.grant}
+                onDeclineControl={frameControl.decline}
+                onControlActivity={frameControl.active}
+                sharedStream={mockupStream}
+                live={mockupLive.live}
+                liveFaces={sharedFrames.facesOf(mockup.id)}
+                liveDriver={frameControl.liveDriverOf(mockup.id)}
+                liveUnavailable={!liveWorkspace}
+                liveStarting={goLive.pendingIds.has(mockup.id)}
+                onToggleLive={
+                  sharedFrames.mockupsGoLive
+                    ? () => {
+                        const stream = sharedFrames.streamOf(liveWorkspace)
+                        if (!stream) return
+                        goLive.toggle({
+                          id: mockup.id,
+                          live: mockupLive.live,
+                          stream,
+                          workspace: agents.find((a) => a.id === liveWorkspace),
+                        })
+                      }
+                    : undefined
+                }
+                onScrollChange={layerMutations.updateMockupScroll}
+                onColorSchemeChange={layerMutations.updateMockupColorScheme}
                 onFocus={focusPage}
                 commentMode={commentMode}
                 onWheel={onIframeWheel}
@@ -553,7 +625,7 @@ function CanvasMemberLayerImpl({
           const stream = sharedFrames.sharedIds.has(iframeLayer.id)
             ? sharedFrames.streamOf(iframeLayer.branchId)
             : undefined
-          const canGoLive = !!sharedFrames.streamOf(iframeLayer.branchId)
+          const liveStream = sharedFrames.streamOf(iframeLayer.branchId)
           return (
             <IframeLayer
               // Going live or ending it starts the view afresh: a new stream
@@ -565,17 +637,20 @@ function CanvasMemberLayerImpl({
               }}
               sharedStream={stream}
               live={live.live}
+              liveFaces={sharedFrames.facesOf(iframeLayer.id)}
               liveDriver={frameControl.liveDriverOf(iframeLayer.id)}
               onToggleLive={
-                canGoLive
-                  ? () => {
-                      // Going live or ending it switches which Frame Control
-                      // record governs the frame: let go of the old one.
-                      frameControl.letGo(iframeLayer.id)
-                      layerMutations.updateLive(iframeLayer.id, !live.live)
-                    }
+                liveStream
+                  ? () =>
+                      goLive.toggle({
+                        id: iframeLayer.id,
+                        live: live.live,
+                        stream: liveStream,
+                        workspace: assignedAgent,
+                      })
                   : undefined
               }
+              liveStarting={goLive.pendingIds.has(iframeLayer.id)}
               zoom={zoom}
               labelHidden={labelsHidden.has(iframeLayer.id)}
               focused={focusedIframeLayerId === iframeLayer.id}

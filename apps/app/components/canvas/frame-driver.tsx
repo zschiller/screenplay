@@ -3,10 +3,12 @@
 import {
   Avatar,
   AvatarFallback,
+  AvatarGroup,
   AvatarImage,
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { FloatingToolbarButton } from "@workspace/ui/components/floating-toolbar"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { BroadcastIcon, CursorIcon } from "@workspace/ui/components/icons"
 import {
   Popover,
@@ -16,6 +18,7 @@ import {
 import { GripSpinner } from "@/components/grip-spinner"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
+import type { LiveFace } from "./use-shared-frames"
 
 /** The agent's name where Frame Control names who drives. */
 const AGENT_NAME = "Agent"
@@ -220,19 +223,65 @@ export function FrameDriverTag({ driver }: { driver: FrameDriverView }) {
   return null
 }
 
+/** The most faces the Live tag shows; past that, a count. */
+const MAX_LIVE_FACES = 4
+
 /**
- * "Live" on the frame's title line, where the driver tag goes, while someone
- * is on the frame's live copy (#1516). Muted, in the title's type: it says
- * the frame is shared right now, and nothing here is anyone's alert. The
- * driver tag replaces it while someone has control.
+ * "Live" on the frame's title line, where the driver tag goes, while the
+ * frame is live (#1516), then the faces of everyone on it (#1519): 16px
+ * avatars in their cursor colours, overlapping, the agent as its mark. Muted,
+ * in the title's type: it says the frame is shared right now, and nothing
+ * here is anyone's alert. The driver tag replaces it while someone has
+ * control.
  */
-export function FrameLiveTag() {
+export function FrameLiveTag({ faces = [] }: { faces?: readonly LiveFace[] }) {
+  const shown = faces.slice(0, MAX_LIVE_FACES)
+  const more = faces.length - shown.length
+  const names = faces.map((f) => (f.kind === "agent" ? AGENT_NAME : f.name))
   return (
     <span
       data-frame-live-tag=""
-      className="flex h-[18px] shrink-0 items-center text-xs whitespace-nowrap text-muted-foreground"
+      className="flex h-[18px] shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground"
     >
       Live
+      {shown.length > 0 && (
+        <>
+          <span className="sr-only">with {names.join(", ")}</span>
+          <AvatarGroup
+            aria-hidden
+            className="-space-x-1 *:data-[slot=avatar]:ring-1"
+          >
+            {shown.map((face) =>
+              face.kind === "agent" ? (
+                <Avatar
+                  key="agent"
+                  data-live-face="agent"
+                  className="size-4 bg-background after:hidden"
+                >
+                  <GripSpinner className="size-4" />
+                </Avatar>
+              ) : (
+                <Avatar
+                  key={face.id}
+                  data-live-face={face.id}
+                  className="size-4 after:hidden"
+                >
+                  {face.avatar ? (
+                    <AvatarImage src={face.avatar} alt="" />
+                  ) : null}
+                  <AvatarFallback
+                    style={{ backgroundColor: face.color }}
+                    className={`text-xs font-medium ${presenceInkClass(face.color)}`}
+                  >
+                    {initial(face.name)}
+                  </AvatarFallback>
+                </Avatar>
+              )
+            )}
+          </AvatarGroup>
+          {more > 0 && <span>+{more}</span>}
+        </>
+      )}
     </span>
   )
 }
@@ -243,27 +292,42 @@ export function FrameLiveTag() {
  * canvas on the one live browser, and a click on the pressed toggle ends it
  * for everyone, back to their own copies. It stays in the bar both ways, so
  * the bar never resizes: plain on own copies, the pressed ink fill while live.
+ * From this viewer's click until the first picture (#1520) the regular
+ * spinner takes the icon's place in the same button, and clicks are ignored.
  */
 export function FrameGoLiveToggle({
   live,
+  pending = false,
   onToggle,
+  unavailable = false,
 }: {
   /** The frame is live. */
   live: boolean
+  /** This viewer turned it live and waits for its first picture. */
+  pending?: boolean
   onToggle: () => void
+  /** Nothing can run the page live right now: a Mockup with no Workspace
+   *  running (#1523). Disabled, and the tooltip says why. */
+  unavailable?: boolean
 }) {
   return (
     <FloatingToolbarButton
-      label={live ? "Live" : "Go live"}
+      label={pending ? "Going live" : live ? "Live" : "Go live"}
       hint={
-        live
-          ? "Click to end live for everyone"
-          : "Everyone on the canvas sees it live"
+        pending
+          ? undefined
+          : live
+            ? "Click to end live for everyone"
+            : unavailable
+              ? "A workspace has to be running"
+              : "Everyone on the canvas sees it live"
       }
       pressed={live}
-      onClick={onToggle}
+      disabled={!live && !pending && unavailable}
+      aria-busy={pending || undefined}
+      onClick={pending ? undefined : onToggle}
     >
-      <BroadcastIcon />
+      {pending ? <Spinner aria-hidden /> : <BroadcastIcon />}
     </FloatingToolbarButton>
   )
 }
