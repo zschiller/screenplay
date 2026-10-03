@@ -198,6 +198,11 @@ export interface BranchOverflowMenuContentProps {
   onDelete: (branchId: string) => void
   onCloseAutoFocus?: (event: Event) => void
   /**
+   * Replaces Open in browser's target, the preview root. A frame's copy of
+   * the menu passes one that deep-links the route the frame shows.
+   */
+  onOpenInBrowser?: () => void
+  /**
    * Whether this Branch's agent is currently working (`isBranchBusy`). Gates
    * the "disable while working" items — Rebase on `main` today. Routing is
    * unchanged; an enabled click while busy would be a silent no-op because the
@@ -212,6 +217,25 @@ export interface BranchOverflowMenuContentProps {
  * separators between groups (no section labels).
  */
 export function BranchOverflowMenuContent({
+  onCloseAutoFocus,
+  ...props
+}: BranchOverflowMenuContentProps) {
+  return (
+    <DropdownMenuContent
+      side="right"
+      align="start"
+      onCloseAutoFocus={onCloseAutoFocus}
+    >
+      <BranchOverflowMenuItems {...props} />
+    </DropdownMenuContent>
+  )
+}
+
+/**
+ * The Workspace menu's items without their content box, for a menu that
+ * places them itself: the chat header's … and a frame's Workspace submenu.
+ */
+export function BranchOverflowMenuItems({
   branch,
   repo,
   onPlay,
@@ -229,10 +253,10 @@ export function BranchOverflowMenuContent({
   onMarkDone,
   onReopen,
   onDelete,
-  onCloseAutoFocus,
+  onOpenInBrowser,
   pr,
   isBusy = false,
-}: BranchOverflowMenuContentProps) {
+}: Omit<BranchOverflowMenuContentProps, "onCloseAutoFocus">) {
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
     retry: (
       <DropdownMenuItem onClick={() => onRetry(branch.id)}>
@@ -270,12 +294,14 @@ export function BranchOverflowMenuContent({
     "open-in-browser": (
       <OpenInBrowserItem
         disabled={!branch.previewDomain}
-        onOpen={() =>
-          openPreviewInBrowser({
-            sandboxName: branch.sandboxName,
-            repo,
-            fallbackBase: branch.previewDomain,
-          })
+        onOpen={
+          onOpenInBrowser ??
+          (() =>
+            openPreviewInBrowser({
+              sandboxName: branch.sandboxName,
+              repo,
+              fallbackBase: branch.previewDomain,
+            }))
         }
       />
     ),
@@ -441,20 +467,12 @@ export function BranchOverflowMenuContent({
     })),
   ].filter((group) => group.itemKeys.length > 0)
 
-  return (
-    <DropdownMenuContent
-      side="right"
-      align="start"
-      onCloseAutoFocus={onCloseAutoFocus}
-    >
-      {groups.map((group, i) => (
-        <Fragment key={group.id}>
-          {i > 0 ? <DropdownMenuSeparator /> : null}
-          {group.itemKeys.map((key) => (
-            <Fragment key={key}>{nodes[key]}</Fragment>
-          ))}
-        </Fragment>
+  return groups.map((group, i) => (
+    <Fragment key={group.id}>
+      {i > 0 ? <DropdownMenuSeparator /> : null}
+      {group.itemKeys.map((key) => (
+        <Fragment key={key}>{nodes[key]}</Fragment>
       ))}
-    </DropdownMenuContent>
-  )
+    </Fragment>
+  ))
 }

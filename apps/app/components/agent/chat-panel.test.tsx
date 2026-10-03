@@ -21,6 +21,7 @@ vi.mock("./coordinator-chat", () => ({
 }))
 vi.mock("./chats-menu", () => ({
   ChatsMenuButton: () => <button type="button">Chats</button>,
+  useChatsMenu: () => null,
 }))
 // The Workspace panel's bodies talk to the sandbox and the chat store; the
 // panel only decides which one shows where.
