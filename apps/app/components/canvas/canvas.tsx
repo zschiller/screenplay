@@ -2146,6 +2146,7 @@ export function Canvas({
           viewerId={userId ?? null}
           frameControl={collections.frameControl}
           asks={collections.frameDriveAsks}
+          reveal={revealFrame}
         />
       )}
       {chatTarget.pendingProbes.map(({ agentId, sandboxName }) => (

@@ -272,7 +272,8 @@ export function buildSandboxTools(ctx: ToolContext) {
     // page's HTML (#1311).
     ...chatFrameReadTools(ctx),
 
-    // Driving a frame the person has open, on the Mac (#1389).
+    // Driving a frame: your own on the Mac (#1389), the shared one on hosted
+    // (#1396).
     ...chatFrameDriveTools(ctx),
 
     // Human-in-the-loop: no execute. The loop halts on this tool call and

@@ -18,6 +18,14 @@
 // through CDP only while it holds a drive grant the app signed for that
 // frame, which the app hands out to whoever Frame Control says drives it.
 //
+// The agent drives a frame the same way (#1396): the app connects as the
+// agent and sends Frame Drive ops (lib/frame-drive/contract.ts), each gesture
+// with an agent grant the app signed after Frame Control let it drive. The
+// bridge in the page says where a target is; the gesture itself is real
+// input over CDP, so focus, typing, Tab and hover work as they do for a
+// person. A person's newer grant takes the frame from the agent at once, and
+// a gesture still running stops.
+//
 // The page runs in an iframe inside a small host page this server serves, as
 // it does on the canvas, so the Sandbox Bridge, Knobs and shared state talk
 // to their parent as they always do (#1394). The host relays those messages
@@ -30,8 +38,9 @@
 //
 // Wire protocol (see lib/frame-stream/protocol.ts for the client side):
 //   client → server, JSON text: auth, watch, unwatch, size, navigate,
-//     reload, drive, release, input, bridge
-//   server → client, JSON text: ready, frame, route, error, bridge
+//     reload, drive, release, input, bridge; the agent: agent, agent-shot
+//   server → client, JSON text: ready, frame, route, error, bridge; the
+//     agent: agent-result, agent-shot
 //   server → client, binary video: [1][flags][u16 id length][id][access unit]
 //     flags bit 0: keyframe
 
@@ -106,6 +115,45 @@ const PRIMARY_EVENTS = new Set([
   "screenplay:shared-state",
   "screenplay:shared-state-request",
 ])
+
+// The agent's party id (lib/canvas/frame-control.ts), the user its view
+// token names.
+const AGENT = "@agent"
+// The Frame Drive contract's ops. Nothing else the agent sends reaches a page.
+const DRIVE_OPS = new Set([
+  "click",
+  "type",
+  "key",
+  "scroll",
+  "select",
+  "drag",
+  "elements",
+])
+// How long the agent waits for a frame's browser and page to come up.
+const AGENT_START_MS = 30_000
+// How long one bridge read may take, and how long the page may take to
+// answer at all after a gesture navigated it.
+const AGENT_CALL_MS = 1500
+const AGENT_SETTLE_MS = 10_000
+// How long after a browser starts it may drop input to its page.
+const INPUT_WARMUP_MS = 10_000
+// Pointer moves in a drag, and the pause between them.
+const DRAG_STEPS = 10
+// Show pace (#1390): the agent's cursor glides and pauses in the bridge
+// (450 + 350 ms), typing goes at most 45 ms a key and 2 s a text, and
+// scrolls and drags move in steps a person can follow.
+const SHOW_CURSOR_MS = 3000
+const SHOW_TYPE_MS = 45
+const SHOW_TYPE_MAX_MS = 2000
+const SHOW_SCROLL_STEPS = 8
+const SHOW_SCROLL_STEP_MS = 50
+const SHOW_DRAG_STEPS = 24
+const DRAG_STEP_MS = 16
+// How long, in 10 ms waits, a drag of a draggable element waits in all for
+// the browser to start its HTML5 drag.
+const DRAG_START_WAITS = 30
+// Longest side of the agent's screenshot, as the app's `view_frame`.
+const SHOT_MAX = 1280
 
 if (!KEY) {
   console.error("[frame-stream] SCREENPLAY_STREAM_KEY is not set")
@@ -417,6 +465,21 @@ class Frame {
     this.restoreScript = null
     this.evicting = false
     this.frozen = false
+    // ---- the agent (#1396) ----
+    // Bridge reads the agent is waiting on, by the id the page sees.
+    this.agentCalls = new Map()
+    // Agent ops running: the frame doesn't pause under them.
+    this.agentBusy = 0
+    // What a gesture set off that the agent can't follow: a file chooser,
+    // or an HTML5 drag the browser handed back to it.
+    this.chooserOpened = false
+    this.dragData = null
+    /** Whether the last step left the agent's cursor in the page. */
+    this.cursorShown = false
+    // The kinds of input seen reaching the page since the browser started.
+    this.inputThrough = new Set()
+    this.startedAt = 0
+    this.docAt = 0
   }
 
   // ---- lifecycle ----
@@ -499,6 +562,9 @@ class Frame {
     // the host's own calls, which passed its origin check, are relayed.
     this.hostContext = null
     this.requests.clear()
+    this.dropAgentCalls()
+    this.inputThrough = new Set()
+    this.startedAt = Date.now()
     this.knobs = null
     this.unanswered = null
     this.cdp.on((msg) => {
@@ -510,6 +576,11 @@ class Frame {
         if (p.frame.parentId !== host) return
         this.appFrame = p.frame.id
         this.knobs = null
+        // The page the agent was asking is gone; it asks the new one, and
+        // checks its first input gets through.
+        this.dropAgentCalls()
+        this.docAt = Date.now()
+        this.inputThrough = new Set()
         this.onNavigated(p.frame.url)
       } else if (msg.method === "Page.navigatedWithinDocument") {
         if (p.frameId === this.appFrame) this.onNavigated(p.url)
@@ -525,6 +596,10 @@ class Frame {
         const aux = p.context.auxData ?? {}
         if (aux.frameId === host && aux.isDefault)
           this.hostContext = p.context.id
+      } else if (msg.method === "Page.fileChooserOpened") {
+        this.chooserOpened = true
+      } else if (msg.method === "Input.dragIntercepted") {
+        this.dragData = p.data
       } else if (
         msg.method === "Runtime.bindingCalled" &&
         p.name === BINDING &&
@@ -635,7 +710,8 @@ class Frame {
   pause() {
     clearTimeout(this.idleTimer)
     this.idleTimer = null
-    if (this.viewers.size || this.status !== "live") return
+    // An agent op keeps it running; the frame pauses once the op is done.
+    if (this.viewers.size || this.status !== "live" || this.agentBusy) return
     if (this.gop.length) this.still = this.gop
     this.stopEncoder()
     // Frozen, the page runs no scripts, and with its animations held it
@@ -653,6 +729,9 @@ class Frame {
   async thaw() {
     if (!this.frozen) return
     this.frozen = false
+    // A page that was frozen can drop input for a moment, like a new one.
+    this.docAt = Date.now()
+    this.inputThrough = new Set()
     await Promise.all([
       this.page("Page.setWebLifecycleState", { state: "active" }),
       this.page("Animation.setPlaybackRate", { playbackRate: 1 }),
@@ -1118,6 +1197,11 @@ class Frame {
     } else if (!BRIDGE_WRITES.has(message.type) || conn !== this.primary()) {
       return
     }
+    await this.post(message)
+  }
+
+  /** Post a message into the app's page, as the canvas would. */
+  async post(message) {
     // The message goes in as data: a string literal the host parses.
     const json = JSON.stringify(JSON.stringify(message))
     await this.page("Runtime.evaluate", {
@@ -1138,6 +1222,13 @@ class Frame {
     const relay = (conn) =>
       conn.sendJson({ t: "bridge", frame: this.id, message })
     if (message.type === "screenplay:dom-result") {
+      const call = this.agentCalls.get(message.id)
+      if (call) {
+        this.agentCalls.delete(message.id)
+        clearTimeout(call.timer)
+        call.resolve(message)
+        return
+      }
       const req = this.requests.get(message.id)
       if (!req) return
       this.requests.delete(message.id)
@@ -1221,6 +1312,504 @@ class Frame {
       await this.page("Input.insertText", { text: msg.text.slice(0, 10_000) })
     }
   }
+
+  // ---- the agent (#1396) ----
+
+  /** The agent holds the frame, by a grant that hasn't expired. */
+  agentDrives() {
+    return (
+      this.driver !== null &&
+      this.driver.agent === true &&
+      this.driver.exp > Date.now()
+    )
+  }
+
+  /**
+   * Take the frame for the agent with a grant the app signed after Frame
+   * Control let it drive. A person's newer grant wins: they took the frame
+   * after the agent's gate, so the gesture doesn't run.
+   */
+  agentTakes(exp) {
+    const d = this.driver
+    if (d && !d.agent && d.exp > Date.now() && d.exp > exp) return false
+    if (!d?.agent || d.exp < exp) this.driver = { conn: null, agent: true, exp }
+    this.checkPrimary()
+    return true
+  }
+
+  /** Keep the frame running for an agent op; the release lets it pause. */
+  agentHold() {
+    this.agentBusy++
+    this.lastViewed = Date.now()
+    clearTimeout(this.idleTimer)
+    this.idleTimer = null
+    let held = true
+    return () => {
+      if (!held) return
+      held = false
+      this.agentBusy--
+      if (this.agentBusy || this.viewers.size || this.closed) return
+      this.lastViewed = Date.now()
+      this.idleTimer = setTimeout(() => this.pause(), IDLE_PAUSE_MS)
+    }
+  }
+
+  dropAgentCalls() {
+    for (const call of this.agentCalls.values()) {
+      clearTimeout(call.timer)
+      call.reject(new Error("the page navigated"))
+    }
+    this.agentCalls.clear()
+  }
+
+  /** Ask the page's bridge once; rejects when it doesn't answer in time. */
+  bridgeCall(message, timeout = AGENT_CALL_MS) {
+    const id = `a${++this.requestSeq}`
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.agentCalls.delete(id)
+        reject(new Error("the page didn't answer"))
+      }, timeout)
+      this.agentCalls.set(id, { resolve, reject, timer })
+      this.post({ ...message, id }).catch((e) => {
+        if (!this.agentCalls.delete(id)) return
+        clearTimeout(timer)
+        reject(e)
+      })
+    }).then((answer) => {
+      if (!answer.ok) throw new BridgeError(String(answer.error))
+      return answer.value
+    })
+  }
+
+  /** Ask the bridge until it answers: after a gesture that navigated, the
+   *  next page takes a moment to load its bridge. */
+  async bridgeSettled(message, within = AGENT_SETTLE_MS) {
+    const until = Date.now() + within
+    for (;;) {
+      try {
+        return await this.bridgeCall(message)
+      } catch (e) {
+        if (e instanceof BridgeError || Date.now() > until) throw e
+        if (this.status !== "live") throw new Error("the browser stopped")
+        await sleep(100)
+      }
+    }
+  }
+
+  mouse(type, p, extra) {
+    return this.page("Input.dispatchMouseEvent", {
+      type,
+      x: p.x,
+      y: p.y,
+      button: "none",
+      buttons: 0,
+      clickCount: 0,
+      modifiers: 0,
+      ...extra,
+    })
+  }
+
+  /** Press and release one key, typing `text` when it has one. */
+  press(key, modifiers = 0, text) {
+    const { code, keyCode } = keyInfo(key)
+    const base = {
+      key,
+      code,
+      windowsVirtualKeyCode: keyCode,
+      nativeVirtualKeyCode: keyCode,
+      modifiers,
+    }
+    return this.delivered("keydown", async () => {
+      await this.page("Input.dispatchKeyEvent", {
+        ...base,
+        type: text ? "keyDown" : "rawKeyDown",
+        text,
+        unmodifiedText: text,
+      })
+      await this.page("Input.dispatchKeyEvent", { ...base, type: "keyUp" })
+    })
+  }
+
+  /**
+   * Send input of one kind (`pointerdown`, `keydown` or `wheel`) until the
+   * page hears it. Chrome drops input to a page for a moment after its
+   * browser starts, and to a new document until it has painted, so a
+   * gesture right then would silently do nothing. Once one of a kind gets
+   * through, it does for good in that document. `undo` balances a dropped
+   * send (a press's release) before the next try. `nested`: the input goes
+   * to a frame inside the page, which the page can't hear, so it's sent once.
+   */
+  async delivered(kind, send, undo, nested = false) {
+    const since = Math.max(this.startedAt, this.docAt)
+    const until = since + INPUT_WARMUP_MS
+    if (nested || this.inputThrough.has(kind) || Date.now() > until)
+      return send()
+    const state = () => this.bridgeSettled({ type: "screenplay:drive-state" })
+    for (;;) {
+      const before = await state()
+      if (kind === "keydown" && before.nestedFocus) return send()
+      await send()
+      const after = await state()
+      // Heard, or it took the page somewhere else (Enter submitted a form).
+      if (
+        after.doc !== before.doc ||
+        (after.inputs?.[kind] ?? 0) > (before.inputs?.[kind] ?? 0)
+      ) {
+        this.inputThrough.add(kind)
+        return
+      }
+      if (Date.now() > until) return
+      await undo?.()
+      await sleep(100)
+    }
+  }
+
+  /** Where a target is, after the bridge scrolled it into view (smoothly,
+   *  at show pace). */
+  locate(target, opts = {}) {
+    return this.bridgeSettled({
+      type: "screenplay:drive-locate",
+      target,
+      ...opts,
+    })
+  }
+
+  /** Draw the agent's cursor in the page (`screenplay:drive-cursor`). */
+  cursor(what) {
+    return this.bridgeCall(
+      { type: "screenplay:drive-cursor", ...what },
+      SHOW_CURSOR_MS
+    )
+  }
+
+  /**
+   * At show pace, glide the cursor to `p` (or pause where it is) before a
+   * gesture lands. True when someone took the frame meanwhile, so the
+   * gesture mustn't land.
+   */
+  async showBefore(op, p) {
+    if (op.pace !== "show") return false
+    // Best effort: a page whose bridge doesn't answer still gets the step.
+    await this.cursor(p ? { to: { x: p.x, y: p.y } } : { pause: true }).catch(
+      () => {}
+    )
+    if (!this.agentDrives()) return true
+    if (p) await this.cursor({ press: true }).catch(() => {})
+    return false
+  }
+
+  async agentDone(op, target, state = {}) {
+    const after = await this.bridgeSettled({
+      type: "screenplay:drive-state",
+      ...state,
+    })
+    const value = { op: op.op, target: target ?? null, path: after.path }
+    if (after.value !== undefined) value.value = after.value
+    if (after.scrolled) value.scrolled = after.scrolled
+    return { status: "done", value }
+  }
+
+  /** One Frame Drive op for the agent. Reads need no grant; gestures need
+   *  `grantExp`, the agent grant's expiry, checked here against a person's. */
+  async agentRun(op, grantExp) {
+    if (op.op === "elements") {
+      return this.bridgeSettled({
+        type: "screenplay:drive",
+        op: {
+          op: "elements",
+          selector: typeof op.selector === "string" ? op.selector : undefined,
+        },
+      })
+    }
+    if (!this.agentTakes(grantExp)) return { status: "taken" }
+    const show = op.pace === "show"
+    // A step at jump pace leaves no cursor behind; one at show pace leaves it
+    // a moment, so a run of steps reads as one movement.
+    if (!show && this.cursorShown)
+      await this.cursor({ hide: true }).catch(() => {})
+    this.cursorShown = show
+    const result = await this.agentGesture(op)
+    if (show) await this.cursor({ linger: true }).catch(() => {})
+    return result
+  }
+
+  agentGesture(op) {
+    switch (op.op) {
+      case "click":
+        return this.agentClick(op)
+      case "type":
+        return this.agentType(op)
+      case "key":
+        return this.agentKey(op)
+      case "scroll":
+        return this.agentScroll(op)
+      case "select":
+        // A native select's popup is the browser's own; picking its option
+        // through the bridge sets it as a person's pick would.
+        return this.bridgeSettled({ type: "screenplay:drive", op })
+      case "drag":
+        return this.agentDrag(op)
+    }
+    return { status: "failed", reason: "unknown drive op" }
+  }
+
+  async agentClick(op) {
+    const at = await this.locate(op.target, { show: op.pace === "show" })
+    if (!at) return { status: "not-found", target: op.target }
+    // The agent has no file to give a file picker.
+    if (at.file) return { status: "gap", gap: "file-picker", target: at.target }
+    if (await this.showBefore(op, at)) return { status: "taken" }
+    this.chooserOpened = false
+    await this.page("Page.setInterceptFileChooserDialog", { enabled: true })
+    try {
+      await this.mouse("mouseMoved", at)
+      const press = { button: "left", clickCount: 1 }
+      await this.delivered(
+        "pointerdown",
+        () => this.mouse("mousePressed", at, { ...press, buttons: 1 }),
+        () => this.mouse("mouseReleased", at, press),
+        at.nested
+      )
+      await this.mouse("mouseReleased", at, press)
+      const done = await this.agentDone(op, at.target)
+      return this.chooserOpened
+        ? { status: "gap", gap: "file-picker", target: at.target }
+        : done
+    } finally {
+      await this.page("Page.setInterceptFileChooserDialog", {
+        enabled: false,
+      }).catch(() => {})
+    }
+  }
+
+  async agentType(op) {
+    const at = await this.locate(op.target, {
+      focus: "field",
+      replace: !!op.replace,
+      show: op.pace === "show",
+    })
+    if (!at) return { status: "not-found", target: op.target }
+    if (at.field === false)
+      return { status: "failed", reason: "the target isn't a text field" }
+    if (await this.showBefore(op, at)) return { status: "taken" }
+    const text = String(op.text ?? "")
+    const perKey =
+      op.pace === "show"
+        ? Math.min(SHOW_TYPE_MS, SHOW_TYPE_MAX_MS / Math.max(1, text.length))
+        : 0
+    if (op.replace && !text) await this.press("Delete")
+    // Typed key by key, as a person would; a long or unusual text goes in
+    // as one insertion (still a real edit the page hears as input).
+    if (text.length > 500 || !/^[\x20-\x7e\n]*$/.test(text)) {
+      await this.page("Input.insertText", { text })
+    } else {
+      for (const ch of text) {
+        if (!this.agentDrives()) return { status: "taken" }
+        if (ch === "\n") await this.press("Enter", 0, "\r")
+        else await this.press(ch, 0, ch)
+        if (perKey) await sleep(perKey)
+      }
+    }
+    return this.agentDone(op, at.target, { selector: at.target?.selector })
+  }
+
+  async agentKey(op) {
+    const key = typeof op.key === "string" ? op.key.slice(0, 32) : ""
+    if (!key) return { status: "failed", reason: "missing key" }
+    let target = null
+    let at = null
+    if (op.target) {
+      at = await this.locate(op.target, {
+        focus: "element",
+        show: op.pace === "show",
+      })
+      if (!at) return { status: "not-found", target: op.target }
+      target = at.target
+    }
+    if (await this.showBefore(op, at)) return { status: "taken" }
+    const m = op.modifiers ?? {}
+    const modifiers =
+      (m.altKey ? 1 : 0) |
+      (m.ctrlKey ? 2 : 0) |
+      (m.metaKey ? 4 : 0) |
+      (m.shiftKey ? 8 : 0)
+    const plain = !(m.altKey || m.ctrlKey || m.metaKey)
+    const text =
+      key === "Enter" ? "\r" : plain && [...key].length === 1 ? key : undefined
+    await this.press(key, modifiers, text)
+    return this.agentDone(op, target)
+  }
+
+  async agentScroll(op) {
+    let at = null
+    if (op.target) {
+      at = await this.locate(op.target, { scroller: true })
+      if (!at) return { status: "not-found", target: op.target }
+    }
+    const scroller = at ? at.scroller : null
+    const point = at ?? { x: this.width / 2, y: this.height / 2 }
+    if (await this.showBefore(op, at)) return { status: "taken" }
+    await this.mouse("mouseMoved", point)
+    // At show pace the wheel turns in steps, so the page moves visibly.
+    const steps = op.pace === "show" ? SHOW_SCROLL_STEPS : 1
+    const wheel = () =>
+      this.mouse("mouseWheel", point, {
+        deltaX: (Number(op.dx) || 0) / steps,
+        deltaY: (Number(op.dy) || 0) / steps,
+      })
+    await this.delivered("wheel", wheel, undefined, !!at?.nested)
+    for (let i = 1; i < steps; i++) {
+      if (!this.agentDrives()) return { status: "taken" }
+      await sleep(SHOW_SCROLL_STEP_MS)
+      await wheel()
+    }
+    // A wheel scrolls smoothly: wait for it to come to rest.
+    let last = null
+    for (let i = 0; i < 20; i++) {
+      const now = await this.bridgeSettled({
+        type: "screenplay:drive-state",
+        scroller,
+      })
+      const pos = JSON.stringify(now.scrolled)
+      if (pos === last) break
+      last = pos
+      await sleep(50)
+    }
+    return this.agentDone(op, at ? at.scrollerTarget : null, { scroller })
+  }
+
+  async agentDrag(op) {
+    const from = await this.locate(op.target, { show: op.pace === "show" })
+    if (!from) return { status: "not-found", target: op.target }
+    const to = await this.locate(op.to, { inPlace: true })
+    if (!to) return { status: "not-found", target: op.to }
+    if (await this.showBefore(op, from)) return { status: "taken" }
+    const show = op.pace === "show"
+    const dragSteps = show ? SHOW_DRAG_STEPS : DRAG_STEPS
+    this.dragData = null
+    // An HTML5 drag would hand the pointer to the system; the browser hands
+    // it back here instead, and the drag goes on as drag events.
+    await this.page("Input.setInterceptDrags", { enabled: true })
+    let at = from
+    let entered = false
+    let dragWait = DRAG_START_WAITS
+    try {
+      await this.mouse("mouseMoved", from)
+      const press = { button: "left", clickCount: 1 }
+      await this.delivered(
+        "pointerdown",
+        () => this.mouse("mousePressed", from, { ...press, buttons: 1 }),
+        () => this.mouse("mouseReleased", from, press),
+        from.nested
+      )
+      for (let i = 1; i <= dragSteps; i++) {
+        if (!this.agentDrives()) {
+          await this.mouse("mouseReleased", at, {
+            button: "left",
+            clickCount: 1,
+          })
+          return { status: "taken" }
+        }
+        at = {
+          x: from.x + ((to.x - from.x) * i) / dragSteps,
+          y: from.y + ((to.y - from.y) * i) / dragSteps,
+        }
+        if (show) await this.cursor({ follow: at }).catch(() => {})
+        if (this.dragData) {
+          await this.page("Input.dispatchDragEvent", {
+            type: entered ? "dragOver" : "dragEnter",
+            x: at.x,
+            y: at.y,
+            data: this.dragData,
+          })
+          entered = true
+        } else {
+          await this.mouse("mouseMoved", at, { button: "left", buttons: 1 })
+          // The browser hands an HTML5 drag back a moment after the move
+          // that started it: wait for it, so the rest goes as drag events.
+          while (from.draggable && !this.dragData && dragWait-- > 0)
+            await sleep(10)
+        }
+        await sleep(DRAG_STEP_MS)
+      }
+      if (this.dragData) {
+        // The browser drops only once the page has answered a drag-over at
+        // the drop point (it says whether it takes the drop there).
+        const overs = async () =>
+          (await this.bridgeSettled({ type: "screenplay:drive-state" })).inputs
+            ?.dragover ?? 0
+        const before = await overs()
+        await this.page("Input.dispatchDragEvent", {
+          type: "dragOver",
+          x: to.x,
+          y: to.y,
+          data: this.dragData,
+        })
+        for (let w = 0; w < 50 && (await overs()) <= before; w++)
+          await sleep(10)
+        await this.page("Input.dispatchDragEvent", {
+          type: "drop",
+          x: to.x,
+          y: to.y,
+          data: this.dragData,
+        })
+      }
+      await this.mouse("mouseReleased", to, { button: "left", clickCount: 1 })
+    } finally {
+      this.dragData = null
+      await this.page("Input.setInterceptDrags", { enabled: false }).catch(
+        () => {}
+      )
+    }
+    return this.agentDone(op, from.target)
+  }
+
+  /** The frame as everyone sees it, at most {@link SHOT_MAX} on its longest
+   *  side. */
+  async agentShot() {
+    const scale = Math.min(1, SHOT_MAX / Math.max(this.width, this.height))
+    const { data } = await this.page("Page.captureScreenshot", {
+      format: "webp",
+      quality: 85,
+      clip: { x: 0, y: 0, width: this.width, height: this.height, scale },
+    })
+    return { data, mediaType: "image/webp" }
+  }
+}
+
+/** A bridge answer that says the op failed (as opposed to no answer). */
+class BridgeError extends Error {}
+
+/** CDP's code and key code for a key named as in `KeyboardEvent.key`. */
+function keyInfo(key) {
+  const named = {
+    Enter: ["Enter", 13],
+    Escape: ["Escape", 27],
+    Tab: ["Tab", 9],
+    Backspace: ["Backspace", 8],
+    Delete: ["Delete", 46],
+    " ": ["Space", 32],
+    ArrowLeft: ["ArrowLeft", 37],
+    ArrowUp: ["ArrowUp", 38],
+    ArrowRight: ["ArrowRight", 39],
+    ArrowDown: ["ArrowDown", 40],
+    Home: ["Home", 36],
+    End: ["End", 35],
+    PageUp: ["PageUp", 33],
+    PageDown: ["PageDown", 34],
+  }
+  if (named[key]) return { code: named[key][0], keyCode: named[key][1] }
+  if (/^[a-z]$/i.test(key))
+    return {
+      code: `Key${key.toUpperCase()}`,
+      keyCode: key.toUpperCase().charCodeAt(0),
+    }
+  if (/^[0-9]$/.test(key))
+    return { code: `Digit${key}`, keyCode: key.charCodeAt(0) }
+  const fn = /^F([1-9]|1[0-2])$/.exec(key)
+  if (fn) return { code: key, keyCode: 111 + Number(fn[1]) }
+  return { code: "", keyCode: 0 }
 }
 
 // ---------- host page ----------
@@ -1338,6 +1927,8 @@ async function handleMessage(conn, msg) {
   const id =
     typeof msg.frame === "string" && msg.frame.length <= 200 ? msg.frame : null
   if (!id) return
+  if (msg.t === "agent" || msg.t === "agent-shot")
+    return handleAgent(conn, id, msg)
   let frame = frames.get(id)
   switch (msg.t) {
     case "watch": {
@@ -1417,6 +2008,87 @@ async function handleMessage(conn, msg) {
       // Watchers' input never reaches the page.
       if (frame.drives(conn)) await frame.input(msg)
       return
+  }
+}
+
+/**
+ * The agent's ops (#1396), from the app's agent connection only. The agent
+ * isn't a viewer: its ops start a frame nobody watches, and keep it from
+ * pausing while they run, but it receives no video.
+ */
+async function handleAgent(conn, id, msg) {
+  if (conn.user !== AGENT || typeof msg.id !== "string") return
+  const shot = msg.t === "agent-shot"
+  const answer = (body) =>
+    conn.sendJson({
+      t: shot ? "agent-shot" : "agent-result",
+      id: msg.id,
+      ...body,
+    })
+  const unavailable = (reason) =>
+    answer(shot ? { reason } : { result: { status: "unavailable", reason } })
+
+  const op = msg.op
+  if (!shot && (!op || typeof op !== "object" || !DRIVE_OPS.has(op.op))) {
+    return answer({ result: { status: "failed", reason: "unknown drive op" } })
+  }
+  let grantExp = 0
+  if (!shot && op.op !== "elements") {
+    const claims = verifyToken(msg.grant)
+    if (!claims || claims.k !== "agent" || claims.frame !== id)
+      return answer({ result: { status: "taken" } })
+    grantExp = claims.exp
+  }
+
+  let frame = frames.get(id)
+  if (!frame) {
+    if (
+      !validRoute(msg.route) ||
+      !validSize(msg.width) ||
+      !validSize(msg.height)
+    )
+      return unavailable("The frame's route or size isn't valid.")
+    frame = new Frame(
+      id,
+      msg.route,
+      Math.round(msg.width),
+      Math.round(msg.height)
+    )
+    frames.set(id, frame)
+    frame.start().catch((e) => frame.fail(e))
+    enforceCap()
+  } else if (frame.status === "failed" || frame.status === "evicted") {
+    frame.reopen()
+  }
+  const release = frame.agentHold()
+  try {
+    const until = Date.now() + AGENT_START_MS
+    while (frame.status !== "live" || !frame.appFrame) {
+      if (frame.status === "failed" || frame.closed)
+        return unavailable("The frame's browser didn't start.")
+      if (Date.now() > until)
+        return unavailable(
+          "The frame's browser is still starting. Try again in a moment."
+        )
+      await sleep(100)
+    }
+    await frame.thaw()
+    if (shot) return answer({ shot: await frame.agentShot() })
+    return answer({ result: await frame.agentRun(op, grantExp) })
+  } catch (e) {
+    const reason =
+      e instanceof BridgeError
+        ? e.message
+        : `The frame's page didn't answer (${e.message}). It may still be loading.`
+    if (shot) return unavailable(reason)
+    return answer({
+      result:
+        e instanceof BridgeError
+          ? { status: "failed", reason }
+          : { status: "unavailable", reason },
+    })
+  } finally {
+    release()
   }
 }
 

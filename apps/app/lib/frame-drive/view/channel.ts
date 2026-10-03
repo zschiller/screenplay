@@ -23,14 +23,18 @@ import type { RoomDoc } from "@/lib/room-access"
  * answer the canvas posts. The screenshot is the page as it is in their view,
  * rendered away from the canvas, since no browser can photograph theirs.
  *
- * Frames on hosted are one shared browser in their Workspace's Sandbox, whose
- * backend is #1396, so this one says it can't drive them yet.
+ * Frames on hosted are one shared browser in their Workspace's Sandbox, with
+ * a backend of their own (#1396), so this one doesn't drive them. It does
+ * bring a shared frame into the asker's view (#1390), which only their
+ * canvas can.
  */
 
 /** How long a gesture may take in the page before the turn gives up. */
 const OP_TIMEOUT_MS = 15_000
 /** How long a read of the page for a screenshot may take. */
 const SNAPSHOT_TIMEOUT_MS = 8_000
+/** How long bringing a Mockup into the asker's view may take. */
+const REVEAL_TIMEOUT_MS = 5_000
 /** How often the turn looks for the answer. */
 const POLL_MS = 150
 
@@ -127,6 +131,22 @@ export function viewFrameDriveBackend(
       return answer.type === "result"
         ? answer.result
         : { status: "failed", reason: "unexpected answer" }
+    },
+
+    async reveal(frameId) {
+      const frame = await room.readDoc((c) => c.iframeLayers.has(frameId))
+      const reason = frame ? null : await notDrivable(frameId)
+      if (reason) return reason
+      const answer = await ask(
+        { type: "reveal", id: randomUUID(), frameId },
+        REVEAL_TIMEOUT_MS
+      )
+      if (!answer) return NO_ANSWER
+      return answer.type === "revealed" && answer.ok
+        ? null
+        : frame
+          ? "The frame isn't on the open canvas."
+          : "The Mockup isn't on the open canvas."
     },
 
     async screenshot(frameId): Promise<DriveScreenshotResult> {

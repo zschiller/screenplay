@@ -9,13 +9,20 @@ import type { RoomDoc } from "@/lib/room-access"
 /** Longest side of a screenshot, as `view_frame`'s. */
 const MAX_SHOT_DIM = 1280
 
-/** Frame Control's records in the Room's doc, for the agent's driver. */
-export function roomFrameControlStore(room: RoomDoc): FrameControlStore {
+/**
+ * Frame Control's records in the Room's doc, for the agent's driver. `live`
+ * is what a new record says: a hosted shared frame's (#1396) governs its one
+ * live browser, as the canvas writes it.
+ */
+export function roomFrameControlStore(
+  room: RoomDoc,
+  { live = false }: { live?: boolean } = {}
+): FrameControlStore {
   return {
     update: (key, fn) =>
       room.mutateDoc((c) => {
         const current = c.frameControl.get(key)
-        const next = fn(current ?? EMPTY_FRAME_CONTROL)
+        const next = fn(current ?? { ...EMPTY_FRAME_CONTROL, live })
         if (next === current) return next
         // A record nobody drives or waits on says nothing; don't keep it.
         if (next.driver === null && next.requests.length === 0) {

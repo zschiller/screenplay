@@ -1112,12 +1112,7 @@ export function IframeLayer({
                       <DotsThreeIcon className="text-muted-foreground" />
                     </FloatingToolbarButton>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    side="bottom"
-                    align="end"
-                    sideOffset={8}
-                    className="min-w-44"
-                  >
+                  <DropdownMenuContent side="bottom" align="end" sideOffset={8}>
                     {onSetSize && (
                       <DeviceSizeSubMenu
                         width={iframeLayer.width}

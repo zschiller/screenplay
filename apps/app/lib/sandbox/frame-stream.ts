@@ -23,13 +23,7 @@ const logPath = (name: string) => `${sandboxStateDir(name)}/frame-stream.log`
 // The Workspace image's browser (#1388).
 const CHROME = "google-chrome"
 
-/**
- * Shared frames are on for hosted Workspaces unless the deployment turns them
- * off with `SHARED_FRAMES=off`. The desktop app keeps its local iframes.
- */
-export function sharedFramesEnabled(): boolean {
-  return process.env.SHARED_FRAMES?.trim().toLowerCase() !== "off"
-}
+export { sharedFramesEnabled } from "@/lib/frame-stream/shared-frames"
 
 /** The stream's public WebSocket URL, or null when the Sandbox doesn't
  *  forward the stream port (it was created before shared frames). */
