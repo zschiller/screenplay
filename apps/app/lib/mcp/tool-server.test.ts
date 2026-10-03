@@ -11,6 +11,14 @@ const screenshot = {
   mediaType: "image/png",
 }
 
+const pdf = {
+  kind: "file" as const,
+  caption: "brief.pdf (1.2 KB, PDF)",
+  data: "JVBERi0=",
+  mediaType: "application/pdf",
+  filename: "brief.pdf",
+}
+
 const server: McpToolServer = {
   name: "test",
   version: "1",
@@ -20,7 +28,8 @@ const server: McpToolServer = {
         type: "object",
         properties: { id: { type: "string" } },
       }),
-      execute: async ({ id }) => (id === "f1" ? screenshot : "not found"),
+      execute: async ({ id }) =>
+        id === "f1" ? screenshot : id === "pdf" ? pdf : "not found",
       toModelOutput: imageModelOutput,
     }),
     count: tool({
@@ -45,6 +54,20 @@ describe("MCP tools/call content", () => {
     expect(await call("view", { id: "f1" })).toEqual([
       { type: "text", text: screenshot.caption },
       { type: "image", data: screenshot.data, mimeType: "image/png" },
+    ])
+  })
+
+  it("sends a PDF as caption text plus an embedded resource", async () => {
+    expect(await call("view", { id: "pdf" })).toEqual([
+      { type: "text", text: pdf.caption },
+      {
+        type: "resource",
+        resource: {
+          uri: "file:///brief.pdf",
+          mimeType: "application/pdf",
+          blob: pdf.data,
+        },
+      },
     ])
   })
 

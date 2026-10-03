@@ -12,8 +12,11 @@ import { buildMockupTools } from "./mockup-tools"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
 import { buildSketchSkillTools, sketchSkillIndex } from "./sketch-tools"
+import { buildFileTools } from "./file-tools"
 import { chatFrameDriveTools } from "@/lib/frame-drive/live"
-import type { MemoryData } from "@/lib/types"
+import { canvasFiles } from "@/lib/files"
+import { loadCanvasFiles } from "@/lib/files/canvas-files"
+import type { FileEntryData, MemoryData } from "@/lib/types"
 
 /** A Sketch Chat (`lib/chat/sketch-chat.ts`): a chat with no repository. */
 export interface SketchTarget {
@@ -27,17 +30,19 @@ export interface SketchContext {
   chatId: string
   layerDirectory: LayerDirectory
   memory: MemoryData[]
+  files: FileEntryData[]
 }
 
 /** No sandbox: Documents and Mockups only, and nothing that touches code. */
 export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
   kind: "sketch",
   async loadContext(room, target) {
-    const [layerDirectory, memory] = await Promise.all([
+    const [layerDirectory, memory, files] = await Promise.all([
       loadLayerDirectory(room),
       loadCanvasMemory(room),
+      loadCanvasFiles(room),
     ])
-    return { chatId: target.chatId, layerDirectory, memory }
+    return { chatId: target.chatId, layerDirectory, memory, files }
   },
   buildSystemPrompt(ctx, naming) {
     return buildSketchSystemPrompt({
@@ -45,6 +50,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
       chatId: ctx.chatId,
       skills: sketchSkillIndex(),
       memory: ctx.memory,
+      files: ctx.files,
       toolNaming: naming,
     })
   },
@@ -59,6 +65,8 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
         ...buildSketchSkillTools(),
         ...buildLayerReadTools({ room }),
         ...buildQuestionTools(),
+        // The canvas's saved files (#1514): text only, with no sandbox.
+        ...buildFileTools({ canvas: canvasFiles(room), chatId }),
       },
     }
   },

@@ -229,9 +229,11 @@ fn apply_desktop_env(
     let pglite = data.join("pglite");
     let yjs = data.join("yjs");
     let blobs = data.join("blobs");
+    // Canvas files' bytes (#1514): private, so never under the served blobs.
+    let files = data.join("files");
     // Each canvas's Coordinator runs its harness in a folder under here (#903).
     let coordinator = data.join("coordinator");
-    for d in [&pglite, &yjs, &blobs, &coordinator] {
+    for d in [&pglite, &yjs, &blobs, &files, &coordinator] {
         fs::create_dir_all(d).ok();
     }
 
@@ -267,6 +269,7 @@ fn apply_desktop_env(
         .env("PGLITE_MIGRATIONS_DIR", app_root.join("drizzle").join("local"))
         .env("YJS_PERSISTENCE_DIR", &yjs)
         .env("LOCAL_BLOB_DIR", &blobs)
+        .env("LOCAL_FILES_DIR", &files)
         .env("SCREENPLAY_COORDINATOR_ROOT", &coordinator)
         // Origin-relative on purpose: blob URLs are persisted in room rows, and
         // the port is random per launch — an absolute URL would strand every

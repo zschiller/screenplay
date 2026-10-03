@@ -183,6 +183,10 @@ async function callTool(
 type McpContent =
   | { type: "text"; text: string }
   | { type: "image"; data: string; mimeType: string }
+  | {
+      type: "resource"
+      resource: { uri: string; mimeType: string; blob: string }
+    }
 
 /** An AI SDK tool result, as MCP tool-result content. */
 function mcpContent(output: ToolResultOutput): McpContent[] {
@@ -195,6 +199,17 @@ function mcpContent(output: ToolResultOutput): McpContent[] {
         if (part.type === "text") return { type: "text", text: part.text }
         if (part.type === "image-data") {
           return { type: "image", data: part.data, mimeType: part.mediaType }
+        }
+        // A document (a PDF a chat opened) goes as an embedded resource.
+        if (part.type === "file-data") {
+          return {
+            type: "resource",
+            resource: {
+              uri: `file:///${encodeURIComponent(part.filename ?? "file")}`,
+              mimeType: part.mediaType,
+              blob: part.data,
+            },
+          }
         }
         return { type: "text", text: JSON.stringify(part) }
       })

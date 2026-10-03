@@ -1,6 +1,7 @@
 import type { OriginTaggedSkill } from "@/lib/skills/merged"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
-import type { MarkdownLayerData, MemoryData } from "@/lib/types"
+import type { FileEntryData, MarkdownLayerData, MemoryData } from "@/lib/types"
+import { fileEntryLine } from "@/lib/files/paths"
 import { MEMORY_PROMPT_LIMIT } from "@/lib/canvas/memory"
 import {
   MENTION_MARKER_TOKEN,
@@ -77,6 +78,36 @@ export function renderCanvasMemory(
     ...kept.map((m) =>
       opts.withIds ? `- [${m.id}] ${m.text}` : `- ${m.text}`
     ),
+  ].join("\n")
+}
+
+/** The most saved files a system prompt lists; past it, `list_saved_files`. */
+export const FILES_PROMPT_LIMIT = 50
+
+/**
+ * Renders Canvas Files (#1514) as a system-prompt block: what the chat can
+ * open, by path with size and type, and how to save more. Every chat kind
+ * carries it, since every kind has the saved-file tools. Past
+ * {@link FILES_PROMPT_LIMIT} entries it points at `list_saved_files`.
+ */
+export function renderCanvasFiles(
+  files: readonly FileEntryData[] | undefined,
+  t: ToolNaming["name"] = BARE_TOOL_NAMING.name
+): string {
+  const entries = [...(files ?? [])].sort((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+  )
+  const kept = entries.slice(0, FILES_PROMPT_LIMIT)
+  const more = entries.length - kept.length
+  return [
+    "",
+    `Canvas files (shared with the canvas's members, never shown on the canvas or kept in the repository). Open one you need with \`${t("read_saved_file")}\`; don't open files the task doesn't need. Save a result later chats should be able to pick up (research notes, a reference image) with \`${t("save_file")}\`, keep related files in folders (\`${t("make_saved_folder")}\`, \`${t("move_saved_file")}\`), and delete ones you made that are out of date with \`${t("delete_saved_file")}\`.`,
+    ...(kept.length === 0 ? ["(none yet)"] : kept.map(fileEntryLine)),
+    ...(more > 0
+      ? [
+          `- …and ${more} more: call \`${t("list_saved_files")}\` for all of them.`,
+        ]
+      : []),
   ].join("\n")
 }
 
@@ -216,6 +247,7 @@ export function buildAgentSystemPrompt(opts: {
   chatId?: string
   skills: OriginTaggedSkill[]
   memory?: readonly MemoryData[]
+  files?: readonly FileEntryData[]
   toolNaming?: ToolNaming
 }): string {
   const { repoSystemPrompt, layerDirectory, skills, memory } = opts
@@ -245,6 +277,7 @@ export function buildAgentSystemPrompt(opts: {
     agentSystemPromptTail(naming) +
     repoBlock +
     (memoryBlock ? `\n${memoryBlock}` : "") +
+    `\n${renderCanvasFiles(opts.files, t)}` +
     (directoryBlock ? `\n${directoryBlock}` : "")
   )
 }
@@ -261,6 +294,7 @@ export function buildSketchSystemPrompt(opts: {
   chatId: string
   skills: readonly SkillMetadata[]
   memory?: readonly MemoryData[]
+  files?: readonly FileEntryData[]
   toolNaming?: ToolNaming
 }): string {
   const t = (opts.toolNaming ?? BARE_TOOL_NAMING).name
@@ -293,6 +327,7 @@ export function buildSketchSystemPrompt(opts: {
     "",
     "Keep replies short: say what you made and where it is.",
     ...(memoryBlock ? [memoryBlock] : []),
+    renderCanvasFiles(opts.files, t),
     ...(directoryBlock ? [directoryBlock] : []),
   ].join("\n")
 }
@@ -308,6 +343,7 @@ export function buildSketchSystemPrompt(opts: {
 export function buildRoomSystemPrompt(opts: {
   canvasSummary: string
   memory?: readonly MemoryData[]
+  files?: readonly FileEntryData[]
   skills?: readonly SkillMetadata[]
   toolNaming?: ToolNaming
 }): string {
@@ -385,5 +421,6 @@ export function buildRoomSystemPrompt(opts: {
     opts.canvasSummary || "(the canvas is empty)",
     renderCanvasMemory(opts.memory, { withIds: true }) ||
       "\nCanvas memory: (empty)",
+    renderCanvasFiles(opts.files, t),
   ].join("\n")
 }
