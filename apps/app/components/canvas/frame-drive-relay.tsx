@@ -9,11 +9,11 @@ import {
   type FrameControlRecord,
 } from "@/lib/canvas/frame-control"
 import { withBasePath } from "@/lib/base-path"
-import { driveFrames, runFrameDriveRelay } from "@/lib/frame-drive/mac/relay"
+import { driveFrames, runFrameDriveRelay } from "@/lib/frame-drive/canvas/relay"
 import {
   FRAME_DRIVE_PATH,
   FRAME_DRIVE_ROOM_PARAM,
-} from "@/lib/frame-drive/mac/protocol"
+} from "@/lib/frame-drive/canvas/protocol"
 import {
   docRelaySocket,
   FRAME_DRIVE_ANSWER_PATH,

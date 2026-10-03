@@ -18,7 +18,7 @@ import {
   rejectUpgrade,
 } from "@/lib/local-ws-guard"
 import { acceptFrameDriveConnection } from "@/lib/frame-drive/mac/channel"
-import { FRAME_DRIVE_PATH } from "@/lib/frame-drive/mac/protocol"
+import { FRAME_DRIVE_PATH } from "@/lib/frame-drive/canvas/protocol"
 import { FileYjsPersistence } from "@/lib/yjs-host/file-persistence"
 import type { IssueTokenResult, YjsHost } from "@/lib/yjs-host/types"
 

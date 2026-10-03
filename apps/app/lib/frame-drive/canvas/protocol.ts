@@ -2,11 +2,11 @@ import type { DriveOp, DriveResult } from "@/lib/frame-drive/contract"
 import type { PageSnapshot } from "@/lib/sandbox-bridge/page-snapshot"
 
 /**
- * The drive channel's messages: between the server and the canvas the person
- * has open. On the Mac (#1389) they go over a WebSocket on the local Yjs
- * server's port, behind its gate (the per-launch secret and the app's own
- * Origin, #997); on hosted, a mockup's (#1391) go through the Room's doc and
- * an answer route (`view/`).
+ * The asker's-canvas channel's messages: between the server and the canvas
+ * the person who asked has open (`channel.ts`). On the Mac (#1389) they go
+ * over a WebSocket on the local Yjs server's port, behind its gate (the
+ * per-launch secret and the app's own Origin, #997, `mac/`); on hosted
+ * (#1391) through the Room's doc and an answer route (`view/`).
  */
 
 /** The path the channel answers on, beside the Yjs rooms. */
@@ -25,11 +25,12 @@ export type FrameWhere = {
 }
 
 /**
- * A page as it is now, for a screenshot rendered away from the canvas: its
- * markup with form state written into it, the CSS that styles it, and where
- * it's scrolled to, at the size it lays out at.
+ * A page as it is now in the person's view, for a screenshot rendered away
+ * from the canvas: its markup with form state written into it, the CSS that
+ * styles it, and where it's scrolled to, at the size it lays out at. (Not a
+ * shared frame's `FrameSnapshot`, which seeds its browser, #1396.)
  */
-export type FrameSnapshot = PageSnapshot & {
+export type PageInView = PageSnapshot & {
   scroll: { x: number; y: number }
   viewport: { width: number; height: number }
 }
@@ -49,7 +50,7 @@ export type CanvasToServer =
   | { type: "result"; id: string; result: DriveResult }
   | { type: "where"; id: string; where: FrameWhere }
   /** Null when the frame isn't loaded or its page didn't answer. */
-  | { type: "snapshot"; id: string; snapshot: FrameSnapshot | null }
+  | { type: "snapshot"; id: string; snapshot: PageInView | null }
   | { type: "revealed"; id: string; ok: boolean }
 
 /** An answer to one of the server's messages. */

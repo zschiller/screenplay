@@ -77,10 +77,6 @@ function tools(
     unavailable: async (frameId) =>
       unavailable ??
       (frameId && frameUnavailable ? frameUnavailable(frameId) : null),
-    reveal: async (frameId) => {
-      reveals.push(frameId)
-      return null
-    },
     run: async (_id, op) => {
       ops.push(op)
       return answer(op)
@@ -100,6 +96,10 @@ function tools(
     store,
     keyOf: (id) => id,
     presence: () => ({ online: new Set(), goneAt: new Map() }),
+    reveal: async (frameId) => {
+      reveals.push(frameId)
+      return null
+    },
   })
   const r = room({ empty })
   return {

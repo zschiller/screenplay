@@ -1,4 +1,4 @@
-import type { CanvasAnswer } from "@/lib/frame-drive/mac/protocol"
+import type { CanvasAnswer } from "@/lib/frame-drive/canvas/protocol"
 
 /**
  * Where the asker's canvas leaves its answers on hosted (#1391), for the turn

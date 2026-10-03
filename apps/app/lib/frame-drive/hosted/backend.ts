@@ -118,12 +118,6 @@ export function hostedFrameDriveBackend(
         },
       }
     },
-
-    async reveal() {
-      // Only the asker's canvas can move their view, and the shared browser
-      // isn't it: the chat's driver asks their canvas (`hostedChatDriver`).
-      return "The shared browser can't move anyone's view."
-    },
   }
 }
 

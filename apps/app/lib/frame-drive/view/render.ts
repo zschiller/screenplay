@@ -1,4 +1,4 @@
-import type { FrameSnapshot } from "@/lib/frame-drive/mac/protocol"
+import type { PageInView } from "@/lib/frame-drive/canvas/protocol"
 import { MOCKUP_CSP } from "@/lib/yjs/mockup-html"
 
 /**
@@ -8,7 +8,7 @@ import { MOCKUP_CSP } from "@/lib/yjs/mockup-html"
  * carries no scripts (the bridge strips them); the one script here only
  * scrolls.
  */
-export function snapshotDocument(snapshot: FrameSnapshot): string {
+export function snapshotDocument(snapshot: PageInView): string {
   const { x, y } = snapshot.scroll
   return [
     "<!doctype html>",

@@ -4,11 +4,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { frameDriveContract } from "@/lib/frame-drive/contract-suite"
 import type { DriveOp } from "@/lib/frame-drive/contract"
-import type { FrameSnapshot } from "@/lib/frame-drive/mac/protocol"
+import type { PageInView } from "@/lib/frame-drive/canvas/protocol"
 import {
   createRelayFrames,
   runFrameDriveRelay,
-} from "@/lib/frame-drive/mac/relay"
+} from "@/lib/frame-drive/canvas/relay"
 import {
   askBridge,
   PNG,
@@ -20,7 +20,10 @@ import {
   docRelaySocket,
   FRAME_DRIVE_ASK_TTL_MS,
 } from "@/lib/frame-drive/view/asks"
-import { viewFrameDriveBackend } from "@/lib/frame-drive/view/channel"
+import {
+  viewAskerCanvas,
+  viewFrameDriveBackend,
+} from "@/lib/frame-drive/view/channel"
 import { snapshotDocument } from "@/lib/frame-drive/view/render"
 import type { RoomDoc } from "@/lib/room-access"
 import { createRoomCollections } from "@/lib/yjs/schema"
@@ -47,22 +50,26 @@ const room: RoomDoc = {
   mutateDoc: async (fn) => fn(c),
 }
 const answers = memoryFrameDriveAnswers()
-const rendered: FrameSnapshot[] = []
+const rendered: PageInView[] = []
 let agentDrives = true
 const relays: { close(): void }[] = []
 const benRan: unknown[] = []
 const revealed: Record<string, string[]> = { [ADA]: [], [BEN]: [] }
 
-function backendFor(viewer: string, opTimeoutMs = 3000) {
-  return viewFrameDriveBackend(room, viewer, {
+function canvasOf(viewer: string, opTimeoutMs = 3000) {
+  return viewAskerCanvas(room, viewer, {
     answers,
+    opTimeoutMs,
+    snapshotTimeoutMs: opTimeoutMs,
+    pollMs: 5,
+  })
+}
+function backendFor(viewer: string, opTimeoutMs = 3000) {
+  return viewFrameDriveBackend(room, canvasOf(viewer, opTimeoutMs), {
     render: async (snapshot) => {
       rendered.push(snapshot)
       return { data: PNG, mediaType: "image/png" }
     },
-    opTimeoutMs,
-    snapshotTimeoutMs: opTimeoutMs,
-    pollMs: 5,
   })
 }
 const backend = backendFor(ADA)
@@ -112,7 +119,7 @@ beforeAll(() => {
       visibility: "visible",
     }),
     snapshot: () =>
-      askBridge<FrameSnapshot>({
+      askBridge<PageInView>({
         type: "screenplay:dom-query",
         op: "getPageSnapshot",
         live: true,
@@ -268,10 +275,11 @@ describe("docRelaySocket", () => {
   })
 
   it("brings a Mockup or a shared frame into the asker's view only, for showing (#1390, #1396)", async () => {
-    expect(await backend.reveal(MOCKUP)).toBeNull()
-    expect(await backend.reveal(FRAME)).toBeNull()
+    const canvas = canvasOf(ADA)
+    expect(await canvas.reveal(MOCKUP)).toBeNull()
+    expect(await canvas.reveal(FRAME)).toBeNull()
     expect(revealed[ADA]).toEqual([MOCKUP, FRAME])
     expect(revealed[BEN]).toEqual([])
-    expect(await backend.reveal("nope")).toMatch(/no Mockup nope/)
+    expect(await canvas.reveal("nope")).toMatch(/no Mockup nope/)
   })
 })

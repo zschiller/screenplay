@@ -2,8 +2,8 @@ import type {
   CanvasAnswer,
   CanvasToServer,
   ServerToCanvas,
-} from "@/lib/frame-drive/mac/protocol"
-import type { RelaySocket } from "@/lib/frame-drive/mac/relay"
+} from "@/lib/frame-drive/canvas/protocol"
+import type { RelaySocket } from "@/lib/frame-drive/canvas/relay"
 
 /**
  * The drive channel to one person's own canvas on hosted (#1391), where no

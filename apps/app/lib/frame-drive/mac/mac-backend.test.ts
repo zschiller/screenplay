@@ -9,17 +9,18 @@ import { WebSocket as NodeWebSocket } from "ws"
 import { frameDriveContract } from "@/lib/frame-drive/contract-suite"
 import type { DriveOp } from "@/lib/frame-drive/contract"
 import {
+  macAskerCanvas,
   macFrameDriveBackend,
   visiblePart,
 } from "@/lib/frame-drive/mac/channel"
 import {
   FRAME_DRIVE_PATH,
   FRAME_DRIVE_ROOM_PARAM,
-} from "@/lib/frame-drive/mac/protocol"
+} from "@/lib/frame-drive/canvas/protocol"
 import {
   createRelayFrames,
   runFrameDriveRelay,
-} from "@/lib/frame-drive/mac/relay"
+} from "@/lib/frame-drive/canvas/relay"
 import {
   askBridge,
   PNG,
@@ -208,10 +209,11 @@ describe("Mac drive channel", () => {
   })
 
   it("asks the canvas showing the frame to bring it into view", async () => {
+    const canvas = macAskerCanvas(ROOM)
     reveals.length = 0
-    expect(await backend.reveal(FRAME)).toBeNull()
+    expect(await canvas.reveal(FRAME)).toBeNull()
     expect(reveals).toEqual([FRAME])
-    expect(await backend.reveal("not-here")).toMatch(/isn't loaded/)
+    expect(await canvas.reveal("not-here")).toMatch(/isn't loaded/)
   })
 
   it("draws the agent's cursor at show pace, typing a character at a time", async () => {

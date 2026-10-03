@@ -1,40 +1,32 @@
-import { randomUUID } from "node:crypto"
-
-import {
-  isDriveOp,
-  type DriveOp,
-  type DriveResult,
-  type DriveScreenshotResult,
-  type FrameDriveBackend,
-} from "@/lib/frame-drive/contract"
 import type {
-  CanvasAnswer,
-  FrameSnapshot,
-  ServerToCanvas,
-} from "@/lib/frame-drive/mac/protocol"
+  DriveResult,
+  DriveScreenshotResult,
+  FrameDriveBackend,
+} from "@/lib/frame-drive/contract"
+import {
+  askerCanvas,
+  type AskerCanvas,
+  type CanvasTransport,
+} from "@/lib/frame-drive/canvas/channel"
+import type { PageInView } from "@/lib/frame-drive/canvas/protocol"
 import type { FrameDriveAnswers } from "@/lib/frame-drive/view/answers"
 import type { RoomDoc } from "@/lib/room-access"
 
 /**
- * The hosted Frame Drive backend for mockups (#1391): a mockup has no
- * Sandbox, so the agent drives it in the asker's own view. Each op is an ask
- * in the Room's doc that only the asker's canvas runs (`asks.ts`), through
- * the same relay and Sandbox Bridge as on the Mac; the turn waits for the
- * answer the canvas posts. The screenshot is the page as it is in their view,
- * rendered away from the canvas, since no browser can photograph theirs.
+ * The asker's-canvas channel on hosted (#1391, `canvas/channel.ts`), and the
+ * Frame Drive backend for mockups over it. A mockup has no Sandbox, so the
+ * agent drives it in the asker's own view. Each message is an ask in the
+ * Room's doc that only the asker's canvas runs (`asks.ts`), through the same
+ * relay and Sandbox Bridge as on the Mac; the turn waits for the answer the
+ * canvas posts. The screenshot is the page as it is in their view, rendered
+ * away from the canvas, since no browser can photograph theirs.
  *
  * Frames on hosted are one shared browser in their Workspace's Sandbox, with
- * a backend of their own (#1396), so this one doesn't drive them. It does
- * bring a shared frame into the asker's view (#1390), which only their
- * canvas can.
+ * a backend of their own (#1396), so this one doesn't drive them. The
+ * channel does bring a shared frame into the asker's view (#1390), which
+ * only their canvas can.
  */
 
-/** How long a gesture may take in the page before the turn gives up. */
-const OP_TIMEOUT_MS = 15_000
-/** How long a read of the page for a screenshot may take. */
-const SNAPSHOT_TIMEOUT_MS = 8_000
-/** How long bringing a Mockup into the asker's view may take. */
-const REVEAL_TIMEOUT_MS = 5_000
 /** How often the turn looks for the answer. */
 const POLL_MS = 150
 
@@ -45,127 +37,127 @@ const FRAME_NOT_HERE =
 
 /** Renders a page snapshot to an image, as the person would see it. */
 export type RenderSnapshot = (
-  snapshot: FrameSnapshot
+  snapshot: PageInView
 ) => Promise<{ data: Buffer; mediaType: string }>
 
-export function viewFrameDriveBackend(
+export type ViewChannelDeps = {
+  answers: FrameDriveAnswers
+  opTimeoutMs?: number
+  snapshotTimeoutMs?: number
+  pollMs?: number
+  now?: () => number
+  sleep?: (ms: number) => Promise<void>
+}
+
+/**
+ * The hosted transport to `viewerId`'s canvas: an ask in the Room's doc
+ * addressed to them, and the answer their canvas posts, polled for.
+ */
+export function viewCanvasTransport(
   room: RoomDoc,
   viewerId: string,
-  deps: {
-    answers: FrameDriveAnswers
-    render: RenderSnapshot
-    opTimeoutMs?: number
-    snapshotTimeoutMs?: number
-    pollMs?: number
-    now?: () => number
-    sleep?: (ms: number) => Promise<void>
-  }
-): FrameDriveBackend {
-  const opTimeoutMs = deps.opTimeoutMs ?? OP_TIMEOUT_MS
-  const snapshotTimeoutMs = deps.snapshotTimeoutMs ?? SNAPSHOT_TIMEOUT_MS
+  deps: ViewChannelDeps
+): CanvasTransport {
   const pollMs = deps.pollMs ?? POLL_MS
   const now = deps.now ?? Date.now
   const sleep =
     deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
-
-  /** Why `frameId` can't be driven here, or null for a mockup. */
-  const notDrivable = (frameId: string) =>
-    room.readDoc((c) => {
-      if (c.mockupLayers.get(frameId)) return null
-      if (c.iframeLayers.get(frameId)) return FRAME_NOT_HERE
-      return `There's no Mockup ${frameId} on the canvas.`
-    })
-
-  /** Ask the asker's canvas, and wait for its answer or the timeout. */
-  async function ask(
-    message: ServerToCanvas,
-    timeoutMs: number
-  ): Promise<CanvasAnswer | null> {
-    await deps.answers.expect(message.id, {
-      roomId: room.roomId,
-      viewer: viewerId,
-    })
-    await room.mutateDoc((c) =>
-      c.frameDriveAsks.set(message.id, { viewer: viewerId, message, at: now() })
-    )
-    let answer: CanvasAnswer | null = null
-    try {
-      const deadline = now() + timeoutMs
-      while (!answer && now() < deadline) {
-        await sleep(pollMs)
-        answer = await deps.answers.take(message.id)
+  return {
+    async ask(message, timeoutMs) {
+      await deps.answers.expect(message.id, {
+        roomId: room.roomId,
+        viewer: viewerId,
+      })
+      await room.mutateDoc((c) =>
+        c.frameDriveAsks.set(message.id, {
+          viewer: viewerId,
+          message,
+          at: now(),
+        })
+      )
+      let answer = null
+      try {
+        const deadline = now() + timeoutMs
+        while (!answer && now() < deadline) {
+          await sleep(pollMs)
+          answer = await deps.answers.take(message.id)
+        }
+      } finally {
+        await deps.answers.forget(message.id).catch(() => {})
+        // The canvas clears an ask it answers; one nobody answered goes here.
+        if (!answer) {
+          await room
+            .mutateDoc((c) => {
+              if (c.frameDriveAsks.has(message.id))
+                c.frameDriveAsks.delete(message.id)
+            })
+            .catch(() => {})
+        }
       }
-    } finally {
-      await deps.answers.forget(message.id).catch(() => {})
-      // The canvas clears an ask it answers; one nobody answered goes here.
-      if (!answer) {
-        await room
-          .mutateDoc((c) => {
-            if (c.frameDriveAsks.has(message.id))
-              c.frameDriveAsks.delete(message.id)
-          })
-          .catch(() => {})
-      }
-    }
-    return answer
+      return answer ?? NO_ANSWER
+    },
   }
+}
 
+/** Why `frameId` can't be driven here, or null for a mockup. */
+function notDrivable(room: RoomDoc, frameId: string) {
+  return room.readDoc((c) => {
+    if (c.mockupLayers.get(frameId)) return null
+    if (c.iframeLayers.get(frameId)) return FRAME_NOT_HERE
+    return `There's no Mockup ${frameId} on the canvas.`
+  })
+}
+
+/**
+ * `viewerId`'s canvas on hosted. It brings a Mockup or a shared frame into
+ * their view, and says so when there's neither.
+ */
+export function viewAskerCanvas(
+  room: RoomDoc,
+  viewerId: string,
+  deps: ViewChannelDeps
+): AskerCanvas {
+  const canvas = askerCanvas(viewCanvasTransport(room, viewerId, deps), {
+    opTimeoutMs: deps.opTimeoutMs,
+    readTimeoutMs: deps.snapshotTimeoutMs,
+  })
+  return {
+    ...canvas,
+    async reveal(frameId) {
+      const frame = await room.readDoc((c) => c.iframeLayers.has(frameId))
+      const reason = frame ? null : await notDrivable(room, frameId)
+      return reason ?? canvas.reveal(frameId)
+    },
+  }
+}
+
+/** The hosted Frame Drive backend for mockups, over the asker's canvas. */
+export function viewFrameDriveBackend(
+  room: RoomDoc,
+  canvas: AskerCanvas,
+  deps: { render: RenderSnapshot }
+): FrameDriveBackend {
   return {
     async unavailable(frameId) {
       if (frameId === undefined) return null
-      return notDrivable(frameId)
+      return notDrivable(room, frameId)
     },
 
-    async run(frameId, op: DriveOp): Promise<DriveResult> {
-      // Only the contract's ops ever leave the server.
-      if (!isDriveOp(op)) {
-        return { status: "failed", reason: "unknown drive op" }
-      }
-      const reason = await notDrivable(frameId)
+    async run(frameId, op): Promise<DriveResult> {
+      const reason = await notDrivable(room, frameId)
       if (reason) return { status: "unavailable", reason }
-      const answer = await ask(
-        { type: "op", id: randomUUID(), frameId, op },
-        opTimeoutMs
-      )
-      if (!answer) return { status: "unavailable", reason: NO_ANSWER }
-      return answer.type === "result"
-        ? answer.result
-        : { status: "failed", reason: "unexpected answer" }
-    },
-
-    async reveal(frameId) {
-      const frame = await room.readDoc((c) => c.iframeLayers.has(frameId))
-      const reason = frame ? null : await notDrivable(frameId)
-      if (reason) return reason
-      const answer = await ask(
-        { type: "reveal", id: randomUUID(), frameId },
-        REVEAL_TIMEOUT_MS
-      )
-      if (!answer) return NO_ANSWER
-      return answer.type === "revealed" && answer.ok
-        ? null
-        : frame
-          ? "The frame isn't on the open canvas."
-          : "The Mockup isn't on the open canvas."
+      return canvas.run(frameId, op)
     },
 
     async screenshot(frameId): Promise<DriveScreenshotResult> {
-      const reason = await notDrivable(frameId)
+      const reason = await notDrivable(room, frameId)
       if (reason) return { status: "unavailable", reason }
-      const answer = await ask(
-        { type: "snapshot", id: randomUUID(), frameId },
-        snapshotTimeoutMs
-      )
-      if (!answer) return { status: "unavailable", reason: NO_ANSWER }
-      if (answer.type !== "snapshot" || !answer.snapshot) {
-        return {
-          status: "unavailable",
-          reason:
-            "The Mockup isn't loaded on the canvas, or its page didn't answer.",
-        }
+      const snapshot = await canvas.snapshot(frameId)
+      if (typeof snapshot === "string") {
+        return { status: "unavailable", reason: snapshot }
       }
       try {
-        const image = await deps.render(answer.snapshot)
+        const image = await deps.render(snapshot)
         return {
           status: "shot",
           shot: {
