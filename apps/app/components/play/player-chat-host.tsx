@@ -94,7 +94,7 @@ function PlayerChatHostImpl({
   if (!agent.sandboxName) {
     return (
       <PlayerChatPlaceholder onCollapse={onCollapse}>
-        <Spinner className="size-4" /> Waiting for the sandbox to start…
+        <Spinner className="size-4" /> The workspace is still starting…
       </PlayerChatPlaceholder>
     )
   }

@@ -83,8 +83,8 @@ describe("local build — access model", () => {
 
   it("refuses the sharing actions as a backstop", async () => {
     const { shareRoom, listCollaborators } = await import("./rooms-actions")
-    await expect(shareRoom("r1", "a@b.com")).rejects.toThrow(/local build/)
-    await expect(listCollaborators("r1")).rejects.toThrow(/local build/)
+    await expect(shareRoom("r1", "a@b.com")).rejects.toThrow(/desktop app/)
+    await expect(listCollaborators("r1")).rejects.toThrow(/desktop app/)
   })
 
   it("excludes persisted comments but keeps thread reads safe (so the reference composer can mount)", async () => {
@@ -105,6 +105,6 @@ describe("local build — access model", () => {
         offsetY: null,
         body: "hi",
       })
-    ).rejects.toThrow(/local build/)
+    ).rejects.toThrow(/desktop app/)
   })
 })

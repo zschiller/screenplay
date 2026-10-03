@@ -422,7 +422,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
               previewDomain: "",
               port: repo.devServerPort ?? 3000,
               status: "creating",
-              statusMessage: "Creating branch…",
+              statusMessage: "Setting up the workspace…",
               createdAt: Date.now(),
               autoNamedBranch: plan.autoNamedBranch,
               createFlow: plan.flow,
@@ -824,12 +824,9 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             error: err instanceof Error ? err.message : undefined,
           }))
           if (!result.success) {
-            toast.warning(
-              `Workspace deleted, but ${ref} is still on the remote`,
-              {
-                description: result.error ?? "The remote delete failed.",
-              }
-            )
+            toast.warning("Workspace deleted. Its branch is still on GitHub.", {
+              description: "Delete it on GitHub if you don't need it.",
+            })
           }
         }
       })()

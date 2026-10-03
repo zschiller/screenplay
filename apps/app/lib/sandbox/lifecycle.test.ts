@@ -1054,7 +1054,7 @@ describe("ensurePreviewLive", () => {
       ensurePreviewLive(sandbox, 3000, "npm run dev", null, { probeDelayMs: 0 })
     ).rejects.toMatchObject({
       name: "DevServerPortIgnoredError",
-      message: expect.stringContaining("portless"),
+      message: expect.stringContaining("$PORT"),
     })
     // Relaunching the same script onto the same wrong port can't fix it, so
     // nothing was relaunched — the failure surfaces instead of a dead iframe.

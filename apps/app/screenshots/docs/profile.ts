@@ -18,7 +18,7 @@ export interface DocsProfile {
  * separate state dir and port — so a docs run never touches a design-review
  * world — plus a stand-in home directory.
  *
- * The stand-in home is there for Settings → Coding agents, which probes the host
+ * The stand-in home is there for Settings → Agent, which probes the host
  * live: it gets a `claude` on `PATH` and a signed-in `~/.claude.json`, so the
  * docs show Claude Code set up regardless of what the capturing machine has.
  */

@@ -2769,7 +2769,7 @@ export function Canvas({
                     )}
                     {chatCollapsed && (
                       <IconButton
-                        label="Expand chat"
+                        label="Show chat"
                         shortcut="⌘I"
                         tooltipSide="bottom"
                         onClick={() => chatPanelRef.current?.expand()}

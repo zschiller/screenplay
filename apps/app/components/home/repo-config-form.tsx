@@ -128,7 +128,7 @@ export function RepoConfigForm({
       const updated = await saveRepository(config)
       onSaved(updated)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save")
+      setError(e instanceof Error ? e.message : "Couldn't save. Try again.")
       setSaving(false)
     }
   }
@@ -154,13 +154,16 @@ export function RepoConfigForm({
               id="config-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="default"
             />
-            <FieldDescription>Optional, e.g. “web” or “api”</FieldDescription>
+            <FieldDescription>
+              Optional. A short name like “web” or “api”, to tell apart two
+              setups of one repository.
+            </FieldDescription>
             {nameCollision && (
               <FieldError>
-                A repository named “{trimmedName || "default"}” already exists
-                for this source.
+                {trimmedName
+                  ? `A repository named “${trimmedName}” is already set up from this source.`
+                  : "This source is already set up without a name. Give this one a name."}
               </FieldError>
             )}
           </Field>

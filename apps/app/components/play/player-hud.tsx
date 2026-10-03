@@ -392,7 +392,7 @@ export function PlayerHud({
           )}
           {onToggleChat ? (
             <IconButton
-              label={chatOpen ? "Hide agent" : "Open agent"}
+              label={chatOpen ? "Hide chat" : "Show chat"}
               shortcut="⌘I"
               tooltipSide={tooltipSide}
               variant={chatOpen ? "default" : "ghost"}

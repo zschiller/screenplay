@@ -18,17 +18,10 @@ export function PlayerKnobs({ knobs, values, onChange }: PlayerKnobsProps) {
       onChange={onChange}
       empty={
         <div className="flex flex-col gap-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">No knobs declared</p>
+          <p className="font-medium text-foreground">No knobs yet</p>
           <p>
-            Call{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
-              useKnob()
-            </code>{" "}
-            from{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
-              @screenplay.space/knobs
-            </code>{" "}
-            inside this prototype to expose live controls here.
+            Knobs let you adjust this page live, like a slider for card padding.
+            Ask the agent to add one.
           </p>
         </div>
       }

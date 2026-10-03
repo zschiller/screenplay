@@ -240,13 +240,13 @@ function chainInstallIntoAuth(
 function runMessage(kind: HarnessSetupActionKind, label: string): string {
   if (kind === "install") {
     return (
-      `Installing ${label}, then signing you in — follow the prompts below. ` +
-      "Once sign-in finishes, this closes and the row updates automatically."
+      `Installing ${label}, then signing you in. Follow the prompts below; ` +
+      "this closes when you're done."
     )
   }
   return (
-    `Signing in to ${label} — follow the prompts below. Once sign-in ` +
-    "finishes, this closes and the row updates automatically."
+    `Signing in to ${label}. Follow the prompts below; this closes when ` +
+    "you're done."
   )
 }
 
@@ -255,9 +255,9 @@ function runMessage(kind: HarnessSetupActionKind, label: string): string {
  * throughout — an unknown auth fact (`authenticated === null`, e.g. an
  * indeterminate probe) reads as *installed but signed out*, so the row offers a
  * sign-in rather than a false "connected". Help is one-directional (ADR 0015):
- * not-installed gets a primary **Install & sign in** (install chained into the
+ * not-installed gets a primary **Install and sign in** (install chained into the
  * CLI's own sign-in); signed-out gets a primary **Sign in**; connected gets only
- * a secondary **Re-run sign-in** to refresh a lapsed login. No sign-out, no
+ * a secondary **Sign in again** to refresh a lapsed login. No sign-out, no
  * uninstall — ever. A descriptor with no `authCommand` has nothing this surface
  * can run, so it offers no action at all.
  */
@@ -284,7 +284,7 @@ function describeRow(
       state: "Not installed",
       action: action({
         kind: "install",
-        label: "Install & sign in",
+        label: "Install and sign in",
         primary: true,
       }),
     }
@@ -295,7 +295,7 @@ function describeRow(
       detection: "authed",
       connected: true,
       state: "Signed in",
-      action: action({ kind: "auth", label: "Re-run sign-in", primary: false }),
+      action: action({ kind: "auth", label: "Sign in again", primary: false }),
     }
   }
   return {

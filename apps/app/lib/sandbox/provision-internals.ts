@@ -115,14 +115,10 @@ const LOG_ENV = [
 export class DevServerPortIgnoredError extends Error {
   constructor() {
     super(
-      "The dev server never listened on its assigned port. The desktop app " +
-        "runs your dev script under portless (https://portless.sh), which " +
-        "hands it the port as $PORT — frameworks like Next.js pick it up " +
-        'automatically; others need it forwarded, e.g. "vite --port $PORT ' +
-        '--strictPort". Fix the dev script in the Repository settings and ' +
-        "restart the dev server. If the script already forwards $PORT, " +
-        "check the workspace Logs panel — portless logs why it couldn't " +
-        "launch there."
+      "The dev server didn't start on the port Screenplay gave it. Make " +
+        "the run script use $PORT (for example vite --port $PORT " +
+        "--strictPort) in Canvas settings, then restart the dev server. " +
+        "Open logs to see why."
     )
     this.name = "DevServerPortIgnoredError"
   }

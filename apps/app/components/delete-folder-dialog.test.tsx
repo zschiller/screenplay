@@ -46,7 +46,7 @@ describe("DeleteFolderDialog framing", () => {
 
   it("frames an empty branch as a plain folder delete", () => {
     renderDialog({ deletedCount: 0 })
-    expect(screen.getByText(/sub-folders will be deleted/i)).toBeDefined()
+    expect(screen.getByText(/subfolders will be deleted/i)).toBeDefined()
     // No canvas count and no sharing language when there's nothing to delete.
     expect(screen.queryByText(/canvas/i)).toBeNull()
     expect(screen.queryByText(/shared/i)).toBeNull()

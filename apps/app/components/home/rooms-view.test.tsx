@@ -92,7 +92,7 @@ function renderFiles() {
 }
 
 describe("RoomsView — creating a folder", () => {
-  it("opens the name dialog from 'Add folder' and renders the created folder", async () => {
+  it("opens the name dialog from 'New folder' and renders the created folder", async () => {
     createFolder.mockResolvedValue({
       id: "f1",
       name: "Designs",
@@ -104,14 +104,14 @@ describe("RoomsView — creating a folder", () => {
 
     renderFiles()
 
-    // No dialog until "Add folder" is chosen.
-    expect(screen.queryByText("New folder")).toBeNull()
+    // No dialog until "New folder" is chosen.
+    expect(screen.queryByRole("dialog")).toBeNull()
 
-    fireEvent.click(screen.getByText("Add folder"))
+    fireEvent.click(screen.getByText("New folder"))
 
     // The reused InputDialog opens with folder-specific copy.
     const dialog = await screen.findByRole("dialog")
-    expect(screen.getByText("New folder")).not.toBeNull()
+    expect(within(dialog).getByText("New folder")).not.toBeNull()
 
     const input = screen.getByPlaceholderText("Untitled folder")
     fireEvent.change(input, { target: { value: "Designs" } })
@@ -162,13 +162,13 @@ describe("RoomsView — creating a folder", () => {
     expect(await screen.findByText("Mockups")).not.toBeNull()
   })
 
-  it("does not surface 'Add folder' when folders are disabled (Recents)", () => {
+  it("does not surface 'New folder' when folders are disabled (Recents)", () => {
     render(
       <HomeProvider initialRooms={[]} initialFolders={[]}>
         <RoomsView title="Recents" />
       </HomeProvider>
     )
-    expect(screen.queryByText("Add folder")).toBeNull()
+    expect(screen.queryByText("New folder")).toBeNull()
   })
 })
 

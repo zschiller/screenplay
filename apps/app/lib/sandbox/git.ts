@@ -41,7 +41,9 @@ export async function createAgentBranch(
   if (result.success) return { success: true, value: undefined }
   return {
     success: false,
-    error: redactSensitiveInfo(result.error ?? "Failed to create branch"),
+    error: redactSensitiveInfo(
+      result.error ?? "Couldn't set up the workspace."
+    ),
   }
 }
 

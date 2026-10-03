@@ -45,7 +45,7 @@ function framingFor(isOwner: boolean, sharedWithCount: number): Framing {
       description:
         `This canvas is shared with ${peopleCount(sharedWithCount)}. ` +
         "Deleting it permanently removes it for everyone, along with all of " +
-        "its contents. This cannot be undone.",
+        "its contents. You can't undo this.",
       destructive: true,
     }
   }
@@ -53,7 +53,7 @@ function framingFor(isOwner: boolean, sharedWithCount: number): Framing {
     verb: "Delete",
     description:
       "This canvas and all of its contents will be permanently deleted. " +
-      "This cannot be undone.",
+      "You can't undo this.",
     destructive: true,
   }
 }

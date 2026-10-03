@@ -175,7 +175,7 @@ describe("rows (the row policy)", () => {
       state: "Not installed",
       version: null,
       path: null,
-      action: { kind: "install", label: "Install & sign in", primary: true },
+      action: { kind: "install", label: "Install and sign in", primary: true },
     })
   })
 
@@ -196,7 +196,7 @@ describe("rows (the row policy)", () => {
       detection: "authed",
       connected: true,
       state: "Signed in",
-      action: { kind: "auth", label: "Re-run sign-in", primary: false },
+      action: { kind: "auth", label: "Sign in again", primary: false },
     })
   })
 

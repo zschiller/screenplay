@@ -122,9 +122,7 @@ export async function startBranchProvisioning(
       await markBranchError(
         room,
         req.branchId,
-        e instanceof Error
-          ? e.message
-          : "Unexpected error during sandbox creation"
+        e instanceof Error ? e.message : "Couldn't set up the workspace."
       ).catch(() => {})
     } finally {
       await lock.release().catch(() => {})
@@ -144,7 +142,7 @@ export function markBranchError(
 ): Promise<void> {
   return updateBranch(room, branchId, {
     status: "error",
-    error: error || "Unknown error",
+    error: error || "Couldn't set up the workspace.",
   })
 }
 
