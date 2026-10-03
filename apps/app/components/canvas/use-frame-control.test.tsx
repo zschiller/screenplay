@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react"
 import { useState } from "react"
+import { toast } from "sonner"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import * as Y from "yjs"
+
+vi.mock("sonner", () => ({ toast: vi.fn() }))
 
 import {
   AGENT_PARTY,
   FRAME_CONTROL_GRACE_MS,
+  FRAME_CONTROL_IDLE_MS,
   frameControlKey,
   reduceFrameControl,
   EMPTY_FRAME_CONTROL,
@@ -229,6 +233,7 @@ describe("useFrameControl", () => {
         live: true,
         driver: "ana",
         requests: [],
+        activeAt: expect.any(Number),
       })
       expect(ana.result.current.control.driverOf(FRAME)).toEqual({
         kind: "you",
@@ -315,6 +320,34 @@ describe("useFrameControl", () => {
       expect(ben.result.current.control.askedFor(FRAME)).toBe(false)
     })
 
+    it("tells the asker on Not now, and nobody when they take it back", () => {
+      vi.mocked(toast).mockClear()
+      const { ana, ben } = threeViewers()
+      act(() => ana.result.current.control.interact(FRAME))
+      act(() => ben.result.current.control.interact(FRAME))
+      act(() => ben.result.current.control.interact(FRAME))
+      expect(toast).not.toHaveBeenCalled()
+
+      act(() => ben.result.current.control.interact(FRAME))
+      act(() => ana.result.current.control.decline(FRAME, "ben"))
+
+      expect(toast).toHaveBeenCalledTimes(1)
+      expect(toast).toHaveBeenCalledWith("Ana said not now")
+    })
+
+    it("stamps the idle clock of a driver handed the frame", () => {
+      const { c, ana, ben } = threeViewers()
+      act(() => ana.result.current.control.interact(FRAME))
+      act(() => ben.result.current.control.interact(FRAME))
+
+      act(() => ana.result.current.control.grant(FRAME, "ben"))
+
+      expect(c.frameControl.get(FRAME)).toMatchObject({
+        driver: "ben",
+        activeAt: expect.any(Number),
+      })
+    })
+
     it("takes the ask back when the asker clicks again", () => {
       const { c, ana, ben } = threeViewers()
       act(() => ana.result.current.control.interact(FRAME))
@@ -381,6 +414,25 @@ describe("useFrameControl", () => {
         expect(c.frameControl.get(FRAME)?.driver).toBe("ben")
         expect(ben.result.current.focusedId).toBe(FRAME)
         expect(cara.result.current.control.askedFor(FRAME)).toBe(true)
+      })
+
+      it("passes control to the asker when the driver leaves the frame alone", () => {
+        vi.useFakeTimers()
+        const { c, ana, ben } = threeViewers()
+        act(() => ana.result.current.control.interact(FRAME))
+        act(() => ben.result.current.control.interact(FRAME))
+
+        // Ana's input keeps the frame hers...
+        act(() => vi.advanceTimersByTime(FRAME_CONTROL_IDLE_MS - 1000))
+        act(() => ana.result.current.control.active(FRAME))
+        act(() => vi.advanceTimersByTime(2000))
+        expect(c.frameControl.get(FRAME)?.driver).toBe("ana")
+
+        // ...until she stops.
+        act(() => vi.advanceTimersByTime(FRAME_CONTROL_IDLE_MS))
+        expect(c.frameControl.get(FRAME)?.driver).toBe("ben")
+        expect(ben.result.current.focusedId).toBe(FRAME)
+        expect(ana.result.current.focusedId).toBeNull()
       })
 
       it("doesn't count the driver gone before a new viewer sees them", () => {
