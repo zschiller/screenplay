@@ -187,7 +187,7 @@ export function elementMarkersToPills(body: string): string {
 }
 
 // The `[mockup: <id>]` marker a drawn Mockup box's ask names its Mockup with
-// (`forMockup` in lib/frame-ask.ts), with the sentence around it that's only
+// (`forMockup` in lib/draw-ask.ts), with the sentence around it that's only
 // for the agent. Not a markdown link, so it must not be followed by `(`; the
 // id is a nanoid and holds no `]`.
 const MOCKUP_ASK_RE = /Mockup \[mockup:\s*([^\]\s]+)\] with update_mockup/g

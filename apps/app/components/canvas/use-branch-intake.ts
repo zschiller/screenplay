@@ -32,7 +32,6 @@ import {
 } from "@/lib/branch/intake"
 import { hasGitHubRemote } from "@/lib/repo-identity"
 import type { CanvasOps } from "@/lib/canvas/ops"
-import type { DrawnMockup } from "@/lib/frame-ask"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { BranchData, IframeLayerData, RepoData } from "@/lib/types"
 
@@ -84,6 +83,25 @@ export interface BranchIntakeDeps {
   chatTarget: ChatTarget
 }
 
+/**
+ * What a single-spec create does beyond the usual (the Draw-and-ask module,
+ * `use-draw-ask`, is the caller). Ignored when several specs are created.
+ */
+export interface CreateBranchOptions {
+  /**
+   * A frame already on the canvas to show the Branch in, instead of seeding
+   * its own. It gets selected; the camera stays put.
+   */
+  frameId?: string
+  /**
+   * Runs inside the create's transaction once the Branch and its chat exist,
+   * so what it writes lands in the same undo step.
+   */
+  afterCreate?: (created: { branchId: string; chatId?: string }) => void
+  /** Leave the camera and selection where they are. */
+  keepView?: boolean
+}
+
 export interface BranchIntake {
   /**
    * Create a Repo + its first Branch and kick off Sandbox provisioning. The
@@ -91,17 +109,11 @@ export interface BranchIntake {
    * resolved as the optional second arg; when absent — a saved-preset pick or
    * any programmatic caller — provisioning uses today's exact defaults.
    */
-  /**
-   * Create one Branch per spec. With `frameId` (a single spec: a drawn
-   * frame's ask, #1356) the Branch shows in that frame instead of seeding
-   * its own. With `mockup` (a single spec: a drawn Mockup box's ask, #1359)
-   * an empty Mockup owned by the new chat lands at that box, and the camera
-   * and selection stay where they are.
-   */
+  /** Create one Branch per spec; see {@link CreateBranchOptions}. */
   createBranch: (
     repoId: string,
     specs: ComposerSpec[],
-    opts?: { frameId?: string; mockup?: DrawnMockup }
+    opts?: CreateBranchOptions
   ) => Promise<void>
   createBranchFromGitBranch: (repoId: string, branch: string) => void
   removeRepo: (
@@ -320,13 +332,13 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     async (
       repoId: string,
       specs: ComposerSpec[],
-      opts?: { frameId?: string; mockup?: DrawnMockup }
+      opts?: CreateBranchOptions
     ) => {
       const repo = repos.find((w) => w.id === repoId)
       if (!repo || specs.length === 0) return
-      // A drawn frame stands in for the one Branch's eager frame.
-      const frameId = specs.length === 1 ? opts?.frameId : undefined
-      const mockup = specs.length === 1 ? opts?.mockup : undefined
+      // A given frame stands in for the one Branch's eager frame.
+      const single = specs.length === 1 ? opts : undefined
+      const frameId = single?.frameId
 
       const plans = planBranchCreations(
         { defaultBranch: repo.defaultBranch },
@@ -435,19 +447,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             ...(frameId ? { frameId } : {}),
           })
 
-          // A drawn Mockup box becomes this chat's empty Mockup, in the same
-          // undo step, for its queued prompt to fill.
-          if (mockup && chatId) {
-            ops.createMockup({
-              id: mockup.id,
-              html: "",
-              title: "",
-              width: mockup.width,
-              height: mockup.height,
-              ownerChatId: chatId,
-              anchor: { x: mockup.x, y: mockup.y },
-            })
-          }
+          single?.afterCreate?.({ branchId: id, chatId })
 
           // Queue the seed prompt; the dispatch effect below fires it exactly
           // once, when the Sandbox reaches `running` (and drops it on error).
@@ -495,9 +495,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       if (frameId) {
         setSelectedGroupIds(new Set())
         setSelectedIframeLayerIds(new Set([frameId]))
-      } else if (frameGroup && !mockup) {
-        // (With a drawn Mockup, that's the one to watch: the Workspace's frame
-        // lands beside the other Groups without moving the camera.)
+      } else if (frameGroup && !single?.keepView) {
         const { groupId, layerIds } = frameGroup
         setSelectedGroupIds(new Set([groupId]))
         setSelectedIframeLayerIds(new Set())
