@@ -644,7 +644,7 @@ export function ChatsMenuProvider({
 
 /**
  * The labelled Chats button at the right of the Coordinator header (the
- * panel's top level), with a dot while any Workspace needs you. A Workspace
+ * panel's top level), with a dot on its icon while any Workspace needs you. A Workspace
  * chat has no button: its Coordinator crumb goes back up. Renders nothing
  * outside a provider.
  */
@@ -659,11 +659,22 @@ export function ChatsMenuButton() {
           size="xs"
           aria-label="Chats"
           aria-description={menu.needsYou ? "A chat needs you" : undefined}
-          className="text-muted-foreground"
         >
-          <ChatsIcon data-icon="inline-start" />
+          {/* The needs-you dot badges the icon's top-right corner, with a
+              ring cut out of the icon so the two don't touch. */}
+          <span data-icon="inline-start" className="relative flex">
+            <ChatsIcon
+              className={cn(
+                "size-3",
+                menu.needsYou &&
+                  "[mask-image:radial-gradient(circle_at_10px_2px,transparent_4.5px,black_5px)]"
+              )}
+            />
+            {menu.needsYou ? (
+              <NeedsYouDot className="absolute -top-px -right-px size-1.5" />
+            ) : null}
+          </span>
           Chats
-          {menu.needsYou ? <NeedsYouDot className="size-1.5" /> : null}
         </Button>
       </PopoverTrigger>
       <PopoverContent
