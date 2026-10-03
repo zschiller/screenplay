@@ -1,5 +1,3 @@
-import { formatQuoteForChat } from "@/lib/document-comments"
-
 /**
  * Reply in chat (#1243): a Document passage quoted into the composer of
  * whichever chat the panel is showing (`apps/app/CONTEXT.md`, "Chat Quote").
@@ -42,12 +40,6 @@ export function quoteRangeLabel(
   return quote.lineFrom === quote.lineTo
     ? `Line ${quote.lineFrom}`
     : `Lines ${quote.lineFrom}–${quote.lineTo}`
-}
-
-/** The message a quote and the typed text send as: the quote the way
- *  {@link formatQuoteForChat} writes it, then the text after a blank line. */
-export function withChatQuote(quote: ChatQuote, text: string): string {
-  return `${formatQuoteForChat(quote)}\n\n${text}`
 }
 
 type Listener = () => void

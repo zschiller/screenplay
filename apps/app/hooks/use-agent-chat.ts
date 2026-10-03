@@ -1,10 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react"
-import type { CanvasView } from "@/lib/agent/message-markers"
 import type { AgentMessage } from "@/lib/agent/types"
 import { chatStore, type ChatState } from "@/lib/chat-store"
-import type { UserTurn } from "@/lib/agent/user-turn"
+import type { OutgoingTurnParts } from "@/lib/agent/outgoing-turn"
 import type { ChatTarget } from "@/lib/chat/chat-target"
 
 interface UseAgentChatOptions {
@@ -20,12 +19,8 @@ interface UseAgentChatOptions {
 
 interface SendOptions {
   model?: string
-  /** What the message shows, when the Composer built it (its footers). */
-  turn?: UserTurn
   /** The composer document, kept so a failed or queued send can be edited. */
   draft?: unknown
-  /** The sender's selection and screen as they sent it (`Canvas view:`). */
-  canvasView?: CanvasView | null
 }
 
 export function useAgentChat({
@@ -69,18 +64,17 @@ export function useAgentChat({
   }, [chatId, isActive, hasUnread, state.isStreaming])
 
   const sendMessage = useCallback(
-    (text: string, options?: SendOptions) => {
+    (message: string | OutgoingTurnParts, options?: SendOptions) => {
       return chatStore.sendMessage({
         roomId,
         chatId,
         target: stableTarget,
-        message: text,
+        // Plain text, or the Composer's parts with the chat's own added.
+        ...(typeof message === "string" ? { message } : message),
         isFirstChat,
         planMode,
         model: options?.model,
-        turn: options?.turn,
         draft: options?.draft,
-        canvasView: options?.canvasView,
       })
     },
     [chatId, roomId, stableTarget, isFirstChat, planMode]

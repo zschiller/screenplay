@@ -53,15 +53,16 @@ import {
 } from "@workspace/ui/components/tooltip"
 import { IconButton, Shortcut } from "@workspace/ui/components/icon-button"
 import {
-  buildReferencedDocsFooter,
-  buildTargetedElementsFooter,
   deriveElementLabel,
   serializeElement,
   serializeMention,
   serializeSkill,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
-import type { UserTurn } from "@/lib/agent/user-turn"
+import {
+  buildOutgoingTurn,
+  type OutgoingTurnParts,
+} from "@/lib/agent/outgoing-turn"
 import Link from "next/link"
 import {
   useModelCatalog,
@@ -268,32 +269,26 @@ export function extractTextAndMentions(json: JSONContent | undefined): {
  * elements with no prose sends. An empty draft serializes to `""`. Shared by
  * the submit path and the live `onChange` mirror so both see identical text.
  *
- * Alongside it comes what the message shows (`turn`): the body without its
- * footers and the targeted elements, straight from the draft. It is the
- * user-turn projection the server's echo carries, so the sender draws its
- * message without parsing the wire body back.
+ * The draft's parts (`parts`) come too, for a caller that adds its own (a
+ * quote, the Canvas view) and builds the send with {@link buildOutgoingTurn};
+ * `text` is those parts alone, built the same way.
  */
 function serializeDraft(
   editor: Editor,
   markdownLayers: MarkdownLayerData[]
-): { text: string; turn: UserTurn } {
+): { text: string; parts: OutgoingTurnParts } {
   const { text, mentions, elements } = extractTextAndMentions(editor.getJSON())
   const trimmed = text.trim()
-  if (!trimmed) return { text: "", turn: { body: "" } }
-  const docs = mentions.map((m) => ({
-    id: m.id,
-    title: markdownLayers.find((d) => d.id === m.id)?.title,
-  }))
-  return {
-    text:
-      trimmed +
-      buildReferencedDocsFooter(docs) +
-      buildTargetedElementsFooter(elements),
-    turn: {
-      body: trimmed,
-      ...(elements.length > 0 ? { targetedElements: elements } : {}),
-    },
+  if (!trimmed) return { text: "", parts: { message: "" } }
+  const parts: OutgoingTurnParts = {
+    message: trimmed,
+    referencedDocs: mentions.map((m) => ({
+      id: m.id,
+      title: markdownLayers.find((d) => d.id === m.id)?.title,
+    })),
+    targetedElements: elements,
   }
+  return { text: buildOutgoingTurn(parts).wire, parts }
 }
 
 /** What a submit hands back: the decorated wire body and the chosen model. */
@@ -305,8 +300,11 @@ export interface ComposerSubmitPayload {
    * prefixes (plan/branch) are the caller's concern, not the Composer's.
    */
   text: string
-  /** What the message shows: `text`'s user-turn projection, from the draft. */
-  turn: UserTurn
+  /**
+   * The draft's parts `text` was built from, for a caller that adds a quote or
+   * the Canvas view to them before sending.
+   */
+  parts: OutgoingTurnParts
   /** The model selected in the Composer at submit time. */
   model: string
   /**
@@ -816,12 +814,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       // An empty draft only submits where the caller opted in — the seed
       // Composer treats it as a deliberate request for a bare scratch Branch.
       if (editor.isEmpty && !allowEmptySubmit) return
-      const { text: decorated, turn } = serializeDraft(
+      const { text: decorated, parts } = serializeDraft(
         editor,
         markdownLayersRef.current
       )
       if (!decorated && !allowEmptySubmit) return
-      onSubmit({ text: decorated, turn, model, draft: editor.getJSON() })
+      onSubmit({ text: decorated, parts, model, draft: editor.getJSON() })
       // Clearing emits an update, which drops the stored draft: the message now
       // lives in the log, the queue, or (if refused) the chat's failed send.
       editor.commands.clearContent(true)

@@ -59,7 +59,6 @@ import { useModelCatalog } from "@/lib/use-model-catalog"
 import {
   chatQuoteStore,
   quoteRangeLabel,
-  withChatQuote,
   type ChatQuote,
 } from "@/lib/chat-quote-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
@@ -248,18 +247,18 @@ export function AgentChat({
   // A chat still following the default is pinned to the model it first sends
   // with, so changing the default later never relabels a running session.
   const handleSubmit = useCallback(
-    ({ text, turn, model: submitted, draft }: ComposerSubmitPayload) => {
+    ({ parts, model: submitted, draft }: ComposerSubmitPayload) => {
       if (!model && submitted) onModelChange?.(submitted)
-      // A passage quoted by Reply in chat (#1243) leads both the wire body and
-      // the body the chat draws, the way a reload projects it from the wire.
-      const quote = chatQuoteStore.take(chatId)
-      void sendMessage(quote ? withChatQuote(quote, text) : text, {
-        model: submitted,
-        turn: quote ? { ...turn, body: withChatQuote(quote, turn.body) } : turn,
-        draft,
-        // What "this" means: the sender's selection and screen right now.
-        canvasView: canvasViewSource.read(),
-      })
+      void sendMessage(
+        {
+          ...parts,
+          // A passage quoted by Reply in chat (#1243) leads the message.
+          quote: chatQuoteStore.take(chatId),
+          // What "this" means: the sender's selection and screen right now.
+          canvasView: canvasViewSource.read(),
+        },
+        { model: submitted, draft }
+      )
     },
     [sendMessage, model, onModelChange, chatId]
   )
