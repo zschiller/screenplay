@@ -974,9 +974,22 @@ class Frame {
         // sends nothing. Exact: any changed pixel goes through.
         "-vf",
         "mpdecimate=hi=0:lo=0:frac=0",
+        // BT.601 limited range, said in the stream too. The viewer's decoder
+        // is told the same (FRAME_STREAM_COLOR_SPACE): left to guess, a
+        // browser assumes BT.709 and shifts saturated colours.
+        "-sws_flags",
+        "accurate_rnd+full_chroma_int",
         ...codecArgs,
         "-pix_fmt",
         "yuv420p",
+        "-colorspace",
+        "smpte170m",
+        "-color_primaries",
+        "bt709",
+        "-color_trc",
+        "iec61966-2-1",
+        "-color_range",
+        "tv",
         "-g",
         String(FPS * 2),
         "-b:v",
