@@ -46,7 +46,7 @@
   display: flex;
   gap: 28px;
   width: max-content;
-  animation: hc-pan 80s linear infinite paused;
+  animation: hc-pan 140s linear infinite paused;
 }
 .hc-track:nth-child(even) {
   animation-direction: reverse;
@@ -92,12 +92,12 @@
 .hc-copy {
   position: relative;
   flex: none;
-  width: clamp(240px, 24vw, 340px);
+  width: clamp(300px, 31vw, 440px);
 }
 /* Below 1024px the copies are a little smaller. */
 @media (max-width: 1023px) {
   .hc-copy {
-    width: 260px;
+    width: 320px;
   }
 }
 /* The label lies on the floor with its frame. */

@@ -107,7 +107,7 @@ const WAVE = 14000
 const FADE = 900
 
 // Rows on the canvas floor, far to near.
-const ROWS = 8
+const ROWS = 6
 // How far above the headline the veil starts thickening, in CSS px, and how
 // far down the floor the far fade reaches, so a band of rows between the two
 // shows with no grain at all.
@@ -325,8 +325,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     for (let row = 0; row < ROWS; row++) {
       const track = document.createElement("div")
       track.className = "hc-track"
-      track.style.animationDuration = `${80 + row * 6}s`
-      track.style.animationDelay = `${-row * 13}s`
+      track.style.animationDuration = `${140 + row * 10}s`
+      track.style.animationDelay = `${-row * 23}s`
       rows.push([])
       for (let at = 0; at < RUN * 2; at++) {
         const el = document.createElement("div")
