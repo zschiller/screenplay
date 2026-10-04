@@ -108,11 +108,9 @@ const FADE = 900
 
 // Rows on the canvas floor, far to near.
 const ROWS = 6
-// How far above the headline the veil starts thickening, in CSS px, and how
-// far down the floor the far fade reaches, so a band of rows between the two
-// shows with no grain at all.
+// How far above the headline the veil starts thickening, in CSS px, so the
+// rows above that show with no grain at all.
 const NEAR = 200
-const FAR = 0.58
 // How far the pointer's swell in the floor reaches, in CSS px, and how many
 // degrees a copy tips for each px it is from the pointer.
 const REACH = 360
@@ -174,9 +172,9 @@ type Copy = {
  * it and the text stays readable.
  *
  * The copies are built on the client only; they're decoration, hidden from
- * assistive tech. With reduced motion they hold still. Hovering, or touching
- * on a phone, clears a hole in the veil to peek at them, and under a mouse
- * the floor swells a little, lifting and tipping the copies around it.
+ * assistive tech. With reduced motion they hold still. Hovering clears a hole
+ * in the veil to peek at them and swells the floor a little, lifting and
+ * tipping the copies around it; on a touch screen, scrolling swells it.
  */
 export function HeroStage({ children }: { children: React.ReactNode }) {
   const stage = useRef<HTMLDivElement>(null)
@@ -187,29 +185,16 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     const host = stage.current!
     const rowsEl = strip.current!
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
-    // Tailwind's sm breakpoint, where the header turns into a filled bar.
-    const phone = matchMedia("(max-width: 639px)")
     // Clear across the middle of the floor, solid halfway down the
     // headline's first line, so that line sits on the densest grain.
     const veil = createDitherVeil(canvas.current!, () => {
       const s = host.getBoundingClientRect().top
       const head = host.querySelector<HTMLElement>("[data-veil]")!
       const size = parseFloat(getComputedStyle(head).fontSize)
-      const floor = rowsEl.parentElement!.getBoundingClientRect()
       const solid = head.getBoundingClientRect().top - s + size * 0.6
-      // From sm up the nav is a filled bar, so the floor runs straight up
-      // under it with no grain.
-      if (!phone.matches) return [solid - NEAR, solid]
-      return [
-        solid - NEAR,
-        solid,
-        // On phones the nav is clear until the page scrolls, so the far side
-        // of the floor dissolves into the dark behind it through the same
-        // grain, solid only at the very top of the page.
-        [floor.top - s, floor.top - s + floor.height * FAR],
-        // Denser right behind the nav, so its links read over the copies.
-        [floor.top - s + NAV, 0.84],
-      ]
+      // The nav is a filled bar, so the floor runs straight up under it
+      // with no grain.
+      return [solid - NEAR, solid]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()
     let alive = false
@@ -646,8 +631,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     // Webfonts change where the lines fall.
     void document.fonts.ready.then(remeasure)
 
-    // Hovering, or a finger on a touch screen, clears a hole in the veil to
-    // peek at the copies underneath.
+    // Hovering clears a hole in the veil to peek at the copies underneath.
     // The floor swells under the pointer: the copies around it rise a few
     // pixels and tip a degree or so off the bump. Worked out every frame
     // while the pointer is over the hero, since the rows pan under a
@@ -721,24 +705,20 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       veil.peekAt(null)
       if (reduce) veil.drawOnce()
     }
-    // Touch events rather than pointer events: the browser cancels a touch
-    // pointer as soon as the page starts to scroll, but touchmove keeps
-    // coming, so a swipe stirs the veil without stopping the scroll.
-    const onTouch = (e: TouchEvent) => {
-      const t = e.touches[0]
-      if (t) peekAt(t)
-      else onLeave()
+    // Touch screens have no hover, so scrolling swells the floor instead: a
+    // bump at a fixed spot on screen that the rows roll through as the page
+    // moves, settling once the scroll stops.
+    const touch = matchMedia("(hover: none)")
+    let still: ReturnType<typeof setTimeout> | undefined
+    const onScroll = () => {
+      if (!touch.matches || !visibleNow) return
+      point({ x: innerWidth / 2, y: innerHeight * 0.4 })
+      clearTimeout(still)
+      still = setTimeout(() => point(null), 200)
     }
     window.addEventListener("pointermove", onMove)
     document.documentElement.addEventListener("pointerleave", onLeave)
-    const touches = [
-      "touchstart",
-      "touchmove",
-      "touchend",
-      "touchcancel",
-    ] as const
-    for (const type of touches)
-      host.addEventListener(type, onTouch, { passive: true })
+    window.addEventListener("scroll", onScroll, { passive: true })
 
     const resize = new ResizeObserver(remeasure)
     resize.observe(host)
@@ -759,7 +739,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       resize.disconnect()
       window.removeEventListener("pointermove", onMove)
       document.documentElement.removeEventListener("pointerleave", onLeave)
-      for (const type of touches) host.removeEventListener(type, onTouch)
+      window.removeEventListener("scroll", onScroll)
+      clearTimeout(still)
       seen.disconnect()
       rowsEl.replaceChildren()
     }
