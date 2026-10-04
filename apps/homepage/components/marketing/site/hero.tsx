@@ -13,7 +13,7 @@ export function Hero() {
         <div className={cn(measure, "pb-[clamp(40px,6vw,80px)]")}>
           <h1
             data-veil
-            className="font-headline text-[clamp(56px,10.5vw,148px)] leading-[0.92] font-normal tracking-[-0.025em] text-balance"
+            className="font-headline text-[clamp(56px,10.5vw,148px)] leading-[0.86] font-normal tracking-[-0.025em] text-balance"
           >
             From idea to code,
             <br />
