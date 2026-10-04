@@ -18,6 +18,7 @@ import {
   CheckIcon,
   CodeBlockIcon,
   CodeIcon,
+  ImageIcon,
   ListBulletsIcon,
   ListNumbersIcon,
   QuotesIcon,
@@ -79,7 +80,10 @@ import {
   type DocumentImageUploadOptions,
 } from "@/lib/document-image-upload"
 import { DocumentSlashMenu } from "@/lib/document-slash-menu"
-import type { DocumentSlashItem } from "@/components/canvas/document-slash-menu-list"
+import {
+  DOCUMENT_SLASH_ITEMS,
+  type DocumentSlashItem,
+} from "@/components/canvas/document-slash-menu-list"
 import { uploadAttachment } from "@/lib/chat-attachments"
 import {
   copyAccountImageToCanvas,
@@ -357,6 +361,33 @@ function NodeTypeDropdown({
             {t.key === blockType && (
               <CheckIcon className="ml-auto size-3.5 text-foreground" />
             )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** The selection toolbar's Image button: the `/` menu's image items, put in
+ *  after the block the selection ends in. Same non-modal Radix menu as
+ *  {@link NodeTypeDropdown}, so picking one doesn't blur the editor. */
+function ImageDropdown({
+  onPick,
+}: {
+  onPick: (key: DocumentSlashItem["key"]) => void
+}) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <FloatingToolbarButton label="Image" variant="ghost" tabIndex={-1}>
+          <ImageIcon />
+        </FloatingToolbarButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {DOCUMENT_SLASH_ITEMS.map((item) => (
+          <DropdownMenuItem key={item.key} onSelect={() => onPick(item.key)}>
+            <item.Icon />
+            <span className="whitespace-nowrap">{item.label}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -746,8 +777,8 @@ export function MarkdownLayer({
     [fragment, provider, imageOptions]
   )
 
-  // The `/` menu's image picks: hold the place, then open the file chooser
-  // (Upload image) or the picker (Image from files).
+  // The `/` menu's and the Image button's picks: hold the place, then open
+  // the file chooser (Upload image) or the picker (Image from files).
   useEffect(() => {
     onSlashPickRef.current = (key, pos) => {
       if (!editor) return
@@ -1316,6 +1347,13 @@ export function MarkdownLayer({
                   >
                     <ListNumbersIcon />
                   </FormatButton>
+                  <FloatingToolbarSeparator />
+                  <ImageDropdown
+                    onPick={(key) => {
+                      const { $to } = editor.state.selection
+                      onSlashPickRef.current(key, $to.after(1))
+                    }}
+                  />
                   {((!isLocalBuild && onStartInlineComment) ||
                     onReplyInChat) && <FloatingToolbarSeparator />}
                   {!isLocalBuild && onStartInlineComment && (
