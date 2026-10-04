@@ -17,7 +17,7 @@ export function Hero() {
           >
             From idea to code,
             <br />
-            <em>on one canvas</em>.
+            on one canvas.
           </h1>
           <div className="mt-14 grid items-end gap-6 md:mb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-12">
             <p className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]">
