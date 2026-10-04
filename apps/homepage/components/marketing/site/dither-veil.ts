@@ -58,7 +58,7 @@ export function createDitherVeil(
   // CSS px.
   const COARSE = 8
   // How far around the pointer the veil clears, in CSS px.
-  const PEEK = 90
+  const PEEK = 60
   // How sharply the veil eases in down its span: 1 is an even ramp, higher
   // keeps more of the top clear.
   const EASE = 2.4

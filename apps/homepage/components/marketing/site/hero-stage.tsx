@@ -15,6 +15,10 @@ const HEADLINES = [
   "Try it three ways at once.",
   "Your repo, in parallel.",
   "Pick the best one. Merge.",
+  "Branch it. See it. Ship it.",
+  "A canvas for your codebase.",
+  "Mock it up in your real code.",
+  "Stop guessing. Compare.",
 ]
 
 /** What an agent can do to a copy: its Workspace name, a class to add (or a
@@ -50,6 +54,28 @@ const EDITS: {
   { ws: "Lavender theme", cls: "lavender", diff: [24, 9], group: "theme" },
   { ws: "Tangerine", cls: "tangerine", diff: [18, 5], group: "theme" },
   { ws: "Newsprint", cls: "news", diff: [41, 15], group: "theme" },
+  { ws: "Midnight", cls: "midnight", diff: [21, 8], group: "theme" },
+  { ws: "Forest", cls: "forest", diff: [23, 6], group: "theme" },
+  { ws: "Wine", cls: "wine", diff: [20, 7], group: "theme" },
+  { ws: "Sand", cls: "sand", diff: [26, 11], group: "theme" },
+  { ws: "Sky", cls: "sky", diff: [22, 9], group: "theme" },
+  { ws: "Lemon", cls: "lemon", diff: [17, 4], group: "theme" },
+  { ws: "Coral", cls: "coral", diff: [19, 6], group: "theme" },
+  { ws: "High contrast", cls: "ink", diff: [33, 14], group: "theme" },
+  { ws: "Clean light", cls: "chalk", diff: [29, 13], group: "theme" },
+  { ws: "Grape", cls: "grape", diff: [18, 5], group: "theme" },
+  { ws: "Teal", cls: "teal", diff: [21, 6], group: "theme" },
+  { ws: "Rose", cls: "rose", diff: [24, 8], group: "theme" },
+  { ws: "Aurora gradient", cls: "aurora", diff: [27, 7], group: "theme" },
+  { ws: "Candy gradient", cls: "candy", diff: [25, 6], group: "theme" },
+  { ws: "Slate", cls: "slate", diff: [16, 5], group: "theme" },
+  { ws: "Dotted", cls: "dots", diff: [12, 2], group: "theme" },
+  { ws: "Right-aligned", cls: "right", diff: [6, 2], group: "layout" },
+  { ws: "Underlined headline", cls: "under", diff: [3, 0] },
+  { ws: "Boxed hero", cls: "boxed", diff: [11, 2] },
+  { ws: "Stacked buttons", cls: "stack", diff: [4, 1] },
+  { ws: "Caps headline", cls: "caps", diff: [3, 1] },
+  { ws: "Highlighted headline", cls: "mark", diff: [5, 0] },
   { ws: "Tilted hero", cls: "tilt", diff: [7, 1] },
   { ws: "Outline headline", cls: "outline", diff: [5, 2] },
 ]
@@ -58,6 +84,8 @@ const EDITS: {
 const RUN = 12
 // Edits a copy holds before an agent swaps one out instead of adding one.
 const MAX = 4
+// Copies on the whole floor that can have a monospace look at once.
+const CODED = 3
 // Agents that keep changing copies for as long as the hero is on screen.
 const AGENTS = 6
 // Agents in the opening crowd, which gives every copy its first edit.
@@ -205,7 +233,19 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       const r = rows[f.row]!
       return r[(f.at + d + r.length) % r.length]!
     }
+    // The monospace looks (the terminal theme, the mono headline) read as
+    // one and stand out, so only a few copies on the whole floor have one
+    // at a time, and never near each other in a row.
+    const coded = (done: number[]) =>
+      done.some((i) => EDITS[i]!.cls === "term" || EDITS[i]!.cls === "mono")
     const fits = (f: Copy, done: number[], head: string) => {
+      if (coded(done)) {
+        for (const d of [-3, -2, -1, 1, 2, 3])
+          if (coded(beside(f, d).done)) return false
+        let n = 0
+        for (const c of copies) if (c !== f && coded(c.done)) n++
+        if (n >= CODED) return false
+      }
       const t = themeOf(done)
       if (t >= 0) {
         if (themes.indexOf(t) % 2 !== f.row % 2) return false

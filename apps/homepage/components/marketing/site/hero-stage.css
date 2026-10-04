@@ -530,6 +530,192 @@
       3em 3em,
     var(--pg-bg);
 }
+/* Twenty-odd more, so no one look comes round often. */
+.hc-page.midnight {
+  --t-bg: #0b1026;
+  --pg-fg: #e6ecff;
+  --pg-mut: #8f9bc4;
+  --pg-line: #26305c;
+  --t-acc: #7aa2ff;
+  --t-plane: #141b3d;
+}
+.hc-page.forest {
+  --t-bg: #0f2a1d;
+  --pg-fg: #e7f5ea;
+  --pg-mut: #8fb39c;
+  --pg-line: #24543b;
+  --t-acc: #58d68d;
+  --t-plane: #16382a;
+}
+.hc-page.wine {
+  --t-bg: #3b0d1e;
+  --pg-fg: #ffe9ef;
+  --pg-mut: #d39aac;
+  --pg-line: #6e2540;
+  --t-acc: #ff6b8b;
+  --t-plane: #4d1429;
+}
+.hc-page.sand {
+  --t-bg: #e8d9b8;
+  --pg-fg: #2b2314;
+  --pg-mut: #6e6046;
+  --pg-line: #c4b189;
+  --t-acc: #b5541c;
+  --t-plane: #dccba4;
+}
+.hc-page.sky {
+  --t-bg: #bfe3ff;
+  --pg-fg: #06243d;
+  --pg-mut: #3d6485;
+  --pg-line: #8cc4ee;
+  --t-acc: #0b6bcb;
+  --t-plane: #d9efff;
+}
+.hc-page.lemon {
+  --t-bg: #fff27a;
+  --pg-fg: #1c1a00;
+  --pg-mut: #5f5a14;
+  --pg-line: #d9cc45;
+  --t-acc: #ff3d6e;
+  --t-plane: #fff8b0;
+}
+.hc-page.coral {
+  --t-bg: #ff7f6b;
+  --pg-fg: #2a0704;
+  --pg-mut: rgb(42 7 4 / 0.75);
+  --pg-line: rgb(42 7 4 / 0.35);
+  --t-acc: #fff;
+  --t-plane: #ffa293;
+}
+.hc-page.ink {
+  --t-bg: #000;
+  --pg-fg: #fff;
+  --pg-mut: #fff;
+  --pg-line: #fff;
+  --t-acc: #fff;
+  --t-plane: #000;
+  --pg-r: 0;
+}
+.hc-page.chalk {
+  --t-bg: #fafafa;
+  --pg-fg: #111;
+  --pg-mut: #666;
+  --pg-line: #ddd;
+  --t-acc: #2563eb;
+  --t-plane: #f0f0f0;
+}
+.hc-page.grape {
+  --t-bg: #5b21b6;
+  --pg-fg: #fff;
+  --pg-mut: rgb(255 255 255 / 0.78);
+  --pg-line: rgb(255 255 255 / 0.35);
+  --t-acc: #facc15;
+  --t-plane: #6d34c9;
+}
+.hc-page.teal {
+  --t-bg: #0d9488;
+  --pg-fg: #f0fdfa;
+  --pg-mut: rgb(240 253 250 / 0.8);
+  --pg-line: rgb(240 253 250 / 0.4);
+  --t-acc: #fde68a;
+  --t-plane: #14a89b;
+}
+.hc-page.rose {
+  --t-bg: #fbd5e0;
+  --pg-fg: #4a1026;
+  --pg-mut: #8a4a60;
+  --pg-line: #eeaabf;
+  --t-acc: #d6336c;
+  --t-plane: #fde6ec;
+}
+.hc-page.aurora {
+  --t-bg: #1a6b5a;
+  --pg-fg: #fff;
+  --pg-mut: rgb(255 255 255 / 0.8);
+  --pg-line: rgb(255 255 255 / 0.35);
+  --t-acc: #b6ffd8;
+  --t-plane: rgb(255 255 255 / 0.14);
+  background: linear-gradient(
+    160deg,
+    oklch(from #0b3d4f l c calc(h + var(--hc-hue, 0))),
+    oklch(from #1a6b5a l c calc(h + var(--hc-hue, 0))) 50%,
+    oklch(from #7a3fa0 l c calc(h + var(--hc-hue, 0)))
+  );
+}
+.hc-page.candy {
+  --t-bg: #ffb6a0;
+  --pg-fg: #3a0a2a;
+  --pg-mut: rgb(58 10 42 / 0.75);
+  --pg-line: rgb(58 10 42 / 0.3);
+  --t-acc: #7a1fa2;
+  --t-plane: rgb(255 255 255 / 0.4);
+  background: linear-gradient(
+    120deg,
+    oklch(from #ff9ad5 l c calc(h + var(--hc-hue, 0))),
+    oklch(from #ffd36e l c calc(h + var(--hc-hue, 0)))
+  );
+}
+.hc-page.slate {
+  --t-bg: #334155;
+  --pg-fg: #f1f5f9;
+  --pg-mut: #a8b5c7;
+  --pg-line: #52627a;
+  --t-acc: #38bdf8;
+  --t-plane: #3e4d63;
+}
+.hc-page.dots {
+  --t-bg: #1f1f1f;
+  --pg-fg: #fff;
+  --pg-mut: #aaa;
+  --pg-line: #444;
+  --t-acc: #ff5c5c;
+  --t-plane: #2a2a2a;
+  background:
+    radial-gradient(rgb(255 255 255 / 0.16) 0.22em, transparent 0.24em) 0 0 /
+      2em 2em,
+    var(--pg-bg);
+}
+.hc-page.right .hc-hero,
+.hc-page.right .hc-lede {
+  text-align: right;
+}
+.hc-page.right .hc-h1 {
+  margin-left: auto;
+  transform-origin: 100% 50%;
+}
+.hc-page.right .hc-row {
+  flex-direction: row-reverse;
+}
+.hc-page.under .hc-h1 {
+  text-decoration: underline;
+  text-decoration-color: var(--pg-acc);
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.12em;
+}
+.hc-page.boxed .hc-hero {
+  margin: 1.6em 2em 0;
+  padding: 2em 2em 0;
+  border: 0.15em solid var(--pg-fg);
+  border-bottom: 0;
+  border-radius: calc(var(--pg-r) * 4) calc(var(--pg-r) * 4) 0 0;
+}
+.hc-page.stack .hc-btns {
+  flex-direction: column;
+  align-items: stretch;
+  text-align: center;
+}
+.hc-page.caps .hc-h1 {
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 4.6em;
+}
+.hc-page.mark .hc-h1 {
+  width: fit-content;
+  background: linear-gradient(
+    transparent 62%,
+    color-mix(in srgb, var(--pg-acc) 70%, transparent) 62%
+  );
+}
 .hc-h1 {
   transform-origin: 0 50%;
   transition:
