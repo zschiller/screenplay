@@ -1,5 +1,7 @@
-// Renders one template to its finished page: a Vite build of its React entry
-// as a single IIFE plus CSS, inlined under the readable top (lib/page.ts).
+// Renders one template, from a Vite build of its React entry as a single IIFE
+// plus CSS, into its outputs: the repo skill's page with the bundle inlined
+// under the readable top (lib/page.ts), so it publishes as an Artifact, and
+// the App Skill's data page plus the runtime file it loads by reference.
 
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
@@ -7,7 +9,7 @@ import tailwind from "@tailwindcss/postcss"
 import react from "@vitejs/plugin-react"
 import { build, type Plugin, type Rolldown } from "vite"
 
-import type { Template } from "../templates.ts"
+import { appOutputs, type Template } from "../templates.ts"
 import { assemble, stripTokens, tokenBlock } from "./page.ts"
 
 const pkg = fileURLToPath(new URL("../", import.meta.url))
@@ -28,7 +30,10 @@ const sharedStateOn: Plugin = {
   },
 }
 
-export async function render(t: Template) {
+/** One file the build writes, relative to the repo root. */
+export type Output = { path: string; content: string }
+
+export async function render(t: Template): Promise<Output[]> {
   // The same bundle wherever it runs; under Vitest NODE_ENV is "test"
   process.env.NODE_ENV = "production"
   const out = (await build({
@@ -61,15 +66,48 @@ export async function render(t: Template) {
   const js = files.find((f) => f.type === "chunk")!.code
   const asset = files.find((f) => f.fileName.endsWith(".css"))
   const css = asset?.type === "asset" ? String(asset.source) : ""
-  return assemble({
+  const top = {
     ...t,
     tokens: tokenBlock(css),
     data: readFileSync(`${pkg}src/${t.name}/data.js`, "utf8"),
-    body: [
-      `<style>${inline(css.trim(), "style")}</style>`,
-      `<div id="app"></div>`,
-      `<script>${inline(js.trim(), "script")}</script>`,
-      "",
-    ].join("\n"),
-  })
+  }
+  const app = appOutputs(t)
+  return [
+    {
+      path: t.out,
+      content: assemble({
+        ...top,
+        body: [
+          `<style>${inline(css.trim(), "style")}</style>`,
+          `<div id="app"></div>`,
+          `<script>${inline(js.trim(), "script")}</script>`,
+          "",
+        ].join("\n"),
+      }),
+    },
+    // A Mockup holds only this page; the canvas swaps the reference for the
+    // runtime from the Skill when it renders (#1643)
+    {
+      path: app.page,
+      content: assemble({
+        ...top,
+        mockup: true,
+        body: [
+          `<div id="app"></div>`,
+          `<script src="${app.ref}"></script>`,
+          "",
+        ].join("\n"),
+      }),
+    },
+    // The styles go in from the script, so the runtime is one file
+    {
+      path: app.runtime,
+      content: [
+        `/* The ${t.name} template's script and styles, built by packages/skill-templates. Never edit it; change the source there and rebuild. */`,
+        `(function(){var s=document.createElement("style");s.textContent=${JSON.stringify(css.trim())};document.head.appendChild(s)})();`,
+        js.trim(),
+        "",
+      ].join("\n"),
+    },
+  ]
 }

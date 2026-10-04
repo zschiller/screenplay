@@ -7,10 +7,11 @@ import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
 import { MARKER } from "../lib/page.ts"
-import { templates } from "../templates.ts"
+import { appOutputs, templates } from "../templates.ts"
 
 const pkg = fileURLToPath(new URL("../", import.meta.url))
 const root = fileURLToPath(new URL("../../../", import.meta.url))
+const read = (path: string) => readFileSync(root + path, "utf8")
 
 describe("skill templates", () => {
   it("are built from the current source", () => {
@@ -24,7 +25,21 @@ describe("skill templates", () => {
   }, 120_000)
 
   it.each(templates)("$name keeps the part agents read short", (t) => {
-    const top = readFileSync(root + t.out, "utf8").split(MARKER)[0]!
-    expect(top.split("\n").length).toBeLessThan(120)
+    for (const path of [t.out, appOutputs(t).page]) {
+      const top = read(path).split(MARKER)[0]!
+      expect(top.split("\n").length).toBeLessThan(120)
+    }
   })
+
+  it.each(templates)(
+    "$name as a Mockup holds its data and a reference, not the bundle",
+    (t) => {
+      const { page, ref } = appOutputs(t)
+      const html = read(page)
+      const data = readFileSync(`${pkg}src/${t.name}/data.js`, "utf8")
+      expect(html.split(MARKER)[1]).toContain(`<script src="${ref}"></script>`)
+      // A few KB around the data: the title, the tokens and the reference
+      expect(html.length - data.length).toBeLessThan(4 * 1024)
+    }
+  )
 })
