@@ -241,19 +241,19 @@ export function createFluid(w: number, h: number) {
       box[1] = Math.max(1, hot[1] - M)
       box[2] = Math.min(w - 2, hot[2] + M)
       box[3] = Math.min(h - 2, hot[3] + M)
-      confine(0.5)
+      confine(0.9)
       project()
       advect()
       let b: typeof lit = null
       hot = null
       for (let r = box[1]!; r <= box[3]!; r++) {
         for (let c = box[0]!, i = r * w + c; c <= box[2]!; c++, i++) {
-          vx[i]! *= 0.965
-          vy[i]! *= 0.965
+          vx[i]! *= 0.985
+          vy[i]! *= 0.985
           // The marbling slowly relaxes back to its unstirred pattern.
-          mx[i]! += (c - mx[i]!) * 0.012
-          my[i]! += (r - my[i]!) * 0.012
-          dye[i]! *= 0.955
+          mx[i]! += (c - mx[i]!) * 0.008
+          my[i]! += (r - my[i]!) * 0.008
+          dye[i]! *= 0.968
           if (
             Math.abs(vx[i]!) + Math.abs(vy[i]!) > 0.005 ||
             Math.abs(mx[i]! - c) + Math.abs(my[i]! - r) > 0.05
@@ -276,7 +276,7 @@ export function createFluid(w: number, h: number) {
       const fade = (c: number, r: number) => {
         const i = r * w + c
         if (!dye[i]) return
-        dye[i]! *= 0.955
+        dye[i]! *= 0.968
         if (dye[i]! < 0.02) {
           dye[i] = 0
           return
