@@ -230,6 +230,18 @@ export function Storybook({
                 vals={vals}
                 dark={dark}
               />
+              <div className="flex flex-col gap-3">
+                {/* Controls sit right under the stage, above the text that changes per state, so they never move as you tap. */}
+                {controls.map((c) => (
+                  <ControlRow
+                    key={c.key}
+                    control={c}
+                    value={vals[c.key]!}
+                    choose={(v) => choose(c, v)}
+                    reachable={(v) => reachable(c, v)}
+                  />
+                ))}
+              </div>
               <div className="flex items-center gap-2">
                 <h2 className="min-w-0 flex-1 text-lg font-medium text-balance">
                   {current ? current.name : label(vals)}
@@ -270,17 +282,6 @@ export function Storybook({
                   className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground"
                 />
               )}
-              <div className="flex flex-col gap-3">
-                {controls.map((c) => (
-                  <ControlRow
-                    key={c.key}
-                    control={c}
-                    value={vals[c.key]!}
-                    choose={(v) => choose(c, v)}
-                    reachable={(v) => reachable(c, v)}
-                  />
-                ))}
-              </div>
               <label className="flex flex-col gap-1.5">
                 <Label>Note on this state</Label>
                 <Textarea
