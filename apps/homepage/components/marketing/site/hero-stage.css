@@ -75,7 +75,7 @@
 }
 .hc-copy.unseen {
   opacity: 0;
-  transform: translateZ(90px);
+  transform: translateZ(40px);
 }
 @keyframes hc-pan {
   to {
