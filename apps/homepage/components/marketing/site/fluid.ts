@@ -13,12 +13,11 @@
  */
 export function createFluid(w: number, h: number) {
   const n = w * h
-  let vx = new Float32Array(n)
-  let vy = new Float32Array(n)
-  let dye = new Float32Array(n)
-  let mx = new Float32Array(n)
-  let my = new Float32Array(n)
-  let tmp = new Float32Array(n)
+  const vx = new Float32Array(n)
+  const vy = new Float32Array(n)
+  const dye = new Float32Array(n)
+  const mx = new Float32Array(n)
+  const my = new Float32Array(n)
   const prevDye = new Float32Array(n)
   const prevMx = new Float32Array(n)
   const prevMy = new Float32Array(n)
@@ -69,31 +68,40 @@ export function createFluid(w: number, h: number) {
   }
   rest()
 
-  const at = (a: Float32Array<ArrayBuffer>, x: number, y: number) => {
-    x = Math.min(Math.max(x, 0), w - 1.001)
-    y = Math.min(Math.max(y, 0), h - 1.001)
-    const x0 = Math.floor(x)
-    const y0 = Math.floor(y)
-    const fx = x - x0
-    const fy = y - y0
-    const i = y0 * w + x0
-    const top = a[i]! + (a[i + 1]! - a[i]!) * fx
-    const bot = a[i + w]! + (a[i + w + 1]! - a[i + w]!) * fx
-    return top + (bot - top) * fy
-  }
-
-  // Carries a field along the velocity by looking back to where each cell's
-  // contents came from.
-  function advect(a: Float32Array<ArrayBuffer>) {
-    tmp.set(a)
-    for (let r = box[1]!; r <= box[3]!; r++) {
-      for (let c = box[0]!, i = r * w + c; c <= box[2]!; c++, i++) {
-        tmp[i] = at(a, c - vx[i]!, r - vy[i]!)
+  // Carries every field along the velocity by looking back to where each
+  // cell's contents came from. One pass for all five: where to look and how
+  // to blend there is the same for each.
+  const fields = 5
+  const carried = new Float32Array(n * fields)
+  function advect() {
+    const all = [vx, vy, dye, mx, my]
+    const [x0, y0, x1, y1] = box as [number, number, number, number]
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
+        let x = c - vx[i]!
+        let y = r - vy[i]!
+        x = x < 0 ? 0 : x > w - 1.001 ? w - 1.001 : x
+        y = y < 0 ? 0 : y > h - 1.001 ? h - 1.001 : y
+        const xi = x | 0
+        const yi = y | 0
+        const fx = x - xi
+        const fy = y - yi
+        const j = yi * w + xi
+        for (let f = 0; f < fields; f++) {
+          const a = all[f]!
+          const top = a[j]! + (a[j + 1]! - a[j]!) * fx
+          const bot = a[j + w]! + (a[j + w + 1]! - a[j + w]!) * fx
+          carried[f * n + i] = top + (bot - top) * fy
+        }
       }
     }
-    const out = tmp
-    tmp = a
-    return out
+    for (let f = 0; f < fields; f++) {
+      const a = all[f]!
+      for (let r = y0; r <= y1; r++) {
+        const from = f * n + r * w
+        a.set(carried.subarray(from + x0, from + x1 + 1), r * w + x0)
+      }
+    }
   }
 
   // Pushes the swirls back up that the coarse grid would otherwise smooth
@@ -235,11 +243,7 @@ export function createFluid(w: number, h: number) {
       box[3] = Math.min(h - 2, hot[3] + M)
       confine(0.5)
       project()
-      vx = advect(vx)
-      vy = advect(vy)
-      dye = advect(dye)
-      mx = advect(mx)
-      my = advect(my)
+      advect()
       let b: typeof lit = null
       hot = null
       for (let r = box[1]!; r <= box[3]!; r++) {

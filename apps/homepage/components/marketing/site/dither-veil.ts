@@ -13,17 +13,16 @@ import { createFluid } from "./fluid"
  * holds still until the pointer stirs it. Each grain is solid or clear, with
  * nothing in between, so what's underneath is never greyed over.
  *
- * The canvas must fill its parent (`width/height: 100%`): a positioned canvas
- * otherwise keeps its bitmap size and draws at twice the size on 2x screens.
+ * The canvas holds one pixel a grain and sizes itself over its parent, so it
+ * should sit at the parent's top left.
  */
 export function createDitherVeil(
   canvas: HTMLCanvasElement,
   span: () => [top: number, solid: number, far?: [solid: number, clear: number]]
 ) {
+  // Kept in memory, not on the GPU: every frame writes pixels straight in.
   const ctx = canvas.getContext("2d")!
   const host = canvas.parentElement!
-  const off = document.createElement("canvas")
-  const octx = off.getContext("2d")!
 
   // Value noise from a fixed permutation, so every visit looks the same.
   const perm = new Uint8Array(512)
@@ -74,11 +73,16 @@ export function createDitherVeil(
   let dist = new Float32Array(0)
   // Each grain's opacity before the peek.
   let base = new Float32Array(0)
-  // The grains in the fade, the only ones that change from frame to frame.
-  let band = new Int32Array(0)
-  let bandC = new Uint16Array(0)
-  let bandR = new Uint16Array(0)
+  // Which grains are in the fade, each grain's dither threshold, and its
+  // alpha with no peek. None of these change between measures, so a frame
+  // only ever works out the grains under the peek.
   let inBand = new Uint8Array(0)
+  let thr = new Float32Array(0)
+  let still = new Uint8Array(0)
+  // Which cells of the fluid's grid the peek reaches this frame, and which
+  // it reached last frame: only grains in one or the other need redrawing.
+  let open = new Uint8Array(0)
+  let wasOpen = new Uint8Array(0)
   let gc = 0
   // The marbling noise at each node of the fluid, this frame.
   let marble = new Float32Array(0)
@@ -98,42 +102,48 @@ export function createDitherVeil(
   let raf = 0
   let stirred = false
   let lastDraw = 0
-  // How far through the fade the redraw has got, while the peek is running.
-  let sweepAt = 0
+  // sin by table, for the marbling: one lookup a grain, not a call.
+  const SIN = new Float32Array(1024)
+  for (let i = 0; i < 1024; i++) SIN[i] = Math.sin((i / 1024) * Math.PI * 2)
+  const TURN = 1024 / (Math.PI * 2)
   const t0 = performance.now()
 
   function measure() {
     dpr = Math.min(window.devicePixelRatio || 1, 2)
     W = host.clientWidth
     H = host.clientHeight
-    // Resizing the bitmap clears it, so only when the size really changed;
-    // the caller draws again straight after.
-    const bw = Math.round(W * dpr)
-    const bh = Math.round(H * dpr)
-    if (canvas.width !== bw || canvas.height !== bh) {
-      canvas.width = bw
-      canvas.height = bh
-    }
     // One grain per 3 device pixels on retina screens, 2 elsewhere.
     cell = dpr >= 2 ? 1.5 : 2
     cols = Math.ceil(W / cell)
     rows = Math.ceil(H / cell)
-    if (off.width !== cols || off.height !== rows || !img) {
-      off.width = cols
-      off.height = rows
-      img = octx.createImageData(cols, rows)
+    // The bitmap holds one pixel a grain and the compositor scales it up,
+    // crisp, so a frame uploads a small texture, not one the size of the
+    // screen. Laid out at a whole number of grains, so every grain is the
+    // same size; the host clips the sliver that overhangs. Resizing the
+    // bitmap clears it, so only when the size really changed; the caller
+    // draws again straight after.
+    if (canvas.width !== cols || canvas.height !== rows || !img) {
+      canvas.width = cols
+      canvas.height = rows
+      img = ctx.createImageData(cols, rows)
     }
+    canvas.style.width = `${cols * cell}px`
+    canvas.style.height = `${rows * cell}px`
+    canvas.style.imageRendering = "pixelated"
 
     gc = Math.ceil(W / COARSE) + 2
     const gr = Math.ceil(H / COARSE) + 2
     marble = new Float32Array(gc * gr)
     shown = new Float32Array(gc * gr)
+    open = new Uint8Array(gc * gr)
+    wasOpen = new Uint8Array(gc * gr)
     const [top, solid, far] = span()
     const fall = Math.max(solid - top, 1)
     dist = new Float32Array(cols * rows)
     base = new Float32Array(cols * rows)
-    const fade = new Int32Array(cols * rows)
-    let n = 0
+    inBand = new Uint8Array(cols * rows)
+    thr = new Float32Array(cols * rows)
+    still = new Uint8Array(cols * rows)
     for (let r = 0, i = 0; r < rows; r++) {
       // How far above the solid line this row is.
       const y = r * cell + cell / 2
@@ -151,21 +161,13 @@ export function createDitherVeil(
       for (let c = 0; c < cols; c++, i++) {
         dist[i] = d
         base[i] = k
-        if (k < 1 && k > 0) fade[n++] = i
+        thr[i] = ign(c, r)
+        if (k < 1 && k > 0) {
+          inBand[i] = 1
+          const v = k * k * (3 - 2 * k)
+          still[i] = v > thr[i]! ? 255 : 0
+        } else still[i] = d <= 0 ? 255 : 0
       }
-    }
-    band = fade.subarray(0, n)
-    bandC = new Uint16Array(n)
-    bandR = new Uint16Array(n)
-    sweepAt = 0
-    inBand = new Uint8Array(cols * rows)
-    for (let b = 0; b < n; b++) {
-      const i = fade[b]!
-      inBand[i] = 1
-      const c = i % cols
-      const r = (i - c) / cols
-      bandC[b] = c
-      bandR[b] = r
     }
     fluid = createFluid(gc, gr)
     touched = null
@@ -173,8 +175,7 @@ export function createDitherVeil(
     fill()
   }
 
-  // Paints the grains that only change under the pointer: solid below the
-  // line, clear above the fade.
+  // Paints every grain as it is with no peek.
   function fill() {
     if (!img) return
     const data = img.data
@@ -184,7 +185,7 @@ export function createDitherVeil(
       data[j] = R!
       data[j + 1] = G!
       data[j + 2] = B!
-      data[j + 3] = dist[i]! <= 0 ? 255 : 0
+      data[j + 3] = still[i]!
     }
   }
 
@@ -233,9 +234,8 @@ export function createDitherVeil(
     return top + (bot - top) * fy
   }
 
-  // Redraws the grains in `rect` that can change: the fade by distance, its
-  // and, with `peek`, a hole where the pointer is. Grains in `skip` are left alone; below the line, without
-  // `peek`, grains go back to solid.
+  // Redraws the grains in `rect`: as they are at rest or, with `peek`, with
+  // a hole where the pointer is. Grains in `skip` are left alone.
   function paint(
     rect: [number, number, number, number],
     peek: boolean,
@@ -244,63 +244,58 @@ export function createDitherVeil(
   ) {
     const data = img!.data
     const d = fluid && shown
+    const phase = t * 1.6
+    const step = cell / COARSE
     for (let r = rect[1]; r <= rect[3]; r++) {
-      const gy = (r * cell) / COARSE
+      const skipRow = !!skip && r >= skip[1] && r <= skip[3]
+      let i = r * cols + rect[0]
+      if (!peek || !d) {
+        for (let c = rect[0]; c <= rect[2]; c++, i++) {
+          if (skipRow && c >= skip![0] && c <= skip![2]) continue
+          data[i * 4 + 3] = still[i]!
+        }
+        continue
+      }
+      const gy = r * step
       const y0 = Math.floor(gy)
       const fy = gy - y0
-      const skipRow = !!skip && r >= skip[1] && r <= skip[3]
-      for (let c = rect[0]; c <= rect[2]; c++) {
-        const i = r * cols + c
-        if (!inBand[i] && dist[i]! > 0) continue
-        if (skipRow && c >= skip![0] && c <= skip![2]) continue
-        if (!peek && !inBand[i]) {
-          data[i * 4 + 3] = 255
+      const row = y0 * gc
+      for (let c = rect[0]; c <= rect[2]; c++, i++) {
+        const gx = c * step
+        const x0 = Math.floor(gx)
+        const j = row + x0
+        if (!open[j] && !wasOpen[j]) {
+          // Nothing here now or last frame: on to the next cell.
+          const skipTo = Math.ceil((x0 + 1) / step)
+          i += skipTo - c - 1
+          c = skipTo - 1
           continue
         }
-        const gx = (c * cell) / COARSE
-        const x0 = Math.floor(gx)
+        // Above the fade it's clear whatever the peek does.
+        if (!inBand[i] && dist[i]! > 0) continue
         const fx = gx - x0
-        const j = y0 * gc + x0
-        let k = base[i]!
-        if (peek && d) {
-          const top = d[j]! + (d[j + 1]! - d[j]!) * fx
-          const p =
-            top + (d[j + gc]! + (d[j + gc + 1]! - d[j + gc]!) * fx - top) * fy
-          if (p > 0) {
-            // Rather than a clean hole, the peek opens in marbled bands
-            // drawn from where the fluid carried each spot from, so moving
-            // the mouse stirs them into swirls.
-            const w = lerpMarble(j, fx, fy)
-            k -= p * (0.95 + 1.05 * Math.sin(w * 16 + t * 1.6))
-          }
+        const top = d[j]! + (d[j + 1]! - d[j]!) * fx
+        const p =
+          top + (d[j + gc]! + (d[j + gc + 1]! - d[j + gc]!) * fx - top) * fy
+        if (p <= 0) {
+          data[i * 4 + 3] = still[i]!
+          continue
         }
+        // Rather than a clean hole, the peek opens in marbled bands drawn
+        // from where the fluid carried each spot from, so moving the mouse
+        // stirs them into swirls.
+        const w = lerpMarble(j, fx, fy)
+        const k =
+          base[i]! - p * (0.95 + 1.05 * SIN[((w * 16 + phase) * TURN) & 1023]!)
         const kk = k < 0 ? 0 : k > 1 ? 1 : k
-        const v = kk * kk * (3 - 2 * kk)
-        data[i * 4 + 3] = v > ign(c, r) ? 255 : 0
+        data[i * 4 + 3] = kk * kk * (3 - 2 * kk) > thr[i]! ? 255 : 0
       }
     }
   }
 
-  // Redraws the grains in the fade from `band[from]` up to `band[to]`,
-  // except those under the peek's `box`, which are drawn with it.
-  function sweep(from: number, to: number, box: typeof touched) {
-    const data = img!.data
-    for (let b = from; b < to; b++) {
-      const c = bandC[b]!
-      const r = bandR[b]!
-      if (box && c >= box[0] && c <= box[2] && r >= box[1] && r <= box[3])
-        continue
-      const k = base[band[b]!]!
-      const kk = k < 0 ? 0 : k > 1 ? 1 : k
-      const v = kk * kk * (3 - 2 * kk)
-      data[band[b]! * 4 + 3] = v > ign(c, r) ? 255 : 0
-    }
-  }
-
-  // `full` redraws the whole fade. Otherwise, while the peek runs at the
-  // display's rate, each frame redraws the slice of the fade due in the
-  // time since the last, so the fade still takes 40ms to come round, plus
-  // the grains the peek covers.
+  // `full` repaints every grain. Otherwise, while the peek runs at the
+  // display's rate, a frame only redraws the grains the peek covers and the
+  // ones it covered last frame.
   function draw(now: number, snap = false, full = true) {
     if (!img) return
     const t = (now - t0) / 1000
@@ -354,6 +349,27 @@ export function createDitherVeil(
           )
         }
       }
+      // A cell is open if any of its four corners holds dye.
+      for (
+        let r = Math.max(0, lit[1] - 2);
+        r <= Math.min(rows - 2, lit[3] + 2);
+        r++
+      ) {
+        for (
+          let c = Math.max(0, lit[0] - 2);
+          c <= Math.min(gc - 2, lit[2] + 2);
+          c++
+        ) {
+          const j = r * gc + c
+          if (
+            shown[j]! > 0 ||
+            shown[j + 1]! > 0 ||
+            shown[j + gc]! > 0 ||
+            shown[j + gc + 1]! > 0
+          )
+            open[j] = 1
+        }
+      }
     }
     const box: typeof touched = lit
       ? [
@@ -364,24 +380,9 @@ export function createDitherVeil(
         ]
       : null
     let dirty: number[] | null = null
-    const n = band.length
-    if (full || !n) {
-      sweep(0, n, box)
-      sweepAt = 0
+    if (full) {
+      fill()
       dirty = [0, 0, cols - 1, rows - 1]
-    } else {
-      const from = sweepAt
-      const to = Math.min(
-        from + Math.ceil((n * Math.min(elapsed, 40)) / 40),
-        from + n
-      )
-      sweep(from, Math.min(to, n), box)
-      if (to > n) sweep(0, to - n, box)
-      sweepAt = to % n
-      dirty =
-        to > n
-          ? [0, 0, cols - 1, rows - 1]
-          : [0, bandR[from]!, cols - 1, bandR[to - 1]!]
     }
     // Redraw the grains the peek covers now and put back the ones it
     // covered last frame. Grains above the fade stay clear.
@@ -389,32 +390,24 @@ export function createDitherVeil(
       if (!b) continue
       if (b === box) paint(b, true, null, t)
       else paint(b, false, box, t)
-      dirty = [
-        Math.min(dirty[0]!, b[0]),
-        Math.min(dirty[1]!, b[1]),
-        Math.max(dirty[2]!, b[2]),
-        Math.max(dirty[3]!, b[3]),
-      ]
+      dirty = dirty
+        ? [
+            Math.min(dirty[0]!, b[0]),
+            Math.min(dirty[1]!, b[1]),
+            Math.max(dirty[2]!, b[2]),
+            Math.max(dirty[3]!, b[3]),
+          ]
+        : [...b]
     }
     touched = box
+    const spare = wasOpen
+    wasOpen = open
+    open = spare
+    open.fill(0)
+    // Nothing under the peek and nothing to put back: the canvas stands.
+    if (!dirty) return
     const [x0, y0, x1, y1] = dirty as [number, number, number, number]
-    octx.putImageData(img, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1)
-    // Clear and repaint only that part, snapped out to whole device pixels
-    // so no seam shows where it meets the rest.
-    const X0 = Math.floor(x0 * cell * dpr)
-    const Y0 = Math.floor(y0 * cell * dpr)
-    const X1 = Math.ceil((x1 + 1) * cell * dpr)
-    const Y1 = Math.ceil((y1 + 1) * cell * dpr)
-    ctx.save()
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.beginPath()
-    ctx.rect(X0, Y0, X1 - X0, Y1 - Y0)
-    ctx.clip()
-    ctx.clearRect(X0, Y0, X1 - X0, Y1 - Y0)
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.imageSmoothingEnabled = false
-    ctx.drawImage(off, 0, 0, cols * cell, rows * cell)
-    ctx.restore()
+    ctx.putImageData(img, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1)
   }
 
   function frame(now: number) {

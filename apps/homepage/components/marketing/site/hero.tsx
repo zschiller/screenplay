@@ -19,12 +19,12 @@ export function Hero() {
             <br />
             <em>on one canvas</em>.
           </h1>
-          <div className="mt-14 grid items-end gap-6 md:mb-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
+          <div className="mt-14 grid items-end gap-6 md:mb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-12">
             <p className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]">
               Coding agents plan, mock up and build from your own repo, with
               every version live side by side.
             </p>
-            {/* The buttons sit on the lede's last line; from md up their note
+            {/* From md up the buttons are centred on the lede, and their note
                 hangs below them, out of the grid's way. */}
             <div className="relative">
               <div className="flex flex-wrap gap-3 max-sm:flex-col">
