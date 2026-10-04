@@ -10,6 +10,7 @@ import react from "@vitejs/plugin-react"
 import { build, type Plugin, type Rolldown } from "vite"
 
 import { appOutputs, type Template } from "../templates.ts"
+import { fontsCss } from "./fonts.ts"
 import { assemble, stripTokens, tokenBlock } from "./page.ts"
 
 const pkg = fileURLToPath(new URL("../", import.meta.url))
@@ -91,7 +92,7 @@ export async function render(t: Template): Promise<Output[]> {
       path: app.page,
       content: assemble({
         ...top,
-        mockup: true,
+        mockup: app.fontsRef,
         body: [
           `<div id="app"></div>`,
           `<script src="${app.ref}"></script>`,
@@ -109,5 +110,6 @@ export async function render(t: Template): Promise<Output[]> {
         "",
       ].join("\n"),
     },
+    { path: app.fonts, content: fontsCss() },
   ]
 }

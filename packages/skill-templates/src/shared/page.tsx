@@ -77,6 +77,7 @@ export function CopyBar({
   fallbackLabel,
   outLabel,
   text,
+  send,
   maxWidth,
 }: {
   status: React.ReactNode
@@ -89,6 +90,8 @@ export function CopyBar({
   fallbackLabel?: string
   outLabel: string
   text: () => string
+  /** Hands the text on instead of copying it (into a chat, on a canvas). */
+  send?: () => boolean
   maxWidth: string
 }) {
   const [flash, setFlash] = React.useState<string | null>(null)
@@ -109,6 +112,7 @@ export function CopyBar({
     wasOpen.current = noteOpen
   }, [noteOpen])
   const copy = () => {
+    if (send) return void (send() && show("Drafted"))
     const value = text()
     const fallback = () => {
       setOut(value)
@@ -158,7 +162,7 @@ export function CopyBar({
           {/* Keeps its width while it says Copied: the labels share one grid cell */}
           <Button type="button" onClick={copy} className="inline-grid">
             <span className="[grid-area:1/1]">{flash ?? copyLabel}</span>
-            {[copyLabel, fallbackLabel].map(
+            {[copyLabel, fallbackLabel, send && "Drafted"].map(
               (l) =>
                 l && (
                   <span

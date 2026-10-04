@@ -18,7 +18,8 @@ export const APP_SKILLS = "apps/app/lib/skills"
 
 /**
  * Where a template lands in its App Skill: the data page a Mockup holds, and
- * the runtime (script and styles) its `src` names, as files of the Skill.
+ * the runtime (script and styles) its `src` names, and the fonts it links,
+ * as files of the Skill.
  */
 export function appOutputs(t: Template) {
   const runtime = `${t.name}-runtime.js`
@@ -26,6 +27,9 @@ export function appOutputs(t: Template) {
     page: `${APP_SKILLS}/${t.skill}/${t.name}-template.html`,
     runtime: `${APP_SKILLS}/${t.skill}/${runtime}`,
     ref: `skill:${t.skill}/${runtime}`,
+    // One per Skill, shared by its templates
+    fonts: `${APP_SKILLS}/${t.skill}/fonts.css`,
+    fontsRef: `skill:${t.skill}/fonts.css`,
   }
 }
 
