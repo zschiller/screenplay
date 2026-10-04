@@ -51,6 +51,7 @@ import { useAppSession } from "@/lib/auth-client"
 import { isLocalBuild } from "@/lib/local-mode"
 
 import { inputStore } from "@/lib/input-store"
+import { chatDraftSourceStore } from "@/lib/chat-draft-source-store"
 
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 
@@ -1468,26 +1469,21 @@ export function Canvas({
     () => new Set([...mockupOwners.keys(), ...orphanedMockupIds]),
     [mockupOwners, orphanedMockupIds]
   )
-  const handleAskForMockupKnob = useCallback(
-    (mockupId: string) => {
-      const mockup = mockupLayers.find((m) => m.id === mockupId)
-      if (!mockup || !askableMockupIds.has(mockupId)) return
+  // Open the chat that can rewrite a Mockup and return its id: its owner, or
+  // for a Mockup without one, the chat the panel shows.
+  const openMockupChat = useCallback(
+    (mockupId: string): string => {
       const target = mockupOwners.get(mockupId)
-      const prompt = `Add a knob to the mockup "${mockup.title || "Untitled"}" that controls `
       if (!target) {
         const shown = chatTarget.target
-        if (shown?.kind === "agent") {
-          inputStore.prefill(openWorkspaceChat(shown.agent.id), prompt)
-          return
-        }
+        if (shown?.kind === "agent") return openWorkspaceChat(shown.agent.id)
         let chatId = shown?.kind === "sketch" ? shown.chat.id : null
         if (!chatId) {
           chatId = nanoid()
           addChatSession(chatId, sketchChatSession(chatId, Date.now()))
         }
         chatTarget.selectSketchChat(chatId)
-        inputStore.prefill(chatId, prompt)
-        return
+        return chatId
       }
       if (target.kind === "sketch") {
         chatTarget.selectSketchChat(target.chatId)
@@ -1497,16 +1493,33 @@ export function Canvas({
           remember: true,
         })
       }
-      inputStore.prefill(target.chatId, prompt)
+      return target.chatId
     },
-    [
-      mockupLayers,
-      mockupOwners,
-      askableMockupIds,
-      chatTarget,
-      openWorkspaceChat,
-      addChatSession,
-    ]
+    [mockupOwners, chatTarget, openWorkspaceChat, addChatSession]
+  )
+  const handleAskForMockupKnob = useCallback(
+    (mockupId: string) => {
+      const mockup = mockupLayers.find((m) => m.id === mockupId)
+      if (!mockup || !askableMockupIds.has(mockupId)) return
+      inputStore.prefill(
+        openMockupChat(mockupId),
+        `Add a knob to the mockup "${mockup.title || "Untitled"}" that controls `
+      )
+    },
+    [mockupLayers, askableMockupIds, openMockupChat]
+  )
+  // A Mockup page's `screenplay.draft(text)` (#1645), from the person's tap:
+  // the text goes in the same chat's composer for them to edit and send,
+  // under a From row naming the Mockup.
+  const handleMockupDraft = useCallback(
+    (mockupId: string, text: string) => {
+      const mockup = mockupLayers.find((m) => m.id === mockupId)
+      if (!mockup) return
+      const chatId = openMockupChat(mockupId)
+      chatDraftSourceStore.set(chatId, { mockupId, title: mockup.title })
+      inputStore.prefill(chatId, text)
+    },
+    [mockupLayers, openMockupChat]
   )
 
   // Deleting a chat with no repository: the panel goes home if it showed it,
@@ -2315,6 +2328,7 @@ export function Canvas({
                           onAskForKnob={handleAskForKnob}
                           askableMockupIds={askableMockupIds}
                           onAskForMockupKnob={handleAskForMockupKnob}
+                          onMockupDraft={handleMockupDraft}
                           handleCaptureReadyChange={handleCaptureReadyChange}
                           handleCaptureDirty={handleCaptureDirty}
                           layerMutations={layerMutations}

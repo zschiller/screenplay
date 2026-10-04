@@ -7,7 +7,12 @@ import {
   useRef,
   useSyncExternalStore,
 } from "react"
-import { ClockIcon, FileTextIcon, XIcon } from "@workspace/ui/components/icons"
+import {
+  ClockIcon,
+  FileTextIcon,
+  ScribbleIcon,
+  XIcon,
+} from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -63,6 +68,10 @@ import {
   quoteRangeLabel,
   type ChatQuote,
 } from "@/lib/chat-quote-store"
+import {
+  chatDraftSourceStore,
+  type DraftSource,
+} from "@/lib/chat-draft-source-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
 import { removeAttachment, uploadAttachment } from "@/lib/chat-attachments"
 
@@ -267,6 +276,8 @@ export function AgentChat({
           ...parts,
           // A passage quoted by Reply in chat (#1243) leads the message.
           quote: chatQuoteStore.take(chatId),
+          // The Mockup whose page drafted it (#1645), named to the agent.
+          draftedOn: draftedOn(chatDraftSourceStore.take(chatId)),
           // What "this" means: the sender's selection and screen right now.
           canvasView: canvasViewSource.read(),
         },
@@ -283,6 +294,17 @@ export function AgentChat({
     if (!isActive) return
     return chatQuoteStore.claimForeground(chatId)
   }, [chatId, isActive])
+  // A Mockup page drafted into this composer (#1645): its From row, until the
+  // next send takes it or the X drops it.
+  const draftSource = useSyncExternalStore(
+    useCallback(
+      (onChange: () => void) =>
+        chatDraftSourceStore.subscribe(chatId, onChange),
+      [chatId]
+    ),
+    () => chatDraftSourceStore.get(chatId),
+    () => undefined
+  )
   const quote = useSyncExternalStore(
     useCallback(
       (onChange: () => void) => chatQuoteStore.subscribe(chatId, onChange),
@@ -581,11 +603,21 @@ export function AgentChat({
             ) : undefined
           }
           inputHeader={
-            quote ? (
-              <QuoteRow
-                quote={quote}
-                onRemove={() => chatQuoteStore.remove(chatId)}
-              />
+            quote || draftSource ? (
+              <>
+                {draftSource && (
+                  <DraftSourceRow
+                    source={draftSource}
+                    onRemove={() => chatDraftSourceStore.remove(chatId)}
+                  />
+                )}
+                {quote && (
+                  <QuoteRow
+                    quote={quote}
+                    onRemove={() => chatQuoteStore.remove(chatId)}
+                  />
+                )}
+              </>
             ) : undefined
           }
           onPickElement={pickBranchId ? handlePickElement : undefined}
@@ -818,6 +850,41 @@ function QuoteRow({
       </IconButton>
     </div>
   )
+}
+
+/**
+ * The Mockup whose page drafted the message in the composer (#1645), at the
+ * top of the input box until the next send takes it: one line naming the
+ * Mockup, like the quote row. The X drops it and keeps the text.
+ */
+function DraftSourceRow({
+  source,
+  onRemove,
+}: {
+  source: DraftSource
+  onRemove: () => void
+}) {
+  return (
+    <div
+      aria-label="Drafted on a mockup"
+      className="flex w-full items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50"
+    >
+      <ScribbleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1 truncate">
+        <span className="text-muted-foreground">From </span>
+        <span className="font-medium">{source.title || "Untitled"}</span>
+      </div>
+      <IconButton label="Remove mockup" onClick={onRemove}>
+        <XIcon />
+      </IconButton>
+    </div>
+  )
+}
+
+function draftedOn(
+  source: DraftSource | undefined
+): { id: string; title: string } | null {
+  return source ? { id: source.mockupId, title: source.title } : null
 }
 
 /**

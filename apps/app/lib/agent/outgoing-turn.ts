@@ -3,6 +3,7 @@ import { formatQuoteForChat } from "@/lib/document-comments"
 import {
   buildAttachmentsFooter,
   buildCanvasViewFooter,
+  buildDraftedOnFooter,
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
   type CanvasView,
@@ -16,7 +17,8 @@ import type { UserTurn } from "@/lib/agent/user-turn"
  * Outgoing Turn (#1497): the one place a message this client sends becomes
  * both its wire text and the turn the chat shows for it, the send-side mirror
  * of the {@link projectUserTurn} projection. Every hidden marker a send adds
- * (the Composer's footers, the Reply in chat quote, the Canvas view) is
+ * (the Composer's footers, the Reply in chat quote, the Canvas view, the
+ * Mockup a page drafted it on) is
  * appended here and nowhere else, so a new one is a single edit beside its
  * stripper in `parseUserMessage`, and `turn` is always exactly what the
  * server's echo will project from `wire`.
@@ -43,6 +45,11 @@ export interface OutgoingTurnParts {
    * `Canvas view:` footer only the model reads.
    */
   canvasView?: CanvasView | null
+  /**
+   * The Mockup whose page drafted the message (#1645), for the
+   * `Drafted on mockup:` footer only the model reads.
+   */
+  draftedOn?: { id: string; title: string } | null
 }
 
 export interface OutgoingTurn {
@@ -59,6 +66,7 @@ export function buildOutgoingTurn({
   attachments = [],
   quote,
   canvasView,
+  draftedOn,
 }: OutgoingTurnParts): OutgoingTurn {
   const body = quote ? `${formatQuoteForChat(quote)}\n\n${message}` : message
   return {
@@ -67,7 +75,8 @@ export function buildOutgoingTurn({
       buildAttachmentsFooter(attachments) +
       buildReferencedDocsFooter(referencedDocs) +
       buildTargetedElementsFooter(targetedElements) +
-      buildCanvasViewFooter(canvasView ?? null),
+      buildCanvasViewFooter(canvasView ?? null) +
+      buildDraftedOnFooter(draftedOn ?? null),
     turn: {
       body,
       ...(targetedElements.length > 0 ? { targetedElements } : {}),

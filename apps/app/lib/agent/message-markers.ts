@@ -438,6 +438,31 @@ export function buildAttachmentsFooter(
 }
 
 /**
+ * The canonical token that opens the drafted-on footer (#1645), shared by the
+ * build side (`buildDraftedOnFooter`) and the strip side (`parseUserMessage`).
+ */
+export const DRAFTED_ON_FOOTER_TOKEN = "Drafted on mockup:"
+
+/**
+ * Build the drafted-on footer: the Mockup whose page drafted this message into
+ * the composer (`screenplay.draft`), so a page’s “Picked B” reaches the agent
+ * with the page it is about. One line, only the model reads it. Returns an
+ * empty string for a message typed in the composer.
+ */
+export function buildDraftedOnFooter(
+  mockup: { id: string; title: string } | null
+): string {
+  if (!mockup) return ""
+  return [
+    "",
+    "",
+    "---",
+    "",
+    `${DRAFTED_ON_FOOTER_TOKEN} the sender wrote this message from the page of mockup [${mockup.id}] ${JSON.stringify(mockup.title || "Untitled")}; read it with read_mockup.`,
+  ].join("\n")
+}
+
+/**
  * Prepend the server turn prefixes to a user message body: wake, delegation,
  * then plan, then branch. Each prefix is emitted only when its input is
  * present, so a turn with no marker returns `body` unchanged.
@@ -529,6 +554,11 @@ const ATTACHMENTS_FOOTER_RE = new RegExp(
   `\\n\\n---\\n\\n${ATTACHMENTS_FOOTER_TOKEN}[^\\n]*(?:\\n- [^\\n]*)*`,
   "g"
 )
+// The drafted-on footer is one line.
+const DRAFTED_ON_FOOTER_RE = new RegExp(
+  `\\n\\n---\\n\\n${DRAFTED_ON_FOOTER_TOKEN}[^\\n]*`,
+  "g"
+)
 // One attachment line, exactly as `attachmentLine` emits it.
 const ATTACHMENT_LINE_RE = /^- ("(?:[^"\\]|\\.)*") \(([^,()]+), (\d+) bytes\)$/
 
@@ -578,6 +608,7 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   // until its own strip runs.
   body = body.replace(CANVAS_VIEW_FOOTER_RE, "")
   body = body.replace(ATTACHMENTS_FOOTER_RE, "")
+  body = body.replace(DRAFTED_ON_FOOTER_RE, "")
   const hadReferencedDocs = REFERENCED_DOCS_FOOTER_RE.test(body)
   const hadTargetedElements = TARGETED_ELEMENTS_FOOTER_RE.test(body)
   if (hadReferencedDocs) {

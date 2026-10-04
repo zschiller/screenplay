@@ -147,6 +147,30 @@ one.
 A file the page names that isn’t there, say a screenshot that was deleted,
 shows as an empty picture, and the rest of the page works as before.
 
+## Sending your reaction from the page
+
+A mockup’s page can hand you a message to send to its chat. A decision page,
+for example, may have a **Send to chat** button that sums up your picks and
+notes. Pressing it opens the chat that drew the mockup and puts the message
+in its composer, after anything you had already typed, with the caret at the
+end. Edit it as you like, then send it. Nothing is ever sent for you.
+
+A **From** row at the top of the composer names the mockup the message came
+from, and when you send, the chat is told which mockup it was written on. The
+row’s X removes it and keeps the text. When the chat that drew the mockup was
+deleted, the message goes to the chat the agent panel is showing, as
+**Ask the agent to add a knob** does.
+
+A page can only do this from your own click or key press while you
+[Interact](#working-with-mockups) with it, or while you have control of a
+[live](#going-live) mockup, so a page can never write a message on its own.
+The chat writes such a page with `screenplay.draft(text)`.
+
+<Screenshot
+  name="mockup-draft"
+  alt="A mockup’s Send to chat button has put “Picked B. Note on A: the illustration is too big for mobile.” in its chat’s composer, under a From row naming the mockup"
+/>
+
 ## Going live
 
 On a hosted canvas, a mockup starts as your own copy, running in your

@@ -157,6 +157,40 @@ describe("buildOutgoingTurn", () => {
   })
 })
 
+describe("a message a Mockup page drafted (#1645)", () => {
+  const draftedOn = { id: "mockup-1", title: "Option B · Suggestions" }
+
+  it("names the Mockup to the agent, out of what the chat shows", () => {
+    const { wire, turn } = buildOutgoingTurn({
+      message: "Picked B",
+      draftedOn,
+      canvasView,
+    })
+    expect(wire).toContain(
+      'Drafted on mockup: the sender wrote this message from the page of mockup [mockup-1] "Option B · Suggestions"'
+    )
+    expect(parseUserMessage(wire).body).toBe("Picked B")
+    expect(turn).toEqual({ body: "Picked B" })
+  })
+
+  it("strips beside the footers that run to the end", () => {
+    const element: TargetedElement = {
+      ref: "el1",
+      route: "/",
+      selector: "button",
+      frameLabel: "Home",
+    }
+    const { wire } = buildOutgoingTurn({
+      message: `Make ${serializeElement("button", "el1")} blue`,
+      targetedElements: [element],
+      draftedOn,
+    })
+    expect(parseUserMessage(wire).body).toBe(
+      `Make ${serializeElement("button", "el1")} blue`
+    )
+  })
+})
+
 describe("an outgoing turn's attachments (#1525)", () => {
   it("show on the turn and project back from the wire", () => {
     const { wire, turn } = buildOutgoingTurn({

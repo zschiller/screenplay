@@ -362,6 +362,33 @@ function storedDraft(
   return attachments.length > 0 ? { ...doc, attachments } : doc
 }
 
+/**
+ * Append `text` to the editor's draft, on its own paragraph after any text
+ * already there, and focus the editor at its end.
+ */
+function appendText(editor: Editor, text: string) {
+  if (!text.includes("\n")) {
+    const prefix = editor.isEmpty ? "" : "\n\n"
+    editor.chain().focus("end").insertContent(`${prefix}${text}`).run()
+    return
+  }
+  // A plain string's newlines collapse to spaces, so multi-line text (a quoted
+  // plan) goes in as one paragraph per line. The leading empty paragraph
+  // starts it on its own line after an existing draft.
+  const lines = text
+    .split("\n")
+    .map((line) =>
+      line
+        ? { type: "paragraph", content: [{ type: "text", text: line }] }
+        : { type: "paragraph" }
+    )
+  editor
+    .chain()
+    .focus("end")
+    .insertContent(editor.isEmpty ? lines : [{ type: "paragraph" }, ...lines])
+    .run()
+}
+
 /** A kept draft back into the editor's document and its attachments. */
 function splitDraft(draft: unknown): {
   doc?: JSONContent
@@ -890,6 +917,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       editor.commands.setContent(saved.doc ?? "", { emitUpdate: true })
     }, [editor, draftKey])
 
+    // Text handed to `insertText` before the editor existed (a chat selected
+    // and prefilled in one go, #1645), added once it does, after the saved
+    // draft so that doesn't replace it.
+    const pendingInsertsRef = useRef<string[]>([])
+    useEffect(() => {
+      if (!editor || pendingInsertsRef.current.length === 0) return
+      const held = pendingInsertsRef.current
+      pendingInsertsRef.current = []
+      held.forEach((text) => appendText(editor, text))
+    }, [editor])
+
     // Streaming blocks a commit unless the caller queues it.
     const sendBlocked = isStreaming && !queueWhileStreaming
     // A commit made now waits for the run's end, rather than steering it.
@@ -1121,29 +1159,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       ref,
       () => ({
         insertText: (text: string) => {
-          if (!editor) return
-          if (!text.includes("\n")) {
-            const prefix = editor.isEmpty ? "" : "\n\n"
-            editor.chain().focus("end").insertContent(`${prefix}${text}`).run()
+          if (!editor) {
+            pendingInsertsRef.current.push(text)
             return
           }
-          // A plain string's newlines collapse to spaces, so multi-line text
-          // (a quoted plan) goes in as one paragraph per line. The leading
-          // empty paragraph starts it on its own line after an existing draft.
-          const lines = text
-            .split("\n")
-            .map((line) =>
-              line
-                ? { type: "paragraph", content: [{ type: "text", text: line }] }
-                : { type: "paragraph" }
-            )
-          editor
-            .chain()
-            .focus("end")
-            .insertContent(
-              editor.isEmpty ? lines : [{ type: "paragraph" }, ...lines]
-            )
-            .run()
+          appendText(editor, text)
         },
         focus: () => editor?.chain().focus("end").run(),
         restoreDraft: (draft: unknown) => {
