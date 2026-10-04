@@ -146,6 +146,8 @@ type Copy = {
   /** Its headline, and its whole look as one string to compare. */
   head: string
   look: string
+  /** When it has finished fading in on load; untouched until then. */
+  ready: number
   /** Its row, far to near, and its place along it. */
   row: number
   at: number
@@ -341,6 +343,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           head: HEAD,
           look: lookOf([], HEAD),
           busy: false,
+          ready: 0,
           row,
           at,
         }
@@ -368,7 +371,10 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           return r.right > s.left && r.left < s.right
         })
       ).map((f) => ({ f }))
+      const from = performance.now()
       seen.forEach(({ f }, n) => {
+        // Each fades in as main and stays that way for a beat.
+        f.ready = from + (n / seen.length) * WAVE + FADE + 500
         f.el.style.transitionDuration = `${FADE}ms`
         f.el.style.transitionDelay = `${Math.round((n / seen.length) * WAVE)}ms`
       })
@@ -414,7 +420,13 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       await wait(delay)
       while (alive) {
         const s = host.getBoundingClientRect()
-        const left = copies.filter((f) => !f.busy && fresh(f))
+        const now = performance.now()
+        const left = copies.filter((f) => !f.busy && fresh(f) && now >= f.ready)
+        // Some are still to fade in: wait for them.
+        if (!left.length && copies.some((f) => now < f.ready)) {
+          await wait(200)
+          continue
+        }
         const seen = left.filter((f) => {
           const r = f.el.getBoundingClientRect()
           return r.right > s.left && r.left < s.right
@@ -434,7 +446,12 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         const s = host.getBoundingClientRect()
         const onScreen = (f: Copy) => {
           const r = f.el.getBoundingClientRect()
-          return !f.busy && r.left > s.left + 20 && r.right < s.right - 20
+          return (
+            !f.busy &&
+            performance.now() >= f.ready &&
+            r.left > s.left + 20 &&
+            r.right < s.right - 20
+          )
         }
         // Half the time the rows just behind the headline, the clearest ones.
         const clear = near.filter(onScreen)

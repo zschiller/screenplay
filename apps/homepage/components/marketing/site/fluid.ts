@@ -128,6 +128,30 @@ export function createFluid(w: number, h: number) {
     }
   }
 
+  // Viscosity: each cell's velocity is pulled toward its neighbours', so
+  // the fluid moves as a thick body instead of breaking into ripples.
+  const thick = new Float32Array(n * 2)
+  function diffuse(amount: number) {
+    const [x0, y0, x1, y1] = box as [number, number, number, number]
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
+        thick[i] =
+          vx[i]! +
+          amount *
+            ((vx[i - 1]! + vx[i + 1]! + vx[i - w]! + vx[i + w]!) / 4 - vx[i]!)
+        thick[n + i] =
+          vy[i]! +
+          amount *
+            ((vy[i - 1]! + vy[i + 1]! + vy[i - w]! + vy[i + w]!) / 4 - vy[i]!)
+      }
+    }
+    for (let r = y0; r <= y1; r++) {
+      const at = r * w
+      vx.set(thick.subarray(at + x0, at + x1 + 1), at + x0)
+      vy.set(thick.subarray(n + at + x0, n + at + x1 + 1), at + x0)
+    }
+  }
+
   // Makes the velocity swirl rather than spread out or bunch up.
   function project() {
     const [x0, y0, x1, y1] = box as [number, number, number, number]
@@ -241,15 +265,16 @@ export function createFluid(w: number, h: number) {
       box[1] = Math.max(1, hot[1] - M)
       box[2] = Math.min(w - 2, hot[2] + M)
       box[3] = Math.min(h - 2, hot[3] + M)
-      confine(0.15)
+      confine(0.1)
+      diffuse(0.8)
       project()
       advect()
       let b: typeof lit = null
       hot = null
       for (let r = box[1]!; r <= box[3]!; r++) {
         for (let c = box[0]!, i = r * w + c; c <= box[2]!; c++, i++) {
-          vx[i]! *= 0.99
-          vy[i]! *= 0.99
+          vx[i]! *= 0.975
+          vy[i]! *= 0.975
           // The marbling slowly relaxes back to its unstirred pattern.
           mx[i]! += (c - mx[i]!) * 0.012
           my[i]! += (r - my[i]!) * 0.012
