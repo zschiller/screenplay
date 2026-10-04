@@ -107,7 +107,7 @@ const WAVE = 14000
 const FADE = 900
 
 // Rows on the canvas floor, far to near.
-const ROWS = 6
+const ROWS = 4
 // How far above the headline the veil starts thickening, in CSS px, and how
 // far down the floor the far fade reaches, so a band of rows between the two
 // shows with no grain at all.
