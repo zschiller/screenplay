@@ -10,8 +10,8 @@ import { createFluid } from "./fluid"
  * the veil at a set density from the top of the canvas down to a line, for a
  * bar that lies over it there.
  *
- * The threshold is interleaved gradient noise, which scatters the grain like
- * blue noise instead of Bayer's checkerboard, over an even ramp. The veil
+ * The threshold is an 8×8 Bayer matrix, so the grain builds up as an even
+ * crosshatch of dots and lines over an even ramp. The veil
  * holds still until the pointer stirs it. Each grain is solid or clear, with
  * nothing in between, so what's underneath is never greyed over.
  *
@@ -56,9 +56,20 @@ export function createDitherVeil(
     const d = hash(xi + 1, yi + 1)
     return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
   }
-  const fract = (v: number) => v - Math.floor(v)
-  const ign = (x: number, y: number) =>
-    fract(52.9829189 * fract(0.06711056 * x + 0.00583715 * y))
+  // An 8×8 Bayer matrix as thresholds between 0 and 1: the finest 2×2 step
+  // counts most, so neighbouring grains turn on far apart in the ramp.
+  const BAYER = new Float32Array(64)
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      let v = 0
+      for (let bit = 1; bit <= 4; bit <<= 1) {
+        const qx = x & bit ? 1 : 0
+        const qy = y & bit ? 1 : 0
+        v = v * 4 + [0, 2, 3, 1][qy * 2 + qx]!
+      }
+      BAYER[y * 8 + x] = (v + 0.5) / 64
+    }
+  }
 
   // The spacing of the grid the peek is worked out on, in
   // CSS px.
@@ -173,7 +184,7 @@ export function createDitherVeil(
       for (let c = 0; c < cols; c++, i++) {
         dist[i] = d
         base[i] = k
-        thr[i] = ign(c, r)
+        thr[i] = BAYER[(r & 7) * 8 + (c & 7)]!
         if (k < 1 && k > 0) {
           inBand[i] = 1
           const v = k * k * (3 - 2 * k)
