@@ -1,5 +1,10 @@
 import { createFiles, type FileAuthor, type FileIndex } from "@/lib/files/files"
-import { ancestorPaths, isWithin, normalizeFilePath } from "@/lib/files/paths"
+import {
+  ancestorPaths,
+  formatFileSize,
+  isWithin,
+  normalizeFilePath,
+} from "@/lib/files/paths"
 import type { FileStore } from "@/lib/files/store"
 import type { FileEntryData } from "@/lib/types"
 
@@ -27,8 +32,18 @@ export const SKILL_NAME_MAX_LENGTH = 64
 /** The longest description, per the Agent Skills format. */
 export const SKILL_DESCRIPTION_MAX_LENGTH = 1024
 
-/** The most a whole Skill (`SKILL.md` and its files) can be, in bytes. */
-export const SKILL_MAX_BYTES = 256 * 1024
+/**
+ * The most a whole Skill (`SKILL.md` and its files) can be, in bytes. Sized
+ * so a saved copy of a design App Skill fits with its built page templates
+ * (#1642): the audit skill's two are about 730 KB.
+ */
+export const SKILL_MAX_BYTES = 1024 * 1024
+
+/**
+ * The largest supporting file a Skill shows the agent inline when it reads
+ * the Skill; a bigger one (a built page template) is named, not shown.
+ */
+export const SKILL_FILE_SHOWN_MAX_BYTES = 64 * 1024
 
 const SKILL_FILE = "SKILL.md"
 
@@ -54,6 +69,26 @@ export interface SkillFile {
 export interface OpenedSkill {
   content: string
   files: SkillFile[]
+}
+
+/**
+ * A Skill as `read_skill` returns it: its `SKILL.md`, then each supporting
+ * file, a file over {@link SKILL_FILE_SHOWN_MAX_BYTES} named with its size
+ * instead of shown.
+ */
+export function renderSkill(
+  content: string,
+  files: readonly SkillFile[]
+): string {
+  return [
+    content,
+    ...files.map((f) => {
+      const bytes = new TextEncoder().encode(f.content).byteLength
+      return bytes > SKILL_FILE_SHOWN_MAX_BYTES
+        ? `\n\n---\n\nThis skill’s file \`${f.path}\` (${formatFileSize(bytes)}) is too large to show here.`
+        : `\n\n---\n\nThis skill’s file \`${f.path}\`:\n\n${f.content}`
+    }),
+  ].join("")
 }
 
 export type SkillResult<T> =
@@ -234,7 +269,7 @@ export function prepareSkill(input: {
   const size = writes.reduce((n, w) => n + w.bytes.byteLength, 0)
   if (size > SKILL_MAX_BYTES) {
     return fail(
-      `The skill is ${size} bytes; the most a skill can be, with its files, is ${SKILL_MAX_BYTES} (256 KB).`
+      `The skill is ${size} bytes; the most a skill can be, with its files, is ${SKILL_MAX_BYTES} (${formatFileSize(SKILL_MAX_BYTES)}).`
     )
   }
   return ok({ content, stripped, metadata, writes })

@@ -1,6 +1,6 @@
 import "server-only"
 
-import { getSkill, getSkillIndex } from "@/lib/skills"
+import { getSkill, getSkillIndex, openSkill } from "@/lib/skills"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
 import type { SkillToolContext } from "./skill-tools"
 
@@ -23,4 +23,5 @@ export function sketchSkillIndex(): SkillMetadata[] {
 export const sketchAppSkills: SkillToolContext["app"] = {
   index: sketchSkillIndex,
   read: (name) => (SKETCH_SKILLS.has(name) ? getSkill(name) : null),
+  open: (name) => (SKETCH_SKILLS.has(name) ? openSkill(name) : null),
 }

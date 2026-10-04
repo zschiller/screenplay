@@ -1,3 +1,4 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -65,6 +66,7 @@ import { resolveCoordinatorToken } from "@/lib/agent/coordinator-mcp"
 import { savedFileSections } from "@/lib/files/context-folder"
 import { createFiles, memoryFileIndex, type Files } from "@/lib/files/files"
 import { memoryFileStore } from "@/lib/files/store"
+import { loadAppSkills, type AppSkills } from "@/lib/skills"
 import { savedSkillSections } from "@/lib/skills/on-disk"
 import { createSavedSkills, type SavedSkills } from "@/lib/skills/saved"
 import { ExternalEngine, type ExternalEngineConfig } from "./acp-engine"
@@ -566,6 +568,7 @@ describe("resolveLiveEngine — context folder", () => {
   async function skillsContextOf(opts: {
     canvasSkills: SavedSkills
     accountSkills: SavedSkills | null
+    appSkills?: AppSkills
     repoSkills?: string[]
   }) {
     const engine = await resolveLiveEngine({
@@ -577,6 +580,7 @@ describe("resolveLiveEngine — context folder", () => {
         ...savedSkillSections({
           canvas: opts.canvasSkills,
           account: opts.accountSkills,
+          app: opts.appSkills,
           shadowed: async () => opts.repoSkills ?? [],
         }),
       }),
@@ -664,6 +668,50 @@ describe("resolveLiveEngine — context folder", () => {
     expect(await readdir(join(folder, ".claude/skills"))).toEqual(["ship"])
     expect(
       await readFile(join(folder, ".agents/skills/ship/SKILL.md"), "utf8")
+    ).toBe(skillMd("ship", "Canvas way."))
+  })
+
+  it("writes the App Skills with their files, below every saved skill (#1642)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "app-skills-"))
+    for (const name of ["explore", "ship", "lint"]) {
+      mkdirSync(join(dir, name, "templates"), { recursive: true })
+      writeFileSync(join(dir, name, "SKILL.md"), skillMd(name, "App way."))
+      writeFileSync(join(dir, name, "templates", "page.html"), `<${name}>`)
+    }
+    const canvasSkills = skillScope("canvas/room-1/skills")
+    await canvasSkills.save({
+      name: "ship",
+      content: skillMd("ship", "Canvas way."),
+      author,
+    })
+
+    await (
+      await skillsContextOf({
+        canvasSkills,
+        accountSkills: null,
+        appSkills: loadAppSkills(dir).source(),
+        repoSkills: ["lint"],
+      })
+    ).prepareContext!()
+
+    const folder = join(root, "app-data", "agent-context", "chat-1")
+    for (const harness of [".claude", ".agents"]) {
+      expect(
+        (await tree(join(folder, harness))).filter((p) => p.includes("."))
+      ).toEqual([
+        "skills/explore/SKILL.md",
+        "skills/explore/templates/page.html",
+        "skills/ship/SKILL.md",
+      ])
+    }
+    expect(
+      await readFile(
+        join(folder, ".agents/skills/explore/templates/page.html"),
+        "utf8"
+      )
+    ).toBe("<explore>")
+    expect(
+      await readFile(join(folder, ".claude/skills/ship/SKILL.md"), "utf8")
     ).toBe(skillMd("ship", "Canvas way."))
   })
 })

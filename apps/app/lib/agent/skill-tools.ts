@@ -3,7 +3,7 @@ import "server-only"
 import { jsonSchema, tool, type JSONSchema7 } from "ai"
 
 import { annotateTools } from "@/lib/mcp/tool-server"
-import type { SkillMetadata } from "@/lib/skills/frontmatter"
+import { appSkills, type AppSkillSet, type AppSkills } from "@/lib/skills"
 import {
   formatMergedListing,
   mergeSkillIndexes,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/skills/repo-skills"
 import {
   prepareSkill,
+  renderSkill,
   type SavedSkills,
   type SkillFile,
 } from "@/lib/skills/saved"
@@ -42,10 +43,12 @@ export interface SkillToolContext {
   /** The chat the tools act for: what its saves record as their author. */
   chatId: string
   /** The App Skills this kind of chat sees. */
-  app: {
-    index(): SkillMetadata[]
-    read(name: string): string | null
-  }
+  app: AppSkills
+  /**
+   * Every App Skill, whose supporting files a saved copy keeps; Screenplay's
+   * own by default.
+   */
+  appSkillSet?: AppSkillSet
   /**
    * The Branch's Repo Skills, on a Workspace chat; `null` when its sandbox
    * can't be reached. The Coordinator and chats with no repository have none.
@@ -68,16 +71,6 @@ type Scope = { scope?: "canvas" | "account" }
 const NO_ACCOUNT =
   "Error: nobody sent this turn, so it has no account skills. Use the `canvas` scope instead."
 
-/** A saved Skill as `read_skill` returns it: SKILL.md, then each file. */
-export function renderSavedSkill(content: string, files: SkillFile[]): string {
-  return [
-    content,
-    ...files.map(
-      (f) => `\n\n---\n\nThis skill’s file \`${f.path}\`:\n\n${f.content}`
-    ),
-  ].join("")
-}
-
 export function buildSkillTools(ctx: SkillToolContext) {
   /** The scope's Skills, or `null` for account Skills on a turn nobody sent. */
   const skills = (scope: Scope["scope"]): SavedSkills | null =>
@@ -87,9 +80,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
     (scope: SavedSkills) =>
     async (n: string): Promise<string | null> => {
       const read = await scope.read(n).catch(() => null)
-      return read?.ok
-        ? renderSavedSkill(read.value.content, read.value.files)
-        : null
+      return read?.ok ? renderSkill(read.value.content, read.value.files) : null
     }
   const appListing = formatMergedListing(
     mergeSkillIndexes({ app: ctx.app.index() })
@@ -134,7 +125,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
         "Offer a skill for saving: a procedure later chats should follow, like a review checklist, a house writing style or how this team ships a release. Offer one when the user asks, or when you’ve worked out a procedure worth reusing.",
         "The chat shows it as a card with Save to account and Save to canvas, and nothing is saved until the person presses one; their choice doesn’t come back to you. `canvas` keeps it with this canvas, for every chat on it; `account` keeps it with the person who presses, for every chat they message on any canvas. `scope` is the one you suggest, which the card puts first: `account` for a procedure that’s theirs rather than this canvas’s, like how they like a write-up done.",
         "`content` is the whole SKILL.md: frontmatter with `name` (the skill’s name) and `description` (what it does and when to use it, which is all a chat sees until it loads the skill), then the instructions in markdown. Put longer references or examples in `files`, and say in SKILL.md when to read them.",
-        "Saving a name that exists replaces that skill, so change one by offering it again. To change one of Screenplay’s own skills, read it with `read_skill` and offer your changed copy under the same name: once saved, the copy takes its place. `allowed-tools` and lines with an inline !`command` are removed.",
+        "Saving a name that exists replaces that skill, so change one by offering it again. To change one of Screenplay’s own skills, read it with `read_skill` and offer your changed copy under the same name: once saved, the copy takes its place, and it keeps the original’s files, so pass in `files` only the ones you change. `allowed-tools` and lines with an inline !`command` are removed.",
       ].join(" "),
       inputSchema: jsonSchema<
         Scope & { name: string; content: string; files?: SkillFile[] }
@@ -168,7 +159,10 @@ export function buildSkillTools(ctx: SkillToolContext) {
         required: ["name", "content"],
       }),
       execute: async ({ name, content, files }) => {
-        const prepared = prepareSkill({ name, content, files })
+        const { files: all, carried } = (
+          ctx.appSkillSet ?? appSkills
+        ).carryFiles(name, files)
+        const prepared = prepareSkill({ name, content, files: all })
         if (!prepared.ok) return `Error: ${prepared.error}`
         const { stripped } = prepared.value
         const fs = ctx.repo ? await ctx.repo() : null
@@ -189,6 +183,11 @@ export function buildSkillTools(ctx: SkillToolContext) {
                   `Once saved, it takes the place of Screenplay’s own skill "${name}".`,
                 ]
               : []),
+          ...(carried.length
+            ? [
+                `It keeps ${carried.map((p) => `\`${p}\``).join(", ")} from Screenplay’s own skill.`,
+              ]
+            : []),
         ].join(" ")
       },
     }),
