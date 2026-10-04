@@ -60,7 +60,8 @@
   opacity: 0.9;
   transition:
     opacity 0.5s,
-    transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+    transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1),
+    translate 0.5s linear;
 }
 .hc-copy.working {
   opacity: 1;
@@ -73,9 +74,13 @@
 .hc-track {
   transform-style: preserve-3d;
 }
+/* Its row is panning all the while, which would bend the fall into a
+   curve, so the copy starts as far along the row as the row will carry it
+   (--hc-slip) and slips back at the row's own speed: it lands straight. */
 .hc-copy.unseen {
   opacity: 0;
   transform: translateZ(40px);
+  translate: var(--hc-slip, 0);
 }
 @keyframes hc-pan {
   to {

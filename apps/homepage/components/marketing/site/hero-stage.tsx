@@ -375,16 +375,35 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       seen.forEach(({ f }, n) => {
         // Each fades in as main and stays that way for a beat.
         f.ready = from + (n / seen.length) * WAVE + FADE + 500
-        f.el.style.transitionDuration = `${FADE}ms`
-        f.el.style.transitionDelay = `${Math.round((n / seen.length) * WAVE)}ms`
+        // How far its row pans during the fade: see .hc-copy.unseen.
+        const track = f.el.parentElement!
+        const speed =
+          (track.scrollWidth / 2 + 14) /
+          parseFloat(track.style.animationDuration)
+        const way = f.row % 2 ? 1 : -1
+        f.el.style.setProperty(
+          "--hc-slip",
+          `${((way * speed * FADE) / 1000).toFixed(1)}px`
+        )
+        // Taking up that offset mustn't itself be a transition.
+        f.el.style.transition = "none"
       })
-      // A frame later, so the hidden state has been drawn to fade from.
+      // Two frames later: one for the starting offsets to reach the
+      // computed style, so there's something to slip back from, and one
+      // with the timings in place, to fade from.
       shown = requestAnimationFrame(() => {
-        for (const f of copies) f.el.classList.remove("unseen")
-        shown = window.setTimeout(() => {
-          for (const { f } of seen)
-            f.el.style.transitionDuration = f.el.style.transitionDelay = ""
-        }, WAVE + FADE)
+        seen.forEach(({ f }, n) => {
+          f.el.style.transition = ""
+          f.el.style.transitionDuration = `${FADE}ms`
+          f.el.style.transitionDelay = `${Math.round((n / seen.length) * WAVE)}ms`
+        })
+        shown = requestAnimationFrame(() => {
+          for (const f of copies) f.el.classList.remove("unseen")
+          shown = window.setTimeout(() => {
+            for (const { f } of seen)
+              f.el.style.transitionDuration = f.el.style.transitionDelay = ""
+          }, WAVE + FADE)
+        })
       })
     }
 
