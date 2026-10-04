@@ -296,6 +296,9 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           row,
           at,
         }
+        // Its own slight cast: see .hc-page in the stylesheet.
+        el.style.setProperty("--hc-hue", ((rand() * 2 - 1) * 22).toFixed(1))
+        el.style.setProperty("--hc-lift", ((rand() * 2 - 1) * 0.035).toFixed(3))
         label(f)
         track.appendChild(el)
         copies.push(f)

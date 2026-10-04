@@ -147,12 +147,22 @@
    so an agent's edit can change them. The page is a dark grey, not the
    hero's black, so each copy reads as its own page on the plane. */
 .hc-page {
-  --pg-bg: color-mix(in srgb, var(--foreground) 11%, var(--background));
+  /* A look sets the --t- colours. Each copy then nudges their hue and
+     lightness a little its own way (--hc-hue, --hc-lift, from
+     hero-stage.tsx), so two copies with the same look still differ. */
+  --t-bg: color-mix(in srgb, var(--foreground) 11%, var(--background));
+  --t-acc: var(--selection);
+  --t-plane: var(--plane);
+  --pg-bg: oklch(
+    from var(--t-bg) calc(l + var(--hc-lift, 0)) c calc(h + var(--hc-hue, 0))
+  );
+  --pg-acc: oklch(from var(--t-acc) l c calc(h + var(--hc-hue, 0)));
+  --pg-plane: oklch(
+    from var(--t-plane) calc(l + var(--hc-lift, 0)) c calc(h + var(--hc-hue, 0))
+  );
   --pg-fg: var(--foreground);
   --pg-mut: var(--muted-foreground);
   --pg-line: var(--border);
-  --pg-acc: var(--selection);
-  --pg-plane: var(--plane);
   --pg-r: 0.2em;
   --pg-head: var(--font-instrument-serif), serif;
   height: 100%;
@@ -165,10 +175,10 @@
     color 0.8s;
 }
 .hc-page.soft {
-  --pg-bg: color-mix(in srgb, var(--foreground) 16%, var(--background));
+  --t-bg: color-mix(in srgb, var(--foreground) 16%, var(--background));
 }
 .hc-page.blue {
-  --pg-acc: oklch(0.6 0.2 255);
+  --t-acc: oklch(0.6 0.2 255);
 }
 .hc-page.pill {
   --pg-r: 99em;
@@ -400,28 +410,28 @@
 
 /* The wild edits: each one is a whole new look. */
 .hc-page.paper {
-  --pg-bg: #f4efe4;
+  --t-bg: #f4efe4;
   --pg-fg: #1a1814;
   --pg-mut: #6b6457;
   --pg-line: #d8d0c0;
-  --pg-acc: #e5412d;
-  --pg-plane: #e9e2d3;
+  --t-acc: #e5412d;
+  --t-plane: #e9e2d3;
 }
 .hc-page.pink {
-  --pg-bg: #ff3d9a;
+  --t-bg: #ff3d9a;
   --pg-fg: #1a0010;
   --pg-mut: rgb(26 0 16 / 0.7);
   --pg-line: rgb(26 0 16 / 0.35);
-  --pg-acc: #fff200;
-  --pg-plane: #ff7dbb;
+  --t-acc: #fff200;
+  --t-plane: #ff7dbb;
 }
 .hc-page.acid {
-  --pg-bg: #d6ff3d;
+  --t-bg: #d6ff3d;
   --pg-fg: #000;
   --pg-mut: #000;
   --pg-line: #000;
-  --pg-acc: #ff4f00;
-  --pg-plane: #fff;
+  --t-acc: #ff4f00;
+  --t-plane: #fff;
   --pg-r: 0;
 }
 .hc-page.acid .hc-b,
@@ -434,21 +444,26 @@
   text-transform: uppercase;
 }
 .hc-page.sunset {
-  --pg-bg: #c2185b;
+  --t-bg: #c2185b;
   --pg-fg: #fff;
   --pg-mut: rgb(255 255 255 / 0.8);
   --pg-line: rgb(255 255 255 / 0.35);
-  --pg-acc: #ffd23d;
-  --pg-plane: rgb(255 255 255 / 0.15);
-  background: linear-gradient(135deg, #ff8a3d, #e0245e 50%, #4a1fb8);
+  --t-acc: #ffd23d;
+  --t-plane: rgb(255 255 255 / 0.15);
+  background: linear-gradient(
+    135deg,
+    oklch(from #ff8a3d l c calc(h + var(--hc-hue, 0))),
+    oklch(from #e0245e l c calc(h + var(--hc-hue, 0))) 50%,
+    oklch(from #4a1fb8 l c calc(h + var(--hc-hue, 0)))
+  );
 }
 .hc-page.term {
-  --pg-bg: #020a02;
+  --t-bg: #020a02;
   --pg-fg: #3dff6e;
   --pg-mut: #1fa544;
   --pg-line: #0f5a24;
-  --pg-acc: #3dff6e;
-  --pg-plane: #041404;
+  --t-acc: #3dff6e;
+  --t-plane: #041404;
   --pg-r: 0;
   --pg-head: var(--font-mono), monospace;
   font-family: var(--font-mono), monospace;
@@ -461,36 +476,36 @@
   content: "> ";
 }
 .hc-page.mint {
-  --pg-bg: #b8f5d0;
+  --t-bg: #b8f5d0;
   --pg-fg: #06301a;
   --pg-mut: #2c6b48;
   --pg-line: #7fd3a4;
-  --pg-acc: #0a8f4d;
-  --pg-plane: #d6fbe5;
+  --t-acc: #0a8f4d;
+  --t-plane: #d6fbe5;
 }
 .hc-page.lavender {
-  --pg-bg: #cdb8ff;
+  --t-bg: #cdb8ff;
   --pg-fg: #1b0b4a;
   --pg-mut: #4a3a85;
   --pg-line: #a48cf0;
-  --pg-acc: #5b2be0;
-  --pg-plane: #e2d6ff;
+  --t-acc: #5b2be0;
+  --t-plane: #e2d6ff;
 }
 .hc-page.tangerine {
-  --pg-bg: #ff7a1a;
+  --t-bg: #ff7a1a;
   --pg-fg: #1a0a00;
   --pg-mut: rgb(26 10 0 / 0.75);
   --pg-line: rgb(26 10 0 / 0.35);
-  --pg-acc: #fff;
-  --pg-plane: #ffa15c;
+  --t-acc: #fff;
+  --t-plane: #ffa15c;
 }
 .hc-page.news {
-  --pg-bg: #fff;
+  --t-bg: #fff;
   --pg-fg: #111;
   --pg-mut: #555;
   --pg-line: #111;
-  --pg-acc: #111;
-  --pg-plane: #eee;
+  --t-acc: #111;
+  --t-plane: #eee;
   --pg-r: 0;
 }
 .hc-page.news .hc-h1 {
@@ -499,12 +514,12 @@
   padding-block: 0.12em;
 }
 .hc-page.blueprint {
-  --pg-bg: #1746d1;
+  --t-bg: #1746d1;
   --pg-fg: #fff;
   --pg-mut: rgb(255 255 255 / 0.75);
   --pg-line: rgb(255 255 255 / 0.4);
-  --pg-acc: #ffd23d;
-  --pg-plane: rgb(255 255 255 / 0.08);
+  --t-acc: #ffd23d;
+  --t-plane: rgb(255 255 255 / 0.08);
   background:
     linear-gradient(rgb(255 255 255 / 0.14) 1px, transparent 1px) 0 0 / 3em 3em,
     linear-gradient(90deg, rgb(255 255 255 / 0.14) 1px, transparent 1px) 0 0 /
