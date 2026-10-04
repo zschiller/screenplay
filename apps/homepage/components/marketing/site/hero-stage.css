@@ -7,6 +7,7 @@
    buttons stay above the fold on a laptop. */
 .hc-stage {
   --hc-nav: 61px;
+  --hc-tilt: 42deg;
   --hc-floor: clamp(400px, calc(100svh - 300px), 640px);
   margin-top: calc(-1 * var(--hc-nav));
 }
@@ -38,7 +39,7 @@
   display: flex;
   flex-direction: column;
   gap: 40px;
-  transform: rotateX(50deg);
+  transform: rotateX(var(--hc-tilt));
   transform-origin: 50% 100%;
 }
 .hc-track {
@@ -88,7 +89,7 @@
   transform-style: preserve-3d;
 }
 .hc-head {
-  transform: rotateX(-50deg);
+  transform: rotateX(calc(-1 * var(--hc-tilt)));
   transform-origin: 50% 100%;
   position: absolute;
   bottom: 100%;

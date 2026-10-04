@@ -42,12 +42,12 @@ const EDITS: {
 const SEED = [[], [1, 4], [0], [2, 6], [7], [9, 6], [10, 1], [5, 8], [11, 3]]
 
 // Rows on the canvas floor, far to near.
-const ROWS = 11
+const ROWS = 8
 // How far above the headline the veil starts thickening, in CSS px, and how
 // far down the floor the far fade reaches, so a band of rows between the two
 // shows with no grain at all.
 const NEAR = 200
-const FAR = 0.42
+const FAR = 0.58
 
 const PAGE = `
   <div class="hc-page">
