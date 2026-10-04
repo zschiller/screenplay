@@ -139,6 +139,7 @@ import { buildAgentSystemPrompt } from "@/lib/agent/config"
 import { harnessToolNaming } from "@/lib/agent/tool-name"
 import { toolsetOn, type ChatTools } from "@/lib/agent/toolset"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
+import { canvasSkills } from "@/lib/skills/canvas"
 import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
 import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
 import { readAccountMemory } from "@/lib/memory/account"
@@ -315,7 +316,7 @@ describe("the Coordinator’s MCP route", () => {
     ).json()
     expect(pr.result.isError).toBe(false)
     expect(pr.result.content[0].text).toBe(
-      "\"Fix sign-in redirect\" isn’t in a GitHub repository, so it can’t have a pull request."
+      '"Fix sign-in redirect" isn’t in a GitHub repository, so it can’t have a pull request.'
     )
     expect(live.createGitHubPr).not.toHaveBeenCalled()
   })
@@ -568,24 +569,16 @@ describe("a Workspace chat’s MCP route", () => {
     expect(result.content[0].text).toContain("name: screenplay-add-knob")
   })
 
-  it("saves a canvas Skill that read_skill then loads (#1555)", async () => {
-    const saved = (
-      await (
-        await call(8, "tools/call", {
-          name: "save_skill",
-          arguments: {
-            scope: "canvas",
-            name: "release-notes",
-            content:
-              "---\nname: release-notes\ndescription: Write release notes.\n---\nGroup by feature.",
-          },
-        })
-      ).json()
-    ).result
-    expect(saved.isError).toBe(false)
-    expect(saved.content[0].text).toContain(
-      'Saved the canvas skill "release-notes"'
-    )
+  it("loads a canvas Skill with read_skill (#1555)", async () => {
+    const saved = await canvasSkills(
+      (await openRoomForRoute("room-1")) as unknown as RoomDoc
+    ).save({
+      name: "release-notes",
+      content:
+        "---\nname: release-notes\ndescription: Write release notes.\n---\nGroup by feature.",
+      author: { addedBy: "agent", addedById: "chat-ws-1" },
+    })
+    expect(saved.ok).toBe(true)
 
     const { result } = await (
       await call(9, "tools/call", {

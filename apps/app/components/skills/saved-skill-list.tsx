@@ -192,7 +192,7 @@ type Loaded =
  * as a tree, the Files section's own; Markdown renders, anything else shows
  * as text.
  */
-function SkillDialog({
+export function SkillDialog({
   skill,
   readSkill,
   onOpenChange,
