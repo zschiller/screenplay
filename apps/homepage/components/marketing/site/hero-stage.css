@@ -66,20 +66,20 @@
 .hc-copy.working {
   opacity: 1;
 }
-/* Until the fade-in on load reaches it (hero-stage.tsx), a copy hangs
-   above the floor, unseen; then it shows as it settles down onto it. The
-   rows keep their copies in 3D so that lift is off the floor, not up the
+/* Until the fade-in on load reaches it (hero-stage.tsx), a copy sits
+   below the floor, unseen; then it shows as it rises up into it. The rows
+   keep their copies in 3D so that depth is through the floor, not down the
    screen. */
 .hc-rows,
 .hc-track {
   transform-style: preserve-3d;
 }
-/* Its row is panning all the while, which would bend the fall into a
+/* Its row is panning all the while, which would bend the rise into a
    curve, so the copy starts as far along the row as the row will carry it
-   (--hc-slip) and slips back at the row's own speed: it lands straight. */
+   (--hc-slip) and slips back at the row's own speed: it rises straight. */
 .hc-copy.unseen {
   opacity: 0;
-  transform: translateZ(40px);
+  transform: translateZ(-40px);
   translate: var(--hc-slip, 0);
 }
 @keyframes hc-pan {
