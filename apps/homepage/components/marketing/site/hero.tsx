@@ -11,11 +11,12 @@ export function Hero() {
     <section>
       <HeroStage>
         <div className={cn(measure, "pb-[clamp(40px,6vw,80px)]")}>
-          {/* Phones break it by phrase into three lines, sized so "on one
-              canvas." fits the column inside its 20px gutters. */}
+          {/* Sized to fill the column: three lines by phrase on phones, two
+              from sm, capped so it never jumps at the switch or grows past
+              134px on wide screens. */}
           <h1
             data-veil
-            className="font-headline text-[length:min(calc((100vw-40px)/4.62),88px)] leading-[0.86] font-normal tracking-[-0.025em] sm:text-[clamp(56px,10.5vw,148px)]"
+            className="font-headline text-[length:min(calc((100vw-40px)/4.62),96px)] leading-[0.86] font-normal tracking-[-0.025em] sm:text-[length:min(calc((100vw-64px)/5.85),134px)]"
           >
             From idea
             <br className="sm:hidden" /> to code,
