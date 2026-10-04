@@ -608,6 +608,20 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       })
     }
 
+    // The floor shifts by up to half a row so that the nav's bottom edge
+    // covers the top quarter of the row of copies nearest it.
+    const lift = () => {
+      host.style.setProperty("--hc-lift", "0px")
+      const s = host.getBoundingClientRect().top
+      let by = Infinity
+      for (const track of rowsEl.children) {
+        const r = track.getBoundingClientRect()
+        const off = r.top + r.height / 4 - s - NAV
+        if (Math.abs(off) < Math.abs(by)) by = off
+      }
+      if (Number.isFinite(by)) host.style.setProperty("--hc-lift", `${by}px`)
+    }
+
     // At most once a frame, and drawn straight away, so dragging the window
     // neither stalls nor flashes an empty veil.
     let pending = 0
@@ -615,6 +629,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       if (pending) return
       pending = requestAnimationFrame(() => {
         pending = 0
+        lift()
         veil.measure()
         veil.drawOnce()
         if (alive && !reduce) veil.start()

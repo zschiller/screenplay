@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react"
 
 /**
- * The sticky header's bar. Its fill and rule only show once the page has
- * scrolled, so at the top the hero's backdrop runs on behind the nav.
+ * The sticky header's bar, always filled and ruled off from the page. It
+ * marks when the page has scrolled, which the hero's peek checks.
  */
 export function HeaderBar({ children }: { children: React.ReactNode }) {
   const [scrolled, setScrolled] = useState(false)
@@ -19,7 +19,7 @@ export function HeaderBar({ children }: { children: React.ReactNode }) {
   return (
     <header
       data-scrolled={scrolled || undefined}
-      className="sticky top-0 z-50 border-b border-transparent transition-colors data-scrolled:border-border data-scrolled:bg-background"
+      className="sticky top-0 z-50 border-b border-border bg-background"
     >
       {children}
     </header>
