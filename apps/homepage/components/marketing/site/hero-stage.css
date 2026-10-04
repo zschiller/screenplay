@@ -67,20 +67,6 @@
 .hc-copy.working .hc-box {
   opacity: 1;
 }
-/* On load the copies in view fade in from the middle of the window outwards;
-   hero-stage.tsx gives each its delay. */
-@media (prefers-reduced-motion: no-preference) {
-  .hc-head,
-  .hc-box {
-    animation: hc-in 0.45s ease-out backwards;
-    animation-delay: var(--hc-in, 0s);
-  }
-}
-@keyframes hc-in {
-  from {
-    opacity: 0;
-  }
-}
 @keyframes hc-pan {
   to {
     transform: translateX(calc(-50% - 14px));
@@ -107,6 +93,9 @@
   transform-style: preserve-3d;
 }
 .hc-head {
+  /* Its own layer all the time, so nothing about how it's drawn changes when
+     the working glyph starts to twinkle. */
+  will-change: transform;
   transform: rotateX(calc(-1 * var(--hc-tilt)));
   transform-origin: 50% 100%;
   position: absolute;

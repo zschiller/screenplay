@@ -58,10 +58,8 @@ const EDITS: {
 const RUN = 12
 // Edits a copy holds before an agent swaps one out instead of adding one.
 const MAX = 4
-// Agents in the opening crowd.
+// Agents in the opening crowd, which gives every copy its first edit.
 const OPENERS = 12
-// Seconds the fade-in takes to reach the copy furthest from the middle.
-const REVEAL = 1.4
 
 // A fixed sequence of random numbers, so every visit starts the same.
 function sequence(seed: number) {
@@ -110,6 +108,12 @@ type Copy = {
   name: HTMLElement
   diff: HTMLElement
   done: number[]
+  /** Its headline, and its whole look as one string to compare. */
+  head: string
+  look: string
+  /** Its row, far to near, and its place along it. */
+  row: number
+  at: number
   busy: boolean
 }
 
@@ -154,7 +158,6 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     const timers = new Set<ReturnType<typeof setTimeout>>()
     let alive = false
     let visibleNow = false
-    let headlineIndex = 0
     const wait = (ms: number) =>
       new Promise<void>((resolve) => {
         const t = setTimeout(() => {
@@ -172,94 +175,145 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         ? `<span class="a">+${add}</span> <span class="d">-${del}</span>`
         : ""
     }
-    const nextHeadline = () => HEADLINES[headlineIndex++ % HEADLINES.length]!
 
-    // Every copy starts as main, today's homepage, and the agents take them
-    // apart from there. Without motion nothing would ever change, so then
-    // each copy is dealt a hand up front: nothing, or up to three edits that
-    // can combine, under half of them with a theme.
+    // No repeats. Once they've been changed, no two copies anywhere on the
+    // floor have the same set of edits and headline. Along a row, a theme doesn't come round
+    // again within two copies, two plain ones never sit side by side, and
+    // neighbours don't share a new headline. Even rows and odd rows draw on
+    // different halves of the themes and headlines, so the rows above and
+    // below can't match either, however the rows pan past each other.
     const rand = sequence(7)
     const themes = EDITS.flatMap((e, i) => (e.group === "theme" ? [i] : []))
     const rest = EDITS.flatMap((e, i) => (e.group === "theme" ? [] : [i]))
-    const deal = () => {
-      const hand: number[] = []
-      if (rand() < 0.15) return hand
-      if (rand() < 0.45) hand.push(themes[Math.floor(rand() * themes.length)]!)
-      for (let n = Math.floor(rand() * 3); n > 0; n--) {
-        const i = rest[Math.floor(rand() * rest.length)]!
-        const g = EDITS[i]!.group
-        if (
-          !hand.includes(i) &&
-          !(g && hand.some((j) => EDITS[j]!.group === g))
-        )
-          hand.push(i)
+    const rows: Copy[][] = []
+    const copies: Copy[] = []
+    const near: Copy[] = []
+    const themeOf = (done: number[]) =>
+      done.find((i) => EDITS[i]!.group === "theme") ?? -1
+    const lookOf = (done: number[], head: string) =>
+      `${[...done].sort((a, b) => a - b).join(".")}|${head}`
+    // Still main, as every copy is on load, which isn't held against it.
+    const fresh = (f: Copy) => !f.done.length
+    const beside = (f: Copy, d: number) => {
+      const r = rows[f.row]!
+      return r[(f.at + d + r.length) % r.length]!
+    }
+    const fits = (f: Copy, done: number[], head: string) => {
+      const t = themeOf(done)
+      if (t >= 0) {
+        if (themes.indexOf(t) % 2 !== f.row % 2) return false
+        for (const d of [-2, -1, 1, 2])
+          if (themeOf(beside(f, d).done) === t) return false
+      } else {
+        for (const d of [-1, 1]) {
+          const c = beside(f, d)
+          if (!fresh(c) && themeOf(c.done) < 0) return false
+        }
       }
-      return hand
+      if (head !== HEAD) {
+        if (HEADLINES.indexOf(head) % 2 !== f.row % 2) return false
+        for (const d of [-1, 1]) if (beside(f, d).head === head) return false
+      }
+      const look = lookOf(done, head)
+      return !copies.some((c) => c !== f && c.look === look && !fresh(c))
+    }
+    const shuffled = <T,>(list: T[]) => {
+      const a = [...list]
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1))
+        ;[a[i], a[j]] = [a[j]!, a[i]!]
+      }
+      return a
+    }
+    const can = (done: number[], i: number) => {
+      const g = EDITS[i]!.group
+      return (
+        !done.includes(i) && !(g && done.some((j) => EDITS[j]!.group === g))
+      )
+    }
+    // A whole look for a copy that has none yet: usually a theme, and up to
+    // two other edits that can combine.
+    const deal = (f: Copy): [done: number[], head: string] | null => {
+      for (let tries = 0; tries < 40; tries++) {
+        const done: number[] = []
+        if (rand() < 0.6) done.push(themes[Math.floor(rand() * themes.length)]!)
+        for (let n = Math.floor(rand() * 3); n > 0; n--) {
+          const i = rest[Math.floor(rand() * rest.length)]!
+          if (can(done, i)) done.push(i)
+        }
+        const head = done.some((i) => EDITS[i]!.type)
+          ? HEADLINES[Math.floor(rand() * HEADLINES.length)]!
+          : HEAD
+        if (done.length && fits(f, done, head)) return [done, head]
+      }
+      // Out of luck: the first theme and one other edit that fit.
+      for (const t of shuffled(themes))
+        for (const i of shuffled(rest)) {
+          const done = EDITS[i]!.type ? [t] : [t, i]
+          if (fits(f, done, HEAD)) return [done, HEAD]
+        }
+      return null
+    }
+    const wear = (f: Copy, done: number[], head: string) => {
+      for (const i of f.done) if (!done.includes(i)) remove(f, i)
+      for (const i of done) {
+        const e = EDITS[i]!
+        if (e.cls) f.page.classList.add(e.cls)
+      }
+      f.h1.textContent = head
+      f.done = done
+      f.head = head
+      f.look = lookOf(done, head)
+      label(f)
+    }
+    const remove = (f: Copy, i: number) => {
+      const e = EDITS[i]!
+      if (e.cls) f.page.classList.remove(e.cls)
     }
 
     // Rows panning alternate ways at slightly different speeds; each holds two
     // runs of the same length, so the loop is seamless at -50%.
-    const copies: Copy[] = []
-    const near: Copy[] = []
     for (let row = 0; row < ROWS; row++) {
       const track = document.createElement("div")
       track.className = "hc-track"
       track.style.animationDuration = `${80 + row * 6}s`
       track.style.animationDelay = `${-row * 13}s`
-      for (let rep = 0; rep < 2; rep++) {
-        for (let n = 0; n < RUN; n++) {
-          const seed = reduce ? deal() : []
-          const el = document.createElement("div")
-          el.className = "hc-copy"
-          el.innerHTML = `<div class="hc-head">${GLYPH}<span class="hc-name"></span><span class="hc-diff"></span></div><div class="hc-box">${PAGE}</div>`
-          const f: Copy = {
-            el,
-            page: el.querySelector(".hc-page")!,
-            h1: el.querySelector(".hc-h1")!,
-            name: el.querySelector(".hc-name")!,
-            diff: el.querySelector(".hc-diff")!,
-            done: [],
-            busy: false,
-          }
-          for (const i of seed) {
-            const e = EDITS[i]!
-            if (e.type) f.h1.textContent = nextHeadline()
-            else f.page.classList.add(e.cls!)
-            f.done.push(i)
-          }
-          label(f)
-          track.appendChild(el)
-          copies.push(f)
-          // The rows just behind the headline, which the veil leaves clear.
-          if (row >= ROWS - 4 && row < ROWS - 1) near.push(f)
+      rows.push([])
+      for (let at = 0; at < RUN * 2; at++) {
+        const el = document.createElement("div")
+        el.className = "hc-copy"
+        el.innerHTML = `<div class="hc-head">${GLYPH}<span class="hc-name"></span><span class="hc-diff"></span></div><div class="hc-box">${PAGE}</div>`
+        const f: Copy = {
+          el,
+          page: el.querySelector(".hc-page")!,
+          h1: el.querySelector(".hc-h1")!,
+          name: el.querySelector(".hc-name")!,
+          diff: el.querySelector(".hc-diff")!,
+          done: [],
+          head: HEAD,
+          look: lookOf([], HEAD),
+          busy: false,
+          row,
+          at,
         }
+        label(f)
+        track.appendChild(el)
+        copies.push(f)
+        rows[row]!.push(f)
+        // The rows just behind the headline, which the veil leaves clear.
+        if (row >= ROWS - 4 && row < ROWS - 1) near.push(f)
       }
       rowsEl.appendChild(track)
     }
 
-    // The copies in view fade in from the middle of the window outwards;
-    // the rest are simply there. The agents start as the last one lands.
-    let opensAt = 0
-    if (!reduce) {
-      const s = host.getBoundingClientRect()
-      const floor = rowsEl.parentElement!.getBoundingClientRect()
-      const cx = s.left + s.width / 2
-      const cy = floor.top + floor.height / 2
-      const seen = copies.flatMap((f) => {
-        const r = f.el.getBoundingClientRect()
-        if (r.right < s.left || r.left > s.right || r.bottom < floor.top)
-          return []
-        const d = Math.hypot(
-          r.left + r.width / 2 - cx,
-          r.top + r.height / 2 - cy
-        )
-        return [{ f, d }]
-      })
-      const far = Math.max(...seen.map((c) => c.d), 1)
-      for (const { f, d } of seen)
-        f.el.style.setProperty("--hc-in", `${((d / far) * REVEAL).toFixed(2)}s`)
-      opensAt = performance.now() + (REVEAL + 0.3) * 1000
-    }
+    // Every copy starts as main, today's homepage, and the agents take them
+    // apart from there. Without motion nothing would ever change, so then
+    // each copy gets a look up front.
+    if (reduce)
+      for (const f of copies) {
+        const look = deal(f)
+        if (look) wear(f, ...look)
+      }
 
     async function type(f: Copy, text: string) {
       let cur = f.h1.textContent ?? ""
@@ -284,12 +338,12 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       await wait(delay)
       while (alive) {
         const s = host.getBoundingClientRect()
-        const fresh = copies.filter((f) => !f.busy && !f.done.length)
-        const seen = fresh.filter((f) => {
+        const left = copies.filter((f) => !f.busy && fresh(f))
+        const seen = left.filter((f) => {
           const r = f.el.getBoundingClientRect()
           return r.right > s.left && r.left < s.right
         })
-        const pool = seen.length ? seen : fresh
+        const pool = seen.length ? seen : left
         const f = pool[Math.floor(Math.random() * pool.length)]
         if (!f) return
         await edit(f, true)
@@ -315,43 +369,52 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         await wait(500 + Math.random() * 700)
       }
     }
+    // The next change to a copy that keeps to the rules above: one more
+    // edit, or, when it's full or nothing more fits, one taken back out. A
+    // copy never goes all the way back to main.
+    const next = (f: Copy): [done: number[], head: string] | null => {
+      if (f.done.length < MAX)
+        for (const i of shuffled(EDITS.map((_, i) => i))) {
+          if (!can(f.done, i)) continue
+          const done = [...f.done, i]
+          const heads = EDITS[i]!.type ? shuffled(HEADLINES) : [f.head]
+          const head = heads.find((h) => fits(f, done, h))
+          if (head) return [done, head]
+        }
+      if (f.done.length > 1)
+        for (const i of shuffled(f.done)) {
+          const done = f.done.filter((j) => j !== i)
+          const head = EDITS[i]!.type ? HEAD : f.head
+          if (fits(f, done, head)) return [done, head]
+        }
+      return null
+    }
     async function edit(f: Copy, quick = false) {
+      // The opening crowd gives a copy a whole look at once, and doesn't
+      // stop to type a headline.
+      const change = quick ? deal(f) : next(f)
+      if (!change) return
+      const [done, head] = change
       f.busy = true
       f.el.classList.add("working")
-      if (f.done.length >= MAX) {
-        // Full: back one edit out, so the next visit can add another. A
-        // copy never goes all the way back to main.
-        await wait(400)
-        const at = Math.floor(Math.random() * f.done.length)
-        const e = EDITS[f.done.splice(at, 1)[0]!]!
-        label(f)
-        if (e.type) await type(f, HEAD)
-        else {
-          f.page.classList.remove(e.cls!)
-          await wait(550)
-        }
-      } else {
-        const taken = new Set(f.done.map((i) => EDITS[i]!.group))
-        // The opening crowd doesn't stop to type.
-        const pool = EDITS.map((_, i) => i).filter(
-          (i) =>
-            !f.done.includes(i) &&
-            !taken.has(EDITS[i]!.group) &&
-            !(quick && EDITS[i]!.type)
-        )
-        const i = pool[Math.floor(Math.random() * pool.length)]!
-        // The agent thinks for a moment, then the change lands.
-        await wait(quick ? 150 : 600)
-        if (!alive) return
-        f.done.push(i)
-        label(f)
+      // Claimed before it lands, so no other copy takes the same look.
+      const typed = !quick && head !== f.head
+      const gone = f.done.filter((i) => !done.includes(i))
+      f.done = done
+      f.head = head
+      f.look = lookOf(done, head)
+      // The agent thinks for a moment, then the change lands.
+      await wait(quick ? 150 : gone.length ? 400 : 600)
+      if (!alive) return
+      label(f)
+      for (const i of gone) remove(f, i)
+      for (const i of done) {
         const e = EDITS[i]!
-        if (e.type) await type(f, nextHeadline())
-        else {
-          f.page.classList.add(e.cls!)
-          await wait(quick ? 300 : 900)
-        }
+        if (e.cls) f.page.classList.add(e.cls)
       }
+      if (quick) f.h1.textContent = head
+      if (typed) await type(f, head)
+      else await wait(quick ? 300 : gone.length ? 550 : 900)
       f.el.classList.remove("working")
       f.busy = false
     }
@@ -361,9 +424,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       alive = true
       host.dataset.playing = ""
       veil.start()
-      const hold = Math.max(opensAt - performance.now(), 0)
-      for (let k = 0; k < OPENERS; k++) void opener(hold + k * 70)
-      for (let k = 0; k < 3; k++) void agent(hold + k * 450)
+      for (let k = 0; k < OPENERS; k++) void opener(400 + k * 70)
+      for (let k = 0; k < 3; k++) void agent(k * 450)
     }
     const pause = () => {
       alive = false
@@ -401,8 +463,19 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       veil.peekAt({ x: p.clientX - r.left, y: p.clientY - r.top })
       if (reduce) veil.drawOnce()
     }
+    // Followed across the whole window, so the nav, which lies over the top
+    // of the floor until the page scrolls, peeks too. Its links stay on top.
     const onMove = (e: PointerEvent) => {
-      if (e.pointerType === "mouse") peekAt(e)
+      if (e.pointerType !== "mouse") return
+      const r = host.getBoundingClientRect()
+      const inside =
+        e.clientX >= r.left &&
+        e.clientX < r.right &&
+        e.clientY >= r.top &&
+        e.clientY < r.bottom
+      const header = (e.target as Element | null)?.closest?.("header")
+      if (inside && !header?.hasAttribute("data-scrolled")) peekAt(e)
+      else onLeave()
     }
     const onLeave = () => {
       veil.peekAt(null)
@@ -416,8 +489,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       if (t) peekAt(t)
       else onLeave()
     }
-    host.addEventListener("pointermove", onMove)
-    host.addEventListener("pointerleave", onLeave)
+    window.addEventListener("pointermove", onMove)
+    document.documentElement.addEventListener("pointerleave", onLeave)
     const touches = [
       "touchstart",
       "touchmove",
@@ -441,8 +514,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       pause()
       cancelAnimationFrame(pending)
       resize.disconnect()
-      host.removeEventListener("pointermove", onMove)
-      host.removeEventListener("pointerleave", onLeave)
+      window.removeEventListener("pointermove", onMove)
+      document.documentElement.removeEventListener("pointerleave", onLeave)
       for (const type of touches) host.removeEventListener(type, onTouch)
       seen.disconnect()
       rowsEl.replaceChildren()
