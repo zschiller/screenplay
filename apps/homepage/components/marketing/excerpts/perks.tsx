@@ -1,26 +1,11 @@
-import {
-  BroadcastIcon,
-  CursorIcon,
-  PencilSimpleIcon,
-} from "@workspace/ui/components/icons"
+import { BroadcastIcon } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import {
-  Frame,
-  FrameBar,
-  UserBubble,
-  WorkspaceGlyph,
-  versions,
-} from "./canvas"
+import { Frame, FrameBar, UserBubble, WorkspaceGlyph, versions } from "./canvas"
 import { Fit } from "./fit"
-import { ChatHeader, ToolRow } from "./make"
+import { ChatHeader } from "./make"
 import { Northwind } from "./northwind"
-import {
-  Cursor,
-  Pin,
-  ThreadCard,
-  people,
-} from "./team"
+import { Cursor, Pin, ThreadCard, people } from "./team"
 
 const [maya, sam, jo] = people
 const split = versions[1]
@@ -111,10 +96,43 @@ export function PerkLive() {
         <Northwind version={split.version} />
       </Frame>
       <LiveTag style={{ left: 320, top: 14 }} className="-translate-x-full" />
-      <FrameBar live className="z-[5]" style={{ left: 40, top: 220, width: 280 }} />
+      <FrameBar
+        live
+        className="z-[5]"
+        style={{ left: 40, top: 220, width: 280 }}
+      />
       <Cursor name="Maya" color={maya.color} style={{ left: 200, top: 110 }} />
       <Cursor name="Jo" color={jo.color} style={{ left: 90, top: 150 }} />
     </PerkCard>
+  )
+}
+
+/** The agent's cursor in a frame it drives: the canvas arrow in ink, named
+ *  Agent, as the frame's bridge draws it (sandbox-bridge/bridge.js). */
+function AgentCursor({ style }: { style?: React.CSSProperties }) {
+  return (
+    <div className="absolute z-[6]" style={style}>
+      <svg
+        width="16"
+        height="20"
+        viewBox="0 0 16 20"
+        fill="none"
+        aria-hidden
+        className="overflow-visible"
+        style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }}
+      >
+        <path
+          d="M0.928711 0.0737305L15.0713 11.3833L8.20055 11.8235L4.56463 19.0005L0.928711 0.0737305Z"
+          fill="#0a0a0a"
+          stroke="#fff"
+          strokeWidth="1.25"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className="mt-1 ml-3 inline-block rounded bg-[#0a0a0a] px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-white shadow-[0_0_0_1px_#fff,0_1px_2px_rgba(0,0,0,0.3)]">
+        Agent
+      </span>
+    </div>
   )
 }
 
@@ -126,15 +144,12 @@ export function PerkAgent() {
         workspace={split.title}
         selected
         fadeHandles
-        style={{ left: 40, top: 36, width: 260 }}
+        style={{ left: 50, top: 44, width: 300 }}
       >
         <Northwind version={split.version} />
       </Frame>
-      <AgentTag style={{ left: 300, top: 14 }} />
-      <div className="absolute top-[212px] left-[40px] flex w-[300px] flex-col gap-1.5">
-        <ToolRow icon={<CursorIcon />} verb="Click" detail="Start free trial" />
-        <ToolRow icon={<PencilSimpleIcon />} verb="Type" detail="“maya@northwind.com”" />
-      </div>
+      <AgentTag style={{ left: 350, top: 22 }} />
+      <AgentCursor style={{ left: 84, top: 158 }} />
     </PerkCard>
   )
 }
@@ -153,7 +168,7 @@ export function PerkComments() {
         <div className="absolute bottom-0 left-0">
           <Pin number={1} />
         </div>
-        <ThreadCard className="top-[-92px] left-[34px] scale-[0.92] origin-top-left" />
+        <ThreadCard className="top-[-92px] left-[34px] origin-top-left scale-[0.92]" />
       </div>
     </PerkCard>
   )

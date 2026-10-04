@@ -32,6 +32,6 @@ export function Card({
   )
 }
 
-/** A popover or dialog surface, as the app draws one. */
+/** A popover or dialog surface, as the app draws one, on the lifted fill. */
 export const surface =
-  "rounded-lg bg-popover text-popover-foreground shadow-md outline outline-1 outline-foreground/10"
+  "rounded-lg bg-lift text-popover-foreground shadow-md outline outline-1 outline-foreground/15"

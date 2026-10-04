@@ -123,7 +123,7 @@ function MemoryChat() {
               key={name}
               className={cn(
                 "flex gap-2 rounded-md px-2 py-1.5",
-                i === 0 && "bg-accent"
+                i === 0 && "bg-foreground/10"
               )}
             >
               <BookOpenIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />

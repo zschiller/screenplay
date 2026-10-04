@@ -27,9 +27,10 @@ import { Northwind } from "./northwind"
  * sharp at any width and follow the page's theme. They show; they don't work.
  */
 
-/** The shared floating toolbar surface (FloatingToolbar in @workspace/ui). */
+/** The shared floating toolbar surface (FloatingToolbar in @workspace/ui),
+ *  on the page's lifted fill (marketing.css) so it reads on black. */
 export const floating =
-  "flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10"
+  "flex items-center gap-1 rounded-lg bg-lift p-1 shadow-md outline outline-1 outline-foreground/15"
 
 /** A 28px icon button holding a 16px icon, as everywhere in the app. */
 export function Tool({
@@ -253,7 +254,7 @@ export function FrameBar({
       <Tool>
         <ArrowRightIcon />
       </Tool>
-      <span className="flex h-7 min-w-0 flex-1 items-center rounded-md bg-muted px-0.5 text-muted-foreground">
+      <span className="flex h-7 min-w-0 flex-1 items-center rounded-md bg-foreground/10 px-0.5 text-muted-foreground">
         <span className="ml-0.5 flex h-5 min-w-0 flex-1 items-center truncate px-1 font-mono text-xs">
           {route}
         </span>

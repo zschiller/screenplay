@@ -3,12 +3,11 @@ import {
   DotsThreeIcon,
   FileTextIcon,
   GitPullRequestIcon,
-  PencilSimpleIcon,
   SidebarSimpleIcon,
 } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { Diff, Frame, Tool, UserBubble, versions } from "./canvas"
+import { Diff, Frame, FrameBar, Tool, UserBubble, versions } from "./canvas"
 import { Fit } from "./fit"
 import { Northwind } from "./northwind"
 import { Card } from "./steps"
@@ -118,17 +117,15 @@ export function ToolRow({
   )
 }
 
-/* ---------- Plan it, Sketch it, Build it: a prompt and what it made ---------- */
+/* ---------- Plan it, Sketch it, Build it ---------- */
 
 /** A prompt, as it sits in a chat: the user's bubble, then the files the
- * agent read from your code (or, building, edited) before it answered. */
+ * agent read from your code before it answered. */
 function Prompt({
-  reads = [],
-  edits = [],
+  reads,
   children,
 }: {
-  reads?: string[]
-  edits?: string[]
+  reads: string[]
   children: React.ReactNode
 }) {
   return (
@@ -136,14 +133,6 @@ function Prompt({
       <UserBubble className="ml-0 px-2.5 py-1.5 text-xs">{children}</UserBubble>
       {reads.map((file) => (
         <ToolRow key={file} icon={<FileTextIcon />} verb="Read" detail={file} />
-      ))}
-      {edits.map((file) => (
-        <ToolRow
-          key={file}
-          icon={<PencilSimpleIcon />}
-          verb="Edit"
-          detail={file}
-        />
       ))}
     </div>
   )
@@ -177,15 +166,15 @@ export function SketchExcerpt() {
 }
 
 /** Build it: the picked take built and running in a frame of its own, its
- * chat still at work, beside the version already there. */
+ * page bar under it, the other versions’ frames on either side. */
 export function BuildExcerpt() {
   return (
-    <Card label="The dark hero built and running live in its own frame, its chat still editing, beside the Split layout version, with the prompt that asked for it.">
-      <Frame
-        label="Home"
-        workspace={split.title}
-        style={{ left: 16, top: 46, width: 138 }}
-      >
+    <Card label="The dark hero built and running live in its own frame, with its page bar, between the other versions’ frames.">
+      {/* The neighbours, cut off at the card’s edges. */}
+      <Frame label="Home" style={{ left: -230, top: 46, width: 256 }}>
+        <Northwind version={gradient.version} />
+      </Frame>
+      <Frame label="Home" style={{ left: 302, top: 46, width: 256 }}>
         <Northwind version={split.version} />
       </Frame>
       <Frame
@@ -193,46 +182,50 @@ export function BuildExcerpt() {
         workspace={dark.title}
         working
         selected
-        style={{ left: 166, top: 46, width: 138 }}
+        style={{ left: 32, top: 46, width: 256 }}
       >
         <Northwind version={dark.version} />
       </Frame>
-      <Prompt edits={["components/hero.tsx", "app/globals.css"]}>
-        Build Take A.
-      </Prompt>
+      <FrameBar style={{ left: 32, top: 210, width: 256 }} />
     </Card>
   )
 }
 
 const plan = [
-  ["Goals", ["One line on what Northwind does", "The live chart up top"]],
-  ["Takes to try", ["A dark hero", "A gradient headline"]],
+  [
+    "Goals",
+    [
+      "Say what Northwind does in one line",
+      "Put the live chart up top",
+      "Keep the trial button first",
+    ],
+  ],
+  ["Takes to try", ["A dark hero with a soft glow", "A gradient headline"]],
 ] as const
 
-/** Plan it: a plan document on the canvas beside the page it plans, with the
- * prompt. */
+/** Plan it: a plan document open on the canvas, the page it plans beside it. */
 export function DocExcerpt() {
   return (
-    <Card label="A plan an agent wrote as a document on the canvas from the app’s code, beside the page it plans, with the prompt that asked for it.">
-      <div className="absolute" style={{ left: 16, top: 46, width: 140 }}>
-        <div className="absolute bottom-full left-0 mb-1.5 flex items-center gap-1.5 text-xs leading-none font-medium whitespace-nowrap text-foreground/70">
+    <Card label="A plan an agent wrote as a document on the canvas, beside the page it plans.">
+      <div className="absolute" style={{ left: 16, top: 46, width: 212 }}>
+        <div className="absolute bottom-full left-0 mb-1.5 text-xs leading-none font-medium whitespace-nowrap text-foreground/70">
           New hero plan
         </div>
-        <div className="flex flex-col gap-1 border border-border bg-background p-2">
-          <span className="font-heading text-[11px] leading-tight tracking-[-0.02em]">
+        <div className="flex h-[194px] flex-col gap-2.5 overflow-hidden border border-border bg-background px-3.5 py-3">
+          <span className="font-heading text-[15px] leading-tight tracking-[-0.02em]">
             New hero plan
           </span>
           {plan.map(([h, items]) => (
-            <div key={h} className="flex flex-col gap-0.5">
-              <span className="font-heading text-[9px] tracking-[-0.02em]">
+            <div key={h} className="flex flex-col gap-1">
+              <span className="font-heading text-[11px] tracking-[-0.02em]">
                 {h}
               </span>
               {items.map((i) => (
                 <span
                   key={i}
-                  className="flex items-center gap-1 text-[7px] whitespace-nowrap text-muted-foreground"
+                  className="flex items-center gap-1.5 text-[10px] whitespace-nowrap text-muted-foreground"
                 >
-                  <span className="size-0.5 shrink-0 rounded-full bg-current" />
+                  <span className="size-[3px] shrink-0 rounded-full bg-current" />
                   {i}
                 </span>
               ))}
@@ -240,12 +233,9 @@ export function DocExcerpt() {
           ))}
         </div>
       </div>
-      <Frame label="Home" style={{ left: 168, top: 46, width: 136 }}>
+      <Frame label="Home" style={{ left: 240, top: 46, width: 136 }}>
         <Northwind />
       </Frame>
-      <Prompt reads={["components/hero.tsx", "app/globals.css"]}>
-        Write a plan for a new hero.
-      </Prompt>
     </Card>
   )
 }
