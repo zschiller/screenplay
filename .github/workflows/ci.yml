@@ -102,11 +102,9 @@ jobs:
 
       # The browser tests run a real Xvfb, Chrome, ffmpeg and xte, as a
       # Workspace Sandbox does (#1392). The runner ships Chrome; apt adds the
-      # rest (~30s). A runner's first Chrome launch also reads its install
-      # from a cold disk and can take over 20s, which the tests' first frame
-      # would otherwise pay for. Neither needs the workspace, so both start
-      # here in the background, alongside Setup, and "Wait for the browser
-      # stack" below holds the tests until they're done.
+      # rest (~30s). It doesn't need the workspace, so it starts here in the
+      # background, alongside Setup, and "Wait for the browser stack" below
+      # holds the tests until it's done.
       - name: Start the browser stack
         run: |
           cd "$RUNNER_TEMP"
@@ -117,10 +115,6 @@ jobs:
             }
             echo $? > install.tmp && mv install.tmp install.status
           ' > install.log 2>&1 &
-          nohup bash -c '
-            time google-chrome --headless=new --no-sandbox --disable-gpu --dump-dom about:blank >/dev/null
-            echo $? > warm-up.tmp && mv warm-up.tmp warm-up.status
-          ' > warm-up.log 2>&1 &
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -133,17 +127,22 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-browser-
 
-      # Prints each background step's log (the warm-up's ends with the time
-      # it took) and fails if either did.
+      # Prints the install's log and fails if it did.
       - name: Wait for the browser stack
         timeout-minutes: 5
         run: |
           cd "$RUNNER_TEMP"
-          for step in install warm-up; do
-            until [ -f "$step.status" ]; do sleep 1; done
-            echo "::group::$step"; cat "$step.log"; echo "::endgroup::"
-            [ "$(cat "$step.status")" = 0 ] || { echo "::error::The browser stack's $step failed"; exit 1; }
-          done
+          until [ -f install.status ]; do sleep 1; done
+          cat install.log
+          [ "$(cat install.status)" = 0 ] || { echo "::error::Installing the browser stack failed"; exit 1; }
+
+      # A runner's first Chrome launch reads its install from a cold disk and
+      # can take over 20s, which the tests' first frame would otherwise pay
+      # for. Launch it once here, last thing before the tests: once it moved
+      # into the background next to the install and Setup, the Mac backend's
+      # hover tests started failing. The time it took is in the log.
+      - name: Warm up Chrome
+        run: time google-chrome --headless=new --no-sandbox --disable-gpu --dump-dom about:blank >/dev/null
 
       # Required: a missing piece of the stack fails the job rather than
       # skipping the tests.
