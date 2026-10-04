@@ -28,6 +28,7 @@ import { openPreviewInBrowser } from "@/lib/open-preview"
 import { IframeLayer } from "./iframe-layer"
 import { MarkdownLayer } from "./markdown-layer"
 import { MockupLayer } from "./mockup-layer"
+import type { MockupQuestion } from "@/lib/agent/question"
 import { useCanvasGesture } from "./use-canvas-gesture"
 import type { CanvasCamera } from "./use-canvas-camera"
 import type { CanvasSelection } from "./use-canvas-selection"
@@ -123,6 +124,7 @@ function CanvasMemberLayerImpl({
   askableMockupIds,
   onAskForMockupKnob,
   onMockupDraft,
+  onAnswerFromMockup,
   handleCaptureReadyChange,
   handleCaptureDirty,
   layerMutations,
@@ -212,6 +214,12 @@ function CanvasMemberLayerImpl({
   onAskForMockupKnob: (mockupId: string) => void
   /** A Mockup page's `screenplay.draft(text)`, into its chat's composer. */
   onMockupDraft: (mockupId: string, text: string) => void
+  /** A Mockup page answered its chat's question card (#1644). */
+  onAnswerFromMockup: (
+    mockupId: string,
+    found: MockupQuestion,
+    index: number
+  ) => void
   handleCaptureReadyChange: IframeLayerProps["onCaptureReadyChange"]
   handleCaptureDirty: IframeLayerProps["onCaptureDirty"]
   /**
@@ -566,6 +574,9 @@ function CanvasMemberLayerImpl({
                 onHover={reference.setInspectHover}
                 onDomReady={reference.onIframeLayerDomReady}
                 writes={layerMutations.mockupPage}
+                onAnswerQuestion={(found, index) =>
+                  onAnswerFromMockup(mockup.id, found, index)
+                }
                 focused={focusedIframeLayerId === mockup.id}
                 driver={frameControl.driverOf(mockup.id)}
                 askedForControl={frameControl.askedFor(mockup.id)}

@@ -4,6 +4,7 @@ class InputStore {
   private listeners = new Map<string, Set<Listener>>()
   private sendListeners = new Map<string, Set<Listener>>()
   private pending = new Map<string, string[]>()
+  private pendingSends = new Map<string, string[]>()
 
   append(chatId: string, text: string) {
     this.listeners.get(chatId)?.forEach((l) => l(text))
@@ -42,10 +43,31 @@ class InputStore {
     this.sendListeners.get(chatId)?.forEach((l) => l(text))
   }
 
+  /**
+   * Like {@link send}, for a chat that was just opened and whose chat may not
+   * be mounted yet: the message is held until it subscribes, instead of being
+   * dropped. A Mockup page's answer (#1644) opens its chat and sends this way.
+   */
+  sendWhenOpen(chatId: string, text: string) {
+    if (this.sendListeners.get(chatId)?.size) {
+      this.send(chatId, text)
+      return
+    }
+    this.pendingSends.set(chatId, [
+      ...(this.pendingSends.get(chatId) ?? []),
+      text,
+    ])
+  }
+
   subscribeSend(chatId: string, listener: Listener): () => void {
     if (!this.sendListeners.has(chatId))
       this.sendListeners.set(chatId, new Set())
     this.sendListeners.get(chatId)!.add(listener)
+    const held = this.pendingSends.get(chatId)
+    if (held) {
+      this.pendingSends.delete(chatId)
+      held.forEach((text) => listener(text))
+    }
     return () => {
       const set = this.sendListeners.get(chatId)
       if (!set) return

@@ -70,6 +70,20 @@ export type CanvasToIframeMessage =
       state: JsonObject
       initial?: boolean
     }
+  // A Mockup's open question (#1644), or null: the answer to
+  // `screenplay:question-request`, then again on every change.
+  | { type: "screenplay:question-apply"; question: PageQuestion | null }
+
+/** The question a Mockup page sees (`screenplay.question()`, #1644). */
+export interface PageQuestion {
+  /** The question call's id, which an answer names. */
+  id: string
+  question: string
+  options: { label: string; detail?: string }[]
+  recommended: number | null
+  /** Null while open; `index` is null when the reply wasn't an option. */
+  answer: { index: number | null } | null
+}
 
 // Iframe -> Canvas
 export type IframeToCanvasMessage =
@@ -120,6 +134,9 @@ export type IframeToCanvasMessage =
   // A Mockup page's `screenplay.draft(text)` (#1645), sent from a tap: text
   // for the person to edit and send in the Mockup's chat.
   | { type: "screenplay:draft"; text: string }
+  // A Mockup page asks for its open question, and answers it from a tap.
+  | { type: "screenplay:question-request" }
+  | { type: "screenplay:question-answer"; id: string; index: number }
 
 export function isScreenplayMessage(
   data: unknown

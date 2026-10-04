@@ -7,12 +7,16 @@ import {
   QuestionnaireChoice,
   QuestionnaireChoiceDescription,
   QuestionnaireChoices,
+  QuestionnaireDescription,
   QuestionnaireItem,
   QuestionnaireTitle,
 } from "@workspace/ui/components/questionnaire"
 import type { AgentMessage } from "@/lib/agent/types"
 import { inputStore } from "@/lib/input-store"
 import { parseQuestion, type QuestionAnswer } from "@/lib/agent/question"
+import { viewRequests } from "@/lib/canvas/view-requests"
+import { useMockupTitle } from "@/lib/yjs/react"
+import { InlineRef } from "./inline-ref"
 
 /**
  * A chat's question (#1312), drawn with shadcn's Questionnaire: one item, a
@@ -22,6 +26,10 @@ import { parseQuestion, type QuestionAnswer } from "@/lib/agent/question"
  * Once a user message follows the call, the card is answered: the chosen
  * option stays checked and the others are disabled, and on a shared Canvas
  * the card names who answered.
+ *
+ * A question about a Mockup (#1644) names it under the question, and the name
+ * brings it into view. Its page can answer the question too, sending the same
+ * message a click here does, so the card shows that answer like any other.
  *
  * Returns null while the call's arguments are still streaming, or when they
  * don't make a question, so the chat shows the plain tool row instead.
@@ -65,6 +73,7 @@ export function QuestionCard({
         <QuestionnaireTitle className="text-sm">
           {question.question}
         </QuestionnaireTitle>
+        {question.mockupId && <MockupLine id={question.mockupId} />}
         {/* The answer line sits as close under the choices as a sender's
             name sits over their message. */}
         <div className="flex flex-col gap-1">
@@ -108,5 +117,27 @@ export function QuestionCard({
         </div>
       </QuestionnaireItem>
     </Questionnaire>
+  )
+}
+
+/**
+ * The Mockup a question is about, as a reference under the question that
+ * brings it into view. Gone when the Mockup is.
+ */
+function MockupLine({ id }: { id: string }) {
+  const title = useMockupTitle(id)
+  if (title === undefined) return null
+  return (
+    // 4px under the question (a legend, outside the Item's gap), and the
+    // Item's 16px over the choices, as the question has without it.
+    <QuestionnaireDescription
+      data-testid="question-mockup"
+      className="mt-1 text-xs"
+    >
+      On{" "}
+      <InlineRef kind="mockup" onClick={() => viewRequests.emit({ ids: [id] })}>
+        {title || "Mockup"}
+      </InlineRef>
+    </QuestionnaireDescription>
   )
 }
