@@ -37,13 +37,13 @@ Done when every listed state has a capture in every theme, all cropped to one si
 
 ## 4. Build the page
 
-One Artifact per part, built from [`storybook-template.html`](storybook-template.html). Load `artifact-design` first, swap the `:root` tokens and font link for the repo's brand, then fill in only the data: `PAGE`, `CONTROLS` and `STATES` (and `RENDER` for live). The template does the rest: a segmented control per dimension, the stage showing the chosen state in the viewer's theme with a Light/Dark switch, an All states list that marks states with notes, a note field per state, and a bottom bar that copies every note at once.
+One Artifact per part, built from [`storybook-template.html`](storybook-template.html). Load `artifact-design` first. The template is a built page: read and edit only the part above its `Generated below this line` marker, where you fill in the `PAGE`, `CONTROLS` and `STATES` data (and load the `RENDER` script for live) and swap the token block (shadcn variable names) and font link for the repo's brand. When the repo holds the template's source (the package that builds it), change the page there and rebuild instead. The template does the rest: a segmented control per dimension, the stage showing the chosen state in the viewer's theme with a Light/Dark switch, an All states grid that marks states with notes, a note field per state, and a bottom bar that copies every note at once.
 
 - Give each state a short name a person would say ("Running, long title") and, when it shows something worth looking at, one line on what (`why`), citing the code that produces it.
-- A combination of control values with no state shows the nearest states that exist, so the matrix can stay sparse.
+- A control value with no state next to the current ones is dimmed and jumps to the closest state that has it, so the matrix can stay sparse.
 - When the owner asks for another round, update the same Artifact so the link never changes: bump `PAGE.round`, and put the owner's earlier note and what changed on the state as `said`.
 
-Open every capture at full size in every theme before publishing, the way the owner will see it, and run `node --check` on the extracted script once. A defect visible in a capture goes in that state's `why`, so the owner sees it already noticed.
+Open every capture at full size in every theme before publishing, the way the owner will see it, and run `node --check` on the filled data script once. A defect visible in a capture goes in that state's `why`, so the owner sees it already noticed.
 
 ## 5. Share it and take the notes
 

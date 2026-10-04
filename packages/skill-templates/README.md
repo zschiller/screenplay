@@ -1,6 +1,6 @@
 # Skill templates
 
-The HTML pages the design skills publish (`.agents/skills/design-exploration/exploration-template.html`, `.agents/skills/design-audit/audit-template.html` and `decisions-template.html`), built from React with the app's real components (`@workspace/ui`), tokens and fonts.
+The HTML pages the design skills publish (`.agents/skills/design-exploration/exploration-template.html`, `.agents/skills/design-audit/audit-template.html` and `decisions-template.html`, `.agents/skills/design-storybook/storybook-template.html`), built from React with the app's real components (`@workspace/ui`), tokens and fonts.
 
 ```sh
 pnpm --filter @workspace/skill-templates dev    # http://localhost:5173: every template with its sample data, hot reloading
