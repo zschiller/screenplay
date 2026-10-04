@@ -11,6 +11,10 @@ const HEADLINES = [
   "Ship the version that works.",
   "Five branches. One canvas.",
   "See every branch, live.",
+  "Ten agents, zero tabs.",
+  "Try it three ways at once.",
+  "Your repo, in parallel.",
+  "Pick the best one. Merge.",
 ]
 
 /** What an agent can do to a copy: its Workspace name, a class to add (or a
@@ -42,31 +46,34 @@ const EDITS: {
   { ws: "Sunset gradient", cls: "sunset", diff: [19, 6], group: "theme" },
   { ws: "Terminal", cls: "term", diff: [52, 23], group: "theme" },
   { ws: "Blueprint", cls: "blueprint", diff: [31, 8], group: "theme" },
+  { ws: "Mint theme", cls: "mint", diff: [22, 7], group: "theme" },
+  { ws: "Lavender theme", cls: "lavender", diff: [24, 9], group: "theme" },
+  { ws: "Tangerine", cls: "tangerine", diff: [18, 5], group: "theme" },
+  { ws: "Newsprint", cls: "news", diff: [41, 15], group: "theme" },
   { ws: "Tilted hero", cls: "tilt", diff: [7, 1] },
   { ws: "Outline headline", cls: "outline", diff: [5, 2] },
 ]
 
-// What each copy has already done when the page loads, so the first frame
-// shows variety. Index 0 is main, untouched.
-const SEED = [
-  [],
-  [12, 4],
-  [13, 6],
-  [17, 2],
-  [16],
-  [14, 3],
-  [15, 8],
-  [5, 11, 7],
-  [19, 18],
-]
+// Copies in one run of a row; each row holds two runs.
+const RUN = 12
+
+// A fixed sequence of random numbers, so every visit starts the same.
+function sequence(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
 
 // Rows on the canvas floor, far to near.
-const ROWS = 9
+const ROWS = 8
 // How far above the headline the veil starts thickening, in CSS px, and how
 // far down the floor the far fade reaches, so a band of rows between the two
 // shows with no grain at all.
-const NEAR = 220
-const FAR = 0.4
+const NEAR = 200
+const FAR = 0.58
 
 const PAGE = `
   <div class="hc-page">
@@ -122,18 +129,16 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     const host = stage.current!
     const rowsEl = strip.current!
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
-    // Clear across the middle of the floor, thickening down through the
-    // headline and solid at its last baseline, so the floor runs on under
-    // the headline and is gone by the text below it.
+    // Clear across the middle of the floor, solid halfway down the
+    // headline's first line, so that line sits on the densest grain.
     const veil = createDitherVeil(canvas.current!, () => {
       const s = host.getBoundingClientRect().top
       const head = host.querySelector<HTMLElement>("[data-veil]")!
       const size = parseFloat(getComputedStyle(head).fontSize)
       const floor = rowsEl.parentElement!.getBoundingClientRect()
-      const box = head.getBoundingClientRect()
-      const solid = box.bottom - s - size * 0.2
+      const solid = head.getBoundingClientRect().top - s + size * 0.6
       return [
-        box.top - s - NEAR,
+        solid - NEAR,
         solid,
         // The far side of the floor dissolves into the dark behind the nav
         // through the same grain, solid only at the very top of the page.
@@ -163,19 +168,41 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     }
     const nextHeadline = () => HEADLINES[headlineIndex++ % HEADLINES.length]!
 
+    // What a copy has already done when the page loads, so the first frame
+    // shows variety: nothing, or up to three edits that can combine, under
+    // half of them with a theme. No two copies are dealt the same hand on
+    // purpose, so the floor doesn't read as a pattern.
+    const rand = sequence(7)
+    const themes = EDITS.flatMap((e, i) => (e.group === "theme" ? [i] : []))
+    const rest = EDITS.flatMap((e, i) => (e.group === "theme" ? [] : [i]))
+    const deal = () => {
+      const hand: number[] = []
+      if (rand() < 0.15) return hand
+      if (rand() < 0.45) hand.push(themes[Math.floor(rand() * themes.length)]!)
+      for (let n = Math.floor(rand() * 3); n > 0; n--) {
+        const i = rest[Math.floor(rand() * rest.length)]!
+        const g = EDITS[i]!.group
+        if (
+          !hand.includes(i) &&
+          !(g && hand.some((j) => EDITS[j]!.group === g))
+        )
+          hand.push(i)
+      }
+      return hand
+    }
+
     // Rows panning alternate ways at slightly different speeds; each holds two
-    // identical runs, so the loop is seamless at -50%.
+    // runs of the same length, so the loop is seamless at -50%.
     const copies: Copy[] = []
     const near: Copy[] = []
     for (let row = 0; row < ROWS; row++) {
-      const k = (row * 4) % SEED.length
-      const seeds = [...SEED.slice(k), ...SEED.slice(0, k)]
       const track = document.createElement("div")
       track.className = "hc-track"
       track.style.animationDuration = `${80 + row * 6}s`
       track.style.animationDelay = `${-row * 13}s`
       for (let rep = 0; rep < 2; rep++) {
-        for (const seed of seeds) {
+        for (let n = 0; n < RUN; n++) {
+          const seed = deal()
           const el = document.createElement("div")
           el.className = "hc-copy"
           el.innerHTML = `<div class="hc-head">${GLYPH}<span class="hc-name"></span><span class="hc-diff"></span></div><div class="hc-box">${PAGE}</div>`
@@ -198,7 +225,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           track.appendChild(el)
           copies.push(f)
           // The rows just behind the headline, which the veil leaves clear.
-          if (row >= ROWS - 5 && row < ROWS - 2) near.push(f)
+          if (row >= ROWS - 4 && row < ROWS - 1) near.push(f)
         }
       }
       rowsEl.appendChild(track)

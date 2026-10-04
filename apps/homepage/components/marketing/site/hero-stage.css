@@ -7,9 +7,7 @@
    buttons stay above the fold on a laptop. */
 .hc-stage {
   --hc-nav: 61px;
-  --hc-tilt: 40deg;
-  /* How far the floor runs on under the headline: about its two lines. */
-  --hc-under: clamp(104px, 19.3vw, 272px);
+  --hc-tilt: 42deg;
   --hc-floor: clamp(400px, calc(100svh - 300px), 640px);
   margin-top: calc(-1 * var(--hc-nav));
 }
@@ -19,10 +17,10 @@
   position: absolute;
   inset: 0 0 auto;
   z-index: 0;
-  height: calc(var(--hc-floor) - 110px + var(--hc-under));
+  height: var(--hc-floor);
   overflow: hidden;
   pointer-events: none;
-  perspective: 1100px;
+  perspective: 1000px;
   perspective-origin: 50% 90%;
   /* The far side also sinks into the dark under the grain, so whatever the
      pointer reveals there still recedes. */
@@ -469,6 +467,44 @@
 }
 .hc-page.term .hc-h1::before {
   content: "> ";
+}
+.hc-page.mint {
+  --pg-bg: #b8f5d0;
+  --pg-fg: #06301a;
+  --pg-mut: #2c6b48;
+  --pg-line: #7fd3a4;
+  --pg-acc: #0a8f4d;
+  --pg-plane: #d6fbe5;
+}
+.hc-page.lavender {
+  --pg-bg: #cdb8ff;
+  --pg-fg: #1b0b4a;
+  --pg-mut: #4a3a85;
+  --pg-line: #a48cf0;
+  --pg-acc: #5b2be0;
+  --pg-plane: #e2d6ff;
+}
+.hc-page.tangerine {
+  --pg-bg: #ff7a1a;
+  --pg-fg: #1a0a00;
+  --pg-mut: rgb(26 10 0 / 0.75);
+  --pg-line: rgb(26 10 0 / 0.35);
+  --pg-acc: #fff;
+  --pg-plane: #ffa15c;
+}
+.hc-page.news {
+  --pg-bg: #fff;
+  --pg-fg: #111;
+  --pg-mut: #555;
+  --pg-line: #111;
+  --pg-acc: #111;
+  --pg-plane: #eee;
+  --pg-r: 0;
+}
+.hc-page.news .hc-h1 {
+  font-style: italic;
+  border-block: 0.04em solid #111;
+  padding-block: 0.12em;
 }
 .hc-page.blueprint {
   --pg-bg: #1746d1;
