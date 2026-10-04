@@ -1,12 +1,14 @@
 <title>{{TITLE}}</title>
 <!-- Optional: a Google Fonts <link> for the repo's brand faces, then point --sans/--head/--mono at them. -->
 <style>
-/* Layout: phone first, one column at every width. Round tabs (newest first, then Today) under the question; each question shows one option at a time behind option tabs that stick to the top while you read. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+/* Layout: phone first, one column at every width. Round tabs under the question, in time order (Today, Round 1, Round 2…) and opening on the newest; each question shows one option at a time behind a segmented A/B/C control that sticks to the top while you read. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
 :root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#2f5bd3;--ok:#1f7a45;--no:#a3372b;
 --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
 :root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
 *{box-sizing:border-box}
+/* Switching options jumps to the new option; scroll anchoring would undo that jump */
+html{overflow-anchor:none}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
 .wrap{max-width:880px;margin:0 auto;padding-inline:16px;padding-block:24px calc(96px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:20px}
@@ -29,25 +31,34 @@ button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px so
 section{display:flex;flex-direction:column;gap:16px;min-width:0}
 ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px;max-width:72ch;font-size:14px;line-height:1.5}
 ul.facts li::marker{color:var(--muted)}
-/* Tabs: one underline style for rounds and for options */
+/* Round tabs: quiet underline navigation */
 .tabs{display:flex;gap:18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{border:0;border-radius:0;background:transparent;color:var(--muted);padding:10px 0 9px;min-height:40px;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px}
 .tabs button:hover{color:var(--fg)}
 .tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
-.tabs .mark{font-size:12px;line-height:1}
-.tabs .mark.rec{width:6px;height:6px;border-radius:50%;background:currentColor}
-.tabs .mark.rec{color:var(--accent)}
-.tabs .mark.ok{color:var(--ok)}
-.tabs .mark.no{color:var(--no)}
-.otabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);box-shadow:-16px 0 0 var(--bg),16px 0 0 var(--bg)}
-/* Round tabs fade at the edge when there are more than fit */
+.mark{font-size:12px;line-height:1}
+.mark.rec{width:6px;height:6px;border-radius:50%;background:currentColor}
+.mark.rec{color:var(--accent)}
+.mark.ok{color:var(--ok)}
+.mark.no{color:var(--no)}
+/* Stuck, the control keeps a page-coloured margin so content never shows around its corners */
+.otabs{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:5;box-shadow:0 0 0 8px var(--bg),-16px 0 0 8px var(--bg),16px 0 0 8px var(--bg)}
+/* Round tabs fade at whichever edge hides rounds */
+.rtabs.less{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px);mask-image:linear-gradient(90deg,transparent,#000 40px)}
 .rtabs.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+.rtabs.more.less{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,transparent,#000 40px calc(100% - 40px),transparent)}
 /* The owner's feedback shows three lines until opened */
 .said{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
 .said blockquote.clamp{overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .said button{padding:0;min-height:0;border:0;background:none;color:var(--muted);text-decoration:underline;text-underline-offset:3px;margin-left:14px}
-.otabs button{font-family:var(--mono);font-size:14px;min-width:28px;justify-content:center}
+/* Option tabs are a segmented control, so they read as the main control and the round row as navigation */
+.otabs{display:flex;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-block:4px}
+.otabs button{flex:1;justify-content:center;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:600 15px/1 var(--mono);min-height:36px;padding:0}
+.otabs button:hover{color:var(--fg)}
+.otabs button[aria-selected="true"]{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--line),0 1px 2px rgb(0 0 0/.06)}
+.rtabs{gap:16px}
+.rtabs button{font-size:13px;min-height:34px;padding:8px 0 7px}
 /* Folded block: In every option */
 details.fold{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 details.fold>summary{list-style:none;cursor:pointer;padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -111,7 +122,7 @@ const PAGE={
 };
 // Today: the Today tab. facts are short lines with the measured numbers; shots follow them, then html (an optional drawn wireframe).
 const TODAY={facts:["What main does now, with the measured numbers that matter."],shots:[IMG("today/home-light.png","Today · Home","today/home-dark.png")]};
-// Newest round first; each round is a tab, the first one open. A round's questions each show one option at a time behind A/B/C tabs.
+// Newest round first in this list; the tabs show rounds in time order and open on this first one. A round's questions each show one option at a time behind A/B/C tabs.
 // A question with one option is a sign-off (Looks good / Needs changes).
 // option: id, name, why, cost, rec, state ("" | "picked" | "rejected"), shots and/or html. why, cost, facts, every and feedback may hold inline HTML.
 // every: what all of the round's options share, folded above the questions. feedback: the owner's reaction that started the round, three lines until opened.
@@ -144,7 +155,7 @@ let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
 const state=saved.round===latest.n?{picks:saved.picks||{},note:saved.note||""}:{picks:{},note:""};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({round:latest.n,...state}))}catch(e){}};
 
-const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><button type="button" class="shot${i.dk?" has-dk":""}" data-lt="${esc(i.p)}" data-dk="${esc(i.dk||"")}" aria-label="Enlarge ${esc(i.cap)}"><img class="lt" src="${esc(i.p)}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${esc(i.dk)}" alt="" aria-hidden="true" loading="lazy">`:""}</button><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><button type="button" class="shot${i.dk?" has-dk":""}" data-lt="${esc(i.p)}" data-dk="${esc(i.dk||"")}" aria-label="Enlarge ${esc(i.cap)}"><img class="lt" src="${esc(i.p)}" alt="${esc(i.cap)}">${i.dk?`<img class="dk" src="${esc(i.dk)}" alt="" aria-hidden="true">`:""}</button><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
 const list=items=>`<ul class="facts">${[].concat(items).map(x=>`<li>${x}</li>`).join("")}</ul>`;
 const badges=o=>(o.rec?'<span class="badge rec">Recommended</span>':"")+(o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:"");
 const choose=(q,o)=>`<div class="choose">`+(signoff(q)?SIGN:[[o.id,"Pick "+o.id]]).map(([v,l])=>`<button type="button" data-q="${esc(q.key)}" data-v="${esc(v)}">${esc(l)}</button>`).join("")+`</div>`;
@@ -156,7 +167,7 @@ function question(r,q,i,live){
  const head=(q.title||n>1)?`<div class="qhead">${n>1?`<p class="lbl acc">Question ${i+1} of ${n}</p>`:""}${q.title?`<h2>${esc(q.title)}</h2>`:""}${q.intro?`<p class="muted">${q.intro}</p>`:""}</div>`:"";
  if(signoff(q))return `<div class="question">${head}${card(q,q.options[0],live,qid)}</div>`;
  const first=(q.options.find(o=>o.state==="picked")||q.options[0]).id;
- return `<div class="question" data-q="${esc(q.key)}" data-live="${live}">${head}<div class="tabs otabs" role="tablist" aria-label="Options">`+q.options.map(o=>`<button type="button" role="tab" data-opt="${esc(o.id)}" aria-controls="${qid}-${esc(o.id)}" aria-selected="${o.id===first}">${esc(o.id)}${mark(o)}</button>`).join("")+`</div>`+q.options.map(o=>card(q,o,live,qid).replace('role="tabpanel"',`role="tabpanel"${o.id===first?"":" hidden"}`)).join("")+`</div>`;
+ return `<div class="question" data-q="${esc(q.key)}" data-live="${live}">${head}<div class="otabs" role="tablist" aria-label="Options">`+q.options.map(o=>`<button type="button" role="tab" data-opt="${esc(o.id)}" aria-controls="${qid}-${esc(o.id)}" aria-selected="${o.id===first}">${esc(o.id)}${mark(o)}</button>`).join("")+`</div>`+q.options.map(o=>card(q,o,live,qid).replace('role="tabpanel"',`role="tabpanel"${o.id===first?"":" hidden"}`)).join("")+`</div>`;
 }
 const outcome=r=>{const p=r.questions.flatMap(q=>q.options.filter(o=>o.state==="picked").map(o=>signoff(q)?"signed off":`picked ${o.id}`));return p.length?p.join(", "):"no pick"};
 function round(r,live){
@@ -168,7 +179,7 @@ const Q=latest.questions;
 
 document.body.insertAdjacentHTML("afterbegin",`<div class="wrap">
 <header><div class="top"><p class="lbl acc">Design exploration · ${esc(PAGE.date)}</p><button type="button" class="ghost" id="theme">Dark</button></div><h1>${esc(PAGE.q)}</h1><blockquote>${esc(PAGE.quote)}</blockquote></header>
-<nav class="tabs rtabs" role="tablist" aria-label="Rounds"><button type="button" role="tab" data-tab="today" aria-selected="false">Today</button>${ROUNDS.map((r,i)=>`<button type="button" role="tab" data-tab="r${r.n}" aria-selected="${i===0}">Round ${r.n}</button>`).join("")}</nav>
+<nav class="tabs rtabs" role="tablist" aria-label="Rounds"><button type="button" role="tab" data-tab="today" aria-selected="false">Today</button>${[...ROUNDS].reverse().map(r=>`<button type="button" role="tab" data-tab="r${r.n}" aria-selected="${r===latest}">Round ${r.n}</button>`).join("")}</nav>
 ${ROUNDS.map((r,i)=>round(r,i===0)).join("")}
 <section data-panel="today" hidden><p class="lbl">Today · what main does now</p>${TODAY.facts?list(TODAY.facts):""}${shots(TODAY.shots)}${TODAY.html||""}</section>
 </div>
@@ -191,7 +202,7 @@ function sync(){
  save();
 }
 // Feedback longer than three lines gets Show all; the round tabs fade when some are off screen
-const fit=()=>{document.querySelectorAll(".said").forEach(d=>{const q=d.firstElementChild;if(q.classList.contains("clamp"))d.lastElementChild.hidden=q.scrollHeight<=q.clientHeight+1});const t=document.querySelector(".rtabs");t.classList.toggle("more",t.scrollWidth-t.scrollLeft>t.clientWidth+1)};
+const fit=()=>{document.querySelectorAll(".said").forEach(d=>{const q=d.firstElementChild;if(q.classList.contains("clamp"))d.lastElementChild.hidden=q.scrollHeight<=q.clientHeight+1});const t=document.querySelector(".rtabs");t.classList.toggle("more",t.scrollWidth-t.scrollLeft>t.clientWidth+1);t.classList.toggle("less",t.scrollLeft>1)};
 document.querySelector(".rtabs").addEventListener("scroll",fit,{passive:true});addEventListener("resize",fit);
 const openNote=()=>{const n=$("note");n.hidden=false;n.focus()};
 document.addEventListener("click",e=>{
@@ -203,7 +214,7 @@ document.addEventListener("click",e=>{
   qel.querySelectorAll(":scope>.opt").forEach(p=>p.hidden=p.id!==ot.getAttribute("aria-controls"));
   // When the tabs are stuck to the top, start the new option from its beginning
   const stuck=bar.getBoundingClientRect().top<=parseFloat(getComputedStyle(bar).top)+1;
-  if(stuck)scrollTo({top:scrollY+qel.querySelector(":scope>.opt:not([hidden])").getBoundingClientRect().top-bar.offsetHeight-12});
+  if(stuck)scrollTo({top:scrollY+qel.querySelector(":scope>.opt:not([hidden])").getBoundingClientRect().top-bar.offsetHeight-12,behavior:"instant"});
   return}
  const more=e.target.closest(".said button");
  if(more){const q=more.previousElementSibling,open=q.classList.toggle("clamp");more.textContent=open?"Show all":"Show less";return}
@@ -226,6 +237,8 @@ const root=document.documentElement,mq=matchMedia("(prefers-color-scheme: dark)"
 const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":mq.matches;
 const label=()=>$("theme").textContent=isDark()?"Light":"Dark";
 $("theme").addEventListener("click",()=>{root.dataset.theme=isDark()?"light":"dark";label()});label();
+// The round row starts scrolled to the newest round
+{const t=document.querySelector(".rtabs");t.scrollLeft=t.scrollWidth}
 sync();fit();
 })();
 </script>
