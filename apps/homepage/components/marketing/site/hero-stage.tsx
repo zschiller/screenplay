@@ -414,26 +414,28 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       f.h1.textContent = cur
     }
 
-    // The opening: a crowd of agents gives every copy its first edit, the
-    // ones in view first, so the floor has diverged within a few seconds.
-    async function opener(delay: number) {
+    // The opening: a crowd of agents gives each copy its first look, but
+    // only once it's in view and has faded in, so every copy is first seen
+    // as main. One of them keeps watch for the copies that pan in later.
+    async function opener(delay: number, watch: boolean) {
       await wait(delay)
       while (alive) {
         const s = host.getBoundingClientRect()
         const now = performance.now()
-        const left = copies.filter((f) => !f.busy && fresh(f) && now >= f.ready)
-        // Some are still to fade in: wait for them.
-        if (!left.length && copies.some((f) => now < f.ready)) {
-          await wait(200)
+        const left = copies.filter((f) => !f.busy && fresh(f))
+        if (!left.length) return
+        const seen = left.filter((f) => {
+          if (now < f.ready) return false
+          const r = f.el.getBoundingClientRect()
+          return r.right > s.left + 60 && r.left < s.right - 60
+        })
+        const f = seen[Math.floor(Math.random() * seen.length)]
+        if (!f) {
+          // None to do yet: some are still fading in, or out of view.
+          if (!watch && !left.some((c) => now < c.ready)) return
+          await wait(300)
           continue
         }
-        const seen = left.filter((f) => {
-          const r = f.el.getBoundingClientRect()
-          return r.right > s.left && r.left < s.right
-        })
-        const pool = seen.length ? seen : left
-        const f = pool[Math.floor(Math.random() * pool.length)]
-        if (!f) return
         await edit(f, true)
         await wait(60 + Math.random() * 120)
       }
@@ -539,7 +541,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       alive = true
       host.dataset.playing = ""
       veil.start()
-      for (let k = 0; k < OPENERS; k++) void opener(400 + k * 70)
+      for (let k = 0; k < OPENERS; k++) void opener(400 + k * 70, !k)
       for (let k = 0; k < AGENTS; k++) void agent(k * 450)
     }
     const pause = () => {
