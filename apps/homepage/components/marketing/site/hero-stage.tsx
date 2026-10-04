@@ -393,12 +393,18 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
               : (far / reach) * (0.35 + 1.3 * Math.random()),
         }))
         .sort((a, b) => a.turn - b.turn)
+      // The gaps between one copy and the next are uneven, from a fifth of
+      // the average to nearly twice it, so they don't tick in like a clock.
+      const gaps = seen.map(() => 0.2 + 1.6 * Math.random())
+      const beat = WAVE / gaps.reduce((a, b) => a + b, 0)
       const from = performance.now()
+      let at = 0
       seen.forEach(({ f }, n) => {
         // Each fades in as main and stays that way for a beat.
-        f.ready = from + (n / seen.length) * WAVE + FADE + 500
+        f.ready = from + at + FADE + 500
         f.el.style.transitionDuration = `${FADE}ms`
-        f.el.style.transitionDelay = `${Math.round((n / seen.length) * WAVE)}ms`
+        f.el.style.transitionDelay = `${Math.round(at)}ms`
+        at += gaps[n]! * beat
       })
       // A frame later, so the hidden state has been drawn to fade from.
       shown = requestAnimationFrame(() => {
