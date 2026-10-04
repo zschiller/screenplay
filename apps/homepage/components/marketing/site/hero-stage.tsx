@@ -71,6 +71,11 @@ function sequence(seed: number) {
   }
 }
 
+// The fade-in on load, in ms: how long it takes to reach the copy furthest
+// from the middle of the window, and how long each copy takes to show.
+const WAVE = 2600
+const FADE = 1400
+
 // Rows on the canvas floor, far to near.
 const ROWS = 8
 // How far above the headline the veil starts thickening, in CSS px, and how
@@ -281,7 +286,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       rows.push([])
       for (let at = 0; at < RUN * 2; at++) {
         const el = document.createElement("div")
-        el.className = "hc-copy"
+        // Hidden from the first frame, so nothing shows before the fade-in.
+        el.className = reduce ? "hc-copy" : "hc-copy unseen"
         el.innerHTML = `<div class="hc-head">${GLYPH}<span class="hc-name"></span><span class="hc-diff"></span></div><div class="hc-box">${PAGE}</div>`
         const f: Copy = {
           el,
@@ -307,6 +313,35 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         if (row >= ROWS - 4 && row < ROWS - 1) near.push(f)
       }
       rowsEl.appendChild(track)
+    }
+
+    // On load the copies in view fade in slowly, from the middle of the
+    // window outwards; the rest are simply there.
+    let shown = 0
+    if (!reduce) {
+      const s = rowsEl.parentElement!.getBoundingClientRect()
+      const seen = copies.flatMap((f) => {
+        const r = f.el.getBoundingClientRect()
+        if (r.right <= s.left || r.left >= s.right) return []
+        const far = Math.hypot(
+          r.left + r.width / 2 - (s.left + s.width / 2),
+          r.top + r.height / 2 - (s.top + s.height / 2)
+        )
+        return [{ f, far }]
+      })
+      const reach = Math.max(...seen.map((c) => c.far), 1)
+      for (const { f, far } of seen) {
+        f.el.style.transitionDuration = `${FADE}ms`
+        f.el.style.transitionDelay = `${Math.round((far / reach) * WAVE)}ms`
+      }
+      // A frame later, so the hidden state has been drawn to fade from.
+      shown = requestAnimationFrame(() => {
+        for (const f of copies) f.el.classList.remove("unseen")
+        shown = window.setTimeout(() => {
+          for (const { f } of seen)
+            f.el.style.transitionDuration = f.el.style.transitionDelay = ""
+        }, WAVE + FADE)
+      })
     }
 
     // Every copy starts as main, today's homepage, and the agents take them
@@ -516,6 +551,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     return () => {
       pause()
       cancelAnimationFrame(pending)
+      cancelAnimationFrame(shown)
+      clearTimeout(shown)
       resize.disconnect()
       window.removeEventListener("pointermove", onMove)
       document.documentElement.removeEventListener("pointerleave", onLeave)
