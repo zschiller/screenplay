@@ -27,9 +27,16 @@ import { Northwind } from "./northwind"
  * sharp at any width and follow the page's theme. They show; they don't work.
  */
 
+/**
+ * The edge of a floating bar or popover. The app draws a 10% hairline, which
+ * vanishes once an excerpt is scaled down on the black page, so here it's
+ * stronger and stays one CSS pixel at any scale (`--fit-scale`, from Fit).
+ */
+export const edge =
+  "outline outline-[length:calc(1px/var(--fit-scale,1))] outline-foreground/25"
+
 /** The shared floating toolbar surface (FloatingToolbar in @workspace/ui). */
-export const floating =
-  "flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10"
+export const floating = `flex items-center gap-1 rounded-lg bg-background p-1 shadow-md ${edge}`
 
 /** A 28px icon button holding a 16px icon, as everywhere in the app. */
 export function Tool({
