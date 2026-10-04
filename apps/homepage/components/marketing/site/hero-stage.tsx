@@ -117,10 +117,12 @@ const REACH = 360
 const TIP = 0.014
 // The nav's height in CSS px: --hc-nav in the stylesheet.
 const NAV = 61
-// On a touch screen, how far down the floor the bend moves for each px the
-// page scrolls, the bend's radius and how far it turns, and how far past it
-// a row takes to fade out, in CSS px and degrees.
-const BEND_RATE = 1.3
+// On a touch screen, how far down the screen the bend moves for each px the
+// page scrolls and how far above the headline it stops, then the bend's
+// radius and how far it turns, and how far past it a row takes to fade out,
+// in CSS px and degrees.
+const BEND_SPEED = 0.6
+const BEND_GAP = 40
 const BEND_RADIUS = 220
 const CURVE = 32
 const FADE_OUT = 300
@@ -626,29 +628,47 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
 
     // The floor shifts by up to half a row so that the nav's bottom edge
     // covers the top quarter of the row of copies nearest it.
-    // That edge is also where the floor starts to curve away on a touch
-    // screen, kept as a distance down the floor from the top of the rows.
-    let bendFrom = 0
+    // It also notes where each row's edges sit down the page, so that on a
+    // touch screen a line on the page can be found on the floor.
+    let edges: [floor: number, page: number][] = []
+    let headAt = 0
     const lift = () => {
       host.style.setProperty("--hc-lift", "0px")
+      const tracks = rowsEl.children as HTMLCollectionOf<HTMLElement>
       const s = host.getBoundingClientRect().top
       let by = Infinity
-      for (const track of rowsEl.children as HTMLCollectionOf<HTMLElement>) {
+      for (const track of tracks) {
         track.style.translate = track.style.rotate = track.style.opacity = ""
         const r = track.getBoundingClientRect()
         const off = r.top + r.height / 4 - s - NAV
-        if (Math.abs(off) < Math.abs(by)) {
-          by = off
-          bendFrom = track.offsetTop + track.offsetHeight / 4
-        }
+        if (Math.abs(off) < Math.abs(by)) by = off
       }
       if (Number.isFinite(by)) host.style.setProperty("--hc-lift", `${by}px`)
+      edges = []
+      for (const track of tracks) {
+        const r = track.getBoundingClientRect()
+        edges.push([track.offsetTop, r.top + scrollY])
+        edges.push([track.offsetTop + track.offsetHeight, r.bottom + scrollY])
+      }
+      const head = host.querySelector<HTMLElement>("[data-veil]")!
+      headAt = head.getBoundingClientRect().top + scrollY
+    }
+    // The distance down the floor that shows at `y` px down the page, read
+    // off the row edges in a straight line between them and past the ends.
+    const floorAt = (y: number) => {
+      if (edges.length < 2) return 0
+      let i = 1
+      while (i < edges.length - 1 && edges[i]![1] < y) i++
+      const [f0, p0] = edges[i - 1]!
+      const [f1, p1] = edges[i]!
+      return p1 === p0 ? f0 : f0 + ((y - p0) * (f1 - f0)) / (p1 - p0)
     }
 
     // Touch screens have no hover, so there scrolling moves the floor
-    // instead: past a bend under the nav that travels down the floor as the
-    // page scrolls, the floor leans further back, up to CURVE degrees, and
-    // its rows fade out, still joined edge to edge like a garage door's.
+    // instead: past a bend that starts under the nav and travels down the
+    // screen as the page scrolls, until it's just above the headline, the
+    // floor leans further back, up to CURVE degrees, and its rows fade out,
+    // still joined edge to edge like a garage door's.
     const touch = matchMedia("(hover: none)")
     let curving = 0
     const curve = () => {
@@ -659,7 +679,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           t.style.translate = t.style.rotate = t.style.opacity = ""
         return
       }
-      const bend = bendFrom + scrollY * BEND_RATE
+      const y = Math.min(NAV + scrollY * (1 + BEND_SPEED), headAt - BEND_GAP)
+      const bend = floorAt(y)
       for (const t of tracks) {
         const h = t.offsetHeight
         const bottom = t.offsetTop + h
