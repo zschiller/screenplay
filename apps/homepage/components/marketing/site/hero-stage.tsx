@@ -368,9 +368,9 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     let shown = 0
     if (!reduce) {
       const s = rowsEl.parentElement!.getBoundingClientRect()
-      // Loosely from the middle of the floor outwards: each copy's turn is
-      // how far out it is, scaled by chance, so the first few are near the
-      // middle and the further out, the less the order means.
+      // The four copies nearest the middle of the floor come first, in a
+      // different order each visit. After them each copy's turn is how far
+      // out it is, scaled by chance, so it spreads loosely outwards.
       const cx = s.left + s.width / 2
       const cy = s.top + s.height / 2
       const placed = copies.flatMap((f) => {
@@ -384,9 +384,13 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       })
       const reach = Math.max(...placed.map((c) => c.far), 1)
       const seen = placed
-        .map(({ f, far }) => ({
+        .sort((a, b) => a.far - b.far)
+        .map(({ f, far }, n) => ({
           f,
-          turn: (far / reach) * (0.35 + 1.3 * rand()),
+          turn:
+            n < 4
+              ? Math.random() - 1
+              : (far / reach) * (0.35 + 1.3 * Math.random()),
         }))
         .sort((a, b) => a.turn - b.turn)
       const from = performance.now()
