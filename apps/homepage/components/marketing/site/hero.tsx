@@ -19,12 +19,14 @@ export function Hero() {
             <br />
             <em>on one canvas</em>.
           </h1>
-          <div className="mt-14 grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
+          <div className="mt-14 grid items-end gap-6 md:mb-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-12">
             <p className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]">
               Coding agents plan, mock up and build from your own repo, with
               every version live side by side.
             </p>
-            <div>
+            {/* The buttons sit on the lede's last line; from md up their note
+                hangs below them, out of the grid's way. */}
+            <div className="relative">
               <div className="flex flex-wrap gap-3 max-sm:flex-col">
                 <a href={downloadUrl} className={buttonClass("solid", "lg")}>
                   <AppleLogo className="size-4 -translate-y-px" />
@@ -37,7 +39,7 @@ export function Hero() {
                   Host it for your team
                 </a>
               </div>
-              <p className="mt-3 w-fit text-sm text-muted-foreground">
+              <p className="mt-3 w-fit text-sm text-muted-foreground md:absolute md:top-full md:left-0">
                 For Macs with Apple Silicon
               </p>
             </div>
