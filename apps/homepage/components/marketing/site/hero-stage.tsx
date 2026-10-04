@@ -368,9 +368,10 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     let shown = 0
     if (!reduce) {
       const s = rowsEl.parentElement!.getBoundingClientRect()
-      // The four copies nearest the middle of the floor come first, in a
-      // different order each visit. After them each copy's turn is how far
-      // out it is, scaled by chance, so it spreads loosely outwards.
+      // It starts around the middle of the floor: the first four are any
+      // of the dozen copies nearest it, different each visit. After them
+      // each copy's turn is how far out it is, scaled by chance, so it
+      // spreads loosely outwards.
       const cx = s.left + s.width / 2
       const cy = s.top + s.height / 2
       const placed = copies.flatMap((f) => {
@@ -383,14 +384,21 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         return [{ f, far }]
       })
       const reach = Math.max(...placed.map((c) => c.far), 1)
+      placed.sort((a, b) => a.far - b.far)
+      const first = new Set(
+        placed
+          .slice(0, 12)
+          .map((c) => ({ c, pick: Math.random() }))
+          .sort((a, b) => a.pick - b.pick)
+          .slice(0, 4)
+          .map(({ c }) => c)
+      )
       const seen = placed
-        .sort((a, b) => a.far - b.far)
-        .map(({ f, far }, n) => ({
-          f,
-          turn:
-            n < 4
-              ? Math.random() - 1
-              : (far / reach) * (0.35 + 1.3 * Math.random()),
+        .map((c) => ({
+          f: c.f,
+          turn: first.has(c)
+            ? Math.random() - 1
+            : (c.far / reach) * (0.35 + 1.3 * Math.random()),
         }))
         .sort((a, b) => a.turn - b.turn)
       // The gaps between one copy and the next are uneven, from a fifth of
