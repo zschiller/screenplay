@@ -13,7 +13,7 @@ import { templates } from "./templates.ts"
 // Captures the sample data refers to (r2/a-light.png) don't exist: serve a
 // labelled placeholder for any missing image so the layout reads.
 function placeholder(path: string) {
-  const dark = /-dark\.\w+$/.test(path)
+  const dark = /[-.]dark\.\w+$/.test(path)
   const [bg, fg] = dark ? ["#1b1b1a", "#a3a39e"] : ["#f1f1ef", "#5d5d59"]
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800"><rect width="1280" height="800" fill="${bg}"/><text x="640" y="410" font-family="monospace" font-size="32" fill="${fg}" text-anchor="middle">${path}</text></svg>`
 }
@@ -47,7 +47,12 @@ function pages(): Plugin {
           body: `<div id="app"></div><script type="module" src="/src/${t.name}/main.tsx"></script>`,
         })
         res.setHeader("content-type", "text/html")
-        res.end(await server.transformIndexHtml(req.url ?? "/", `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${html}`))
+        res.end(
+          await server.transformIndexHtml(
+            req.url ?? "/",
+            `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${html}`
+          )
+        )
       })
     },
   }

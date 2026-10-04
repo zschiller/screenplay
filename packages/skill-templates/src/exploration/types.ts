@@ -27,4 +27,3 @@ export type Round = {
 
 export type Page = { date: string; slug: string; quote: string; q: string }
 export type Today = { facts?: string | string[]; shots?: Img[]; html?: string }
-

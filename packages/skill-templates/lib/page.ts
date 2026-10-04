@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url"
 import postcss, { type Rule } from "postcss"
 
 export const MARKER =
-  "<!-- Generated below this line: the built page. Never read or edit it; fill the data script above. -->"
+  "<!-- Generated below this line by packages/skill-templates: the built page. Never read or edit it; fill the data script above, or change the source there and rebuild. -->"
 
 // The app's type voice (apps/app/app/layout.tsx): Instrument Sans for UI,
 // Unbounded for titles, Geist Mono for labels and code. src/styles.css points
@@ -37,7 +37,9 @@ export function tokenBlock(css?: string) {
   postcss.parse(readFileSync(TOKENS_CSS, "utf8")).walkRules((rule) => {
     if (!isTokenRule(rule)) return
     const decls = rule.nodes.flatMap((n) =>
-      n.type === "decl" && (!used || used.has(n.prop)) ? [`${n.prop}:${n.value}`] : []
+      n.type === "decl" && (!used || used.has(n.prop))
+        ? [`${n.prop}:${n.value}`]
+        : []
     )
     const selector = rule.selector.replace(/\s*,\s*/g, ",")
     if (decls.length) rules.push(`${selector}{${decls.join(";")}}`)
@@ -52,6 +54,8 @@ export function tokenBlock(css?: string) {
 export const stripTokens = {
   postcssPlugin: "strip-tokens",
   OnceExit(root: postcss.Root) {
+    // The dev page's own token block goes through PostCSS too; keep it
+    if (root.source?.input.file?.includes("html-proxy")) return
     root.walkRules((rule) => {
       if (isTokenRule(rule)) rule.remove()
     })

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "node scripts/build.ts",
     "lint": "eslint",
+    "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

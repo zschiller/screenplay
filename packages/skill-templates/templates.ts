@@ -18,4 +18,18 @@ export const templates: Template[] = [
       "Design exploration page. Fill PAGE, TODAY and ROUNDS in the data script; the page renders from them.",
     out: ".agents/skills/design-exploration/exploration-template.html",
   },
+  {
+    name: "audit",
+    title: "{{TITLE}}",
+    about:
+      "Design audit findings page. Fill PAGE, DEPTHS, NOTICES, FINDINGS and EXTRA in the data script; the page renders from them.",
+    out: ".agents/skills/design-audit/audit-template.html",
+  },
+  {
+    name: "decisions",
+    title: "{{TITLE}}",
+    about:
+      "Design audit decisions page. Fill PAGE, SURFACES and RUNS in the data script; the page renders from them.",
+    out: ".agents/skills/design-audit/decisions-template.html",
+  },
 ]

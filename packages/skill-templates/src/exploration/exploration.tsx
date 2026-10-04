@@ -134,10 +134,7 @@ export function Exploration({
   )
 }
 
-function Quote({
-  className,
-  ...props
-}: React.ComponentProps<"blockquote">) {
+function Quote({ className, ...props }: React.ComponentProps<"blockquote">) {
   return (
     <blockquote
       className={cn(
@@ -195,13 +192,17 @@ function RoundTabs({
         aria-label="Rounds"
         onScroll={fit}
         style={{ maskImage: mask, WebkitMaskImage: mask }}
-        className="h-auto w-full justify-start gap-4 overflow-x-auto rounded-none border-b p-0 pb-[5px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="h-auto w-full [scrollbar-width:none] justify-start gap-4 overflow-x-auto rounded-none border-b p-0 pb-[5px] [&::-webkit-scrollbar]:hidden"
       >
         <TabsTrigger value="today" className="h-full flex-none px-0">
           Today
         </TabsTrigger>
         {[...rounds].reverse().map((r) => (
-          <TabsTrigger key={r.n} value={`r${r.n}`} className="h-full flex-none px-0">
+          <TabsTrigger
+            key={r.n}
+            value={`r${r.n}`}
+            className="h-full flex-none px-0"
+          >
             Round {r.n}
           </TabsTrigger>
         ))}
@@ -324,7 +325,9 @@ function Every({ items }: { items: string | string[] }) {
 // Option tabs: letter only; a dot marks the recommendation, a tick the pick
 function Mark({ o, mine }: { o: Option; mine: boolean }) {
   if (mine)
-    return <CheckIcon aria-label="your pick" className="size-3.5 text-success" />
+    return (
+      <CheckIcon aria-label="your pick" className="size-3.5 text-success" />
+    )
   if (o.state === "picked")
     return <CheckIcon aria-label="picked" className="size-3.5 text-success" />
   if (o.state === "rejected")

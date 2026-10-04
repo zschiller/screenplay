@@ -11,7 +11,7 @@
 @source "./**/*.{ts,tsx}";
 /* Only the shared components the templates import, so the page carries their
    classes and not the whole library's. Add a line when you import another. */
-@source "../../ui/src/components/{badge,button,collapsible,icons,tabs,textarea}.tsx";
+@source "../../ui/src/components/{alert,badge,button,collapsible,icons,input,label,tabs,textarea,toggle,toggle-group}.tsx";
 
 /* Fonts come from the readable token block, so another repo can swap them. */
 @theme inline {

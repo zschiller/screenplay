@@ -21,7 +21,9 @@ for (const t of templates) {
     } catch {}
     if (now !== html) {
       stale++
-      console.error(`${t.out} is out of date: run pnpm --filter @workspace/skill-templates build`)
+      console.error(
+        `${t.out} is out of date: run pnpm --filter @workspace/skill-templates build`
+      )
     }
   } else {
     writeFileSync(path, html)
