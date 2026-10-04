@@ -12,27 +12,18 @@ import { useSharedState } from "@screenplay.space/state"
 import { Button } from "@workspace/ui/components/button"
 import { CaretLeftIcon, CaretRightIcon } from "@workspace/ui/components/icons"
 import { Input } from "@workspace/ui/components/input"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@workspace/ui/components/tabs"
+import { TabsContent } from "@workspace/ui/components/tabs"
 import { Textarea } from "@workspace/ui/components/textarea"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@workspace/ui/components/toggle-group"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { Intro, Segmented, Shell } from "../shared/kit.tsx"
 import { CopyBar, Html, Label, load, store } from "../shared/page.tsx"
-import { Lightbox, Shots } from "../shared/shots.tsx"
-import { ThemeButton, ThemeContext, useTheme } from "../shared/theme.tsx"
+import { Shots } from "../shared/shots.tsx"
+import { useTheme } from "../shared/theme.tsx"
 import type { Control, Page, Render, State, Value } from "./types.ts"
 
 type Values = Record<string, Value>
 type Notes = Record<string, string>
-
 
 const fallback = (c: Control): Value =>
   c.type === "toggle"
@@ -54,7 +45,8 @@ export function Storybook({
   states: State[]
   render?: Render
 }) {
-  const [dark, toggleTheme] = useTheme()
+  const theme = useTheme()
+  const [dark] = theme
   // Every state's full values: a missing key takes the control's default
   const full = React.useCallback(
     (set?: Values): Values =>
@@ -248,150 +240,17 @@ export function Storybook({
       : "No notes yet") + (general.trim() ? " · general note" : "")
 
   return (
-    <ThemeContext.Provider value={dark}>
-      <Lightbox>
-        <div className="mx-auto flex max-w-[880px] flex-col px-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:px-6">
-          <Tabs
-            value={tab}
-            onValueChange={setTab}
-            className="flex flex-col gap-5 md:gap-6"
-          >
-            <div className="sticky top-[env(safe-area-inset-top,0px)] z-[6] -mx-4 flex items-center gap-4 border-b bg-background px-4 md:-mx-6 md:px-6">
-              <h1 className="min-w-0 flex-1 truncate py-3 font-heading text-title-sm">
-                {page.title}
-              </h1>
-              <TabsList
-                variant="line"
-                aria-label="View"
-                className="h-auto flex-none gap-4 rounded-none p-0 py-[5px]"
-              >
-                <TabsTrigger value="story" className="h-full flex-none px-0">
-                  Story
-                </TabsTrigger>
-                <TabsTrigger value="all" className="h-full flex-none px-0">
-                  All states ({all.length})
-                </TabsTrigger>
-              </TabsList>
-              <ThemeButton dark={dark} toggle={toggleTheme} />
-            </div>
-            <TabsContent value="story" className="flex min-w-0 flex-col gap-4">
-              <Stage
-                state={current}
-                caption={label(vals)}
-                render={render}
-                vals={vals}
-                dark={dark}
-                height={stageHeight}
-                stageRef={stageRef}
-              />
-              <div ref={controlsRef} className="flex flex-col gap-3">
-                {/* Controls sit right under the stage, above the text that changes per state, so they never move as you tap. */}
-                {controls.map((c) => (
-                  <ControlRow
-                    key={c.key}
-                    control={c}
-                    value={vals[c.key]!}
-                    choose={(v) => choose(c, v)}
-                    reachable={(v) => reachable(c, v)}
-                  />
-                ))}
-              </div>
-              <div ref={nameRef} className="flex items-center gap-2">
-                <h2 className="min-w-0 flex-1 text-lg font-medium text-balance">
-                  {current ? current.name : label(vals)}
-                </h2>
-                <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-                  {current ? `${index + 1} of ${all.length}` : "Custom"}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Previous state"
-                  onClick={() => step(-1)}
-                >
-                  <CaretLeftIcon />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Next state"
-                  onClick={() => step(1)}
-                >
-                  <CaretRightIcon />
-                </Button>
-              </div>
-              {current?.why && (
-                <Html
-                  as="p"
-                  html={current.why}
-                  className="max-w-[72ch] text-sm"
-                />
-              )}
-              {current?.said && (
-                <Html
-                  as="blockquote"
-                  html={"Earlier: " + current.said}
-                  className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground"
-                />
-              )}
-              <label className="flex flex-col gap-1.5">
-                <Label>Note on this state</Label>
-                <Textarea
-                  id="state-note"
-                  placeholder="What should change here"
-                  value={notes[noteKey] ?? ""}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="min-h-18 resize-y text-sm md:text-sm"
-                />
-              </label>
-              <About page={page} />
-            </TabsContent>
-            <TabsContent value="all" className="flex flex-col gap-6">
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
-                {all.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    aria-current={s === current}
-                    onClick={() => {
-                      go(s)
-                      setTab("story")
-                      scrollTo({ top: 0 })
-                    }}
-                    className="group flex flex-col gap-1.5 text-left outline-none"
-                  >
-                    <span
-                      className={cn(
-                        "grid aspect-[4/3] place-items-center overflow-hidden border bg-muted p-2 group-focus-visible:ring-3 group-focus-visible:ring-ring/50",
-                        s === current && "border-foreground"
-                      )}
-                    >
-                      {s.shots && (
-                        <img
-                          src={dark && s.shots.dk ? s.shots.dk : s.shots.p}
-                          alt=""
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      )}
-                    </span>
-                    <span className="flex items-baseline gap-1.5 text-sm">
-                      {notes[s.id]?.trim() && (
-                        <span
-                          aria-label="has a note"
-                          className="size-1.5 flex-none -translate-y-px rounded-full bg-info"
-                        />
-                      )}
-                      {s.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <About page={page} />
-            </TabsContent>
-          </Tabs>
-        </div>
+    <Shell
+      title={page.title}
+      tabs={[
+        { value: "story", label: "Story" },
+        { value: "all", label: "All states", count: all.length },
+      ]}
+      tab={tab}
+      setTab={setTab}
+      tabsLabel="View"
+      theme={theme}
+      bar={
         <CopyBar
           status={status}
           note={general}
@@ -401,11 +260,123 @@ export function Storybook({
           copyLabel="Copy notes"
           outLabel="Notes to copy"
           text={text}
-          maxWidth="832px"
           send
         />
-      </Lightbox>
-    </ThemeContext.Provider>
+      }
+    >
+      <TabsContent value="story" className="flex min-w-0 flex-col gap-4">
+        <Stage
+          state={current}
+          caption={label(vals)}
+          render={render}
+          vals={vals}
+          dark={dark}
+          height={stageHeight}
+          stageRef={stageRef}
+        />
+        <div ref={controlsRef} className="flex flex-col gap-3">
+          {/* Controls sit right under the stage, above the text that changes per state, so they never move as you tap. */}
+          {controls.map((c) => (
+            <ControlRow
+              key={c.key}
+              control={c}
+              value={vals[c.key]!}
+              choose={(v) => choose(c, v)}
+              reachable={(v) => reachable(c, v)}
+            />
+          ))}
+        </div>
+        <div ref={nameRef} className="flex items-center gap-2">
+          <h2 className="min-w-0 flex-1 text-lg font-medium text-balance">
+            {current ? current.name : label(vals)}
+          </h2>
+          <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+            {current ? `${index + 1} of ${all.length}` : "Custom"}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Previous state"
+            onClick={() => step(-1)}
+          >
+            <CaretLeftIcon />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Next state"
+            onClick={() => step(1)}
+          >
+            <CaretRightIcon />
+          </Button>
+        </div>
+        {current?.why && (
+          <Html as="p" html={current.why} className="max-w-[72ch] text-sm" />
+        )}
+        {current?.said && (
+          <Html
+            as="blockquote"
+            html={"Earlier: " + current.said}
+            className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground"
+          />
+        )}
+        <label className="flex flex-col gap-1.5">
+          <Label>Note on this state</Label>
+          <Textarea
+            id="state-note"
+            placeholder="What should change here"
+            value={notes[noteKey] ?? ""}
+            onChange={(e) => setNote(e.target.value)}
+            className="min-h-18 resize-y text-sm md:text-sm"
+          />
+        </label>
+        <About page={page} />
+      </TabsContent>
+      <TabsContent value="all" className="flex flex-col gap-6">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+          {all.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              aria-current={s === current}
+              onClick={() => {
+                go(s)
+                setTab("story")
+                scrollTo({ top: 0 })
+              }}
+              className="group flex flex-col gap-1.5 text-left outline-none"
+            >
+              <span
+                className={cn(
+                  "grid aspect-[4/3] place-items-center overflow-hidden border bg-muted p-2 group-focus-visible:ring-3 group-focus-visible:ring-ring/50",
+                  s === current && "border-foreground"
+                )}
+              >
+                {s.shots && (
+                  <img
+                    src={dark && s.shots.dk ? s.shots.dk : s.shots.p}
+                    alt=""
+                    className="max-h-full max-w-full object-contain"
+                  />
+                )}
+              </span>
+              <span className="flex items-baseline gap-1.5 text-sm">
+                {notes[s.id]?.trim() && (
+                  <span
+                    aria-label="has a note"
+                    className="size-1.5 flex-none -translate-y-px rounded-full bg-foreground"
+                  />
+                )}
+                {s.name}
+              </span>
+            </button>
+          ))}
+        </div>
+        <About page={page} />
+      </TabsContent>
+    </Shell>
   )
 }
 
@@ -465,25 +436,19 @@ function Stage({
   )
 }
 
-/** What the storybook is for: the owner's words and where the part lives. */
+/** What the storybook is for, under the work: the owner's words and where the part lives. */
 function About({ page }: { page: Page }) {
   return (
-    <div className="flex flex-col gap-2 border-t pt-4">
-      <blockquote className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground">
-        {page.quote}
-      </blockquote>
-      {page.where && (
-        <Html
-          as="p"
-          html={page.where}
-          className="text-sm text-muted-foreground"
-        />
-      )}
-      <Label>
-        Design storybook · {page.date}
-        {page.round > 1 && ` · Round ${page.round}`}
-      </Label>
-    </div>
+    <Intro
+      meta={
+        `Design storybook · ${page.date}` +
+        (page.round > 1 ? ` · Round ${page.round}` : "")
+      }
+      quote={page.quote}
+      className="border-t pt-4"
+    >
+      {page.where && <Html as="p" html={page.where} />}
+    </Intro>
   )
 }
 
@@ -527,28 +492,20 @@ function ControlRow({
     // On a wide screen the label sits beside its control, a row shorter each
     <div className="flex min-w-0 flex-col gap-1.5 md:grid md:grid-cols-[112px_minmax(0,1fr)] md:items-center md:gap-3">
       <Label id={id}>{c.label}</Label>
-      <ToggleGroup
-        type="single"
+      <Segmented
         aria-labelledby={id}
         value={String(options.findIndex(([v]) => v === value))}
         // Picking the current value again keeps it
-        onValueChange={(i) => i && choose(options[Number(i)]![0])}
+        onChange={(i) => i && choose(options[Number(i)]![0])}
+        // Dimmed when no state has this value next to the others; it still jumps to the closest one
+        items={options.map(([v, l], i) => ({
+          value: String(i),
+          label: l,
+          dim: !reachable(v),
+        }))}
         className="flex w-full flex-wrap"
-      >
-        {options.map(([v, l], i) => (
-          <ToggleGroupItem
-            key={l}
-            value={String(i)}
-            // Dimmed when no state has this value next to the others; it still jumps to the closest one
-            className={cn(
-              "flex-[1_0_auto] px-2.5",
-              !reachable(v) && "opacity-50"
-            )}
-          >
-            {l}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+        itemClassName="flex-[1_0_auto] px-2.5"
+      />
     </div>
   )
 }

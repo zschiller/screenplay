@@ -9,21 +9,9 @@ import { flushSync } from "react-dom"
 
 import { useSharedState } from "@screenplay.space/state"
 
-import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@workspace/ui/components/collapsible"
 import { CheckIcon, XIcon } from "@workspace/ui/components/icons"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@workspace/ui/components/tabs"
-import { cn } from "@workspace/ui/lib/utils"
+import { TabsContent } from "@workspace/ui/components/tabs"
 
 import {
   answer as answerCard,
@@ -31,9 +19,21 @@ import {
   onCanvas,
   useCardQuestion,
 } from "../shared/chat.ts"
+import {
+  Fold,
+  Intro,
+  ItemHead,
+  Quote,
+  Rec,
+  RecDot,
+  SectionHead,
+  Segmented,
+  Shell,
+  Tag,
+} from "../shared/kit.tsx"
 import { CopyBar, Facts, Html, Label, load, store } from "../shared/page.tsx"
-import { Lightbox, Shots } from "../shared/shots.tsx"
-import { ThemeButton, ThemeContext, useTheme } from "../shared/theme.tsx"
+import { Shots } from "../shared/shots.tsx"
+import { useTheme } from "../shared/theme.tsx"
 import type { Option, Page, Question, Round, Today } from "./types.ts"
 
 const SIGN = [
@@ -50,10 +50,6 @@ type PickProps = {
   /** The question the chat's open card asks, once it's answered (on a canvas). */
   sent?: string
 }
-
-// TEMP exploration switches
-const V = ((globalThis as { VARIANT?: Record<string, string> }).VARIANT ??
-  {}) as Record<string, string>
 
 const norm = (s: string) => s.trim().toLowerCase()
 /** The value a card option stands for in question `q`, by its label. */
@@ -83,7 +79,7 @@ export function Exploration({
   today: Today
   rounds: Round[]
 }) {
-  const [dark, toggleTheme] = useTheme()
+  const theme = useTheme()
   const latest = rounds[0]!
   const Q = latest.questions
   const KEY = "exploration-" + page.slug
@@ -163,10 +159,6 @@ export function Exploration({
         <React.Fragment key={q.key}>
           {i > 0 && " · "}
           <b>{Q.length > 1 ? answer(q).split(":")[0] : answer(q)}</b>
-          {V.sent === "bar" &&
-            answered &&
-            linked?.q.key === q.key &&
-            " sent to chat"}
         </React.Fragment>
       ))}
       {Q.length > 1 && ` · ${done.length} of ${Q.length} answered`}
@@ -179,28 +171,25 @@ export function Exploration({
     "No pick yet"
   )
 
+  const [tab, setTab] = React.useState(`r${latest.n}`)
+  useSharedState("round", tab, setTab)
+  const pickProps = { picks, pick, sent: answered ? linked!.q.key : undefined }
+
   return (
-    <ThemeContext.Provider value={dark}>
-      <Lightbox>
-        <div className="mx-auto flex max-w-[880px] flex-col gap-5 px-4 pt-6 pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:gap-6 md:px-6 md:pt-10">
-          <header>
-            <div className="flex items-center justify-between gap-3">
-              <Label accent>Design exploration · {page.date}</Label>
-              <ThemeButton dark={dark} toggle={toggleTheme} />
-            </div>
-            <h1 className="mt-2 mb-2.5 font-heading text-title-xl text-balance">
-              {page.q}
-            </h1>
-            <Quote>{page.quote}</Quote>
-          </header>
-          <RoundTabs
-            rounds={rounds}
-            today={today}
-            picks={picks}
-            pick={pick}
-            sent={answered ? linked!.q.key : undefined}
-          />
-        </div>
+    <Shell
+      title={page.q}
+      tabs={[
+        { value: "today", label: "Today" },
+        ...[...rounds].reverse().map((r) => ({
+          value: `r${r.n}`,
+          label: `Round ${r.n}`,
+        })),
+      ]}
+      tab={tab}
+      setTab={setTab}
+      tabsLabel="Rounds"
+      theme={theme}
+      bar={
         <CopyBar
           status={status}
           note={note}
@@ -208,90 +197,13 @@ export function Exploration({
           noteOpen={noteOpen}
           setNoteOpen={setNoteOpen}
           copyLabel="Copy reaction"
-          send
           outLabel="Reaction to copy"
           text={text}
-          maxWidth="832px"
+          send
         />
-      </Lightbox>
-    </ThemeContext.Provider>
-  )
-}
-
-function Quote({ className, ...props }: React.ComponentProps<"blockquote">) {
-  return (
-    <blockquote
-      className={cn(
-        "m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-/** Round tabs: quiet underline navigation that fades at whichever edge hides rounds. */
-function RoundTabs({
-  rounds,
-  today,
-  ...pickProps
-}: { rounds: Round[]; today: Today } & PickProps) {
-  const latest = rounds[0]!
-  const [tab, setTab] = React.useState(`r${latest.n}`)
-  useSharedState("round", tab, setTab)
-  const list = React.useRef<HTMLDivElement>(null)
-  const [edges, setEdges] = React.useState({ less: false, more: false })
-  const fit = React.useCallback(() => {
-    const t = list.current!
-    setEdges({
-      more: t.scrollWidth - t.scrollLeft > t.clientWidth + 1,
-      less: t.scrollLeft > 1,
-    })
-  }, [])
-  React.useLayoutEffect(() => {
-    // The round row starts scrolled to the newest round
-    const t = list.current!
-    t.scrollLeft = t.scrollWidth
-    fit()
-    addEventListener("resize", fit)
-    return () => removeEventListener("resize", fit)
-  }, [fit])
-  const mask =
-    edges.less && edges.more
-      ? "linear-gradient(90deg,transparent,#000 40px calc(100% - 40px),transparent)"
-      : edges.less
-        ? "linear-gradient(90deg,transparent,#000 40px)"
-        : edges.more
-          ? "linear-gradient(90deg,#000 calc(100% - 40px),transparent)"
-          : undefined
-
-  return (
-    <Tabs
-      value={tab}
-      onValueChange={setTab}
-      className="flex flex-col gap-5 md:gap-6"
+      }
     >
-      <TabsList
-        ref={list}
-        variant="line"
-        aria-label="Rounds"
-        onScroll={fit}
-        style={{ maskImage: mask, WebkitMaskImage: mask }}
-        className="h-auto w-full [scrollbar-width:none] justify-start gap-4 overflow-x-auto rounded-none border-b p-0 pb-[5px] [&::-webkit-scrollbar]:hidden"
-      >
-        <TabsTrigger value="today" className="h-full flex-none px-0">
-          Today
-        </TabsTrigger>
-        {[...rounds].reverse().map((r) => (
-          <TabsTrigger
-            key={r.n}
-            value={`r${r.n}`}
-            className="h-full flex-none px-0"
-          >
-            Round {r.n}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+      <Intro meta={`Design exploration · ${page.date}`} quote={page.quote} />
       {rounds.map((r) => (
         <TabsContent
           key={r.n}
@@ -304,13 +216,13 @@ function RoundTabs({
       ))}
       <TabsContent value="today" forceMount hidden={tab !== "today"}>
         <section className="flex min-w-0 flex-col gap-4">
-          <Label>Today · what main does now</Label>
+          <SectionHead eyebrow="Today" title="What main does now" />
           {today.facts && <Facts items={today.facts} />}
           <Shots list={today.shots} />
           {today.html && <Html as="div" html={today.html} />}
         </section>
       </TabsContent>
-    </Tabs>
+    </Shell>
   )
 }
 
@@ -329,21 +241,27 @@ function RoundPanel({
   ...pickProps
 }: { round: Round; live: boolean } & PickProps) {
   return (
-    <section className="flex min-w-0 flex-col gap-4">
-      {V.head !== "fold" && (
-        <Label accent={live && V.head !== "quiet"}>
-          Round {r.n} · {live ? "open" : outcome(r)}
-        </Label>
-      )}
-      {V.head === "fold" ? (
-        <RoundNotes r={r} live={live} />
-      ) : (
-        V.head !== "after" && (
-          <>
-            {r.feedback && <Said html={r.feedback} />}
-            {r.every && <Every items={r.every} />}
-          </>
-        )
+    <section className="flex min-w-0 flex-col gap-10">
+      {(r.feedback || r.every) && (
+        // What started the round and what its options share, folded so the options come first
+        <div className="-mb-4 flex flex-col gap-2">
+          <Label>
+            Round {r.n} · {live ? "open" : outcome(r)}
+          </Label>
+          <Fold title={r.feedback ? "Your feedback" : "In every option"}>
+            <div className="flex flex-col gap-3.5">
+              {r.feedback && (
+                <Quote>{<Html as="span" html={r.feedback} />}</Quote>
+              )}
+              {r.every && (
+                <>
+                  {r.feedback && <Label>In every option</Label>}
+                  <Facts items={r.every} />
+                </>
+              )}
+            </div>
+          </Fold>
+        </div>
       )}
       {r.questions.map((q, i) => (
         <QuestionBlock
@@ -355,134 +273,22 @@ function RoundPanel({
           {...pickProps}
         />
       ))}
-      {V.head === "after" && (r.feedback || r.every) && (
-        <div className="mt-4 flex flex-col gap-4 border-t border-foreground pt-5">
-          <Label>About this round</Label>
-          {r.feedback && <Said html={r.feedback} />}
-          {r.every && <Every items={r.every} />}
-        </div>
-      )}
     </section>
   )
 }
 
-/** TEMP fold variant: the round label is the trigger for feedback and every. */
-function RoundNotes({ r, live }: { r: Round; live: boolean }) {
-  const [open, setOpen] = React.useState(false)
-  if (!r.feedback && !r.every)
-    return (
-      <Label accent={live}>
-        Round {r.n} · {live ? "open" : outcome(r)}
-      </Label>
-    )
-  return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className="-mt-2 border-b md:-mt-3"
-    >
-      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between gap-3 pb-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-        <Label accent={live}>
-          Round {r.n} · {live ? "open" : outcome(r)}
-        </Label>
-        <span className="text-sm font-medium text-muted-foreground">
-          {open ? "Hide" : r.feedback ? "Your feedback" : "Show"}
-        </span>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-3.5 pb-3.5">
-        {r.feedback && (
-          <Html
-            as="blockquote"
-            html={r.feedback}
-            className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground"
-          />
-        )}
-        {r.every && (
-          <>
-            <Label>In every option</Label>
-            <Facts items={r.every} />
-          </>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-/** The owner's feedback shows three lines until opened. */
-function Said({ html }: { html: string }) {
-  const [clamp, setClamp] = React.useState(true)
-  const [overflows, setOverflows] = React.useState(false)
-  const ref = React.useRef<HTMLQuoteElement>(null)
-  React.useLayoutEffect(() => {
-    const q = ref.current!
-    // Measures again when its tab shows and on resize
-    const ro = new ResizeObserver(() =>
-      setOverflows(q.scrollHeight > q.clientHeight + 1)
-    )
-    ro.observe(q)
-    return () => ro.disconnect()
-  }, [])
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <Html
-        as="blockquote"
-        ref={ref}
-        html={html}
-        className={cn(
-          "m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground",
-          clamp && "line-clamp-3"
-        )}
-      />
-      {(overflows || !clamp) && (
-        <Button
-          type="button"
-          variant="link"
-          size="xs"
-          className="ml-3.5 h-auto p-0 text-muted-foreground underline"
-          onClick={() => setClamp(!clamp)}
-        >
-          {clamp ? "Show all" : "Show less"}
-        </Button>
-      )}
-    </div>
-  )
-}
-
-/** Folded block: what every option in the round shares. */
-function Every({ items }: { items: string | string[] }) {
-  const [open, setOpen] = React.useState(false)
-  return (
-    <Collapsible open={open} onOpenChange={setOpen} className="border-y">
-      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between gap-3 py-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-        <Label>In every option</Label>
-        <span className="text-sm font-medium text-muted-foreground">
-          {open ? "Hide" : "Show"}
-        </span>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pb-3.5">
-        <Facts items={items} />
-      </CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-// Option tabs: letter only; a dot marks the recommendation, a tick the pick
+// Option letters: a dot marks the recommendation, a tick the pick
 function Mark({ o, mine }: { o: Option; mine: boolean }) {
-  if (mine)
+  if (mine || o.state === "picked")
     return (
-      <CheckIcon aria-label="your pick" className="size-3.5 text-success" />
+      <CheckIcon
+        aria-label={mine ? "your pick" : "picked"}
+        className="size-3.5 text-success"
+      />
     )
-  if (o.state === "picked")
-    return <CheckIcon aria-label="picked" className="size-3.5 text-success" />
   if (o.state === "rejected")
     return <XIcon aria-label="rejected" className="size-3.5 text-destructive" />
-  if (o.rec)
-    return (
-      <span
-        aria-label="recommended"
-        className="size-1.5 rounded-full bg-info"
-      />
-    )
+  if (o.rec) return <RecDot />
   return null
 }
 
@@ -503,13 +309,14 @@ function QuestionBlock({
   const root = React.useRef<HTMLDivElement>(null)
   const bar = React.useRef<HTMLDivElement>(null)
   const choose = (id: string) => {
+    if (!id) return
     flushSync(() => setOpt(id))
-    // When the tabs are stuck to the top, start the new option from its beginning
+    // When the letters are stuck to the top, start the new option from its beginning
     const b = bar.current!
     const stuck =
       b.getBoundingClientRect().top <= parseFloat(getComputedStyle(b).top) + 1
     const panel = root.current!.querySelector(
-      ":scope>[role=tabpanel]:not([hidden])"
+      ":scope>[data-option]:not([hidden])"
     )
     if (stuck && panel)
       scrollTo({
@@ -517,23 +324,6 @@ function QuestionBlock({
         behavior: "instant",
       })
   }
-  const head = (q.title || n > 1) && (
-    <div className="flex flex-col gap-1">
-      {n > 1 && (
-        <Label accent={V.head !== "quiet"}>
-          Question {i + 1} of {n}
-        </Label>
-      )}
-      {q.title && (
-        <h2 className="m-0 font-heading text-title-md text-balance">
-          {q.title}
-        </h2>
-      )}
-      {q.intro && (
-        <Html as="p" html={q.intro} className="text-sm text-muted-foreground" />
-      )}
-    </div>
-  )
   const card = (o: Option) => (
     <Card
       q={q}
@@ -544,49 +334,49 @@ function QuestionBlock({
       sent={live && sent === q.key ? sent : undefined}
     />
   )
-  const wrap = cn(
-    "flex min-w-0 flex-col gap-3.5",
-    i > 0 && "mt-4 border-t border-foreground pt-5"
-  )
-  if (signoff(q))
-    return (
-      <div className={wrap}>
-        {head}
-        {card(q.options[0]!)}
-      </div>
-    )
   return (
-    <Tabs value={opt} onValueChange={choose} className={wrap} ref={root}>
-      {head}
-      {/* Stuck, the control keeps a page-coloured margin so content never shows around its corners */}
-      <TabsList
-        ref={bar}
-        aria-label="Options"
-        className="sticky top-[calc(env(safe-area-inset-top,0px)+8px)] z-[5] my-1 w-full shadow-[0_0_0_8px_var(--background),-16px_0_0_8px_var(--background),16px_0_0_8px_var(--background)] group-data-horizontal/tabs:h-10"
-      >
-        {q.options.map((o) => (
-          <TabsTrigger
-            key={o.id}
-            value={o.id}
-            className="flex-1 justify-center font-mono font-semibold data-active:border-border"
+    <div ref={root} className="flex min-w-0 flex-col gap-4">
+      {(q.title || n > 1) && (
+        <SectionHead
+          eyebrow={n > 1 ? `Question ${i + 1} of ${n}` : undefined}
+          title={q.title || undefined}
+          blurb={q.intro ? <Html as="p" html={q.intro} /> : undefined}
+        />
+      )}
+      {signoff(q) ? (
+        card(q.options[0]!)
+      ) : (
+        <>
+          {/* Stuck, the letters keep a page-coloured margin so content never shows around their corners */}
+          <div
+            ref={bar}
+            className="sticky top-[calc(env(safe-area-inset-top,0px)+var(--top-bar,0px)+8px)] z-[5] bg-background shadow-[0_0_0_8px_var(--background)]"
           >
-            {o.id}
-            <Mark o={o} mine={live && picks[q.key] === o.id} />
-          </TabsTrigger>
-        ))}
-      </TabsList>
-      {q.options.map((o) => (
-        <TabsContent
-          key={o.id}
-          value={o.id}
-          forceMount
-          hidden={opt !== o.id}
-          className="flex-none"
-        >
-          {card(o)}
-        </TabsContent>
-      ))}
-    </Tabs>
+            <Segmented
+              aria-label="Options"
+              value={opt}
+              onChange={choose}
+              items={q.options.map((o) => ({
+                value: o.id,
+                label: (
+                  <>
+                    <span className="font-mono font-semibold">{o.id}</span>
+                    <Mark o={o} mine={live && picks[q.key] === o.id} />
+                  </>
+                ),
+              }))}
+              className="flex w-full"
+              itemClassName="flex-1"
+            />
+          </div>
+          {q.options.map((o) => (
+            <div key={o.id} data-option hidden={opt !== o.id}>
+              {card(o)}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
   )
 }
 
@@ -598,43 +388,17 @@ function Card({
   pick,
   sent,
 }: { q: Question; o: Option; live: boolean } & PickProps) {
-  const choices = signoff(q) ? SIGN : ([[o.id, "Pick " + o.id]] as const)
+  const mine = picks[q.key]
   return (
     <article className="flex min-w-0 flex-col gap-3">
-      <header className="flex flex-col gap-1.5">
-        {!signoff(q) && (
-          <span
-            className={cn(
-              "font-mono text-sm font-semibold",
-              V.head === "quiet" ? "text-muted-foreground" : "text-info"
-            )}
-          >
-            Option {o.id}
-          </span>
-        )}
-        <h3 className="m-0 font-heading text-title-sm text-balance">
-          {o.name}
-        </h3>
-        {(o.rec || o.state) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {o.rec && (
-              <Badge variant="outline" className="text-info">
-                Recommended
-              </Badge>
-            )}
-            {o.state === "picked" && (
-              <Badge variant="outline" className="text-success">
-                Picked
-              </Badge>
-            )}
-            {o.state === "rejected" && (
-              <Badge variant="outline" className="text-destructive">
-                Rejected
-              </Badge>
-            )}
-          </div>
-        )}
-      </header>
+      <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
+      {(o.rec || o.state) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {o.rec && <Rec />}
+          {o.state === "picked" && <Tag tone="done">Picked</Tag>}
+          {o.state === "rejected" && <Tag tone="no">Rejected</Tag>}
+        </div>
+      )}
       {o.html && <Html as="div" html={o.html} />}
       <Shots
         list={o.shots}
@@ -649,28 +413,30 @@ function Card({
       )}
       {live && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {choices.map(([v, l]) => {
-            const on = picks[q.key] === v
-            return (
-              <Button
-                key={v}
-                type="button"
-                size="lg"
-                variant={on ? "default" : "outline"}
-                aria-pressed={on}
-                disabled={!!sent && !on}
-                onClick={() => pick(q.key, v)}
-              >
-                {l}
-              </Button>
-            )
-          })}
-          {sent && V.sent !== "bar" && (
+          {signoff(q) ? (
+            <Segmented
+              aria-label="Sign off"
+              value={mine ?? ""}
+              onChange={(v) => !sent && pick(q.key, v || mine!)}
+              items={SIGN.map(([value, label]) => ({ value, label }))}
+            />
+          ) : (
+            <Button
+              type="button"
+              variant={mine === o.id ? "default" : "outline"}
+              aria-pressed={mine === o.id}
+              disabled={!!sent && mine !== o.id}
+              onClick={() => pick(q.key, o.id)}
+            >
+              {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
+            </Button>
+          )}
+          {sent && (
             <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
               <CheckIcon className="size-4 text-success" />
-              {choices.some(([v]) => picks[q.key] === v)
+              {signoff(q) || mine === o.id
                 ? "Answered in chat"
-                : `Answered ${picks[q.key]} in chat`}
+                : `Answered ${mine} in chat`}
             </span>
           )}
         </div>

@@ -6,17 +6,12 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { draft, onCanvas } from "./chat.ts"
 
-/** Small mono section label; `accent` for the one that matters most. */
-export function Label({
-  accent,
-  className,
-  ...props
-}: React.ComponentProps<"p"> & { accent?: boolean }) {
+/** Small grey mono label: a page's meta line, a control's name. */
+export function Label({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       className={cn(
-        "m-0 font-mono text-xs font-medium tracking-wider uppercase",
-        accent ? "text-info" : "text-muted-foreground",
+        "m-0 font-mono text-xs font-medium tracking-wider text-muted-foreground uppercase",
         className
       )}
       {...props}
@@ -81,7 +76,7 @@ export function CopyBar({
   fallbackLabel,
   outLabel,
   text,
-  maxWidth,
+  maxWidth = "832px",
   send,
 }: {
   status: React.ReactNode
@@ -94,7 +89,7 @@ export function CopyBar({
   fallbackLabel?: string
   outLabel: string
   text: () => string
-  maxWidth: string
+  maxWidth?: string
   send?: boolean
 }) {
   const sends = send && onCanvas()
