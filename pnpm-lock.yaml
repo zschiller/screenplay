@@ -437,6 +437,9 @@ importers:
 
   packages/skill-templates:
     dependencies:
+      '@screenplay.space/state':
+        specifier: workspace:^
+        version: link:../screenplay-state
       '@workspace/ui':
         specifier: workspace:^
         version: link:../ui

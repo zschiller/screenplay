@@ -6,6 +6,8 @@
 import * as React from "react"
 import { flushSync } from "react-dom"
 
+import { useSharedState } from "@screenplay.space/state"
+
 import {
   Alert,
   AlertDescription,
@@ -85,6 +87,10 @@ export function Audit({
   React.useEffect(() => store(KEY, state), [KEY, state])
   const [noteOpen, setNoteOpen] = React.useState(!!state.note)
   const [filter, setFilter] = React.useState("all")
+  // On a Screenplay canvas, every viewer sees the same picks, notes and
+  // filter (@screenplay.space/state; inert anywhere else)
+  useSharedState("audit", state, setState)
+  useSharedState("filter", filter, setFilter)
 
   const calls = findings.filter((f) => f.call)
   const recOf = (f: Finding) => f.call?.options.find((o) => o.rec)

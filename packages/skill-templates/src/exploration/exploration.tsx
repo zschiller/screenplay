@@ -7,6 +7,8 @@
 import * as React from "react"
 import { flushSync } from "react-dom"
 
+import { useSharedState } from "@screenplay.space/state"
+
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -62,6 +64,15 @@ export function Exploration({
   React.useEffect(() => {
     store(KEY, { round: latest.n, picks, note })
   }, [KEY, latest.n, picks, note])
+
+  // On a Screenplay canvas, every viewer sees the same picks, note, round
+  // and option (@screenplay.space/state; inert anywhere else)
+  const sharedPicks = React.useMemo(
+    () => JSON.parse(JSON.stringify(picks)) as Record<string, string>,
+    [picks]
+  )
+  useSharedState("picks", sharedPicks, setPicks)
+  useSharedState("note", note, setNote)
 
   const pick = (k: string, v: string) => {
     const next = picks[k] === v ? undefined : v
@@ -154,6 +165,7 @@ function RoundTabs({
 }: { rounds: Round[]; today: Today } & PickProps) {
   const latest = rounds[0]!
   const [tab, setTab] = React.useState(`r${latest.n}`)
+  useSharedState("round", tab, setTab)
   const list = React.useRef<HTMLDivElement>(null)
   const [edges, setEdges] = React.useState({ less: false, more: false })
   const fit = React.useCallback(() => {
@@ -354,6 +366,7 @@ function QuestionBlock({
   const [opt, setOpt] = React.useState(
     () => (q.options.find((o) => o.state === "picked") ?? q.options[0]!).id
   )
+  useSharedState(`option:r${r.n}-${q.key}`, opt, setOpt)
   const root = React.useRef<HTMLDivElement>(null)
   const bar = React.useRef<HTMLDivElement>(null)
   const choose = (id: string) => {

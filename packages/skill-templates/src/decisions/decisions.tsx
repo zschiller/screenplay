@@ -4,6 +4,8 @@
 
 import * as React from "react"
 
+import { useSharedState } from "@screenplay.space/state"
+
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label as FieldLabel } from "@workspace/ui/components/label"
@@ -62,6 +64,9 @@ export function Decisions({
     )
   })
   React.useEffect(() => store(KEY, answers), [KEY, answers])
+  // On a Screenplay canvas, every viewer sees the same answers
+  // (@screenplay.space/state; inert anywhere else)
+  useSharedState("answers", answers, setAnswers)
   const [status, setStatus] = React.useState("")
   const preview = React.useRef<HTMLPreElement>(null)
   const set = (id: string, a: Partial<Answer>) =>

@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@screenplay.space/state": "workspace:^",
     "@workspace/ui": "workspace:^",
     "class-variance-authority": "^0.7.1",
     "radix-ui": "^1.6.7",

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import tailwind from "@tailwindcss/postcss"
 import react from "@vitejs/plugin-react"
-import { build, type Rolldown } from "vite"
+import { build, type Plugin, type Rolldown } from "vite"
 
 import type { Template } from "../templates.ts"
 import { assemble, stripTokens, tokenBlock } from "./page.ts"
@@ -16,6 +16,18 @@ const pkg = fileURLToPath(new URL("../", import.meta.url))
 const inline = (code: string, tag: "script" | "style") =>
   code.replace(new RegExp(`</(${tag})`, "gi"), "<\\/$1")
 
+// @screenplay.space/state only runs in development builds. The pages are
+// production builds, so switch its gate on: it still stays inert unless the
+// page is framed, and then only posts the page's picks to the parent.
+const sharedStateOn: Plugin = {
+  name: "shared-state-on",
+  enforce: "pre",
+  transform(code, id) {
+    if (!id.includes("screenplay-state")) return
+    return code.replaceAll("process.env.NODE_ENV", '"development"')
+  },
+}
+
 export async function render(t: Template) {
   // The same bundle wherever it runs; under Vitest NODE_ENV is "test"
   process.env.NODE_ENV = "production"
@@ -24,7 +36,7 @@ export async function render(t: Template) {
     mode: "production",
     root: pkg,
     logLevel: "silent",
-    plugins: [react()],
+    plugins: [react(), sharedStateOn],
     css: { postcss: { plugins: [tailwind(), stripTokens] } },
     define: { "process.env.NODE_ENV": '"production"' },
     build: {
