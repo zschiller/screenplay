@@ -46,33 +46,24 @@ async function run(tools: Tools, name: keyof Tools, input: object) {
 }
 
 describe("skill tools", () => {
-  it("a Skill one chat saves, another chat on the canvas lists and reads", async () => {
+  it("a Skill saved on the canvas, another chat on the canvas lists and reads", async () => {
     const skills = canvas()
-    const writer = buildSkillTools({
-      canvas: skills,
-      chatId: "chat-a",
-      app: appSkillSource(),
-    })
     const coordinator = buildSkillTools({
       canvas: skills,
       chatId: "chat-b",
       app: appSkillSource("coordinator"),
     })
 
-    expect(
-      await run(writer, "save_skill", {
-        scope: "canvas",
-        name: "release-notes",
-        content: skillMd(
-          "release-notes",
-          "Write release notes.",
-          "Group by feature."
-        ),
-        files: [{ path: "examples/v1.md", content: "## v1" }],
-      })
-    ).toBe(
-      'Saved the canvas skill "release-notes". Every chat on this canvas can use it from its next turn.'
-    )
+    await skills.save({
+      name: "release-notes",
+      content: skillMd(
+        "release-notes",
+        "Write release notes.",
+        "Group by feature."
+      ),
+      files: [{ path: "examples/v1.md", content: "## v1" }],
+      author: { addedBy: "agent", addedById: "chat-a" },
+    })
 
     const read = await run(coordinator, "read_skill", { name: "release-notes" })
     expect(read).toContain("Group by feature.")
@@ -204,8 +195,9 @@ describe("skill tools", () => {
   })
 
   it("says what it stripped, and when the repository’s Skill wins in this chat", async () => {
+    const skills = canvas()
     const tools = buildSkillTools({
-      canvas: canvas(),
+      canvas: skills,
       chatId: "chat-a",
       app: appSkillSource(),
       repo: async () => repoFs({ deploy: skillMd("deploy", "Repo.") }),
@@ -216,13 +208,39 @@ describe("skill tools", () => {
       content:
         "---\nname: deploy\ndescription: Ship.\nallowed-tools: Bash\n---\n!`git status`\nShip it.",
     })
-    expect(out).toContain('Saved the canvas skill "deploy"')
     expect(out).toContain(
-      "Removed allowed-tools and !`command` lines: saved skills can’t grant tools or run commands."
+      'Showed "deploy" to the person as a card with Save to account and Save to canvas.'
     )
     expect(out).toContain(
-      "This branch’s repository has a skill named \"deploy\" too, and in this chat the repository’s wins."
+      "Saving removes allowed-tools and !`command` lines: saved skills can’t grant tools or run commands."
     )
+    expect(out).toContain(
+      'This branch’s repository has a skill named "deploy" too, and in this chat the repository’s wins.'
+    )
+    expect(await skills.list()).toEqual([])
+  })
+
+  it("says when a saved copy takes the place of a Built in Skill", async () => {
+    const skills = canvas()
+    const account = canvas()
+    const tools = buildSkillTools({
+      canvas: skills,
+      account,
+      chatId: "chat-a",
+      app: appSkillSource(),
+    })
+    const content = skillMd("screenplay-add-knob", "Mine.", "My knobs.")
+
+    expect(
+      await run(tools, "save_skill", { name: "screenplay-add-knob", content })
+    ).toContain(
+      'Once saved, it takes the place of Screenplay’s own skill "screenplay-add-knob".'
+    )
+    expect(await skills.list()).toEqual([])
+    expect(await account.list()).toEqual([])
+    expect(
+      await run(tools, "read_skill", { name: "screenplay-add-knob" })
+    ).not.toContain("My knobs.")
   })
 
   it("refuses an invalid Skill with the reason", async () => {
@@ -240,6 +258,35 @@ describe("skill tools", () => {
     ).toMatch(/^Error: "Release Notes" isn’t a valid skill name/)
   })
 
+  it("offers a valid Skill without saving it, and refuses an invalid one, saving nothing", async () => {
+    const skills = canvas()
+    const account = canvas()
+    const tools = buildSkillTools({
+      canvas: skills,
+      account,
+      chatId: "chat-a",
+      app: appSkillSource(),
+    })
+
+    expect(
+      await run(tools, "save_skill", {
+        name: "review",
+        content: "no frontmatter",
+      })
+    ).toMatch(/^Error: /)
+    expect(
+      await run(tools, "save_skill", {
+        scope: "account",
+        name: "review",
+        content: skillMd("review", "Review.", "BODY"),
+      })
+    ).toBe(
+      'Showed "review" to the person as a card with Save to account and Save to canvas. It’s saved only when they press one, and chats can use it from their next turn after that.'
+    )
+    expect(await skills.list()).toEqual([])
+    expect(await account.list()).toEqual([])
+  })
+
   it("deletes a Skill, which no chat then reads", async () => {
     const skills = canvas()
     const tools = buildSkillTools({
@@ -247,9 +294,10 @@ describe("skill tools", () => {
       chatId: "chat-a",
       app: appSkillSource(),
     })
-    await run(tools, "save_skill", {
+    await skills.save({
       name: "review",
       content: skillMd("review", "Review.", "BODY"),
+      author: { addedBy: "agent", addedById: "chat-a" },
     })
 
     expect(await run(tools, "delete_skill", { name: "review" })).toBe(

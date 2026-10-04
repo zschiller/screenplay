@@ -7,6 +7,7 @@ import {
 } from "@/lib/agent/tool-description"
 import { isNoReply } from "@/lib/agent/coordinator-wake"
 import { isQuestionCall } from "@/lib/agent/question"
+import { bareToolName } from "@/lib/agent/tool-name"
 
 type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
 
@@ -37,12 +38,17 @@ const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
 /**
  * Whether an entry stays on screen in a folded turn: a pinned kind, a
  * Coordinator call that names a Workspace, whose task row is the point of the
- * turn (#896), or a question card (#1312), which shows what was asked and
- * answered.
+ * turn (#896), a question card (#1312), which shows what was asked and
+ * answered, or a skill card (#1633), which waits for someone to save it.
  */
 function isPinned(message: AgentMessage): boolean {
   if (PINNED_ROLES.has(message.role)) return true
   if (isQuestionCall(message)) return true
+  if (
+    message.role === "tool_call" &&
+    bareToolName(message.title) === "save_skill"
+  )
+    return true
   return isCard(message)
 }
 
