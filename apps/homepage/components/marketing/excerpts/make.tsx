@@ -1,31 +1,16 @@
 import {
   ArrowUpIcon,
-  CaretDownIcon,
-  CaretUpDownIcon,
   DotsThreeIcon,
   FileTextIcon,
-  FrameCornersIcon,
   GitPullRequestIcon,
-  NavigationArrowIcon,
-  ScribbleIcon,
   SidebarSimpleIcon,
 } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import {
-  Diff,
-  Frame,
-  Tool,
-  UserBubble,
-  WorkspaceGlyph,
-  floating,
-  versions,
-} from "./canvas"
+import { Diff, Frame, FrameBar, Tool, UserBubble, versions } from "./canvas"
 import { Fit } from "./fit"
 import { Northwind } from "./northwind"
 import { Card } from "./steps"
-import {
-} from "./team"
 
 const split = versions[1]
 const dark = versions[2]
@@ -41,88 +26,6 @@ export function Send({ className }: { className?: string }) {
     >
       <ArrowUpIcon className="size-4" />
     </span>
-  )
-}
-
-/** The canvas toolbar, Select active. */
-function Toolbar({ className }: { className?: string }) {
-  return (
-    <div className={cn(floating, "absolute", className)}>
-      <Tool active>
-        <NavigationArrowIcon />
-      </Tool>
-      <Tool>
-        <FrameCornersIcon />
-      </Tool>
-      <Tool>
-        <ScribbleIcon />
-      </Tool>
-      <Tool>
-        <FileTextIcon />
-      </Tool>
-    </div>
-  )
-}
-
-/**
- * A frame just drawn, phone-sized, beside the Split layout, with the ask card
- * the Frame tool opens: what it should show, and New chat beside Send.
- */
-export function DrawFrameExcerpt() {
-  const handle =
-    "absolute size-[7px] border-[1.5px] border-selection bg-background"
-  const x = 146
-  const W = 320
-  return (
-    <Fit
-      width={W}
-      height={256}
-      role="img"
-      aria-label="A phone-sized frame just drawn on the canvas beside the Split layout, asking what it should show, with the answer typed and New chat beside Send."
-      className="bg-plane border border-border text-foreground"
-    >
-      <div className="[container-type:inline-size] relative size-full">
-        <Frame
-          label="Home"
-          workspace={split.title}
-          style={{ left: 16, top: 46, width: 118 }}
-        >
-          <Northwind version={split.version} />
-        </Frame>
-        {/* The drawn frame: empty, selected, asking. */}
-        <div className="absolute" style={{ left: x, top: 46, width: 70 }}>
-          <div className="absolute bottom-full left-0 mb-1.5 flex items-center gap-1.5 text-xs leading-none whitespace-nowrap">
-            <span className="font-medium text-selection">Frame</span>
-            <span className="flex items-center gap-0.5 text-muted-foreground">
-              Choose a workspace
-              <CaretUpDownIcon className="size-3" />
-            </span>
-          </div>
-          <div className="h-[136px] bg-muted/60" />
-          <div className="outline-selection pointer-events-none absolute inset-0 outline-[1.5px] outline-solid" />
-          <span className={cn(handle, "-top-[3.5px] -left-[3.5px]")} />
-          <span className={cn(handle, "-top-[3.5px] -right-[3.5px]")} />
-          <span className={cn(handle, "-bottom-[3.5px] -left-[3.5px]")} />
-          <span className={cn(handle, "-right-[3.5px] -bottom-[3.5px]")} />
-        </div>
-        <div
-          className={cn(
-            "absolute flex w-[200px] flex-col gap-2.5 rounded-lg border border-border bg-background p-2.5 text-xs shadow-md"
-          )}
-          style={{ left: Math.min(x + 35 - 100, W - 212), top: 104 }}
-        >
-          <span>Make the hero work on phones</span>
-          <span className="flex items-center justify-between">
-            <span className="flex items-center gap-1 font-medium">
-              New chat
-              <CaretDownIcon className="size-3 text-muted-foreground" />
-            </span>
-            <Send className="size-6" />
-          </span>
-        </div>
-        <Toolbar className="bottom-2.5 left-1/2 z-10 -translate-x-1/2 scale-90" />
-      </div>
-    </Fit>
   )
 }
 
@@ -166,25 +69,27 @@ export function ChatHeader({
   )
 }
 
-/** Ship it: the picked version's chat, Create pull request in its header. */
+/** Ship it: the built take's chat, Create pull request in its header. */
 export function PrHeaderExcerpt() {
   return (
     <Fit
       width={320}
       height={256}
       role="img"
-      aria-label="The Split layout chat, with Create pull request in its header."
+      aria-label="The Dark hero chat, with Create pull request in its header."
       className="border border-border bg-background text-foreground"
     >
       <div className="flex size-full flex-col">
-        <ChatHeader title={split.title} crumb={false} />
+        <ChatHeader title={dark.title} crumb={false} />
         <div className="flex flex-col gap-3 px-3 py-3 text-xs leading-normal">
           <p>
-            The copy sits on the left now, with the chart beside it. On phones
-            the chart drops under the buttons.
+            The hero sits on a dark background now, with a soft accent glow
+            behind the chart.
           </p>
-          <UserBubble>Make the chart a little taller, then it’s good.</UserBubble>
-          <p>Done. The chart is 40px taller on desktop.</p>
+          <UserBubble>
+            Make the glow a little softer, then it’s good.
+          </UserBubble>
+          <p>Done. The glow is half as strong.</p>
         </div>
       </div>
     </Fit>
@@ -212,7 +117,7 @@ export function ToolRow({
   )
 }
 
-/* ---------- Plan it, Sketch it: a prompt and what it made ---------- */
+/* ---------- Plan it, Sketch it, Build it ---------- */
 
 /** A prompt, as it sits in a chat: the user's bubble, then the files the
  * agent read from your code before it answered. */
@@ -225,9 +130,7 @@ function Prompt({
 }) {
   return (
     <div className="absolute inset-x-3 bottom-3 flex flex-col gap-1.5">
-      <span className="self-end rounded-lg bg-muted px-2.5 py-1.5 text-xs">
-        {children}
-      </span>
+      <UserBubble className="ml-0 px-2.5 py-1.5 text-xs">{children}</UserBubble>
       {reads.map((file) => (
         <ToolRow key={file} icon={<FileTextIcon />} verb="Read" detail={file} />
       ))}
@@ -235,58 +138,94 @@ function Prompt({
   )
 }
 
-/** Sketch it: the live page beside a mockup a chat drew of a darker take. */
+const gradient = versions[0]
+
+/** Sketch it: two mockups a chat drew from the app’s own code, side by side
+ * to compare before either is built. */
 export function SketchExcerpt() {
   return (
-    <Card label="The live Split layout page beside a mockup an agent sketched of a dark take from the app’s own code, with the prompt that asked for it.">
-      <Frame
-        label="Home"
-        workspace={split.title}
-        style={{ left: 16, top: 46, width: 138 }}
-      >
-        <Northwind version={split.version} />
-      </Frame>
+    <Card label="Two mockups an agent sketched from the app’s own code, a dark hero and a gradient headline, side by side to compare, with the prompt that asked for them.">
       <Frame
         label="Take A · Dark hero"
         selected
-        style={{ left: 166, top: 46, width: 138 }}
+        style={{ left: 16, top: 46, width: 138 }}
       >
         <Northwind version={dark.version} />
       </Frame>
+      <Frame
+        label="Take B · Gradient"
+        style={{ left: 166, top: 46, width: 138 }}
+      >
+        <Northwind version={gradient.version} />
+      </Frame>
       <Prompt reads={["app/page.tsx", "components/hero.tsx"]}>
-        Sketch a dark take on the hero.
+        Sketch two takes on the hero.
       </Prompt>
     </Card>
   )
 }
 
+/** Build it: the picked take built and running in a frame of its own, its
+ * page bar under it, the other versions’ frames on either side. */
+export function BuildExcerpt() {
+  return (
+    <Card label="The dark hero built and running live in its own frame, with its page bar, between the other versions’ frames.">
+      {/* The neighbours, cut off at the card’s edges. */}
+      <Frame label="Home" style={{ left: -230, top: 46, width: 256 }}>
+        <Northwind version={gradient.version} />
+      </Frame>
+      <Frame label="Home" style={{ left: 302, top: 46, width: 256 }}>
+        <Northwind version={split.version} />
+      </Frame>
+      <Frame
+        label="Home"
+        workspace={dark.title}
+        working
+        selected
+        style={{ left: 32, top: 46, width: 256 }}
+      >
+        <Northwind version={dark.version} />
+      </Frame>
+      <FrameBar style={{ left: 32, top: 210, width: 256 }} />
+    </Card>
+  )
+}
+
 const plan = [
-  ["Goals", ["Say what Northwind does in one line", "Show the live chart up top"]],
-  ["Takes to try", ["A dark hero"]],
+  [
+    "Goals",
+    [
+      "Say what Northwind does in one line",
+      "Put the live chart up top",
+      "Keep the trial button first",
+    ],
+  ],
+  ["Takes to try", ["A dark hero with a soft glow", "A gradient headline"]],
 ] as const
 
-/** Write it down: a plan document on the canvas, with the prompt. */
+/** Plan it: a plan document open on the canvas, the page it plans beside it. */
 export function DocExcerpt() {
   return (
-    <Card label="A plan an agent wrote as a document on the canvas from the app’s code, with the prompt that asked for it.">
-      <div className="absolute" style={{ left: 16, top: 46, width: 200 }}>
-        <div className="absolute bottom-full left-0 mb-1.5 flex items-center gap-1.5 text-xs leading-none whitespace-nowrap text-muted-foreground">
-          <span className="font-medium text-foreground/70">New hero plan</span>
-          <span className="flex items-center gap-1">
-            <WorkspaceGlyph className="size-2.5" />
-            {split.title}
-          </span>
+    <Card label="A plan an agent wrote as a document on the canvas, beside the page it plans.">
+      <div className="absolute" style={{ left: 16, top: 46, width: 212 }}>
+        <div className="absolute bottom-full left-0 mb-1.5 text-xs leading-none font-medium whitespace-nowrap text-foreground/70">
+          New hero plan
         </div>
-        <div className="flex h-[116px] flex-col gap-1.5 overflow-hidden border border-border bg-background p-3">
-          <span className="font-heading text-[13px] leading-tight tracking-[-0.02em]">
+        <div className="flex h-[194px] flex-col gap-2.5 overflow-hidden border border-border bg-background px-3.5 py-3">
+          <span className="font-heading text-[15px] leading-tight tracking-[-0.02em]">
             New hero plan
           </span>
           {plan.map(([h, items]) => (
-            <div key={h} className="flex flex-col gap-0.5">
-              <span className="font-heading text-[10px] tracking-[-0.02em]">{h}</span>
+            <div key={h} className="flex flex-col gap-1">
+              <span className="font-heading text-[11px] tracking-[-0.02em]">
+                {h}
+              </span>
               {items.map((i) => (
-                <span key={i} className="flex items-center gap-1 text-[8px] text-muted-foreground">
-                  <span className="size-0.5 shrink-0 rounded-full bg-current" />
+                <span
+                  key={i}
+                  className="flex items-center gap-1.5 text-[10px] whitespace-nowrap text-muted-foreground"
+                >
+                  <span className="size-[3px] shrink-0 rounded-full bg-current" />
                   {i}
                 </span>
               ))}
@@ -294,10 +233,9 @@ export function DocExcerpt() {
           ))}
         </div>
       </div>
-      <Prompt reads={["components/hero.tsx", "app/globals.css"]}>
-        Write a plan for a new hero.
-      </Prompt>
+      <Frame label="Home" style={{ left: 240, top: 46, width: 136 }}>
+        <Northwind />
+      </Frame>
     </Card>
   )
 }
-
