@@ -107,14 +107,14 @@ const WAVE = 14000
 const FADE = 900
 
 // Rows on the canvas floor, far to near.
-const ROWS = 4
+const ROWS = 6
 // How far above the headline the veil starts thickening, in CSS px, and how
 // far down the floor the far fade reaches, so a band of rows between the two
 // shows with no grain at all.
 const NEAR = 200
 const FAR = 0.58
-// How far down the page the far fade stays solid, in CSS px.
-const TOP = 16
+// The nav's height in CSS px: --hc-nav in the stylesheet.
+const NAV = 61
 
 const PAGE = `
   <div class="hc-page">
@@ -190,9 +190,10 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         solid - NEAR,
         solid,
         // The far side of the floor dissolves into the dark behind the nav
-        // through the same grain, solid across the top of the nav so its
-        // links stay readable.
-        [floor.top - s + TOP, floor.top - s + floor.height * FAR],
+        // through the same grain, solid only at the very top of the page.
+        [floor.top - s, floor.top - s + floor.height * FAR],
+        // Denser right behind the nav, so its links read over the copies.
+        [floor.top - s + NAV, 0.84],
       ]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()

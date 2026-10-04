@@ -6,7 +6,9 @@ import { createFluid } from "./fluid"
  * solid from its bottom down, so text below that line stays readable on top
  * of a busy layer and the layer above it dissolves into grain. With a far
  * span it also thickens up the canvas to solid at the far span's top, so the
- * layer fades into the background at both ends the same way.
+ * layer fades into the background at both ends the same way. A `band` holds
+ * the veil at a set density from the top of the canvas down to a line, for a
+ * bar that lies over it there.
  *
  * The threshold is interleaved gradient noise, which scatters the grain like
  * blue noise instead of Bayer's checkerboard, over an even ramp. The veil
@@ -18,9 +20,13 @@ import { createFluid } from "./fluid"
  */
 export function createDitherVeil(
   canvas: HTMLCanvasElement,
-  span: () => [top: number, solid: number, far?: [solid: number, clear: number]]
+  span: () => [
+    top: number,
+    solid: number,
+    far?: [solid: number, clear: number],
+    band?: [bottom: number, density: number],
+  ]
 ) {
-  // Kept in memory, not on the GPU: every frame writes pixels straight in.
   const ctx = canvas.getContext("2d")!
   const host = canvas.parentElement!
 
@@ -137,7 +143,7 @@ export function createDitherVeil(
     shown = new Float32Array(gc * gr)
     open = new Uint8Array(gc * gr)
     wasOpen = new Uint8Array(gc * gr)
-    const [top, solid, far] = span()
+    const [top, solid, far, band] = span()
     const fall = Math.max(solid - top, 1)
     dist = new Float32Array(cols * rows)
     base = new Float32Array(cols * rows)
@@ -157,6 +163,12 @@ export function createDitherVeil(
       if (far && d > 0) {
         const u = (far[1] - y) / Math.max(far[1] - far[0], 1)
         k = Math.max(k, u > 0 ? u ** EASE : u)
+      }
+      // The band across the top is at least its own density all the way
+      // down, then lets go over a short distance below it.
+      if (band && d > 0) {
+        const e = Math.min(Math.max(1 - (y - band[0]) / 28, 0), 1)
+        k = Math.max(k, band[1] * e * e * (3 - 2 * e))
       }
       for (let c = 0; c < cols; c++, i++) {
         dist[i] = d
