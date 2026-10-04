@@ -360,17 +360,32 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       rowsEl.appendChild(track)
     }
 
-    // On load the copies in view fade in one at a time, in no particular
-    // order, all across the floor; the rest are simply there.
+    // On load the copies in view fade in one at a time, all across the
+    // floor; the rest are simply there.
     let shown = 0
     if (!reduce) {
       const s = rowsEl.parentElement!.getBoundingClientRect()
-      const seen = shuffled(
-        copies.filter((f) => {
-          const r = f.el.getBoundingClientRect()
-          return r.right > s.left && r.left < s.right
-        })
-      ).map((f) => ({ f }))
+      // Loosely from the middle of the floor outwards: each copy's turn is
+      // how far out it is, scaled by chance, so the first few are near the
+      // middle and the further out, the less the order means.
+      const cx = s.left + s.width / 2
+      const cy = s.top + s.height / 2
+      const placed = copies.flatMap((f) => {
+        const r = f.el.getBoundingClientRect()
+        if (r.right <= s.left || r.left >= s.right) return []
+        const far = Math.hypot(
+          r.left + r.width / 2 - cx,
+          r.top + r.height / 2 - cy
+        )
+        return [{ f, far }]
+      })
+      const reach = Math.max(...placed.map((c) => c.far), 1)
+      const seen = placed
+        .map(({ f, far }) => ({
+          f,
+          turn: (far / reach) * (0.35 + 1.3 * rand()),
+        }))
+        .sort((a, b) => a.turn - b.turn)
       const from = performance.now()
       seen.forEach(({ f }, n) => {
         // Each fades in as main and stays that way for a beat.
