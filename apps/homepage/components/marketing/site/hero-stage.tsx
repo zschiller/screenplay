@@ -14,40 +14,59 @@ const HEADLINES = [
 ]
 
 /** What an agent can do to a copy: its Workspace name, a class to add (or a
- * headline to type) and the diff it shows. `not` is an edit it can't combine
- * with. */
+ * headline to type) and the diff it shows. Two edits in the same `group`
+ * can't combine. */
 const EDITS: {
   ws: string
   cls?: string
   type?: true
   diff: [number, number]
-  not?: string
+  group?: string
 }[] = [
   { ws: "New headline", type: true, diff: [1, 1] },
-  { ws: "Tinted page", cls: "soft", diff: [3, 1] },
-  { ws: "Centered hero", cls: "center", diff: [6, 2], not: "split" },
-  { ws: "Split hero", cls: "split", diff: [9, 4], not: "center" },
+  { ws: "Tinted page", cls: "soft", diff: [3, 1], group: "theme" },
+  { ws: "Centered hero", cls: "center", diff: [6, 2], group: "layout" },
+  { ws: "Split hero", cls: "split", diff: [9, 4], group: "layout" },
   { ws: "Feature cards", cls: "cards", diff: [14, 3] },
   { ws: "Launch banner", cls: "banner", diff: [5, 0] },
   { ws: "Pill buttons", cls: "pill", diff: [2, 2] },
-  { ws: "Mono headline", cls: "mono", diff: [3, 1], not: "sans" },
+  { ws: "Mono headline", cls: "mono", diff: [3, 1], group: "face" },
   { ws: "Bigger headline", cls: "big", diff: [1, 1] },
   { ws: "Accent button", cls: "accent-btn", diff: [2, 0] },
-  { ws: "Sans headline", cls: "sans", diff: [4, 2], not: "mono" },
+  { ws: "Sans headline", cls: "sans", diff: [4, 2], group: "face" },
   { ws: "Blue accent", cls: "blue", diff: [1, 1] },
+  // The wild ones: a whole new look in one edit.
+  { ws: "Paper theme", cls: "paper", diff: [38, 12], group: "theme" },
+  { ws: "Hot pink", cls: "pink", diff: [27, 9], group: "theme" },
+  { ws: "Brutalist", cls: "acid", diff: [44, 17], group: "theme" },
+  { ws: "Sunset gradient", cls: "sunset", diff: [19, 6], group: "theme" },
+  { ws: "Terminal", cls: "term", diff: [52, 23], group: "theme" },
+  { ws: "Blueprint", cls: "blueprint", diff: [31, 8], group: "theme" },
+  { ws: "Tilted hero", cls: "tilt", diff: [7, 1] },
+  { ws: "Outline headline", cls: "outline", diff: [5, 2] },
 ]
 
 // What each copy has already done when the page loads, so the first frame
 // shows variety. Index 0 is main, untouched.
-const SEED = [[], [1, 4], [0], [2, 6], [7], [9, 6], [10, 1], [5, 8], [11, 3]]
+const SEED = [
+  [],
+  [12, 4],
+  [13, 6],
+  [17, 2],
+  [16],
+  [14, 3],
+  [15, 8],
+  [5, 11, 7],
+  [19, 18],
+]
 
 // Rows on the canvas floor, far to near.
-const ROWS = 8
+const ROWS = 9
 // How far above the headline the veil starts thickening, in CSS px, and how
 // far down the floor the far fade reaches, so a band of rows between the two
 // shows with no grain at all.
-const NEAR = 200
-const FAR = 0.58
+const NEAR = 220
+const FAR = 0.4
 
 const PAGE = `
   <div class="hc-page">
@@ -103,16 +122,18 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     const host = stage.current!
     const rowsEl = strip.current!
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
-    // Clear across the middle of the floor, solid halfway down the
-    // headline's first line, so that line sits on the densest grain.
+    // Clear across the middle of the floor, thickening down through the
+    // headline and solid at its last baseline, so the floor runs on under
+    // the headline and is gone by the text below it.
     const veil = createDitherVeil(canvas.current!, () => {
       const s = host.getBoundingClientRect().top
       const head = host.querySelector<HTMLElement>("[data-veil]")!
       const size = parseFloat(getComputedStyle(head).fontSize)
       const floor = rowsEl.parentElement!.getBoundingClientRect()
-      const solid = head.getBoundingClientRect().top - s + size * 0.6
+      const box = head.getBoundingClientRect()
+      const solid = box.bottom - s - size * 0.2
       return [
-        solid - NEAR,
+        box.top - s - NEAR,
         solid,
         // The far side of the floor dissolves into the dark behind the nav
         // through the same grain, solid only at the very top of the page.
@@ -177,7 +198,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           track.appendChild(el)
           copies.push(f)
           // The rows just behind the headline, which the veil leaves clear.
-          if (row >= ROWS - 4 && row < ROWS - 1) near.push(f)
+          if (row >= ROWS - 5 && row < ROWS - 2) near.push(f)
         }
       }
       rowsEl.appendChild(track)
@@ -235,11 +256,9 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           }
         }
       } else {
-        const blocked = new Set(
-          f.done.flatMap((i) => [EDITS[i]!.cls, EDITS[i]!.not])
-        )
+        const taken = new Set(f.done.map((i) => EDITS[i]!.group))
         const pool = EDITS.map((_, i) => i).filter(
-          (i) => !f.done.includes(i) && !blocked.has(EDITS[i]!.cls)
+          (i) => !f.done.includes(i) && !taken.has(EDITS[i]!.group)
         )
         const i = pool[Math.floor(Math.random() * pool.length)]!
         // The agent thinks for a moment, then the change lands.
