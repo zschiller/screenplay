@@ -55,16 +55,12 @@
   animation-play-state: running;
 }
 /* The copies sit back a little, so the real headline is the brightest type;
-   the one an agent is changing comes forward while it works. The dimming is
-   on the label and the frame, never the copy itself: opacity below 1 there
-   would flatten its 3D and lay the standing label back down on the floor. */
-.hc-head,
-.hc-box {
+   the one an agent is changing comes forward while it works. */
+.hc-copy {
   opacity: 0.9;
   transition: opacity 0.5s;
 }
-.hc-copy.working .hc-head,
-.hc-copy.working .hc-box {
+.hc-copy.working {
   opacity: 1;
 }
 @keyframes hc-pan {
@@ -85,19 +81,8 @@
     width: 260px;
   }
 }
-/* The rows keep their copies in 3D so each label can stand up off the floor
-   and face the viewer, instead of lying flat and foreshortened. */
-.hc-rows,
-.hc-track,
-.hc-copy {
-  transform-style: preserve-3d;
-}
+/* The label lies on the floor with its frame. */
 .hc-head {
-  /* Its own layer all the time, so nothing about how it's drawn changes when
-     the working glyph starts to twinkle. */
-  will-change: transform;
-  transform: rotateX(calc(-1 * var(--hc-tilt)));
-  transform-origin: 50% 100%;
   position: absolute;
   bottom: 100%;
   left: 0;
