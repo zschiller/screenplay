@@ -77,6 +77,12 @@
   opacity: 0;
   transform: translateZ(-40px);
 }
+/* The floor swells under the pointer (hero-stage.tsx): each copy near it
+   rises a few pixels and tips a degree or so off the bump. */
+.hc-copy:not(.unseen) {
+  transform: translateZ(calc(var(--hc-near, 0) * 6px))
+    rotateX(calc(var(--hc-rx, 0) * 1deg)) rotateY(calc(var(--hc-ry, 0) * 1deg));
+}
 @keyframes hc-pan {
   to {
     transform: translateX(calc(-50% - 14px));

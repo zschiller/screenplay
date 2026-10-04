@@ -113,6 +113,10 @@ const ROWS = 6
 // shows with no grain at all.
 const NEAR = 200
 const FAR = 0.58
+// How far the pointer's swell in the floor reaches, in CSS px, and how many
+// degrees a copy tips for each px it is from the pointer.
+const REACH = 360
+const TIP = 0.014
 // The nav's height in CSS px: --hc-nav in the stylesheet.
 const NAV = 61
 
@@ -150,10 +154,14 @@ type Copy = {
   look: string
   /** When it has finished fading in on load; untouched until then. */
   ready: number
+  /** When it starts to fade in on load. */
+  shows: number
   /** Its row, far to near, and its place along it. */
   row: number
   at: number
   busy: boolean
+  /** How close the pointer is, 0 to 1. */
+  near: number
 }
 
 /**
@@ -167,7 +175,8 @@ type Copy = {
  *
  * The copies are built on the client only; they're decoration, hidden from
  * assistive tech. With reduced motion they hold still. Hovering, or touching
- * on a phone, clears a hole in the veil to peek at them.
+ * on a phone, clears a hole in the veil to peek at them, and under a mouse
+ * the floor swells a little, lifting and tipping the copies around it.
  */
 export function HeroStage({ children }: { children: React.ReactNode }) {
   const stage = useRef<HTMLDivElement>(null)
@@ -348,8 +357,10 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           look: lookOf([], HEAD),
           busy: false,
           ready: 0,
+          shows: 0,
           row,
           at,
+          near: 0,
         }
         // Its own slight cast: see .hc-page in the stylesheet.
         el.style.setProperty("--hc-hue", ((rand() * 2 - 1) * 22).toFixed(1))
@@ -414,6 +425,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       seen.forEach(({ f }, n) => {
         // Each fades in as main and stays that way for a beat.
         f.ready = from + at + FADE + 500
+        f.shows = from + at
         f.el.style.transitionDuration = `${FADE}ms`
         f.el.style.transitionDelay = `${Math.round(at)}ms`
         at += gaps[n]! * beat
@@ -615,6 +627,53 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
 
     // Hovering, or a finger on a touch screen, clears a hole in the veil to
     // peek at the copies underneath.
+    // The floor swells under the pointer: the copies around it rise a few
+    // pixels and tip a degree or so off the bump. Worked out every frame
+    // while the pointer is over the hero, since the rows pan under a
+    // pointer that's holding still.
+    let pointer: { x: number; y: number } | null = null
+    let swelling = 0
+    const swell = () => {
+      swelling = 0
+      const p = pointer
+      const now = performance.now()
+      for (const f of copies) {
+        if (!p) {
+          if (f.near) {
+            f.near = 0
+            f.el.style.removeProperty("--hc-near")
+            f.el.style.removeProperty("--hc-rx")
+            f.el.style.removeProperty("--hc-ry")
+          }
+          continue
+        }
+        const r = f.el.getBoundingClientRect()
+        // A copy answers as soon as it has started to show, not once the
+        // fade-in on load is over; the wait before its fade would otherwise
+        // hold this up too.
+        if (r.right < 0 || r.left > innerWidth || now < f.shows) continue
+        if (f.el.style.transitionDelay) f.el.style.transitionDelay = ""
+        const dx = p.x - (r.left + r.width / 2)
+        const dy = p.y - (r.top + r.height / 2)
+        const t = Math.max(0, 1 - Math.hypot(dx, dy) / REACH)
+        const near = t * t * (3 - 2 * t)
+        if (!near && !f.near) continue
+        f.near = near
+        f.el.style.setProperty("--hc-near", near.toFixed(3))
+        // Tipped away from the pointer, most partway out and not at all
+        // right under it. The floor is tilted back, so a step up the screen
+        // is a longer one along it.
+        f.el.style.setProperty("--hc-ry", (-dx * near * TIP).toFixed(2))
+        f.el.style.setProperty("--hc-rx", (dy * near * TIP * 1.4).toFixed(2))
+      }
+      if (p) swelling = requestAnimationFrame(swell)
+    }
+    const point = (p: { x: number; y: number } | null) => {
+      if (reduce) return
+      pointer = p
+      if (!swelling) swelling = requestAnimationFrame(swell)
+    }
+
     const peekAt = (p: { clientX: number; clientY: number }) => {
       const r = host.getBoundingClientRect()
       veil.peekAt({ x: p.clientX - r.left, y: p.clientY - r.top })
@@ -631,10 +690,13 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         e.clientY >= r.top &&
         e.clientY < r.bottom
       const header = (e.target as Element | null)?.closest?.("header")
-      if (inside && !header?.hasAttribute("data-scrolled")) peekAt(e)
-      else onLeave()
+      if (inside && !header?.hasAttribute("data-scrolled")) {
+        peekAt(e)
+        point({ x: e.clientX, y: e.clientY })
+      } else onLeave()
     }
     const onLeave = () => {
+      point(null)
       veil.peekAt(null)
       if (reduce) veil.drawOnce()
     }
@@ -670,6 +732,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     return () => {
       pause()
       cancelAnimationFrame(pending)
+      cancelAnimationFrame(swelling)
       cancelAnimationFrame(shown)
       clearTimeout(shown)
       resize.disconnect()
