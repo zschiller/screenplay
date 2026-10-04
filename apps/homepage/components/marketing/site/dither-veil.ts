@@ -10,8 +10,8 @@ import { createFluid } from "./fluid"
  *
  * The threshold is interleaved gradient noise, which scatters the grain like
  * blue noise instead of Bayer's checkerboard, over an even ramp. The veil
- * holds still until the pointer stirs it. Each grain is solid or a soft wash, so what's underneath
- * fades under a smooth gradient and the dots only add texture.
+ * holds still until the pointer stirs it. Each grain is solid or clear, with
+ * nothing in between, so what's underneath is never greyed over.
  *
  * The canvas must fill its parent (`width/height: 100%`): a positioned canvas
  * otherwise keeps its bitmap size and draws at twice the size on 2x screens.
@@ -276,7 +276,7 @@ export function createDitherVeil(
         }
         const kk = k < 0 ? 0 : k > 1 ? 1 : k
         const v = kk * kk * (3 - 2 * kk)
-        data[i * 4 + 3] = v > ign(c, r) ? 255 : v * 150
+        data[i * 4 + 3] = v > ign(c, r) ? 255 : 0
       }
     }
   }
@@ -293,7 +293,7 @@ export function createDitherVeil(
       const k = base[band[b]!]!
       const kk = k < 0 ? 0 : k > 1 ? 1 : k
       const v = kk * kk * (3 - 2 * kk)
-      data[band[b]! * 4 + 3] = v > ign(c, r) ? 255 : v * 150
+      data[band[b]! * 4 + 3] = v > ign(c, r) ? 255 : 0
     }
   }
 

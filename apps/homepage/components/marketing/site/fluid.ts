@@ -209,9 +209,14 @@ export function createFluid(w: number, h: number) {
             lit[3] = Math.max(lit[3], r)
           }
           const i = r * w + c
-          const push = Math.exp(-(d * d) / (radius * radius * 0.25))
-          vx[i]! += dx * push
-          vy[i]! += dy * push
+          // The solver leaves the cells along the edge alone, so a push
+          // there would never die down and would keep stirring its
+          // neighbours for good. They take dye only.
+          if (c > 0 && r > 0 && c < w - 1 && r < h - 1) {
+            const push = Math.exp(-(d * d) / (radius * radius * 0.25))
+            vx[i]! += dx * push
+            vy[i]! += dy * push
+          }
           const e = Math.min((radius - d) / (radius * 0.65), 1)
           dye[i] = Math.max(
             dye[i]!,
@@ -262,6 +267,32 @@ export function createFluid(w: number, h: number) {
             b[3] = r
           }
         }
+      }
+      // The cells along the edge only ever hold dye, which fades in place.
+      const fade = (c: number, r: number) => {
+        const i = r * w + c
+        if (!dye[i]) return
+        dye[i]! *= 0.955
+        if (dye[i]! < 0.02) {
+          dye[i] = 0
+          return
+        }
+        grow(c, r)
+        if (!b) b = [c, r, c, r]
+        else {
+          if (c < b[0]) b[0] = c
+          if (r < b[1]) b[1] = r
+          if (c > b[2]) b[2] = c
+          if (r > b[3]) b[3] = r
+        }
+      }
+      for (let c = 0; c < w; c++) {
+        fade(c, 0)
+        fade(c, h - 1)
+      }
+      for (let r = 1; r < h - 1; r++) {
+        fade(0, r)
+        fade(w - 1, r)
       }
       lit = b
       if (!hot) rest()
