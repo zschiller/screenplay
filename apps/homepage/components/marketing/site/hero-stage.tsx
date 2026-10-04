@@ -58,6 +58,8 @@ const EDITS: {
 const RUN = 12
 // Edits a copy holds before an agent swaps one out instead of adding one.
 const MAX = 4
+// Agents that keep changing copies for as long as the hero is on screen.
+const AGENTS = 6
 // Agents in the opening crowd, which gives every copy its first edit.
 const OPENERS = 12
 
@@ -399,21 +401,43 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
           const r = f.el.getBoundingClientRect()
           return !f.busy && r.left > s.left + 20 && r.right < s.right - 20
         }
-        // Mostly the rows just behind the headline, the nearest clear ones.
+        // Half the time the rows just behind the headline, the clearest ones.
         const clear = near.filter(onScreen)
         const pool =
-          clear.length && Math.random() < 0.75 ? clear : copies.filter(onScreen)
+          clear.length && Math.random() < 0.5 ? clear : copies.filter(onScreen)
         const f = pool[Math.floor(Math.random() * pool.length)]
         if (f) await edit(f)
         await wait(500 + Math.random() * 700)
       }
     }
-    // The next change to a copy that keeps to the rules above: one more
-    // edit, or, when it's full or nothing more fits, one taken back out. A
-    // copy never goes all the way back to main.
+    // The next change to a copy that keeps to the rules above. It never
+    // settles: a full copy trades one of its edits for a new one, and now
+    // and then so does one with room to spare, or its headline is rewritten
+    // again. A copy never goes all the way back to main.
     const next = (f: Copy): [done: number[], head: string] | null => {
-      if (f.done.length < MAX)
-        for (const i of shuffled(EDITS.map((_, i) => i))) {
+      const all = EDITS.map((_, i) => i)
+      const full = f.done.length >= MAX
+      const roll = Math.random()
+      if (!full && roll < 0.15 && f.head !== HEAD) {
+        const head = shuffled(HEADLINES).find(
+          (h) => h !== f.head && fits(f, f.done, h)
+        )
+        if (head) return [f.done, head]
+      }
+      if (full || (f.done.length && roll < 0.5))
+        for (const out of shuffled(f.done)) {
+          const kept = f.done.filter((j) => j !== out)
+          const head = EDITS[out]!.type ? HEAD : f.head
+          for (const i of shuffled(all)) {
+            if (i === out || !can(kept, i)) continue
+            const done = [...kept, i]
+            const heads = EDITS[i]!.type ? shuffled(HEADLINES) : [head]
+            const h = heads.find((h) => fits(f, done, h))
+            if (h) return [done, h]
+          }
+        }
+      if (!full)
+        for (const i of shuffled(all)) {
           if (!can(f.done, i)) continue
           const done = [...f.done, i]
           const heads = EDITS[i]!.type ? shuffled(HEADLINES) : [f.head]
@@ -464,7 +488,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       host.dataset.playing = ""
       veil.start()
       for (let k = 0; k < OPENERS; k++) void opener(400 + k * 70)
-      for (let k = 0; k < 3; k++) void agent(k * 450)
+      for (let k = 0; k < AGENTS; k++) void agent(k * 450)
     }
     const pause = () => {
       alive = false
