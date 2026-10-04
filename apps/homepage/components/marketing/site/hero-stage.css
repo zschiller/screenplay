@@ -58,14 +58,24 @@
    the one an agent is changing comes forward while it works. */
 .hc-copy {
   opacity: 0.9;
-  transition: opacity 0.5s;
+  transition:
+    opacity 0.5s,
+    transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .hc-copy.working {
   opacity: 1;
 }
-/* Until the fade-in on load reaches it (hero-stage.tsx). */
+/* Until the fade-in on load reaches it (hero-stage.tsx), a copy hangs
+   above the floor, unseen; then it shows as it settles down onto it. The
+   rows keep their copies in 3D so that lift is off the floor, not up the
+   screen. */
+.hc-rows,
+.hc-track {
+  transform-style: preserve-3d;
+}
 .hc-copy.unseen {
   opacity: 0;
+  transform: translateZ(90px);
 }
 @keyframes hc-pan {
   to {
