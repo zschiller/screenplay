@@ -383,7 +383,7 @@ function Stage({
         No capture for this state
       </div>
     )
-  return <Shots list={[{ ...state.shots, cap: caption }]} />
+  return <Shots list={[{ ...state.shots, cap: caption, bare: true }]} />
 }
 
 /** One dimension: a segmented control, or a field for a live free value. */

@@ -5,8 +5,8 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { ThemeContext } from "./theme.tsx"
 
-/** A capture: `p` the light (or only) image, `dk` an optional dark one. */
-export type Img = { p: string; cap: string; dk?: string }
+/** A capture: `p` the light (or only) image, `dk` an optional dark one; `bare` keeps `cap` as alt text only. */
+export type Img = { p: string; cap: string; dk?: string; bare?: boolean }
 
 const LightboxContext = React.createContext<(src: string) => void>(() => {})
 
@@ -82,9 +82,11 @@ export function Shots({
               />
             )}
           </button>
-          <figcaption className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
-            {i.cap}
-          </figcaption>
+          {!i.bare && (
+            <figcaption className="font-mono text-xs tracking-wider text-muted-foreground uppercase">
+              {i.cap}
+            </figcaption>
+          )}
         </figure>
       ))}
     </div>
