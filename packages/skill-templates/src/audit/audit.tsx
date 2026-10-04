@@ -1,7 +1,9 @@
 // The design-audit findings page. Phone first, one column: header, filter
 // tabs (All / Calls / one per depth), then one card per finding with its
-// captures and its pick row. A bar pinned to the bottom carries the tally, a
-// note and Copy.
+// captures and its pick: Fix or Skip, or a call's options drawn like the
+// chat's question card. A bar pinned to the bottom carries the tally, a note
+// and Copy (Send to chat on a canvas, where a call the chat asks about with a
+// question card answers that card).
 
 import * as React from "react"
 import { flushSync } from "react-dom"
@@ -20,7 +22,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible"
-import { CaretRightIcon, CheckIcon } from "@workspace/ui/components/icons"
+import { CaretRightIcon } from "@workspace/ui/components/icons"
 import { Textarea } from "@workspace/ui/components/textarea"
 import {
   ToggleGroup,
@@ -28,6 +30,14 @@ import {
 } from "@workspace/ui/components/toggle-group"
 import { cn } from "@workspace/ui/lib/utils"
 
+import {
+  answer,
+  askedId,
+  cardIndex,
+  useCardQuestion,
+  type CardQuestion,
+} from "../shared/chat.ts"
+import { AskedBadge, Choices, useEdgeFade } from "../shared/choices.tsx"
 import { CopyBar, Html, Label, load, store } from "../shared/page.tsx"
 import { Lightbox, Shots, type Img } from "../shared/shots.tsx"
 import { ThemeButton, ThemeContext, useTheme } from "../shared/theme.tsx"
@@ -93,6 +103,39 @@ export function Audit({
   useSharedState("filter", filter, setFilter)
 
   const calls = findings.filter((f) => f.call)
+  // The call the chat's open question card asks about, on a canvas
+  const card = useCardQuestion()
+  const asked = askedId(
+    card,
+    Object.fromEntries(
+      calls.map((f) => [f.id, f.call!.options.map((o) => o.label)])
+    )
+  )
+  const askedCall = asked ? findings.find((f) => f.id === asked) : undefined
+  // An answer on the card (from here, the chat or anyone) is that call's pick
+  const answeredOption =
+    card && askedCall && card.answer?.index != null
+      ? askedCall.call!.options.find(
+          (_, i, all) =>
+            cardIndex(
+              card,
+              all.map((o) => o.label),
+              i
+            ) === card.answer!.index
+        )?.id
+      : undefined
+  React.useEffect(() => {
+    if (!asked || !answeredOption) return
+    setState((s) =>
+      s.picks[asked] === answeredOption
+        ? s
+        : { ...s, picks: { ...s.picks, [asked]: answeredOption } }
+    )
+  }, [asked, answeredOption])
+  // A new question opens the page at its call
+  React.useEffect(() => {
+    if (asked) document.getElementById(asked.toLowerCase())?.scrollIntoView()
+  }, [asked, card?.id])
   const recOf = (f: Finding) => f.call?.options.find((o) => o.rec)
   const pick = (id: string, v: string) =>
     setState((s) => {
@@ -101,6 +144,17 @@ export function Audit({
       else picks[id] = v
       return { ...s, picks }
     })
+  // A call's option, chosen on the page: answers the chat's card too when
+  // it's the call the card asks about and the option is one of the card's
+  const choose = (f: Finding, v: string) => {
+    if (f.id === asked && card && !card.answer) {
+      const labels = f.call!.options.map((o) => o.label)
+      const i = f.call!.options.findIndex((o) => o.id === v)
+      const at = i < 0 ? -1 : cardIndex(card, labels, i)
+      if (at >= 0) answer(at)
+    }
+    setState((s) => ({ ...s, picks: { ...s.picks, [f.id]: v } }))
+  }
   const label = (f: Finding, v: string) => {
     if (v === "fix") return "Fix"
     if (v === "skip") return "Skip"
@@ -165,6 +219,7 @@ export function Audit({
       `${d.name} · ${findings.filter((f) => f.id[0] === d.key).length}`,
     ]),
   ]
+  const fade = useEdgeFade<HTMLDivElement>()
   const shows = (f: Finding) =>
     filter === "all" || (filter === "calls" ? !!f.call : f.id[0] === filter)
 
@@ -200,24 +255,32 @@ export function Audit({
           </header>
           <nav
             aria-label="Filter"
-            className="sticky top-[env(safe-area-inset-top,0px)] z-[6] -mx-4 [scrollbar-width:none] overflow-x-auto border-b bg-background px-4 py-2 md:-mx-6 md:px-6 [&::-webkit-scrollbar]:hidden"
+            className="sticky top-[env(safe-area-inset-top,0px)] z-[6] -mx-4 border-b bg-background px-4 py-2 md:-mx-6 md:px-6"
           >
-            <ToggleGroup
-              type="single"
-              value={filter}
-              onValueChange={(v) => {
-                if (!v) return
-                setFilter(v)
-                scrollTo({ top: 0 })
-              }}
-              className="border-0 p-0"
+            {/* Scrolls sideways on a phone, fading where it hides tabs */}
+            <div
+              ref={fade.ref}
+              onScroll={fade.onScroll}
+              style={fade.style}
+              className="[scrollbar-width:none] overflow-x-auto [&::-webkit-scrollbar]:hidden"
             >
-              {tabs.map(([k, l]) => (
-                <ToggleGroupItem key={k} value={k} className="h-8 px-2.5">
-                  {l}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+              <ToggleGroup
+                type="single"
+                value={filter}
+                onValueChange={(v) => {
+                  if (!v) return
+                  setFilter(v)
+                  scrollTo({ top: 0 })
+                }}
+                className="border-0 p-0"
+              >
+                {tabs.map(([k, l]) => (
+                  <ToggleGroupItem key={k} value={k} className="h-8 px-2.5">
+                    {l}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
           </nav>
           {notices.map((x, i) => (
             <Alert key={i} role="note" className="border-warning">
@@ -246,6 +309,8 @@ export function Audit({
                     hidden={!shows(f)}
                     picked={state.picks[f.id]}
                     pick={pick}
+                    choose={choose}
+                    asked={f.id === asked ? card! : undefined}
                     note={state.notes[f.id] || ""}
                     setNote={(v) =>
                       setState((s) => ({
@@ -272,6 +337,7 @@ export function Audit({
           outLabel="Picks to copy"
           text={text}
           maxWidth="912px"
+          send
         />
       </Lightbox>
     </ThemeContext.Provider>
@@ -283,6 +349,8 @@ function FindingCard({
   hidden,
   picked,
   pick,
+  choose,
+  asked,
   note,
   setNote,
 }: {
@@ -290,21 +358,27 @@ function FindingCard({
   hidden: boolean
   picked?: string
   pick: (id: string, v: string) => void
+  choose: (f: Finding, v: string) => void
+  /** The chat's open card, when it asks about this call. */
+  asked?: CardQuestion
   note: string
   setNote: (v: string) => void
 }) {
   const [noteOpen, setNoteOpen] = React.useState(!!note)
   const noteRef = React.useRef<HTMLTextAreaElement>(null)
-  const choices: [string, string, boolean][] = [
-    ...(f.call
-      ? f.call.options.map((o): [string, string, boolean] => [
-          o.id,
-          `${o.id} · ${o.label}`,
-          !!o.rec,
-        ])
-      : [["fix", "Fix", false] as [string, string, boolean]]),
-    ["skip", "Skip", false],
-  ]
+  const noteButton = (className?: string) => (
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn("text-muted-foreground", className)}
+      onClick={() => {
+        flushSync(() => setNoteOpen(!noteOpen))
+        if (!noteOpen) noteRef.current?.focus()
+      }}
+    >
+      Note
+    </Button>
+  )
   return (
     <article
       id={f.id.toLowerCase()}
@@ -321,18 +395,31 @@ function FindingCard({
         <Badge variant="outline" className={SEV_TEXT[f.sev]}>
           {SEV[f.sev]}
         </Badge>
-        {f.call && (
-          <Badge variant="outline" className="text-info">
-            Call
-          </Badge>
+        {asked ? (
+          <AskedBadge answered={!!asked.answer} />
+        ) : (
+          f.call && (
+            <Badge variant="outline" className="text-info">
+              Call
+            </Badge>
+          )
         )}
         {f.pend && (
           <Badge variant="outline" className="text-warning">
             {f.pend.tag}
           </Badge>
         )}
-        {f.still && <Badge variant="outline">{f.still}</Badge>}
-        {f.related && <Badge variant="outline">Related {f.related}</Badge>}
+        {/* Long labels wrap inside their outline on a phone */}
+        {f.still && (
+          <Badge variant="outline" className="h-auto whitespace-normal">
+            {f.still}
+          </Badge>
+        )}
+        {f.related && (
+          <Badge variant="outline" className="h-auto whitespace-normal">
+            Related {f.related}
+          </Badge>
+        )}
       </div>
       <Html as="p" html={f.wrong} className="max-w-[72ch] text-sm" />
       {f.evidence?.length ? (
@@ -369,45 +456,47 @@ function FindingCard({
           <Html as="span" html={f.call.q} />
         </div>
       )}
+      {/* At most two across, so a capture reads without tapping */}
       <Shots
         list={f.shots}
-        className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-2"
+        className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,360px),1fr))] gap-2"
       />
-      <div
-        role="group"
-        aria-label={`Pick for ${f.id}`}
-        className="flex flex-wrap gap-2"
-      >
-        {choices.map(([v, l, rec]) => {
-          const on = picked === v
-          return (
-            <Button
-              key={v}
-              type="button"
-              size="lg"
-              variant={on ? "default" : "outline"}
-              aria-pressed={on}
-              onClick={() => pick(f.id, v)}
-            >
-              {on && <CheckIcon data-icon="inline-start" />}
-              {l}
-              {rec && <span className={on ? "" : "text-info"}>· rec</span>}
-            </Button>
-          )
-        })}
-        <Button
-          type="button"
-          size="lg"
-          variant="ghost"
-          className="text-muted-foreground"
-          onClick={() => {
-            flushSync(() => setNoteOpen(!noteOpen))
-            if (!noteOpen) noteRef.current?.focus()
-          }}
-        >
-          Note
-        </Button>
-      </div>
+      {f.call ? (
+        <div className="flex flex-col items-start gap-1">
+          <Choices
+            name={`pick-${f.id}`}
+            value={picked}
+            onChange={(v) => choose(f, v)}
+            asked={asked ? (asked.answer ? "answered" : "open") : undefined}
+            choices={[
+              ...f.call.options.map((o) => ({
+                value: o.id,
+                label: `${o.id} · ${o.label}`,
+                rec: o.rec,
+              })),
+              { value: "skip", label: "Skip", quiet: true },
+            ]}
+          />
+          {noteButton("-ml-2.5")}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <ToggleGroup
+            type="single"
+            aria-label={`Pick for ${f.id}`}
+            value={picked ?? ""}
+            onValueChange={(v) => pick(f.id, v || picked!)}
+          >
+            <ToggleGroupItem value="fix" className="px-3">
+              Fix
+            </ToggleGroupItem>
+            <ToggleGroupItem value="skip" className="px-3">
+              Skip
+            </ToggleGroupItem>
+          </ToggleGroup>
+          {noteButton()}
+        </div>
+      )}
       <Textarea
         ref={noteRef}
         hidden={!noteOpen}

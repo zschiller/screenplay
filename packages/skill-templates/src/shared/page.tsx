@@ -4,6 +4,8 @@ import { Button } from "@workspace/ui/components/button"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { draft, onCanvas } from "./chat.ts"
+
 /** Small mono section label; `accent` for the one that matters most. */
 export function Label({
   accent,
@@ -66,6 +68,8 @@ export function store(key: string, value: unknown) {
 /**
  * The bar pinned to the bottom: picks so far, a note, and Copy. When the
  * clipboard is blocked the text shows in a box, selected, to copy by hand.
+ * With `send`, on a canvas the main button is Send to chat instead, which
+ * puts the same text in the chat's composer for the person to send.
  */
 export function CopyBar({
   status,
@@ -78,6 +82,7 @@ export function CopyBar({
   outLabel,
   text,
   maxWidth,
+  send,
 }: {
   status: React.ReactNode
   note: string
@@ -90,7 +95,9 @@ export function CopyBar({
   outLabel: string
   text: () => string
   maxWidth: string
+  send?: boolean
 }) {
+  const sends = send && onCanvas()
   const [flash, setFlash] = React.useState<string | null>(null)
   const show = (label: string) => {
     setFlash(label)
@@ -110,6 +117,10 @@ export function CopyBar({
   }, [noteOpen])
   const copy = () => {
     const value = text()
+    if (sends) {
+      draft(value)
+      return
+    }
     const fallback = () => {
       setOut(value)
       if (fallbackLabel) show(fallbackLabel)
@@ -157,8 +168,10 @@ export function CopyBar({
           </Button>
           {/* Keeps its width while it says Copied: the labels share one grid cell */}
           <Button type="button" onClick={copy} className="inline-grid">
-            <span className="[grid-area:1/1]">{flash ?? copyLabel}</span>
-            {[copyLabel, fallbackLabel].map(
+            <span className="[grid-area:1/1]">
+              {sends ? "Send to chat" : (flash ?? copyLabel)}
+            </span>
+            {(sends ? [] : [copyLabel, fallbackLabel]).map(
               (l) =>
                 l && (
                   <span
