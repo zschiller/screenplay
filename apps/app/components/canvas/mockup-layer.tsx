@@ -124,6 +124,11 @@ interface MockupLayerProps {
   /** Start an "add a knob" request in the chat that made the mockup. */
   onAskForKnob?: () => void
   /**
+   * The page's `screenplay.draft(text)` (#1645): put `text` in the composer of
+   * the chat that made the mockup. Called only for a tap this viewer made.
+   */
+  onDraft?: (id: string, text: string) => void
+  /**
    * The mockup takes clicks, scrolls and keys (Interact), as a frame does:
    * the canvas stops panning over it and Esc returns.
    */
@@ -245,6 +250,7 @@ export function MockupLayer({
   onDomReady,
   writes,
   onAskForKnob,
+  onDraft,
   focused = false,
   driver = NOBODY_DRIVES,
   askedForControl,
@@ -291,6 +297,19 @@ export function MockupLayer({
   if (settled && shownDoc !== builtDoc) setShownDoc(builtDoc)
   const srcDoc = settled ? builtDoc : shownDoc
   const shared = !!sharedStream
+  // A draft speaks for the person, so it counts only from a tap this viewer
+  // made: in their own copy while they Interact and the agent isn't driving
+  // it, or in the live page while they have control. The runtime checks for
+  // the tap too, but page script could post the message itself.
+  const draftFromViewer = shared
+    ? liveDriver.kind === "you"
+    : focused && driver.kind !== "agent"
+  const handleDraft = useCallback(
+    (id: string, text: string) => {
+      if (draftFromViewer) onDraft?.(id, text)
+    },
+    [draftFromViewer, onDraft]
+  )
   const page = useLivePage({
     id: layer.id,
     // This viewer's own iframe, or the live page's stream.
@@ -313,7 +332,7 @@ export function MockupLayer({
     record: layer,
     writes,
     // Scroll syncs between copies, as a frame's does (#1563).
-    app: { onScroll: onScrollChange },
+    app: { onScroll: onScrollChange, onDraft: handleDraft },
     interactive: focused,
     driver,
     zoom,

@@ -24,6 +24,8 @@ interface UsePostMessageOptions {
   onHmrStatus?: (iframeLayerId: string, status: HmrStatus) => void
   onKnobsDeclared?: (iframeLayerId: string, knobs: JsonValue[]) => void
   onSharedStateChanged?: (iframeLayerId: string, state: JsonObject) => void
+  /** A Mockup page's `screenplay.draft(text)`, from a tap (#1645). */
+  onDraft?: (iframeLayerId: string, text: string) => void
 }
 
 export function usePostMessage({
@@ -41,6 +43,7 @@ export function usePostMessage({
   onHmrStatus,
   onKnobsDeclared,
   onSharedStateChanged,
+  onDraft,
 }: UsePostMessageOptions) {
   const stateRef = useRef(iframeState)
   const scrollRef = useRef<{ x: number; y: number } | null>(
@@ -61,6 +64,7 @@ export function usePostMessage({
   const onHmrStatusRef = useRef(onHmrStatus)
   const onKnobsDeclaredRef = useRef(onKnobsDeclared)
   const onSharedStateChangedRef = useRef(onSharedStateChanged)
+  const onDraftRef = useRef(onDraft)
 
   // Keep the "latest value" refs current. Written in an effect (not during
   // render) so they reflect the value as of the last committed render; every
@@ -77,6 +81,7 @@ export function usePostMessage({
     onHmrStatusRef.current = onHmrStatus
     onKnobsDeclaredRef.current = onKnobsDeclared
     onSharedStateChangedRef.current = onSharedStateChanged
+    onDraftRef.current = onDraft
   })
 
   const sendMessage = useCallback(
@@ -190,6 +195,10 @@ export function usePostMessage({
           lastSharedStateRef.current = null
         }
         sendSharedState(state, true)
+      } else if (data.type === "screenplay:draft") {
+        if (typeof data.text === "string") {
+          onDraftRef.current?.(iframeLayerId, data.text)
+        }
       }
     })
   }, [

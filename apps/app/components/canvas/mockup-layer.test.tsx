@@ -188,3 +188,36 @@ describe("MockupLayer scroll (#1563)", () => {
     )
   })
 })
+
+describe("MockupLayer drafts (#1645)", () => {
+  function fromPage(data: unknown) {
+    const iframe = document.querySelector("iframe")!
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", { data, source: iframe.contentWindow })
+      )
+    })
+  }
+  const draft = { type: "screenplay:draft", text: "Picked B" }
+
+  it("hands the chat a draft from the page this viewer is interacting with", () => {
+    const onDraft = vi.fn()
+    renderMockup({ onDraft, focused: true })
+    fromPage(draft)
+    expect(onDraft).toHaveBeenCalledWith("mockup-1", "Picked B")
+  })
+
+  it("ignores a draft while this viewer isn't interacting with the page", () => {
+    const onDraft = vi.fn()
+    renderMockup({ onDraft })
+    fromPage(draft)
+    expect(onDraft).not.toHaveBeenCalled()
+  })
+
+  it("ignores a draft while the agent drives the page", () => {
+    const onDraft = vi.fn()
+    renderMockup({ onDraft, focused: true, driver: { kind: "agent" } })
+    fromPage(draft)
+    expect(onDraft).not.toHaveBeenCalled()
+  })
+})

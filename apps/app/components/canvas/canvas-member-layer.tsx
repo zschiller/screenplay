@@ -122,6 +122,7 @@ function CanvasMemberLayerImpl({
   onAskForKnob,
   askableMockupIds,
   onAskForMockupKnob,
+  onMockupDraft,
   handleCaptureReadyChange,
   handleCaptureDirty,
   layerMutations,
@@ -209,6 +210,8 @@ function CanvasMemberLayerImpl({
    * a Mockup (its Sketch Chat or its Workspace's chat).
    */
   onAskForMockupKnob: (mockupId: string) => void
+  /** A Mockup page's `screenplay.draft(text)`, into its chat's composer. */
+  onMockupDraft: (mockupId: string, text: string) => void
   handleCaptureReadyChange: IframeLayerProps["onCaptureReadyChange"]
   handleCaptureDirty: IframeLayerProps["onCaptureDirty"]
   /**
@@ -599,6 +602,7 @@ function CanvasMemberLayerImpl({
                     ? () => onAskForMockupKnob(mockup.id)
                     : undefined
                 }
+                onDraft={onMockupDraft}
               />
             )
           }

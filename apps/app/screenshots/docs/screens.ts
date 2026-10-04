@@ -1,4 +1,4 @@
-import type { Page } from "playwright-core"
+import type { Frame, Page } from "playwright-core"
 
 import { AGENT_PARTY, frameControlKey } from "@/lib/canvas/frame-control"
 import { LOCAL_USER_ID } from "@/lib/local-user"
@@ -402,6 +402,28 @@ const onCanvas = (selectors: readonly string[], pad?: number) =>
     insetTop: 48,
     pad,
   })
+
+/** A mockup's page, by its layer id, once its runtime has loaded. */
+async function mockupPage(page: Page, id: string): Promise<Frame> {
+  const iframe = page.locator(`${layer(id)} iframe`).first()
+  await iframe.waitFor({ timeout: 15_000 })
+  const frame = await (await iframe.elementHandle())!.contentFrame()
+  if (!frame) throw new Error(`no page in mockup ${id}`)
+  await frame.waitForFunction("!!window.screenplay?.draft", undefined, {
+    timeout: 15_000,
+  })
+  return frame
+}
+
+/** Page JS: a decision page's bottom bar whose button drafts into the chat. */
+const SEND_TO_CHAT_BAR = `(() => {
+  const bar = document.createElement("div")
+  bar.style.cssText = "position:fixed;inset:auto 0 0 0;display:flex;align-items:center;gap:16px;padding:16px 24px;background:#0f172a;color:#fff;font:600 18px system-ui"
+  bar.innerHTML = '<span style="flex:1">Picked <b>A</b> · 1 note</span><button id="send-to-chat" style="font:inherit;padding:10px 18px;border:0;border-radius:10px;background:#fff;color:#0f172a">Send to chat</button>'
+  document.body.append(bar)
+  bar.querySelector("button").onclick = () =>
+    screenplay.draft("Picked A. Note on B: the side-by-side cards feel cramped on a laptop.")
+})()`
 
 /** Collapse the chat panel, which selecting a layer can open over the canvas. */
 async function hideChat(page: Page) {
@@ -1054,6 +1076,30 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await camera(page, VIEW.mockupCloseUp)
       await selectLayer(page, "Option A · Toggle")
       await hideChat(page)
+    },
+  }),
+  screen({
+    name: "mockup-draft",
+    description:
+      "A mockup page's Send to chat button, drafted into its chat's composer under a From row (#1645).",
+    path: `/${ids.rooms.pricingExperiments}`,
+    cookies: WITH_CHAT,
+    prepare: async (page) => {
+      await camera(page, { x: -660, y: 90, zoom: 0.4 })
+      await page
+        .locator(layer(TOGGLE_MOCKUP))
+        .click({ position: { x: 240, y: 200 } })
+      await page
+        .locator(FRAME_TOOLBAR)
+        .getByRole("button", { name: "Interact", exact: true })
+        .click()
+      await sleep(page, 600)
+      const frame = await mockupPage(page, TOGGLE_MOCKUP)
+      // The page's own bar, as a decision page draws it.
+      await frame.evaluate(SEND_TO_CHAT_BAR)
+      await frame.locator("#send-to-chat").click()
+      await page.mouse.move(0, 0)
+      await sleep(page, 1200)
     },
   }),
   screen({

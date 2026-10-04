@@ -117,6 +117,9 @@ export type IframeToCanvasMessage =
   // Sent by @screenplay.space/state when a frame loads, asking for the
   // room's current shared state before it publishes its own defaults.
   | { type: "screenplay:shared-state-request" }
+  // A Mockup page's `screenplay.draft(text)` (#1645), sent from a tap: text
+  // for the person to edit and send in the Mockup's chat.
+  | { type: "screenplay:draft"; text: string }
 
 export function isScreenplayMessage(
   data: unknown
