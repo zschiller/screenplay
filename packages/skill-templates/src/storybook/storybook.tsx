@@ -33,10 +33,6 @@ import type { Control, Page, Render, State, Value } from "./types.ts"
 type Values = Record<string, Value>
 type Notes = Record<string, string>
 
-// On a Screenplay canvas the page can put text in its chat's composer (#1645)
-type Draft = (text: string) => boolean
-const draftToChat = (): Draft | undefined =>
-  (window as { screenplay?: { draft?: Draft } }).screenplay?.draft
 
 const fallback = (c: Control): Value =>
   c.type === "toggle"
@@ -406,11 +402,7 @@ export function Storybook({
           outLabel="Notes to copy"
           text={text}
           maxWidth="832px"
-          send={
-            draftToChat()
-              ? { label: "Send to chat", run: (t) => draftToChat()?.(t) }
-              : undefined
-          }
+          send
         />
       </Lightbox>
     </ThemeContext.Provider>

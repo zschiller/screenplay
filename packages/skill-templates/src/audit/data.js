@@ -3,7 +3,7 @@ const PAGE={
  title:"{{SURFACE}} design audit",
  date:"{{DATE}}",
  slug:"{{SLUG}}", // localStorage key, unique per audit
- lede:["What was audited (surface, commit, depths) and what was focused on.","How to answer: pick Fix or Skip on each finding, answer each call, add notes, then Copy picks and paste the text back. Anything left unpicked keeps the recommendation."],
+ lede:["What was audited (surface, commit, depths) and what was focused on.","How to answer: pick Fix or Skip on each finding, answer each call and add notes, then copy your picks (or send them, on a canvas) back to the chat. Anything left unpicked keeps the recommendation."],
  links:[["Prototype patch","{{PATCH}}"]] // optional
 };
 // Depth letters match the finding ids. blurb: one line on what the depth checks.
