@@ -1,0 +1,36 @@
+/* The app's stylesheet for the templates: packages/ui's tokens, icons and
+   base, scanning only this package and the shared components (globals.css
+   would also scan every app). The token values are stripped from the bundle
+   and written readable above the page's marker (lib/page.ts). */
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "../../ui/src/styles/tokens.css";
+@import "../../ui/src/styles/icons.css";
+
+@source "./**/*.{ts,tsx}";
+/* Only the shared components the templates import, so the page carries their
+   classes and not the whole library's. Add a line when you import another. */
+@source "../../ui/src/components/{badge,button,collapsible,icons,tabs,textarea}.tsx";
+
+/* Fonts come from the readable token block, so another repo can swap them. */
+@theme inline {
+  --font-sans: var(--font-ui);
+  --font-heading: var(--font-title);
+  --font-mono: var(--font-code);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    text-underline-offset: 0.2em;
+    /* Switching options jumps to the new option; scroll anchoring would undo that jump */
+    overflow-anchor: none;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
