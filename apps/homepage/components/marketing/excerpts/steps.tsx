@@ -1,5 +1,6 @@
 import { cn } from "@workspace/ui/lib/utils"
 
+import { edge } from "./canvas"
 import { Fit } from "./fit"
 
 /*
@@ -32,6 +33,5 @@ export function Card({
   )
 }
 
-/** A popover or dialog surface, as the app draws one. */
-export const surface =
-  "rounded-lg bg-popover text-popover-foreground shadow-md outline outline-1 outline-foreground/10"
+/** A popover surface, as the app draws one (PopoverContent). */
+export const surface = `rounded-lg bg-popover text-popover-foreground shadow-md ${edge}`
