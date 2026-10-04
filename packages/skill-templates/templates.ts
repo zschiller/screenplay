@@ -32,4 +32,11 @@ export const templates: Template[] = [
       "Design audit decisions page. Fill PAGE, SURFACES and RUNS in the data script; the page renders from them.",
     out: ".agents/skills/design-audit/decisions-template.html",
   },
+  {
+    name: "storybook",
+    title: "{{TITLE}}",
+    about:
+      "Design storybook page. Fill PAGE, CONTROLS and STATES in the data script; the page renders from them.",
+    out: ".agents/skills/design-storybook/storybook-template.html",
+  },
 ]
