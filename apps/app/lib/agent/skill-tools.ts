@@ -131,7 +131,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
         "Save a skill: a procedure later chats should follow, like a review checklist, a house writing style or how this team ships a release. Save one when the user asks, or when you’ve worked out a procedure worth reusing.",
         "`canvas` keeps it with this canvas, for its members: every chat on the canvas lists it from its next turn and can load it with `read_skill`. `account` keeps it with the person who sent this message: every chat they message, on any canvas, lists it, and nobody else’s do. Save to `account` only a procedure that’s theirs rather than this canvas’s, like how they like a write-up done.",
         "`content` is the whole SKILL.md: frontmatter with `name` (the skill’s name) and `description` (what it does and when to use it, which is all a chat sees until it loads the skill), then the instructions in markdown. Put longer references or examples in `files`, and say in SKILL.md when to read them.",
-        "Saving a name that exists in the scope replaces that skill, so change one by saving it again. `allowed-tools` and lines with an inline !`command` are removed.",
+        "Saving a name that exists in the scope replaces that skill, so change one by saving it again. To change one of Screenplay’s own skills, read it with `read_skill` and save your changed copy under the same name: the copy takes its place in every chat that sees it. `allowed-tools` and lines with an inline !`command` are removed.",
       ].join(" "),
       inputSchema: jsonSchema<
         Scope & { name: string; content: string; files?: SkillFile[] }
@@ -192,7 +192,13 @@ export function buildSkillTools(ctx: SkillToolContext) {
               ? [
                   `This canvas has a skill named "${name}" too, and on this canvas the canvas’s wins.`,
                 ]
-              : []),
+              : ctx.app.read(name) !== null
+                ? [
+                    scope === "account"
+                      ? `It takes the place of Screenplay’s own skill "${name}" in every chat they message.`
+                      : `It takes the place of Screenplay’s own skill "${name}" on this canvas.`,
+                  ]
+                : []),
         ].join(" ")
       },
     }),

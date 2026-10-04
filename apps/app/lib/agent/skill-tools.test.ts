@@ -221,8 +221,27 @@ describe("skill tools", () => {
       "Removed allowed-tools and !`command` lines: saved skills can’t grant tools or run commands."
     )
     expect(out).toContain(
-      "This branch’s repository has a skill named \"deploy\" too, and in this chat the repository’s wins."
+      'This branch’s repository has a skill named "deploy" too, and in this chat the repository’s wins.'
     )
+  })
+
+  it("says when a saved copy takes the place of a Built in Skill", async () => {
+    const tools = buildSkillTools({
+      canvas: canvas(),
+      account: canvas(),
+      chatId: "chat-a",
+      app: appSkillSource(),
+    })
+    const content = skillMd("screenplay-add-knob", "Mine.", "My knobs.")
+
+    expect(
+      await run(tools, "save_skill", { name: "screenplay-add-knob", content })
+    ).toContain(
+      'It takes the place of Screenplay’s own skill "screenplay-add-knob" on this canvas.'
+    )
+    expect(
+      await run(tools, "read_skill", { name: "screenplay-add-knob" })
+    ).toContain("My knobs.")
   })
 
   it("refuses an invalid Skill with the reason", async () => {

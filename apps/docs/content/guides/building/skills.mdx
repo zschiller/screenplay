@@ -46,13 +46,17 @@ repository skills, since they have no single repository.
 
 ## Built-in skills
 
-Screenplay ships three skills, marked **Built in** in the menu:
+Screenplay ships five skills, marked **Built in** in the menu:
 
-| Skill                             | What it teaches                                                                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `screenplay-add-knob`             | Adding [knobs](/guides/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs.                       |
-| `screenplay-explore-with-mockups` | Exploring a design as [mockups](/guides/mockups), asking you to pick at forks, and [building the take you choose](/guides/mockups#building-one). |
-| `screenplay-share-state`          | Bridging UI state to the canvas with [shared state](/guides/building/shared-state).                                                                     |
+| Skill                             | What it teaches                                                                                                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `screenplay-add-knob`             | Adding [knobs](/guides/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs.                                                                                        |
+| `screenplay-design-audit`         | Auditing screens for product, hierarchy and visual problems, writing the findings to a [document](/guides/documents), asking you about the ones with more than one fix, then fixing what you pick.                       |
+| `screenplay-design-storybook`     | Laying out one part of the UI as a [mockup](/guides/mockups) with a [knob](/guides/building/knobs) for each of its states, so you can step through them.                                                                 |
+| `screenplay-explore-with-mockups` | Exploring a design question with lettered takes as [mockups](/guides/mockups), over as many rounds as you want, asking you to pick on a question card, and [building the take you choose](/guides/mockups#building-one). |
+| `screenplay-share-state`          | Bridging UI state to the canvas with [shared state](/guides/building/shared-state).                                                                                                                                      |
+
+To change a built-in skill, ask a chat to copy it: “copy screenplay-design-audit to my account and skip the dark theme”. The agent saves a changed copy under the same name, to your account or the canvas, and since your account’s and the canvas’s skills win over Screenplay’s, the copy takes its place, listed as **Account** or **Canvas**. Delete the copy to go back to the built-in one. A copy doesn’t pick up later changes to the built-in skill.
 
 The [Coordinator](/guides/coordinator) has its own built-in skill,
 `screenplay-try-variants`, which it follows when you ask to
