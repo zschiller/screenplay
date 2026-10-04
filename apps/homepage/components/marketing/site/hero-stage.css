@@ -24,7 +24,7 @@
   perspective-origin: 50% 90%;
   /* The far side also sinks into the dark under the grain, so whatever the
      pointer reveals there still recedes. */
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.1), #000 45%);
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.2), #000 45%);
 }
 /* The headline's first line sinks into the nearest row, where the veil turns
    solid. */

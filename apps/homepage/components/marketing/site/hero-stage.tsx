@@ -114,7 +114,7 @@ const ROWS = 6
 const NEAR = 200
 const FAR = 0.58
 // How far down the page the far fade stays solid, in CSS px.
-const TOP = 20
+const TOP = 32
 
 const PAGE = `
   <div class="hc-page">
