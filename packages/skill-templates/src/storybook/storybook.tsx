@@ -116,8 +116,12 @@ export function Storybook({
     current?.id ??
     "custom:" + controls.map((c) => `${c.key}=${vals[c.key]}`).join(",")
   React.useEffect(() => {
-    if (current)
+    if (!current) return
+    try {
       history.replaceState(null, "", "#" + encodeURIComponent(current.id))
+    } catch {
+      // A Mockup's srcdoc page can't change its URL; the state just isn't linkable
+    }
   }, [current])
 
   const go = (s?: { vals: Values }) => s && setVals({ ...s.vals })

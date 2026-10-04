@@ -5,7 +5,13 @@ import type { AddressInfo } from "node:net"
 import { chromium, type Browser, type Page } from "playwright-core"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import type { MockupResources } from "@/lib/mockup-refs"
+import { mediaTypeFor } from "@/lib/files/paths"
+import {
+  mockupRefs,
+  parseMockupRef,
+  type MockupResources,
+} from "@/lib/mockup-refs"
+import { appSkills } from "@/lib/skills"
 import { mockupSrcDoc } from "./mockup-html"
 
 // A Mockup page with `skill:` and `files:` references (#1643), built by
@@ -88,7 +94,8 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
           const frame = document.createElement("iframe")
           frame.setAttribute("sandbox", "allow-scripts")
           const onMessage = (e: MessageEvent) => {
-            if (e.source !== frame.contentWindow) return
+            // Only the page's report, not what its scripts tell the canvas
+            if (e.source !== frame.contentWindow || !e.data?.report) return
             window.removeEventListener("message", onMessage)
             frame.remove()
             resolve(e.data as Record<string, unknown>)
@@ -106,6 +113,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   // colour, each image's size, and its root attributes.
   const REPORT = `<script>
     addEventListener("load", () => parent.postMessage({
+      report: true,
       order: window.order,
       color: getComputedStyle(document.body).color,
       images: Array.from(document.images, (i) => i.naturalWidth),
@@ -128,6 +136,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
       RESOURCES
     )
     expect(report).toEqual({
+      report: true,
       order: ["runtime", "page"],
       color: "rgb(1, 2, 3)",
       images: [7],
@@ -164,4 +173,54 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
     expect(report.images).toEqual([0, 7])
     expect(requests).toEqual([])
   })
+  // The design templates' App Skill pages (#1646): a few KB of data that
+  // load their runtime from the Skill with a `skill:` reference.
+  const TEMPLATES = [
+    ["screenplay-explore-with-mockups", "exploration-template.html"],
+    ["screenplay-design-audit", "audit-template.html"],
+    ["screenplay-design-audit", "decisions-template.html"],
+    ["screenplay-design-storybook", "storybook-template.html"],
+  ]
+
+  it.each(TEMPLATES)(
+    "renders the %s Skill's %s from its runtime",
+    async (skill, path) => {
+      const files = appSkills.open(skill)!.files
+      const html = files.find((f) => f.path === path)!.content
+      const resources: Record<string, MockupResources[string]> = {}
+      for (const ref of mockupRefs(html)) {
+        const parsed = parseMockupRef(ref)
+        const file =
+          parsed?.kind === "skill" && parsed.skill === skill
+            ? files.find((f) => f.path === parsed.path)
+            : undefined
+        resources[ref] = file
+          ? {
+              type: mediaTypeFor(file.path, "text/plain"),
+              data: b64(file.content),
+            }
+          : null
+      }
+      expect(Object.values(resources)).not.toContain(null)
+      const report = await run(
+        `${html}<script>
+          // React renders after load; report once the page has mounted
+          var t = setInterval(function () {
+            var app = document.getElementById("app")
+            if (!app.childElementCount) return
+            clearInterval(t)
+            parent.postMessage({
+              report: true,
+              text: app.textContent.length > 0,
+              font: getComputedStyle(document.documentElement).fontFamily,
+            }, "*")
+          }, 20)
+        </script>`,
+        resources
+      )
+      expect(report.text).toBe(true)
+      // The runtime's styles: the page's font comes from its token block
+      expect(report.font).toContain("Instrument Sans")
+    }
+  )
 })

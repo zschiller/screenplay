@@ -70,13 +70,28 @@ export type PageParts = {
   tokens: string
   /** Everything under MARKER: the bundle's style, mount point and script. */
   body: string
+  /**
+   * A page for a Mockup, which loads nothing from the network: no font link
+   * (the fallback fonts stand in) and no brand swapping, since an App Skill's
+   * template keeps the Screenplay look.
+   */
+  mockup?: boolean
 }
 
-export function assemble({ title, about, data, tokens, body }: PageParts) {
+export function assemble({
+  title,
+  about,
+  data,
+  tokens,
+  body,
+  mockup,
+}: PageParts) {
   return [
     `<title>${title}</title>`,
-    `<!-- ${about} Swap the tokens and the font link for the repo's brand; they use shadcn's variable names. -->`,
-    FONTS,
+    mockup
+      ? `<!-- ${about} -->`
+      : `<!-- ${about} Swap the tokens and the font link for the repo's brand; they use shadcn's variable names. -->`,
+    ...(mockup ? [] : [FONTS]),
     `<style>\n${tokens}\n</style>`,
     `<script>\n${data.trim()}\n</script>`,
     MARKER,
