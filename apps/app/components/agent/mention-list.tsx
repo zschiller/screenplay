@@ -1,14 +1,39 @@
 "use client"
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react"
-import { FileTextIcon } from "@workspace/ui/components/icons"
+import {
+  Fragment,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useState,
+} from "react"
+import {
+  type Icon,
+  ChatCircleIcon,
+  FileTextIcon,
+  ScribbleIcon,
+} from "@workspace/ui/components/icons"
+import { cn } from "@workspace/ui/lib/utils"
+
+/** What a mention points at: a document, a chat or a mockup. */
+export type MentionKind = "markdown-layer" | "chat" | "mockup-layer"
 
 export interface MentionItem {
   /** Discriminator so the popover can group mentions by kind and propagate
    *  the kind onto the Mention node. */
-  kind: "markdown-layer"
+  kind: MentionKind
   id: string
   label: string
+}
+
+/** Each kind's group heading and icon, in the order the groups list. */
+export const MENTION_KINDS: Record<
+  MentionKind,
+  { heading: string; Icon: Icon }
+> = {
+  "markdown-layer": { heading: "Documents", Icon: FileTextIcon },
+  chat: { heading: "Chats", Icon: ChatCircleIcon },
+  "mockup-layer": { heading: "Mockups", Icon: ScribbleIcon },
 }
 
 export interface MentionListHandle {
@@ -22,8 +47,9 @@ interface MentionListProps {
 }
 
 /**
- * Suggestion popover for the chat / document body Mention extension. Items
- * arrive as a flat list of documents under a single section heading.
+ * Suggestion popover for the chat / document body Mention extension, drawn
+ * like the app's dropdown menus (the inverted surface, their labels and item
+ * rows). Items arrive grouped by kind, each group under its heading.
  */
 export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
   function MentionList({ items, command }, ref) {
@@ -65,34 +91,50 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
 
     if (items.length === 0) {
       return (
-        <div className="rounded-md border border-border bg-popover px-2 py-1.5 text-xs text-muted-foreground shadow-md">
+        <div className="inverted w-max min-w-56 rounded-lg bg-popover px-2 py-1.5 text-sm text-muted-foreground shadow-md ring-1 ring-foreground/10">
           No matches
         </div>
       )
     }
 
     return (
-      <div className="max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 text-xs text-popover-foreground shadow-md">
-        <div className="px-2 py-1.5 font-mono text-xs font-normal tracking-wider text-muted-foreground uppercase">
-          Documents
-        </div>
-        {items.map((item, i) => (
-          <button
-            key={item.id}
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault()
-              command(item)
-            }}
-            onMouseEnter={() => setSelected(i)}
-            className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left ${
-              i === selected ? "bg-accent text-accent-foreground" : ""
-            }`}
-          >
-            <FileTextIcon className="size-3 shrink-0 text-muted-foreground" />
-            <span className="truncate">{item.label || "Untitled"}</span>
-          </button>
-        ))}
+      <div
+        role="menu"
+        className="inverted max-h-72 w-max max-w-70 min-w-56 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+      >
+        {items.map((item, i) => {
+          const startsGroup = items[i - 1]?.kind !== item.kind
+          const { heading, Icon } = MENTION_KINDS[item.kind]
+          return (
+            <Fragment key={`${item.kind}:${item.id}`}>
+              {startsGroup && i > 0 && (
+                <div role="separator" className="-mx-1 my-1 h-px bg-border" />
+              )}
+              {startsGroup && (
+                <div className="px-1.5 py-1 font-mono text-xs font-normal tracking-wider whitespace-nowrap text-muted-foreground uppercase">
+                  {heading}
+                </div>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                data-highlighted={i === selected ? "" : undefined}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  command(item)
+                }}
+                onMouseEnter={() => setSelected(i)}
+                className={cn(
+                  "flex w-full cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm select-none [&_svg]:size-4 [&_svg]:shrink-0",
+                  "data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                )}
+              >
+                <Icon />
+                <span className="truncate">{item.label || "Untitled"}</span>
+              </button>
+            </Fragment>
+          )
+        })}
       </div>
     )
   }

@@ -112,7 +112,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     replace_document_body: tool({
       description:
-        "Replace the body of a Document you made (or one whose chat was deleted, which makes it yours), below its title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, and inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`) all work. The title is set separately; don’t repeat it as a top-level `#` heading. Use this when you’ve redrafted the Document; for incremental edits prefer `append_to_document_body`.",
+        "Replace the body of a Document you made (or one whose chat was deleted, which makes it yours), below its title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`), and images all work. An image is `![alt](path)` on its own line, where `path` is an image in the canvas’s saved files (`uploads/sketch.png`; wrap a path with spaces in `<…>`), and the Document shows it. The title is set separately; don’t repeat it as a top-level `#` heading. Use this when you’ve redrafted the Document; for incremental edits prefer `append_to_document_body`.",
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {

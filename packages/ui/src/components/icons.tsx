@@ -19,6 +19,7 @@ import { ArrowsDownUpIcon as ArrowsDownUpBase } from "@phosphor-icons/react/dist
 import { ArrowsMergeIcon as ArrowsMergeBase } from "@phosphor-icons/react/dist/ssr/ArrowsMerge"
 import { ArrowsOutCardinalIcon as ArrowsOutCardinalBase } from "@phosphor-icons/react/dist/ssr/ArrowsOutCardinal"
 import { ArrowsOutSimpleIcon as ArrowsOutSimpleBase } from "@phosphor-icons/react/dist/ssr/ArrowsOutSimple"
+import { AtIcon as AtBase } from "@phosphor-icons/react/dist/ssr/At"
 import { BookBookmarkIcon as BookBookmarkBase } from "@phosphor-icons/react/dist/ssr/BookBookmark"
 import { BookOpenIcon as BookOpenBase } from "@phosphor-icons/react/dist/ssr/BookOpen"
 import { BracketsCurlyIcon as BracketsCurlyBase } from "@phosphor-icons/react/dist/ssr/BracketsCurly"
@@ -74,6 +75,7 @@ import { GitForkIcon as GitForkBase } from "@phosphor-icons/react/dist/ssr/GitFo
 import { GitMergeIcon as GitMergeBase } from "@phosphor-icons/react/dist/ssr/GitMerge"
 import { GitPullRequestIcon as GitPullRequestBase } from "@phosphor-icons/react/dist/ssr/GitPullRequest"
 import { GlobeIcon as GlobeBase } from "@phosphor-icons/react/dist/ssr/Globe"
+import { ImageIcon as ImageBase } from "@phosphor-icons/react/dist/ssr/Image"
 import { InfoIcon as InfoBase } from "@phosphor-icons/react/dist/ssr/Info"
 import { FrameCornersIcon as FrameCornersBase } from "@phosphor-icons/react/dist/ssr/FrameCorners"
 import { LayoutIcon as LayoutBase } from "@phosphor-icons/react/dist/ssr/Layout"
@@ -125,6 +127,7 @@ import { TextHTwoIcon as TextHTwoBase } from "@phosphor-icons/react/dist/ssr/Tex
 import { TextItalicIcon as TextItalicBase } from "@phosphor-icons/react/dist/ssr/TextItalic"
 import { TextStrikethroughIcon as TextStrikethroughBase } from "@phosphor-icons/react/dist/ssr/TextStrikethrough"
 import { TextTIcon as TextTBase } from "@phosphor-icons/react/dist/ssr/TextT"
+import { UploadSimpleIcon as UploadSimpleBase } from "@phosphor-icons/react/dist/ssr/UploadSimple"
 import { WarningIcon as WarningBase } from "@phosphor-icons/react/dist/ssr/Warning"
 import { WarningCircleIcon as WarningCircleBase } from "@phosphor-icons/react/dist/ssr/WarningCircle"
 import { XIcon as XBase } from "@phosphor-icons/react/dist/ssr/X"
@@ -226,6 +229,7 @@ export const ArrowsOutSimpleIcon = phosphor(
   ArrowsOutSimpleBase,
   "ph-arrows-out-simple"
 )
+export const AtIcon = phosphor(AtBase, "ph-at")
 export const BookBookmarkIcon = phosphor(BookBookmarkBase, "ph-book-bookmark")
 export const BookOpenIcon = phosphor(BookOpenBase, "ph-book-open")
 export const BracketsCurlyIcon = phosphor(
@@ -300,6 +304,7 @@ export const GitPullRequestIcon = phosphor(
   "ph-git-pull-request"
 )
 export const GlobeIcon = phosphor(GlobeBase, "ph-globe")
+export const ImageIcon = phosphor(ImageBase, "ph-image")
 export const InfoIcon = phosphor(InfoBase, "ph-info")
 export const FrameCornersIcon = phosphor(FrameCornersBase, "ph-frame-corners")
 export const LayoutIcon = phosphor(LayoutBase, "ph-layout")
@@ -375,6 +380,7 @@ export const TextStrikethroughIcon = phosphor(
   "ph-text-strikethrough"
 )
 export const TextTIcon = phosphor(TextTBase, "ph-text-t")
+export const UploadSimpleIcon = phosphor(UploadSimpleBase, "ph-upload-simple")
 export const WarningIcon = phosphor(WarningBase, "ph-warning")
 export const WarningCircleIcon = phosphor(
   WarningCircleBase,

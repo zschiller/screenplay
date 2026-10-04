@@ -3,6 +3,11 @@ import { getSchema } from "@tiptap/core"
 import StarterKit from "@tiptap/starter-kit"
 import { MarkdownManager } from "@tiptap/markdown"
 import { prosemirrorJSONToYXmlFragment } from "@tiptap/y-tiptap"
+import {
+  DocumentImage,
+  documentImageMarkdown,
+  liftImagesFromParagraphs,
+} from "@/lib/document-image"
 
 /**
  * Resolve a Document layer's body fragment from the room Y.Doc. Every Markdown
@@ -71,27 +76,17 @@ export function fragmentBodyToPlainText(fragment: Y.XmlFragment): string {
   const len = fragment.length
   // Skip the title heading at index 0; collect from index 1 onward.
   const startAt = len > 0 && isHeading(fragment.get(0)) ? 1 : 0
-  for (let i = startAt; i < len; i++) {
-    const child = fragment.get(i)
-    if (child instanceof Y.XmlText) {
-      const t = child.toString()
-      if (t.length > 0) lines.push(t)
-    } else if (child instanceof Y.XmlElement) {
-      const before = lines.length
-      collectLines(child, lines)
-      if (
-        lines.length > before &&
-        (child.nodeName === "paragraph" ||
-          child.nodeName === "heading" ||
-          child.nodeName === "blockquote" ||
-          child.nodeName === "codeBlock")
-      ) {
-        lines.push("")
-      }
-    }
-  }
+  for (let i = startAt; i < len; i++) collectNode(fragment.get(i), lines)
   return lines.join("\n").trim()
 }
+
+/** Blocks followed by a blank line, as markdown spaces them. */
+const SPACED_BLOCKS = new Set([
+  "paragraph",
+  "heading",
+  "blockquote",
+  "codeBlock",
+])
 
 function isHeading(node: unknown): boolean {
   return node instanceof Y.XmlElement && node.nodeName === "heading"
@@ -178,7 +173,10 @@ function xmlElementText(el: Y.XmlElement): string {
  * reject body-only markdown that doesn't lead with a heading, so we keep the
  * permissive default `Document` with `block+`.
  */
-const markdownExtensions = [StarterKit.configure({ undoRedo: false })]
+const markdownExtensions = [
+  StarterKit.configure({ undoRedo: false }),
+  DocumentImage,
+]
 const markdownSchema = getSchema(markdownExtensions)
 const markdownManager = new MarkdownManager({ extensions: markdownExtensions })
 
@@ -191,7 +189,7 @@ const markdownManager = new MarkdownManager({ extensions: markdownExtensions })
  * from the temp doc so we can `push` it into the real fragment.
  */
 function parseMarkdownToBlocks(markdown: string): Y.XmlElement[] {
-  const json = markdownManager.parse(markdown)
+  const json = liftImagesFromParagraphs(markdownManager.parse(markdown))
   const tempDoc = new Y.Doc()
   const tempFragment = tempDoc.getXmlFragment("temp")
   prosemirrorJSONToYXmlFragment(markdownSchema, json, tempFragment)
@@ -247,42 +245,49 @@ function makeHeading(level: number): Y.XmlElement {
 
 function collectLines(node: Y.XmlFragment | Y.XmlElement, out: string[]): void {
   const len = node.length
-  for (let i = 0; i < len; i++) {
-    const child = node.get(i)
-    if (child instanceof Y.XmlText) {
-      // Each top-level XmlText goes on its own line so adjacent paragraphs
-      // don't run together.
-      const t = child.toString()
-      if (t.length > 0) out.push(t)
-    } else if (child instanceof Y.XmlElement) {
-      // Mention nodes are inline and carry their text in attrs (TipTap's
-      // Mention extension stores the picked label there, not as XmlText
-      // children). Render them as `@<label>` so the agent sees the
-      // human-readable reference.
-      if (child.nodeName === "mention") {
-        const attrs = child.getAttributes() as Record<string, unknown>
-        const label =
-          (attrs.label as string | undefined) ??
-          (attrs.id as string | undefined)
-        if (label) out.push(`@${label}`)
-        continue
+  for (let i = 0; i < len; i++) collectNode(node.get(i), out)
+}
+
+function collectNode(
+  child: Y.XmlElement | Y.XmlText | Y.XmlHook,
+  out: string[]
+): void {
+  if (child instanceof Y.XmlText) {
+    // Each top-level XmlText goes on its own line so adjacent paragraphs
+    // don't run together.
+    const t = child.toString()
+    if (t.length > 0) out.push(t)
+  } else if (child instanceof Y.XmlElement) {
+    // Mention nodes are inline and carry their text in attrs (TipTap's
+    // Mention extension stores the picked label there, not as XmlText
+    // children). Render them as `@<label>` so the agent sees the
+    // human-readable reference.
+    if (child.nodeName === "mention") {
+      const attrs = child.getAttributes() as Record<string, unknown>
+      const label =
+        (attrs.label as string | undefined) ?? (attrs.id as string | undefined)
+      if (label) out.push(`@${label}`)
+      return
+    }
+    // An image reads as its markdown, so an agent sees which file it is and
+    // a body rewritten from this text keeps it.
+    if (child.nodeName === "image") {
+      const attrs = child.getAttributes() as Record<string, unknown>
+      const src = attrs.src as string | undefined
+      if (src) {
+        out.push(documentImageMarkdown(src, (attrs.alt as string) ?? ""), "")
       }
-      // Block-level elements (paragraph, heading, listItem, etc.) collect
-      // their own line; inline elements just contribute text.
-      const before = out.length
-      collectLines(child, out)
-      // Add an empty line after blockquote / heading / paragraph blocks to
-      // visually separate them, matching common markdown spacing.
-      if (
-        out.length > before &&
-        (child.nodeName === "paragraph" ||
-          child.nodeName === "heading" ||
-          child.nodeName === "blockquote" ||
-          child.nodeName === "codeBlock")
-      ) {
-        // Push a soft break — collapsed at the end via `.trim()` if trailing.
-        out.push("")
-      }
+      return
+    }
+    // Block-level elements (paragraph, heading, listItem, etc.) collect
+    // their own line; inline elements just contribute text.
+    const before = out.length
+    collectLines(child, out)
+    // Add an empty line after blockquote / heading / paragraph blocks to
+    // visually separate them, matching common markdown spacing.
+    if (out.length > before && SPACED_BLOCKS.has(child.nodeName)) {
+      // Push a soft break — collapsed at the end via `.trim()` if trailing.
+      out.push("")
     }
   }
 }

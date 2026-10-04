@@ -11,23 +11,17 @@ import {
 import { createPortal } from "react-dom"
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import {
-  type Icon,
   ArrowUUpLeftIcon,
   CaretDownIcon,
   ChatIcon,
   CheckIcon,
-  CodeBlockIcon,
   CodeIcon,
+  ImageIcon,
   ListBulletsIcon,
   ListNumbersIcon,
-  QuotesIcon,
   TextBIcon,
-  TextHOneIcon,
-  TextHThreeIcon,
-  TextHTwoIcon,
   TextItalicIcon,
   TextStrikethroughIcon,
-  TextTIcon,
 } from "@workspace/ui/components/icons"
 import {
   DropdownMenu,
@@ -57,11 +51,46 @@ import Mention from "@tiptap/extension-mention"
 import Placeholder from "@tiptap/extension-placeholder"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
-import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
-import { useMarkdownLayers } from "@/lib/yjs/react"
+import { useDocumentFragment, useRoomId, useYjs } from "@/lib/yjs/context"
+import { useCanvasFiles, useMarkdownLayers } from "@/lib/yjs/react"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
+import { DOCUMENT_BLOCK_TYPES } from "@/lib/document-block-types"
+import {
+  MENTION_ICON_MASK,
+  mentionKindOf,
+  useChatAndMockupMentions,
+} from "@/lib/document-mentions"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
+import { DocumentImageNodeView } from "@/components/canvas/document-image-node"
+import {
+  DocumentImagePicker,
+  type PickedImage,
+} from "@/components/canvas/document-image-picker"
+import { DocumentImage, imageAltFor } from "@/lib/document-image"
+import {
+  DocumentImageUpload,
+  imagesIn,
+  insertImageAt,
+  insertImageWhenSaved,
+  markPlace,
+  releasePlace,
+  uploadImages,
+  type DocumentImageUploadOptions,
+} from "@/lib/document-image-upload"
+import { DocumentSlashMenu } from "@/lib/document-slash-menu"
+import {
+  DOCUMENT_IMAGE_ITEMS,
+  type DocumentImageItemKey,
+} from "@/components/canvas/document-slash-menu-list"
+import { uploadAttachment } from "@/lib/chat-attachments"
+import {
+  copyAccountImageToCanvas,
+  listAccountFiles,
+} from "@/lib/files/account-actions"
+import { MODEL_IMAGE_TYPES } from "@/lib/files/attachments"
+import { baseName } from "@/lib/files/paths"
+import { toast } from "sonner"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
   LayerLabelMenu,
@@ -215,77 +244,6 @@ function FormatButton({
   )
 }
 
-/** The block types the selection toolbar's "Turn into" dropdown can switch
- *  between. `key` matches the `blockType` string derived from the editor in
- *  {@link MarkdownLayer}; `run` converts the block the caret sits in.
- *
- *  Every command leads with `clearNodes()` — TipTap's "normalize to a simple
- *  paragraph" primitive — before applying the target. Without it these compose
- *  instead of replace: blockquote and lists are *wrapping* nodes, so e.g.
- *  `toggleBlockquote()` on an existing code block wraps it (a quoted code block)
- *  rather than turning it into a quote. `clearNodes()` first strips any current
- *  wrapper/type, so each pick is an exclusive "turn into". */
-const NODE_TYPES: {
-  key: string
-  label: string
-  Icon: Icon
-  run: (editor: Editor) => void
-}[] = [
-  {
-    key: "paragraph",
-    label: "Text",
-    Icon: TextTIcon,
-    run: (editor) => editor.chain().focus().clearNodes().run(),
-  },
-  {
-    key: "h1",
-    label: "Heading 1",
-    Icon: TextHOneIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().setHeading({ level: 1 }).run(),
-  },
-  {
-    key: "h2",
-    label: "Heading 2",
-    Icon: TextHTwoIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().setHeading({ level: 2 }).run(),
-  },
-  {
-    key: "h3",
-    label: "Heading 3",
-    Icon: TextHThreeIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().setHeading({ level: 3 }).run(),
-  },
-  {
-    key: "bulletList",
-    label: "Bullet list",
-    Icon: ListBulletsIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().toggleBulletList().run(),
-  },
-  {
-    key: "orderedList",
-    label: "Numbered list",
-    Icon: ListNumbersIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().toggleOrderedList().run(),
-  },
-  {
-    key: "blockquote",
-    label: "Quote",
-    Icon: QuotesIcon,
-    run: (editor) => editor.chain().focus().clearNodes().setBlockquote().run(),
-  },
-  {
-    key: "codeBlock",
-    label: "Code block",
-    Icon: CodeBlockIcon,
-    run: (editor) => editor.chain().focus().clearNodes().setCodeBlock().run(),
-  },
-]
-
 /** "Turn into" block-type selector for the selection toolbar — the shared
  *  shadcn {@link DropdownMenu}, for visual/keyboard consistency with the rest
  *  of the app. `modal={false}` keeps Radix from locking body pointer-events (so
@@ -302,7 +260,9 @@ function NodeTypeDropdown({
   editor: Editor
   blockType: string
 }) {
-  const current = NODE_TYPES.find((t) => t.key === blockType) ?? NODE_TYPES[0]
+  const current =
+    DOCUMENT_BLOCK_TYPES.find((t) => t.key === blockType) ??
+    DOCUMENT_BLOCK_TYPES[0]
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -318,7 +278,7 @@ function NodeTypeDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {NODE_TYPES.map((t) => (
+        {DOCUMENT_BLOCK_TYPES.map((t) => (
           <DropdownMenuItem
             key={t.key}
             onSelect={() => t.run(editor)}
@@ -331,6 +291,33 @@ function NodeTypeDropdown({
             {t.key === blockType && (
               <CheckIcon className="ml-auto size-3.5 text-foreground" />
             )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** The selection toolbar's Image button: the `/` menu's image items, put in
+ *  after the block the selection ends in. Same non-modal Radix menu as
+ *  {@link NodeTypeDropdown}, so picking one doesn't blur the editor. */
+function ImageDropdown({
+  onPick,
+}: {
+  onPick: (key: DocumentImageItemKey) => void
+}) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <FloatingToolbarButton label="Image" variant="ghost" tabIndex={-1}>
+          <ImageIcon />
+        </FloatingToolbarButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {DOCUMENT_IMAGE_ITEMS.map((item) => (
+          <DropdownMenuItem key={item.key} onSelect={() => onPick(item.key)}>
+            <item.Icon />
+            <span className="whitespace-nowrap">{item.label}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -510,11 +497,36 @@ export function MarkdownLayer({
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
 
+  // Images: paste, drop and Upload image save into the canvas's files under
+  // `uploads/`, as chat attachments do, and Image from files picks one there
+  // (or in your account's files, copied in). The `/` menu's two picks hold
+  // their place in the body while their picker is open.
+  const roomId = useRoomId()
+  const canvasFiles = useCanvasFiles()
+  const imageOptions = useMemo<DocumentImageUploadOptions>(
+    () => ({
+      upload: async (file) => {
+        const result = await uploadAttachment(roomId, file)
+        return result.ok ? { ok: true, path: result.attachment.path } : result
+      },
+      onError: (message) => toast(message),
+    }),
+    [roomId]
+  )
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const imagePlaceRef = useRef<string | null>(null)
+  const [imagePickerOpen, setImagePickerOpen] = useState(false)
+  const onSlashPickRef = useRef<
+    (key: DocumentImageItemKey, pos: number) => void
+  >(() => {})
+
   // Mention suggestion needs the live layer lists every keystroke, but the
   // editor closes over its initial config. Funnel through refs so the
   // popover always reflects the current titles and excludes self-references.
   const markdownLayers = useMarkdownLayers()
   const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
+  const otherMentions = useChatAndMockupMentions()
+  const otherMentionsRef = useRef(otherMentions)
   const layerIdRef = useRef(layer.id)
 
   // Title cache lives on `MarkdownLayerData.title` — sidebar rows, mentions,
@@ -529,6 +541,7 @@ export function MarkdownLayer({
   // mention popover and title-writeback see current values every keystroke.
   useEffect(() => {
     markdownLayersRef.current = markdownLayers
+    otherMentionsRef.current = otherMentions
     layerIdRef.current = layer.id
     onTitleChangeRef.current = onTitleChange
     titleCacheRef.current = layer.title
@@ -632,10 +645,7 @@ export function MarkdownLayer({
         }).configure({
           // The node view (MarkdownLayerMentionNodeView) drives the in-editor
           // render; these attrs cover the serialized/static-render path.
-          HTMLAttributes: {
-            class: "inline-ref",
-            "data-inline-ref-mask": "document",
-          },
+          HTMLAttributes: { class: "inline-ref" },
           renderText({ node }) {
             const label =
               (node.attrs.label as string | undefined) ?? node.attrs.id
@@ -647,7 +657,11 @@ export function MarkdownLayer({
               (node.attrs.id as string)
             return [
               "span",
-              options.HTMLAttributes,
+              {
+                ...options.HTMLAttributes,
+                "data-inline-ref-mask":
+                  MENTION_ICON_MASK[mentionKindOf(node.attrs.kind)],
+              },
               ["span", { class: "inline-ref-label" }, label],
             ]
           },
@@ -659,10 +673,24 @@ export function MarkdownLayer({
           // eslint-disable-next-line react-hooks/refs
           suggestion: buildLayerMentionSuggestion({
             getMarkdownLayers: () => markdownLayersRef.current,
+            getOtherItems: () => otherMentionsRef.current,
             getExcludeId: () => layerIdRef.current,
+            below: true,
             getAnchorRect: () =>
               rootRef.current?.getBoundingClientRect() ?? null,
           }),
+        }),
+        DocumentImage.extend({
+          addNodeView() {
+            return ReactNodeViewRenderer(DocumentImageNodeView)
+          },
+        }),
+        DocumentImageUpload.configure(imageOptions),
+        // onPick reads a ref, but only when a `/` menu item is picked, never
+        // during render.
+        // eslint-disable-next-line react-hooks/refs
+        DocumentSlashMenu.configure({
+          onPick: (key, pos) => onSlashPickRef.current(key, pos),
         }),
         // onSelectThread reads a ref, but TipTap only invokes it when a
         // comment thread is clicked, never during render — the deferred ref
@@ -682,8 +710,66 @@ export function MarkdownLayer({
         },
       },
     },
-    [fragment, provider]
+    [fragment, provider, imageOptions]
   )
+
+  // The `/` menu's and the Image button's picks: hold the place, then open
+  // the file chooser (Upload image) or the picker (Image from files).
+  useEffect(() => {
+    onSlashPickRef.current = (key, pos) => {
+      if (!editor) return
+      if (imagePlaceRef.current) releasePlace(editor, imagePlaceRef.current)
+      imagePlaceRef.current = markPlace(editor, pos, null)
+      if (key === "upload-image") imageInputRef.current?.click()
+      else setImagePickerOpen(true)
+    }
+  })
+
+  /** Take the place the `/` menu held, if it's still held. */
+  const takeImagePlace = () => {
+    const id = imagePlaceRef.current
+    imagePlaceRef.current = null
+    return editor && id ? { editor, id } : null
+  }
+
+  const onImageFilesChosen = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const images = imagesIn(e.target.files, imageOptions.onError)
+    e.target.value = ""
+    const place = takeImagePlace()
+    if (!place) return
+    const pos = releasePlace(place.editor, place.id)
+    if (pos !== null && images.length > 0) {
+      uploadImages(place.editor, images, pos, imageOptions)
+    }
+  }
+
+  const onImagePicked = (image: PickedImage) => {
+    const place = takeImagePlace()
+    if (!place) return
+    if (image.scope === "canvas") {
+      releasePlace(place.editor, place.id, (tr, pos) =>
+        insertImageAt(tr, pos, {
+          src: image.path,
+          alt: imageAltFor(image.path),
+        })
+      )
+      return
+    }
+    const pos = releasePlace(place.editor, place.id)
+    if (pos === null) return
+    void insertImageWhenSaved(
+      place.editor,
+      copyAccountImageToCanvas(roomId, image.path),
+      { pos, label: baseName(image.path), onError: imageOptions.onError }
+    )
+  }
+
+  const onImagePickerOpenChange = (open: boolean) => {
+    setImagePickerOpen(open)
+    if (open) return
+    const place = takeImagePlace()
+    if (place) releasePlace(place.editor, place.id)
+  }
 
   // Keep the cached title (sidebar/mention label) in sync with the editor's
   // first heading. Debounced so a flurry of keystrokes only writes once;
@@ -869,8 +955,16 @@ export function MarkdownLayer({
       // straight to <body> — outside both refs above. Treat a click inside its
       // popper wrapper the same as a click on the toolbar so choosing a block
       // type doesn't blur the editor and tear the toolbar down mid-select.
+      // The same goes for the `/` menu, portaled to <body> too, and the
+      // Image from files picker it opens.
       const el = target instanceof Element ? target : target.parentElement
-      if (el?.closest("[data-radix-popper-content-wrapper]")) return
+      if (
+        el?.closest(
+          "[data-radix-popper-content-wrapper], [data-composer-popup], [data-document-image-picker]"
+        )
+      ) {
+        return
+      }
       onStopEdit()
     }
     window.addEventListener("pointerdown", onDown, true)
@@ -1095,6 +1189,23 @@ export function MarkdownLayer({
             )}
           </div>
 
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept={[...MODEL_IMAGE_TYPES].join(",")}
+            multiple
+            hidden
+            onChange={onImageFilesChosen}
+          />
+          <DocumentImagePicker
+            open={imagePickerOpen}
+            onOpenChange={onImagePickerOpenChange}
+            roomId={roomId}
+            canvasFiles={canvasFiles}
+            listAccountFiles={listAccountFiles}
+            onPick={onImagePicked}
+          />
+
           {bubbleAnchor &&
             editing &&
             editor &&
@@ -1172,6 +1283,13 @@ export function MarkdownLayer({
                   >
                     <ListNumbersIcon />
                   </FormatButton>
+                  <FloatingToolbarSeparator />
+                  <ImageDropdown
+                    onPick={(key) => {
+                      const { $to } = editor.state.selection
+                      onSlashPickRef.current(key, $to.after(1))
+                    }}
+                  />
                   {((!isLocalBuild && onStartInlineComment) ||
                     onReplyInChat) && <FloatingToolbarSeparator />}
                   {!isLocalBuild && onStartInlineComment && (
