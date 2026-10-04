@@ -36,10 +36,7 @@ export function Choices({
   onChange: (value: string) => void
 }) {
   return (
-    <Questionnaire
-      onSubmit={(e) => e.preventDefault()}
-      className="max-w-[72ch]"
-    >
+    <Questionnaire onSubmit={(e) => e.preventDefault()} className="w-full">
       <QuestionnaireItem name={name} className="gap-1">
         <QuestionnaireChoices>
           {choices.map((c) => (

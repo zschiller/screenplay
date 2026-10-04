@@ -82,50 +82,58 @@ export function Shell({
         <Tabs
           value={tab}
           onValueChange={setTab}
-          className="mx-auto flex max-w-[880px] flex-col gap-6 px-4 pb-[calc(112px+env(safe-area-inset-bottom,0px))] md:px-6"
+          className="gap-6 pb-[calc(112px+env(safe-area-inset-bottom,0px))]"
         >
+          {/* Edge to edge, as the bottom bar is */}
           <div
             ref={top}
-            className="sticky top-[env(safe-area-inset-top,0px)] z-[6] -mx-4 flex flex-wrap items-center gap-x-4 border-b bg-background px-4 md:-mx-6 md:flex-nowrap md:px-6"
+            className="sticky top-[env(safe-area-inset-top,0px)] z-[6] border-b bg-background px-4 md:px-6"
           >
-            <h1
-              title={title}
-              className="min-w-0 flex-1 truncate py-3 font-heading text-title-sm"
-            >
-              {title}
-            </h1>
-            <span className="flex md:order-last">
-              <ThemeButton dark={dark} toggle={toggleTheme} />
-            </span>
             <div
-              ref={fade.ref}
-              onScroll={fade.onScroll}
-              style={fade.style}
-              className="order-last -mt-1 w-full min-w-0 [scrollbar-width:none] overflow-x-auto md:order-none md:mt-0 md:w-auto md:max-w-[60%] [&::-webkit-scrollbar]:hidden"
+              className="mx-auto flex flex-wrap items-center gap-x-4 md:flex-nowrap"
+              style={{ maxWidth: WIDTH }}
             >
-              <TabsList
-                variant="line"
-                aria-label={tabsLabel}
-                className="h-auto flex-none gap-4 rounded-none p-0 pt-0 pb-[5px] md:py-[5px]"
+              <h1
+                title={title}
+                className="min-w-0 flex-1 truncate py-3 font-heading text-title-sm"
               >
-                {tabs.map((t) => (
-                  <TabsTrigger
-                    key={t.value}
-                    value={t.value}
-                    className="h-full flex-none px-0"
-                  >
-                    {t.label}
-                    {t.count != null && (
-                      <span className="font-normal text-muted-foreground tabular-nums">
-                        {t.count}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+                {title}
+              </h1>
+              <span className="flex md:order-last">
+                <ThemeButton dark={dark} toggle={toggleTheme} />
+              </span>
+              <div
+                ref={fade.ref}
+                onScroll={fade.onScroll}
+                style={fade.style}
+                className="order-last -mt-1 w-full min-w-0 [scrollbar-width:none] overflow-x-auto md:order-none md:mt-0 md:w-auto md:max-w-[60%] [&::-webkit-scrollbar]:hidden"
+              >
+                <TabsList
+                  variant="line"
+                  aria-label={tabsLabel}
+                  className="h-auto flex-none gap-4 rounded-none p-0 pt-0 pb-[5px] md:py-[5px]"
+                >
+                  {tabs.map((t) => (
+                    <TabsTrigger
+                      key={t.value}
+                      value={t.value}
+                      className="h-full flex-none px-0"
+                    >
+                      {t.label}
+                      {t.count != null && (
+                        <span className="font-normal text-muted-foreground tabular-nums">
+                          {t.count}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
             </div>
           </div>
-          {children}
+          <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6 px-4 md:px-6">
+            {children}
+          </div>
         </Tabs>
         {bar}
       </Lightbox>

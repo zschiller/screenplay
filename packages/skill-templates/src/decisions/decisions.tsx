@@ -343,7 +343,6 @@ function Question({
           placeholder="Your answer"
           value={a.own}
           onChange={(e) => set({ own: e.target.value })}
-          className="max-w-[72ch]"
         />
       </ItemNote>
     </div>
