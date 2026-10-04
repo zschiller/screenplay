@@ -482,6 +482,16 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     kind: "read",
     category: "viewFrame",
   },
+  screenshot_page: {
+    verb: "Screenshot page",
+    icon: "eye",
+    kind: "read",
+    category: "viewFrame",
+    label: (input) => {
+      const page = str(input.url) ?? str(input.route)
+      return page ? { detail: page, as: "code" } : null
+    },
+  },
   frame_screenshot: {
     verb: "Screenshot frame",
     icon: "eye",

@@ -25,6 +25,7 @@ import { loadAccountSkills } from "@/lib/skills/account"
 import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
 import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import { buildFileTools } from "./file-tools"
+import { chatPageScreenshotTools } from "./page-screenshot-ports"
 import { buildMemoryTools } from "./memory-tools"
 import { chatFrameDriveTools } from "@/lib/frame-drive/live"
 import { canvasFiles } from "@/lib/files"
@@ -131,6 +132,16 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
           agent: agentSkillsFor(harnessKey),
         }),
         ...buildLayerReadTools({ room }),
+        // Any page, in the background: a Workspace's route at any size, or a
+        // public URL, to base a Mockup on.
+        ...chatPageScreenshotTools({
+          room,
+          files: {
+            canvas: canvasFiles(room),
+            account: accountFilesFor(target),
+            chatId,
+          },
+        }),
         ...buildQuestionTools(),
         // Account and canvas memory (#1515).
         ...buildMemoryTools({

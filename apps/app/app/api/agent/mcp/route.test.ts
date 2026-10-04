@@ -409,7 +409,7 @@ describe("a Workspace chat’s MCP route", () => {
       )
     )
 
-  it("lists its dev server’s tools, its frame reads, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315), Question Cards, saved files (#1514), its PR tool (#1480) and its Skill tools (#1555)", async () => {
+  it("lists its dev server’s tools, its frame reads, page screenshots, Frame Drive (#1389), its Document and Mockup tools, other Workspaces' code reads (#1315), Question Cards, saved files (#1514), its PR tool (#1480) and its Skill tools (#1555)", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
@@ -418,6 +418,7 @@ describe("a Workspace chat’s MCP route", () => {
       "start_dev_server",
       "view_frame",
       "read_frame_html",
+      "screenshot_page",
       "frame_start_driving",
       "frame_open",
       "frame_elements",
