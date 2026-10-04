@@ -3,9 +3,10 @@
  * Coordinator's `show_on_canvas` completes in a turn this client asked for
  * (`lib/chat-store.ts`) and applied by the canvas's camera
  * (`components/canvas/canvas.tsx`). `ids` names frames, documents or Groups;
- * empty means fit the whole canvas.
+ * empty means fit the whole canvas. A request with no `chatId` is this
+ * member's own click, such as a question's Mockup link (#1644).
  */
-export type ViewRequest = { chatId: string; ids: string[] }
+export type ViewRequest = { chatId?: string; ids: string[] }
 
 type Listener = (request: ViewRequest) => void
 

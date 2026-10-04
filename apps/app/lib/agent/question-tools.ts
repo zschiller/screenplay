@@ -21,11 +21,13 @@ export function buildQuestionTools() {
       description: [
         `Ask the user a question they answer with one click. Use it for a real fork only the user can decide, with ${MIN_QUESTION_OPTIONS} to ${MAX_QUESTION_OPTIONS} short options; mark the one you’d pick as recommended.`,
         "The chat shows it as a card, and the option they click arrives as their next message, word for word. After calling this, end your turn: don’t answer it yourself or keep working on the fork.",
+        "When the question is about a Mockup, pass its id as mockup_id: the card links to the Mockup, and the page can show the question and answer it on a tap (screenplay.question and screenplay.answer, described with create_mockup’s html).",
       ].join(" "),
       inputSchema: jsonSchema<{
         question: string
         options: Array<{ label: string; detail?: string }>
         recommended?: number
+        mockup_id?: string
       }>({
         type: "object",
         properties: {
@@ -56,6 +58,11 @@ export function buildQuestionTools() {
             type: "integer",
             description:
               "Optional: the index (from 0) of the option you recommend.",
+          },
+          mockup_id: {
+            type: "string",
+            description:
+              "Optional: the id of the Mockup the question is about, as create_mockup returned it.",
           },
         },
         required: ["question", "options"],

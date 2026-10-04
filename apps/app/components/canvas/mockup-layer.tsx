@@ -15,6 +15,8 @@ import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRefs } from "@/hooks/use-mockup-refs"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
+import { useMockupQuestion, usePageQuestion } from "@/hooks/use-mockup-question"
+import type { MockupQuestion } from "@/lib/agent/question"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
@@ -128,6 +130,11 @@ interface MockupLayerProps {
    * the chat that made the mockup. Called only for a tap this viewer made.
    */
   onDraft?: (id: string, text: string) => void
+  /**
+   * The page answered the question its chat asked about it (#1644,
+   * `screenplay.answer`), as a click on the card would.
+   */
+  onAnswerQuestion?: (found: MockupQuestion, index: number) => void
   /**
    * The mockup takes clicks, scrolls and keys (Interact), as a frame does:
    * the canvas stops panning over it and Esc returns.
@@ -251,6 +258,7 @@ export function MockupLayer({
   writes,
   onAskForKnob,
   onDraft,
+  onAnswerQuestion,
   focused = false,
   driver = NOBODY_DRIVES,
   askedForControl,
@@ -346,6 +354,16 @@ export function MockupLayer({
     // screenshot there is rendered from a read of the page.
     snapshot: true,
   })
+  // The question its chat asked about it (#1644). The page answers only
+  // while this viewer interacts with it and the agent isn't driving it: page
+  // script can post an answer without the runtime's tap check, and the agent
+  // mustn't answer its own question. A live page is one page every viewer's
+  // canvas hears from, so it shows the question but can't answer it: each
+  // viewer would send the answer again.
+  const question = useMockupQuestion(layer.id, layer.ownerChatId)
+  const canAnswer = focused && driver.kind !== "agent" && !shared
+  usePageQuestion(page.port, question, canAnswer ? onAnswerQuestion : undefined)
+
   const chrome = livePageChrome({
     driver,
     focused,

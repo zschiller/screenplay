@@ -52,6 +52,7 @@ import { isLocalBuild } from "@/lib/local-mode"
 
 import { inputStore } from "@/lib/input-store"
 import { chatDraftSourceStore } from "@/lib/chat-draft-source-store"
+import type { MockupQuestion } from "@/lib/agent/question"
 
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 
@@ -851,7 +852,7 @@ export function Canvas({
   useEffect(() => {
     let timer: number | undefined
     const unsubscribe = viewRequests.subscribe(({ chatId, ids }) => {
-      if (chatId !== roomChatId(roomId)) return
+      if (chatId !== undefined && chatId !== roomChatId(roomId)) return
       // The call's broadcast can land before the doc update that moved what
       // it names, so let the layout catch up first.
       window.clearTimeout(timer)
@@ -1520,6 +1521,36 @@ export function Canvas({
       inputStore.prefill(chatId, text)
     },
     [mockupLayers, openMockupChat]
+  )
+
+  // A Mockup page answered its chat's question card (#1644): show that chat,
+  // where the card is, and send the option's label as the person's message,
+  // the same send a click on the card makes. Each question is answered once,
+  // even if the page taps again before the message lands.
+  const answeredFromPages = useRef(new Set<string>())
+  const handleAnswerFromMockup = useCallback(
+    (mockupId: string, found: MockupQuestion, index: number) => {
+      const mockup = mockupLayers.find((m) => m.id === mockupId)
+      const chatId = mockup?.ownerChatId
+      const option = found.question.options[index]
+      if (!chatId || !option || answeredFromPages.current.has(found.toolCallId))
+        return
+      answeredFromPages.current.add(found.toolCallId)
+      const owner = mockupOwners.get(mockupId)
+      if (owner?.kind === "sketch") {
+        chatTarget.selectSketchChat(owner.chatId)
+      } else if (owner?.kind === "workspace") {
+        chatTarget.selectAgentChat(owner.branchId, owner.chatId, {
+          expandPanel: true,
+          remember: true,
+        })
+      } else {
+        // The Coordinator made it.
+        chatTarget.showRoomChat()
+      }
+      inputStore.sendWhenOpen(chatId, option.label)
+    },
+    [mockupLayers, mockupOwners, chatTarget]
   )
 
   // Deleting a chat with no repository: the panel goes home if it showed it,
@@ -2327,6 +2358,7 @@ export function Canvas({
                           handlePlayIframeLayer={handlePlayIframeLayer}
                           onAskForKnob={handleAskForKnob}
                           askableMockupIds={askableMockupIds}
+                          onAnswerFromMockup={handleAnswerFromMockup}
                           onAskForMockupKnob={handleAskForMockupKnob}
                           onMockupDraft={handleMockupDraft}
                           handleCaptureReadyChange={handleCaptureReadyChange}

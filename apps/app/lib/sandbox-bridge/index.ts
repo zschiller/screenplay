@@ -22,17 +22,20 @@ export const BRIDGE_JS: string =
 const MOCKUP_KNOBS_JS = readFileSync(join(dir, "mockup-knobs.js"), "utf8")
 const MOCKUP_STATE_JS = readFileSync(join(dir, "mockup-state.js"), "utf8")
 const MOCKUP_CHAT_JS = readFileSync(join(dir, "mockup-chat.js"), "utf8")
+const MOCKUP_QUESTION_JS = readFileSync(join(dir, "mockup-question.js"), "utf8")
 
 // What every Mockup page (#1309) runs ahead of its own scripts: the same DOM
 // bridge a frame's proxy injects, so a chat can target an element in it, and
 // the knobs and shared-state runtimes a static page uses in place of
-// `@screenplay.space/knobs` and `@screenplay.space/state`, and the chat runtime
-// a page drafts a message into its chat's composer with (#1645).
+// `@screenplay.space/knobs` and `@screenplay.space/state`, the chat runtime
+// a page drafts a message into its chat's composer with (#1645), and the
+// question its chat asked about it (#1644).
 export const MOCKUP_RUNTIME_JS: string = [
   BRIDGE_JS,
   MOCKUP_KNOBS_JS,
   MOCKUP_STATE_JS,
   MOCKUP_CHAT_JS,
+  MOCKUP_QUESTION_JS,
 ].join("\n")
 
 // The Frame Stream service every hosted Workspace runs for its shared frames

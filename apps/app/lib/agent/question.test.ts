@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { hasOpenQuestion, parseQuestion, questionAnswers } from "./question"
+import {
+  hasOpenQuestion,
+  mockupQuestion,
+  parseQuestion,
+  questionAnswers,
+} from "./question"
 import type { AgentMessage } from "@/lib/agent/types"
 
 const ask = (
@@ -147,5 +152,35 @@ describe("hasOpenQuestion", () => {
 
   it("is closed in a transcript with no question", () => {
     expect(hasOpenQuestion([{ role: "user", content: "Hi" }])).toBe(false)
+  })
+})
+
+const reply = (content: string): AgentMessage => ({ role: "user", content })
+
+describe("mockupQuestion (#1644)", () => {
+  const about = { ...layout, mockup_id: "mock-1" }
+
+  it("reads the Mockup a question is about", () => {
+    expect(parseQuestion(about)?.mockupId).toBe("mock-1")
+    expect(parseQuestion(layout)).not.toHaveProperty("mockupId")
+  })
+
+  it("finds the latest question about the Mockup, open until a reply", () => {
+    const messages = [
+      ask("q1", { ...about, question: "Earlier?" }),
+      reply("Roomy"),
+      ask("q2", about),
+      ask("q3", { ...layout, mockup_id: "mock-2" }),
+    ]
+    const found = mockupQuestion(messages, "mock-1")
+    expect(found?.toolCallId).toBe("q2")
+    expect(found?.question.question).toBe("Which layout?")
+    expect(found).not.toHaveProperty("answer")
+    expect(mockupQuestion(messages, "mock-3")).toBeNull()
+  })
+
+  it("carries the answer once a reply follows", () => {
+    const found = mockupQuestion([ask("q1", about), reply("compact")], "mock-1")
+    expect(found?.answer).toEqual({ chosen: 0 })
   })
 })
