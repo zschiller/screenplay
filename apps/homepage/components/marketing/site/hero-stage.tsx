@@ -108,11 +108,9 @@ const FADE = 900
 
 // Rows on the canvas floor, far to near.
 const ROWS = 6
-// How far above the headline the veil starts thickening, in CSS px, and how
-// far down the floor the far fade reaches, so a band of rows between the two
-// shows with no grain at all.
+// How far above the headline the veil starts thickening, in CSS px, so the
+// rows above that show with no grain at all.
 const NEAR = 200
-const FAR = 0.58
 // How far the pointer's swell in the floor reaches, in CSS px, and how many
 // degrees a copy tips for each px it is from the pointer.
 const REACH = 360
@@ -193,17 +191,10 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       const s = host.getBoundingClientRect().top
       const head = host.querySelector<HTMLElement>("[data-veil]")!
       const size = parseFloat(getComputedStyle(head).fontSize)
-      const floor = rowsEl.parentElement!.getBoundingClientRect()
       const solid = head.getBoundingClientRect().top - s + size * 0.6
-      return [
-        solid - NEAR,
-        solid,
-        // The far side of the floor dissolves into the dark behind the nav
-        // through the same grain, solid only at the very top of the page.
-        [floor.top - s, floor.top - s + floor.height * FAR],
-        // Denser right behind the nav, so its links read over the copies.
-        [floor.top - s + NAV, 0.84],
-      ]
+      // No grain above the headline: the floor runs straight up under the nav,
+      // filled on desktop and clear at the top of the page on phones.
+      return [solid - NEAR, solid]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()
     let alive = false
