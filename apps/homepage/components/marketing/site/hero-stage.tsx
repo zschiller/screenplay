@@ -117,6 +117,30 @@ const REACH = 360
 const TIP = 0.014
 // The nav's height in CSS px: --hc-nav in the stylesheet.
 const NAV = 61
+// On a touch screen, how far down the floor the bend moves for each px the
+// page scrolls, the bend's radius and how far it turns, and how far past it
+// a row takes to fade out, in CSS px and degrees.
+const BEND_RATE = 1.3
+const BEND_RADIUS = 220
+const CURVE = 32
+const FADE_OUT = 300
+
+/**
+ * Where a point `u` px past the bend ends up, as [down, toward the viewer]
+ * from the bend in the floor's own plane: straight before it, round an arc
+ * after it, then straight on at CURVE degrees back from the floor.
+ */
+function alongCurve(u: number): [number, number] {
+  if (u <= 0) return [-u, 0]
+  const R = BEND_RADIUS
+  const max = (CURVE * Math.PI) / 180
+  if (u < R * max) return [-R * Math.sin(u / R), -R * (1 - Math.cos(u / R))]
+  const d = u - R * max
+  return [
+    -R * Math.sin(max) - d * Math.cos(max),
+    -R * (1 - Math.cos(max)) - d * Math.sin(max),
+  ]
+}
 
 const PAGE = `
   <div class="hc-page">
@@ -174,7 +198,8 @@ type Copy = {
  * The copies are built on the client only; they're decoration, hidden from
  * assistive tech. With reduced motion they hold still. Hovering clears a hole
  * in the veil to peek at them and swells the floor a little, lifting and
- * tipping the copies around it; on a touch screen, scrolling swells it.
+ * tipping the copies around it; on a touch screen, scrolling curves the top
+ * of the floor away and fades it.
  */
 export function HeroStage({ children }: { children: React.ReactNode }) {
   const stage = useRef<HTMLDivElement>(null)
@@ -601,16 +626,60 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
 
     // The floor shifts by up to half a row so that the nav's bottom edge
     // covers the top quarter of the row of copies nearest it.
+    // That edge is also where the floor starts to curve away on a touch
+    // screen, kept as a distance down the floor from the top of the rows.
+    let bendFrom = 0
     const lift = () => {
       host.style.setProperty("--hc-lift", "0px")
       const s = host.getBoundingClientRect().top
       let by = Infinity
-      for (const track of rowsEl.children) {
+      for (const track of rowsEl.children as HTMLCollectionOf<HTMLElement>) {
+        track.style.translate = track.style.rotate = track.style.opacity = ""
         const r = track.getBoundingClientRect()
         const off = r.top + r.height / 4 - s - NAV
-        if (Math.abs(off) < Math.abs(by)) by = off
+        if (Math.abs(off) < Math.abs(by)) {
+          by = off
+          bendFrom = track.offsetTop + track.offsetHeight / 4
+        }
       }
       if (Number.isFinite(by)) host.style.setProperty("--hc-lift", `${by}px`)
+    }
+
+    // Touch screens have no hover, so there scrolling moves the floor
+    // instead: past a bend under the nav that travels down the floor as the
+    // page scrolls, the floor leans further back, up to CURVE degrees, and
+    // its rows fade out, still joined edge to edge like a garage door's.
+    const touch = matchMedia("(hover: none)")
+    let curving = 0
+    const curve = () => {
+      curving = 0
+      const tracks = rowsEl.children as HTMLCollectionOf<HTMLElement>
+      if (!touch.matches || reduce) {
+        for (const t of tracks)
+          t.style.translate = t.style.rotate = t.style.opacity = ""
+        return
+      }
+      const bend = bendFrom + scrollY * BEND_RATE
+      for (const t of tracks) {
+        const h = t.offsetHeight
+        const bottom = t.offsetTop + h
+        // How far past the bend the row's bottom and top edges are.
+        const [y0, z0] = alongCurve(bend - bottom)
+        const [y1, z1] = alongCurve(bend - bottom + h)
+        // Turned on its bottom edge to lie along the curve, and moved so
+        // that edge meets the row before it.
+        const tip = Math.atan2(-(z1 - z0), -(y1 - y0)) * (180 / Math.PI)
+        t.style.transformOrigin = "50% 100%"
+        const dy = (bend + y0 - bottom).toFixed(2)
+        t.style.translate = `0 ${dy}px ${z0.toFixed(2)}px`
+        t.style.rotate = `x ${tip.toFixed(2)}deg`
+        const past = (bend - bottom + h / 2) / FADE_OUT
+        const gone = Math.min(Math.max(past, 0), 1)
+        t.style.opacity = String(1 - 0.95 * gone * gone * (3 - 2 * gone))
+      }
+    }
+    const onScroll = () => {
+      if (touch.matches && !curving) curving = requestAnimationFrame(curve)
     }
 
     // At most once a frame, and drawn straight away, so dragging the window
@@ -621,6 +690,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       pending = requestAnimationFrame(() => {
         pending = 0
         lift()
+        curve()
         veil.measure()
         veil.drawOnce()
         if (alive && !reduce) veil.start()
@@ -705,17 +775,6 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       veil.peekAt(null)
       if (reduce) veil.drawOnce()
     }
-    // Touch screens have no hover, so scrolling swells the floor instead: a
-    // bump at a fixed spot on screen that the rows roll through as the page
-    // moves, settling once the scroll stops.
-    const touch = matchMedia("(hover: none)")
-    let still: ReturnType<typeof setTimeout> | undefined
-    const onScroll = () => {
-      if (!touch.matches || !visibleNow) return
-      point({ x: innerWidth / 2, y: innerHeight * 0.4 })
-      clearTimeout(still)
-      still = setTimeout(() => point(null), 200)
-    }
     window.addEventListener("pointermove", onMove)
     document.documentElement.addEventListener("pointerleave", onLeave)
     window.addEventListener("scroll", onScroll, { passive: true })
@@ -734,13 +793,13 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       pause()
       cancelAnimationFrame(pending)
       cancelAnimationFrame(swelling)
+      cancelAnimationFrame(curving)
       cancelAnimationFrame(shown)
       clearTimeout(shown)
       resize.disconnect()
       window.removeEventListener("pointermove", onMove)
       document.documentElement.removeEventListener("pointerleave", onLeave)
       window.removeEventListener("scroll", onScroll)
-      clearTimeout(still)
       seen.disconnect()
       rowsEl.replaceChildren()
     }
