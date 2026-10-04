@@ -8,8 +8,7 @@ import { createFluid } from "./fluid"
  * span it also thickens up the canvas to solid at the far span's top, so the
  * layer fades into the background at both ends the same way. A `band` holds
  * the veil at a set density from the top of the canvas down to a line, for a
- * bar that lies over it there, then lets it go over `fall` px (28 unless
- * set).
+ * bar that lies over it there.
  *
  * The threshold is interleaved gradient noise, which scatters the grain like
  * blue noise instead of Bayer's checkerboard, over an even ramp. The veil
@@ -25,7 +24,7 @@ export function createDitherVeil(
     top: number,
     solid: number,
     far?: [solid: number, clear: number],
-    band?: [bottom: number, density: number, fall?: number],
+    band?: [bottom: number, density: number],
   ]
 ) {
   const ctx = canvas.getContext("2d")!
@@ -166,9 +165,9 @@ export function createDitherVeil(
         k = Math.max(k, u > 0 ? u ** EASE : u)
       }
       // The band across the top is at least its own density all the way
-      // down, then lets go below it.
+      // down, then lets go over a short distance below it.
       if (band && d > 0) {
-        const e = Math.min(Math.max(1 - (y - band[0]) / (band[2] ?? 28), 0), 1)
+        const e = Math.min(Math.max(1 - (y - band[0]) / 28, 0), 1)
         k = Math.max(k, band[1] * e * e * (3 - 2 * e))
       }
       for (let c = 0; c < cols; c++, i++) {
@@ -179,7 +178,7 @@ export function createDitherVeil(
           inBand[i] = 1
           const v = k * k * (3 - 2 * k)
           still[i] = v > thr[i]! ? 255 : 0
-        } else still[i] = d <= 0 || k >= 1 ? 255 : 0
+        } else still[i] = d <= 0 ? 255 : 0
       }
     }
     fluid = createFluid(gc, gr)

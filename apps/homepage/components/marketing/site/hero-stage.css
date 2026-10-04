@@ -2,8 +2,7 @@
    floor that recedes to a horizon under the nav, dissolving into the dither
    veil. Plain CSS because the copies are built on the client. */
 
-/* The stage starts at the top of the page, behind the nav, which is clear
-   until the page scrolls. The floor's height follows the window, so the
+/* The stage starts at the top of the page, behind the nav. The floor's height follows the window, so the
    buttons stay above the fold on a laptop. */
 .hc-stage {
   --hc-nav: 61px;
@@ -25,13 +24,15 @@
   /* The far side also sinks into the dark under the grain, so whatever the
      pointer reveals there still recedes. */
   mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.2), #000 45%);
+  /* Set by hero-stage.tsx so the nav's edge halves the row nearest it. */
+  transform: translateY(calc(-1 * var(--hc-lift, 0px)));
 }
 /* The headline's first line sinks into the nearest row, where the veil turns
    solid. */
 .hc-content {
   margin-top: calc(var(--hc-floor) - 110px);
 }
-/* On phones the headline runs to four lines, so the floor takes more of the
+/* On phones the headline runs to three lines, so the floor takes more of the
    screen and the headline sinks less of it. */
 @media (max-width: 639px) {
   .hc-stage {
