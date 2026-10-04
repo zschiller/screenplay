@@ -12,6 +12,7 @@ import {
   parseMockupRef,
   type MockupResources,
 } from "@/lib/mockup-refs"
+import { MOCKUP_RUNTIME_JS } from "@/lib/sandbox-bridge"
 import { appSkills } from "@/lib/skills"
 import { mockupSrcDoc } from "./mockup-html"
 
@@ -186,22 +187,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   it.each(TEMPLATES)(
     "renders the %s Skill's %s from its runtime",
     async (skill, path) => {
-      const files = appSkills.open(skill)!.files
-      const html = files.find((f) => f.path === path)!.content
-      const resources: Record<string, MockupResources[string]> = {}
-      for (const ref of mockupRefs(html)) {
-        const parsed = parseMockupRef(ref)
-        const file =
-          parsed?.kind === "skill" && parsed.skill === skill
-            ? files.find((f) => f.path === parsed.path)
-            : undefined
-        resources[ref] = file
-          ? {
-              type: mediaTypeFor(file.path, "text/plain"),
-              data: b64(file.content),
-            }
-          : null
-      }
+      const { html, resources } = templatePage(skill, path)
       expect(Object.values(resources)).not.toContain(null)
       const report = await run(
         `${html}<script>
@@ -214,14 +200,20 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
               report: true,
               text: app.textContent.length > 0,
               font: getComputedStyle(document.documentElement).fontFamily,
+              faces: Array.from(document.fonts, (f) => f.family).sort(),
             }, "*")
           }, 20)
         </script>`,
         resources
       )
       expect(report.text).toBe(true)
-      // The runtime's styles: the page's font comes from its token block
+      // The runtime's styles: the page's font comes from its token block,
+      // and the faces from the Skill's fonts.css, as nothing loads from the
+      // network
       expect(report.font).toContain("Instrument Sans")
+      expect(report.faces).toEqual(
+        expect.arrayContaining(["Geist Mono", "Instrument Sans", "Unbounded"])
+      )
     }
   )
 
@@ -306,4 +298,80 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
       )
       .toEqual(["Storybook: Part\n→ Wide (Shape Wide): Too dense"])
   }, 20_000)
+
+  // The exploration page on a canvas (#1647): its Pick answers the card the
+  // chat asked about it, and Send to chat drafts the reaction, each from a
+  // real click, as the canvas would get them.
+  it("answers the chat's card from Pick and drafts from Send to chat", async () => {
+    const { html, resources } = templatePage(
+      "screenplay-explore-with-mockups",
+      "exploration-template.html"
+    )
+    const doc = mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources)
+    await page.evaluate((srcdoc) => {
+      const w = window as unknown as { posted: unknown[] }
+      w.posted = []
+      const frame = document.createElement("iframe")
+      frame.setAttribute("sandbox", "allow-scripts")
+      frame.style.cssText = "width:1000px;height:800px"
+      addEventListener("message", (e) => {
+        const data = e.data
+        if (e.source !== frame.contentWindow || !data?.type) return
+        w.posted.push(data)
+        // The canvas's side: the sample data's question, still open
+        if (data.type === "screenplay:question-request")
+          frame.contentWindow!.postMessage(
+            {
+              type: "screenplay:question-apply",
+              question: {
+                id: "call-1",
+                question: "The first question",
+                options: [
+                  { label: "A: Short name" },
+                  { label: "B: Short name" },
+                ],
+                recommended: 0,
+                answer: null,
+              },
+            },
+            "*"
+          )
+      })
+      frame.srcdoc = srcdoc
+      document.body.append(frame)
+    }, doc)
+    const frame = page.frameLocator("iframe")
+    await frame.getByRole("tab", { name: /^B/ }).first().click()
+    await frame.getByRole("button", { name: "Pick B" }).click()
+    await frame.getByRole("button", { name: "Send to chat" }).click()
+    const posted = (await page.evaluate(
+      "window.posted.filter((m) => /answer|draft/.test(m.type))"
+    )) as { type: string; text?: string }[]
+    expect(posted[0]).toEqual({
+      type: "screenplay:question-answer",
+      id: "call-1",
+      index: 1,
+    })
+    expect(posted[1]!.type).toBe("screenplay:draft")
+    expect(posted[1]!.text).toContain("→ The first question: B: Short name")
+    await page.evaluate("document.querySelector('iframe').remove()")
+  })
 })
+
+/** An App Skill's template page and the Skill files its references name. */
+function templatePage(skill: string, path: string) {
+  const files = appSkills.open(skill)!.files
+  const html = files.find((f) => f.path === path)!.content
+  const resources: Record<string, MockupResources[string]> = {}
+  for (const ref of mockupRefs(html)) {
+    const parsed = parseMockupRef(ref)
+    const file =
+      parsed?.kind === "skill" && parsed.skill === skill
+        ? files.find((f) => f.path === parsed.path)
+        : undefined
+    resources[ref] = file
+      ? { type: mediaTypeFor(file.path, "text/plain"), data: b64(file.content) }
+      : null
+  }
+  return { html, resources }
+}

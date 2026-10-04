@@ -8,6 +8,21 @@ import { ThemeContext } from "./theme.tsx"
 /** A capture: `p` the light (or only) image, `dk` an optional dark one; `bare` keeps `cap` as alt text only. */
 export type Img = { p: string; cap: string; dk?: string; bare?: boolean }
 
+/**
+ * Where a capture loads from. On a canvas the page's markup lists its
+ * captures as `<img alt="<path>" src="files:<path>">` inside `#files`, which
+ * the canvas swaps for loadable URLs; elsewhere the path is the URL.
+ */
+let files: Map<string, string> | undefined
+export function captureSrc(path: string) {
+  files ??= new Map(
+    [...document.querySelectorAll<HTMLImageElement>("#files img[alt]")].map(
+      (img) => [img.alt, img.src]
+    )
+  )
+  return files.get(path) ?? path
+}
+
 const LightboxContext = React.createContext<(src: string) => void>(() => {})
 
 /** Tap a capture to see it at full size; tap anywhere to close. */
@@ -45,6 +60,15 @@ export function Lightbox({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Captures are taken at 2x: one never shows wider than its own pixels allow,
+ * so a small crop stays sharp instead of blowing up to the column.
+ */
+const atSize = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  const img = e.currentTarget
+  img.style.maxWidth = img.naturalWidth / 2 + "px"
+}
+
+/**
  * Captures in the viewer's theme only. Images load eagerly: a lazy image in a
  * hidden tab has no height, so switching tabs would land partway down.
  */
@@ -67,19 +91,21 @@ export function Shots({
           <button
             type="button"
             aria-label={`Enlarge ${i.cap}`}
-            onClick={() => open(dark && i.dk ? i.dk : i.p)}
-            className="block w-full cursor-zoom-in border bg-muted p-0 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            onClick={() => open(captureSrc(dark && i.dk ? i.dk : i.p))}
+            className="block w-fit max-w-full cursor-zoom-in border bg-muted p-0 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <img
-              src={i.p}
+              src={captureSrc(i.p)}
               alt={i.cap}
+              onLoad={atSize}
               className={cn("block h-auto w-full", i.dk && "dark:hidden")}
             />
             {i.dk && (
               <img
-                src={i.dk}
+                src={captureSrc(i.dk)}
                 alt=""
                 aria-hidden
+                onLoad={atSize}
                 className="hidden h-auto w-full dark:block"
               />
             )}

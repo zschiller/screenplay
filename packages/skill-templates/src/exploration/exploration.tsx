@@ -25,6 +25,12 @@ import {
 } from "@workspace/ui/components/tabs"
 import { cn } from "@workspace/ui/lib/utils"
 
+import {
+  answer as answerCard,
+  type CardQuestion,
+  onCanvas,
+  useCardQuestion,
+} from "../shared/chat.ts"
 import { CopyBar, Facts, Html, Label, load, store } from "../shared/page.tsx"
 import { Lightbox, Shots } from "../shared/shots.tsx"
 import { ThemeButton, ThemeContext, useTheme } from "../shared/theme.tsx"
@@ -38,7 +44,35 @@ const SIGN = [
 const signoff = (q: Question) => q.options.length === 1
 
 type Picks = Record<string, string | undefined>
-type PickProps = { picks: Picks; pick: (q: string, v: string) => void }
+type PickProps = {
+  picks: Picks
+  pick: (q: string, v: string) => void
+  /** The question the chat's open card asks, once it's answered (on a canvas). */
+  sent?: string
+}
+
+// TEMP exploration switches
+const V = ((globalThis as { VARIANT?: Record<string, string> }).VARIANT ??
+  {}) as Record<string, string>
+
+const norm = (s: string) => s.trim().toLowerCase()
+/** The value a card option stands for in question `q`, by its label. */
+function cardValues(q: Question, card: CardQuestion): string[] | null {
+  const want = signoff(q)
+    ? SIGN.map(([v, l]) => [v, [norm(l)]] as const)
+    : q.options.map(
+        (o) =>
+          [o.id, [norm(o.id), "option " + norm(o.id), norm(o.name)]] as const
+      )
+  if (card.options.length !== want.length) return null
+  const ok = card.options.every((c, i) => {
+    const l = norm(c.label)
+    return want[i]![1].some(
+      (w) => l === w || (l.startsWith(w) && !/[a-z0-9]/.test(l[w.length]!))
+    )
+  })
+  return ok ? want.map((w) => w[0]) : null
+}
 
 export function Exploration({
   page,
@@ -74,11 +108,37 @@ export function Exploration({
   useSharedState("picks", sharedPicks, setPicks)
   useSharedState("note", note, setNote)
 
+  // On a canvas, the chat's open card about this page asks one of the open
+  // round's questions: a pick there answers it, and its answer shows here
+  const card = useCardQuestion()
+  const linked = React.useMemo(() => {
+    if (!card) return null
+    for (const q of Q) {
+      const values = cardValues(q, card)
+      if (values) return { q, values }
+    }
+    return null
+  }, [card, Q])
+  const answered =
+    linked && card?.answer?.index != null
+      ? linked.values[card.answer.index]
+      : undefined
+  React.useEffect(() => {
+    if (answered && linked)
+      setPicks((p) =>
+        p[linked.q.key] === answered ? p : { ...p, [linked.q.key]: answered }
+      )
+  }, [answered, linked])
+
   const pick = (k: string, v: string) => {
+    if (answered && linked?.q.key === k) return
     const next = picks[k] === v ? undefined : v
+    if (next && linked?.q.key === k && card && !card.answer)
+      answerCard(linked.values.indexOf(next))
     setPicks({ ...picks, [k]: next })
     if (next === "changes") setNoteOpen(true)
   }
+  const canvas = onCanvas()
   const answer = (q: Question) => {
     const v = picks[q.key]
     if (!v) return ""
@@ -90,7 +150,9 @@ export function Exploration({
       const name = signoff(q) ? q.options[0]!.name : q.title
       return "→ " + (name ? name + ": " : "") + (answer(q) || "No pick yet")
     })
-    return [`Exploration: ${page.q}`, `Round ${latest.n}`, ...lines]
+    // In the chat, the draft already says which Mockup it came from
+    const head = canvas ? [] : [`Exploration: ${page.q}`]
+    return [...head, `Round ${latest.n}`, ...lines]
       .concat(note.trim() ? [`Note: ${note.trim()}`] : [])
       .join("\n")
   }
@@ -101,6 +163,10 @@ export function Exploration({
         <React.Fragment key={q.key}>
           {i > 0 && " · "}
           <b>{Q.length > 1 ? answer(q).split(":")[0] : answer(q)}</b>
+          {V.sent === "bar" &&
+            answered &&
+            linked?.q.key === q.key &&
+            " sent to chat"}
         </React.Fragment>
       ))}
       {Q.length > 1 && ` · ${done.length} of ${Q.length} answered`}
@@ -127,7 +193,13 @@ export function Exploration({
             </h1>
             <Quote>{page.quote}</Quote>
           </header>
-          <RoundTabs rounds={rounds} today={today} picks={picks} pick={pick} />
+          <RoundTabs
+            rounds={rounds}
+            today={today}
+            picks={picks}
+            pick={pick}
+            sent={answered ? linked!.q.key : undefined}
+          />
         </div>
         <CopyBar
           status={status}
@@ -136,6 +208,7 @@ export function Exploration({
           noteOpen={noteOpen}
           setNoteOpen={setNoteOpen}
           copyLabel="Copy reaction"
+          send
           outLabel="Reaction to copy"
           text={text}
           maxWidth="832px"
@@ -257,11 +330,21 @@ function RoundPanel({
 }: { round: Round; live: boolean } & PickProps) {
   return (
     <section className="flex min-w-0 flex-col gap-4">
-      <Label accent={live}>
-        Round {r.n} · {live ? "open" : outcome(r)}
-      </Label>
-      {r.feedback && <Said html={r.feedback} />}
-      {r.every && <Every items={r.every} />}
+      {V.head !== "fold" && (
+        <Label accent={live && V.head !== "quiet"}>
+          Round {r.n} · {live ? "open" : outcome(r)}
+        </Label>
+      )}
+      {V.head === "fold" ? (
+        <RoundNotes r={r} live={live} />
+      ) : (
+        V.head !== "after" && (
+          <>
+            {r.feedback && <Said html={r.feedback} />}
+            {r.every && <Every items={r.every} />}
+          </>
+        )
+      )}
       {r.questions.map((q, i) => (
         <QuestionBlock
           key={q.key}
@@ -272,7 +355,56 @@ function RoundPanel({
           {...pickProps}
         />
       ))}
+      {V.head === "after" && (r.feedback || r.every) && (
+        <div className="mt-4 flex flex-col gap-4 border-t border-foreground pt-5">
+          <Label>About this round</Label>
+          {r.feedback && <Said html={r.feedback} />}
+          {r.every && <Every items={r.every} />}
+        </div>
+      )}
     </section>
+  )
+}
+
+/** TEMP fold variant: the round label is the trigger for feedback and every. */
+function RoundNotes({ r, live }: { r: Round; live: boolean }) {
+  const [open, setOpen] = React.useState(false)
+  if (!r.feedback && !r.every)
+    return (
+      <Label accent={live}>
+        Round {r.n} · {live ? "open" : outcome(r)}
+      </Label>
+    )
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="-mt-2 border-b md:-mt-3"
+    >
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between gap-3 pb-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        <Label accent={live}>
+          Round {r.n} · {live ? "open" : outcome(r)}
+        </Label>
+        <span className="text-sm font-medium text-muted-foreground">
+          {open ? "Hide" : r.feedback ? "Your feedback" : "Show"}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-3.5 pb-3.5">
+        {r.feedback && (
+          <Html
+            as="blockquote"
+            html={r.feedback}
+            className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground"
+          />
+        )}
+        {r.every && (
+          <>
+            <Label>In every option</Label>
+            <Facts items={r.every} />
+          </>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -361,6 +493,7 @@ function QuestionBlock({
   live,
   picks,
   pick,
+  sent,
 }: { round: Round; q: Question; i: number; live: boolean } & PickProps) {
   const n = r.questions.length
   const [opt, setOpt] = React.useState(
@@ -387,7 +520,7 @@ function QuestionBlock({
   const head = (q.title || n > 1) && (
     <div className="flex flex-col gap-1">
       {n > 1 && (
-        <Label accent>
+        <Label accent={V.head !== "quiet"}>
           Question {i + 1} of {n}
         </Label>
       )}
@@ -402,7 +535,14 @@ function QuestionBlock({
     </div>
   )
   const card = (o: Option) => (
-    <Card q={q} o={o} live={live} picks={picks} pick={pick} />
+    <Card
+      q={q}
+      o={o}
+      live={live}
+      picks={picks}
+      pick={pick}
+      sent={live && sent === q.key ? sent : undefined}
+    />
   )
   const wrap = cn(
     "flex min-w-0 flex-col gap-3.5",
@@ -456,13 +596,19 @@ function Card({
   live,
   picks,
   pick,
+  sent,
 }: { q: Question; o: Option; live: boolean } & PickProps) {
   const choices = signoff(q) ? SIGN : ([[o.id, "Pick " + o.id]] as const)
   return (
     <article className="flex min-w-0 flex-col gap-3">
       <header className="flex flex-col gap-1.5">
         {!signoff(q) && (
-          <span className="font-mono text-sm font-semibold text-info">
+          <span
+            className={cn(
+              "font-mono text-sm font-semibold",
+              V.head === "quiet" ? "text-muted-foreground" : "text-info"
+            )}
+          >
             Option {o.id}
           </span>
         )}
@@ -502,7 +648,7 @@ function Card({
         </p>
       )}
       {live && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {choices.map(([v, l]) => {
             const on = picks[q.key] === v
             return (
@@ -512,12 +658,21 @@ function Card({
                 size="lg"
                 variant={on ? "default" : "outline"}
                 aria-pressed={on}
+                disabled={!!sent && !on}
                 onClick={() => pick(q.key, v)}
               >
                 {l}
               </Button>
             )
           })}
+          {sent && V.sent !== "bar" && (
+            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+              <CheckIcon className="size-4 text-success" />
+              {choices.some(([v]) => picks[q.key] === v)
+                ? "Answered in chat"
+                : `Answered ${picks[q.key]} in chat`}
+            </span>
+          )}
         </div>
       )}
     </article>
