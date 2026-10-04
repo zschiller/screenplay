@@ -371,37 +371,40 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       const s = rowsEl.parentElement!.getBoundingClientRect()
       // It starts around the middle of the floor: the first four are any
       // of the dozen copies nearest it, different each visit. After them
-      // each copy's turn is how far out it is, scaled by chance, so it
-      // spreads loosely outwards.
+      // it's anywhere, but each time the pick of a few is the one with the
+      // fewest neighbours already showing, so they pop in scattered, with
+      // gaps between them, and only close ranks towards the end.
       const cx = s.left + s.width / 2
       const cy = s.top + s.height / 2
       const placed = copies.flatMap((f) => {
         const r = f.el.getBoundingClientRect()
         if (r.right <= s.left || r.left >= s.right) return []
-        const far = Math.hypot(
-          r.left + r.width / 2 - cx,
-          r.top + r.height / 2 - cy
-        )
-        return [{ f, far }]
+        const x = r.left + r.width / 2
+        const far = Math.hypot(x - cx, r.top + r.height / 2 - cy)
+        return [{ f, far, x, w: r.width }]
       })
-      const reach = Math.max(...placed.map((c) => c.far), 1)
       placed.sort((a, b) => a.far - b.far)
-      const first = new Set(
-        placed
-          .slice(0, 12)
-          .map((c) => ({ c, pick: Math.random() }))
-          .sort((a, b) => a.pick - b.pick)
-          .slice(0, 4)
-          .map(({ c }) => c)
-      )
-      const seen = placed
-        .map((c) => ({
-          f: c.f,
-          turn: first.has(c)
-            ? Math.random() - 1
-            : (c.far / reach) * (0.35 + 1.3 * Math.random()),
-        }))
-        .sort((a, b) => a.turn - b.turn)
+      type Placed = (typeof placed)[number]
+      const beside = (a: Placed, b: Placed) =>
+        Math.abs(a.f.row - b.f.row) <= 1 &&
+        Math.abs(a.x - b.x) < (a.w + b.w) * 0.75
+      const seen: Placed[] = []
+      const crowd = (c: Placed) =>
+        seen.reduce((n, o) => n + (beside(c, o) ? 1 : 0), 0)
+      const left = new Set(placed)
+      while (left.size) {
+        const pool =
+          seen.length < 4
+            ? placed.slice(0, 12).filter((c) => left.has(c))
+            : [...left]
+        let pick = pool[Math.floor(Math.random() * pool.length)]!
+        for (let tries = 0; tries < 6; tries++) {
+          const c = pool[Math.floor(Math.random() * pool.length)]!
+          if (crowd(c) < crowd(pick)) pick = c
+        }
+        seen.push(pick)
+        left.delete(pick)
+      }
       // The gaps between one copy and the next are uneven, from a fifth of
       // the average to nearly twice it, so they don't tick in like a clock.
       const gaps = seen.map(() => 0.2 + 1.6 * Math.random())
