@@ -56,6 +56,12 @@ const EDITS: {
 
 // Copies in one run of a row; each row holds two runs.
 const RUN = 12
+// Edits a copy holds before an agent swaps one out instead of adding one.
+const MAX = 4
+// Agents in the opening crowd.
+const OPENERS = 12
+// Seconds the fade-in takes to reach the copy furthest from the middle.
+const REVEAL = 1.4
 
 // A fixed sequence of random numbers, so every visit starts the same.
 function sequence(seed: number) {
@@ -168,10 +174,10 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     }
     const nextHeadline = () => HEADLINES[headlineIndex++ % HEADLINES.length]!
 
-    // What a copy has already done when the page loads, so the first frame
-    // shows variety: nothing, or up to three edits that can combine, under
-    // half of them with a theme. No two copies are dealt the same hand on
-    // purpose, so the floor doesn't read as a pattern.
+    // Every copy starts as main, today's homepage, and the agents take them
+    // apart from there. Without motion nothing would ever change, so then
+    // each copy is dealt a hand up front: nothing, or up to three edits that
+    // can combine, under half of them with a theme.
     const rand = sequence(7)
     const themes = EDITS.flatMap((e, i) => (e.group === "theme" ? [i] : []))
     const rest = EDITS.flatMap((e, i) => (e.group === "theme" ? [] : [i]))
@@ -202,7 +208,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       track.style.animationDelay = `${-row * 13}s`
       for (let rep = 0; rep < 2; rep++) {
         for (let n = 0; n < RUN; n++) {
-          const seed = deal()
+          const seed = reduce ? deal() : []
           const el = document.createElement("div")
           el.className = "hc-copy"
           el.innerHTML = `<div class="hc-head">${GLYPH}<span class="hc-name"></span><span class="hc-diff"></span></div><div class="hc-box">${PAGE}</div>`
@@ -231,6 +237,30 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       rowsEl.appendChild(track)
     }
 
+    // The copies in view fade in from the middle of the window outwards;
+    // the rest are simply there. The agents start as the last one lands.
+    let opensAt = 0
+    if (!reduce) {
+      const s = host.getBoundingClientRect()
+      const floor = rowsEl.parentElement!.getBoundingClientRect()
+      const cx = s.left + s.width / 2
+      const cy = floor.top + floor.height / 2
+      const seen = copies.flatMap((f) => {
+        const r = f.el.getBoundingClientRect()
+        if (r.right < s.left || r.left > s.right || r.bottom < floor.top)
+          return []
+        const d = Math.hypot(
+          r.left + r.width / 2 - cx,
+          r.top + r.height / 2 - cy
+        )
+        return [{ f, d }]
+      })
+      const far = Math.max(...seen.map((c) => c.d), 1)
+      for (const { f, d } of seen)
+        f.el.style.setProperty("--hc-in", `${((d / far) * REVEAL).toFixed(2)}s`)
+      opensAt = performance.now() + (REVEAL + 0.3) * 1000
+    }
+
     async function type(f: Copy, text: string) {
       let cur = f.h1.textContent ?? ""
       const caret = '<span class="hc-caret"></span>'
@@ -248,8 +278,26 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       f.h1.textContent = cur
     }
 
-    // A few agents at once each keep picking a copy on screen and changing
-    // it, or, after a few edits, undoing them back to main to start over.
+    // The opening: a crowd of agents gives every copy its first edit, the
+    // ones in view first, so the floor has diverged within a few seconds.
+    async function opener(delay: number) {
+      await wait(delay)
+      while (alive) {
+        const s = host.getBoundingClientRect()
+        const fresh = copies.filter((f) => !f.busy && !f.done.length)
+        const seen = fresh.filter((f) => {
+          const r = f.el.getBoundingClientRect()
+          return r.right > s.left && r.left < s.right
+        })
+        const pool = seen.length ? seen : fresh
+        const f = pool[Math.floor(Math.random() * pool.length)]
+        if (!f) return
+        await edit(f, true)
+        await wait(60 + Math.random() * 120)
+      }
+    }
+    // After that a few agents at once each keep picking a copy on screen and
+    // changing it or, once it's full, swapping one of its edits out.
     async function agent(delay: number) {
       await wait(delay)
       while (alive) {
@@ -267,29 +315,33 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         await wait(500 + Math.random() * 700)
       }
     }
-    async function edit(f: Copy) {
+    async function edit(f: Copy, quick = false) {
       f.busy = true
       f.el.classList.add("working")
-      if (f.done.length >= 3) {
-        // Back out the edits one at a time, newest first, until it's main.
+      if (f.done.length >= MAX) {
+        // Full: back one edit out, so the next visit can add another. A
+        // copy never goes all the way back to main.
         await wait(400)
-        while (f.done.length && alive) {
-          const e = EDITS[f.done.pop()!]!
-          label(f)
-          if (e.type) await type(f, HEAD)
-          else {
-            f.page.classList.remove(e.cls!)
-            await wait(550)
-          }
+        const at = Math.floor(Math.random() * f.done.length)
+        const e = EDITS[f.done.splice(at, 1)[0]!]!
+        label(f)
+        if (e.type) await type(f, HEAD)
+        else {
+          f.page.classList.remove(e.cls!)
+          await wait(550)
         }
       } else {
         const taken = new Set(f.done.map((i) => EDITS[i]!.group))
+        // The opening crowd doesn't stop to type.
         const pool = EDITS.map((_, i) => i).filter(
-          (i) => !f.done.includes(i) && !taken.has(EDITS[i]!.group)
+          (i) =>
+            !f.done.includes(i) &&
+            !taken.has(EDITS[i]!.group) &&
+            !(quick && EDITS[i]!.type)
         )
         const i = pool[Math.floor(Math.random() * pool.length)]!
         // The agent thinks for a moment, then the change lands.
-        await wait(600)
+        await wait(quick ? 150 : 600)
         if (!alive) return
         f.done.push(i)
         label(f)
@@ -297,7 +349,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         if (e.type) await type(f, nextHeadline())
         else {
           f.page.classList.add(e.cls!)
-          await wait(900)
+          await wait(quick ? 300 : 900)
         }
       }
       f.el.classList.remove("working")
@@ -309,7 +361,9 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       alive = true
       host.dataset.playing = ""
       veil.start()
-      for (let k = 0; k < 3; k++) void agent(k * 450)
+      const hold = Math.max(opensAt - performance.now(), 0)
+      for (let k = 0; k < OPENERS; k++) void opener(hold + k * 70)
+      for (let k = 0; k < 3; k++) void agent(hold + k * 450)
     }
     const pause = () => {
       alive = false
