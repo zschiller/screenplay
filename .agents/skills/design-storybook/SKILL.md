@@ -27,7 +27,7 @@ Pick live when the controls include free values (any text, any number) that capt
 
 ## 3. Capture every state
 
-Mount the part on a **stage**: a scratch route, story or fixture screen that renders only the part, inside the app's providers, theme and fonts, at a fixed width with padding around it, with its props and seeded data read from URL params. Use the repo's Storybook or screenshot harness when it has one; otherwise follow [`../design-exploration/CAPTURE.md`](../design-exploration/CAPTURE.md). The stage stays local, in the repo's scratch area or the scratchpad, and is never committed.
+Mount the part on a **stage**: a scratch route, story or fixture screen that renders only the part, inside the app's providers, theme and fonts, at a fixed width with padding around it, with its props and seeded data read from URL params. Use the repo's Storybook or screenshot harness when it has one; otherwise follow [`../design-exploration/CAPTURE.md`](../design-exploration/CAPTURE.md). The stage lives only in the repo's gitignored scratch area or the scratchpad, so the branch carries none of it.
 
 1. Drive interaction states with real input (hover, focus, click to open) before each capture, and wait for transitions to settle.
 2. Crop every capture to the stage, so each state shows the part at the same size and position and switching states doesn't jump. Shoot at device scale 2.
