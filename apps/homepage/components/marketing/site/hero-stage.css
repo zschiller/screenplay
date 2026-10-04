@@ -24,7 +24,7 @@
   /* The far side also sinks into the dark under the grain, so whatever the
      pointer reveals there still recedes. */
   mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.2), #000 45%);
-  /* Set by hero-stage.tsx so the nav's edge halves the row nearest it. */
+  /* Set by hero-stage.tsx so the nav covers the top of the row nearest it. */
   transform: translateY(calc(-1 * var(--hc-lift, 0px)));
 }
 /* The headline's first line sinks into the nearest row, where the veil turns

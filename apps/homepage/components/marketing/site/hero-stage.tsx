@@ -608,15 +608,15 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       })
     }
 
-    // The floor shifts by up to half a row so that the nav's bottom edge cuts
-    // the row of copies nearest it through the middle.
+    // The floor shifts by up to half a row so that the nav's bottom edge
+    // covers the top quarter of the row of copies nearest it.
     const lift = () => {
       host.style.setProperty("--hc-lift", "0px")
       const s = host.getBoundingClientRect().top
       let by = Infinity
       for (const track of rowsEl.children) {
         const r = track.getBoundingClientRect()
-        const off = (r.top + r.bottom) / 2 - s - NAV
+        const off = r.top + r.height / 4 - s - NAV
         if (Math.abs(off) < Math.abs(by)) by = off
       }
       if (Number.isFinite(by)) host.style.setProperty("--hc-lift", `${by}px`)
