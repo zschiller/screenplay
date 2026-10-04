@@ -33,7 +33,8 @@ section{display:flex;flex-direction:column;gap:16px;min-width:0}
 .tabs button:hover{color:var(--fg)}
 .tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
 /* Stage: the chosen state, in the viewer's theme, tap to enlarge */
-.stage{background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;min-height:160px;padding:16px;overflow:auto}
+.stage{background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;min-height:160px;padding:8px;overflow:auto}
+@media (min-width:720px){.stage{padding:16px}}
 .stage .shot{display:block;padding:0;border:0;border-radius:0;background:none;cursor:zoom-in;min-height:0;max-width:100%}
 .stage img{display:block;max-width:100%;height:auto}
 .stage .live{width:100%}
