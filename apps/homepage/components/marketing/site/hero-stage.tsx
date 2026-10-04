@@ -103,7 +103,7 @@ function sequence(seed: number) {
 
 // The fade-in on load, in ms: how long until the last copy starts to show,
 // and how long each copy takes.
-const WAVE = 14000
+const WAVE = 5000
 const FADE = 900
 
 // Rows on the canvas floor, far to near.
