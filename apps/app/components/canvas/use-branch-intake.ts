@@ -688,7 +688,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           }))
           if (!result.success) {
             toast.warning("Chat deleted. Its branch is still on GitHub.", {
-              description: "Delete it on GitHub if you don't need it.",
+              description: "Delete it on GitHub if you don’t need it.",
             })
           }
         }

@@ -107,7 +107,7 @@ function controlEndpoint(path: string): URL {
     throw new Error(
       `${TAURI_CONTROL_URL_ENV_VAR} is not set — the Tauri-webview capturer ` +
         `can only run inside the desktop shell, which injects the control ` +
-        `server's URL at sidecar spawn time.`
+        `server’s URL at sidecar spawn time.`
     )
   }
   return new URL(path, controlUrl)

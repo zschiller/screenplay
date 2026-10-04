@@ -154,14 +154,14 @@ function rank(name: string): number {
   return index === -1 ? ROOT_FILES.length : index
 }
 
-export const DETECTION_SYSTEM_PROMPT = `You work out how to run a web project's dev server so it can be previewed in a browser. You are given the project's root listing, some of its files, and a rule-based first guess.
+export const DETECTION_SYSTEM_PROMPT = `You work out how to run a web project’s dev server so it can be previewed in a browser. You are given the project’s root listing, some of its files, and a rule-based first guess.
 
 Reply with only a JSON object, no prose and no code fence:
 {"setupScript": string, "devScript": string, "devServerPort": number}
 
-- setupScript: the shell command run once from the repository root after cloning, usually the package manager's install (e.g. "pnpm install"). Add a one-time step such as code generation only when the project's docs say it is required before the dev server can start. Use "" when nothing is needed.
-- devScript: the long-running command, run from the repository root, that starts the dev server for the project's main web app. Prefer the project's own script (e.g. "pnpm dev") over calling a framework binary directly. In a monorepo, target the user-facing web app (e.g. "pnpm --filter web dev").
-- devServerPort: the port that dev server listens on. Read it from the dev script's flags, framework config, or README before falling back to the framework's default.
+- setupScript: the shell command run once from the repository root after cloning, usually the package manager’s install (e.g. "pnpm install"). Add a one-time step such as code generation only when the project’s docs say it is required before the dev server can start. Use "" when nothing is needed.
+- devScript: the long-running command, run from the repository root, that starts the dev server for the project’s main web app. Prefer the project’s own script (e.g. "pnpm dev") over calling a framework binary directly. In a monorepo, target the user-facing web app (e.g. "pnpm --filter web dev").
+- devServerPort: the port that dev server listens on. Read it from the dev script’s flags, framework config, or README before falling back to the framework’s default.
 
 Keep the first guess for any field the files give you no reason to change. Never invent secrets or environment values.`
 

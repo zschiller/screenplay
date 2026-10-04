@@ -60,7 +60,7 @@ const scopeProperty: JSONSchema7 = {
   type: "string",
   enum: ["canvas", "account"],
   description:
-    "Whose files: `canvas` (shared with this canvas's members), the default, or `account` (the own files of the person who sent this message, on every canvas, which nobody else sees).",
+    "Whose files: `canvas` (shared with this canvas’s members), the default, or `account` (the own files of the person who sent this message, on every canvas, which nobody else sees).",
 }
 
 export type FileScope = "canvas" | "account"
@@ -90,7 +90,7 @@ export function buildFileTools(ctx: FileToolContext) {
   const tools = {
     list_saved_files: tool({
       description:
-        "List saved files: every folder and file, with each file's size and media type. Canvas files are shared with the canvas's members; account files are the sender's own, on every canvas. Neither is shown on the canvas or kept in the repository. Pass `folder` to list only what's inside one.",
+        "List saved files: every folder and file, with each file’s size and media type. Canvas files are shared with the canvas’s members; account files are the sender’s own, on every canvas. Neither is shown on the canvas or kept in the repository. Pass `folder` to list only what’s inside one.",
       inputSchema: jsonSchema<Scope & { folder?: string }>({
         type: "object",
         properties: {
@@ -157,16 +157,16 @@ export function buildFileTools(ctx: FileToolContext) {
             filename: baseName(entry.path),
           }
         }
-        return `${entry.path} is a ${size} ${entry.mediaType} file, which can't be shown as text, an image or a PDF.`
+        return `${entry.path} is a ${size} ${entry.mediaType} file, which can’t be shown as text, an image or a PDF.`
       },
       toModelOutput: imageModelOutput,
     }),
 
     save_file: tool({
       description: [
-        "Save a file where later chats can open it: `canvas` (the default) for a result about this canvas's work, which every chat on the canvas can open (research notes, a reference image, a list to come back to); `account` for something of the sender's own that they'll want on every canvas (a style guide they write to, a reference they reuse). Use it for what doesn't belong on the canvas or in the repository. Saving to a path that exists replaces that file; folders in the path are made as needed.",
+        "Save a file where later chats can open it: `canvas` (the default) for a result about this canvas’s work, which every chat on the canvas can open (research notes, a reference image, a list to come back to); `account` for something of the sender’s own that they’ll want on every canvas (a style guide they write to, a reference they reuse). Use it for what doesn’t belong on the canvas or in the repository. Saving to a path that exists replaces that file; folders in the path are made as needed.",
         ctx.readSource
-          ? "Pass the text as `content`, or a file in your sandbox as `source_path` for an image, a PDF or anything else that isn't text."
+          ? "Pass the text as `content`, or a file in your sandbox as `source_path` for an image, a PDF or anything else that isn’t text."
           : "Pass the text as `content`.",
       ].join(" "),
       inputSchema: jsonSchema<
@@ -189,7 +189,7 @@ export function buildFileTools(ctx: FileToolContext) {
           ...sourceProperty,
           media_type: {
             type: "string",
-            description: "Its media type, when the extension doesn't say.",
+            description: "Its media type, when the extension doesn’t say.",
           },
         },
         required: ["path"],
@@ -210,8 +210,8 @@ export function buildFileTools(ctx: FileToolContext) {
           fallbackMediaType = "text/plain"
         } else {
           return ctx.readSource
-            ? "Error: pass the file's `content` or its `source_path`."
-            : "Error: pass the file's `content`."
+            ? "Error: pass the file’s `content` or its `source_path`."
+            : "Error: pass the file’s `content`."
         }
         const scoped = files(scope)
         if (!scoped) return NO_ACCOUNT
@@ -254,7 +254,7 @@ export function buildFileTools(ctx: FileToolContext) {
 
     delete_saved_file: tool({
       description:
-        "Delete a saved file, or a folder with everything in it. Delete files you made that are wrong or out of date, so later chats aren't misled. It can't be undone.",
+        "Delete a saved file, or a folder with everything in it. Delete files you made that are wrong or out of date, so later chats aren’t misled. It can’t be undone.",
       inputSchema: jsonSchema<Scope & { path: string }>({
         type: "object",
         properties: {

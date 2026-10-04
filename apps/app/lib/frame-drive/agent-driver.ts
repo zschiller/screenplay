@@ -236,7 +236,7 @@ export class AgentFrameDriver {
     })
     const made = decision as AgentDriveDecision | null
     if (!made)
-      return { status: "failed", reason: "Frame Control didn't answer" }
+      return { status: "failed", reason: "Frame Control didn’t answer" }
     this.touch(key)
     if (made.kind === "wait") {
       this.held.delete(key)
@@ -293,7 +293,7 @@ export class AgentFrameDriver {
     })
     const made = decision as AgentDriveDecision | null
     if (!made)
-      return { status: "failed", reason: "Frame Control didn't answer" }
+      return { status: "failed", reason: "Frame Control didn’t answer" }
     this.touch(key)
     this.pace.set(key, opts.pace)
     if (made.kind === "wait") {

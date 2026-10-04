@@ -56,7 +56,7 @@ export function buildDevServerTools(ports: DevServerPorts) {
   const tools = {
     read_dev_server_logs: tool({
       description:
-        "Read the output of this Workspace's dev server (the one behind the live preview): compile errors, runtime errors, request logs. Screenplay runs the dev server in the background, so its output never shows up in your own shell. Also reports whether the server is answering and the local URL it listens on, which you can curl. Use this first whenever the preview is blank, erroring or stale.",
+        "Read the output of this Workspace’s dev server (the one behind the live preview): compile errors, runtime errors, request logs. Screenplay runs the dev server in the background, so its output never shows up in your own shell. Also reports whether the server is answering and the local URL it listens on, which you can curl. Use this first whenever the preview is blank, erroring or stale.",
       inputSchema: z.object({
         lines: z
           .number()
@@ -100,26 +100,26 @@ export function buildDevServerTools(ports: DevServerPorts) {
 
     restart_dev_server: tool({
       description:
-        "Restart this Workspace's dev server (the one behind the live preview), the same as the user's \"Restart dev server\" action. Files and uncommitted changes are untouched. Use it when the server is wedged or crashed, or after a change it doesn't hot-reload (config files, env vars, new dependencies). Never start a second dev server yourself with a shell command: it would fight this one for the port. Waits for the server to answer, then returns the start of the new log.",
+        "Restart this Workspace’s dev server (the one behind the live preview), the same as the user’s \"Restart dev server\" action. Files and uncommitted changes are untouched. Use it when the server is wedged or crashed, or after a change it doesn’t hot-reload (config files, env vars, new dependencies). Never start a second dev server yourself with a shell command: it would fight this one for the port. Waits for the server to answer, then returns the start of the new log.",
       inputSchema: z.object({}),
       execute: () => launch(ports, "restarted", "restart"),
     }),
 
     stop_dev_server: tool({
       description:
-        "Stop this Workspace's dev server, the same as the user's Stop in the terminal pane. The sandbox keeps running and files are untouched; the live preview goes dark until it's started again with start_dev_server. Use it when the user asks, or when something needs the dev server off (it holds a port or a lock you need). Killing it from a shell doesn't work: Screenplay respawns it.",
+        "Stop this Workspace’s dev server, the same as the user’s Stop in the terminal pane. The sandbox keeps running and files are untouched; the live preview goes dark until it’s started again with start_dev_server. Use it when the user asks, or when something needs the dev server off (it holds a port or a lock you need). Killing it from a shell doesn’t work: Screenplay respawns it.",
       inputSchema: z.object({}),
       execute: async () => {
         const stopped = await ports.stop()
         return stopped.ok
           ? "Dev server stopped. The preview is dark until start_dev_server runs it again."
-          : `Couldn't stop the dev server: ${stopped.error}`
+          : `Couldn’t stop the dev server: ${stopped.error}`
       },
     }),
 
     start_dev_server: tool({
       description:
-        "Start this Workspace's dev server after it was stopped, the same as the user's Run in the terminal pane. Never start one yourself with a shell command: it would fight this one for the port. Waits for the server to answer, then returns the start of the new log.",
+        "Start this Workspace’s dev server after it was stopped, the same as the user’s Run in the terminal pane. Never start one yourself with a shell command: it would fight this one for the port. Waits for the server to answer, then returns the start of the new log.",
       inputSchema: z.object({}),
       execute: () => launch(ports, "started", "start"),
     }),
@@ -158,7 +158,7 @@ async function launch(
 ): Promise<string> {
   const launched = await ports.restart()
   if (!launched.ok) {
-    return `Couldn't ${verb} the dev server: ${launched.error}`
+    return `Couldn’t ${verb} the dev server: ${launched.error}`
   }
   const answering = await ports.waitUntilAnswering()
   const log = logToLines(await ports.readLog())
@@ -167,7 +167,7 @@ async function launch(
     : "(the log is empty)"
   const outcome = answering
     ? `Dev server ${done} and answering.`
-    : `Dev server ${done} but isn't answering yet. It may still be starting, or it crashed: check read_dev_server_logs.`
+    : `Dev server ${done} but isn’t answering yet. It may still be starting, or it crashed: check read_dev_server_logs.`
   return `${outcome}\n\nLatest log lines:\n${tail}`
 }
 

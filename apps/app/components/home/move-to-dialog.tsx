@@ -247,7 +247,7 @@ function MoveToForm({
       setSelected(folder.id)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Couldn't create the folder"
+        err instanceof Error ? err.message : "Couldn’t create the folder"
       )
       throw err
     }
@@ -271,7 +271,7 @@ function MoveToForm({
       onClose()
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Couldn't move it. Try again."
+        err instanceof Error ? err.message : "Couldn’t move it. Try again."
       )
       setPending(false)
     }

@@ -94,6 +94,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/ws": "^8.18.2",
     "@workspace/eslint-config": "workspace:*",
+    "@workspace/smart-quotes": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "drizzle-kit": "^0.31.11",
     "esbuild": "0.28.2",

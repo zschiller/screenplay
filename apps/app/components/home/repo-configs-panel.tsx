@@ -193,7 +193,7 @@ export function RepoConfigsPanel({
         {loading ? (
           <SettingsRowSkeleton label="Loading repositories…" count={2} />
         ) : loadFailed ? (
-          <LoadErrorRow title="Couldn't load repositories" onRetry={reload} />
+          <LoadErrorRow title="Couldn’t load repositories" onRetry={reload} />
         ) : configs.length === 0 ? (
           <Empty className="border py-8">
             <EmptyHeader>

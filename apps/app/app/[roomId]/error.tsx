@@ -30,7 +30,7 @@ export default function CanvasError({
   return (
     <CanvasRouteState
       icon={<WarningIcon />}
-      title="Couldn't open this canvas"
+      title="Couldn’t open this canvas"
       description="Something went wrong while loading it. Try again, or head back to your files."
       footer={
         error.digest ? (

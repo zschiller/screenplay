@@ -381,7 +381,7 @@ function RepositoriesSection({
       </p>
       {loadFailed && (
         <LoadErrorRow
-          title="Couldn't load your repositories"
+          title="Couldn’t load your repositories"
           onRetry={reload}
         />
       )}

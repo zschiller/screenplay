@@ -136,7 +136,7 @@ describe("restartSandbox (Sandbox Restart)", () => {
     expect(deps.toasts).toEqual([
       {
         kind: "error",
-        message: "Couldn't restart sandbox",
+        message: "Couldn’t restart sandbox",
         description: "snapshot miss",
       },
     ])
@@ -198,7 +198,7 @@ describe("recreate (Recreate)", () => {
     ])
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
-      message: "Couldn't recreate from scratch",
+      message: "Couldn’t recreate from scratch",
       description: "clone failed",
     })
   })
@@ -255,7 +255,7 @@ describe("restartDevServer (Dev Server Restart, thin path)", () => {
     expect(deps.patches.some((p) => "status" in p.patch)).toBe(false)
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
-      message: "Couldn't restart dev server",
+      message: "Couldn’t restart dev server",
       description: "not running",
     })
   })
@@ -291,7 +291,7 @@ describe("stopDevServer (Dev Server Stop, #1342)", () => {
     expect(deps.toasts).toEqual([
       {
         kind: "error",
-        message: "Couldn't stop dev server",
+        message: "Couldn’t stop dev server",
         description: "boom",
       },
     ])
@@ -333,7 +333,7 @@ describe("runDevServer (Dev Server Run, #1342)", () => {
     expect(deps.toasts).toEqual([
       {
         kind: "error",
-        message: "Couldn't run dev server",
+        message: "Couldn’t run dev server",
         description: "Sandbox is not running",
       },
     ])
@@ -368,7 +368,7 @@ describe("guards", () => {
     ])
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
-      message: "Couldn't restart sandbox",
+      message: "Couldn’t restart sandbox",
       description: "Workspace not found",
     })
     expect(lifecycle.restartSandbox).not.toHaveBeenCalled()
@@ -382,7 +382,7 @@ describe("guards", () => {
     expect(deps.patches).toEqual([])
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
-      message: "Couldn't restart dev server",
+      message: "Couldn’t restart dev server",
       description: "Workspace not found",
     })
     expect(lifecycle.restartDevServer).not.toHaveBeenCalled()
@@ -431,7 +431,7 @@ describe("startWorkspace", () => {
     })
     expect(deps.toasts.at(-1)).toMatchObject({
       kind: "error",
-      message: "Couldn't restart dev server",
+      message: "Couldn’t restart dev server",
     })
   })
 })
@@ -497,7 +497,7 @@ describe("markDone and reopen (#976)", () => {
     expect(deps.toasts).toEqual([
       {
         kind: "error",
-        message: "Couldn't reopen workspace",
+        message: "Couldn’t reopen workspace",
         description: "expired",
       },
     ])

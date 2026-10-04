@@ -140,7 +140,7 @@ export async function runRealInput(
     if (!landed) return BRIDGE
     return {
       status: "failed",
-      reason: `The Mac's input failed: ${err instanceof Error ? err.message : String(err)}`,
+      reason: `The Mac’s input failed: ${err instanceof Error ? err.message : String(err)}`,
     }
   } finally {
     await deps.page({ kind: "release" }).catch(() => null)
@@ -216,7 +216,7 @@ async function type(
   if (at === "taken") return TAKEN
   if (!at) return { status: "not-found", target: op.target }
   if (at.field === false)
-    return { status: "failed", reason: "the target isn't a text field" }
+    return { status: "failed", reason: "the target isn’t a text field" }
   if (await glide(op, at, deps)) return TAKEN
 
   const text = String(op.text ?? "")

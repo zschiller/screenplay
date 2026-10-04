@@ -109,7 +109,7 @@ export function useSandboxReconnect({
           updateAgentInStorage(agent.id, {
             status: "stopped",
             statusMessage: "",
-            error: "Couldn't find this workspace. Press Retry.",
+            error: "Couldn’t find this workspace. Press Retry.",
           })
           break
 
@@ -160,7 +160,7 @@ export function useSandboxReconnect({
                   statusMessage: "",
                   error:
                     restartResult.error ||
-                    "Couldn't restart the workspace. Press Retry.",
+                    "Couldn’t restart the workspace. Press Retry.",
                 })
               }
             })

@@ -280,7 +280,7 @@ function openMemory() {
 }
 
 describe("CanvasSettingsDialog", () => {
-  it("lists the canvas's repositories, then yours to add, with their run scripts", async () => {
+  it("lists the canvas’s repositories, then yours to add, with their run scripts", async () => {
     renderDialog()
     await screen.findByRole("button", { name: "Add api" })
 
@@ -450,7 +450,7 @@ describe("CanvasSettingsDialog", () => {
     })
   })
 
-  it("edits a repository's settings", async () => {
+  it("edits a repository’s settings", async () => {
     const { onUpdateRepo } = renderDialog()
 
     fireEvent.click(screen.getByRole("button", { name: "Edit storefront" }))
@@ -529,7 +529,7 @@ describe("CanvasSettingsDialog", () => {
     )
   })
 
-  it("offers no save to all for a repository that isn't in your Settings", async () => {
+  it("offers no save to all for a repository that isn’t in your Settings", async () => {
     renderDialog()
     await waitFor(() => expect(listRepositories).toHaveBeenCalled())
     await screen.findByRole("button", { name: "Add api" })
@@ -632,7 +632,7 @@ describe("CanvasSettingsDialog", () => {
       )
     })
 
-    it("locks the adder's field until they reveal the values, and hides them again", async () => {
+    it("locks the adder’s field until they reveal the values, and hides them again", async () => {
       const { form } = await openDocs(true)
       expect(
         within(form).getByLabelText("Environment variables")
@@ -735,7 +735,7 @@ describe("CanvasSettingsDialog", () => {
       expect(within(confirm).getByText("Remove “docs”?")).not.toBeNull()
       expect(
         within(confirm).getByText(
-          "It's removed for everyone on this canvas, with any changes made here."
+          "It’s removed for everyone on this canvas, with any changes made here."
         )
       ).not.toBeNull()
       expect(onRemoveRepo).not.toHaveBeenCalled()
@@ -766,7 +766,7 @@ describe("CanvasSettingsDialog", () => {
       )
     })
 
-    it("says who added a teammate's repository when removing it", async () => {
+    it("says who added a teammate’s repository when removing it", async () => {
       renderHosted([STOREFRONT, DOCS, MIAS_WEB])
       await screen.findByText("Added by Mia")
 
@@ -775,7 +775,7 @@ describe("CanvasSettingsDialog", () => {
       const confirm = await screen.findByRole("alertdialog")
       expect(
         within(confirm).getByText(
-          "It's removed for everyone on this canvas, with any changes made here. Mia added it."
+          "It’s removed for everyone on this canvas, with any changes made here. Mia added it."
         )
       ).not.toBeNull()
     })

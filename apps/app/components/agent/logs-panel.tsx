@@ -284,7 +284,7 @@ export function LogsPanel({
           className="min-w-0 truncate text-destructive"
           title={error ?? undefined}
         >
-          Couldn&apos;t load the logs.
+          Couldn’t load the logs.
         </span>
         <Button
           variant="outline"

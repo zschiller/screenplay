@@ -344,7 +344,7 @@ function RoomCard({
         open={renameOpen}
         onOpenChange={setRenameOpen}
         title="Rename canvas"
-        errorMessage="Couldn't rename the canvas. Try again."
+        errorMessage="Couldn’t rename the canvas. Try again."
         initialValue={room.name}
         submitLabel="Save"
         submittingLabel="Saving…"

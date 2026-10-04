@@ -102,14 +102,14 @@ describe("Reset to Settings", () => {
     expect(onUpdate.mock.calls[0]![1]).not.toHaveProperty("envVarsDigest")
   })
 
-  it("leaves the Repo unchanged and the dialog open when the values can't be stored", async () => {
+  it("leaves the Repo unchanged and the dialog open when the values can’t be stored", async () => {
     vi.mocked(resetCanvasRepoEnv).mockRejectedValue(new Error("KV down"))
     const { onUpdate, onOpenChange } = renderDialog()
 
     fireEvent.click(screen.getByRole("button", { name: "Reset to Settings" }))
 
     expect(
-      await screen.findByText("Couldn't restore the environment variables.")
+      await screen.findByText("Couldn’t restore the environment variables.")
     ).toBeDefined()
     expect(onUpdate).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()

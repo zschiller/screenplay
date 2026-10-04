@@ -173,7 +173,7 @@ export function checkAttachment(file: AttachmentCandidate): AttachmentCheck {
   }
   return {
     ok: false,
-    error: `${name} can't be attached. Agents read images, PDFs, and text and code files.`,
+    error: `${name} can’t be attached. Agents read images, PDFs, and text and code files.`,
   }
 }
 

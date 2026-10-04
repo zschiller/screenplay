@@ -221,7 +221,7 @@ export function RepoAddSettings({
             </>
           ) : (
             <>
-              <span>Couldn&apos;t auto-detect settings.</span>
+              <span>Couldn’t auto-detect settings.</span>
               <Button
                 variant="link"
                 size="sm"

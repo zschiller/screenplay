@@ -24,7 +24,7 @@ async function answer(res: Response): Promise<AttachmentUpload> {
   if (!res.ok || !body || body.error) {
     return {
       ok: false,
-      error: body?.error ?? "The file couldn't be attached. Try again.",
+      error: body?.error ?? "The file couldn’t be attached. Try again.",
     }
   }
   return {
@@ -55,7 +55,7 @@ export async function uploadAttachment(
     )
     return await answer(res)
   } catch {
-    return { ok: false, error: "The file couldn't be attached. Try again." }
+    return { ok: false, error: "The file couldn’t be attached. Try again." }
   }
 }
 

@@ -112,11 +112,11 @@ export function useCommentRequests({
       if (sent < ids.size) {
         toast.error(
           sent === 0
-            ? "Couldn't send to the agent"
+            ? "Couldn’t send to the agent"
             : `Sent ${sent} of ${ids.size} to the agent`,
           {
             description:
-              "A comment needs a running workspace, and can't be sent again while the agent is on it.",
+              "A comment needs a running workspace, and can’t be sent again while the agent is on it.",
           }
         )
       }

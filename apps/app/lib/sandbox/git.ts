@@ -42,7 +42,7 @@ export async function createAgentBranch(
   return {
     success: false,
     error: redactSensitiveInfo(
-      result.error ?? "Couldn't set up the workspace."
+      result.error ?? "Couldn’t set up the workspace."
     ),
   }
 }

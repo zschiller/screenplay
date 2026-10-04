@@ -121,7 +121,7 @@ describe("Settings › Files (#1521)", () => {
     expect(fetch).toHaveBeenCalledWith("/api/account-files/style/voice.md")
   })
 
-  it("on the desktop, opens in the Mac's app and reveals in Finder", async () => {
+  it("on the desktop, opens in the Mac’s app and reveals in Finder", async () => {
     const { openFileOnDesktop } = renderPanel({ desktop: true })
 
     fireEvent.click(
@@ -176,9 +176,9 @@ describe("Settings › Files (#1521)", () => {
     ).toBeTruthy()
   })
 
-  it("offers a retry when the files can't load", async () => {
+  it("offers a retry when the files can’t load", async () => {
     renderPanel({ fail: true })
 
-    expect(await screen.findByText("Couldn't load files")).toBeTruthy()
+    expect(await screen.findByText("Couldn’t load files")).toBeTruthy()
   })
 })

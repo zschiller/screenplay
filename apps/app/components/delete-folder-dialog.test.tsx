@@ -62,7 +62,7 @@ describe("DeleteFolderDialog framing", () => {
     expect(screen.getByText(/permanently deletes 1 canvas/i)).toBeDefined()
   })
 
-  it("states owned shared canvases are deleted for everyone they're shared with", () => {
+  it("states owned shared canvases are deleted for everyone they’re shared with", () => {
     renderDialog({
       deletedCount: 4,
       sharedOwnedCount: 2,
@@ -70,7 +70,7 @@ describe("DeleteFolderDialog framing", () => {
     })
     expect(screen.getByText(/2 canvases are shared/i)).toBeDefined()
     expect(
-      screen.getByText(/deleted for everyone they're shared with \(5 people\)/i)
+      screen.getByText(/deleted for everyone they’re shared with \(5 people\)/i)
     ).toBeDefined()
   })
 
@@ -82,7 +82,7 @@ describe("DeleteFolderDialog framing", () => {
     })
     expect(screen.getByText(/1 canvas is shared/i)).toBeDefined()
     expect(
-      screen.getByText(/everyone it's shared with \(1 person\)/i)
+      screen.getByText(/everyone it’s shared with \(1 person\)/i)
     ).toBeDefined()
   })
 

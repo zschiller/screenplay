@@ -34,7 +34,7 @@ const WHERE = {
   visibility: "visible",
 }
 
-describe("the asker's canvas", () => {
+describe("the asker’s canvas", () => {
   it("sends each kind of message with its own timeout", async () => {
     const t = transport(() => "away")
     const canvas = askerCanvas(t, {
@@ -79,23 +79,23 @@ describe("the asker's canvas", () => {
     expect(await canvas.page("f1", { kind: "state" })).toEqual({ path: "/x" })
     // A frame that can't take real input is the bridge's to play.
     await expect(canvas.page("f1", { kind: "take" })).rejects.toThrow(
-      /isn't loaded/
+      /isn’t loaded/
     )
     expect(await canvas.run("f1", CLICK)).toEqual({ status: "taken" })
     expect(await canvas.where("f1")).toEqual(WHERE)
-    expect(await canvas.snapshot("f1")).toMatch(/isn't loaded/)
+    expect(await canvas.snapshot("f1")).toMatch(/isn’t loaded/)
     expect(await canvas.reveal("f1")).toBeNull()
   })
 
-  it("passes on why the canvas didn't answer", async () => {
-    const canvas = askerCanvas(transport(() => "The canvas isn't open."))
+  it("passes on why the canvas didn’t answer", async () => {
+    const canvas = askerCanvas(transport(() => "The canvas isn’t open."))
     expect(await canvas.run("f1", CLICK)).toEqual({
       status: "unavailable",
-      reason: "The canvas isn't open.",
+      reason: "The canvas isn’t open.",
     })
-    expect(await canvas.where("f1")).toBe("The canvas isn't open.")
-    expect(await canvas.snapshot("f1")).toBe("The canvas isn't open.")
-    expect(await canvas.reveal("f1")).toBe("The canvas isn't open.")
+    expect(await canvas.where("f1")).toBe("The canvas isn’t open.")
+    expect(await canvas.snapshot("f1")).toBe("The canvas isn’t open.")
+    expect(await canvas.reveal("f1")).toBe("The canvas isn’t open.")
   })
 
   it("refuses an answer of the wrong kind", async () => {
@@ -107,11 +107,11 @@ describe("the asker's canvas", () => {
     expect(await canvas.snapshot("f1")).toMatch(/unexpected/)
   })
 
-  it("says so when the canvas couldn't bring the frame into view", async () => {
+  it("says so when the canvas couldn’t bring the frame into view", async () => {
     const canvas = askerCanvas(
       transport((m) => ({ type: "revealed", id: m.id, ok: false }))
     )
-    expect(await canvas.reveal("f1")).toMatch(/couldn't bring it into view/)
+    expect(await canvas.reveal("f1")).toMatch(/couldn’t bring it into view/)
   })
 
   it("never sends an op outside the contract", async () => {

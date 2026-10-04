@@ -41,7 +41,7 @@ export function DefaultAgentPicker({ label }: { label: string }) {
       <span className="w-28 shrink-0 text-sm">{label}</span>
       {status === "failed" ? (
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
-          Couldn&apos;t load models.
+          Couldn’t load models.
           <Button type="button" variant="outline" size="sm" onClick={retry}>
             Retry
           </Button>

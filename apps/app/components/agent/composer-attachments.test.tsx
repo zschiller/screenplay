@@ -89,7 +89,7 @@ const photo: MessageAttachment = {
 }
 
 describe("Composer attachments (#1525)", () => {
-  it("uploads a dropped image, and sends it once it's attached", async () => {
+  it("uploads a dropped image, and sends it once it’s attached", async () => {
     const { attach, finish } = port()
     const { drop, onSubmit } = renderComposer(attach)
 
@@ -119,7 +119,7 @@ describe("Composer attachments (#1525)", () => {
     expect(attach.upload).not.toHaveBeenCalled()
     expect(chips()).toHaveLength(0)
     expect(toast).toHaveBeenCalledWith(
-      "clip.mov can't be attached. Agents read images, PDFs, and text and code files."
+      "clip.mov can’t be attached. Agents read images, PDFs, and text and code files."
     )
   })
 
@@ -169,10 +169,10 @@ describe("Composer attachments (#1525)", () => {
     const { drop } = renderComposer(attach)
     drop(file("shot.png", "image/png"))
 
-    await act(async () => fail({ ok: false, error: "Files aren't set up." }))
+    await act(async () => fail({ ok: false, error: "Files aren’t set up." }))
 
     await waitFor(() => expect(chips()).toHaveLength(0))
-    expect(toast).toHaveBeenCalledWith("Files aren't set up.")
+    expect(toast).toHaveBeenCalledWith("Files aren’t set up.")
   })
 
   it("attaches a pasted file, but lets a paste with text paste its text", () => {

@@ -60,7 +60,7 @@ export function namingWithin(
     ...naming,
     name(tool) {
       if (!has.has(tool)) {
-        throw new Error(`A prompt names ${tool}, which its turn doesn't have.`)
+        throw new Error(`A prompt names ${tool}, which its turn doesn’t have.`)
       }
       return naming.name(tool)
     },
@@ -90,7 +90,7 @@ export function harnessToolNaming(
   return {
     name: (tool) => tool,
     harness: true,
-    note: `Screenplay's own tools named in these instructions come from the MCP server \`${server}\`, so they may be listed under that server's namespace rather than by the bare names below.`,
+    note: `Screenplay’s own tools named in these instructions come from the MCP server \`${server}\`, so they may be listed under that server’s namespace rather than by the bare names below.`,
   }
 }
 

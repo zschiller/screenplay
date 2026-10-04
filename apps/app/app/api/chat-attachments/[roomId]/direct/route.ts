@@ -48,7 +48,7 @@ export async function POST(
   if (body.type === "attachment.complete") {
     if (!isUploadKey(body.key, keyPrefix)) {
       return Response.json(
-        { error: "That upload isn't this canvas's." },
+        { error: "That upload isn’t this canvas’s." },
         {
           status: 400,
         }
@@ -78,7 +78,7 @@ export async function POST(
       token: process.env[PRIVATE_BLOB_TOKEN_ENV_VAR],
       onBeforeGenerateToken: async (pathname) => {
         if (!isUploadKey(pathname, keyPrefix)) {
-          throw new Error("That upload isn't this canvas's.")
+          throw new Error("That upload isn’t this canvas’s.")
         }
         return {
           maximumSizeInBytes: ATTACHMENT_MAX_BYTES,

@@ -132,7 +132,7 @@ export function HarnessModelsDialog({
               {loadFailed && (
                 <div className="flex flex-col items-center gap-3 py-8">
                   <span className="text-sm text-muted-foreground">
-                    {`Couldn't list ${label}'s models.`}
+                    {`Couldn’t list ${label}’s models.`}
                   </span>
                   <Button
                     type="button"

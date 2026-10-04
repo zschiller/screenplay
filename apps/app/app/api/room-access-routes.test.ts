@@ -223,11 +223,11 @@ describe("a signed-in non-member gets a 403 and nothing runs", () => {
     expectNoSideEffects()
   })
 
-  it("reading a chat's history", async () => {
+  it("reading a chat’s history", async () => {
     expect((await routes.history("chat-1")).status).toBe(403)
   })
 
-  it("healing a chat's stream", async () => {
+  it("healing a chat’s stream", async () => {
     expect((await routes.heal(stopBody)).status).toBe(403)
     expectNoSideEffects()
   })
@@ -241,13 +241,13 @@ describe("a signed-in non-member gets a 403 and nothing runs", () => {
     const res = await routes.branchCreate(branchBody)
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({
-      error: "You don't have access to this canvas.",
+      error: "You don’t have access to this canvas.",
     })
     expectNoSideEffects()
   })
 })
 
-describe("a member can't reach another Room's chat through their own Room", () => {
+describe("a member can’t reach another Room’s chat through their own Room", () => {
   beforeEach(() => {
     session.userId = "member"
   })
@@ -298,7 +298,7 @@ describe("a member is let through", () => {
     )
   })
 
-  it("heals a chat's stream", async () => {
+  it("heals a chat’s stream", async () => {
     expect((await routes.heal(stopBody)).status).toBe(200)
     expect(fx.broadcastSignal).toHaveBeenCalledWith(
       ROOM,
@@ -313,7 +313,7 @@ describe("a member is let through", () => {
     expect(fx.readDoc).toHaveBeenCalledOnce()
   })
 
-  it("reads a chat's history", async () => {
+  it("reads a chat’s history", async () => {
     const res = await routes.history("chat-1")
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])

@@ -134,7 +134,7 @@ describe("decorateUserMessage — per target kind", () => {
     expect(out).toContain(MESSAGE)
   })
 
-  it("leaves a Room Target chat's message undecorated", () => {
+  it("leaves a Room Target chat’s message undecorated", () => {
     const out = decorate(roomChatTarget.decorateUserMessage, {
       planMode: true,
       branch: "feat/x",
@@ -192,7 +192,7 @@ describe("room chat target", () => {
     )
   })
 
-  it("lists the Coordinator's Skills, and only those, in its prompt (#905)", async () => {
+  it("lists the Coordinator’s Skills, and only those, in its prompt (#905)", async () => {
     const { collections } = makeHarness()
     const room: RoomDoc = {
       roomId: "room-1",
@@ -339,9 +339,9 @@ describe("the Coordinator only delegates", () => {
       BARE_TOOL_NAMING
     )
 
-    expect(prompt).toContain("You can't write or edit a document or a mockup.")
+    expect(prompt).toContain("You can’t write or edit a document or a mockup.")
     expect(prompt).toMatch(
-      /start a chat that makes it: send the ask to the Workspace it's about with `send_to_workspace`/
+      /start a chat that makes it: send the ask to the Workspace it’s about with `send_to_workspace`/
     )
     expect(prompt).not.toContain("create_document")
     expect(prompt).not.toContain("create_mockup")
@@ -352,7 +352,7 @@ describe("the Coordinator only delegates", () => {
  * Canvas memory (#902): every kind's system prompt carries it, read live from
  * the Room doc, and only the Coordinator's carries the ids it writes with.
  */
-describe("canvas memory in every kind's system prompt", () => {
+describe("canvas memory in every kind’s system prompt", () => {
   function roomWithMemory(): RoomDoc {
     const { collections } = makeHarness()
     collections.repos.set("repo-1", baseRepo("repo-1"))
@@ -372,7 +372,7 @@ describe("canvas memory in every kind's system prompt", () => {
     }
   }
 
-  it("includes memory in a Workspace agent's prompt", async () => {
+  it("includes memory in a Workspace agent’s prompt", async () => {
     const room = roomWithMemory()
     const ctx = await workspaceChatTarget.loadContext(room, {
       sandboxName: "sb-1",
@@ -386,7 +386,7 @@ describe("canvas memory in every kind's system prompt", () => {
     expect(prompt).toContain("write_memory")
   })
 
-  it("includes memory, with the ids it edits by, in the Coordinator's prompt", async () => {
+  it("includes memory, with the ids it edits by, in the Coordinator’s prompt", async () => {
     const room = roomWithMemory()
     const ctx = await roomChatTarget.loadContext(room, { userId: "user-1" })
     const prompt = roomChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
@@ -401,7 +401,7 @@ describe("canvas memory in every kind's system prompt", () => {
  * path with size and type, read live from the Room doc, capped with a pointer
  * to `list_saved_files`.
  */
-describe("canvas files in every kind's system prompt", () => {
+describe("canvas files in every kind’s system prompt", () => {
   function roomWithFiles(count: number): RoomDoc {
     const { collections } = makeHarness()
     collections.repos.set("repo-1", baseRepo("repo-1"))
@@ -496,7 +496,7 @@ describe("canvas files in every kind's system prompt", () => {
   })
 
   // #1524: a harness reads the files from the chat's context folder.
-  it("names the chat's context folder on a harness, read-only", async () => {
+  it("names the chat’s context folder on a harness, read-only", async () => {
     const chats = {
       Workspace: "chat-1",
       Sketch: "chat-2",
@@ -582,7 +582,7 @@ describe("account memory at chat target loading", () => {
   }
 
   for (const [kind, load] of Object.entries(kinds)) {
-    it(`reads the sender's account memory in a ${kind} chat`, async () => {
+    it(`reads the sender’s account memory in a ${kind} chat`, async () => {
       const room = await setup()
       const prompt = await load(room, { userId: "ben" })
       expect(prompt).toContain("Account memory (")
@@ -601,7 +601,7 @@ describe("account memory at chat target loading", () => {
     })
   }
 
-  it("leaves the block out when the store can't be read", async () => {
+  it("leaves the block out when the store can’t be read", async () => {
     const room = await setup()
     accountStores.set("ana", {
       load: () => Promise.reject(new Error("kv down")),
@@ -661,7 +661,7 @@ describe("every kind saves memory", () => {
     })) as string
 
   for (const [kind, toolsFor] of Object.entries(kinds)) {
-    it(`saves canvas memory and the sender's account memory from a ${kind} chat`, async () => {
+    it(`saves canvas memory and the sender’s account memory from a ${kind} chat`, async () => {
       const { room, collections } = setup()
       const tools = toolsFor(room, { userId: "ben" })
 
@@ -777,7 +777,7 @@ describe("account files in every kind", () => {
     })) as string
 
   for (const [kind, { tools, prompt }] of Object.entries(kinds)) {
-    it(`saves the sender's account file from a ${kind} chat, and their chat on another canvas reads it`, async () => {
+    it(`saves the sender’s account file from a ${kind} chat, and their chat on another canvas reads it`, async () => {
       accountFileLists.clear()
       const here = roomOn("room-1")
       const out = await call(tools(here, { userId: "ben" }), "save_file", {
@@ -809,13 +809,13 @@ describe("account files in every kind", () => {
       }
     })
 
-    it(`never shows one member's account files to another in a ${kind} chat`, async () => {
+    it(`never shows one member’s account files to another in a ${kind} chat`, async () => {
       accountFileLists.clear()
       const room = roomOn("room-1")
       await call(tools(room, { userId: "ben" }), "save_file", {
         scope: "account",
         path: "ben.md",
-        content: "Ben's.",
+        content: "Ben’s.",
       })
       const ana = tools(room, { userId: "ana" })
       expect(await call(ana, "list_saved_files", { scope: "account" })).toBe(
@@ -834,7 +834,7 @@ describe("account files in every kind", () => {
       await call(tools(room, { userId: "ana" }), "save_file", {
         scope: "account",
         path: "ana.md",
-        content: "Ana's.",
+        content: "Ana’s.",
       })
       const wake = tools(room, { userId: "ana", senderless: true })
       for (const name of ["list_saved_files", "save_file"]) {
@@ -926,7 +926,7 @@ describe("canvas skills in every kind", () => {
     }
   })
 
-  it("lists a Skill saved mid-chat in the next turn's prompt and its note for a resumed session", async () => {
+  it("lists a Skill saved mid-chat in the next turn’s prompt and its note for a resumed session", async () => {
     const r = room()
     const before = await prepareChatTarget(
       r,
@@ -1061,14 +1061,14 @@ describe("account skills in every kind", () => {
     `---\nname: ${name}\ndescription: ${description}\n---\n${body}`
 
   for (const [kind, { tools, prepare }] of Object.entries(kinds)) {
-    it(`saves the sender's account skill from a ${kind} chat, and every kind on another canvas uses it`, async () => {
+    it(`saves the sender’s account skill from a ${kind} chat, and every kind on another canvas uses it`, async () => {
       accountSkillLists.clear()
       const here = roomOn("room-1")
       expect(
         await call(tools(here, { userId: "ben" }), "save_skill", {
           scope: "account",
           name: "voice",
-          content: skillMd("voice", "Ben's writing voice.", "Plain sentences."),
+          content: skillMd("voice", "Ben’s writing voice.", "Plain sentences."),
         })
       ).toContain('Saved the account skill "voice"')
 
@@ -1076,7 +1076,7 @@ describe("account skills in every kind", () => {
       for (const other of Object.values(kinds)) {
         const prepared = (await other.prepare(elsewhere, { userId: "ben" }))!
         expect(prepared.systemPrompt).toContain(
-          "- **voice**: Ben's writing voice."
+          "- **voice**: Ben’s writing voice."
         )
         expect(prepared.skillsNote).toContain("- **voice**")
         expect(prepared.systemPrompt).toContain('`scope: "account"`')
@@ -1086,17 +1086,17 @@ describe("account skills in every kind", () => {
       }
     })
 
-    it(`never gives one member's account skills to another's turn in a ${kind} chat`, async () => {
+    it(`never gives one member’s account skills to another’s turn in a ${kind} chat`, async () => {
       accountSkillLists.clear()
       const room = roomOn("room-1")
       await call(tools(room, { userId: "ben" }), "save_skill", {
         scope: "account",
         name: "voice",
-        content: skillMd("voice", "Ben's writing voice."),
+        content: skillMd("voice", "Ben’s writing voice."),
       })
       // Ana's turn in the same chat: her own, never Ben's.
       const ana = (await prepare(room, { userId: "ana" }))!
-      expect(ana.systemPrompt).not.toContain("Ben's writing voice.")
+      expect(ana.systemPrompt).not.toContain("Ben’s writing voice.")
       expect(await call(ana.tools, "read_skill", { name: "voice" })).toMatch(
         /^Unknown skill/
       )
@@ -1104,11 +1104,11 @@ describe("account skills in every kind", () => {
       await call(ana.tools, "save_skill", {
         scope: "account",
         name: "voice",
-        content: skillMd("voice", "Ana's writing voice."),
+        content: skillMd("voice", "Ana’s writing voice."),
       })
       const ben = (await prepare(room, { userId: "ben" }))!
-      expect(ben.systemPrompt).toContain("Ben's writing voice.")
-      expect(ben.systemPrompt).not.toContain("Ana's writing voice.")
+      expect(ben.systemPrompt).toContain("Ben’s writing voice.")
+      expect(ben.systemPrompt).not.toContain("Ana’s writing voice.")
     })
 
     it(`gives a ${kind} turn nobody sent no account skills, and refuses the scope`, async () => {
@@ -1117,10 +1117,10 @@ describe("account skills in every kind", () => {
       await call(tools(room, { userId: "ana" }), "save_skill", {
         scope: "account",
         name: "voice",
-        content: skillMd("voice", "Ana's writing voice."),
+        content: skillMd("voice", "Ana’s writing voice."),
       })
       const wake = (await prepare(room, { userId: "ana", senderless: true }))!
-      expect(wake.systemPrompt).not.toContain("Ana's writing voice.")
+      expect(wake.systemPrompt).not.toContain("Ana’s writing voice.")
       expect(wake.systemPrompt).toContain("it has no account skills")
       for (const name of ["save_skill", "delete_skill"]) {
         expect(
@@ -1141,7 +1141,7 @@ describe("account skills in every kind", () => {
     await call(ben, "save_skill", {
       scope: "canvas",
       name: "review",
-      content: skillMd("review", "Canvas review.", "The canvas's way."),
+      content: skillMd("review", "Canvas review.", "The canvas’s way."),
     })
     expect(
       await call(ben, "save_skill", {
@@ -1149,20 +1149,20 @@ describe("account skills in every kind", () => {
         name: "review",
         content: skillMd("review", "My review.", "My way."),
       })
-    ).toContain("on this canvas the canvas's wins")
+    ).toContain("on this canvas the canvas’s wins")
 
     const prepared = (await kinds.sketch.prepare(room, { userId: "ben" }))!
     expect(prepared.systemPrompt).toContain("- **review**: Canvas review.")
     expect(prepared.systemPrompt).not.toContain("My review.")
     expect(
       await call(prepared.tools, "read_skill", { name: "review" })
-    ).toContain("The canvas's way.")
+    ).toContain("The canvas’s way.")
     // Deleting the account one leaves the canvas's.
     expect(
       await call(ben, "delete_skill", { scope: "account", name: "review" })
     ).toBe('Deleted the account skill "review".')
     expect(await call(ben, "read_skill", { name: "review" })).toContain(
-      "The canvas's way."
+      "The canvas’s way."
     )
   })
 })
@@ -1172,7 +1172,7 @@ describe("account skills in every kind", () => {
  * it the Document tools, bound to the chat, which creates Documents it owns
  * and edits only those.
  */
-describe("a Workspace chat's Document tools", () => {
+describe("a Workspace chat’s Document tools", () => {
   function setup() {
     const { collections } = makeHarness()
     collections.repos.set("repo-1", baseRepo("repo-1"))
@@ -1268,14 +1268,14 @@ describe("a Workspace chat's Document tools", () => {
     expect(collections.markdownLayers.get(id)?.title).toBe("Final plan")
   })
 
-  it("refuses to change a hand-made Document or another chat's", async () => {
+  it("refuses to change a hand-made Document or another chat’s", async () => {
     const { collections, run, body } = setup()
 
     for (const [id, title] of [
       ["hand-made", "Notes"],
       ["theirs", "Other plan"],
     ]) {
-      const refusal = `Error: "${title}" wasn't made by this chat, so you can read it but not change it.`
+      const refusal = `Error: "${title}" wasn’t made by this chat, so you can read it but not change it.`
       expect(
         await run("replace_document_body", { document_id: id, content: "x" })
       ).toBe(refusal)
@@ -1321,7 +1321,7 @@ describe("a Workspace chat's Document tools", () => {
     expect(prompt).not.toMatch(/Other plan \(/)
   })
 
-  it("marks the chat's own Documents in its prompt", async () => {
+  it("marks the chat’s own Documents in its prompt", async () => {
     const { collections, room, target } = setup()
     collections.markdownLayers.set(
       "mine",
@@ -1389,19 +1389,19 @@ describe("frame reads in every chat (#1311)", () => {
     )
   })
 
-  it("lets a Workspace agent read another Workspace's frame", async () => {
+  it("lets a Workspace agent read another Workspace’s frame", async () => {
     const { workspace } = toolsOf(canvasWithFrames())
 
     expect(await call(workspace.read_frame_html!, { frameId: "frame-2" })).toBe(
-      'Can\'t read the page in frame [frame-2] (/pricing in Workspace "Pricing"): its Workspace has no running preview.'
+      'Can’t read the page in frame [frame-2] (/pricing in Workspace "Pricing"): its Workspace has no running preview.'
     )
   })
 
-  it("reads a Workspace agent's own frame when none is named", async () => {
+  it("reads a Workspace agent’s own frame when none is named", async () => {
     const { workspace } = toolsOf(canvasWithFrames())
 
     expect(await call(workspace.read_frame_html!, {})).toBe(
-      'Can\'t read the page in frame [frame-1] (/login in Workspace "Sign-in"): its Workspace has no running preview.'
+      'Can’t read the page in frame [frame-1] (/login in Workspace "Sign-in"): its Workspace has no running preview.'
     )
   })
 })
@@ -1460,7 +1460,7 @@ describe("sketchChatTarget (a chat with no repository)", () => {
  * the turn doesn't have throws, and no tool name is written into a prompt by
  * hand past that check.
  */
-describe("every kind's prompt names only tools its turn has", () => {
+describe("every kind’s prompt names only tools its turn has", () => {
   const room: RoomDoc = {
     roomId: "room-1",
     readDoc: async () => {
@@ -1565,7 +1565,7 @@ describe("every kind's prompt names only tools its turn has", () => {
     }
   }
 
-  it("refuses a prompt that names a tool its turn doesn't have", () => {
+  it("refuses a prompt that names a tool its turn doesn’t have", () => {
     const { naming } = turnToolset(
       sketchChatTarget.tools(room, { chatId: "chat-1", userId: "user-1" })
     )

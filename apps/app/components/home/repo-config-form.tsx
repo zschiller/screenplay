@@ -118,7 +118,7 @@ export function RepoConfigForm({
       const updated = await saveRepository(config)
       onSaved(updated)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't save. Try again.")
+      setError(e instanceof Error ? e.message : "Couldn’t save. Try again.")
       setSaving(false)
     }
   }

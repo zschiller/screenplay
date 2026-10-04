@@ -180,18 +180,18 @@ export type DriveDone = {
  */
 export const DRIVE_GAPS = {
   "file-picker":
-    "Choosing a file needs a file from the person's computer, which the agent can't pick.",
+    "Choosing a file needs a file from the person’s computer, which the agent can’t pick.",
   clipboard:
-    "The page used the clipboard, which the agent can't reach in this page, so the copy or paste didn't happen.",
+    "The page used the clipboard, which the agent can’t reach in this page, so the copy or paste didn’t happen.",
   "rich-text":
-    "Typing into a rich-text editor needs the keyboard focus, which the agent can't move into this page.",
+    "Typing into a rich-text editor needs the keyboard focus, which the agent can’t move into this page.",
   "key-typing":
-    "A key event doesn't type its character in this page. Use frame_type to enter text.",
-  tab: "Tab doesn't move the focus in this page.",
+    "A key event doesn’t type its character in this page. Use frame_type to enter text.",
+  tab: "Tab doesn’t move the focus in this page.",
   "native-select":
-    "A native select's popup can't be opened in this page. Use frame_select to pick an option.",
+    "A native select’s popup can’t be opened in this page. Use frame_select to pick an option.",
   "native-picker":
-    "The browser's own picker (date, time or colour) can't be opened in this page. Use frame_type to set the field's value.",
+    "The browser’s own picker (date, time or colour) can’t be opened in this page. Use frame_type to set the field’s value.",
 } as const
 
 export type DriveGap = keyof typeof DRIVE_GAPS

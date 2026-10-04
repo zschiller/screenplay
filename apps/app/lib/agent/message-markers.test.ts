@@ -178,7 +178,7 @@ describe("serializeSkill", () => {
     expect(serializeSkill("tdd")).toBe("[skill: tdd]")
   })
 
-  it("matches the exported token's shape", () => {
+  it("matches the exported token’s shape", () => {
     expect(serializeSkill("<name>")).toBe(SKILL_MARKER_TOKEN)
   })
 })
@@ -285,7 +285,7 @@ describe("serializeMention", () => {
     expect(serializeMention("Spec", "doc-7")).toBe("[@Spec](mention:doc-7)")
   })
 
-  it("matches the exported token's shape", () => {
+  it("matches the exported token’s shape", () => {
     expect(serializeMention("<title>", "<id>")).toBe(MENTION_MARKER_TOKEN)
   })
 
@@ -357,7 +357,7 @@ describe("serializeElement", () => {
     )
   })
 
-  it("matches the exported token's shape", () => {
+  it("matches the exported token’s shape", () => {
     expect(serializeElement("<label>", "<ref>")).toBe(ELEMENT_MARKER_TOKEN)
   })
 })
@@ -418,7 +418,7 @@ describe("elementMarkersToPills", () => {
 })
 
 describe("mockupMarkersToRefs", () => {
-  it("names a drawn Mockup's ask by the Mockup, without the agent's wording", () => {
+  it("names a drawn Mockup’s ask by the Mockup, without the agent’s wording", () => {
     expect(
       mockupMarkersToRefs(forMockup("", "m-2", { width: 390, height: 844 }))
     ).toBe("Sketch it in [Mockup](mockup:m-2), for a 390 × 844 viewport.")
@@ -788,7 +788,7 @@ describe("attachments footer (#1525)", () => {
         "",
         "---",
         "",
-        `${ATTACHMENTS_FOOTER_TOKEN} the sender attached these to this message. They're saved in the canvas's files; open one with \`read_saved_file\`.`,
+        `${ATTACHMENTS_FOOTER_TOKEN} the sender attached these to this message. They’re saved in the canvas’s files; open one with \`read_saved_file\`.`,
         '- "uploads/photo.png" (image/png, 2048 bytes)',
       ].join("\n")
     )
@@ -800,7 +800,7 @@ describe("attachments footer (#1525)", () => {
   })
 
   it("round-trips, names with quotes and parens included, and strips out of the body", () => {
-    const body = "what's in these?"
+    const body = "what’s in these?"
     const wire = body + buildAttachmentsFooter([photo, odd])
     expect(parseAttachmentsFooter(wire)).toEqual([photo, odd])
     expect(parseUserMessage(wire).body).toBe(body)

@@ -63,7 +63,7 @@ export function AccountMemoryPanel({
         {loading ? (
           <SettingsRowSkeleton label="Loading memory…" count={2} />
         ) : (
-          <LoadErrorRow title="Couldn't load memory" onRetry={reload} />
+          <LoadErrorRow title="Couldn’t load memory" onRetry={reload} />
         )}
       </>
     )

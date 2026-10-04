@@ -270,12 +270,12 @@ function runMessage(kind: HarnessSetupActionKind, label: string): string {
   if (kind === "install") {
     return (
       `Installing ${label}, then signing you in. Follow the prompts below; ` +
-      "this closes when you're done."
+      "this closes when you’re done."
     )
   }
   return (
     `Signing in to ${label}. Follow the prompts below; this closes when ` +
-    "you're done."
+    "you’re done."
   )
 }
 

@@ -484,7 +484,7 @@ export function Canvas({
   useEffect(() => {
     if (!hasLegacyEnv) return
     migrateCanvasEnv(roomId).catch((err) =>
-      console.error("Couldn't move this canvas's env vars", err)
+      console.error("Couldn’t move this canvas’s env vars", err)
     )
   }, [hasLegacyEnv, roomId])
   const toolMode = useToolMode({ frameAvailable: repos.length > 0 })
@@ -1917,7 +1917,7 @@ export function Canvas({
           addedBy: userId ?? "anonymous",
         },
         (id, text) => copyInCanvasRepoEnv(roomId, id, text)
-      ).catch(() => toast.error("Couldn't copy the environment variables."))
+      ).catch(() => toast.error("Couldn’t copy the environment variables."))
     },
     [collections, userId, roomId]
   )

@@ -505,7 +505,7 @@ function WorkspaceChatPanel({
               </EmptyMedia>
               <EmptyTitle>No chat yet</EmptyTitle>
               <EmptyDescription>
-                Start this workspace&apos;s chat.
+                Start this workspace’s chat.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>

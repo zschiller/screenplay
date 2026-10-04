@@ -89,6 +89,14 @@ test("curls only in-word apostrophes in other strings", () => {
     `const copy = { body: "It’s saved", cls: "after:content-['+']", html: \`<p class="x">\` }`
   )
   assert.equal(fixTsx(`const y = 'it\\'s'`), `const y = 'it’s'`)
+  assert.equal(
+    fixTsx("const z = `${name}'s models`"),
+    "const z = `${name}’s models`"
+  )
+  assert.equal(
+    fixTsx(`const a = <p>{name}'s and <b>x</b>'s</p>`),
+    `const a = <p>{name}’s and <b>x</b>’s</p>`
+  )
 })
 
 test("reports the line of each straight quote", () => {

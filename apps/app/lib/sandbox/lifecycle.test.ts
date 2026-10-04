@@ -336,7 +336,7 @@ describe("stopDevServers", () => {
     vi.unstubAllEnvs()
   })
 
-  it("group-kills each sandbox's dev/proxy supervisors on the local backend", async () => {
+  it("group-kills each sandbox’s dev/proxy supervisors on the local backend", async () => {
     vi.stubEnv("SANDBOX_BACKEND", "local")
     const shCalls: string[] = []
     fake.setGet(
@@ -589,7 +589,7 @@ describe("recreateSandbox", () => {
     expect(fake.createCalls).toHaveLength(0)
   })
 
-  it("uses the session's token", async () => {
+  it("uses the session’s token", async () => {
     // The UI callers (Recreate, Branch recovery) carry no token, so the session's
     // is resolved for them — only the hosted backend ever uses it, to
     // authenticate the clone.
@@ -600,7 +600,7 @@ describe("recreateSandbox", () => {
     )
   })
 
-  it("recreates without a token rather than failing when there's no session", async () => {
+  it("recreates without a token rather than failing when there’s no session", async () => {
     // Recovery can fire outside a request context; a missing token must not turn
     // into a failed recreate (a public repo clones fine without one).
     getGitHubToken.mockRejectedValue(new Error("no request context"))
@@ -613,7 +613,7 @@ describe("recreateSandbox", () => {
     )
   })
 
-  it("reads the Canvas's stored env vars for a member of the Room", async () => {
+  it("reads the Canvas’s stored env vars for a member of the Room", async () => {
     canvasEnv.get.mockResolvedValueOnce("API_KEY=from-canvas")
 
     await recreateSandbox("sandbox-a", repo, "feature", "room-1")
@@ -625,7 +625,7 @@ describe("recreateSandbox", () => {
     )
   })
 
-  it("falls back to the old Sandbox's env vars when the Canvas has none stored", async () => {
+  it("falls back to the old Sandbox’s env vars when the Canvas has none stored", async () => {
     getEnvVars.mockResolvedValueOnce({ API_KEY: "from-sandbox" })
 
     await recreateSandbox("sandbox-a", repo, "feature", "room-1")
@@ -644,7 +644,7 @@ describe("recreateSandbox", () => {
     expect(provisionSandbox).not.toHaveBeenCalled()
   })
 
-  it("surfaces the module's failure unchanged", async () => {
+  it("surfaces the module’s failure unchanged", async () => {
     provisionSandbox.mockResolvedValue({ success: false, error: "nope" })
 
     const result = await recreateSandbox("sandbox-a", repo, "feature", "room-1")
@@ -714,7 +714,7 @@ describe("restartDevServer", () => {
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
-    expect(result.error).toBe("The workspace isn't running.")
+    expect(result.error).toBe("The workspace isn’t running.")
     // No relaunch, and still no VM cycle — waking a stopped VM is restartSandbox's
     // job, not the dev-server bounce's.
     expect(relaunched).toBe(false)
@@ -762,7 +762,7 @@ describe("stopDevServer (#1342)", () => {
     expect(fake.createCalls).toHaveLength(0)
   })
 
-  it("counts a Sandbox that isn't running as stopped, without waking it", async () => {
+  it("counts a Sandbox that isn’t running as stopped, without waking it", async () => {
     let ran = false
     fake.setGet(
       fakeSandbox({
@@ -817,7 +817,7 @@ describe("reconnectSandbox", () => {
     expect(relaunched).toBe(false)
   })
 
-  it("relaunches the dev server and proxy when a live VM's preview is unreachable", async () => {
+  it("relaunches the dev server and proxy when a live VM’s preview is unreachable", async () => {
     // VM up but the dev server / bridge proxy has died: the probe fails, so the
     // reconnect self-heals by relaunching before returning the domain.
     let relaunched = false
@@ -1094,7 +1094,7 @@ describe("ensurePreviewLive", () => {
     expect(domain).toBe("https://fake-4000.example.com")
   })
 
-  it("fails loud when the relaunch's dev server also never binds its mapped port", async () => {
+  it("fails loud when the relaunch’s dev server also never binds its mapped port", async () => {
     let relaunched = false
     const sandbox = fakeSandbox({
       hostPort: mappedPorts,
@@ -1136,7 +1136,7 @@ describe("probeSandboxUrl", () => {
     expect(await probeSandboxUrl("https://x.example.com")).toBe(true)
   })
 
-  it("returns false on the proxy's 5xx placeholder (dev server not up yet)", async () => {
+  it("returns false on the proxy’s 5xx placeholder (dev server not up yet)", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({ status: 503 }))

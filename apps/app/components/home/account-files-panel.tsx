@@ -76,7 +76,7 @@ export function AccountFilesPanel({
       {loading ? (
         <SettingsRowSkeleton label="Loading files…" count={2} />
       ) : loadFailed ? (
-        <LoadErrorRow title="Couldn't load files" onRetry={reload} />
+        <LoadErrorRow title="Couldn’t load files" onRetry={reload} />
       ) : (
         // The tree is built from sidebar rows, which read a sidebar's state.
         <SidebarProvider className="block min-h-0">

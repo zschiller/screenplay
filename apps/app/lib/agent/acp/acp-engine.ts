@@ -492,7 +492,7 @@ function priorTranscript(records: AcpMessageRecord[]): string {
     "",
     "---",
     "",
-    "Continue from here. The user's new message follows:",
+    "Continue from here. The user’s new message follows:",
   ].join("\n")
 }
 

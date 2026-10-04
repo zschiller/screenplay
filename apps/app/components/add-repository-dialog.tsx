@@ -354,7 +354,7 @@ export function AddRepositoryDialog({
           </DialogTitle>
           {pickerView === "settings" && pendingPick && (
             <DialogDescription>
-              {`Confirm the run settings for ${pickLabel(pendingPick)} before it's added.`}
+              {`Confirm the run settings for ${pickLabel(pendingPick)} before it’s added.`}
             </DialogDescription>
           )}
         </DialogHeader>
@@ -432,7 +432,7 @@ export function AddRepositoryDialog({
                     list.find((r) => sameRepository(r, repository))
                   if (saved) onAdded(saved, list)
                 })
-                .catch(() => toast.error(`Couldn't add ${label}.`))
+                .catch(() => toast.error(`Couldn’t add ${label}.`))
               setPendingPick(null)
               setPickerView(null)
             }}

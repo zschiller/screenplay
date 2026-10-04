@@ -47,7 +47,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
   const tools = {
     create_mockup: tool({
       description:
-        "Draw a Mockup on the canvas: a static HTML page shown beside the live frames, for sketching a design idea without building it. It needs no dev server and appears at once, next to this chat's other Mockups, or else in the Group of this Workspace's frames. Make one Mockup per take so they sit side by side. Returns the Mockup's id, which update_mockup takes.",
+        "Draw a Mockup on the canvas: a static HTML page shown beside the live frames, for sketching a design idea without building it. It needs no dev server and appears at once, next to this chat’s other Mockups, or else in the Group of this Workspace’s frames. Make one Mockup per take so they sit side by side. Returns the Mockup’s id, which update_mockup takes.",
       inputSchema: z.object({
         title: z
           .string()
@@ -86,14 +86,14 @@ export function buildMockupTools(ctx: MockupToolContext) {
             groupId: mockupGroupFor(collections, ctx.chatId),
           })
         })
-        if (!created) return "The Mockup couldn't be placed. Try again."
+        if (!created) return "The Mockup couldn’t be placed. Try again."
         return `Created Mockup "${title}" (id ${created.mockupId}).`
       },
     }),
 
     update_mockup: tool({
       description:
-        "Change a Mockup this chat made, or one whose chat was deleted (changing it makes it this chat's): replace its whole page, its title, or both. The canvas re-renders it in place. A Mockup another chat on the canvas made is theirs to change.",
+        "Change a Mockup this chat made, or one whose chat was deleted (changing it makes it this chat’s): replace its whole page, its title, or both. The canvas re-renders it in place. A Mockup another chat on the canvas made is theirs to change.",
       inputSchema: z.object({
         mockup_id: z.string().describe("The id create_mockup returned"),
         html: htmlSchema.optional(),
@@ -124,7 +124,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
           })
           return "updated" as const
         })
-        if (outcome === "missing") return `There's no Mockup ${mockup_id}.`
+        if (outcome === "missing") return `There’s no Mockup ${mockup_id}.`
         if (outcome === "not-owner") {
           return `Mockup ${mockup_id} was made by another chat, and only that chat can change it. Create your own with create_mockup.`
         }
@@ -134,7 +134,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
 
     read_mockup: tool({
       description:
-        "Read Mockups back. Without an id, lists this chat's Mockups with their ids and titles. With an id, returns that Mockup's title and whole page, e.g. to build a picked take from it. Reads any Mockup on the canvas. Read-only.",
+        "Read Mockups back. Without an id, lists this chat’s Mockups with their ids and titles. With an id, returns that Mockup’s title and whole page, e.g. to build a picked take from it. Reads any Mockup on the canvas. Read-only.",
       inputSchema: z.object({
         mockup_id: z
           .string()
@@ -149,7 +149,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
               .filter((m) => m.ownerChatId === ctx.chatId)
               .map((m) => ({ id: m.id, title: m.title }))
           )
-          if (own.length === 0) return "This chat hasn't made any Mockups."
+          if (own.length === 0) return "This chat hasn’t made any Mockups."
           return [
             "Your Mockups:",
             ...own.map((m) => `- ${m.id}: ${m.title}`),
@@ -170,7 +170,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
             }
           }
         )
-        if (!found) return `There's no Mockup ${mockup_id}.`
+        if (!found) return `There’s no Mockup ${mockup_id}.`
         return [
           `# ${found.title}${READ_NOTE[found.right]}`,
           "",

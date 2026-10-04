@@ -142,7 +142,7 @@ export function AgentStep({
         Agent chats and terminals run on a coding CLI on this device.
       </p>
       {loadFailed ? (
-        <LoadErrorRow title="Couldn't check coding agents" onRetry={recheck} />
+        <LoadErrorRow title="Couldn’t check coding agents" onRetry={recheck} />
       ) : !rows || !selected ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner className="size-4" />

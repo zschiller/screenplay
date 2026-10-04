@@ -92,7 +92,7 @@ describe("saved-file tools", () => {
       await run(tools, "save_file", { path: "../escape.md", content: "x" })
     ).toMatch(/^Error: /)
     expect(await run(tools, "save_file", { path: "a.md" })).toBe(
-      "Error: pass the file's `content`."
+      "Error: pass the file’s `content`."
     )
   })
 
@@ -182,7 +182,7 @@ describe("saved-file tools, account scope", () => {
     })
   }
 
-  it("saves to and reads from the sender's files, apart from the canvas's", async () => {
+  it("saves to and reads from the sender’s files, apart from the canvas’s", async () => {
     const files = { canvas: canvas(), account: account() }
     const tools = buildFileTools({ ...files, chatId: "chat-a" })
 
@@ -220,7 +220,7 @@ describe("saved-file tools, account scope", () => {
     expect(listed.ok && listed.value).toEqual([])
   })
 
-  it("refuses every tool's account scope on a turn nobody sent", async () => {
+  it("refuses every tool’s account scope on a turn nobody sent", async () => {
     for (const ctx of [
       { canvas: canvas(), account: null, chatId: "chat-a" },
       { canvas: canvas(), chatId: "chat-a" },

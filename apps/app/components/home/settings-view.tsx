@@ -147,7 +147,7 @@ const SECTIONS: SettingsSection[] = [
     title: "Account",
     description: isLocalBuild
       ? "The desktop app runs as you on this device, with no sign-in."
-      : "The account you're signed in with.",
+      : "The account you’re signed in with.",
     content: (header) => (
       <>
         {header()}
