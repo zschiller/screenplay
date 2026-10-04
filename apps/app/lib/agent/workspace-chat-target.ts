@@ -18,6 +18,7 @@ import { buildPrTools, buildSandboxTools } from "./tools"
 import { buildDevServerTools } from "./dev-server-tools"
 import { liveDevServerPorts } from "./dev-server-ports"
 import { chatFrameReadTools } from "./frame-read-ports"
+import { chatPageScreenshotTools } from "./page-screenshot-ports"
 import { buildDocumentTools } from "./document-tools"
 import { buildMockupTools } from "./mockup-tools"
 import { otherWorkspacesCodeReadTools } from "./code-read-tools"
@@ -171,6 +172,16 @@ export const workspaceChatTarget: ChatTargetSpec<
         // Any frame on the canvas, its own by default: a screenshot and the
         // page's HTML (#1311).
         ...chatFrameReadTools(sandbox),
+        // Any page, in the background: a route at any size, or a public URL.
+        ...chatPageScreenshotTools({
+          room,
+          files: {
+            canvas: canvasFiles(room),
+            account: accountFilesFor(target),
+            chatId,
+          },
+          scope: { sandboxName },
+        }),
         // Driving a frame: your own on the Mac (#1389), the shared one on
         // hosted (#1396).
         ...chatFrameDriveTools(sandbox),

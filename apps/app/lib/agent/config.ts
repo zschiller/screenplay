@@ -216,10 +216,10 @@ export function renderSkillSaving(
   senderless = false
 ): string {
   return [
-    `- When the user asks you to remember how to do something, or you’ve worked out a procedure later chats on this canvas should follow, save it as a skill with \`${t("save_skill")}\`. Change one by saving it again, and remove one with \`${t("delete_skill")}\`.`,
+    `- When the user asks you to remember how to do something, or you’ve worked out a procedure later chats on this canvas should follow, offer it as a skill with \`${t("save_skill")}\`: the chat shows it as a card and the user saves it to their account or the canvas. Change one by offering it again, and remove one with \`${t("delete_skill")}\`.`,
     senderless
-      ? "- Nobody sent this turn, so it has no account skills: save skills to `canvas` only."
-      : "- A procedure that’s the user’s own rather than this canvas’s (how they like a write-up done, wherever they work) goes to `scope: \"account\"`, which every chat they message uses on any canvas; the rest goes to `canvas`.",
+      ? "- Nobody sent this turn, so it has no account skills: suggest and delete `canvas` skills only."
+      : '- Suggest `scope: "account"` for a procedure that’s the user’s own rather than this canvas’s (how they like a write-up done, wherever they work), which every chat they message uses on any canvas; suggest `canvas` for the rest.',
   ].join("\n")
 }
 
@@ -345,7 +345,7 @@ const agentSystemPromptTail = (naming: ToolNaming) => {
 
 Screenplay runs the project’s dev server in the background and shows it in the live preview, which updates automatically when you save files. Its output never reaches ${shell}: call ${t("read_dev_server_logs")} to see compile and runtime errors when the preview breaks, and ${t("restart_dev_server")} to restart it. The user can stop it from the terminal pane; ${t("stop_dev_server")} and ${t("start_dev_server")} do the same. Never start another dev server with ${shell}.
 
-To see the preview as the user sees it on the canvas, call ${t("view_frame")} for a screenshot of your frame, or ${t("read_frame_html")} for its current page as self-contained HTML (optionally one element, by CSS selector). Both also read other Workspaces' frames on the canvas, by frameId.
+To see the preview as the user sees it on the canvas, call ${t("view_frame")} for a screenshot of your frame, or ${t("read_frame_html")} for its current page as self-contained HTML (optionally one element, by CSS selector). Both also read other Workspaces' frames on the canvas, by frameId. To see a route or a screen size no frame shows, or any public web page, call ${t("screenshot_page")}: it renders the page in the background, at any width or the whole page, and \`saveAs\` keeps the PNG in saved files to put in a document or mockup.
 
 ${frameDrivePrompt(t, { frames: frameDriveRuntime() })}
 
@@ -532,6 +532,7 @@ export function buildRoomSystemPrompt(opts: {
     `- Call \`${t("read_document")}\` with a document’s id to read its text.`,
     `- To find out what a Workspace did, call \`${t("read_workspace_chat")}\` (its last ask, turn summary and last reply; pass \`full: true\` only when you need the whole transcript). \`${t("read_workspace_diff")}\` and \`${t("read_workspace_file")}\` read its changes and code. You can’t edit Workspace files.`,
     `- To see what a frame looks like, call \`${t("view_frame")}\`, or \`${t("read_frame_html")}\` for its current page as self-contained HTML.`,
+    `- To see a route no frame shows, a page at another size, or a public web page, call \`${t("screenshot_page")}\`. It renders in the background without a frame; \`saveAs\` keeps the PNG in saved files.`,
     `- Name Workspaces by their title, not their id. Link a title as \`${workspaceLink("<title>", "<id>")}\` so the user can open the Workspace.`,
     `- Name frames, documents and mockups by their title too, linked as \`${layerLink("frame", "<title>", "<id>")}\`, \`${layerLink("document", "<title>", "<id>")}\` or \`${layerLink("mockup", "<title>", "<id>")}\` so the user can find them on the canvas.`,
     "",

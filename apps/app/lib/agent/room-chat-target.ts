@@ -29,6 +29,7 @@ import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
 import { buildSkillTools } from "./skill-tools"
 import type { RoomDoc } from "@/lib/room-access"
 import { buildFileTools } from "./file-tools"
+import { chatPageScreenshotTools } from "./page-screenshot-ports"
 import { buildMemoryTools } from "./memory-tools"
 import { canvasFiles } from "@/lib/files"
 import { loadCanvasFiles } from "@/lib/files/canvas-files"
@@ -199,6 +200,16 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
           target.turnId
         ),
         ...buildLayerReadTools({ room }),
+        // Any page, in the background: a Workspace's route at any size, or a
+        // public URL.
+        ...chatPageScreenshotTools({
+          room,
+          files: {
+            canvas: canvasFiles(room),
+            account: accountFilesFor(target),
+            chatId: target.coordinatorChatId ?? "",
+          },
+        }),
         ...buildQuestionTools(),
         // Account and canvas memory (#1515).
         ...buildMemoryTools({

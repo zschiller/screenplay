@@ -5,7 +5,7 @@ import {
 } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { floating, Tool } from "./canvas"
+import { edge, floating, Tool } from "./canvas"
 
 /*
  * The For teams figure: the canvas as a team sees it on the web app. The
@@ -131,7 +131,8 @@ export function ThreadCard({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "absolute flex w-[250px] flex-col gap-2.5 rounded-lg bg-popover p-3 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10",
+        "absolute flex w-[250px] flex-col gap-2.5 rounded-lg bg-popover p-3 text-sm text-popover-foreground shadow-md",
+        edge,
         className
       )}
     >

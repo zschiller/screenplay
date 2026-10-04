@@ -52,7 +52,15 @@ export function Fit({
     >
       <div
         className="absolute top-0 origin-top-left"
-        style={{ left, width, height, transform: `scale(${scale})` }}
+        style={
+          {
+            left,
+            width,
+            height,
+            transform: `scale(${scale})`,
+            "--fit-scale": scale,
+          } as React.CSSProperties
+        }
       >
         {children}
       </div>

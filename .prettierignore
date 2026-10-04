@@ -8,3 +8,5 @@ pnpm-lock.yaml
 # The docs demo site: its Workspace edits find-and-replace exact source text
 # (apps/app/screenshots/docs/demo-site.ts), so reformatting would break them.
 apps/app/screenshots/docs/northwind/
+# Built by packages/skill-templates; its test compares them byte for byte.
+.agents/skills/**/*-template.html

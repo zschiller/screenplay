@@ -1,162 +1,79 @@
 ---
 name: screenplay-share-state
-description: Bridge a piece of the prototype's UI state to the screenplay canvas so it syncs across every viewer in the room (and into the prototype player). The canvas shows a tiny indicator on the route pill — read-only at the canvas surface, hover for the JSON. Use whenever the user asks to expose internal app state to the screenplay session ("share the current user", "sync the cart across viewers", "let me see what mode this is in", "expose this to the editor").
+description: Share a page’s UI state with the canvas so every viewer sees and drives the same state. Use when the user asks to sync, expose or show a piece of app state (the current user, the cart, the open tab) to everyone on the canvas.
 ---
 
 # Skill: Sharing UI state with the canvas
 
-`@screenplay.space/state` mirrors a piece of the prototype's UI state up
-to the screenplay canvas. The canvas persists it on the artboard via Yjs
-and pushes it back down into every connected client's iframe — so a state
-change in one viewer's prototype shows up in every other viewer's
-prototype within the same room. The canvas itself shows a tiny
-`{ }` curly-brace icon inside the route pill; hovering reveals the full JSON.
-There's no editor UI on the canvas today (that may come later).
+**Shared state** mirrors a piece of a page’s UI state up to the canvas, which
+stores it and pushes it down to every viewer’s copy of the page, so a change
+in one viewer’s page shows in everyone’s. The frame’s route pill shows a
+`{ }` icon whose hover reveals the JSON; the canvas has no editor for it.
+Outside a canvas every call is a no-op, so the code is safe to commit.
 
-When the prototype renders outside a screenplay canvas — production
-builds, standalone dev, anything not iframed inside screenplay — every
-API on the package is a no-op. Committing `useSharedState` to production
-is safe.
+**Knobs or shared state:** a knob is a value people _set_ from the canvas
+(padding, colour; see screenplay-add-knob). Shared state is state the page
+_owns_ and everyone should see the same (current user, open step).
 
-## When to use this vs. knobs
+Where it goes decides how you declare it: **app code** in your Workspace uses
+the `@screenplay.space/state` package; a **Mockup** uses the `screenplay`
+global its page already has.
 
-| Use **knobs** for…                          | Use **state** for…                              |
-| ------------------------------------------- | ----------------------------------------------- |
-| Designer-tunable values (padding, color)    | App-internal state (current user, route params) |
-| Canvas-driven inputs                        | Prototype-driven outputs                        |
-| Read in the prototype                       | Surface for visibility + multi-client sync      |
+## In app code
 
-If the user wants to *see* what state the prototype is in, use this. If
-they want to *control* a value from the canvas, use knobs.
-
-## How to add shared state
-
-1. **Make sure `@screenplay.space/state` is installed.** Read
-   `package.json`. If it isn't listed in `dependencies`, install it:
+1. Read `package.json`. When `@screenplay.space/state` isn’t in
+   `dependencies`, install it first, so a fresh clone still builds:
 
    ```
    run_command "npm" ["install", "--save", "@screenplay.space/state"]
    ```
 
-   Skip this step if it's already there.
-
-2. **Find the existing UI state.** This skill is about wiring state
-   that's already there — not introducing new state. Look for the
-   `useState`, `useReducer`, store hook, or context value the user
-   wants to expose.
-
-3. **Call `useSharedState` next to it.** Pick a stable, descriptive
-   `key`. Pass the value. Pass the setter (or whatever updates the
-   state) to opt into bidirectional sync — without it, the state
-   publishes one way only.
+2. Find the state that already exists: the `useState`, `useReducer`, store
+   hook or context value the user means. It stays the source of truth;
+   shared state is a **bridge** beside it.
+3. Call `useSharedState(key, value, setter)` next to it, on every render.
+   Passing the setter syncs both ways; leave it out to publish a derived
+   snapshot one way.
 
    ```tsx
    import { useSharedState } from "@screenplay.space/state"
 
-   function App() {
-     // Existing state — leave it alone.
-     const [count, setCount] = useState(0)
+   const [count, setCount] = useState(0)
+   useSharedState("count", count, setCount)
 
-     // New: bidirectional bridge to the canvas. Other clients in the
-     // same room will see updates and write them back here.
-     useSharedState("count", count, setCount)
-
-     return <button onClick={() => setCount((c) => c + 1)}>{count}</button>
-   }
-   ```
-
-4. **For derived snapshots, omit the setter.** When the state isn't
-   directly settable (e.g. it comes from a hook you don't control, or
-   it's a computed projection), publish-only is fine:
-
-   ```tsx
    const user = useUser()
    useSharedState("user", user ? { id: user.id, role: user.role } : null)
    ```
 
-5. **Commit and push.** The canvas picks up the new key automatically
-   — no manifest, no registration. The route pill will sprout a
-   `{ }` curly-brace icon as soon as the prototype publishes.
+The route pill shows `{ }` as soon as the page publishes.
 
-## Patterns
-
-- **Wire existing state, don't replace it.** `useSharedState` is a
-  bridge — it doesn't own the state. Keep `useState` / store hooks /
-  context as the source of truth and let `useSharedState` mirror it.
-- **Pick stable keys.** The canvas keys persisted state by `key`.
-  Renaming a key resets it. Treat keys like `id`s.
-- **Publish summaries, not raw blobs.** The combined payload is
-  capped at 64 KB. If the user wants to share a big object, publish
-  a small projection (e.g. counts, ids, mode flags) instead.
-- **Don't share secrets.** The published payload is visible to every
-  viewer in the room and stored in Yjs. Never publish auth tokens,
-  PII you wouldn't paste in chat, or anything you wouldn't say in a
-  meeting.
-
-## Zustand stores
-
-When the state the user wants shared lives in a zustand store, share the
-whole store with one line next to its `create()` instead of wiring each
-field:
+**A zustand store** shares whole with one line beside its `create()`; its
+plain-JSON fields sync both ways and its actions keep working:
 
 ```ts
 import { shareStore } from "@screenplay.space/state"
 
-export const useSales = create((set) => ({ /* existing store */ }))
+export const useSales = create((set) => ({/* existing store */}))
 shareStore("sales", useSales)
 ```
 
-Its plain-JSON fields sync both ways and its actions keep working. Actions,
-`Date`s, `Map`s, `Set`s and class instances stay local. Don't add
-`useSharedState` calls for fields of a store that's already shared.
-
-## Non-React API
-
-Reach for this when you need to publish from outside React (event
-handlers, store middleware, Zustand subscriptions, etc.):
+**Outside React** (event handlers, store middleware):
 
 ```ts
-import {
-  setSharedState,
-  subscribeSharedState,
-  clearSharedState,
-} from "@screenplay.space/state"
+import { setSharedState, subscribeSharedState } from "@screenplay.space/state"
 
-const remove = setSharedState("session", { id: "...", role: "admin" })
-
+const remove = setSharedState("session", { id: "…", role: "admin" })
 const unsubscribe = subscribeSharedState("session", (next) => {
-  // remote update from another client
+  /* remote update */
 })
-
-// teardown
-remove()
-unsubscribe()
 ```
 
-## Rules
+## On a Mockup
 
-- **Always run `npm install --save @screenplay.space/state` before
-  using `useSharedState` for the first time** — committing an import
-  without the dep listed in `package.json` would break the user's
-  build on a fresh clone.
-- **Pure declarations**: `useSharedState` must run on every render.
-  Don't conditionally call it.
-- **No functions in values.** They're stripped during JSON
-  serialization. Same goes for `Date` (becomes a string), class
-  instances (lose their prototype), `BigInt` (the call is dropped),
-  and circular references.
-- **Don't fight `useState`.** If the user has `[count, setCount]`,
-  keep them both. `useSharedState("count", count, setCount)` is the
-  whole bridge — don't refactor `count` out from under their other
-  consumers.
-
-## Shared state on a Mockup
-
-A Mockup is a static page with no bundler, so it doesn't install the
-package. Its page already has
-`screenplay.shareState(key, initial, onChange)`, which returns
-`{ get, set }`. `onChange` runs at once with the current value and again on
-every change, local `set` included, so draw the page from it:
+The page already has `screenplay.shareState(key, initial, onChange)`, which
+returns `{ get, set }`. `onChange` runs at once with the current value and
+again on every change, local `set` included, so draw the page from it. Add
+it by rewriting the page with `update_mockup`.
 
 ```html
 <script>
@@ -167,5 +84,15 @@ every change, local `set` included, so draw the page from it:
 </script>
 ```
 
-The same rules hold: JSON values only, stable keys, and the room's value
-wins when the page loads. Add it by rewriting the page with `update_mockup`.
+## Values
+
+- **Stable keys**: the canvas stores each value under its `key`, so a
+  renamed key resets. The room’s value wins when a page loads.
+- **Plain JSON**: functions are dropped, a `Date` becomes a string, class
+  instances lose their prototype, and `BigInt` or circular values drop the
+  call. A shared store keeps those fields local.
+- **Small summaries**: everything shared on a page is capped at 64 KB
+  together, so publish ids, counts and mode flags rather than whole objects.
+- **Public to the room**: every viewer can read it and it’s stored with the
+  canvas, so share only what you’d say in a meeting, never tokens or
+  private data.

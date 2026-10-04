@@ -3,7 +3,7 @@ import { ancestorPaths, isWithin, normalizeFilePath } from "@/lib/files/paths"
 import type { FileStore } from "@/lib/files/store"
 import type { FileEntryData } from "@/lib/types"
 
-import { parseFrontmatter } from "./frontmatter"
+import { parseFrontmatter, type SkillMetadata } from "./frontmatter"
 
 /**
  * The **skills module** (#1555, spec #1554): Skills a chat saved, as opposed
@@ -176,6 +176,70 @@ export function savedSkillsIn(entries: readonly FileEntryData[]): SavedSkill[] {
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/**
+ * Check a Skill before saving it: its name, its `SKILL.md`'s frontmatter
+ * (with privileges stripped, as {@link stripSkillPrivileges} says) and its
+ * size with files. Returns what saving would write, or what's wrong, so a
+ * chat can show a Skill for saving (`save_skill`) and refuse a bad one at
+ * once.
+ */
+export function prepareSkill(input: {
+  name: string
+  content: string
+  files?: readonly SkillFile[]
+}): SkillResult<{
+  content: string
+  stripped: string[]
+  metadata: SkillMetadata
+  writes: { path: string; bytes: Uint8Array }[]
+}> {
+  const { name, content: raw, files: rawFiles = [] } = input
+  const nameError = skillNameError(name)
+  if (nameError) return fail(nameError)
+  const { content, stripped } = stripSkillPrivileges(raw)
+  let metadata
+  try {
+    metadata = parseFrontmatter(content, `"${name}"`).metadata
+  } catch (e) {
+    return fail(
+      `${e instanceof Error ? e.message : String(e)} Start SKILL.md with:\n---\nname: ${name}\ndescription: <what it does and when to use it>\n---`
+    )
+  }
+  if (metadata.name !== name) {
+    return fail(
+      `SKILL.md declares name "${metadata.name}"; it must match the skill’s name, "${name}".`
+    )
+  }
+  if (metadata.description.length > SKILL_DESCRIPTION_MAX_LENGTH) {
+    return fail(
+      `The description is ${metadata.description.length} characters; the most is ${SKILL_DESCRIPTION_MAX_LENGTH}.`
+    )
+  }
+
+  const encoder = new TextEncoder()
+  const writes: { path: string; bytes: Uint8Array }[] = [
+    { path: SKILL_FILE, bytes: encoder.encode(content) },
+  ]
+  for (const f of rawFiles) {
+    const p = normalizeFilePath(f.path)
+    if ("error" in p) return fail(p.error)
+    if (p.path === SKILL_FILE) {
+      return fail(`Pass SKILL.md as \`content\`, not as a file.`)
+    }
+    if (writes.some((w) => w.path === p.path)) {
+      return fail(`"${p.path}" is in the files twice.`)
+    }
+    writes.push({ path: p.path, bytes: encoder.encode(f.content) })
+  }
+  const size = writes.reduce((n, w) => n + w.bytes.byteLength, 0)
+  if (size > SKILL_MAX_BYTES) {
+    return fail(
+      `The skill is ${size} bytes; the most a skill can be, with its files, is ${SKILL_MAX_BYTES} (256 KB).`
+    )
+  }
+  return ok({ content, stripped, metadata, writes })
+}
+
 export function createSavedSkills(scope: {
   index: FileIndex
   store: FileStore
@@ -217,49 +281,9 @@ export function createSavedSkills(scope: {
     },
 
     async save({ name, content: raw, files: rawFiles = [], author, now }) {
-      const nameError = skillNameError(name)
-      if (nameError) return fail(nameError)
-      const { content, stripped } = stripSkillPrivileges(raw)
-      let metadata
-      try {
-        metadata = parseFrontmatter(content, `"${name}"`).metadata
-      } catch (e) {
-        return fail(
-          `${e instanceof Error ? e.message : String(e)} Start SKILL.md with:\n---\nname: ${name}\ndescription: <what it does and when to use it>\n---`
-        )
-      }
-      if (metadata.name !== name) {
-        return fail(
-          `SKILL.md declares name "${metadata.name}"; it must match the skill’s name, "${name}".`
-        )
-      }
-      if (metadata.description.length > SKILL_DESCRIPTION_MAX_LENGTH) {
-        return fail(
-          `The description is ${metadata.description.length} characters; the most is ${SKILL_DESCRIPTION_MAX_LENGTH}.`
-        )
-      }
-
-      const encoder = new TextEncoder()
-      const writes: { path: string; bytes: Uint8Array }[] = [
-        { path: SKILL_FILE, bytes: encoder.encode(content) },
-      ]
-      for (const f of rawFiles) {
-        const p = normalizeFilePath(f.path)
-        if ("error" in p) return fail(p.error)
-        if (p.path === SKILL_FILE) {
-          return fail(`Pass SKILL.md as \`content\`, not as a file.`)
-        }
-        if (writes.some((w) => w.path === p.path)) {
-          return fail(`"${p.path}" is in the files twice.`)
-        }
-        writes.push({ path: p.path, bytes: encoder.encode(f.content) })
-      }
-      const size = writes.reduce((n, w) => n + w.bytes.byteLength, 0)
-      if (size > SKILL_MAX_BYTES) {
-        return fail(
-          `The skill is ${size} bytes; the most a skill can be, with its files, is ${SKILL_MAX_BYTES} (256 KB).`
-        )
-      }
+      const prepared = prepareSkill({ name, content: raw, files: rawFiles })
+      if (!prepared.ok) return fail(prepared.error)
+      const { stripped, metadata, writes } = prepared.value
 
       const at = now ?? Date.now()
       const before = (await index.entries()).find((e) => e.path === name)

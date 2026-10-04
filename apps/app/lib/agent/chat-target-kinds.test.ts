@@ -88,6 +88,8 @@ import { buildViewTools } from "@/lib/agent/room-view-tools"
 import { buildDocumentTools } from "@/lib/agent/document-tools"
 import { buildMockupTools } from "@/lib/agent/mockup-tools"
 import type { RoomDoc } from "@/lib/room-access"
+import { accountSkills } from "@/lib/skills/account"
+import { canvasSkills } from "@/lib/skills/canvas"
 import { agentContextFolder } from "@/lib/files/context-folder"
 import {
   documentFragment,
@@ -246,6 +248,7 @@ describe("room chat target", () => {
       "rename",
       "save_file",
       "save_skill",
+      "screenshot_page",
       "send_to_chat",
       "send_to_workspace",
       "show_on_canvas",
@@ -892,21 +895,20 @@ describe("canvas skills in every kind", () => {
 
   const skillMd = (name: string, description: string, body = "") =>
     `---\nname: ${name}\ndescription: ${description}\n---\n${body}`
+  const author = { addedBy: "member" as const, addedById: "user-1" }
 
-  it("a Skill a Workspace chat saves, the Coordinator and a sketch chat list and read", async () => {
+  it("a Skill saved on the canvas, the Coordinator and a sketch chat list and read", async () => {
     const r = room()
-    const workspace = inProcess(workspaceChatTarget.tools(r, workspaceTarget))
-    expect(
-      await call(workspace, "save_skill", {
-        scope: "canvas",
-        name: "release-notes",
-        content: skillMd(
-          "release-notes",
-          "Write release notes.",
-          "Group by feature."
-        ),
-      })
-    ).toContain('Saved the canvas skill "release-notes"')
+    const saved = await canvasSkills(r).save({
+      name: "release-notes",
+      content: skillMd(
+        "release-notes",
+        "Write release notes.",
+        "Group by feature."
+      ),
+      author,
+    })
+    expect(saved.ok).toBe(true)
 
     const coordinator = await prepareChatTarget(r, roomChatTarget, {
       userId: "user-1",
@@ -935,9 +937,10 @@ describe("canvas skills in every kind", () => {
     )
     expect(before!.systemPrompt).not.toContain("**review**")
 
-    await call(before!.tools, "save_skill", {
+    await canvasSkills(r).save({
       name: "review",
       content: skillMd("review", "Review a PR."),
+      author,
     })
 
     const next = await prepareChatTarget(
@@ -953,11 +956,11 @@ describe("canvas skills in every kind", () => {
 
   it("ranks a Repo Skill over a canvas Skill over an App Skill in the prompt", async () => {
     const r = room()
-    const tools = inProcess(workspaceChatTarget.tools(r, workspaceTarget))
     for (const name of ["deploy", "screenplay-add-knob"]) {
-      await call(tools, "save_skill", {
+      await canvasSkills(r).save({
         name,
         content: skillMd(name, `Canvas ${name}.`),
+        author,
       })
     }
     vi.mocked(enumerateRepoSkillsForSandbox).mockResolvedValueOnce([
@@ -1059,18 +1062,38 @@ describe("account skills in every kind", () => {
 
   const skillMd = (name: string, description: string, body = "") =>
     `---\nname: ${name}\ndescription: ${description}\n---\n${body}`
+  const saveTo = async (
+    skills: ReturnType<typeof accountSkills>,
+    name: string,
+    content: string
+  ) => {
+    const saved = await skills.save({
+      name,
+      content,
+      author: { addedBy: "member", addedById: "ben" },
+    })
+    expect(saved.ok).toBe(true)
+  }
 
   for (const [kind, { tools, prepare }] of Object.entries(kinds)) {
-    it(`saves the sender’s account skill from a ${kind} chat, and every kind on another canvas uses it`, async () => {
+    it(`the sender’s account skill offered in a ${kind} chat and saved, every kind on another canvas uses it`, async () => {
       accountSkillLists.clear()
       const here = roomOn("room-1")
+      const content = skillMd(
+        "voice",
+        "Ben’s writing voice.",
+        "Plain sentences."
+      )
       expect(
         await call(tools(here, { userId: "ben" }), "save_skill", {
           scope: "account",
           name: "voice",
-          content: skillMd("voice", "Ben’s writing voice.", "Plain sentences."),
+          content,
         })
-      ).toContain('Saved the account skill "voice"')
+      ).toContain('Showed "voice" to the person as a card')
+      expect(await accountSkills("ben").list()).toEqual([])
+      // The person presses Save to account.
+      await saveTo(accountSkills("ben"), "voice", content)
 
       const elsewhere = roomOn("room-2")
       for (const other of Object.values(kinds)) {
@@ -1089,11 +1112,11 @@ describe("account skills in every kind", () => {
     it(`never gives one member’s account skills to another’s turn in a ${kind} chat`, async () => {
       accountSkillLists.clear()
       const room = roomOn("room-1")
-      await call(tools(room, { userId: "ben" }), "save_skill", {
-        scope: "account",
-        name: "voice",
-        content: skillMd("voice", "Ben’s writing voice."),
-      })
+      await saveTo(
+        accountSkills("ben"),
+        "voice",
+        skillMd("voice", "Ben’s writing voice.")
+      )
       // Ana's turn in the same chat: her own, never Ben's.
       const ana = (await prepare(room, { userId: "ana" }))!
       expect(ana.systemPrompt).not.toContain("Ben’s writing voice.")
@@ -1101,11 +1124,11 @@ describe("account skills in every kind", () => {
         /^Unknown skill/
       )
       // And her saves go to her.
-      await call(ana.tools, "save_skill", {
-        scope: "account",
-        name: "voice",
-        content: skillMd("voice", "Ana’s writing voice."),
-      })
+      await saveTo(
+        accountSkills("ana"),
+        "voice",
+        skillMd("voice", "Ana’s writing voice.")
+      )
       const ben = (await prepare(room, { userId: "ben" }))!
       expect(ben.systemPrompt).toContain("Ben’s writing voice.")
       expect(ben.systemPrompt).not.toContain("Ana’s writing voice.")
@@ -1114,23 +1137,32 @@ describe("account skills in every kind", () => {
     it(`gives a ${kind} turn nobody sent no account skills, and refuses the scope`, async () => {
       accountSkillLists.clear()
       const room = roomOn("room-1")
-      await call(tools(room, { userId: "ana" }), "save_skill", {
-        scope: "account",
-        name: "voice",
-        content: skillMd("voice", "Ana’s writing voice."),
-      })
+      await saveTo(
+        accountSkills("ana"),
+        "voice",
+        skillMd("voice", "Ana’s writing voice.")
+      )
       const wake = (await prepare(room, { userId: "ana", senderless: true }))!
       expect(wake.systemPrompt).not.toContain("Ana’s writing voice.")
       expect(wake.systemPrompt).toContain("it has no account skills")
-      for (const name of ["save_skill", "delete_skill"]) {
-        expect(
-          await call(wake.tools, name, {
-            scope: "account",
-            name: "voice",
-            content: skillMd("voice", "x"),
-          })
-        ).toMatch(/nobody sent this turn/)
-      }
+      expect(
+        await call(wake.tools, "delete_skill", {
+          scope: "account",
+          name: "voice",
+        })
+      ).toMatch(/nobody sent this turn/)
+      // An offer is only a card, whoever presses it.
+      expect(
+        await call(wake.tools, "save_skill", {
+          scope: "account",
+          name: "voice",
+          content: skillMd("voice", "x"),
+        })
+      ).toContain('Showed "voice" to the person as a card')
+      expect(await accountSkills("ana").list()).toMatchObject([
+        { name: "voice", description: "Ana’s writing voice." },
+      ])
+      expect(await canvasSkills(room).list()).toEqual([])
     })
   }
 
@@ -1138,18 +1170,16 @@ describe("account skills in every kind", () => {
     accountSkillLists.clear()
     const room = roomOn("room-1")
     const ben = kinds.sketch.tools(room, { userId: "ben" })
-    await call(ben, "save_skill", {
-      scope: "canvas",
-      name: "review",
-      content: skillMd("review", "Canvas review.", "The canvas’s way."),
-    })
-    expect(
-      await call(ben, "save_skill", {
-        scope: "account",
-        name: "review",
-        content: skillMd("review", "My review.", "My way."),
-      })
-    ).toContain("on this canvas the canvas’s wins")
+    await saveTo(
+      canvasSkills(room),
+      "review",
+      skillMd("review", "Canvas review.", "The canvas’s way.")
+    )
+    await saveTo(
+      accountSkills("ben"),
+      "review",
+      skillMd("review", "My review.", "My way.")
+    )
 
     const prepared = (await kinds.sketch.prepare(room, { userId: "ben" }))!
     expect(prepared.systemPrompt).toContain("- **review**: Canvas review.")

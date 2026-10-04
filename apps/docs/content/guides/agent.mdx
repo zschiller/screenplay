@@ -280,29 +280,30 @@ Agent replies stream in as they’re written. Each tool call is a compact row
 that says what the agent did and what it acted on, in the same words whichever
 agent the chat runs on. Paths are relative to the repository.
 
-| Row                                      | Meaning                                          |
-| ---------------------------------------- | ------------------------------------------------ |
-| **Read** _n_ lines _path_                | Read a file                                      |
-| **Edit** / **Write** _path_              | Changed a file (expand to see the diff)          |
-| **Run command** _command_                | Ran a shell command in the sandbox               |
-| **Search** _pattern_                     | Searched the code                                |
-| **Find files** _pattern_, **List files** | Looked for files                                 |
-| **Search the web**, **Fetch** _site_     | Looked something up online                       |
-| **Read skill** _name_                    | Loaded a skill’s instructions                    |
-| **Save skill** _name_                    | Saved a skill to the canvas                      |
-| **Delete skill** _name_                  | Deleted a skill from the canvas                  |
-| **Read dev server logs**                 | Read the dev server’s recent output              |
-| **Restart dev server**                   | Restarted the workspace’s dev server             |
-| **Stop dev server**                      | Stopped the workspace’s dev server               |
-| **Start dev server**                     | Started a stopped dev server again               |
-| **View frame**                           | Looked at a frame’s preview, or its last capture |
-| **Read frame HTML**                      | Read the page in a frame as HTML                 |
-| **Open frame** _route_                   | Opened a frame to use                            |
-| **Used** _page_, _n_ steps               | Used a frame or mockup (expand for each step)    |
-| **Read document**                        | Read a document on the canvas                    |
-| **Create pull request**                  | Opened a pull request (shown as a link card)     |
-| **Submit plan**                          | Presented a plan for approval                    |
-| A question with options                  | Asked you to pick an option                      |
+| Row                                      | Meaning                                                                                                                           |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Read** _n_ lines _path_                | Read a file                                                                                                                       |
+| **Edit** / **Write** _path_              | Changed a file (expand to see the diff)                                                                                           |
+| **Run command** _command_                | Ran a shell command in the sandbox                                                                                                |
+| **Search** _pattern_                     | Searched the code                                                                                                                 |
+| **Find files** _pattern_, **List files** | Looked for files                                                                                                                  |
+| **Search the web**, **Fetch** _site_     | Looked something up online                                                                                                        |
+| **Read skill** _name_                    | Loaded a skill’s instructions                                                                                                     |
+| **Save skill** _name_                    | Offered a skill: a card to save it to your account or the canvas ([skills](/guides/building/skills#saving-a-skill-to-the-canvas)) |
+| **Delete skill** _name_                  | Deleted a skill from the canvas                                                                                                   |
+| **Read dev server logs**                 | Read the dev server’s recent output                                                                                               |
+| **Restart dev server**                   | Restarted the workspace’s dev server                                                                                              |
+| **Stop dev server**                      | Stopped the workspace’s dev server                                                                                                |
+| **Start dev server**                     | Started a stopped dev server again                                                                                                |
+| **View frame**                           | Looked at a frame’s preview, or its last capture                                                                                  |
+| **Read frame HTML**                      | Read the page in a frame as HTML                                                                                                  |
+| **Screenshot page** _page_               | Took a screenshot of a page in the background                                                                                     |
+| **Open frame** _route_                   | Opened a frame to use                                                                                                             |
+| **Used** _page_, _n_ steps               | Used a frame or mockup (expand for each step)                                                                                     |
+| **Read document**                        | Read a document on the canvas                                                                                                     |
+| **Create pull request**                  | Opened a pull request (shown as a link card)                                                                                      |
+| **Submit plan**                          | Presented a plan for approval                                                                                                     |
+| A question with options                  | Asked you to pick an option                                                                                                       |
 
 Expand a row to see what came back: code with syntax colours, diffs with the
 changed lines tinted, command output and logs in their own colours, skills and
@@ -337,6 +338,13 @@ A few defaults are worth knowing:
   it names another one; any frame on the canvas can be read, never changed.
   Workspace chats running on Claude Code, Codex or OpenCode on desktop get
   these tools and the dev server ones too.
+- **The agent can take screenshots without a frame.** It renders any route of
+  a workspace’s preview in the background, at any width (a phone, a wide
+  screen) or as the whole scrolling page, and any public web page by its
+  address. It can keep a screenshot in the canvas’s
+  [saved files](/guides/files) to put in a document or a mockup, or for a later
+  chat to open. In the hosted app it only reaches public pages; in the desktop
+  app it reaches whatever your Mac can, local dev servers included.
 - **The agent can drive frames and mockups.** It clicks, types, scrolls and hovers in
   a frame to show you something or get it into a state, and you can take over
   at any moment. On a shared canvas everyone watching the frame sees each

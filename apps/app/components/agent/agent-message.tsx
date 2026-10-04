@@ -114,6 +114,7 @@ import { useElementHighlight } from "./use-element-highlight"
 import { ChatDisclosure } from "./chat-disclosure"
 import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
 import { QuestionCard } from "./question-card"
+import { isSaveSkillCall, SkillSaveCard } from "./skill-save-card"
 import { Avatar, AvatarImage } from "@workspace/ui/components/avatar"
 import type { ChatSender } from "@/hooks/use-chat-senders"
 import {
@@ -1327,11 +1328,13 @@ function stripAt(children: ReactNode): ReactNode {
  */
 function ToolCallItem({
   message,
+  roomId,
   chatId,
   questionAnswer,
   senders,
 }: {
   message: AgentMessage & { role: "tool_call" }
+  roomId?: string
   chatId?: string
   questionAnswer?: QuestionAnswer
   senders?: Map<string, ChatSender> | null
@@ -1345,6 +1348,15 @@ function ToolCallItem({
         chatId={chatId}
         answer={questionAnswer}
         answeredBy={by?.name}
+      />
+    )
+  }
+  if (roomId && isSaveSkillCall(message)) {
+    return (
+      <SkillSaveCard
+        message={message}
+        roomId={roomId}
+        fallback={<ToolCallRow message={message} />}
       />
     )
   }
@@ -1407,6 +1419,7 @@ export function AgentMessageItem({
       return (
         <ToolCallItem
           message={message}
+          roomId={roomId}
           chatId={chatId}
           questionAnswer={questionAnswer}
           senders={senders}

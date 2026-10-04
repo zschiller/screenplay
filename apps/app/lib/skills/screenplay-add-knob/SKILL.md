@@ -1,31 +1,32 @@
 ---
 name: screenplay-add-knob
-description: Add interactive controls (sliders, switches, selects, tabs, color pickers, text inputs) that show up in a popover next to the artboard's "interact" button. Use whenever the user asks to expose a value as something they can tweak live ("make the padding adjustable", "let me toggle dark mode", "add a slider for X", "expose this as a knob").
+description: Add knobs, live controls (slider, switch, select, tabs, colour, text) in the Knobs panel beside a frame or Mockup. Use when the user asks to make a value adjustable, toggleable or tweakable live.
 ---
 
 # Skill: Adding knobs
 
-Knobs are interactive controls that show up in a popover next to the
-"interact" button at the top of an artboard. The prototype declares
-each knob; screenplay renders the right shadcn input for its type and
-syncs the value across clients via Yjs. When the prototype runs
-outside a screenplay canvas (production builds, standalone dev, etc.)
-the knob just returns its declared default — committing knob code is
-safe.
+A **knob** is a live control in the Knobs panel beside a frame or Mockup.
+The page declares each knob; Screenplay renders the control for its type and
+syncs its value to everyone on the canvas. Outside a canvas (a production
+build, plain local dev) a knob returns its `default`, so knob code is safe
+to commit.
 
-## How to add a knob
+Where the knob goes decides how you declare it: **app code** in your
+Workspace uses the `@screenplay.space/knobs` package; a **Mockup** uses the
+`screenplay` global its page already has. Both take the same definitions.
 
-1. **Make sure `@screenplay.space/knobs` is installed.** Read
-   `package.json`. If it isn't listed in `dependencies`, install it:
+## In app code
+
+1. Read `package.json`. When `@screenplay.space/knobs` isn’t in
+   `dependencies`, install it first, so a fresh clone still builds:
 
    ```
    run_command "npm" ["install", "--save", "@screenplay.space/knobs"]
    ```
 
-   Skip this step if it's already there.
-
-2. **Import `useKnob` and call it.** The return value is the live value
-   of the knob.
+2. Call `useKnob` on every render with the same definition; it returns the
+   live value. Outside React, `registerKnob(def, onChange)` from the same
+   package calls `onChange` on every change and returns an unsubscribe.
 
    ```tsx
    import { useKnob } from "@screenplay.space/knobs"
@@ -40,128 +41,18 @@ safe.
        step: 2,
        default: 16,
      })
-
-     const showShadow = useKnob({
-       id: "card-shadow",
-       type: "boolean",
-       label: "Drop shadow",
-       default: true,
-     })
-
-     return (
-       <div
-         style={{
-           padding,
-           boxShadow: showShadow ? "0 2px 8px #0002" : "none",
-         }}
-       >
-         …
-       </div>
-     )
+     return <div style={{ padding }}>…</div>
    }
    ```
 
-3. **Commit and push.** The popover picks up the new knob automatically
-   — no manifest, no registration.
+The panel picks up a new knob as soon as the page renders it.
 
-## Knob types
+## On a Mockup
 
-| `type`    | UI control    | Required fields                                    |
-| --------- | ------------- | -------------------------------------------------- |
-| `slider`  | Slider        | `min`, `max`, `default` (number); `step?`          |
-| `number`  | Numeric input | `default` (number); `min?`, `max?`, `step?`        |
-| `boolean` | Switch        | `default` (boolean)                                |
-| `string`  | Text input    | `default` (string); `placeholder?`                 |
-| `select`  | Select        | `default` (string); `options: { value, label? }[]` |
-| `tabs`    | Tabs          | `default` (string); `options: { value, label? }[]` |
-| `color`   | Color picker  | `default` (string, e.g. `"#1d4ed8"`)               |
-
-All knobs accept an optional `label` (defaults to the `id`) and an
-optional `validator: (v) => v` that runs locally inside the prototype on
-every incoming value — use it to clamp or sanitize before exposing the
-value to your component.
-
-## Labels, descriptions and groups
-
-Each knob is one row in the Knobs panel: its label on the left, its control
-in a 136px column on the right.
-
-- **`label`**: a short noun phrase for what changes ("Corner radius",
-  "Show customer logos"). Never rely on the `id`.
-- **`description`** (optional): one short phrase on what the knob affects,
-  shown in a tooltip on an info icon after the label ("Buttons, cards and
-  inputs"). Add one only when the label alone leaves people guessing; most
-  knobs need none.
-- **`group`** (optional): knobs with the same `group` sit under one heading,
-  in the order the group's first knob was declared. Knobs without a group
-  come first, with no heading. Group once a page has more than about five
-  knobs, by the part of the page they change ("Brand", "Hero", "Pricing
-  table"). Don't put every knob in a group of its own.
-
-```tsx
-const radius = useKnob({
-  id: "radius",
-  type: "slider",
-  label: "Corner radius",
-  description: "Buttons, cards and inputs",
-  group: "Brand",
-  min: 0,
-  max: 28,
-  default: 14,
-})
-```
-
-## Tabs or select
-
-Both pick one of a few options. Use `tabs` when every option fits at a
-glance and switching between them is the point (light / dark, grid / list,
-S / M / L). Use `select` for anything else.
-
-`tabs` fills the 136px control column:
-
-- **Two or three options.** More than three show as a select anyway.
-- **One short word each**, about 15 characters across all the labels
-  together ("Compact", "Comfortable", "Spacious" is too long: use a
-  select, or shorten to "S", "M", "L").
-- **Never** rely on it wrapping or truncating: if the labels don't fit,
-  it's a select.
-
-```tsx
-const layout = useKnob({
-  id: "layout",
-  type: "tabs",
-  label: "Layout",
-  default: "grid",
-  options: [
-    { value: "grid", label: "Grid" },
-    { value: "list", label: "List" },
-  ],
-})
-```
-
-## Rules
-
-- **Always run `npm install --save @screenplay.space/knobs` before
-  using `useKnob` for the first time** — committing an import without
-  the dep listed in `package.json` would break the user's build on a
-  fresh clone.
-- **Stable `id`**: the canvas keys persisted values by `id`. Renaming
-  an id resets the value to its `default`.
-- **Pure declarations**: `useKnob` must run on every render with the
-  same definition. Don't conditionally call it.
-- **Functions don't cross frames**: `validator` runs only inside the
-  prototype. Min/max/step/options are what the canvas's UI sees.
-- **Non-React prototype?** Use `registerKnob(def, onChange)` from the
-  same package — it runs the callback on every value change and returns
-  an unsubscribe function.
-
-## Knobs on a Mockup
-
-A Mockup is a static page with no bundler, so it doesn't install the
-package. Its page already has `screenplay.registerKnob(def, onChange)`, which works
-like the package's `registerKnob`: `onChange` runs at once with the
-current value and again on every change. Each value is also set on `:root`
-as the CSS variable `--knob-<id>`, so a knob can drive CSS alone:
+The page already has `screenplay.registerKnob(def, onChange)`: `onChange`
+runs at once with the current value and again on every change. Each value
+is also set on `:root` as `--knob-<id>`, so a knob can drive CSS alone.
+Add knobs by rewriting the page with `update_mockup`.
 
 ```html
 <style>
@@ -186,5 +77,36 @@ as the CSS variable `--knob-<id>`, so a knob can drive CSS alone:
 </script>
 ```
 
-Add them by rewriting the page with `update_mockup`. The Knobs button under
-the selected Mockup shows them.
+## Definitions
+
+| `type`    | Control       | Fields                                             |
+| --------- | ------------- | -------------------------------------------------- |
+| `slider`  | Slider        | `min`, `max`, `default` (number); `step?`          |
+| `number`  | Numeric input | `default` (number); `min?`, `max?`, `step?`        |
+| `boolean` | Switch        | `default` (boolean)                                |
+| `string`  | Text input    | `default` (string); `placeholder?`                 |
+| `select`  | Select        | `default` (string); `options: { value, label? }[]` |
+| `tabs`    | Tabs          | `default` (string); `options: { value, label? }[]` |
+| `color`   | Colour picker | `default` (string, e.g. `"#1d4ed8"`)               |
+
+- **`id`** is the key the canvas stores the value under, so keep it stable:
+  a renamed id resets to its `default`.
+- **`label`**: a short noun phrase for what changes (“Corner radius”, “Show
+  customer logos”).
+- **`description`** (optional): one short phrase on what the knob affects,
+  shown in a tooltip after the label (“Buttons, cards and inputs”), only
+  when the label alone leaves people guessing.
+- **`group`** (optional): knobs sharing a `group` sit under one heading, in
+  the order its first knob was declared; ungrouped knobs come first. Group
+  once a page has more than about five knobs, by the part of the page they
+  change (“Brand”, “Hero”), with several knobs per group.
+- **`validator`** (optional, app code only): `(v) => v`, run inside the page
+  on every incoming value to clamp it. The panel sees only the plain fields.
+
+## Tabs or select
+
+Both pick one of a few options. Use `tabs` when every option fits at a
+glance and switching is the point (light / dark, grid / list, S / M / L):
+two or three options of one short word each, about 15 characters across all
+labels, so they fit the panel’s 136px control column. Anything longer is a
+`select`.

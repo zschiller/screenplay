@@ -46,13 +46,17 @@ repository skills, since they have no single repository.
 
 ## Built-in skills
 
-Screenplay ships three skills, marked **Built in** in the menu:
+Screenplay ships five skills, marked **Built in** in the menu:
 
-| Skill                             | What it teaches                                                                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `screenplay-add-knob`             | Adding [knobs](/guides/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs.                       |
-| `screenplay-explore-with-mockups` | Exploring a design as [mockups](/guides/mockups), asking you to pick at forks, and [building the take you choose](/guides/mockups#building-one). |
-| `screenplay-share-state`          | Bridging UI state to the canvas with [shared state](/guides/building/shared-state).                                                                     |
+| Skill                             | What it teaches                                                                                                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `screenplay-add-knob`             | Adding [knobs](/guides/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs.                                                                                        |
+| `screenplay-design-audit`         | Auditing screens for product, hierarchy and visual problems, writing the findings to a [document](/guides/documents), asking you about the ones with more than one fix, then fixing what you pick.                       |
+| `screenplay-design-storybook`     | Laying out one part of the UI as a [mockup](/guides/mockups) with a [knob](/guides/building/knobs) for each of its states, so you can step through them.                                                                 |
+| `screenplay-explore-with-mockups` | Exploring a design question with lettered takes as [mockups](/guides/mockups), over as many rounds as you want, asking you to pick on a question card, and [building the take you choose](/guides/mockups#building-one). |
+| `screenplay-share-state`          | Bridging UI state to the canvas with [shared state](/guides/building/shared-state).                                                                                                                                      |
+
+To change a built-in skill, ask a chat to copy it: “copy screenplay-design-audit and skip the dark theme”. The agent offers a changed copy under the same name, and its card says **Replaces the Built in skill**. Save it to your account or the canvas, and since your account’s and the canvas’s skills win over Screenplay’s, the copy takes its place, listed as **Account** or **Canvas**. Delete the copy to go back to the built-in one. A copy doesn’t pick up later changes to the built-in skill.
 
 The [Coordinator](/guides/coordinator) has its own built-in skill,
 `screenplay-try-variants`, which it follows when you ask to
@@ -82,16 +86,20 @@ since the agent there runs in a sandbox, not on your computer.
 
 ## Saving a skill to the canvas
 
-Ask any chat on the canvas (a workspace chat, the Coordinator or a chat with
-no repository) to save what you just worked out as a skill: “save this review
-checklist as a skill”. The agent writes the `SKILL.md`, and a **Save skill**
-row shows in the chat. Every chat on the canvas can use it from its next
-message, including chats your teammates start, and every chat lists it in its
+Ask any chat (a workspace chat, the Coordinator or a chat with no
+repository) to save what you just worked out as a skill: “save this review
+checklist as a skill”. The agent writes the `SKILL.md`, and the chat shows it
+as a card with the skill’s name and description and three buttons: **Save to
+account**, **Save to canvas** and **View**, which shows the whole skill first.
+Nothing is saved until someone presses Save, and the card then says where it
+went. The agent may also offer a procedure it worked out on its own, and the
+same card shows.
 
-<kbd>/</kbd> menu as **Canvas**. An agent may also save a procedure it worked
-out on its own, and the same row shows when it does.
+Saved to the canvas, every chat on it can use the skill from its next message,
+including chats your teammates start, and lists it in its <kbd>/</kbd> menu as
+**Canvas**.
 
-To change a canvas skill, ask a chat to change it; it saves the skill again
+To change a canvas skill, ask a chat to change it; it offers the skill again
 under the same name. To remove one, ask a chat to delete it, and a **Delete
 skill** row shows.
 
@@ -105,13 +113,15 @@ chat instead.
 ## Saving a skill to your account
 
 A procedure that’s yours rather than the canvas’s, like how you like release
-notes written, can follow you instead: ask a chat to “save this to my
-account as a skill”. Every chat you message, on any canvas, can use it from
-your next message, and lists it in its <kbd>/</kbd> menu as **Account**. An
-agent saves to the canvas unless you say otherwise.
+notes written, can follow you instead: press **Save to account** on its
+card. Every chat you message, on any canvas, can use it from your next
+message, and lists it in its <kbd>/</kbd> menu as **Account**. The card puts
+first the place the agent suggests: your account when you asked for that, or
+the procedure is plainly yours, and the canvas otherwise.
 
 On a shared canvas, a message uses the account skills of whoever sent it, not
-of whoever started the chat, and a chat saves to the account of whoever asked.
+of whoever started the chat, and **Save to account** saves to the account of
+whoever presses it.
 Nobody else’s messages ever use your account skills. Messages the Coordinator
 sends on its own, when a workspace finishes, use no one’s account skills.
 

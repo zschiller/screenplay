@@ -54,6 +54,24 @@ describe("foldFinishedTurns (issue #800)", () => {
     ])
   })
 
+  it("keeps a skill card on screen in a folded turn (#1633)", () => {
+    expect(
+      shape([
+        user("save that as a skill"),
+        call("t1"),
+        call("s1", { title: "mcp__screenplay__save_skill" }),
+        assistant("Save it where you like."),
+        user("thanks"),
+      ])
+    ).toEqual([
+      "user",
+      "summary(1)",
+      "tool_call",
+      "assistant:Save it where you like.",
+      "user",
+    ])
+  })
+
   it("shows only a Coordinator wake's reply and task rows, never its message or steps, keeping its task rows (#897)", () => {
     const wake: AgentMessage = {
       role: "user",
