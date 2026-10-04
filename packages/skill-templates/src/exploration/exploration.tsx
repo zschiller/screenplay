@@ -431,14 +431,6 @@ function Card({
               {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
             </Button>
           )}
-          {sent && (
-            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-              <CheckIcon className="size-4 text-success" />
-              {signoff(q) || mine === o.id
-                ? "Answered in chat"
-                : `Answered ${mine} in chat`}
-            </span>
-          )}
         </div>
       )}
     </article>

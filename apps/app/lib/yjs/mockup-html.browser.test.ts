@@ -297,6 +297,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
         page.evaluate(() => (window as unknown as { drafts: unknown[] }).drafts)
       )
       .toEqual(["Storybook: Part\n→ Wide (Shape Wide): Too dense"])
+    await page.evaluate("document.querySelector('iframe').remove()")
   }, 20_000)
 
   // The exploration page on a canvas (#1647): its Pick answers the card the
@@ -341,7 +342,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
       document.body.append(frame)
     }, doc)
     const frame = page.frameLocator("iframe")
-    await frame.getByRole("tab", { name: /^B/ }).first().click()
+    await frame.getByRole("radio", { name: /^B/ }).first().click()
     await frame.getByRole("button", { name: "Pick B" }).click()
     await frame.getByRole("button", { name: "Send to chat" }).click()
     const posted = (await page.evaluate(
