@@ -361,11 +361,6 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     // order, all across the floor; the rest are simply there.
     let shown = 0
     if (!reduce) {
-      // TEMPORARY, for tuning in the browser: ?wave=8000&fade=900 override
-      // the timings. Remove before this ships.
-      const tune = new URLSearchParams(location.search)
-      const wave = Number(tune.get("wave") ?? WAVE)
-      const fade = Number(tune.get("fade") ?? FADE)
       const s = rowsEl.parentElement!.getBoundingClientRect()
       const seen = shuffled(
         copies.filter((f) => {
@@ -374,8 +369,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         })
       ).map((f) => ({ f }))
       seen.forEach(({ f }, n) => {
-        f.el.style.transitionDuration = `${fade}ms`
-        f.el.style.transitionDelay = `${Math.round((n / seen.length) * wave)}ms`
+        f.el.style.transitionDuration = `${FADE}ms`
+        f.el.style.transitionDelay = `${Math.round((n / seen.length) * WAVE)}ms`
       })
       // A frame later, so the hidden state has been drawn to fade from.
       shown = requestAnimationFrame(() => {
@@ -383,7 +378,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         shown = window.setTimeout(() => {
           for (const { f } of seen)
             f.el.style.transitionDuration = f.el.style.transitionDelay = ""
-        }, wave + fade)
+        }, WAVE + FADE)
       })
     }
 
