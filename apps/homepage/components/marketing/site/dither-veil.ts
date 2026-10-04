@@ -217,8 +217,8 @@ export function createDitherVeil(
         fluid.splat(
           px / COARSE + (dx * n) / steps,
           py / COARSE + (dy * n) / steps,
-          (dx * 1.5) / steps,
-          (dy * 1.5) / steps,
+          (dx * 1.2) / steps,
+          (dy * 1.2) / steps,
           R,
           // Blooms open slowly rather than popping.
           0.12 / steps
