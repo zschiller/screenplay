@@ -71,10 +71,10 @@ function sequence(seed: number) {
   }
 }
 
-// The fade-in on load, in ms: how long it takes to reach the copy furthest
-// from the middle of the window, and how long each copy takes to show.
-const WAVE = 1400
-const FADE = 700
+// The fade-in on load, in ms: how long until the last copy starts to show,
+// and how long each copy takes.
+const WAVE = 8000
+const FADE = 900
 
 // Rows on the canvas floor, far to near.
 const ROWS = 8
@@ -315,30 +315,26 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       rowsEl.appendChild(track)
     }
 
-    // On load the copies in view fade in slowly, from the middle of the
-    // window outwards; the rest are simply there.
+    // On load the copies in view fade in one at a time, in no particular
+    // order, all across the floor; the rest are simply there.
     let shown = 0
     if (!reduce) {
-      // TEMPORARY, for tuning in the browser: ?wave=1400&fade=700 override
+      // TEMPORARY, for tuning in the browser: ?wave=8000&fade=900 override
       // the timings. Remove before this ships.
       const tune = new URLSearchParams(location.search)
       const wave = Number(tune.get("wave") ?? WAVE)
       const fade = Number(tune.get("fade") ?? FADE)
       const s = rowsEl.parentElement!.getBoundingClientRect()
-      const seen = copies.flatMap((f) => {
-        const r = f.el.getBoundingClientRect()
-        if (r.right <= s.left || r.left >= s.right) return []
-        const far = Math.hypot(
-          r.left + r.width / 2 - (s.left + s.width / 2),
-          r.top + r.height / 2 - (s.top + s.height / 2)
-        )
-        return [{ f, far }]
-      })
-      const reach = Math.max(...seen.map((c) => c.far), 1)
-      for (const { f, far } of seen) {
+      const seen = shuffled(
+        copies.filter((f) => {
+          const r = f.el.getBoundingClientRect()
+          return r.right > s.left && r.left < s.right
+        })
+      ).map((f) => ({ f }))
+      seen.forEach(({ f }, n) => {
         f.el.style.transitionDuration = `${fade}ms`
-        f.el.style.transitionDelay = `${Math.round((far / reach) * wave)}ms`
-      }
+        f.el.style.transitionDelay = `${Math.round((n / seen.length) * wave)}ms`
+      })
       // A frame later, so the hidden state has been drawn to fade from.
       shown = requestAnimationFrame(() => {
         for (const f of copies) f.el.classList.remove("unseen")
