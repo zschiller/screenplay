@@ -111,6 +111,7 @@ export function Frame({
   label,
   group,
   workspace,
+  working,
   selected,
   fadeHandles,
   device = "desktop",
@@ -124,6 +125,8 @@ export function Frame({
   group?: [name: string, workspace: string]
   /** The Workspace a frame on its own shows, after its name. */
   workspace?: string
+  /** Its Workspace's agent is at work: the twinkling grid for the ring. */
+  working?: boolean
   selected?: boolean
   /** Someone else has control: no handles, the ring stays (#1588). */
   fadeHandles?: boolean
@@ -132,11 +135,10 @@ export function Frame({
   style?: React.CSSProperties
   children: React.ReactNode
 }) {
-  const handle =
-    cn(
-      "absolute size-[7px] border-[1.5px] border-selection bg-background",
-      fadeHandles && "hidden"
-    )
+  const handle = cn(
+    "border-selection absolute size-[7px] border-[1.5px] bg-background",
+    fadeHandles && "hidden"
+  )
   return (
     <div className={cn("absolute", className)} style={style}>
       {group ? (
@@ -160,7 +162,10 @@ export function Frame({
         {workspace ? (
           // The name keeps its room; the Workspace truncates first.
           <span className="flex min-w-10 shrink-[100] items-center gap-1">
-            <WorkspaceGlyph className="size-2.5" />
+            <WorkspaceGlyph
+              state={working ? "working" : "ready"}
+              className="size-2.5"
+            />
             <span className="truncate">{workspace}</span>
           </span>
         ) : null}
@@ -362,7 +367,8 @@ export const versions = [
 /** The ask the figures tell the story of. */
 export const ask = "Try three versions of the homepage hero."
 
-/** The user's message in a chat: a soft bubble on the right. */
+/** The user's message in a chat: a soft bubble on the right, filled as the
+ *  app fills it (agent-message.tsx), so it reads on the black page. */
 export function UserBubble({
   className,
   children,
@@ -371,7 +377,12 @@ export function UserBubble({
   children: React.ReactNode
 }) {
   return (
-    <p className={cn("ml-8 self-end rounded-lg bg-muted px-3 py-2", className)}>
+    <p
+      className={cn(
+        "ml-8 self-end rounded-xl bg-muted px-3 py-2 dark:bg-input/70",
+        className
+      )}
+    >
       {children}
     </p>
   )

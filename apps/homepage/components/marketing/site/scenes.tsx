@@ -1,8 +1,8 @@
 import { cn } from "@workspace/ui/lib/utils"
 
 import {
+  BuildExcerpt,
   DocExcerpt,
-  DrawFrameExcerpt,
   PrHeaderExcerpt,
   SketchExcerpt,
 } from "../excerpts/make"
@@ -31,7 +31,7 @@ const scenes: {
     slug: "Your app",
     title: "Build it",
     body: "The change runs live on a branch of its own, right beside the other versions.",
-    Excerpt: DrawFrameExcerpt,
+    Excerpt: BuildExcerpt,
   },
   {
     slug: "Ship",
