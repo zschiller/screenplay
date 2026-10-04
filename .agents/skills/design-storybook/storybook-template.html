@@ -1,0 +1,226 @@
+<title>{{TITLE}}</title>
+<!-- Optional: a Google Fonts <link> for the repo's brand faces, then point --sans/--head/--mono at them. -->
+<style>
+/* Layout: phone first, one column at every width. The stage shows the chosen state; under it, a segmented control per dimension, the state's name and notes, and a note field. A second tab lists every state. A bar pinned to the bottom counts the notes and copies them. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#2f5bd3;--ok:#1f7a45;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:880px;margin:0 auto;padding-inline:16px;padding-block:24px calc(96px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:20px}
+@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:24px}}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);letter-spacing:-.015em;margin:8px 0 10px;text-wrap:balance}
+h2{font:500 17px/1.35 var(--sans);margin:0;text-wrap:balance}
+p{margin:0;max-width:72ch}
+a{color:var(--accent)}
+code{font:13px var(--mono)}
+.muted{color:var(--muted)}
+blockquote{margin:0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+header .where{font-size:13px;margin-top:8px}
+button{font:500 13px/1.2 var(--sans);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);-webkit-tap-highlight-color:transparent}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:16px;min-width:0}
+/* Tabs: Story and All states */
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--line)}
+.tabs button{border:0;border-radius:0;background:transparent;color:var(--muted);padding:10px 0 9px;min-height:40px;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button:hover{color:var(--fg)}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
+/* Stage: the chosen state, in the viewer's theme, tap to enlarge */
+.stage{background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;min-height:160px;padding:16px;overflow:auto}
+.stage .shot{display:block;padding:0;border:0;border-radius:0;background:none;cursor:zoom-in;min-height:0;max-width:100%}
+.stage img{display:block;max-width:100%;height:auto}
+.stage .live{width:100%}
+.stage .empty{color:var(--muted);font-size:14px;text-align:center}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+/* State line: name, position, previous and next */
+.sline{display:flex;align-items:center;gap:8px}
+.sline .name{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.sline .pos{font:500 12px var(--mono);color:var(--muted);white-space:nowrap}
+.sline button{min-width:36px;padding:0;font-size:16px}
+/* Controls: one segmented row per dimension; a value with no state next to the others is dimmed but still jumps to the closest state */
+.controls{display:flex;flex-direction:column;gap:12px}
+.ctl{display:flex;flex-direction:column;gap:6px;min-width:0}
+.seg{display:flex;flex-wrap:wrap;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.seg button{flex:1 0 auto;border:0;border-radius:7px;background:transparent;color:var(--muted);min-height:32px;padding:0 10px}
+.seg button:hover{color:var(--fg)}
+.seg button.off{opacity:.45}
+.seg button[aria-pressed="true"]{background:var(--bg);color:var(--fg);opacity:1;box-shadow:0 0 0 1px var(--line),0 1px 2px rgb(0 0 0/.06)}
+.ctl input[type=text],.ctl input[type=number]{font:15px var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-height:36px}
+.why{font-size:14px}
+.said{font-size:14px}
+textarea{width:100%;font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:72px}
+/* All states: a grid of thumbnails, a dot on each state with a note */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.grid button{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:0;border:0;background:none;text-align:left;min-height:0;border-radius:0}
+.grid .thumb{background:var(--surface);border:1px solid var(--line);aspect-ratio:4/3;display:grid;place-items:center;padding:8px;overflow:hidden}
+.grid .thumb img{max-width:100%;max-height:100%;object-fit:contain}
+.grid button[aria-current="true"] .thumb{border-color:var(--fg)}
+.grid .cap{font-size:13px;line-height:1.35;display:flex;gap:6px;align-items:baseline}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none;transform:translateY(-1px)}
+dialog.lb{padding:0;border:0;background:transparent;max-width:100vw;max-height:100dvh;width:100vw;height:100dvh}
+dialog.lb::backdrop{background:rgb(0 0 0/.86)}
+dialog.lb .in{width:100%;height:100%;overflow:auto;display:grid;place-items:center;padding:16px;cursor:zoom-out}
+dialog.lb img{max-width:none;background:var(--surface)}
+@media (min-width:720px){dialog.lb img{max-width:100%}}
+/* Bottom bar: note count, a general note, Copy */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+@media (min-width:720px){.bar{padding-inline:24px}}
+.bar .in{max-width:832px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.bar .row{display:flex;align-items:center;gap:8px}
+.bar .count{flex:1;min-width:0;font-size:13px;color:var(--muted)}
+.bar #out{font:12.5px/1.5 var(--mono)}
+/* Copy keeps its width while it says Copied: both labels share one grid cell */
+#copy{display:inline-grid}
+#copy>span{grid-area:1/1}
+#copy>span[aria-hidden]{visibility:hidden}
+</style>
+
+<script>
+const IMG=(p,dk)=>({p,dk}); // p: light (or only) capture, dk: optional dark capture
+const PAGE={
+ date:"{{DATE}}",
+ slug:"{{SLUG}}", // localStorage key, unique per storybook
+ round:1, // bump when the owner asks for another round; notes on the page start fresh
+ title:"The part's name",
+ quote:"The owner's own words that started this storybook.",
+ where:"<code>path/to/Part.tsx</code> on main" // where the part lives and which branch the states come from; may hold inline HTML
+};
+// CONTROLS: one per dimension. values: the choices, first is the default. type "text", "number" or "toggle" (live only) takes any value instead.
+const CONTROLS=[
+ {key:"status",label:"Status",values:["Idle","Running","Failed"]},
+ {key:"title",label:"Title",values:["Short","Long"]}
+];
+// STATES: the cells of the matrix worth showing, in the order the owner steps through them.
+// id: stable, used for notes and the URL hash. set: a value per control (a missing key takes the control's first value).
+// shots: the capture, light then optional dark. why: one line on what to look at. said: the owner's earlier note and what changed. why and said may hold inline HTML.
+const STATES=[
+ {id:"idle",name:"Idle",set:{status:"Idle",title:"Short"},shots:IMG("states/idle-light.png","states/idle-dark.png"),why:""},
+ {id:"running-long",name:"Running, long title",set:{status:"Running",title:"Long"},shots:IMG("states/running-long-light.png","states/running-long-dark.png"),why:"The title truncates at 240px (<code>Part.tsx:42</code>)."},
+ {id:"failed",name:"Failed",set:{status:"Failed",title:"Short"},shots:IMG("states/failed-light.png","states/failed-dark.png"),why:"",said:""}
+];
+// Live fidelity: a bundled script, loaded in its own <script src> above this one, sets window.RENDER=(values,el,{theme})=>{...} to render the real part into el. With it, every combination renders and STATES act as presets.
+
+(()=>{
+const RENDER=window.RENDER||null;
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const def=c=>c.type==="toggle"?false:c.type==="number"?0:c.type==="text"?"":c.values[0];
+const full=set=>Object.fromEntries(CONTROLS.map(c=>[c.key,set&&c.key in set?set[c.key]:def(c)]));
+STATES.forEach(s=>s.vals=full(s.set));
+const same=(a,b)=>CONTROLS.every(c=>a[c.key]===b[c.key]);
+const score=(s,v)=>CONTROLS.filter(c=>s.vals[c.key]===v[c.key]).length;
+const KEY="storybook-"+PAGE.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+const notes=saved.round===PAGE.round?saved.notes||{}:{};
+let general=saved.round===PAGE.round?saved.general||"":"";
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({round:PAGE.round,notes,general}))}catch(e){}};
+// The current values; the state they land on, or null when live values match no preset
+let vals=full((STATES.find(s=>s.id===decodeURIComponent(location.hash.slice(1)))||STATES[0]||{}).set);
+const current=()=>STATES.find(s=>same(s.vals,vals))||null;
+const custom=()=>"custom:"+CONTROLS.map(c=>c.key+"="+vals[c.key]).join(",");
+const label=v=>CONTROLS.map(c=>`${c.label} ${c.type==="toggle"?(v[c.key]?"on":"off"):v[c.key]===""?"empty":v[c.key]}`).join(", ");
+
+document.body.insertAdjacentHTML("afterbegin",`<div class="wrap">
+<header><div class="top"><p class="lbl acc">Design storybook · ${esc(PAGE.date)}${PAGE.round>1?` · Round ${PAGE.round}`:""}</p><button type="button" class="ghost" id="theme">Dark</button></div><h1>${esc(PAGE.title)}</h1><blockquote>${esc(PAGE.quote)}</blockquote>${PAGE.where?`<p class="where muted">${PAGE.where}</p>`:""}</header>
+<nav class="tabs" role="tablist" aria-label="View"><button type="button" role="tab" data-tab="story" aria-selected="true">Story</button><button type="button" role="tab" data-tab="all" aria-selected="false">All states (${STATES.length})</button></nav>
+<section data-panel="story">
+ <div class="stage" id="stage"></div>
+ <div class="sline"><div class="name"><h2 id="sname"></h2></div><span class="pos" id="spos"></span><button type="button" id="prev" aria-label="Previous state">‹</button><button type="button" id="next" aria-label="Next state">›</button></div>
+ <p class="why" id="swhy" hidden></p>
+ <blockquote class="said" id="ssaid" hidden></blockquote>
+ <div class="controls" id="controls"></div>
+ <label class="ctl"><span class="lbl">Note on this state</span><textarea id="snote" placeholder="What should change here"></textarea></label>
+</section>
+<section data-panel="all" hidden><div class="grid" id="grid"></div></section>
+</div>
+<div class="bar"><div class="in"><textarea id="general" aria-label="General note" placeholder="A note on the part as a whole" hidden></textarea><textarea id="out" aria-label="Notes to copy" readonly hidden></textarea><div class="row"><div class="count" id="count" role="status" aria-live="polite"></div><button type="button" id="generalBtn">General note</button><button type="button" class="primary" id="copy"><span id="copyLabel">Copy notes</span><span aria-hidden="true">Copy notes</span></button></div></div></div>
+<dialog class="lb" id="lb"><div class="in"><img alt=""></div></dialog>`);
+
+const img=(sh,alt)=>sh?`<button type="button" class="shot${sh.dk?" has-dk":""}" data-lt="${esc(sh.p)}" data-dk="${esc(sh.dk||"")}" aria-label="Enlarge ${esc(alt)}"><img class="lt" src="${esc(sh.p)}" alt="${esc(alt)}">${sh.dk?`<img class="dk" src="${esc(sh.dk)}" alt="" aria-hidden="true">`:""}</button>`:"";
+const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":mq.matches;
+const root=document.documentElement,mq=matchMedia("(prefers-color-scheme: dark)");
+
+function controls(){
+ $("controls").innerHTML=CONTROLS.map(c=>{
+  const head=`<span class="lbl">${esc(c.label)}</span>`;
+  if(c.type==="text"||c.type==="number")return `<label class="ctl">${head}<input type="${c.type}" data-k="${esc(c.key)}" value="${esc(vals[c.key])}"></label>`;
+  const opts=c.type==="toggle"?[[false,"Off"],[true,"On"]]:c.values.map(v=>[v,v]);
+  return `<div class="ctl" role="group" aria-label="${esc(c.label)}">${head}<div class="seg">`+opts.map(([v,l],i)=>{
+   // Dimmed when no state has this value next to the other current values (captured only)
+   const off=!RENDER&&!STATES.some(s=>s.vals[c.key]===v&&CONTROLS.every(o=>o===c||s.vals[o.key]===vals[o.key]));
+   return `<button type="button" data-k="${esc(c.key)}" data-i="${i}" class="${off?"off":""}" aria-pressed="${vals[c.key]===v}">${esc(l)}</button>`}).join("")+`</div></div>`;
+ }).join("");
+}
+function stage(){
+ const s=current(),el=$("stage");
+ if(RENDER){el.innerHTML=`<div class="live"></div>`;RENDER({...vals},el.firstChild,{theme:isDark()?"dark":"light"});return}
+ el.innerHTML=s?img(s.shots,s.name):`<p class="empty">No state for this combination</p>`;
+}
+function grid(){
+ const s=current();
+ $("grid").innerHTML=STATES.map(x=>`<button type="button" data-id="${esc(x.id)}" aria-current="${x===s}"><span class="thumb${x.shots&&x.shots.dk?" has-dk":""}">${x.shots?`<img class="lt" src="${esc(x.shots.p)}" alt="" loading="lazy">${x.shots.dk?`<img class="dk" src="${esc(x.shots.dk)}" alt="" loading="lazy">`:""}`:""}</span><span class="cap">${notes[x.id]?'<span class="dot" aria-label="has a note"></span>':""}${esc(x.name)}</span></button>`).join("");
+}
+function render(){
+ const s=current(),i=s?STATES.indexOf(s):-1;
+ $("sname").textContent=s?s.name:label(vals);
+ $("spos").textContent=s?`${i+1} of ${STATES.length}`:"Custom";
+ $("swhy").hidden=!(s&&s.why);$("swhy").innerHTML=s&&s.why||"";
+ $("ssaid").hidden=!(s&&s.said);$("ssaid").innerHTML=s&&s.said?"Earlier: "+s.said:"";
+ $("snote").value=notes[s?s.id:custom()]||"";
+ if(s)history.replaceState(null,"","#"+encodeURIComponent(s.id));
+ controls();stage();grid();sync();
+}
+const noted=()=>Object.keys(notes).filter(k=>notes[k].trim());
+function sync(){
+ const n=noted().length;
+ $("count").textContent=(n?`${n} ${n===1?"note":"notes"}`:"No notes yet")+(general.trim()?" · general note":"");
+ save();
+}
+function build(){
+ const lines=noted().map(k=>{const s=STATES.find(x=>x.id===k);const v=s?s.vals:Object.fromEntries(k.slice(7).split(",").map(p=>p.split("=")));return `→ ${s?s.name:"Custom"} (${s?label(v):k.slice(7)}): ${notes[k].trim()}`});
+ return [`Storybook: ${PAGE.title}`+(PAGE.round>1?` · Round ${PAGE.round}`:""),...(lines.length?lines:["No notes on states"])].concat(general.trim()?[`General: ${general.trim()}`]:[]).join("\n");
+}
+const go=s=>{if(s){vals={...s.vals};render()}};
+const step=d=>{const s=current(),i=s?STATES.indexOf(s):-1;go(STATES[(i+d+STATES.length)%STATES.length])};
+
+document.addEventListener("click",e=>{
+ const seg=e.target.closest(".seg button");
+ if(seg){const c=CONTROLS.find(x=>x.key===seg.dataset.k),v=c.type==="toggle"?[false,true][seg.dataset.i]:c.values[seg.dataset.i],next={...vals,[c.key]:v};
+  // Captured: land on the closest state that has this value
+  if(RENDER){vals=next;render()}else go(STATES.filter(s=>s.vals[c.key]===v).sort((a,b)=>score(b,next)-score(a,next))[0]);return}
+ const g=e.target.closest(".grid button");
+ if(g){go(STATES.find(s=>s.id===g.dataset.id));document.querySelector('.tabs [data-tab="story"]').click();scrollTo({top:0});return}
+ const tab=e.target.closest(".tabs button");
+ if(tab){document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected",x===tab));document.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);return}
+ const s=e.target.closest(".stage .shot");
+ if(s){const dark=getComputedStyle(s.querySelector(".lt")).display==="none";$("lb").querySelector("img").src=dark&&s.dataset.dk?s.dataset.dk:s.dataset.lt;$("lb").showModal();return}
+ if(e.target.closest("#lb"))$("lb").close();
+});
+$("controls").addEventListener("input",e=>{const i=e.target.closest("input");if(!i)return;const c=CONTROLS.find(x=>x.key===i.dataset.k);vals={...vals,[c.key]:c.type==="number"?Number(i.value):i.value};const s=current();$("sname").textContent=s?s.name:label(vals);$("spos").textContent=s?`${STATES.indexOf(s)+1} of ${STATES.length}`:"Custom";$("snote").value=notes[s?s.id:custom()]||"";stage()});
+$("prev").addEventListener("click",()=>step(-1));$("next").addEventListener("click",()=>step(1));
+// Arrow keys step through the states, except while typing
+addEventListener("keydown",e=>{if(e.target.closest("input,textarea,[contenteditable]")||$("lb").open)return;if(e.key==="ArrowLeft")step(-1);if(e.key==="ArrowRight")step(1)});
+$("snote").addEventListener("input",e=>{const s=current(),k=s?s.id:custom();if(e.target.value.trim())notes[k]=e.target.value;else delete notes[k];sync();grid()});
+$("generalBtn").addEventListener("click",()=>{const n=$("general");n.hidden=!n.hidden;if(!n.hidden)n.focus()});
+$("general").value=general;if(general)$("general").hidden=false;
+$("general").addEventListener("input",e=>{general=e.target.value;sync()});
+$("copy").addEventListener("click",()=>{
+ const text=build(),l=$("copyLabel"),done=()=>{l.textContent="Copied";setTimeout(()=>l.textContent="Copy notes",1800)};
+ const fallback=()=>{const o=$("out");o.hidden=false;o.value=text;o.select()};
+ try{navigator.clipboard.writeText(text).then(done,fallback)}catch(e){fallback()}
+});
+// Light / Dark switch, so the other theme's captures are one tap away; live parts re-render in the new theme
+const tlabel=()=>$("theme").textContent=isDark()?"Light":"Dark";
+$("theme").addEventListener("click",()=>{root.dataset.theme=isDark()?"light":"dark";tlabel();if(RENDER)stage()});tlabel();
+render();
+})();
+</script>
