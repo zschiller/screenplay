@@ -73,8 +73,8 @@ function sequence(seed: number) {
 
 // The fade-in on load, in ms: how long it takes to reach the copy furthest
 // from the middle of the window, and how long each copy takes to show.
-const WAVE = 2600
-const FADE = 1400
+const WAVE = 1400
+const FADE = 700
 
 // Rows on the canvas floor, far to near.
 const ROWS = 8
@@ -319,6 +319,11 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     // window outwards; the rest are simply there.
     let shown = 0
     if (!reduce) {
+      // TEMPORARY, for tuning in the browser: ?wave=1400&fade=700 override
+      // the timings. Remove before this ships.
+      const tune = new URLSearchParams(location.search)
+      const wave = Number(tune.get("wave") ?? WAVE)
+      const fade = Number(tune.get("fade") ?? FADE)
       const s = rowsEl.parentElement!.getBoundingClientRect()
       const seen = copies.flatMap((f) => {
         const r = f.el.getBoundingClientRect()
@@ -331,8 +336,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       })
       const reach = Math.max(...seen.map((c) => c.far), 1)
       for (const { f, far } of seen) {
-        f.el.style.transitionDuration = `${FADE}ms`
-        f.el.style.transitionDelay = `${Math.round((far / reach) * WAVE)}ms`
+        f.el.style.transitionDuration = `${fade}ms`
+        f.el.style.transitionDelay = `${Math.round((far / reach) * wave)}ms`
       }
       // A frame later, so the hidden state has been drawn to fade from.
       shown = requestAnimationFrame(() => {
@@ -340,7 +345,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         shown = window.setTimeout(() => {
           for (const { f } of seen)
             f.el.style.transitionDuration = f.el.style.transitionDelay = ""
-        }, WAVE + FADE)
+        }, wave + fade)
       })
     }
 
