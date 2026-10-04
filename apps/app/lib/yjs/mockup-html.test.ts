@@ -44,3 +44,67 @@ describe("mockupSrcDoc", () => {
     expect(MOCKUP_CSP).not.toMatch(/https?:|\*/)
   })
 })
+
+describe("mockupSrcDoc with references (#1643)", () => {
+  const PAGE =
+    '<!doctype html><html lang="en"><head><script src="skill:explore/runtime.js"></script></head>' +
+    "<body><img src='files:shots/a b.png'><img src=files:gone.png data-src=\"files:x.png\"></body></html>"
+  const resources = {
+    "skill:explore/runtime.js": {
+      type: "text/javascript",
+      data: "d2luZG93LlI9MQ==",
+    },
+    "files:shots/a b.png": { type: "image/png", data: "iVBORw==" },
+    "files:gone.png": null,
+  }
+
+  it("writes the page in from a loader after the policy and the runtime", () => {
+    const doc = mockupSrcDoc(PAGE, "bridge()", resources)
+    expect(
+      doc.startsWith(
+        `<!doctype html><html><head>${META}<script>bridge()</script><script>`
+      )
+    ).toBe(true)
+    expect(doc).toContain("document.write(")
+    expect(doc).toContain("URL.createObjectURL")
+  })
+
+  it("carries each resource's bytes and swaps its reference for a token", () => {
+    const doc = mockupSrcDoc(PAGE, "", resources)
+    expect(doc).toContain('["text/javascript","d2luZG93LlI9MQ=="]')
+    expect(doc).toContain('["image/png","iVBORw=="]')
+    // The missing one is an empty resource.
+    expect(doc).toContain('["",""]')
+    expect(doc).toContain('src=\\"about:screenplay-ref/0\\"')
+    expect(doc).toContain("src='about:screenplay-ref/1'")
+    expect(doc).toContain('src=\\"about:screenplay-ref/2\\"')
+    expect(doc).not.toMatch(/(?<![\w-])src=["']?(skill|files):/)
+    // Only src and href count: a data attribute keeps its text.
+    expect(doc).toContain('data-src=\\"files:x.png\\"')
+  })
+
+  it("keeps the page from closing the loader's script", () => {
+    const doc = mockupSrcDoc(
+      '<img src="files:a.png"><script>"</script><!--"</script>',
+      "",
+      {}
+    )
+    expect(doc.match(/<\/script>/g)).toHaveLength(1)
+    expect(doc).not.toContain("<!--")
+  })
+
+  it("gives a reference nobody resolved an empty resource", () => {
+    expect(mockupSrcDoc('<img src="files:a.png">')).toContain('["",""]')
+  })
+
+  it("leaves a page without references as it was", () => {
+    expect(mockupSrcDoc("<div>A</div>", "", resources)).toBe(
+      `${META}<div>A</div>`
+    )
+  })
+
+  it("adds only blob: for scripts and styles", () => {
+    expect(MOCKUP_CSP).toContain("script-src 'unsafe-inline' blob:;")
+    expect(MOCKUP_CSP).toContain("style-src 'unsafe-inline' blob:;")
+  })
+})

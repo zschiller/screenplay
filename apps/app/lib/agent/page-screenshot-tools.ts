@@ -194,7 +194,7 @@ export function buildPageScreenshotTools(
               `${replaced ? "Replaced" : "Saved"} ${entry.path} in ${account ? "account" : "canvas"} files (${formatFileSize(entry.size)}).`,
               account
                 ? "Account files don’t show in documents; save to `canvas` for that."
-                : `To show it in a document, put this on its own line: ${documentImage(entry.path, `Screenshot of ${target.name}`)}`
+                : `To show it in a document, put this on its own line: ${documentImage(entry.path, `Screenshot of ${target.name}`)} To show it in a mockup, use \`<img src="files:${entry.path}">\`.`
             )
           }
         }
