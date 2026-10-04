@@ -616,8 +616,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       veil.peekAt({ x: p.clientX - r.left, y: p.clientY - r.top })
       if (reduce) veil.drawOnce()
     }
-    // Followed across the whole window, but not while the pointer is over
-    // the nav, which covers the top of the floor.
+    // Followed across the whole window, so the nav, which lies over the top
+    // of the floor until the page scrolls, peeks too. Its links stay on top.
     const onMove = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return
       const r = host.getBoundingClientRect()
@@ -627,7 +627,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         e.clientY >= r.top &&
         e.clientY < r.bottom
       const header = (e.target as Element | null)?.closest?.("header")
-      if (inside && !header) peekAt(e)
+      if (inside && !header?.hasAttribute("data-scrolled")) peekAt(e)
       else onLeave()
     }
     const onLeave = () => {

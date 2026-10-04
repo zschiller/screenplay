@@ -2,10 +2,9 @@
    floor that recedes to a horizon under the nav, dissolving into the dither
    veil. Plain CSS because the copies are built on the client. */
 
-/* The stage starts at the top of the page, so the floor runs up under the
-   nav's bar and is already going when it comes out from beneath it. The
-   floor's height follows the window, so the buttons stay above the fold on
-   a laptop. */
+/* The stage starts at the top of the page, behind the nav, which is clear
+   until the page scrolls. The floor's height follows the window, so the
+   buttons stay above the fold on a laptop. */
 .hc-stage {
   --hc-nav: 61px;
   --hc-tilt: 42deg;
