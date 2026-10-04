@@ -78,6 +78,7 @@ export function CopyBar({
   outLabel,
   text,
   maxWidth,
+  send,
 }: {
   status: React.ReactNode
   note: string
@@ -90,6 +91,8 @@ export function CopyBar({
   outLabel: string
   text: () => string
   maxWidth: string
+  /** Where the page can hand the text to its chat (a Mockup on a canvas): the button sends it there instead of copying. */
+  send?: { label: string; run: (text: string) => void }
 }) {
   const [flash, setFlash] = React.useState<string | null>(null)
   const show = (label: string) => {
@@ -121,7 +124,10 @@ export function CopyBar({
     }
   }
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[8] border-t bg-background px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] md:px-6">
+    <div
+      id="copy-bar"
+      className="fixed inset-x-0 bottom-0 z-[8] border-t bg-background px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] md:px-6"
+    >
       <div className="mx-auto flex flex-col gap-2.5" style={{ maxWidth }}>
         <Textarea
           ref={noteRef}
@@ -156,21 +162,27 @@ export function CopyBar({
             Note
           </Button>
           {/* Keeps its width while it says Copied: the labels share one grid cell */}
-          <Button type="button" onClick={copy} className="inline-grid">
-            <span className="[grid-area:1/1]">{flash ?? copyLabel}</span>
-            {[copyLabel, fallbackLabel].map(
-              (l) =>
-                l && (
-                  <span
-                    key={l}
-                    aria-hidden
-                    className="invisible [grid-area:1/1]"
-                  >
-                    {l}
-                  </span>
-                )
-            )}
-          </Button>
+          {send ? (
+            <Button type="button" onClick={() => send.run(text())}>
+              {send.label}
+            </Button>
+          ) : (
+            <Button type="button" onClick={copy} className="inline-grid">
+              <span className="[grid-area:1/1]">{flash ?? copyLabel}</span>
+              {[copyLabel, fallbackLabel].map(
+                (l) =>
+                  l && (
+                    <span
+                      key={l}
+                      aria-hidden
+                      className="invisible [grid-area:1/1]"
+                    >
+                      {l}
+                    </span>
+                  )
+              )}
+            </Button>
+          )}
         </div>
       </div>
     </div>

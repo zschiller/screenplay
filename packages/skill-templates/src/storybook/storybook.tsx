@@ -1,7 +1,9 @@
-// The design-storybook page. Phone first, one column at every width: the
-// stage shows the chosen state; under it, a segmented control per dimension,
-// the state's name and notes, and a note field. A second tab lists every
-// state. A bar pinned to the bottom counts the notes and copies them.
+// The design-storybook page. Phone first, one column at every width: a bar
+// pinned to the top holds the title and the tabs; the stage shows the chosen
+// state; under it, a segmented control per dimension, the state's name and
+// notes, a note field, and what the storybook is for. A second tab lists
+// every state. A bar pinned to the bottom counts the notes and copies them,
+// or on a canvas sends them to the chat's composer.
 
 import * as React from "react"
 
@@ -30,6 +32,11 @@ import type { Control, Page, Render, State, Value } from "./types.ts"
 
 type Values = Record<string, Value>
 type Notes = Record<string, string>
+
+// On a Screenplay canvas the page can put text in its chat's composer (#1645)
+type Draft = (text: string) => boolean
+const draftToChat = (): Draft | undefined =>
+  (window as { screenplay?: { draft?: Draft } }).screenplay?.draft
 
 const fallback = (c: Control): Value =>
   c.type === "toggle"
@@ -124,6 +131,67 @@ export function Storybook({
     }
   }, [current])
 
+  // The stage keeps one height for every state, so nothing above the controls
+  // moves: the tallest capture at the stage's width, and on a wide screen no
+  // taller than leaves the controls and the state's name on the first screen
+  const stageRef = React.useRef<HTMLDivElement>(null)
+  const controlsRef = React.useRef<HTMLDivElement>(null)
+  const nameRef = React.useRef<HTMLDivElement>(null)
+  const [ratio, setRatio] = React.useState(0)
+  React.useEffect(() => {
+    let live = true
+    const srcs = all.flatMap((s) =>
+      s.shots ? [dark && s.shots.dk ? s.shots.dk : s.shots.p] : []
+    )
+    Promise.all(
+      srcs.map(
+        (src) =>
+          new Promise<number>((done) => {
+            const img = new Image()
+            img.onload = () =>
+              done(img.naturalWidth ? img.naturalHeight / img.naturalWidth : 0)
+            img.onerror = () => done(0)
+            img.src = src
+          })
+      )
+    ).then((r) => live && setRatio(Math.max(0, ...r)))
+    return () => {
+      live = false
+    }
+  }, [all, dark])
+  const [box, setBox] = React.useState({ width: 0, room: Infinity })
+  React.useLayoutEffect(() => {
+    const measure = () => {
+      const stage = stageRef.current
+      if (!stage) return
+      const bar = document.getElementById("copy-bar")?.offsetHeight ?? 0
+      const below =
+        (controlsRef.current?.offsetHeight ?? 0) +
+        (nameRef.current?.offsetHeight ?? 0) +
+        16 * 3 + // the gaps, and room above the bar
+        bar
+      const top = stage.getBoundingClientRect().top + scrollY
+      setBox({
+        width: stage.clientWidth,
+        room: matchMedia("(min-width: 48rem)").matches
+          ? Math.max(240, innerHeight - top - below)
+          : Infinity,
+      })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (stageRef.current) ro.observe(stageRef.current)
+    addEventListener("resize", measure)
+    return () => {
+      ro.disconnect()
+      removeEventListener("resize", measure)
+    }
+  }, [tab])
+  const stageHeight =
+    ratio && box.width
+      ? Math.round(Math.min(box.width * ratio, box.room))
+      : undefined
+
   const go = (s?: { vals: Values }) => s && setVals({ ...s.vals })
   const step = (d: number) => go(all[(index + d + all.length) % all.length])
   // Arrow keys step through the states, except while typing
@@ -186,46 +254,30 @@ export function Storybook({
   return (
     <ThemeContext.Provider value={dark}>
       <Lightbox>
-        <div className="mx-auto flex max-w-[880px] flex-col gap-5 px-4 pt-6 pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:gap-6 md:px-6 md:pt-10">
-          <header>
-            <div className="flex items-center justify-between gap-3">
-              <Label accent>
-                Design storybook · {page.date}
-                {page.round > 1 && ` · Round ${page.round}`}
-              </Label>
-              <ThemeButton dark={dark} toggle={toggleTheme} />
-            </div>
-            <h1 className="mt-2 mb-2.5 font-heading text-title-xl text-balance">
-              {page.title}
-            </h1>
-            <blockquote className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground">
-              {page.quote}
-            </blockquote>
-            {page.where && (
-              <Html
-                as="p"
-                html={page.where}
-                className="mt-2 text-sm text-muted-foreground"
-              />
-            )}
-          </header>
+        <div className="mx-auto flex max-w-[880px] flex-col px-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:px-6">
           <Tabs
             value={tab}
             onValueChange={setTab}
             className="flex flex-col gap-5 md:gap-6"
           >
-            <TabsList
-              variant="line"
-              aria-label="View"
-              className="h-auto w-full justify-start gap-4 rounded-none border-b p-0 pb-[5px]"
-            >
-              <TabsTrigger value="story" className="h-full flex-none px-0">
-                Story
-              </TabsTrigger>
-              <TabsTrigger value="all" className="h-full flex-none px-0">
-                All states ({all.length})
-              </TabsTrigger>
-            </TabsList>
+            <div className="sticky top-[env(safe-area-inset-top,0px)] z-[6] -mx-4 flex items-center gap-4 border-b bg-background px-4 md:-mx-6 md:px-6">
+              <h1 className="min-w-0 flex-1 truncate py-3 font-heading text-title-sm">
+                {page.title}
+              </h1>
+              <TabsList
+                variant="line"
+                aria-label="View"
+                className="h-auto flex-none gap-4 rounded-none p-0 py-[5px]"
+              >
+                <TabsTrigger value="story" className="h-full flex-none px-0">
+                  Story
+                </TabsTrigger>
+                <TabsTrigger value="all" className="h-full flex-none px-0">
+                  All states ({all.length})
+                </TabsTrigger>
+              </TabsList>
+              <ThemeButton dark={dark} toggle={toggleTheme} />
+            </div>
             <TabsContent value="story" className="flex min-w-0 flex-col gap-4">
               <Stage
                 state={current}
@@ -233,8 +285,10 @@ export function Storybook({
                 render={render}
                 vals={vals}
                 dark={dark}
+                height={stageHeight}
+                stageRef={stageRef}
               />
-              <div className="flex flex-col gap-3">
+              <div ref={controlsRef} className="flex flex-col gap-3">
                 {/* Controls sit right under the stage, above the text that changes per state, so they never move as you tap. */}
                 {controls.map((c) => (
                   <ControlRow
@@ -246,7 +300,7 @@ export function Storybook({
                   />
                 ))}
               </div>
-              <div className="flex items-center gap-2">
+              <div ref={nameRef} className="flex items-center gap-2">
                 <h2 className="min-w-0 flex-1 text-lg font-medium text-balance">
                   {current ? current.name : label(vals)}
                 </h2>
@@ -296,8 +350,9 @@ export function Storybook({
                   className="min-h-18 resize-y text-sm md:text-sm"
                 />
               </label>
+              <About page={page} />
             </TabsContent>
-            <TabsContent value="all">
+            <TabsContent value="all" className="flex flex-col gap-6">
               <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
                 {all.map((s) => (
                   <button
@@ -337,6 +392,7 @@ export function Storybook({
                   </button>
                 ))}
               </div>
+              <About page={page} />
             </TabsContent>
           </Tabs>
         </div>
@@ -350,6 +406,11 @@ export function Storybook({
           outLabel="Notes to copy"
           text={text}
           maxWidth="832px"
+          send={
+            draftToChat()
+              ? { label: "Send to chat", run: (t) => draftToChat()?.(t) }
+              : undefined
+          }
         />
       </Lightbox>
     </ThemeContext.Provider>
@@ -363,12 +424,17 @@ function Stage({
   render,
   vals,
   dark,
+  height,
+  stageRef,
 }: {
   state: State | null
   caption: string
   render?: Render
   vals: Values
   dark: boolean
+  /** One height for every state; the capture fits inside it, centred */
+  height?: number
+  stageRef: React.Ref<HTMLDivElement>
 }) {
   const live = React.useRef<HTMLDivElement>(null)
   React.useEffect(() => {
@@ -377,17 +443,56 @@ function Stage({
   }, [render, vals, dark])
   if (render)
     return (
-      <div className="border bg-muted p-2 md:p-4">
+      <div ref={stageRef} className="border bg-muted p-2 md:p-4">
         <div ref={live} className="w-full" />
       </div>
     )
-  if (!state?.shots)
-    return (
-      <div className="grid min-h-40 place-items-center border bg-muted p-4 text-sm text-muted-foreground">
-        No capture for this state
-      </div>
-    )
-  return <Shots list={[{ ...state.shots, cap: caption, bare: true }]} />
+  return (
+    <div
+      ref={stageRef}
+      style={height ? { height } : undefined}
+      className="grid min-w-0 place-items-center"
+    >
+      {state?.shots ? (
+        <Shots
+          list={[{ ...state.shots, cap: caption, bare: true }]}
+          // The capture keeps its shape: as wide as the stage, or less when the stage's height holds it
+          className="max-h-full max-w-full [&_button]:max-h-full [&_figure]:max-h-full [&_img]:max-h-(--stage-img) [&_img]:w-auto [&_img]:max-w-full"
+          style={
+            height
+              ? ({ "--stage-img": `${height - 2}px` } as React.CSSProperties)
+              : undefined
+          }
+        />
+      ) : (
+        <div className="grid size-full min-h-40 place-items-center border bg-muted p-4 text-sm text-muted-foreground">
+          No capture for this state
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** What the storybook is for: the owner's words and where the part lives. */
+function About({ page }: { page: Page }) {
+  return (
+    <div className="flex flex-col gap-2 border-t pt-4">
+      <blockquote className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground">
+        {page.quote}
+      </blockquote>
+      {page.where && (
+        <Html
+          as="p"
+          html={page.where}
+          className="text-sm text-muted-foreground"
+        />
+      )}
+      <Label>
+        Design storybook · {page.date}
+        {page.round > 1 && ` · Round ${page.round}`}
+      </Label>
+    </div>
+  )
 }
 
 /** One dimension: a segmented control, or a field for a live free value. */
@@ -427,7 +532,8 @@ function ControlRow({
         ]
       : c.values!.map((v) => [v, v])
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    // On a wide screen the label sits beside its control, a row shorter each
+    <div className="flex min-w-0 flex-col gap-1.5 md:grid md:grid-cols-[112px_minmax(0,1fr)] md:items-center md:gap-3">
       <Label id={id}>{c.label}</Label>
       <ToggleGroup
         type="single"

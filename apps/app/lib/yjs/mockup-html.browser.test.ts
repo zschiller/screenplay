@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
+import { join } from "node:path"
 import { chromium, type Browser, type Page } from "playwright-core"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
@@ -223,4 +224,86 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
       expect(report.font).toContain("Instrument Sans")
     }
   )
+
+  // The storybook page as a Mockup (#1649): its notes go to the chat's
+  // composer through `screenplay.draft`, and the controls hold still while
+  // you step through states whose captures have different shapes.
+  it("sends a storybook's notes to the chat and keeps its controls still", async () => {
+    const skill = "screenplay-design-storybook"
+    const files = appSkills.open(skill)!.files
+    const shot = (w: number, h: number) =>
+      "data:image/svg+xml;base64," +
+      b64(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="#888"/></svg>`
+      )
+    const data = `<script>
+      const PAGE={date:"4 Oct 2026",slug:"test",round:1,title:"Part",quote:"Show me.",where:""};
+      const CONTROLS=[{key:"s",label:"Shape",values:["Wide","Tall","Square"]}];
+      const STATES=[
+        {id:"wide",name:"Wide",set:{s:"Wide"},shots:{p:"${shot(1280, 800)}"}},
+        {id:"tall",name:"Tall",set:{s:"Tall"},shots:{p:"${shot(400, 900)}"}},
+        {id:"square",name:"Square",set:{s:"Square"},shots:{p:"${shot(600, 600)}"}}
+      ];
+    </script>`
+    const html = files
+      .find((f) => f.path === "storybook-template.html")!
+      .content.replace(/<script>\s*const IMG=[\s\S]*?<\/script>/, data)
+    const runtime = files.find((f) => f.path === "storybook-runtime.js")!
+    const doc = mockupSrcDoc(
+      html,
+      readFileSync(
+        join(process.cwd(), "lib", "sandbox-bridge", "mockup-chat.js"),
+        "utf8"
+      ),
+      {
+        [`skill:${skill}/storybook-runtime.js`]: {
+          type: "text/javascript",
+          data: b64(runtime.content),
+        },
+      }
+    )
+    await page.setViewportSize({ width: 1400, height: 900 })
+    await page.evaluate((srcdoc) => {
+      const w = window as unknown as { drafts: unknown[] }
+      w.drafts = []
+      window.addEventListener("message", (e) => {
+        if (e.data?.type === "screenplay:draft") w.drafts.push(e.data.text)
+      })
+      const frame = document.createElement("iframe")
+      frame.setAttribute("sandbox", "allow-scripts")
+      frame.style.cssText = "width:1280px;height:800px;border:0"
+      frame.srcdoc = srcdoc
+      document.body.append(frame)
+    }, doc)
+    const mockup = page.frameLocator("iframe")
+    const send = mockup.getByRole("button", { name: "Send to chat" })
+    await send.waitFor({ timeout: 10_000 })
+    // As an Artifact the same button copies; in a Mockup it sends
+    expect(
+      await mockup.getByRole("button", { name: "Copy notes" }).count()
+    ).toBe(0)
+
+    const controls = mockup.getByRole("radiogroup", { name: "Shape" })
+    const name = mockup.getByRole("heading", { level: 2 })
+    const tops: number[] = []
+    for (const state of ["Wide", "Tall", "Square"]) {
+      await expect.poll(() => name.textContent()).toBe(state)
+      tops.push((await controls.boundingBox())!.y)
+      // The state's name is on the first screen, above the bottom bar
+      const bar = (await send.boundingBox())!.y
+      expect((await name.boundingBox())!.y).toBeLessThan(bar)
+      await mockup.getByRole("button", { name: "Next state" }).click()
+    }
+    expect(new Set(tops).size).toBe(1)
+
+    await mockup
+      .getByRole("textbox", { name: "Note on this state" })
+      .fill("Too dense")
+    await send.click()
+    await expect
+      .poll(() =>
+        page.evaluate(() => (window as unknown as { drafts: unknown[] }).drafts)
+      )
+      .toEqual(["Storybook: Part\n→ Wide (Shape Wide): Too dense"])
+  }, 20_000)
 })

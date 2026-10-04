@@ -51,15 +51,17 @@ export function Lightbox({ children }: { children: React.ReactNode }) {
 export function Shots({
   list,
   className,
+  style,
 }: {
   list?: Img[]
   className?: string
+  style?: React.CSSProperties
 }) {
   const open = React.useContext(LightboxContext)
   const dark = React.useContext(ThemeContext)
   if (!list?.length) return null
   return (
-    <div className={cn("flex flex-col gap-3", className)}>
+    <div className={cn("flex flex-col gap-3", className)} style={style}>
       {list.map((i, n) => (
         <figure key={n} className="m-0 flex min-w-0 flex-col gap-1">
           <button
