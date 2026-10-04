@@ -3,6 +3,7 @@ import { dirname, join, resolve, sep } from "node:path"
 
 import type { ContextSection } from "@/lib/files/context-folder"
 
+import type { AppSkills } from "./index"
 import type { SavedSkills, SkillFile } from "./saved"
 
 /**
@@ -18,9 +19,10 @@ import type { SavedSkills, SkillFile } from "./saved"
  * the same `.agents/skills/` through its config's `skills.paths` (#1589,
  * `opencodeDirectoriesEnv`). So the same
  * Skills are written as two sections. Both hold one merged set: a canvas
- * Skill wins over an account Skill of the same name, and a name the
- * repository's own Skills already use is left out, the harness reading
- * those from the checkout (spec #1554's order: repo, canvas, account).
+ * Skill wins over an account Skill of the same name, either over the App
+ * Skill of that name (written with its supporting files, #1642), and a name
+ * the repository's own Skills already use is left out, the harness reading
+ * those from the checkout (spec #1554's order: repo, canvas, account, app).
  */
 
 /** The context folder sections that hold Skills, by the harness reading each. */
@@ -34,16 +36,24 @@ interface SkillOnDisk {
   files: SkillFile[]
 }
 
-/**
- * The Skill sections of a turn's context folder: the canvas's Skills and the
- * sender's (`null` on a turn nobody sent), less any name in `shadowed` (the
- * Branch's Repo Skills). Both sections share one read of the Skills.
- */
-export function savedSkillSections(sources: {
+/** Where a turn's Skills on disk come from. */
+interface SkillSources {
   canvas: SavedSkills
   account: SavedSkills | null
+  /** The App Skills the chat sees. */
+  app?: AppSkills
   shadowed?: () => Promise<Iterable<string>>
-}): Record<string, ContextSection> {
+}
+
+/**
+ * The Skill sections of a turn's context folder: the canvas's Skills, the
+ * sender's (`null` on a turn nobody sent) and the App Skills the chat sees,
+ * less any name in `shadowed` (the Branch's Repo Skills). Both sections share
+ * one read of the Skills.
+ */
+export function savedSkillSections(
+  sources: SkillSources
+): Record<string, ContextSection> {
   let loaded: Promise<SkillOnDisk[]> | undefined
   const skills = () => (loaded ??= skillsOnDisk(sources))
   const section: ContextSection = async (dir) =>
@@ -54,11 +64,7 @@ export function savedSkillSections(sources: {
   }
 }
 
-async function skillsOnDisk(sources: {
-  canvas: SavedSkills
-  account: SavedSkills | null
-  shadowed?: () => Promise<Iterable<string>>
-}): Promise<SkillOnDisk[]> {
+async function skillsOnDisk(sources: SkillSources): Promise<SkillOnDisk[]> {
   const taken = new Set(sources.shadowed ? await sources.shadowed() : [])
   const out: SkillOnDisk[] = []
   for (const scope of [sources.canvas, sources.account]) {
@@ -75,6 +81,11 @@ async function skillsOnDisk(sources: {
         })
       }
     }
+  }
+  for (const { name } of sources.app?.index() ?? []) {
+    if (taken.has(name)) continue
+    const opened = sources.app?.open(name)
+    if (opened) out.push({ name, ...opened })
   }
   return out
 }

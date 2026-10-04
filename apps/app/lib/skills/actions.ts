@@ -5,7 +5,7 @@ import { openRoom } from "@/lib/room-access"
 
 import { accountSkills } from "./account"
 import { canvasSkills } from "./canvas"
-import { hasSkill } from "./index"
+import { appSkills, hasSkill } from "./index"
 import {
   prepareSkill,
   type OpenedSkill,
@@ -71,6 +71,12 @@ export interface OfferedSkill {
   files?: SkillFile[]
 }
 
+/** An offered Skill with the files of the App Skill it replaces that it keeps. */
+const withAppSkill = (offered: OfferedSkill): OfferedSkill => ({
+  ...offered,
+  files: appSkills.carryFiles(offered.name, offered.files).files,
+})
+
 /**
  * What a chat's skill card shows (#1633): whether the offered Skill is valid,
  * where it's already saved as it is now (so the card reads Saved after a
@@ -84,7 +90,7 @@ export async function offeredSkillState(
   | { ok: false; error: string }
   | { ok: true; savedTo: SkillSaveScope | null; replacesBuiltIn: boolean }
 > {
-  const prepared = prepareSkill(offered)
+  const prepared = prepareSkill(withAppSkill(offered))
   if (!prepared.ok) return prepared
   const room = await openRoom(roomId)
   const same = async (scope: SavedSkills) => {
@@ -118,7 +124,7 @@ export async function saveOfferedSkill(
   const target =
     scope === "account" ? accountSkills(room.userId) : canvasSkills(room)
   const saved = await target.save({
-    ...offered,
+    ...withAppSkill(offered),
     author: { addedBy: "member", addedById: room.userId },
   })
   if (!saved.ok) throw new Error(saved.error)

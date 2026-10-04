@@ -56,7 +56,7 @@ Screenplay ships five skills, marked **Built in** in the menu:
 | `screenplay-explore-with-mockups` | Exploring a design question with lettered takes as [mockups](/guides/mockups), over as many rounds as you want, asking you to pick on a question card, and [building the take you choose](/guides/mockups#building-one). |
 | `screenplay-share-state`          | Bridging UI state to the canvas with [shared state](/guides/building/shared-state).                                                                                                                                      |
 
-To change a built-in skill, ask a chat to copy it: “copy screenplay-design-audit and skip the dark theme”. The agent offers a changed copy under the same name, and its card says **Replaces the Built in skill**. Save it to your account or the canvas, and since your account’s and the canvas’s skills win over Screenplay’s, the copy takes its place, listed as **Account** or **Canvas**. Delete the copy to go back to the built-in one. A copy doesn’t pick up later changes to the built-in skill.
+To change a built-in skill, ask a chat to copy it: “copy screenplay-design-audit and skip the dark theme”. The agent offers a changed copy under the same name, and its card says **Replaces the Built in skill**. Save it to your account or the canvas, and since your account’s and the canvas’s skills win over Screenplay’s, the copy takes its place, listed as **Account** or **Canvas**. The copy keeps the files the built-in skill holds beside its `SKILL.md`, like its page templates, unless the agent changed one. Delete the copy to go back to the built-in one. A copy doesn’t pick up later changes to the built-in skill.
 
 The [Coordinator](/guides/coordinator) has its own built-in skill,
 `screenplay-try-variants`, which it follows when you ask to
@@ -135,18 +135,18 @@ confirm. Account skills work the same on the desktop app.
   alt="Settings open on Skills, listing two account skills"
 />
 
-## Saved skills in Claude Code, Codex and OpenCode
+## Skills in Claude Code, Codex and OpenCode
 
 On the Mac app, chats that run on Claude Code, Codex or OpenCode get the
-canvas’s skills and your account skills as the agent’s own skills, so you can
-also invoke one the agent’s way (`/name` in Claude Code and OpenCode, `$name`
-in Codex) and it
-can read the files saved beside its `SKILL.md`. Before every message,
-Screenplay writes them to a folder in its app data, outside your checkout,
-and hands that folder to the agent, which loads skills from it without
-asking. A skill you delete is gone from the next message, and nothing is
-ever written into your repository. When a canvas skill and an account skill
-share a name, only the canvas’s is written; one that shares a name with a
+canvas’s skills, your account skills and the built-in skills as the agent’s
+own skills, so you can also invoke one the agent’s way (`/name` in Claude
+Code and OpenCode, `$name` in Codex) and it can read the files kept beside
+its `SKILL.md`. Before every message, Screenplay writes them to a folder in
+its app data, outside your checkout, and hands that folder to the agent,
+which loads skills from it without asking. A skill you delete is gone from
+the next message, and nothing is ever written into your repository. When
+skills share a name, only the one that wins is written: the canvas’s, then
+your account’s, then the built-in one. One that shares a name with a
 repository skill isn’t written at all, since the agent already loads the
 repository’s from the checkout.
 
@@ -162,7 +162,7 @@ commands: the agent removes
 `allowed-tools` from its frontmatter and any inline `` !`command` `` lines
 before saving. A skill’s name uses lowercase letters, digits and hyphens, at
 most 64 characters, and a whole skill, with any files saved beside it, is at
-most 256 KB.
+most 1 MB.
 
 ## Adding your own to a repository
 

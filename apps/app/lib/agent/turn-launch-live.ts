@@ -87,13 +87,15 @@ import {
 } from "./coordinator-wake"
 import { loadChatTranscript } from "./history-load"
 import { renderLastTurn } from "./room-read-tools"
-import { roomChatId } from "@/lib/chat/room-chat"
+import { roomChatId, roomIdOfRoomChat } from "@/lib/chat/room-chat"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { sandboxSecrets } from "@/lib/env-store"
 import { canvasFiles } from "@/lib/files"
 import { withAttachedImages } from "@/lib/files/attach"
 import { savedFileSections } from "@/lib/files/context-folder"
 import { canvasSkills } from "@/lib/skills/canvas"
+import { appSkillSource } from "@/lib/skills"
+import { sketchAppSkills } from "./sketch-tools"
 import { savedSkillSections } from "@/lib/skills/on-disk"
 import { enumerateRepoSkillsForSandbox } from "@/lib/skills/sandbox-index"
 
@@ -104,7 +106,7 @@ import { enumerateRepoSkillsForSandbox } from "@/lib/skills/sandbox-index"
  */
 export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
   // A harness reads the canvas's and the sender's saved files (#1524) and
-  // Skills (#1559) on disk.
+  // Skills (#1559) on disk, with the App Skills its kind of chat sees.
   resolveEngine: (input) =>
     resolveLiveEngine({
       ...input,
@@ -116,6 +118,11 @@ export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
           ...savedSkillSections({
             canvas: canvasSkills(room),
             account: accountSkillsFor(sender),
+            app: roomIdOfRoomChat(input.chatId)
+              ? appSkillSource("coordinator")
+              : sandboxName
+                ? appSkillSource()
+                : sketchAppSkills,
             // The harness reads the Branch's own Skills from the checkout.
             shadowed: sandboxName
               ? async () =>

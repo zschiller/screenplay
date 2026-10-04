@@ -1,11 +1,19 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { buildSkillTools } from "@/lib/agent/skill-tools"
 import { memoryFileIndex } from "@/lib/files/files"
 import { memoryFileStore } from "@/lib/files/store"
-import { appSkillSource } from "@/lib/skills"
+import { appSkillSource, loadAppSkills } from "@/lib/skills"
 import type { RepoSkillFs } from "@/lib/skills/repo-skills"
-import { createSavedSkills, type SavedSkills } from "@/lib/skills/saved"
+import {
+  createSavedSkills,
+  SKILL_MAX_BYTES,
+  type SavedSkills,
+} from "@/lib/skills/saved"
 
 /** One canvas's saved Skills, the way every chat on it shares them. */
 function canvas(): SavedSkills {
@@ -309,5 +317,91 @@ describe("skill tools", () => {
     expect(await run(tools, "delete_skill", { name: "review" })).toBe(
       'Error: No skill named "review".'
     )
+  })
+
+  describe("App Skills with supporting files (#1642)", () => {
+    /** App Skills holding one design Skill with a page template beside it. */
+    function appWithTemplate(template = "<main></main>") {
+      const dir = mkdtempSync(join(tmpdir(), "app-skills-"))
+      mkdirSync(join(dir, "screenplay-explore", "templates"), {
+        recursive: true,
+      })
+      writeFileSync(
+        join(dir, "screenplay-explore", "SKILL.md"),
+        skillMd("screenplay-explore", "Explore a design.", "Fill the page.")
+      )
+      writeFileSync(
+        join(dir, "screenplay-explore", "templates", "page.html"),
+        template
+      )
+      return loadAppSkills(dir)
+    }
+
+    it("reads an App Skill’s files like a saved Skill’s", async () => {
+      const set = appWithTemplate()
+      const tools = buildSkillTools({
+        canvas: canvas(),
+        chatId: "chat-a",
+        app: set.source(),
+        appSkillSet: set,
+      })
+
+      const read = await run(tools, "read_skill", {
+        name: "screenplay-explore",
+      })
+      expect(read).toContain("Fill the page.")
+      expect(read).toContain(
+        "This skill’s file `templates/page.html`:\n\n<main></main>"
+      )
+    })
+
+    it("keeps an App Skill’s files in a copy that only changes SKILL.md", async () => {
+      const set = appWithTemplate()
+      const tools = buildSkillTools({
+        canvas: canvas(),
+        chatId: "chat-a",
+        app: set.source(),
+        appSkillSet: set,
+      })
+
+      const out = await run(tools, "save_skill", {
+        name: "screenplay-explore",
+        content: skillMd("screenplay-explore", "Mine.", "My way."),
+      })
+      expect(out).toContain(
+        'takes the place of Screenplay’s own skill "screenplay-explore"'
+      )
+      expect(out).toContain(
+        "It keeps `templates/page.html` from Screenplay’s own skill."
+      )
+
+      // A copy that passes its own template keeps nothing.
+      expect(
+        await run(tools, "save_skill", {
+          name: "screenplay-explore",
+          content: skillMd("screenplay-explore", "Mine."),
+          files: [
+            { path: "templates/page.html", content: "<main>mine</main>" },
+          ],
+        })
+      ).not.toContain("It keeps")
+    })
+
+    it("counts the files a copy keeps toward the size cap", async () => {
+      const set = appWithTemplate("x".repeat(SKILL_MAX_BYTES))
+      const tools = buildSkillTools({
+        canvas: canvas(),
+        chatId: "chat-a",
+        app: set.source(),
+        appSkillSet: set,
+      })
+
+      expect(
+        await run(tools, "save_skill", {
+          name: "screenplay-explore",
+          content: skillMd("screenplay-explore", "Mine."),
+        })
+      ).toContain("Error: The skill is")
+    })
   })
 })
