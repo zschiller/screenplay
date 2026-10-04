@@ -30,14 +30,8 @@ import {
 } from "@workspace/ui/components/toggle-group"
 import { cn } from "@workspace/ui/lib/utils"
 
-import {
-  answer,
-  askedId,
-  cardIndex,
-  useCardQuestion,
-  type CardQuestion,
-} from "../shared/chat.ts"
-import { AskedBadge, Choices, useEdgeFade } from "../shared/choices.tsx"
+import { answer, askedId, cardIndex, useCardQuestion } from "../shared/chat.ts"
+import { Choices, useEdgeFade } from "../shared/choices.tsx"
 import { CopyBar, Html, Label, load, store } from "../shared/page.tsx"
 import { Lightbox, Shots, type Img } from "../shared/shots.tsx"
 import { ThemeButton, ThemeContext, useTheme } from "../shared/theme.tsx"
@@ -132,10 +126,6 @@ export function Audit({
         : { ...s, picks: { ...s.picks, [asked]: answeredOption } }
     )
   }, [asked, answeredOption])
-  // A new question opens the page at its call
-  React.useEffect(() => {
-    if (asked) document.getElementById(asked.toLowerCase())?.scrollIntoView()
-  }, [asked, card?.id])
   const recOf = (f: Finding) => f.call?.options.find((o) => o.rec)
   const pick = (id: string, v: string) =>
     setState((s) => {
@@ -310,7 +300,6 @@ export function Audit({
                     picked={state.picks[f.id]}
                     pick={pick}
                     choose={choose}
-                    asked={f.id === asked ? card! : undefined}
                     note={state.notes[f.id] || ""}
                     setNote={(v) =>
                       setState((s) => ({
@@ -350,7 +339,6 @@ function FindingCard({
   picked,
   pick,
   choose,
-  asked,
   note,
   setNote,
 }: {
@@ -359,8 +347,6 @@ function FindingCard({
   picked?: string
   pick: (id: string, v: string) => void
   choose: (f: Finding, v: string) => void
-  /** The chat's open card, when it asks about this call. */
-  asked?: CardQuestion
   note: string
   setNote: (v: string) => void
 }) {
@@ -395,14 +381,10 @@ function FindingCard({
         <Badge variant="outline" className={SEV_TEXT[f.sev]}>
           {SEV[f.sev]}
         </Badge>
-        {asked ? (
-          <AskedBadge answered={!!asked.answer} />
-        ) : (
-          f.call && (
-            <Badge variant="outline" className="text-info">
-              Call
-            </Badge>
-          )
+        {f.call && (
+          <Badge variant="outline" className="text-info">
+            Call
+          </Badge>
         )}
         {f.pend && (
           <Badge variant="outline" className="text-warning">
@@ -467,7 +449,6 @@ function FindingCard({
             name={`pick-${f.id}`}
             value={picked}
             onChange={(v) => choose(f, v)}
-            asked={asked ? (asked.answer ? "answered" : "open") : undefined}
             choices={[
               ...f.call.options.map((o) => ({
                 value: o.id,

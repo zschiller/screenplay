@@ -10,7 +10,6 @@ import { flushSync } from "react-dom"
 
 import { useSharedState } from "@screenplay.space/state"
 
-import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Textarea } from "@workspace/ui/components/textarea"
@@ -26,9 +25,8 @@ import {
   cardIndex,
   onCanvas,
   useCardQuestion,
-  type CardQuestion,
 } from "../shared/chat.ts"
-import { AskedBadge, Choices, useEdgeFade } from "../shared/choices.tsx"
+import { Choices, useEdgeFade } from "../shared/choices.tsx"
 import { CopyBar, Label, load, store } from "../shared/page.tsx"
 import { Lightbox, Shots, type Img } from "../shared/shots.tsx"
 import { ThemeButton, ThemeContext, useTheme } from "../shared/theme.tsx"
@@ -119,10 +117,6 @@ export function Decisions({
         : { ...s, [asked]: { ...s[asked]!, v: `o${answeredOption}` } }
     )
   }, [asked, answeredOption])
-  // A new question opens the page at it
-  React.useEffect(() => {
-    if (asked) document.getElementById(`q-${asked}`)?.scrollIntoView()
-  }, [asked, card?.id])
   // An option chosen on the page answers the card too, when it's the card's
   const choose = (q: Q, v: string) => {
     if (q.id === asked && card && !card.answer && v.startsWith("o")) {
@@ -271,10 +265,8 @@ export function Decisions({
                   key={q.id}
                   q={q}
                   a={answers[q.id]!}
-                  answered={isAnswered(answers[q.id]!)}
                   set={(a) => set(q.id, a)}
                   choose={(v) => choose(q, v)}
-                  asked={q.id === asked ? card! : undefined}
                 />
               ))}
             </section>
@@ -349,18 +341,13 @@ export function Decisions({
 function Question({
   q,
   a,
-  answered,
   set,
   choose,
-  asked,
 }: {
   q: Q
   a: Answer
-  answered: boolean
   set: (a: Partial<Answer>) => void
   choose: (v: string) => void
-  /** The chat's open card, when it asks about this question. */
-  asked?: CardQuestion
 }) {
   const own = React.useRef<HTMLInputElement>(null)
   const noteRef = React.useRef<HTMLTextAreaElement>(null)
@@ -381,17 +368,6 @@ function Question({
         </div>
         <h3 className="m-0 text-sm font-medium text-balance">{q.t}</h3>
       </header>
-      {(asked || answered) && (
-        <div className="flex flex-wrap gap-1.5">
-          {asked ? (
-            <AskedBadge answered={!!asked.answer} />
-          ) : (
-            <Badge variant="outline" className="text-success">
-              Answered
-            </Badge>
-          )}
-        </div>
-      )}
       <p className="max-w-[72ch] text-sm text-muted-foreground">{q.c}</p>
       {/* At most two across, so a capture reads without tapping */}
       <Shots
@@ -405,7 +381,6 @@ function Question({
           choose(v)
           if (v === "own") requestAnimationFrame(() => own.current?.focus())
         }}
-        asked={asked ? (asked.answer ? "answered" : "open") : undefined}
         choices={[
           ...q.o.map(([label, detail], i) => ({
             value: `o${i}`,

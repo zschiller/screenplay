@@ -21,21 +21,18 @@ export type Choice = {
 /**
  * One question's options as the app's question card draws them (shadcn's
  * Questionnaire, one radio row each), so a call on the page reads like the
- * card the chat asks it with. `asked` marks the call the chat's open card is
- * about: the line under the rows says a tap answers it.
+ * card the chat asks it with.
  */
 export function Choices({
   name,
   choices,
   value,
   onChange,
-  asked,
 }: {
   name: string
   choices: Choice[]
   value?: string
   onChange: (value: string) => void
-  asked?: "open" | "answered"
 }) {
   return (
     <Questionnaire
@@ -73,26 +70,8 @@ export function Choices({
             </QuestionnaireChoice>
           ))}
         </QuestionnaireChoices>
-        {asked === "open" && (
-          <p className="text-xs text-muted-foreground">
-            Pick an option to answer the chat.
-          </p>
-        )}
       </QuestionnaireItem>
     </Questionnaire>
-  )
-}
-
-/** The badge on the call the chat's card asks about. */
-export function AskedBadge({ answered }: { answered: boolean }) {
-  return answered ? (
-    <Badge variant="outline" className="text-success">
-      Answered in chat
-    </Badge>
-  ) : (
-    <Badge variant="outline" className="text-info">
-      Asked in chat
-    </Badge>
   )
 }
 
