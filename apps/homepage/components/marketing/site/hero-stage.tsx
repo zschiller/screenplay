@@ -187,6 +187,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
     const host = stage.current!
     const rowsEl = strip.current!
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches
+    // Tailwind's sm breakpoint, where the header turns into a filled bar.
+    const phone = matchMedia("(max-width: 639px)")
     // Clear across the middle of the floor, solid halfway down the
     // headline's first line, so that line sits on the densest grain.
     const veil = createDitherVeil(canvas.current!, () => {
@@ -195,11 +197,15 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       const size = parseFloat(getComputedStyle(head).fontSize)
       const floor = rowsEl.parentElement!.getBoundingClientRect()
       const solid = head.getBoundingClientRect().top - s + size * 0.6
+      // From sm up the nav is a filled bar, so the floor runs straight up
+      // under it with no grain.
+      if (!phone.matches) return [solid - NEAR, solid]
       return [
         solid - NEAR,
         solid,
-        // The far side of the floor dissolves into the dark behind the nav
-        // through the same grain, solid only at the very top of the page.
+        // On phones the nav is clear until the page scrolls, so the far side
+        // of the floor dissolves into the dark behind it through the same
+        // grain, solid only at the very top of the page.
         [floor.top - s, floor.top - s + floor.height * FAR],
         // Denser right behind the nav, so its links read over the copies.
         [floor.top - s + NAV, 0.84],
