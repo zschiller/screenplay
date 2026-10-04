@@ -248,6 +248,7 @@ describe("room chat target", () => {
       "rename",
       "save_file",
       "save_skill",
+      "screenshot_page",
       "send_to_chat",
       "send_to_workspace",
       "show_on_canvas",
