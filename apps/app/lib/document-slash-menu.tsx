@@ -7,21 +7,24 @@ import { Suggestion } from "@tiptap/suggestion"
 import {
   DocumentSlashMenuList,
   DOCUMENT_SLASH_ITEMS,
+  isDocumentImageItem,
+  type DocumentImageItemKey,
   type DocumentSlashItem,
   type DocumentSlashMenuHandle,
 } from "@/components/canvas/document-slash-menu-list"
 
 export interface DocumentSlashMenuOptions {
-  /** Run a picked item at `pos`, where the `/` and its query were. */
-  onPick: (key: DocumentSlashItem["key"], pos: number) => void
+  /** Put a picked image item in at `pos`, where the `/` and its query were. */
+  onPick: (key: DocumentImageItemKey, pos: number) => void
 }
 
 const KEY = new PluginKey("documentSlashMenu")
 
 /**
  * A Document's `/` menu: typed at the start of a line or after a space in the
- * body, it lists what can be put in (Upload image, Image from files), narrowed
- * by what follows the `/`. Never in the title.
+ * body, it lists what the line can turn into (Format) and what can be put in
+ * (Insert: images and mentions), narrowed by what follows the `/`. Never in
+ * the title.
  */
 export const DocumentSlashMenu = Extension.create<DocumentSlashMenuOptions>({
   name: "documentSlashMenu",
@@ -46,7 +49,9 @@ export const DocumentSlashMenu = Extension.create<DocumentSlashMenuOptions>({
         },
         command: ({ editor, range, props }) => {
           editor.chain().focus().deleteRange(range).run()
-          options.onPick(props.key, range.from)
+          if (props.run) props.run(editor)
+          else if (isDocumentImageItem(props.key))
+            options.onPick(props.key, range.from)
         },
         render: () => {
           let component: ReactRenderer<DocumentSlashMenuHandle> | null = null

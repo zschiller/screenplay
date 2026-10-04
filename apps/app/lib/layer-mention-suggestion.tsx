@@ -4,6 +4,7 @@ import { ReactRenderer } from "@tiptap/react"
 import type { MentionOptions } from "@tiptap/extension-mention"
 import {
   MentionList,
+  type MentionItem,
   type MentionListHandle,
 } from "@/components/agent/mention-list"
 import type { MarkdownLayerData } from "@/lib/types"
@@ -13,19 +14,18 @@ import type { MarkdownLayerData } from "@/lib/types"
  * resulting Mention node so the agent's message-extraction code can tell
  * which `read_*` tool the model should call to follow the reference.
  */
-export interface LayerMentionItem {
-  kind: "markdown-layer"
-  id: string
-  label: string
-}
+export type LayerMentionItem = MentionItem
 
 /**
  * Build a TipTap Mention `suggestion` config listing documents on the
  * canvas. Both the agent chat input and the markdown body editor wire `@`
- * to this so a single picker covers every chat-targetable layer kind.
+ * to this so a single picker covers every chat-targetable layer kind. A
+ * Document's body also lists the canvas's chats and mockups.
  */
 export function buildLayerMentionSuggestion(opts: {
   getMarkdownLayers: () => MarkdownLayerData[]
+  /** Optional: the chats and mockups to list after the documents. */
+  getOtherItems?: () => MentionItem[]
   /**
    * Optional: a layer id to exclude from the candidate list — a doc
    * shouldn't be able to @-mention itself.
@@ -36,6 +36,11 @@ export function buildLayerMentionSuggestion(opts: {
    * doesn't escape the chat panel / document tile bounds.
    */
   getAnchorRect?: () => DOMRect | null
+  /**
+   * Optional: open below the caret, as a Document's `/` menu does, rather
+   * than above it as the composer's does.
+   */
+  below?: boolean
   /** Optional input box the popover sits above, clear of its border. */
   getInputBoxRect?: () => DOMRect | null
   /**
@@ -60,9 +65,14 @@ export function buildLayerMentionSuggestion(opts: {
           id: d.id,
           label: d.title || "Untitled",
         }))
-      return docs
-        .filter((item) => item.label.toLowerCase().includes(q))
-        .slice(0, 12)
+      // Up to 12 of each kind, so many documents never hide the rest.
+      const perKind = new Map<string, number>()
+      return [...docs, ...(opts.getOtherItems?.() ?? [])].filter((item) => {
+        if (!item.label.toLowerCase().includes(q)) return false
+        const n = perKind.get(item.kind) ?? 0
+        perKind.set(item.kind, n + 1)
+        return n < 12
+      })
     },
     render: () => {
       let component: ReactRenderer<MentionListHandle> | null = null
@@ -75,6 +85,10 @@ export function buildLayerMentionSuggestion(opts: {
         const maxLeft = anchor ? anchor.right - 280 : window.innerWidth - 280
         const left = Math.max(minLeft, Math.min(rect.left, maxLeft))
         containerEl.style.left = `${left}px`
+        if (opts.below) {
+          containerEl.style.top = `${rect.bottom + 4}px`
+          return
+        }
         // Above the box the caret is typing in, when there is one, so the
         // popover never covers its border.
         const box = opts.getInputBoxRect?.()

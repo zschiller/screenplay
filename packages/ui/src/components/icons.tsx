@@ -19,6 +19,7 @@ import { ArrowsDownUpIcon as ArrowsDownUpBase } from "@phosphor-icons/react/dist
 import { ArrowsMergeIcon as ArrowsMergeBase } from "@phosphor-icons/react/dist/ssr/ArrowsMerge"
 import { ArrowsOutCardinalIcon as ArrowsOutCardinalBase } from "@phosphor-icons/react/dist/ssr/ArrowsOutCardinal"
 import { ArrowsOutSimpleIcon as ArrowsOutSimpleBase } from "@phosphor-icons/react/dist/ssr/ArrowsOutSimple"
+import { AtIcon as AtBase } from "@phosphor-icons/react/dist/ssr/At"
 import { BookBookmarkIcon as BookBookmarkBase } from "@phosphor-icons/react/dist/ssr/BookBookmark"
 import { BookOpenIcon as BookOpenBase } from "@phosphor-icons/react/dist/ssr/BookOpen"
 import { BracketsCurlyIcon as BracketsCurlyBase } from "@phosphor-icons/react/dist/ssr/BracketsCurly"
@@ -228,6 +229,7 @@ export const ArrowsOutSimpleIcon = phosphor(
   ArrowsOutSimpleBase,
   "ph-arrows-out-simple"
 )
+export const AtIcon = phosphor(AtBase, "ph-at")
 export const BookBookmarkIcon = phosphor(BookBookmarkBase, "ph-book-bookmark")
 export const BookOpenIcon = phosphor(BookOpenBase, "ph-book-open")
 export const BracketsCurlyIcon = phosphor(

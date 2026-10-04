@@ -11,24 +11,17 @@ import {
 import { createPortal } from "react-dom"
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import {
-  type Icon,
   ArrowUUpLeftIcon,
   CaretDownIcon,
   ChatIcon,
   CheckIcon,
-  CodeBlockIcon,
   CodeIcon,
   ImageIcon,
   ListBulletsIcon,
   ListNumbersIcon,
-  QuotesIcon,
   TextBIcon,
-  TextHOneIcon,
-  TextHThreeIcon,
-  TextHTwoIcon,
   TextItalicIcon,
   TextStrikethroughIcon,
-  TextTIcon,
 } from "@workspace/ui/components/icons"
 import {
   DropdownMenu,
@@ -62,6 +55,12 @@ import { useDocumentFragment, useRoomId, useYjs } from "@/lib/yjs/context"
 import { useCanvasFiles, useMarkdownLayers } from "@/lib/yjs/react"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
+import { DOCUMENT_BLOCK_TYPES } from "@/lib/document-block-types"
+import {
+  MENTION_ICON_MASK,
+  mentionKindOf,
+  useChatAndMockupMentions,
+} from "@/lib/document-mentions"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { DocumentImageNodeView } from "@/components/canvas/document-image-node"
 import {
@@ -81,8 +80,8 @@ import {
 } from "@/lib/document-image-upload"
 import { DocumentSlashMenu } from "@/lib/document-slash-menu"
 import {
-  DOCUMENT_SLASH_ITEMS,
-  type DocumentSlashItem,
+  DOCUMENT_IMAGE_ITEMS,
+  type DocumentImageItemKey,
 } from "@/components/canvas/document-slash-menu-list"
 import { uploadAttachment } from "@/lib/chat-attachments"
 import {
@@ -245,77 +244,6 @@ function FormatButton({
   )
 }
 
-/** The block types the selection toolbar's "Turn into" dropdown can switch
- *  between. `key` matches the `blockType` string derived from the editor in
- *  {@link MarkdownLayer}; `run` converts the block the caret sits in.
- *
- *  Every command leads with `clearNodes()` — TipTap's "normalize to a simple
- *  paragraph" primitive — before applying the target. Without it these compose
- *  instead of replace: blockquote and lists are *wrapping* nodes, so e.g.
- *  `toggleBlockquote()` on an existing code block wraps it (a quoted code block)
- *  rather than turning it into a quote. `clearNodes()` first strips any current
- *  wrapper/type, so each pick is an exclusive "turn into". */
-const NODE_TYPES: {
-  key: string
-  label: string
-  Icon: Icon
-  run: (editor: Editor) => void
-}[] = [
-  {
-    key: "paragraph",
-    label: "Text",
-    Icon: TextTIcon,
-    run: (editor) => editor.chain().focus().clearNodes().run(),
-  },
-  {
-    key: "h1",
-    label: "Heading 1",
-    Icon: TextHOneIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().setHeading({ level: 1 }).run(),
-  },
-  {
-    key: "h2",
-    label: "Heading 2",
-    Icon: TextHTwoIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().setHeading({ level: 2 }).run(),
-  },
-  {
-    key: "h3",
-    label: "Heading 3",
-    Icon: TextHThreeIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().setHeading({ level: 3 }).run(),
-  },
-  {
-    key: "bulletList",
-    label: "Bullet list",
-    Icon: ListBulletsIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().toggleBulletList().run(),
-  },
-  {
-    key: "orderedList",
-    label: "Numbered list",
-    Icon: ListNumbersIcon,
-    run: (editor) =>
-      editor.chain().focus().clearNodes().toggleOrderedList().run(),
-  },
-  {
-    key: "blockquote",
-    label: "Quote",
-    Icon: QuotesIcon,
-    run: (editor) => editor.chain().focus().clearNodes().setBlockquote().run(),
-  },
-  {
-    key: "codeBlock",
-    label: "Code block",
-    Icon: CodeBlockIcon,
-    run: (editor) => editor.chain().focus().clearNodes().setCodeBlock().run(),
-  },
-]
-
 /** "Turn into" block-type selector for the selection toolbar — the shared
  *  shadcn {@link DropdownMenu}, for visual/keyboard consistency with the rest
  *  of the app. `modal={false}` keeps Radix from locking body pointer-events (so
@@ -332,7 +260,9 @@ function NodeTypeDropdown({
   editor: Editor
   blockType: string
 }) {
-  const current = NODE_TYPES.find((t) => t.key === blockType) ?? NODE_TYPES[0]
+  const current =
+    DOCUMENT_BLOCK_TYPES.find((t) => t.key === blockType) ??
+    DOCUMENT_BLOCK_TYPES[0]
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -348,7 +278,7 @@ function NodeTypeDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {NODE_TYPES.map((t) => (
+        {DOCUMENT_BLOCK_TYPES.map((t) => (
           <DropdownMenuItem
             key={t.key}
             onSelect={() => t.run(editor)}
@@ -374,7 +304,7 @@ function NodeTypeDropdown({
 function ImageDropdown({
   onPick,
 }: {
-  onPick: (key: DocumentSlashItem["key"]) => void
+  onPick: (key: DocumentImageItemKey) => void
 }) {
   return (
     <DropdownMenu modal={false}>
@@ -384,7 +314,7 @@ function ImageDropdown({
         </FloatingToolbarButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {DOCUMENT_SLASH_ITEMS.map((item) => (
+        {DOCUMENT_IMAGE_ITEMS.map((item) => (
           <DropdownMenuItem key={item.key} onSelect={() => onPick(item.key)}>
             <item.Icon />
             <span className="whitespace-nowrap">{item.label}</span>
@@ -587,7 +517,7 @@ export function MarkdownLayer({
   const imagePlaceRef = useRef<string | null>(null)
   const [imagePickerOpen, setImagePickerOpen] = useState(false)
   const onSlashPickRef = useRef<
-    (key: DocumentSlashItem["key"], pos: number) => void
+    (key: DocumentImageItemKey, pos: number) => void
   >(() => {})
 
   // Mention suggestion needs the live layer lists every keystroke, but the
@@ -595,6 +525,8 @@ export function MarkdownLayer({
   // popover always reflects the current titles and excludes self-references.
   const markdownLayers = useMarkdownLayers()
   const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
+  const otherMentions = useChatAndMockupMentions()
+  const otherMentionsRef = useRef(otherMentions)
   const layerIdRef = useRef(layer.id)
 
   // Title cache lives on `MarkdownLayerData.title` — sidebar rows, mentions,
@@ -609,6 +541,7 @@ export function MarkdownLayer({
   // mention popover and title-writeback see current values every keystroke.
   useEffect(() => {
     markdownLayersRef.current = markdownLayers
+    otherMentionsRef.current = otherMentions
     layerIdRef.current = layer.id
     onTitleChangeRef.current = onTitleChange
     titleCacheRef.current = layer.title
@@ -712,10 +645,7 @@ export function MarkdownLayer({
         }).configure({
           // The node view (MarkdownLayerMentionNodeView) drives the in-editor
           // render; these attrs cover the serialized/static-render path.
-          HTMLAttributes: {
-            class: "inline-ref",
-            "data-inline-ref-mask": "document",
-          },
+          HTMLAttributes: { class: "inline-ref" },
           renderText({ node }) {
             const label =
               (node.attrs.label as string | undefined) ?? node.attrs.id
@@ -727,7 +657,11 @@ export function MarkdownLayer({
               (node.attrs.id as string)
             return [
               "span",
-              options.HTMLAttributes,
+              {
+                ...options.HTMLAttributes,
+                "data-inline-ref-mask":
+                  MENTION_ICON_MASK[mentionKindOf(node.attrs.kind)],
+              },
               ["span", { class: "inline-ref-label" }, label],
             ]
           },
@@ -739,7 +673,9 @@ export function MarkdownLayer({
           // eslint-disable-next-line react-hooks/refs
           suggestion: buildLayerMentionSuggestion({
             getMarkdownLayers: () => markdownLayersRef.current,
+            getOtherItems: () => otherMentionsRef.current,
             getExcludeId: () => layerIdRef.current,
+            below: true,
             getAnchorRect: () =>
               rootRef.current?.getBoundingClientRect() ?? null,
           }),
