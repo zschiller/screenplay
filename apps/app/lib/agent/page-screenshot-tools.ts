@@ -133,7 +133,7 @@ export function buildPageScreenshotTools(
           .string()
           .optional()
           .describe(
-            "Also save it as a PNG at this path in saved files, e.g. 'screenshots/pricing-phone.png'"
+            "Also save it as a PNG at this path in saved files, e.g. 'screenshots/pricing-phone.png'. The answer gives the markdown that shows it in a document"
           ),
         scope: z
           .enum(["canvas", "account"])
@@ -185,11 +185,18 @@ export function buildPageScreenshotTools(
             fallbackMediaType: "image/png",
             author: { addedBy: "agent", addedById: files.chatId },
           })
-          lines.push(
-            saved.ok
-              ? `${saved.value.replaced ? "Replaced" : "Saved"} ${saved.value.entry.path} in ${input.scope === "account" ? "account" : "canvas"} files (${formatFileSize(saved.value.entry.size)}).`
-              : `It wasn’t saved: ${saved.error}`
-          )
+          if (!saved.ok) {
+            lines.push(`It wasn’t saved: ${saved.error}`)
+          } else {
+            const { entry, replaced } = saved.value
+            const account = input.scope === "account"
+            lines.push(
+              `${replaced ? "Replaced" : "Saved"} ${entry.path} in ${account ? "account" : "canvas"} files (${formatFileSize(entry.size)}).`,
+              account
+                ? "Account files don’t show in documents; save to `canvas` for that."
+                : `To show it in a document, put this on its own line: ${documentImage(entry.path, `Screenshot of ${target.name}`)}`
+            )
+          }
         }
 
         const image = await ports.toModelImage(shot.png)
@@ -275,6 +282,16 @@ export function resolveTarget(
     url: workspace.previewDomain.replace(/\/+$/, "") + path,
     name: `${path} in Workspace "${workspaceLabel(workspace)}"`,
   }
+}
+
+/**
+ * The markdown that shows a canvas file in a document: a CommonMark image
+ * whose destination is the file's path, in angle brackets when it has spaces
+ * or parentheses. The same as the documents' own `documentImageMarkdown`.
+ */
+export function documentImage(path: string, alt: string): string {
+  const src = /[\s()<>]/.test(path) ? `<${path}>` : path
+  return `![${alt.replace(/[[\]]/g, "")}](${src})`
 }
 
 /** The save path, ending in `.png` since that's what it holds. */

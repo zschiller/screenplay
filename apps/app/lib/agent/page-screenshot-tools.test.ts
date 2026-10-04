@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import { isImageToolOutput } from "@/lib/agent/image-output"
 import {
   buildPageScreenshotTools,
+  documentImage,
   pngPath,
   type PageScreenshotPorts,
   type PageScreenshotScope,
@@ -156,6 +157,9 @@ describe("screenshot_page", () => {
     expect((out as { caption: string }).caption).toContain(
       "Saved shots/login.png in canvas files"
     )
+    expect((out as { caption: string }).caption).toContain(
+      'put this on its own line: ![Screenshot of / in Workspace "Fix sign-in"](shots/login.png)'
+    )
   })
 
   it("refuses account files on a turn nobody sent, before rendering", async () => {
@@ -187,6 +191,15 @@ describe("screenshot_page", () => {
     })
     const out = await run(ctx, own, { fullPage: true })
     expect((out as { caption: string }).caption).toContain("its bottom was cut")
+  })
+})
+
+describe("documentImage", () => {
+  it("wraps a path with spaces or parentheses and drops brackets from the alt", () => {
+    expect(documentImage("a/b.png", "B")).toBe("![B](a/b.png)")
+    expect(documentImage("a/b c (2).png", "[x] y")).toBe(
+      "![x y](<a/b c (2).png>)"
+    )
   })
 })
 
