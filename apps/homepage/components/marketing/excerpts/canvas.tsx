@@ -27,10 +27,9 @@ import { Northwind } from "./northwind"
  * sharp at any width and follow the page's theme. They show; they don't work.
  */
 
-/** The shared floating toolbar surface (FloatingToolbar in @workspace/ui),
- *  on the page's lifted fill (marketing.css) so it reads on black. */
+/** The shared floating toolbar surface (FloatingToolbar in @workspace/ui). */
 export const floating =
-  "flex items-center gap-1 rounded-lg bg-lift p-1 shadow-md outline outline-1 outline-foreground/15"
+  "flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10"
 
 /** A 28px icon button holding a 16px icon, as everywhere in the app. */
 export function Tool({
@@ -254,7 +253,7 @@ export function FrameBar({
       <Tool>
         <ArrowRightIcon />
       </Tool>
-      <span className="flex h-7 min-w-0 flex-1 items-center rounded-md bg-foreground/10 px-0.5 text-muted-foreground">
+      <span className="flex h-7 min-w-0 flex-1 items-center rounded-md bg-muted px-0.5 text-muted-foreground">
         <span className="ml-0.5 flex h-5 min-w-0 flex-1 items-center truncate px-1 font-mono text-xs">
           {route}
         </span>
@@ -369,7 +368,7 @@ export const versions = [
 export const ask = "Try three versions of the homepage hero."
 
 /** The user's message in a chat: a soft bubble on the right, filled as the
- *  app fills it (agent-message.tsx), so it reads on the black page. */
+ *  app fills it (agent-message.tsx). */
 export function UserBubble({
   className,
   children,
@@ -380,7 +379,7 @@ export function UserBubble({
   return (
     <p
       className={cn(
-        "ml-8 self-end rounded-xl bg-muted px-3 py-2 dark:bg-input/70",
+        "ml-8 self-end rounded-xl bg-muted px-3 py-1.5 dark:bg-input/70",
         className
       )}
     >

@@ -91,7 +91,7 @@ function MemoryChat() {
       <ChatHeader title={dark.title} diff={dark.diff} pr={false} />
       <div className="relative flex flex-1 flex-col gap-3 overflow-hidden px-3 py-3.5 text-[13px] leading-normal">
         <div className="flex flex-col items-end gap-1.5">
-          <span className="flex h-7 items-center gap-1.5 rounded-lg bg-input/50 px-2.5 text-xs">
+          <span className="flex h-7 items-center gap-1.5 rounded-lg bg-muted px-2.5 text-xs dark:bg-input/70">
             <FilePdfIcon className="size-3.5 text-muted-foreground" />
             brand-guide.pdf
           </span>
@@ -112,7 +112,7 @@ function MemoryChat() {
         <div
           className={cn(
             surface,
-            "absolute inset-x-3 bottom-1 flex flex-col p-1 text-[13px]"
+            "absolute inset-x-3 bottom-1 flex flex-col rounded-xl p-1 text-[13px]"
           )}
         >
           <span className="px-2 pt-1.5 pb-1 font-mono text-[11px] tracking-wider text-muted-foreground uppercase">
@@ -123,7 +123,7 @@ function MemoryChat() {
               key={name}
               className={cn(
                 "flex gap-2 rounded-md px-2 py-1.5",
-                i === 0 && "bg-foreground/10"
+                i === 0 && "bg-muted"
               )}
             >
               <BookOpenIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />

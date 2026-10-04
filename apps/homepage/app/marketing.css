@@ -15,24 +15,19 @@
   --color-selection: var(--selection);
   --color-plane: var(--plane);
   --color-comment: var(--comment);
-  --color-lift: var(--lift);
 }
 
 /* The canvas's selection magenta (apps/app `--canvas-selection`), used only
    where something on the page is "selected", and the canvas plane behind
    frames (`--canvas-plane`), for the product excerpts, and the comment pin's
-   yellow (`--canvas-comment`). `--lift` fills the excerpts' floating bars and
-   popovers: the app's black fill vanishes on a small, scaled excerpt on the
-   black page, so they sit a step lighter here. */
+   yellow (`--canvas-comment`). */
 :root {
   --selection: oklch(0.667 0.295 322.15);
   --comment: oklch(0.88 0.179 95);
   --plane: oklch(0.975 0 0);
-  --lift: oklch(1 0 0);
 }
 .dark {
   --plane: oklch(0.07 0 0);
-  --lift: oklch(0.19 0 0);
 }
 
 html {

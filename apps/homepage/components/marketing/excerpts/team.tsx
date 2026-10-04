@@ -112,7 +112,7 @@ function Comment({
 }) {
   return (
     <div className="flex items-start gap-2">
-      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-foreground/10 text-xs font-medium text-muted-foreground">
+      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
         {name[0]}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -131,12 +131,12 @@ export function ThreadCard({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "bg-lift absolute flex w-[250px] flex-col gap-2.5 rounded-lg p-3 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/15",
+        "absolute flex w-[250px] flex-col gap-2.5 rounded-lg bg-popover p-3 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10",
         className
       )}
     >
       <div className="flex min-w-0 items-center gap-1.5">
-        <span className="inline-flex h-5 min-w-0 items-center rounded-md bg-foreground/10 px-1.5 text-xs text-muted-foreground">
+        <span className="inline-flex h-5 min-w-0 items-center rounded-md bg-muted px-1.5 text-xs text-muted-foreground">
           <span className="truncate">/ · a.btn</span>
         </span>
         <span className="ml-auto flex shrink-0 items-center text-muted-foreground">
