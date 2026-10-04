@@ -31,6 +31,16 @@
 .hc-content {
   margin-top: calc(var(--hc-floor) - 110px);
 }
+/* On phones the headline runs to four lines, so the floor takes more of the
+   screen and the headline sinks less of it. */
+@media (max-width: 639px) {
+  .hc-stage {
+    --hc-floor: clamp(440px, calc(100svh - 240px), 640px);
+  }
+  .hc-content {
+    margin-top: calc(var(--hc-floor) - 50px);
+  }
+}
 /* Wider than the window, so the floor still reaches the edges once it's
    tilted back. */
 .hc-rows {

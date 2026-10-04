@@ -120,6 +120,16 @@ const TIP = 0.014
 // The nav's height in CSS px: --hc-nav in the stylesheet.
 const NAV = 61
 
+// How far below `below` (a viewport y), in CSS px, the middle of the first
+// row of copies wholly beneath it sits.
+function firstRowMid(rows: HTMLElement, below: number) {
+  for (const track of rows.children) {
+    const r = track.getBoundingClientRect()
+    if (r.top >= below) return (r.top + r.bottom) / 2 - below
+  }
+  return 28
+}
+
 const PAGE = `
   <div class="hc-page">
     <div class="hc-nav"><span class="hc-logo"><i></i>Screenplay</span><span class="hc-links"><span>How it works</span><span>Features</span><span>Docs</span></span><span class="hc-dl">Download</span></div>
@@ -201,8 +211,9 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         // The far side of the floor dissolves into the dark behind the nav
         // through the same grain, solid only at the very top of the page.
         [floor.top - s, floor.top - s + floor.height * FAR],
-        // Denser right behind the nav, so its links read over the copies.
-        [floor.top - s + NAV, 0.84],
+        // Solid behind the nav, which is opaque, then thinning out to
+        // halfway down the first row of copies below it.
+        [floor.top - s + NAV, 1, firstRowMid(rowsEl, floor.top + NAV)],
       ]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()

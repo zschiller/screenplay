@@ -11,13 +11,17 @@ export function Hero() {
     <section>
       <HeroStage>
         <div className={cn(measure, "pb-[clamp(40px,6vw,80px)]")}>
+          {/* Phones break it by phrase into four lines, sized so "From idea"
+              fits the column inside its 20px gutters, rather than
+              shrinking two lines. */}
           <h1
             data-veil
-            className="font-headline text-[clamp(56px,10.5vw,148px)] leading-[0.86] font-normal tracking-[-0.025em] text-balance"
+            className="font-headline text-[length:min(calc((100vw-40px)/3.2),88px)] leading-[0.86] font-normal tracking-[-0.025em] sm:text-[clamp(56px,10.5vw,148px)]"
           >
-            From idea to code,
-            <br />
-            on one canvas.
+            From idea
+            <br className="sm:hidden" /> to code,
+            <br /> on one
+            <br className="sm:hidden" /> canvas.
           </h1>
           <div className="mt-14 grid items-end gap-6 md:mb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-12">
             <p className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]">
