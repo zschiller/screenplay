@@ -217,8 +217,8 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       const head = host.querySelector<HTMLElement>("[data-veil]")!
       const size = parseFloat(getComputedStyle(head).fontSize)
       const solid = head.getBoundingClientRect().top - s + size * 0.6
-      // The nav is a filled bar, so the floor runs straight up under it
-      // with no grain.
+      // No grain above the headline: the floor runs straight up under the nav,
+      // filled on desktop and clear at the top of the page on phones.
       return [solid - NEAR, solid]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()
