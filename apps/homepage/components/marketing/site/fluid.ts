@@ -13,12 +13,11 @@
  */
 export function createFluid(w: number, h: number) {
   const n = w * h
-  let vx = new Float32Array(n)
-  let vy = new Float32Array(n)
-  let dye = new Float32Array(n)
-  let mx = new Float32Array(n)
-  let my = new Float32Array(n)
-  let tmp = new Float32Array(n)
+  const vx = new Float32Array(n)
+  const vy = new Float32Array(n)
+  const dye = new Float32Array(n)
+  const mx = new Float32Array(n)
+  const my = new Float32Array(n)
   const prevDye = new Float32Array(n)
   const prevMx = new Float32Array(n)
   const prevMy = new Float32Array(n)
@@ -31,7 +30,7 @@ export function createFluid(w: number, h: number) {
   let lit: [number, number, number, number] | null = null
   // The cells the solver works on this step, [x0, y0, x1, y1], kept 1 cell
   // in from the edge. Outside it everything is at rest.
-  const M = 6
+  const M = 12
   const box = [0, 0, 0, 0]
   // The stirred cells, grown by each splat and recomputed each step.
   let hot: [number, number, number, number] | null = null
@@ -69,31 +68,40 @@ export function createFluid(w: number, h: number) {
   }
   rest()
 
-  const at = (a: Float32Array<ArrayBuffer>, x: number, y: number) => {
-    x = Math.min(Math.max(x, 0), w - 1.001)
-    y = Math.min(Math.max(y, 0), h - 1.001)
-    const x0 = Math.floor(x)
-    const y0 = Math.floor(y)
-    const fx = x - x0
-    const fy = y - y0
-    const i = y0 * w + x0
-    const top = a[i]! + (a[i + 1]! - a[i]!) * fx
-    const bot = a[i + w]! + (a[i + w + 1]! - a[i + w]!) * fx
-    return top + (bot - top) * fy
-  }
-
-  // Carries a field along the velocity by looking back to where each cell's
-  // contents came from.
-  function advect(a: Float32Array<ArrayBuffer>) {
-    tmp.set(a)
-    for (let r = box[1]!; r <= box[3]!; r++) {
-      for (let c = box[0]!, i = r * w + c; c <= box[2]!; c++, i++) {
-        tmp[i] = at(a, c - vx[i]!, r - vy[i]!)
+  // Carries every field along the velocity by looking back to where each
+  // cell's contents came from. One pass for all five: where to look and how
+  // to blend there is the same for each.
+  const fields = 5
+  const carried = new Float32Array(n * fields)
+  function advect() {
+    const all = [vx, vy, dye, mx, my]
+    const [x0, y0, x1, y1] = box as [number, number, number, number]
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
+        let x = c - vx[i]!
+        let y = r - vy[i]!
+        x = x < 0 ? 0 : x > w - 1.001 ? w - 1.001 : x
+        y = y < 0 ? 0 : y > h - 1.001 ? h - 1.001 : y
+        const xi = x | 0
+        const yi = y | 0
+        const fx = x - xi
+        const fy = y - yi
+        const j = yi * w + xi
+        for (let f = 0; f < fields; f++) {
+          const a = all[f]!
+          const top = a[j]! + (a[j + 1]! - a[j]!) * fx
+          const bot = a[j + w]! + (a[j + w + 1]! - a[j + w]!) * fx
+          carried[f * n + i] = top + (bot - top) * fy
+        }
       }
     }
-    const out = tmp
-    tmp = a
-    return out
+    for (let f = 0; f < fields; f++) {
+      const a = all[f]!
+      for (let r = y0; r <= y1; r++) {
+        const from = f * n + r * w
+        a.set(carried.subarray(from + x0, from + x1 + 1), r * w + x0)
+      }
+    }
   }
 
   // Pushes the swirls back up that the coarse grid would otherwise smooth
@@ -117,6 +125,30 @@ export function createFluid(w: number, h: number) {
         vx[i]! += strength * (gy / len) * curl[i]!
         vy[i]! -= strength * (gx / len) * curl[i]!
       }
+    }
+  }
+
+  // Viscosity: each cell's velocity is pulled toward its neighbours', so
+  // the fluid moves as a thick body instead of breaking into ripples.
+  const thick = new Float32Array(n * 2)
+  function diffuse(amount: number) {
+    const [x0, y0, x1, y1] = box as [number, number, number, number]
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
+        thick[i] =
+          vx[i]! +
+          amount *
+            ((vx[i - 1]! + vx[i + 1]! + vx[i - w]! + vx[i + w]!) / 4 - vx[i]!)
+        thick[n + i] =
+          vy[i]! +
+          amount *
+            ((vy[i - 1]! + vy[i + 1]! + vy[i - w]! + vy[i + w]!) / 4 - vy[i]!)
+      }
+    }
+    for (let r = y0; r <= y1; r++) {
+      const at = r * w
+      vx.set(thick.subarray(at + x0, at + x1 + 1), at + x0)
+      vy.set(thick.subarray(n + at + x0, n + at + x1 + 1), at + x0)
     }
   }
 
@@ -209,9 +241,14 @@ export function createFluid(w: number, h: number) {
             lit[3] = Math.max(lit[3], r)
           }
           const i = r * w + c
-          const push = Math.exp(-(d * d) / (radius * radius * 0.25))
-          vx[i]! += dx * push
-          vy[i]! += dy * push
+          // The solver leaves the cells along the edge alone, so a push
+          // there would never die down and would keep stirring its
+          // neighbours for good. They take dye only.
+          if (c > 0 && r > 0 && c < w - 1 && r < h - 1) {
+            const push = Math.exp(-(d * d) / (radius * radius * 0.25))
+            vx[i]! += dx * push
+            vy[i]! += dy * push
+          }
           const e = Math.min((radius - d) / (radius * 0.65), 1)
           dye[i] = Math.max(
             dye[i]!,
@@ -228,23 +265,20 @@ export function createFluid(w: number, h: number) {
       box[1] = Math.max(1, hot[1] - M)
       box[2] = Math.min(w - 2, hot[2] + M)
       box[3] = Math.min(h - 2, hot[3] + M)
-      confine(0.5)
+      confine(0.1)
+      diffuse(0.8)
       project()
-      vx = advect(vx)
-      vy = advect(vy)
-      dye = advect(dye)
-      mx = advect(mx)
-      my = advect(my)
+      advect()
       let b: typeof lit = null
       hot = null
       for (let r = box[1]!; r <= box[3]!; r++) {
         for (let c = box[0]!, i = r * w + c; c <= box[2]!; c++, i++) {
-          vx[i]! *= 0.965
-          vy[i]! *= 0.965
+          vx[i]! *= 0.975
+          vy[i]! *= 0.975
           // The marbling slowly relaxes back to its unstirred pattern.
           mx[i]! += (c - mx[i]!) * 0.012
           my[i]! += (r - my[i]!) * 0.012
-          dye[i]! *= 0.955
+          dye[i]! *= 0.962
           if (
             Math.abs(vx[i]!) + Math.abs(vy[i]!) > 0.005 ||
             Math.abs(mx[i]! - c) + Math.abs(my[i]! - r) > 0.05
@@ -262,6 +296,32 @@ export function createFluid(w: number, h: number) {
             b[3] = r
           }
         }
+      }
+      // The cells along the edge only ever hold dye, which fades in place.
+      const fade = (c: number, r: number) => {
+        const i = r * w + c
+        if (!dye[i]) return
+        dye[i]! *= 0.962
+        if (dye[i]! < 0.02) {
+          dye[i] = 0
+          return
+        }
+        grow(c, r)
+        if (!b) b = [c, r, c, r]
+        else {
+          if (c < b[0]) b[0] = c
+          if (r < b[1]) b[1] = r
+          if (c > b[2]) b[2] = c
+          if (r > b[3]) b[3] = r
+        }
+      }
+      for (let c = 0; c < w; c++) {
+        fade(c, 0)
+        fade(c, h - 1)
+      }
+      for (let r = 1; r < h - 1; r++) {
+        fade(0, r)
+        fade(w - 1, r)
       }
       lit = b
       if (!hot) rest()
