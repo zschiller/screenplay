@@ -10,6 +10,7 @@ import { MockupLayer } from "./mockup-layer"
 // server; both are the test's to say.
 let html = "<p>Checkout</p>"
 vi.mock("@/lib/yjs/react", () => ({ useMockupHtml: () => html }))
+vi.mock("@/hooks/use-mockup-refs", () => ({ useMockupRefs: () => ({}) }))
 vi.mock("@/hooks/use-mockup-runtime", () => ({
   useMockupRuntime: () => "/* runtime */",
 }))

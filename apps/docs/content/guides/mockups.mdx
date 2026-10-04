@@ -131,6 +131,22 @@ A mockup’s scroll position syncs the same way, as a frame’s does: when
 someone scrolls the page, everyone’s copy follows, and the mockup opens, and
 reloads, where it was scrolled to.
 
+## Pictures and templates
+
+A mockup’s page doesn’t have to hold everything itself. It can show a
+picture from the canvas’s [files](/guides/files), like a screenshot the agent
+took of your app, and load a script or stylesheet from a
+[skill](/guides/building/skills), like a page template’s shared code. The page
+names the file and Screenplay puts it in when the mockup shows, for everyone
+on the canvas, so the page stays small. A file from a skill comes from the
+skill of that name your chats would use, in the usual
+[order](/guides/building/skills#where-skills-come-from): the repository of the
+chat that drew the mockup, then the canvas’s, your account’s and the built-in
+one.
+
+A file the page names that isn’t there, say a screenshot that was deleted,
+shows as an empty picture, and the rest of the page works as before.
+
 ## Going live
 
 On a hosted canvas, a mockup starts as your own copy, running in your
@@ -210,5 +226,7 @@ work too.
 
 A mockup’s page runs in a locked-down frame: it can run its own scripts, but
 it can’t reach Screenplay, your session or the rest of the canvas, and it
-doesn’t load anything from the network. Mockups are self-contained pages. A
-live mockup runs locked down the same way, in its workspace’s sandbox.
+doesn’t load anything from the network. Mockups are self-contained pages:
+the [pictures and templates](#pictures-and-templates) a page names come from
+the canvas, not the network. A live mockup runs locked down the same way, in
+its workspace’s sandbox.

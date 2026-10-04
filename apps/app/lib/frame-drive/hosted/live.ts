@@ -11,6 +11,8 @@ import { roomFrameControlStore } from "@/lib/frame-drive/server"
 import type { FrameDriver } from "@/lib/frame-drive/tools"
 import { viewAgentDriver, viewCanvasOf } from "@/lib/frame-drive/view/live"
 import { frameStreamKey } from "@/lib/frame-stream/token"
+import { mockupRefs, type MockupResources } from "@/lib/mockup-refs"
+import { mockupRefSources, resolveMockupRefs } from "@/lib/mockup-refs-server"
 import type { RoomDoc } from "@/lib/room-access"
 import { ensureFrameStream } from "@/lib/sandbox/frame-stream"
 import { MOCKUP_RUNTIME_JS } from "@/lib/sandbox-bridge"
@@ -127,13 +129,45 @@ async function liveMockup(
   }
   const stream = await workspaceStream(branch.sandboxName, branch.port)
   if (typeof stream === "string") return stream
+  // Its `skill:` and `files:` references (#1643) resolve as a viewer's
+  // canvas resolves them, but with no one's Account Skills.
+  const resources = await liveMockupRefs(room, mockupId, mockupRefs(html))
   return {
     route: "/",
     width: Math.round(layer.width),
     height: Math.round(layer.height),
-    doc: mockupSrcDoc(html, MOCKUP_RUNTIME_JS),
+    doc: mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources),
     stream,
   }
+}
+
+// A live Mockup's resolved references, briefly: the agent's every step
+// sends the page, and a Repo Skill read runs a command in the Sandbox.
+const REFS_KEEP_MS = 30_000
+const REFS_KEY = Symbol.for("screenplay.hostedLiveMockupRefs")
+type RefsHost = typeof globalThis & {
+  [REFS_KEY]?: Map<string, { at: number; resources: MockupResources }>
+}
+
+async function liveMockupRefs(
+  room: RoomDoc,
+  mockupId: string,
+  refs: string[]
+): Promise<MockupResources> {
+  if (refs.length === 0) return {}
+  const kept = ((globalThis as RefsHost)[REFS_KEY] ??= new Map())
+  const key = [room.roomId, mockupId, ...refs].join("\n")
+  const hit = kept.get(key)
+  if (hit && Date.now() - hit.at < REFS_KEEP_MS) return hit.resources
+  for (const [k, v] of kept) {
+    if (Date.now() - v.at >= REFS_KEEP_MS) kept.delete(k)
+  }
+  const resources = await resolveMockupRefs(
+    refs,
+    await mockupRefSources(room, { mockupId })
+  )
+  kept.set(key, { at: Date.now(), resources })
+  return resources
 }
 
 // Each Workspace's stream, once its service is known to run: checking means

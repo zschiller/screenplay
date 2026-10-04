@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   FloatingToolbar,
@@ -13,6 +13,7 @@ import {
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
+import { useMockupRefs } from "@/hooks/use-mockup-refs"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
@@ -265,16 +266,30 @@ export function MockupLayer({
 }: MockupLayerProps) {
   const html = useMockupHtml(layer.id)
   const runtime = useMockupRuntime()
+  const resources = useMockupRefs(layer.id, html)
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
 
   const hasPage = !!html.trim()
-  // The runtime arrives once per session; until then the page waits rather
-  // than load twice.
-  const srcDoc =
-    hasPage && runtime !== null ? mockupSrcDoc(html, runtime) : undefined
+  // The runtime arrives once per session, and the page's `skill:` and
+  // `files:` references (#1643) once they resolve; until then the page waits
+  // rather than load twice.
+  const ready = runtime !== null && resources !== null
+  const builtDoc = useMemo(
+    () =>
+      hasPage && runtime !== null && resources !== null
+        ? mockupSrcDoc(html, runtime, resources)
+        : undefined,
+    [hasPage, html, runtime, resources]
+  )
+  // A change that names new references keeps the page shown until they
+  // resolve.
+  const [shownDoc, setShownDoc] = useState(builtDoc)
+  const settled = builtDoc !== undefined || !hasPage
+  if (settled && shownDoc !== builtDoc) setShownDoc(builtDoc)
+  const srcDoc = settled ? builtDoc : shownDoc
   const shared = !!sharedStream
   const page = useLivePage({
     id: layer.id,
@@ -473,7 +488,7 @@ export function MockupLayer({
               </FloatingToolbar>,
               toolbarTarget
             )}
-          {hasPage && runtime === null ? (
+          {hasPage && srcDoc === undefined && !ready ? (
             <div className="pointer-events-none absolute inset-0 bg-white" />
           ) : (
             <LivePageContent page={page} iframeRef={iframeRef} />

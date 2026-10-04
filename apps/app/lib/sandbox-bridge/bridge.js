@@ -1715,6 +1715,7 @@
     const shown = selector ? root : document.body || root
     const markup = shown.cloneNode(true)
     if (live) mirrorFormState(shown, markup)
+    inlineBlobImages(shown, markup)
     markup
       .querySelectorAll(
         "script, style, link[rel~='stylesheet'], [id^='__screenplay']"
@@ -1734,6 +1735,27 @@
             viewport: { width: window.innerWidth, height: window.innerHeight },
           }
         : {}),
+    }
+  }
+
+  // A Mockup's references (#1643) are blob: URLs only this page can load:
+  // the snapshot carries their pictures as data: URLs instead.
+  function inlineBlobImages(from, to) {
+    const live = from.querySelectorAll("img")
+    const copies = to.querySelectorAll("img")
+    for (let i = 0; i < live.length && i < copies.length; i++) {
+      const img = live[i]
+      if (!img.currentSrc.startsWith("blob:") || !img.naturalWidth) continue
+      try {
+        const canvas = document.createElement("canvas")
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        canvas.getContext("2d").drawImage(img, 0, 0)
+        copies[i].setAttribute("src", canvas.toDataURL())
+        copies[i].removeAttribute("srcset")
+      } catch {
+        // A picture that can't be drawn stays as it is.
+      }
     }
   }
 
