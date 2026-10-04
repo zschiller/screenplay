@@ -53,7 +53,7 @@ function open() {
 }
 
 describe("HarnessModelsDialog (#1589)", () => {
-  it("lists the CLI's models by provider and puts a checked one in the menu", async () => {
+  it("lists the CLI’s models by provider and puts a checked one in the menu", async () => {
     vi.mocked(listHarnessModelChoices).mockResolvedValue(MODELS)
     open()
     expect(screen.getByText("OpenCode models")).toBeTruthy()
@@ -75,12 +75,12 @@ describe("HarnessModelsDialog (#1589)", () => {
     expect(listHarnessModelChoices).toHaveBeenCalledWith("opencode-gateway")
   })
 
-  it("says so when the models can't be listed, and tries again", async () => {
+  it("says so when the models can’t be listed, and tries again", async () => {
     vi.mocked(listHarnessModelChoices)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(MODELS)
     open()
-    await screen.findByText("Couldn't list OpenCode's models.")
+    await screen.findByText("Couldn’t list OpenCode’s models.")
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     await waitFor(() => screen.getByText("Big Pickle"))
   })

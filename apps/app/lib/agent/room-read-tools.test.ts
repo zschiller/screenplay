@@ -271,7 +271,7 @@ describe("read_workspace_chat", () => {
     expect(ports.readChatTranscript).not.toHaveBeenCalled()
   })
 
-  it("says how the last turn ended when it didn't end in a reply", async () => {
+  it("says how the last turn ended when it didn’t end in a reply", async () => {
     const { collections, ports } = setup({
       readChatTranscript: vi.fn(async (): Promise<AgentMessage[]> => [
         { role: "user", content: "Plan the dark mode toggle" },
@@ -304,7 +304,7 @@ describe("read_workspace_chat", () => {
 })
 
 describe("read_workspace_diff", () => {
-  it("reads the checkout's diff against the repository's default branch", async () => {
+  it("reads the checkout’s diff against the repository’s default branch", async () => {
     const diff = "diff --git a/app/login.tsx b/app/login.tsx\n+keep next\n"
     const { ports } = setup({ readWorkspaceDiff: vi.fn(async () => diff) })
 
@@ -345,16 +345,16 @@ describe("read_workspace_diff", () => {
     expect(out).toContain("(truncated")
   })
 
-  it("reports a checkout it can't read", async () => {
+  it("reports a checkout it can’t read", async () => {
     const { ports } = setup({
       readWorkspaceDiff: vi.fn(async () => {
-        throw new Error("its sandbox isn't running")
+        throw new Error("its sandbox isn’t running")
       }),
     })
     expect(
       await run(ports, "read_workspace_diff", { workspaceId: "ws-1" })
     ).toBe(
-      `Couldn't read Workspace "Fix sign-in"'s diff: its sandbox isn't running`
+      `Couldn’t read Workspace "Fix sign-in"'s diff: its sandbox isn’t running`
     )
   })
 })
@@ -380,7 +380,7 @@ describe("read_workspace_file", () => {
     expect(out).not.toContain("one")
   })
 
-  it("says when the file doesn't exist", async () => {
+  it("says when the file doesn’t exist", async () => {
     const { ports } = setup()
     expect(
       await run(ports, "read_workspace_file", {
@@ -475,7 +475,7 @@ describe("view_frame", () => {
     expect(out.caption).toMatch(/its Workspace has no running preview\.$/)
   })
 
-  it("says so when there's no screenshot at all", async () => {
+  it("says so when there’s no screenshot at all", async () => {
     const { ports } = withFrame()
     expect(await run(ports, "view_frame", { frameId: "frame-1" })).toBe(
       'No screenshot of frame [frame-1] (/login in Workspace "Fix sign-in"): the live capture failed (no browser), and it has never been captured.'

@@ -39,7 +39,7 @@ const id = "screenplay-read-" + Math.random().toString(36).slice(2);
 const value = await new Promise((resolve, reject) => {
   const timer = setTimeout(() => {
     window.removeEventListener("message", onMessage);
-    reject(new Error("the page's Sandbox Bridge didn't answer"));
+    reject(new Error("the page’s Sandbox Bridge didn’t answer"));
   }, ${BRIDGE_TIMEOUT_MS});
   function onMessage(e) {
     const d = e.data;

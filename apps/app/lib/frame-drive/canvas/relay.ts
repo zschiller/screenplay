@@ -132,7 +132,7 @@ export async function answerRelayMessage(
     if (!frame) {
       return {
         status: "unavailable",
-        reason: "This frame isn't loaded on the open canvas.",
+        reason: "This frame isn’t loaded on the open canvas.",
       }
     }
     if (isGesture(message.op) && !deps.agentDrives(message.frameId)) {

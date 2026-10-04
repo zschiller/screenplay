@@ -89,10 +89,10 @@ export function TerminalTab({
             ok: false,
             message:
               res.status === 403
-                ? "You don't have access to this terminal."
+                ? "You don’t have access to this terminal."
                 : res.status === 401
                   ? "Sign in to open a terminal."
-                  : "Couldn't reach the terminal.",
+                  : "Couldn’t reach the terminal.",
           }
         }
         const body = (await res.json()) as {
@@ -118,7 +118,7 @@ export function TerminalTab({
           args: [tmuxSessionName(sessionId), ...(body.launchArgv ?? [])],
         }
       } catch {
-        return { ok: false, message: "Couldn't reach the terminal." }
+        return { ok: false, message: "Couldn’t reach the terminal." }
       }
     },
   })

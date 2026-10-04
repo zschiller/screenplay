@@ -143,7 +143,7 @@ function setup(
 const box = { x: 10, y: 20, width: 390, height: 600 }
 
 describe("opening an ask", () => {
-  it("opens a drawn frame's ask with the selection's Workspace answering", () => {
+  it("opens a drawn frame’s ask with the selection’s Workspace answering", () => {
     const t = setup({ selected: { frames: ["f-old"] } })
     t.collections.iframeLayers.set("f-old", {
       id: "f-old",
@@ -165,7 +165,7 @@ describe("opening an ask", () => {
     })
   })
 
-  it("doesn't open a frame's ask with no Repo for a new chat", () => {
+  it("doesn’t open a frame’s ask with no Repo for a new chat", () => {
     const t = setup({ repos: [], agents: [] })
     const frameId = t.drawFrame()
     t.hook.rerender()
@@ -176,7 +176,7 @@ describe("opening an ask", () => {
     expect(t.hook.result.current.startFrameChat).toBeUndefined()
   })
 
-  it("answers a Mockup box with a new chat with no repository when there's no Repo", () => {
+  it("answers a Mockup box with a new chat with no repository when there’s no Repo", () => {
     const t = setup({ repos: [], agents: [] })
 
     act(() => t.hook.result.current.startFromMockupBox(box))
@@ -185,7 +185,7 @@ describe("opening an ask", () => {
     expect(t.hook.result.current.answerer).toEqual({ kind: "sketch" })
   })
 
-  it("reopens an unanswered frame's ask from Start a chat, with a new chat answering", () => {
+  it("reopens an unanswered frame’s ask from Start a chat, with a new chat answering", () => {
     const t = setup()
     const frameId = t.drawFrame()
     t.hook.rerender()
@@ -197,7 +197,7 @@ describe("opening an ask", () => {
     expect(t.hook.result.current.answerer).toEqual({ kind: "new-chat" })
   })
 
-  it("closes a frame's ask once the frame shows a Workspace", () => {
+  it("closes a frame’s ask once the frame shows a Workspace", () => {
     const t = setup()
     const frameId = t.drawFrame()
     t.hook.rerender()
@@ -220,7 +220,7 @@ describe("opening an ask", () => {
   })
 })
 
-describe("sending a frame's ask", () => {
+describe("sending a frame’s ask", () => {
   function opened(opts: Parameters<typeof setup>[0] = {}) {
     const t = setup(opts)
     const frameId = t.drawFrame()
@@ -273,7 +273,7 @@ describe("sending a frame's ask", () => {
     expect(t.sendPrompt).not.toHaveBeenCalled()
   })
 
-  it("says the Workspace isn't running yet, and still shows it in the frame", () => {
+  it("says the Workspace isn’t running yet, and still shows it in the frame", () => {
     const t = opened({ workspaceChat: undefined })
 
     act(() =>
@@ -284,13 +284,13 @@ describe("sending a frame's ask", () => {
     )
 
     expect(toast.error).toHaveBeenCalledWith(
-      "Checkout isn't running yet. Ask again once it is."
+      "Checkout isn’t running yet. Ask again once it is."
     )
     expect(t.collections.iframeLayers.get(t.frameId)?.branchId).toBe("b1")
   })
 })
 
-describe("sending a Mockup box's ask", () => {
+describe("sending a Mockup box’s ask", () => {
   function opened(opts: Parameters<typeof setup>[0] = {}) {
     const t = setup(opts)
     act(() => t.hook.result.current.startFromMockupBox(box))
@@ -312,7 +312,7 @@ describe("sending a Mockup box's ask", () => {
     return mockup!
   }
 
-  it("makes the Workspace chat's empty Mockup and asks it to fill it", () => {
+  it("makes the Workspace chat’s empty Mockup and asks it to fill it", () => {
     const t = opened({ workspaceChat: "c1" })
 
     act(() =>
@@ -329,7 +329,7 @@ describe("sending a Mockup box's ask", () => {
     )
   })
 
-  it("makes nothing when the Workspace isn't running yet", () => {
+  it("makes nothing when the Workspace isn’t running yet", () => {
     const t = opened({ workspaceChat: undefined })
 
     act(() =>
@@ -340,7 +340,7 @@ describe("sending a Mockup box's ask", () => {
     )
 
     expect(toast.error).toHaveBeenCalledWith(
-      "Checkout isn't running yet. Ask again once it is."
+      "Checkout isn’t running yet. Ask again once it is."
     )
     expect(t.collections.mockupLayers.toArray()).toHaveLength(0)
   })
@@ -410,7 +410,7 @@ const branch = (id: string, repoId: string, createdAt: number) =>
   ({ id, repoId, createdAt }) as BranchData
 
 describe("defaultNewWorkspaceRepoId", () => {
-  it("picks the newest Workspace's Repo", () => {
+  it("picks the newest Workspace’s Repo", () => {
     const repos = [repo("a", "acme/a"), repo("b", "acme/b")]
     const branches = [branch("1", "a", 1), branch("2", "b", 5)]
     expect(defaultNewWorkspaceRepoId(repos, branches)).toBe("b")
@@ -462,18 +462,18 @@ describe("defaultFrameAnswerer", () => {
   const answer = (frameIds: string[], ownedLayerIds: string[] = []) =>
     defaultFrameAnswerer({ ...world, frameIds, ownedLayerIds })
 
-  it("answers with a selected frame's Workspace", () => {
+  it("answers with a selected frame’s Workspace", () => {
     expect(answer(["f2"])).toEqual({ kind: "workspace", branchId: "b2" })
   })
 
-  it("answers with a selected Mockup's owner chat's Workspace", () => {
+  it("answers with a selected Mockup’s owner chat’s Workspace", () => {
     expect(answer([], ["mockup"])).toEqual({
       kind: "workspace",
       branchId: "b1",
     })
   })
 
-  it("answers with a selected Document's owner chat's Workspace", () => {
+  it("answers with a selected Document’s owner chat’s Workspace", () => {
     expect(answer([], ["doc"])).toEqual({ kind: "workspace", branchId: "b2" })
   })
 
@@ -497,7 +497,7 @@ describe("defaultFrameAnswerer", () => {
     expect(answer([], ["handmade"])).toEqual({ kind: "new-chat" })
   })
 
-  it("starts a new chat when the Workspace can't be picked", () => {
+  it("starts a new chat when the Workspace can’t be picked", () => {
     expect(
       defaultFrameAnswerer({
         ...world,

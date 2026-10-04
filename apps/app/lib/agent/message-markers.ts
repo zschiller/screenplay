@@ -432,7 +432,7 @@ export function buildAttachmentsFooter(
     "",
     "---",
     "",
-    `${ATTACHMENTS_FOOTER_TOKEN} the sender attached these to this message. They're saved in the canvas's files; open one with \`read_saved_file\`.`,
+    `${ATTACHMENTS_FOOTER_TOKEN} the sender attached these to this message. They’re saved in the canvas’s files; open one with \`read_saved_file\`.`,
     ...attachments.map(attachmentLine),
   ].join("\n")
 }

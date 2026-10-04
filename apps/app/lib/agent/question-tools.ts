@@ -19,8 +19,8 @@ export function buildQuestionTools() {
   const tools = {
     [ASK_QUESTION_TOOL]: tool({
       description: [
-        `Ask the user a question they answer with one click. Use it for a real fork only the user can decide, with ${MIN_QUESTION_OPTIONS} to ${MAX_QUESTION_OPTIONS} short options; mark the one you'd pick as recommended.`,
-        "The chat shows it as a card, and the option they click arrives as their next message, word for word. After calling this, end your turn: don't answer it yourself or keep working on the fork.",
+        `Ask the user a question they answer with one click. Use it for a real fork only the user can decide, with ${MIN_QUESTION_OPTIONS} to ${MAX_QUESTION_OPTIONS} short options; mark the one you’d pick as recommended.`,
+        "The chat shows it as a card, and the option they click arrives as their next message, word for word. After calling this, end your turn: don’t answer it yourself or keep working on the fork.",
       ].join(" "),
       inputSchema: jsonSchema<{
         question: string
@@ -64,7 +64,7 @@ export function buildQuestionTools() {
         if (!parseQuestion(input)) {
           return `Not asked: a question needs a question and ${MIN_QUESTION_OPTIONS} to ${MAX_QUESTION_OPTIONS} options, each with a label.`
         }
-        return "Asked. End your turn now; the user's choice arrives as their next message."
+        return "Asked. End your turn now; the user’s choice arrives as their next message."
       },
     }),
   }

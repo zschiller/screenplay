@@ -190,7 +190,7 @@ function FolderCard({
         open={renameOpen}
         onOpenChange={setRenameOpen}
         title="Rename folder"
-        errorMessage="Couldn't rename the folder. Try again."
+        errorMessage="Couldn’t rename the folder. Try again."
         initialValue={folder.name}
         submitLabel="Save"
         submittingLabel="Saving…"

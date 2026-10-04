@@ -214,8 +214,8 @@ export function FileDndProvider({ children }: { children: React.ReactNode }) {
           : moveFolder(plan.id, plan.targetId)
       move.catch((err: unknown) => {
         console.error("Failed to move", err)
-        toast.error(`Couldn't move “${item.name}”`, {
-          description: "It's back where it was.",
+        toast.error(`Couldn’t move “${item.name}”`, {
+          description: "It’s back where it was.",
         })
       })
     },

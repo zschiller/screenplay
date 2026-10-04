@@ -1236,7 +1236,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           <InputGroupAddon align="block-end" className="gap-0.5">
             {modelsStatus === "failed" ? (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                Couldn&apos;t load models.
+                Couldn’t load models.
                 <InputGroupButton
                   size="xs"
                   className="text-xs text-foreground"

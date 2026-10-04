@@ -131,7 +131,7 @@ describe("Frame Drive tools", () => {
     for (const t of Object.values(all)) expect(toolAnnotations(t)).toBeDefined()
   })
 
-  it("drives the Workspace's own frame by default", async () => {
+  it("drives the Workspace’s own frame by default", async () => {
     const { tools: t, ops } = tools(() => ({
       status: "done",
       value: {
@@ -178,24 +178,24 @@ describe("Frame Drive tools", () => {
     expect(out).toMatch(/file picker took fixtures\/logo\.png/)
   })
 
-  it("tells the agent to say so in chat when the canvas isn't open", async () => {
+  it("tells the agent to say so in chat when the canvas isn’t open", async () => {
     const { tools: t, ops } = tools(
       () => ({ status: "failed", reason: "" }),
-      "Screenplay isn't showing this canvas."
+      "Screenplay isn’t showing this canvas."
     )
     const out = await call(t.frame_click, { target: { text: "Save" } })
-    expect(out).toMatch(/isn't showing this canvas.*Tell the person in chat/)
+    expect(out).toMatch(/isn’t showing this canvas.*Tell the person in chat/)
     expect(ops).toEqual([])
   })
 
-  it("says the canvas isn't open even when the room reads as empty", async () => {
+  it("says the canvas isn’t open even when the room reads as empty", async () => {
     const { tools: t } = tools(
       () => ({ status: "failed", reason: "" }),
-      "Screenplay isn't showing this canvas.",
+      "Screenplay isn’t showing this canvas.",
       { empty: true }
     )
     const out = await call(t.frame_click, { target: { text: "Save" } })
-    expect(out).toMatch(/isn't showing this canvas.*Tell the person in chat/)
+    expect(out).toMatch(/isn’t showing this canvas.*Tell the person in chat/)
   })
 
   it("lists elements with their selectors", async () => {
@@ -251,7 +251,7 @@ describe("Showing the person (#1390)", () => {
     // The person is interacting with the frame when they ask.
     store.records.set("f1", { live: false, driver: "user-zack", requests: [] })
     const out = await call(t.frame_start_driving, { pace: "show" })
-    expect(out).toMatch(/watchable pace.*into the person's view/)
+    expect(out).toMatch(/watchable pace.*into the person’s view/)
     expect(reveals).toEqual(["f1"])
     await call(t.frame_click, { target: { text: "Save" } })
     expect(ops).toEqual([
@@ -259,17 +259,17 @@ describe("Showing the person (#1390)", () => {
     ])
   })
 
-  it("jump: no animation, and nobody's view moves", async () => {
+  it("jump: no animation, and nobody’s view moves", async () => {
     const { tools: t, ops, reveals } = tools(() => DONE)
     expect(await call(t.frame_start_driving, { pace: "jump" })).toMatch(
-      /end state; nobody's view moved/
+      /end state; nobody’s view moved/
     )
     await call(t.frame_click, { target: { text: "Save" } })
     expect(reveals).toEqual([])
     expect(ops[0]).toMatchObject({ pace: "jump" })
   })
 
-  it("opens a new frame beside the Workspace's frames and waits for the canvas to load it", async () => {
+  it("opens a new frame beside the Workspace’s frames and waits for the canvas to load it", async () => {
     let checks = 0
     const { tools: t, c } = tools(() => DONE, undefined, {
       // The canvas mounts it on the third look.
@@ -292,7 +292,7 @@ describe("Showing the person (#1390)", () => {
     ).toEqual(["f1", id])
   })
 
-  it("opens a Workspace's first frame in a Group of its own", async () => {
+  it("opens a Workspace’s first frame in a Group of its own", async () => {
     const { tools: t, c } = tools(() => DONE)
     c.iframeLayers.delete("f1")
     c.iframeLayerGroups.delete("g1")
@@ -302,13 +302,13 @@ describe("Showing the person (#1390)", () => {
     expect(c.iframeLayers.get(id!)?.route).toBeUndefined()
   })
 
-  it("doesn't open a frame when the canvas isn't open", async () => {
+  it("doesn’t open a frame when the canvas isn’t open", async () => {
     const { tools: t, c } = tools(
       () => DONE,
-      "Screenplay isn't showing this canvas."
+      "Screenplay isn’t showing this canvas."
     )
     expect(String(await call(t.frame_open, {}))).toMatch(
-      /isn't showing this canvas.*Tell the person in chat/
+      /isn’t showing this canvas.*Tell the person in chat/
     )
     expect(c.iframeLayers.toArray()).toHaveLength(1)
   })
@@ -327,7 +327,7 @@ describe("phrase", () => {
     )
   })
 
-  it("says what a gesture copied, and that the person's clipboard is untouched", () => {
+  it("says what a gesture copied, and that the person’s clipboard is untouched", () => {
     const line = phrase("frame [f1]", {
       status: "done",
       value: { op: "click", path: "/", copied: "https://x.co/invite" },
@@ -374,7 +374,7 @@ describe("findDrivable", () => {
     })
   })
 
-  it("keeps the Workspace's own frame as the default beside Mockups", () => {
+  it("keeps the Workspace’s own frame as the default beside Mockups", () => {
     expect(findDrivable(canvas(), scope, undefined, true)).toMatchObject({
       id: "f1",
     })
@@ -388,7 +388,7 @@ describe("findDrivable", () => {
     expect(out).toMatch(/Mockup to drive:\n- m1: Mockup "Take 1"\n- m2/)
   })
 
-  it("lists frames and Mockups when there's no single one", () => {
+  it("lists frames and Mockups when there’s no single one", () => {
     const out = findDrivable(
       canvas({ frames: 0, mockups: 2 }),
       { kind: "chat" },

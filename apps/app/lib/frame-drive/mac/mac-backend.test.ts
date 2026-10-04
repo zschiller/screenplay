@@ -201,7 +201,7 @@ describe("Mac drive channel", () => {
     }
   })
 
-  it("snapshots the frame's rect in the canvas window", async () => {
+  it("snapshots the frame’s rect in the canvas window", async () => {
     snapshots.length = 0
     const result = await backend.screenshot(FRAME)
     expect(result.status).toBe("shot")
@@ -213,10 +213,10 @@ describe("Mac drive channel", () => {
     reveals.length = 0
     expect(await canvas.reveal(FRAME)).toBeNull()
     expect(reveals).toEqual([FRAME])
-    expect(await canvas.reveal("not-here")).toMatch(/isn't loaded/)
+    expect(await canvas.reveal("not-here")).toMatch(/isn’t loaded/)
   })
 
-  it("draws the agent's cursor at show pace, typing a character at a time", async () => {
+  it("draws the agent’s cursor at show pace, typing a character at a time", async () => {
     document.body.innerHTML = `<input id="name" aria-label="Name">`
     const inputs: string[] = []
     document
@@ -250,7 +250,7 @@ describe("Mac drive channel", () => {
     expect(document.getElementById("__screenplay-drive-cursor")).toBeNull()
   })
 
-  it("stops a show-pace step that's still gliding when control moves away", async () => {
+  it("stops a show-pace step that’s still gliding when control moves away", async () => {
     document.body.innerHTML = `<button id="save">Save</button><p id="out">idle</p>`
     let clicked = false
     document.getElementById("save")!.addEventListener("click", () => {
@@ -272,12 +272,12 @@ describe("Mac drive channel", () => {
     }
   })
 
-  it("says the canvas isn't open when no canvas shows the Room", async () => {
+  it("says the canvas isn’t open when no canvas shows the Room", async () => {
     const other = macFrameDriveBackend("closed-room", {
       snapshot: async () => PNG,
     })
     const reason = await other.unavailable(FRAME)
-    expect(reason).toMatch(/isn't showing this canvas/)
+    expect(reason).toMatch(/isn’t showing this canvas/)
     expect(
       await other.run(FRAME, { op: "click", target: { text: "Save" } })
     ).toMatchObject({ status: "unavailable" })
@@ -297,7 +297,7 @@ describe("visiblePart", () => {
     ).toEqual({ x: 11, y: 21, width: 299, height: 199 })
   })
 
-  it("keeps only what's inside the window", () => {
+  it("keeps only what’s inside the window", () => {
     expect(
       visiblePart(
         { x: -50, y: 700, width: 300, height: 200 },

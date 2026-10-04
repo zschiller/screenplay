@@ -87,12 +87,12 @@ async function sharedFrame(
     return { layer, branch }
   })
   const { layer, branch } = found
-  if (!layer) return "The frame isn't on the canvas anymore."
+  if (!layer) return "The frame isn’t on the canvas anymore."
   if (!branch) {
-    return "The frame isn't in a workspace, so there's no shared browser to use."
+    return "The frame isn’t in a workspace, so there’s no shared browser to use."
   }
   if (!branch.previewDomain) {
-    return "The workspace's dev server isn't running, so its frame has nothing to show."
+    return "The workspace’s dev server isn’t running, so its frame has nothing to show."
   }
   const stream = await workspaceStream(branch.sandboxName, branch.port)
   if (typeof stream === "string") return stream
@@ -123,7 +123,7 @@ async function liveMockup(
   if (!found) return null
   const { layer, branch, html } = found
   if (!branch?.previewDomain) {
-    return "The workspace this live Mockup runs in has stopped, so there's no shared browser to use."
+    return "The workspace this live Mockup runs in has stopped, so there’s no shared browser to use."
   }
   const stream = await workspaceStream(branch.sandboxName, branch.port)
   if (typeof stream === "string") return stream
@@ -162,10 +162,10 @@ async function workspaceStream(
   const result = await ensureFrameStream(sandboxName, devPort)
   if (!result.success) {
     streams.delete(sandboxName)
-    return `The workspace's shared browser didn't start: ${result.error}`
+    return `The workspace’s shared browser didn’t start: ${result.error}`
   }
   if (!result.value) {
-    return "This workspace was set up before frames were shared, so its frames can't be used here."
+    return "This workspace was set up before frames were shared, so its frames can’t be used here."
   }
   const stream = {
     url: result.value.url,

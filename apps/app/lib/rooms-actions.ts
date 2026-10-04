@@ -33,7 +33,7 @@ import type { RoomThumbnail } from "@/lib/room-thumbnail-merge"
 // hit a table that doesn't exist.
 function assertNotLocal(): void {
   if (isLocalBuild) {
-    throw new Error("Sharing isn't in the desktop app.")
+    throw new Error("Sharing isn’t in the desktop app.")
   }
 }
 
@@ -133,7 +133,7 @@ export async function deleteRoom(roomId: string): Promise<void> {
   const userId = await requireUserId()
 
   const room = await getRoom(roomId)
-  if (!room) throw new Error("This canvas doesn't exist anymore.")
+  if (!room) throw new Error("This canvas doesn’t exist anymore.")
   // A non-member can neither delete nor leave a Room they can't see.
   await requireMember(roomId, userId)
 
@@ -202,7 +202,7 @@ export async function shareRoom(
 
   const invitee = await getUserByEmail(normalized)
   if (!invitee) {
-    throw new Error(`There's no Screenplay account for ${normalized}.`)
+    throw new Error(`There’s no Screenplay account for ${normalized}.`)
   }
 
   await addMember({ roomId, userId: invitee.id, role: "editor" })
@@ -223,7 +223,7 @@ export async function removeCollaborator(
   const userId = await requireUserId()
   const room = await requireOwner(roomId, userId)
   if (room.ownerId === collaboratorId) {
-    throw new Error("The owner can't be removed.")
+    throw new Error("The owner can’t be removed.")
   }
 
   await removeMember(roomId, collaboratorId)

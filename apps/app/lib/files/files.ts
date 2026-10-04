@@ -271,7 +271,7 @@ export function createFiles(scope: {
     }) {
       const p = normalizeFilePath(raw)
       if ("error" in p) return fail(p.error)
-      if (!isScopeKey(blobKey)) return fail("That upload isn't this scope's.")
+      if (!isScopeKey(blobKey)) return fail("That upload isn’t this scope’s.")
       if (size > FILE_MAX_BYTES) {
         return fail(
           `The file is ${size} bytes; the most a file can be is ${FILE_MAX_BYTES} (25 MB).`
@@ -295,7 +295,7 @@ export function createFiles(scope: {
       if ("error" in from) return fail(from.error)
       const to = normalizeFilePath(rawTo)
       if ("error" in to) return fail(to.error)
-      if (from.path === to.path) return fail("It's already there.")
+      if (from.path === to.path) return fail("It’s already there.")
       const at = now ?? Date.now()
       return index.mutate((tx) => {
         const entries = tx.all()
@@ -305,7 +305,7 @@ export function createFiles(scope: {
           return fail(`"${to.path}" already exists.`)
         }
         if (source.kind === "folder" && isWithin(to.path, from.path)) {
-          return fail("A folder can't move inside itself.")
+          return fail("A folder can’t move inside itself.")
         }
         const blocked = ensureFolders(
           tx,

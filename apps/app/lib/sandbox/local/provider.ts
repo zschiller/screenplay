@@ -72,7 +72,7 @@ interface SandboxMeta {
 export class RefAlreadyOpenError extends Error {
   constructor(readonly ref: string) {
     super(
-      `The branch "${ref}" is already open in another workspace on this ` +
+      `The branch “${ref}” is already open in another workspace on this ` +
         "computer. The desktop app keeps one checkout per branch, so close " +
         "the workspace that has it open, or open a different branch."
     )

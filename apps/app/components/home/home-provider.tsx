@@ -656,7 +656,7 @@ export function HomeProvider({
       summary = await pinRoomAction(roomId)
     } catch (err) {
       console.error("Failed to pin canvas", err)
-      toast.error("Couldn't pin the canvas")
+      toast.error("Couldn’t pin the canvas")
       return
     }
     setPins((prev) =>
@@ -678,7 +678,7 @@ export function HomeProvider({
       summary = await pinFolderAction(folderId)
     } catch (err) {
       console.error("Failed to pin folder", err)
-      toast.error("Couldn't pin the folder")
+      toast.error("Couldn’t pin the folder")
       return
     }
     setPins((prev) =>
@@ -697,8 +697,8 @@ export function HomeProvider({
       console.error("Failed to unpin", err)
       toast.error(
         kind === "room"
-          ? "Couldn't unpin the canvas"
-          : "Couldn't unpin the folder"
+          ? "Couldn’t unpin the canvas"
+          : "Couldn’t unpin the folder"
       )
       return
     }
@@ -740,7 +740,7 @@ export function HomeProvider({
       } catch (err) {
         console.error("Failed to reorder pins", err)
         if (before) setPins(before)
-        toast.error("Couldn't save the new pin order")
+        toast.error("Couldn’t save the new pin order")
       }
     },
     []
@@ -849,7 +849,7 @@ function confirmMove(
       onClick: () => {
         undo().catch((err: unknown) => {
           console.error("Failed to undo move", err)
-          toast.error("Couldn't undo the move")
+          toast.error("Couldn’t undo the move")
         })
       },
     },

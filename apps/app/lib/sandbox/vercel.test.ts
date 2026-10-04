@@ -76,7 +76,7 @@ describe("VercelSandboxProvider.create", () => {
     expect(params.ports).toEqual([3000, 4000, 7681])
   })
 
-  it("uses VERCEL_SANDBOX_IMAGE when it's set", async () => {
+  it("uses VERCEL_SANDBOX_IMAGE when it’s set", async () => {
     vi.stubEnv("VERCEL_SANDBOX_IMAGE", "team/project/custom:v2")
     sdk.create.mockResolvedValue(fakeSdkSandbox())
     await getVercelSandboxProvider().create(gitOpts)
@@ -104,14 +104,14 @@ describe("VercelSandboxProvider.create", () => {
     expect(sb.runCommand).not.toHaveBeenCalled()
   })
 
-  it("keeps the legacy runtime's home for a Sandbox from before the image", async () => {
+  it("keeps the legacy runtime’s home for a Sandbox from before the image", async () => {
     sdk.create.mockResolvedValue(fakeSdkSandbox({ image: undefined }))
     const instance = await getVercelSandboxProvider().create(snapshotOpts)
     expect(instance.worktreePath).toBe("/vercel/sandbox")
     expect(instance.homeDir).toBe("/home/vercel-sandbox")
   })
 
-  it("stops the Sandbox and fails when the clone can't be moved", async () => {
+  it("stops the Sandbox and fails when the clone can’t be moved", async () => {
     const sb = fakeSdkSandbox({}, { exitCode: 1, stderr: "no git checkout" })
     sdk.create.mockResolvedValue(sb)
     await expect(getVercelSandboxProvider().create(gitOpts)).rejects.toThrow(
@@ -120,10 +120,10 @@ describe("VercelSandboxProvider.create", () => {
     expect(sb.stop).toHaveBeenCalled()
   })
 
-  it("names the image when the registry doesn't have it", async () => {
+  it("names the image when the registry doesn’t have it", async () => {
     sdk.create.mockRejectedValue(new Error("Status code 404: not_found"))
     await expect(getVercelSandboxProvider().create(gitOpts)).rejects.toThrow(
-      /Sandbox image "screenplay-workspace" isn't available/
+      /Sandbox image "screenplay-workspace" isn’t available/
     )
   })
 })
@@ -174,7 +174,7 @@ describe("LIFT_CHECKOUT_SCRIPT", () => {
     expect(existsSync(path.join(root, "my-app"))).toBe(false)
   })
 
-  it("keeps a repo folder that shares the repo's name", () => {
+  it("keeps a repo folder that shares the repo’s name", () => {
     const clone = path.join(worktree(), "app")
     fakeClone(clone)
     mkdirSync(path.join(clone, "app"))
@@ -185,13 +185,13 @@ describe("LIFT_CHECKOUT_SCRIPT", () => {
     )
   })
 
-  it("leaves a checkout that's already in place alone", () => {
+  it("leaves a checkout that’s already in place alone", () => {
     fakeClone(worktree())
     lift()
     expect(existsSync(path.join(worktree(), ".git"))).toBe(true)
   })
 
-  it("fails when there's no checkout", () => {
+  it("fails when there’s no checkout", () => {
     expect(lift).toThrow()
   })
 })

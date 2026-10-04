@@ -69,7 +69,7 @@ export function wakeMessage(input: {
   const subject = input.sketch ? "Chat" : "Workspace"
   const nudge =
     status === "paused_for_plan"
-      ? `Tell the user that ${link} is waiting for them to approve its plan, in one line with that link. You can't approve plans; the user does.`
+      ? `Tell the user that ${link} is waiting for them to approve its plan, in one line with that link. You can’t approve plans; the user does.`
       : "Reply only if the user needs to hear a result, a blocker or a decision only they can make. Otherwise end your turn without writing anything."
   return prependTurnMarkers(
     [

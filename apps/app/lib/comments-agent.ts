@@ -67,7 +67,7 @@ export function formatAgentRequest(
   lines.push(
     "",
     (documents ? "" : "Commit your changes. ") +
-      "When you're done, end your reply with one line " +
+      "When you’re done, end your reply with one line " +
       `per comment saying what you did, starting with its number, like ` +
       (documents
         ? `"#${example}: Rewrote the rollout section."`

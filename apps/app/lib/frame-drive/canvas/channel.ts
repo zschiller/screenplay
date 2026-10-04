@@ -74,8 +74,8 @@ const READ_TIMEOUT_MS = 8_000
 const REVEAL_TIMEOUT_MS = 5_000
 
 const UNEXPECTED = "The canvas sent an unexpected answer."
-const NOT_LOADED = "The page isn't loaded on the canvas, or it didn't answer."
-const NOT_REVEALED = "The canvas couldn't bring it into view."
+const NOT_LOADED = "The page isn’t loaded on the canvas, or it didn’t answer."
+const NOT_REVEALED = "The canvas couldn’t bring it into view."
 
 export function askerCanvas(
   transport: CanvasTransport,

@@ -140,7 +140,7 @@ describe("Room Access — hosted build", () => {
   it("rejects a signed-in non-member", async () => {
     session.userId = "outsider"
     const { openRoom } = await import("./room-access")
-    await expect(openRoom(ROOM)).rejects.toThrow("don't have access")
+    await expect(openRoom(ROOM)).rejects.toThrow("don’t have access")
   })
 
   it("rejects a request with no session", async () => {
@@ -165,17 +165,17 @@ describe("Room Access — hosted build", () => {
     })
   })
 
-  it("rejects a non-member's cache writes and leaves the doc unchanged", async () => {
+  it("rejects a non-member’s cache writes and leaves the doc unchanged", async () => {
     session.userId = "outsider"
     const doc = seedBranchDoc()
     const before = snapshot(doc)
     const { compareBranches, listBranchPrs } = await import("./github-actions")
 
     await expect(compareBranches(ROOM, [diffQuery])).rejects.toThrow(
-      "don't have access"
+      "don’t have access"
     )
     await expect(listBranchPrs(ROOM, [prQuery])).rejects.toThrow(
-      "don't have access"
+      "don’t have access"
     )
 
     expect(snapshot(doc)).toEqual(before)

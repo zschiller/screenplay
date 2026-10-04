@@ -139,7 +139,7 @@ export function useFrameActions({
       if (!agent) return
       const routes = agent.discoveredRoutes ?? []
       if (routes.length === 0) {
-        toast.info("No routes found in this workspace's code yet.")
+        toast.info("No routes found in this workspace’s code yet.")
         return
       }
       const result = addRoutesGroupForAgent(agentId, routes)

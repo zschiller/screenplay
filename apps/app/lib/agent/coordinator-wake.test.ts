@@ -60,7 +60,7 @@ describe("Coordinator wakes (#897)", () => {
     expect(message).toContain(
       "Tell the user that [Checkout form](workspace:ws-1) is waiting for them to approve its plan"
     )
-    expect(message).toContain("You can't approve plans; the user does.")
+    expect(message).toContain("You can’t approve plans; the user does.")
   })
 
   it("recognizes the stock lines a harness writes when a wake needs no answer (#1224)", () => {
@@ -88,7 +88,7 @@ describe("Coordinator wakes (#897)", () => {
     }
   })
 
-  it("runs one Room's wakes one at a time, in order, and other Rooms' alongside", async () => {
+  it("runs one Room’s wakes one at a time, in order, and other Rooms' alongside", async () => {
     const enqueue = createKeyedQueue()
     const log: string[] = []
     const releases: Record<string, () => void> = {}

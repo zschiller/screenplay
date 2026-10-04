@@ -62,7 +62,7 @@ export function GitHubConnectionPanel() {
   }
 
   if (statusFailed) {
-    return <LoadErrorRow title="Couldn't check GitHub" onRetry={redetect} />
+    return <LoadErrorRow title="Couldn’t check GitHub" onRetry={redetect} />
   }
 
   if (!status) {
@@ -187,14 +187,14 @@ function runPlan(kind: SetupActionKind, brewPresent: boolean): RunPlan {
       command: buildGhInstallAndAuthArgv(brewPresent),
       message:
         "Installing the GitHub CLI, then signing you in. Follow the prompts " +
-        "below; this closes when you're done.",
+        "below; this closes when you’re done.",
     }
   }
   return {
     command: buildGhAuthLoginArgv(),
     message:
       "Signing in to GitHub. Follow the prompts below; this closes when " +
-      "you're done.",
+      "you’re done.",
   }
 }
 

@@ -165,18 +165,18 @@ export function buildRoomTools(
     }),
     send_to_workspace: tool({
       description:
-        "Send a message into a Workspace's chat, as a new turn for its agent. Use it to hand a Workspace work or a follow-up; the user sees it in that chat and can take over at any time. It returns as soon as the message is queued, never waiting for the turn: you hear back when the turn ends. It refuses a Workspace whose agent is working, whose sandbox isn't running, or whose plan waits on the user (only the user approves plans). A fresh Workspace whose sandbox is still starting takes the message and gets it as soon as it runs.",
+        "Send a message into a Workspace’s chat, as a new turn for its agent. Use it to hand a Workspace work or a follow-up; the user sees it in that chat and can take over at any time. It returns as soon as the message is queued, never waiting for the turn: you hear back when the turn ends. It refuses a Workspace whose agent is working, whose sandbox isn’t running, or whose plan waits on the user (only the user approves plans). A fresh Workspace whose sandbox is still starting takes the message and gets it as soon as it runs.",
       inputSchema: jsonSchema<{ workspace_id: string; message: string }>({
         type: "object",
         properties: {
           workspace_id: {
             type: "string",
-            description: "The Workspace's id, from `read_canvas`.",
+            description: "The Workspace’s id, from `read_canvas`.",
           },
           message: {
             type: "string",
             description:
-              "What the Workspace's agent should do, written as the user would write it.",
+              "What the Workspace’s agent should do, written as the user would write it.",
           },
         },
         required: ["workspace_id", "message"],
@@ -186,7 +186,7 @@ export function buildRoomTools(
     }),
     [CREATE_WORKSPACES_TOOL]: tool({
       description:
-        "Create Workspaces, each seeded with a first message for its agent. Use it when the user asks for work no existing Workspace fits; send follow-ups to an existing Workspace with `send_to_workspace` instead. It creates them right away, their frames together in one new Group, and returns each one's id and whether it started. There's no limit on how many you list, but create only what the ask needs.",
+        "Create Workspaces, each seeded with a first message for its agent. Use it when the user asks for work no existing Workspace fits; send follow-ups to an existing Workspace with `send_to_workspace` instead. It creates them right away, their frames together in one new Group, and returns each one’s id and whether it started. There’s no limit on how many you list, but create only what the ask needs.",
       inputSchema: jsonSchema<CreateWorkspacesInput>({
         type: "object",
         properties: {
@@ -199,17 +199,17 @@ export function buildRoomTools(
                 title: {
                   type: "string",
                   description:
-                    'The Workspace\'s title: a few words naming the work, e.g. "Fix sign-in redirect".',
+                    'The Workspace’s title: a few words naming the work, e.g. "Fix sign-in redirect".',
                 },
                 repository: {
                   type: "string",
                   description:
-                    "One of the canvas's repositories, by full name (owner/name) as `read_canvas` lists it.",
+                    "One of the canvas’s repositories, by full name (owner/name) as `read_canvas` lists it.",
                 },
                 base_branch: {
                   type: "string",
                   description:
-                    "The branch to start from. Defaults to the repository's default branch.",
+                    "The branch to start from. Defaults to the repository’s default branch.",
                 },
                 prompt: {
                   type: "string",
@@ -227,13 +227,13 @@ export function buildRoomTools(
     }),
     [OPEN_PULL_REQUEST_TOOL]: tool({
       description:
-        "Open a pull request on GitHub for a Workspace's branch, into its repository's default branch. It opens right away, with the GitHub account of the Workspace's owner, and returns the PR's link. Its title and description come from the branch's commits, so make sure the Workspace's agent has committed and pushed first.",
+        "Open a pull request on GitHub for a Workspace’s branch, into its repository’s default branch. It opens right away, with the GitHub account of the Workspace’s owner, and returns the PR’s link. Its title and description come from the branch’s commits, so make sure the Workspace’s agent has committed and pushed first.",
       inputSchema: jsonSchema<{ workspace_id: string }>({
         type: "object",
         properties: {
           workspace_id: {
             type: "string",
-            description: "The Workspace's id, from `read_canvas`.",
+            description: "The Workspace’s id, from `read_canvas`.",
           },
         },
         required: ["workspace_id"],
@@ -242,13 +242,13 @@ export function buildRoomTools(
     }),
     [REMOVE_WORKSPACE_TOOL]: tool({
       description:
-        "Remove a Workspace from the canvas, as Delete in the Chats menu does: its chats and frames go and its sandbox is torn down, which can't be undone. The git branch and any PR stay on GitHub. It acts right away.",
+        "Remove a Workspace from the canvas, as Delete in the Chats menu does: its chats and frames go and its sandbox is torn down, which can’t be undone. The git branch and any PR stay on GitHub. It acts right away.",
       inputSchema: jsonSchema<{ workspace_id: string }>({
         type: "object",
         properties: {
           workspace_id: {
             type: "string",
-            description: "The Workspace's id, from `read_canvas`.",
+            description: "The Workspace’s id, from `read_canvas`.",
           },
         },
         required: ["workspace_id"],
@@ -257,13 +257,13 @@ export function buildRoomTools(
     }),
     stop_workspace: tool({
       description:
-        "Stop a Workspace's running turn right away, as its chat's Stop button does. Use it when a Workspace's work has gone off track or the user asks you to stop it. Its chat keeps everything so far; send it a message to carry on.",
+        "Stop a Workspace’s running turn right away, as its chat’s Stop button does. Use it when a Workspace’s work has gone off track or the user asks you to stop it. Its chat keeps everything so far; send it a message to carry on.",
       inputSchema: jsonSchema<{ workspace_id: string }>({
         type: "object",
         properties: {
           workspace_id: {
             type: "string",
-            description: "The Workspace's id, from `read_canvas`.",
+            description: "The Workspace’s id, from `read_canvas`.",
           },
         },
         required: ["workspace_id"],
@@ -272,14 +272,14 @@ export function buildRoomTools(
     }),
     start_chat: tool({
       description:
-        "Start a chat with no repository, seeded with a first message. It writes Documents and Mockups only: no code, sandbox or frames. Use it for a document or mockup when the canvas has no repository, or when the ask isn't about any repository's code. It starts right away and returns the chat's id; you hear back when its turn ends.",
+        "Start a chat with no repository, seeded with a first message. It writes Documents and Mockups only: no code, sandbox or frames. Use it for a document or mockup when the canvas has no repository, or when the ask isn’t about any repository’s code. It starts right away and returns the chat’s id; you hear back when its turn ends.",
       inputSchema: jsonSchema<{ title: string; prompt: string }>({
         type: "object",
         properties: {
           title: {
             type: "string",
             description:
-              'The chat\'s title: a few words naming the work, e.g. "Pricing page sketch".',
+              'The chat’s title: a few words naming the work, e.g. "Pricing page sketch".',
           },
           prompt: {
             type: "string",
@@ -299,7 +299,7 @@ export function buildRoomTools(
         properties: {
           chat_id: {
             type: "string",
-            description: "The chat's id, from `read_canvas`.",
+            description: "The chat’s id, from `read_canvas`.",
           },
           message: {
             type: "string",
@@ -426,7 +426,7 @@ async function createWorkspaces(
           outcomes.push({
             title,
             repository: spec.repository,
-            error: "that repository isn't on this canvas",
+            error: "that repository isn’t on this canvas",
           })
           continue
         }
@@ -576,7 +576,7 @@ async function openPullRequest(
   const existing = openPr(branch)
   if (existing) return `"${title}" already has PR #${existing} open.`
   if (!repo || !hasGitHubRemote(repo)) {
-    return `"${title}" isn't in a GitHub repository, so it can't have a pull request.`
+    return `"${title}" isn’t in a GitHub repository, so it can’t have a pull request.`
   }
   const { url, number } = await ports.openPullRequest({
     sandboxName: branch.sandboxName,
@@ -677,7 +677,7 @@ async function stopWorkspace(
     }
   })
   if (running.length === 0) {
-    return `"${title}" isn't working on a turn, so there was nothing to stop.`
+    return `"${title}" isn’t working on a turn, so there was nothing to stop.`
   }
   for (const chatId of running) await ports.stopWorkspaceTurn(chatId)
   return `Stopped "${title}". Its chat keeps what it did so far.`
@@ -715,7 +715,7 @@ async function sendToWorkspace(
     const queue = starting && isFreshWorkspace(branch)
     if (branch.status !== "running" && !queue) {
       throw new Error(
-        `"${title}" isn't running (its sandbox is ${branch.status}), so it can't take a message.`
+        `"${title}" isn’t running (its sandbox is ${branch.status}), so it can’t take a message.`
       )
     }
     const chats = records<ChatSessionData>(
@@ -730,7 +730,7 @@ async function sendToWorkspace(
     const plans = records<PlanData>(collections, COLLECTION_KEYS.plans)
     if (plans.some((p) => p.branchId === branchId && p.status === "pending")) {
       throw new Error(
-        `"${title}" is waiting for the user to approve its plan. Only the user approves plans: tell them it's waiting.`
+        `"${title}" is waiting for the user to approve its plan. Only the user approves plans: tell them it’s waiting.`
       )
     }
     // The Workspace's one chat (#1315); a fresh one only when it has none.
@@ -806,7 +806,7 @@ async function startChat(
     )
   })
   await ports.launchSketchTurn({ chatId, message: prompt })
-  return `Started "${title}" [chat ${chatId}], a chat with no repository. It's working on it now; you'll hear back when its turn ends.`
+  return `Started "${title}" [chat ${chatId}], a chat with no repository. It’s working on it now; you’ll hear back when its turn ends.`
 }
 
 /** Send a Delegated Message into a chat with no repository. */
@@ -831,7 +831,7 @@ async function sendToChat(
     )
   }
   await ports.launchSketchTurn({ chatId, message, model: chat.model })
-  return `Sent to "${chat.label}" [chat ${chatId}]. It's working on it now; you'll hear back when its turn ends.`
+  return `Sent to "${chat.label}" [chat ${chatId}]. It’s working on it now; you’ll hear back when its turn ends.`
 }
 
 /**

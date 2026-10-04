@@ -37,7 +37,7 @@ describe("/api/chat-attachments/[roomId] (#1525)", () => {
     })
   })
 
-  it("saves a member's file under uploads and names it", async () => {
+  it("saves a member’s file under uploads and names it", async () => {
     const res = await post("notes.md", "# Notes", "text/markdown")
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
@@ -49,10 +49,10 @@ describe("/api/chat-attachments/[roomId] (#1525)", () => {
     expect((await again.json()).path).toBe("uploads/notes-2.md")
   })
 
-  it("refuses a type agents can't read, with the reason", async () => {
+  it("refuses a type agents can’t read, with the reason", async () => {
     const res = await post("clip.mov", "x", "video/quicktime")
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/can't be attached/)
+    expect((await res.json()).error).toMatch(/can’t be attached/)
   })
 
   it("refuses a body over 25 MB before reading it", async () => {
@@ -73,8 +73,8 @@ describe("/api/chat-attachments/[roomId] (#1525)", () => {
     )
   })
 
-  it("saves nothing for someone who isn't a member", async () => {
-    access.response = new Response("You don't have access", { status: 403 })
+  it("saves nothing for someone who isn’t a member", async () => {
+    access.response = new Response("You don’t have access", { status: 403 })
     expect((await post("a.md", "x")).status).toBe(403)
   })
 

@@ -30,7 +30,7 @@ export async function deleteCanvasSkill(
 ): Promise<void> {
   const room = await openRoom(roomId)
   if (room.role === "viewer") {
-    throw new Error("Viewers can't delete skills on this canvas.")
+    throw new Error("Viewers can’t delete skills on this canvas.")
   }
   const removed = await canvasSkills(room).remove(name)
   if (!removed.ok) throw new Error(removed.error)

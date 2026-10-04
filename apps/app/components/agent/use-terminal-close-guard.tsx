@@ -62,7 +62,7 @@ export function useTerminalCloseGuard({
         }
         command = running
       } catch (err) {
-        console.error("Couldn't check the terminal before closing", err)
+        console.error("Couldn’t check the terminal before closing", err)
         command = null
       } finally {
         checking.current.delete(tab.id)

@@ -68,7 +68,7 @@ export function HarnessSetupPanel() {
 
   if (loadFailed) {
     return (
-      <LoadErrorRow title="Couldn't check coding agents" onRetry={recheck} />
+      <LoadErrorRow title="Couldn’t check coding agents" onRetry={recheck} />
     )
   }
 

@@ -164,8 +164,8 @@ export function FilesSection({
     onDesktop?.(node.entry.path, how).catch(() =>
       toast.error(
         how === "open"
-          ? `Couldn't open ${node.name}.`
-          : `Couldn't show ${node.name} in Finder.`
+          ? `Couldn’t open ${node.name}.`
+          : `Couldn’t show ${node.name} in Finder.`
       )
     )
 

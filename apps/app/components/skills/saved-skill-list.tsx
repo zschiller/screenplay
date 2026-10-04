@@ -288,7 +288,7 @@ function SkillDialog({
         ) : loaded.state === "failed" ? (
           <div role="alert" className="flex flex-col items-start gap-3">
             <p className="text-sm text-muted-foreground">
-              Couldn&apos;t open this skill. Try again.
+              Couldn’t open this skill. Try again.
             </p>
             <Button
               variant="outline"

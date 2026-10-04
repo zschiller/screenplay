@@ -27,15 +27,15 @@ let pendingReplies = 0
 /** What a failed write says. Every write fails the same way: its optimistic
  *  change rolls back and this shows in a toast. */
 const FAILED = {
-  create: "Couldn't post the comment",
-  reply: "Couldn't send the reply",
-  edit: "Couldn't save the comment",
-  read: "Couldn't mark the thread read",
-  unread: "Couldn't mark the thread unread",
-  resolve: "Couldn't resolve the thread",
-  reopen: "Couldn't reopen the thread",
-  deleteComment: "Couldn't delete the comment",
-  deleteThread: "Couldn't delete the thread",
+  create: "Couldn’t post the comment",
+  reply: "Couldn’t send the reply",
+  edit: "Couldn’t save the comment",
+  read: "Couldn’t mark the thread read",
+  unread: "Couldn’t mark the thread unread",
+  resolve: "Couldn’t resolve the thread",
+  reopen: "Couldn’t reopen the thread",
+  deleteComment: "Couldn’t delete the comment",
+  deleteThread: "Couldn’t delete the thread",
 } as const
 
 /** A new thread: where it points and its first comment. The Room is the

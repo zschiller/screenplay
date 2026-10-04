@@ -380,7 +380,7 @@ export function CommentsPanel({
               role="alert"
               className="flex flex-col items-center gap-3 px-3 py-6 text-center text-balance text-muted-foreground"
             >
-              Couldn&apos;t load comments.
+              Couldn’t load comments.
               <Button
                 size="sm"
                 variant="outline"
@@ -482,7 +482,7 @@ function emptyText(filter: CommentFilter, any: boolean): string {
     case "mine":
       return "No open comments from you."
     case "unread":
-      return "You're all caught up."
+      return "You’re all caught up."
     case "resolved":
       return "No resolved comments."
   }

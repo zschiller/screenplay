@@ -254,7 +254,7 @@ export function buildArrangeTools(
 
     merge_groups: tool({
       description:
-        "Merge one Group into another: the source's frames and documents are appended to the target's row and the source Group is removed.",
+        "Merge one Group into another: the source’s frames and documents are appended to the target’s row and the source Group is removed.",
       inputSchema: jsonSchema<{
         source_group_id: string
         target_group_id: string
@@ -341,7 +341,7 @@ export function buildArrangeTools(
 
     list_changes: tool({
       description:
-        "List the canvas changes your recent turns made, newest first, with each turn's id and whether it was undone.",
+        "List the canvas changes your recent turns made, newest first, with each turn’s id and whether it was undone.",
       inputSchema: jsonSchema<Record<string, never>>({
         type: "object",
         properties: {},
@@ -363,7 +363,7 @@ export function buildArrangeTools(
 
     undo_changes: tool({
       description:
-        "Undo every canvas change one of your turns made, putting removed frames, Groups and documents back exactly as they were. Without `turn_id`, undoes your most recent earlier turn that changed the canvas and isn't undone. Use it when the user asks to undo; the undo itself can be undone the same way.",
+        "Undo every canvas change one of your turns made, putting removed frames, Groups and documents back exactly as they were. Without `turn_id`, undoes your most recent earlier turn that changed the canvas and isn’t undone. Use it when the user asks to undo; the undo itself can be undone the same way.",
       inputSchema: jsonSchema<{ turn_id?: string }>({
         type: "object",
         properties: { turn_id: { type: "string" } },

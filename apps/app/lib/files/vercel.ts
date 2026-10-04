@@ -18,7 +18,7 @@ export function vercelFileStore(
   const auth = () => {
     if (!token) {
       throw new Error(
-        `Files aren't set up on this server: ${PRIVATE_BLOB_TOKEN_ENV_VAR} isn't set.`
+        `Files aren’t set up on this server: ${PRIVATE_BLOB_TOKEN_ENV_VAR} isn’t set.`
       )
     }
     return token

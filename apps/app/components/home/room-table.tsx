@@ -253,7 +253,7 @@ function FolderRow({
         open={renameOpen}
         onOpenChange={setRenameOpen}
         title="Rename folder"
-        errorMessage="Couldn't rename the folder. Try again."
+        errorMessage="Couldn’t rename the folder. Try again."
         initialValue={folder.name}
         submitLabel="Save"
         submittingLabel="Saving…"
@@ -397,7 +397,7 @@ function RoomRow({
         open={renameOpen}
         onOpenChange={setRenameOpen}
         title="Rename canvas"
-        errorMessage="Couldn't rename the canvas. Try again."
+        errorMessage="Couldn’t rename the canvas. Try again."
         initialValue={room.name}
         submitLabel="Save"
         submittingLabel="Saving…"

@@ -92,7 +92,7 @@ export function CanvasEmptyState({
           </EmptyMedia>
           <EmptyTitle>This canvas is empty</EmptyTitle>
           <EmptyDescription>
-            Frames preview a workspace, mockups sketch a page before it&apos;s
+            Frames preview a workspace, mockups sketch a page before it’s
             built, documents hold notes and specs, and a repository holds the
             code they run.
           </EmptyDescription>

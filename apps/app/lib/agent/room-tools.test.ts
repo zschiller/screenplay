@@ -62,8 +62,8 @@ async function readCanvas(ports: RoomToolPorts): Promise<string> {
   )) as string
 }
 
-describe("the Coordinator's tools", () => {
-  it("have no way to approve or reject a Workspace's plan (#897)", () => {
+describe("the Coordinator’s tools", () => {
+  it("have no way to approve or reject a Workspace’s plan (#897)", () => {
     const { collections } = makeHarness()
     const names = Object.keys(buildRoomTools("room-1", portsOver(collections)))
     expect(names.filter((n) => /plan|approve|reject/.test(n))).toEqual([])
@@ -187,7 +187,7 @@ describe("read_canvas", () => {
     expect(await readCanvas(portsOver(collections))).toMatch(/is empty/)
   })
 
-  it("still summarizes the doc when Terminal Tabs can't be listed", async () => {
+  it("still summarizes the doc when Terminal Tabs can’t be listed", async () => {
     const { collections } = makeHarness()
     collections.markdownLayers.set("doc-1", baseDoc("doc-1", { title: "A" }))
     const summary = await readCanvas({
@@ -372,7 +372,7 @@ describe("send_to_workspace", () => {
     })
   })
 
-  it("queues the message in the Workspace's one chat and returns", async () => {
+  it("queues the message in the Workspace’s one chat and returns", async () => {
     const { collections, launched, send } = sendHarness()
     collections.branches.set(
       "ws-1",
@@ -401,7 +401,7 @@ describe("send_to_workspace", () => {
     expect(result).toContain('Sent to "Fix sign-in redirect" [chat chat]')
   })
 
-  it("sends to the newest of an old canvas's chats, closed or not (#1315)", async () => {
+  it("sends to the newest of an old canvas’s chats, closed or not (#1315)", async () => {
     const { collections, launched, send } = sendHarness()
     collections.branches.set("ws-1", baseBranch("ws-1"))
     collections.chatSessions.set(
@@ -452,19 +452,19 @@ describe("send_to_workspace", () => {
   it.each([
     ["an unknown Workspace", () => {}, /No Workspace has the id ws-1/],
     [
-      "a Workspace whose sandbox isn't running",
+      "a Workspace whose sandbox isn’t running",
       (c: RoomCollections) =>
         c.branches.set(
           "ws-1",
           baseBranch("ws-1", { status: "starting", lastActivityAt: 1 })
         ),
-      /isn't running/,
+      /isn’t running/,
     ],
     [
       "a stopped fresh Workspace",
       (c: RoomCollections) =>
         c.branches.set("ws-1", baseBranch("ws-1", { status: "stopped" })),
-      /isn't running/,
+      /isn’t running/,
     ],
     [
       "a starting Workspace that already has a message waiting",
@@ -630,10 +630,10 @@ describe("create_workspaces", () => {
     // A repository not on the canvas gets no Workspace at all.
     expect(collections.branches.toArray()).toHaveLength(2)
     expect(result.split("\n")).toEqual([
-      "Started 1 of 3 Workspaces. Each gets its seed message once its sandbox is running; you'll hear back when its turns end.",
+      "Started 1 of 3 Workspaces. Each gets its seed message once its sandbox is running; you’ll hear back when its turns end.",
       `- "Fix sign-in redirect" (acme/web) [workspace ${fix!.id}]: failed to start (no GitHub token). Its row offers Retry; tell the user.`,
       `- "Dark mode toggle" (acme/web) [workspace ${dark!.id}]: starting`,
-      `- "Docs" (acme/docs): not created, because that repository isn't on this canvas. Tell the user.`,
+      `- "Docs" (acme/docs): not created, because that repository isn’t on this canvas. Tell the user.`,
     ])
   })
 
@@ -681,7 +681,7 @@ describe("stop_workspace", () => {
     return { collections, stopped, stop }
   }
 
-  it("stops the Workspace's running turn right away", async () => {
+  it("stops the Workspace’s running turn right away", async () => {
     const { collections, stopped, stop } = stopHarness()
     collections.branches.set("ws-1", baseBranch("ws-1", { title: "Fix it" }))
     collections.chatSessions.set(
@@ -703,10 +703,10 @@ describe("stop_workspace", () => {
     expect(stopped).toEqual(["chat-1"])
   })
 
-  it("says so when the Workspace isn't working", async () => {
+  it("says so when the Workspace isn’t working", async () => {
     const { collections, stopped, stop } = stopHarness()
     collections.branches.set("ws-1", baseBranch("ws-1", { title: "Fix it" }))
-    expect(await stop("ws-1")).toContain("isn't working on a turn")
+    expect(await stop("ws-1")).toContain("isn’t working on a turn")
     expect(stopped).toEqual([])
   })
 
@@ -766,7 +766,7 @@ describe("open_pull_request and remove_workspace (#901, #1217)", () => {
     )) as string
   }
 
-  it("opens the PR right away, with the Workspace owner's GitHub account, not the member who asked", async () => {
+  it("opens the PR right away, with the Workspace owner’s GitHub account, not the member who asked", async () => {
     const { ports, opened, collections } = createHarness()
     const result = await call(ports, "open_pull_request", "ws-1")
     expect(opened).toEqual([{ sandboxName: "sandbox-ws-1", ownerId: "alice" }])
@@ -819,7 +819,7 @@ describe("open_pull_request and remove_workspace (#901, #1217)", () => {
       repoName: undefined,
     })
     expect(await call(ports, "open_pull_request", "ws-1")).toBe(
-      "\"Fix sign-in redirect\" isn't in a GitHub repository, so it can't have a pull request."
+      "\"Fix sign-in redirect\" isn’t in a GitHub repository, so it can’t have a pull request."
     )
     expect(opened).toEqual([])
     expect(deleted).toEqual([])

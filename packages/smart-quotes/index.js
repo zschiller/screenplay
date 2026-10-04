@@ -18,6 +18,8 @@ import remarkParse from "remark-parse"
 import remarkMdx from "remark-mdx"
 import remarkFrontmatter from "remark-frontmatter"
 import ts from "typescript"
+import { readdirSync, statSync } from "node:fs"
+import { join } from "node:path"
 
 /** Attributes whose value is shown to people (or read out by screen readers). */
 export const PROSE_ATTRS = new Set([
@@ -54,19 +56,19 @@ const OPENS_AFTER = /[\s([{\-–—/“‘]/
 // A quote before one of these closes.
 const CLOSES_BEFORE = /[\s.,;:!?)\]}\-–—…<”’]/
 const LETTER = /\p{L}/u
-const WORD = /[\p{L}\p{N}]/u
 
 /**
  * The quote marks in `src` between `start` and `end`, each as an edit to its
  * curly form. `isolated` spans (a string literal) take no context from
  * outside themselves; others (text in a paragraph) look past their ends.
- * `onlyInWord` keeps just apostrophes between two letters.
+ * `onlyInWord` keeps just apostrophes between two letters. `afterValue` spans
+ * (a template literal's text after `${…}`) start where a word ends.
  */
 export function quotesIn(
   src,
   start,
   end,
-  { isolated = false, onlyInWord = false } = {}
+  { isolated = false, onlyInWord = false, afterValue = false } = {}
 ) {
   const lo = isolated ? start : 0
   const hi = isolated ? end : src.length
@@ -88,7 +90,8 @@ export function quotesIn(
     }
     if (!mark) continue
 
-    const prev = charBefore(src, from, lo)
+    const prev =
+      charBefore(src, from, lo) ?? (afterValue && from === start ? "a" : null)
     const next = charAfter(src, i + len, hi)
     const text = curl(mark, prev, next)
     if (
@@ -106,16 +109,19 @@ export function quotesIn(
 
 /** The curly form of `mark` between the characters `prev` and `next` (null at an edge). */
 export function curl(mark, prev, next) {
+  const starts = prev === null || OPENS_AFTER.test(prev)
+  if (mark === "'") {
+    // After a tag or a value (`{name}'s`) it's a possessive. A leading
+    // apostrophe before a digit drops numbers (’90s), not a quote.
+    return starts && next !== null && LETTER.test(next) ? "‘" : "’"
+  }
+  // After a tag or a value (`</b>"`), a quote opens when a word follows.
   const opens =
-    prev === null ||
-    OPENS_AFTER.test(prev) ||
-    // After a tag or expression (`</b>"`), a quote opens when a word follows.
+    starts ||
     ((prev === ">" || prev === "}") &&
       next !== null &&
       !CLOSES_BEFORE.test(next))
-  if (mark === '"') return opens ? "“" : "”"
-  // A leading apostrophe before a digit drops numbers (’90s), not a quote.
-  return opens && next !== null && LETTER.test(next) ? "‘" : "’"
+  return opens ? "“" : "”"
 }
 
 function charBefore(src, i, lo) {
@@ -220,6 +226,7 @@ export function scanTsx(src, fileName = "file.tsx") {
         ...quotesIn(src, start, end, {
           isolated: true,
           onlyInWord: !isProse(node),
+          afterValue: ts.isTemplateMiddle(node) || ts.isTemplateTail(node),
         })
       )
     }
@@ -263,4 +270,24 @@ export function applyEdits(src, edits) {
     out = out.slice(0, edit.start) + edit.text + out.slice(edit.end)
   }
   return out
+}
+
+const SKIP_DIRS = new Set(["node_modules", ".next", "public"])
+
+/**
+ * The MDX, TSX and TS files under `path` (or `path` itself) that can hold
+ * copy. Tests aren't copy, so `*.test.*` files are skipped.
+ */
+export function* copyFiles(path) {
+  if (statSync(path).isDirectory()) {
+    for (const name of readdirSync(path)) {
+      if (!SKIP_DIRS.has(name) && !name.startsWith("."))
+        yield* copyFiles(join(path, name))
+    }
+  } else if (
+    /\.(mdx|tsx?)$/.test(path) &&
+    !/\.d\.ts$|\.test\.tsx?$/.test(path)
+  ) {
+    yield path
+  }
 }

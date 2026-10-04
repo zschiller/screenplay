@@ -67,7 +67,7 @@ function connectWithToken(provider: WebsocketProvider): void {
         if (!refresh) provider.connect()
       },
       (err: unknown) => {
-        console.warn("yjs-host: couldn't fetch the sync token", err)
+        console.warn("yjs-host: couldn’t fetch the sync token", err)
         if (!refresh && !provider.doc.isDestroyed) {
           setTimeout(() => apply(false), 1000)
         }

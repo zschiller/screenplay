@@ -674,7 +674,7 @@ function ChatLoadError({ onRetry }: { onRetry: () => Promise<unknown> }) {
     >
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">
-          Couldn&apos;t load this chat
+          Couldn’t load this chat
         </p>
         <p className="text-xs text-muted-foreground">
           Its messages are still saved. Try loading them again.

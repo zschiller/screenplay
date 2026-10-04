@@ -124,9 +124,9 @@ describe("Settings › Skills (#1558)", () => {
     ).toBeTruthy()
   })
 
-  it("offers a retry when your skills can't be read", async () => {
+  it("offers a retry when your skills can’t be read", async () => {
     renderPanel({ fail: true })
 
-    expect(await screen.findByText("Couldn't load skills")).toBeTruthy()
+    expect(await screen.findByText("Couldn’t load skills")).toBeTruthy()
   })
 })

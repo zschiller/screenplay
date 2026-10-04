@@ -58,7 +58,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
         (id) => !!c.chatSessions.get(id)
       )
       if (right === "theirs") {
-        return `Error: "${layer.title || "Untitled"}" wasn't made by this chat, so you can read it but not change it.`
+        return `Error: "${layer.title || "Untitled"}" wasn’t made by this chat, so you can read it but not change it.`
       }
       let result = ""
       createCanvasOps(c).batch(() => {
@@ -73,7 +73,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
   const tools = {
     create_document: tool({
       description:
-        "Create a Document on the canvas, beside this chat's other frames and Documents. It is yours: only you can edit it with these tools (until this chat is deleted), and the person sees your name on it. `content` is its body as CommonMark markdown (don't repeat the title as a `#` heading). Returns its id.",
+        "Create a Document on the canvas, beside this chat’s other frames and Documents. It is yours: only you can edit it with these tools (until this chat is deleted), and the person sees your name on it. `content` is its body as CommonMark markdown (don’t repeat the title as a `#` heading). Returns its id.",
       inputSchema: jsonSchema<{ title?: string; content?: string }>({
         type: "object",
         properties: {
@@ -112,7 +112,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     replace_document_body: tool({
       description:
-        "Replace the body of a Document you made (or one whose chat was deleted, which makes it yours), below its title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, and inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`) all work. The title is set separately; don't repeat it as a top-level `#` heading. Use this when you've redrafted the Document; for incremental edits prefer `append_to_document_body`.",
+        "Replace the body of a Document you made (or one whose chat was deleted, which makes it yours), below its title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, and inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`) all work. The title is set separately; don’t repeat it as a top-level `#` heading. Use this when you’ve redrafted the Document; for incremental edits prefer `append_to_document_body`.",
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {
@@ -133,7 +133,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     append_to_document_body: tool({
       description:
-        "Append a block of text to the end of a Document you made (or one whose chat was deleted, which makes it yours). Use the same markdown as `replace_document_body`. Keeps everything already in the Document, but flattens inline marks already present in it — the appended text keeps its own marks. Use `replace_document_body` when the Document's existing marks must survive.",
+        "Append a block of text to the end of a Document you made (or one whose chat was deleted, which makes it yours). Use the same markdown as `replace_document_body`. Keeps everything already in the Document, but flattens inline marks already present in it — the appended text keeps its own marks. Use `replace_document_body` when the Document’s existing marks must survive.",
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {

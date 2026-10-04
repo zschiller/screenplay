@@ -192,7 +192,7 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     (branchId: string) => {
       const agent = agents.find((a) => a.id === branchId)
       toast.error(
-        `${agent ? workspaceLabel(agent) : "That chat"} isn't running yet. Ask again once it is.`
+        `${agent ? workspaceLabel(agent) : "That chat"} isn’t running yet. Ask again once it is.`
       )
     },
     [agents]

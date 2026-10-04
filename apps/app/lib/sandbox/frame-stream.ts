@@ -120,6 +120,6 @@ async function launch(
   await step(sandbox, "sh", [
     "-c",
     `for i in $(seq 1 50); do curl -fs http://127.0.0.1:${sandbox.hostPort(STREAM_PORT)}/health >/dev/null && exit 0; sleep 0.1; done; ` +
-      `echo "the frame stream didn't start" >&2; tail -n 20 ${logPath(name)} >&2; exit 1`,
+      `echo "the frame stream didn’t start" >&2; tail -n 20 ${logPath(name)} >&2; exit 1`,
   ])
 }

@@ -55,7 +55,7 @@ const scopeProperty: JSONSchema7 = {
   type: "string",
   enum: ["canvas", "account"],
   description:
-    "Where the skill lives: `canvas` (shared with this canvas's members, used by every chat on it), the default, or `account` (the own skills of the person who sent this message, used by every chat they message on any canvas, which nobody else's chats see).",
+    "Where the skill lives: `canvas` (shared with this canvas’s members, used by every chat on it), the default, or `account` (the own skills of the person who sent this message, used by every chat they message on any canvas, which nobody else’s chats see).",
 }
 
 type Scope = { scope?: "canvas" | "account" }
@@ -69,7 +69,7 @@ export function renderSavedSkill(content: string, files: SkillFile[]): string {
   return [
     content,
     ...files.map(
-      (f) => `\n\n---\n\nThis skill's file \`${f.path}\`:\n\n${f.content}`
+      (f) => `\n\n---\n\nThis skill’s file \`${f.path}\`:\n\n${f.content}`
     ),
   ].join("")
 }
@@ -96,7 +96,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
     read_skill: tool({
       // The App Skills ride in the description too, so a harness that gets
       // the tools before any prompt still finds them.
-      description: `Load the full instructions for a skill: one listed in your instructions, or one a chat saved to this canvas or to the account of the person messaging you. Call it before acting when a request matches a skill's description, and follow what it says. Screenplay's own skills:\n${appListing}`,
+      description: `Load the full instructions for a skill: one listed in your instructions, or one a chat saved to this canvas or to the account of the person messaging you. Call it before acting when a request matches a skill’s description, and follow what it says. Screenplay’s own skills:\n${appListing}`,
       inputSchema: jsonSchema<{ name: string }>({
         type: "object",
         properties: { name: { type: "string" } },
@@ -128,9 +128,9 @@ export function buildSkillTools(ctx: SkillToolContext) {
 
     save_skill: tool({
       description: [
-        "Save a skill: a procedure later chats should follow, like a review checklist, a house writing style or how this team ships a release. Save one when the user asks, or when you've worked out a procedure worth reusing.",
-        "`canvas` keeps it with this canvas, for its members: every chat on the canvas lists it from its next turn and can load it with `read_skill`. `account` keeps it with the person who sent this message: every chat they message, on any canvas, lists it, and nobody else's do. Save to `account` only a procedure that's theirs rather than this canvas's, like how they like a write-up done.",
-        "`content` is the whole SKILL.md: frontmatter with `name` (the skill's name) and `description` (what it does and when to use it, which is all a chat sees until it loads the skill), then the instructions in markdown. Put longer references or examples in `files`, and say in SKILL.md when to read them.",
+        "Save a skill: a procedure later chats should follow, like a review checklist, a house writing style or how this team ships a release. Save one when the user asks, or when you’ve worked out a procedure worth reusing.",
+        "`canvas` keeps it with this canvas, for its members: every chat on the canvas lists it from its next turn and can load it with `read_skill`. `account` keeps it with the person who sent this message: every chat they message, on any canvas, lists it, and nobody else’s do. Save to `account` only a procedure that’s theirs rather than this canvas’s, like how they like a write-up done.",
+        "`content` is the whole SKILL.md: frontmatter with `name` (the skill’s name) and `description` (what it does and when to use it, which is all a chat sees until it loads the skill), then the instructions in markdown. Put longer references or examples in `files`, and say in SKILL.md when to read them.",
         "Saving a name that exists in the scope replaces that skill, so change one by saving it again. `allowed-tools` and lines with an inline !`command` are removed.",
       ].join(" "),
       inputSchema: jsonSchema<
@@ -151,7 +151,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
           files: {
             type: "array",
             description:
-              "Supporting text files beside SKILL.md, by path inside the skill's folder, e.g. `references/style.md`.",
+              "Supporting text files beside SKILL.md, by path inside the skill’s folder, e.g. `references/style.md`.",
             items: {
               type: "object",
               properties: {
@@ -181,16 +181,16 @@ export function buildSkillTools(ctx: SkillToolContext) {
             : `${replaced ? "Replaced" : "Saved"} the canvas skill "${name}". Every chat on this canvas can use it from its next turn.`,
           ...(stripped.length
             ? [
-                `Removed ${stripped.join(" and ")}: saved skills can't grant tools or run commands.`,
+                `Removed ${stripped.join(" and ")}: saved skills can’t grant tools or run commands.`,
               ]
             : []),
           ...(shadowed
             ? [
-                `This branch's repository has a skill named "${name}" too, and in this chat the repository's wins.`,
+                `This branch’s repository has a skill named "${name}" too, and in this chat the repository’s wins.`,
               ]
             : shadowedByCanvas
               ? [
-                  `This canvas has a skill named "${name}" too, and on this canvas the canvas's wins.`,
+                  `This canvas has a skill named "${name}" too, and on this canvas the canvas’s wins.`,
                 ]
               : []),
         ].join(" ")
@@ -199,7 +199,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
 
     delete_skill: tool({
       description:
-        "Delete a saved skill, so no chat follows it any more. Delete one when the user asks, or one you saved that turned out wrong. It can't be undone.",
+        "Delete a saved skill, so no chat follows it any more. Delete one when the user asks, or one you saved that turned out wrong. It can’t be undone.",
       inputSchema: jsonSchema<Scope & { name: string }>({
         type: "object",
         properties: {

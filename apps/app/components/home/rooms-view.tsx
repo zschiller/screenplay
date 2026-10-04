@@ -194,7 +194,7 @@ export function RoomsView({
           </div>
         ) : loadFailed ? (
           <LoadErrorState
-            title="Couldn't load your canvases"
+            title="Couldn’t load your canvases"
             description="Something went wrong while loading them."
             onRetry={reload}
           />
@@ -252,7 +252,7 @@ export function RoomsView({
             if (!creatingFolder) setNewFolderOpen(open)
           }}
           title="New folder"
-          errorMessage="Couldn't create the folder. Try again."
+          errorMessage="Couldn’t create the folder. Try again."
           placeholder="Untitled folder"
           submitLabel={creatingFolder ? "Creating…" : "Create"}
           submittingLabel="Creating…"

@@ -17,7 +17,7 @@ interface NameResult {
 }
 
 const NAMING_SYSTEM_PROMPT =
-  "Generate two things for the user's request:\n" +
+  "Generate two things for the user’s request:\n" +
   "1. A short, lowercase, hyphenated git branch name (2-4 words)\n" +
   "2. A short chat label (2-5 words, sentence case)\n\n" +
   "Output ONLY as two lines, no explanation, backticks, or quotes.\n" +

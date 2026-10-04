@@ -52,7 +52,7 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
   unassigned: {
     title: "No workspace",
     description:
-      "Choose a workspace from the frame's title to preview it here.",
+      "Choose a workspace from the frame’s title to preview it here.",
   },
   booting: {
     title: "Setting up the workspace",
@@ -68,7 +68,7 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
   },
   "preview-failed": {
     title: "Dev server not responding",
-    description: "The preview couldn't be reached. It may still be starting.",
+    description: "The preview couldn’t be reached. It may still be starting.",
   },
   stopped: {
     title: "Workspace stopped",

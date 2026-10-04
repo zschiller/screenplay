@@ -109,7 +109,7 @@ export function liveRoomToolPorts(
   }: RoomTarget
 ): RoomToolPorts {
   const unavailable = (what: string) => async (): Promise<never> => {
-    throw new Error(`${what} isn't available here.`)
+    throw new Error(`${what} isn’t available here.`)
   }
   return {
     ...liveWorkspaceReadPorts(room.roomId),

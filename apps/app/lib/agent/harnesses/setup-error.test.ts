@@ -7,11 +7,11 @@ const row = (patch: Partial<HarnessSetupRow>) =>
   ({ connected: false, installed: false, ...patch }) as HarnessSetupRow
 
 describe("setupStartError", () => {
-  it("names the action that couldn't start", () => {
+  it("names the action that couldn’t start", () => {
     expect(setupStartError("install")).toBe(
-      "Couldn't start the install. Try again."
+      "Couldn’t start the install. Try again."
     )
-    expect(setupStartError("auth")).toBe("Couldn't start sign-in. Try again.")
+    expect(setupStartError("auth")).toBe("Couldn’t start sign-in. Try again.")
   })
 })
 
@@ -22,24 +22,24 @@ describe("setupRunError", () => {
     ).toBeNull()
   })
 
-  it("says the install didn't finish when the binary is still missing", () => {
+  it("says the install didn’t finish when the binary is still missing", () => {
     expect(setupRunError("install", "Claude Code", row({}))).toBe(
-      "The install didn't finish. Try again."
+      "The install didn’t finish. Try again."
     )
   })
 
-  it("says sign-in didn't finish when installed but signed out", () => {
+  it("says sign-in didn’t finish when installed but signed out", () => {
     expect(
       setupRunError("install", "Claude Code", row({ installed: true }))
-    ).toBe("Sign-in didn't finish. Try again.")
+    ).toBe("Sign-in didn’t finish. Try again.")
     expect(setupRunError("auth", "Codex", row({ installed: true }))).toBe(
-      "Sign-in didn't finish. Try again."
+      "Sign-in didn’t finish. Try again."
     )
   })
 
-  it("says the re-check failed when there's no fresh row", () => {
+  it("says the re-check failed when there’s no fresh row", () => {
     expect(setupRunError("auth", "Codex", undefined)).toBe(
-      "Couldn't check Codex. Try again."
+      "Couldn’t check Codex. Try again."
     )
   })
 })

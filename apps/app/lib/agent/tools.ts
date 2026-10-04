@@ -57,7 +57,7 @@ export function buildSandboxTools(ctx: ToolContext) {
   return {
     read_file: tool({
       description:
-        "Read the contents of a file from the project. Output is line-numbered in `cat -n` style (a right-aligned line number, a tab, then the line). Reads up to 2000 lines by default; pass `offset` (1-based line to start at) and `limit` to window a large file. Use this to understand existing code before making changes. NOTE: the line-number + tab prefix is display only — strip it before reusing a line as `edit_file`'s `old_string`.",
+        "Read the contents of a file from the project. Output is line-numbered in `cat -n` style (a right-aligned line number, a tab, then the line). Reads up to 2000 lines by default; pass `offset` (1-based line to start at) and `limit` to window a large file. Use this to understand existing code before making changes. NOTE: the line-number + tab prefix is display only — strip it before reusing a line as `edit_file`’s `old_string`.",
       inputSchema: z.object({
         path: z
           .string()
@@ -83,7 +83,7 @@ export function buildSandboxTools(ctx: ToolContext) {
 
     write_file: tool({
       description:
-        "Write content to a file, creating it if it doesn't exist or replacing it entirely. Use this for new files or complete rewrites.",
+        "Write content to a file, creating it if it doesn’t exist or replacing it entirely. Use this for new files or complete rewrites.",
       inputSchema: z.object({
         path: z.string(),
         content: z.string(),
@@ -228,7 +228,7 @@ export function buildPrTools(ctx: ToolContext) {
   const tools = {
     create_pr: tool({
       description:
-        "Open a GitHub pull request from this agent's branch into the workspace's default branch. Call this when the user asks to create, open, or submit a PR.",
+        "Open a GitHub pull request from this agent’s branch into the workspace’s default branch. Call this when the user asks to create, open, or submit a PR.",
       inputSchema: z.object({
         title: z.string().optional(),
         body: z.string().optional(),

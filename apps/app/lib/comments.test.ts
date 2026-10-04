@@ -117,7 +117,7 @@ async function rowCounts() {
 }
 
 describe("creating a thread", () => {
-  it("stores the thread, its first comment and the starter's read mark", async () => {
+  it("stores the thread, its first comment and the starter’s read mark", async () => {
     as("ann")
     const thread = await startThread("  hello  ")
     expect(thread).toMatchObject({
@@ -131,7 +131,7 @@ describe("creating a thread", () => {
     expect(await rowCounts()).toEqual({ threads: 1, comments: 1, reads: 1 })
   })
 
-  it("is atomic: when the comment can't be stored, neither is the thread", async () => {
+  it("is atomic: when the comment can’t be stored, neither is the thread", async () => {
     as("ann")
     // Postgres refuses a NUL byte in text, failing the comment insert.
     await expect(startThread("bad\u0000body")).rejects.toThrow()
@@ -140,7 +140,7 @@ describe("creating a thread", () => {
 })
 
 describe("author scoping", () => {
-  it("lets only a comment's author edit or delete it, and refuses everyone else the same way", async () => {
+  it("lets only a comment’s author edit or delete it, and refuses everyone else the same way", async () => {
     as("ann")
     const thread = await startThread()
     const { appendComment, editComment, deleteComment, NotYourCommentError } =
@@ -166,7 +166,7 @@ describe("author scoping", () => {
     expect(listed!.comments[1]!.editedAt).not.toBeNull()
   })
 
-  it("lets only the thread's starter delete the thread", async () => {
+  it("lets only the thread’s starter delete the thread", async () => {
     as("ann")
     const thread = await startThread()
     const { deleteThread, NotYourCommentError } = await comments()
@@ -180,7 +180,7 @@ describe("author scoping", () => {
     expect(await rowCounts()).toEqual({ threads: 0, comments: 0, reads: 0 })
   })
 
-  it("lets the sender delete the agent's reply but not edit it", async () => {
+  it("lets the sender delete the agent’s reply but not edit it", async () => {
     as("ann")
     const thread = await startThread()
     const { settleAgentThreads, editComment, deleteComment, listThreads } =
@@ -225,7 +225,7 @@ describe("deleting comments", () => {
 })
 
 describe("unread", () => {
-  it("tracks each member's read state as replies arrive", async () => {
+  it("tracks each member’s read state as replies arrive", async () => {
     const { appendComment, listThreads, markThreadRead, markThreadUnread } =
       await comments()
     as("ann")
@@ -272,7 +272,7 @@ describe("non-members", () => {
       () => c.markThreadUnread(thread.id),
     ]
     for (const attempt of attempts) {
-      await expect(attempt()).rejects.toThrow("don't have access")
+      await expect(attempt()).rejects.toThrow("don’t have access")
     }
     expect(await rowCounts()).toEqual(before)
     expect(readCommentsRevision(roomDoc())).toBe(revision)
@@ -286,7 +286,7 @@ describe("non-members", () => {
 })
 
 describe("listing", () => {
-  it("places the old feed's threads on their Workspace without writing", async () => {
+  it("places the old feed’s threads on their Workspace without writing", async () => {
     const { db, schema } = await import("@/lib/db")
     await db.insert(schema.thread).values([
       { id: "feed-1", roomId: ROOM, branch: "feat", createdBy: "ann" },
@@ -332,7 +332,7 @@ describe("doorbells", () => {
     expect(readCommentsRead(roomDoc(), "ann")).toBe(0)
   })
 
-  it("read changes ring only the acting user's doorbell", async () => {
+  it("read changes ring only the acting user’s doorbell", async () => {
     const c = await comments()
     as("ann")
     const thread = await startThread()

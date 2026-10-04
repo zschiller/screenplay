@@ -21,7 +21,7 @@ describe("checkAttachment (#1525)", () => {
     ).toMatchObject({ ok: true, mediaType: "text/plain" })
   })
 
-  it("goes by the extension over the browser's type for code", () => {
+  it("goes by the extension over the browser’s type for code", () => {
     // Browsers call a `.ts` file an MPEG transport stream.
     expect(
       checkAttachment({ name: "app.ts", size: 10, type: "video/mp2t" })
@@ -40,7 +40,7 @@ describe("checkAttachment (#1525)", () => {
     expect(check).toEqual({
       ok: false,
       error:
-        "movie.mov can't be attached. Agents read images, PDFs, and text and code files.",
+        "movie.mov can’t be attached. Agents read images, PDFs, and text and code files.",
     })
     expect(
       checkAttachment({

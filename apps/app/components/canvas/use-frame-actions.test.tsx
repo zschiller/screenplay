@@ -66,7 +66,7 @@ describe("showRoutesForAgent", () => {
     act(() => result.current.showRoutesForAgent("branch-1"))
 
     expect(toast.info).toHaveBeenCalledWith(
-      "No routes found in this workspace's code yet."
+      "No routes found in this workspace’s code yet."
     )
     expect(alertSpy).not.toHaveBeenCalled()
     expect(addRoutesGroupForAgent).not.toHaveBeenCalled()

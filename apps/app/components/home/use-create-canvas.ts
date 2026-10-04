@@ -37,7 +37,7 @@ export function useCreateCanvas() {
           prewarmRoom(room.id)
           startCreating(() => router.push(`/${room.id}`))
         } catch {
-          toast.error("Couldn't create the canvas. Try again.")
+          toast.error("Couldn’t create the canvas. Try again.")
         }
       })
     },

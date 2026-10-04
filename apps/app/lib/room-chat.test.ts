@@ -134,7 +134,7 @@ describe("ensureRoomChatAction", () => {
     const { ensureRoomChatAction } = await import("./room-chat-actions")
     session.userId = "outsider"
     await expect(ensureRoomChatAction(ROOM)).rejects.toThrow(
-      "don't have access"
+      "don’t have access"
     )
     expect(docs.has(ROOM)).toBe(false)
   })
@@ -146,7 +146,7 @@ describe("posting in the Coordinator chat", () => {
     return POST(
       new Request("http://localhost/api/agent/stream", {
         method: "POST",
-        body: JSON.stringify({ message: "What's on this canvas?", ...body }),
+        body: JSON.stringify({ message: "What’s on this canvas?", ...body }),
       })
     )
   }
@@ -178,7 +178,7 @@ describe("posting in the Coordinator chat", () => {
     expect(launched).toEqual([])
   })
 
-  it("refuses another Room's Coordinator chat id, from any target", async () => {
+  it("refuses another Room’s Coordinator chat id, from any target", async () => {
     session.userId = "outsider"
     const asRoom = await post({
       roomId: OTHER_ROOM,

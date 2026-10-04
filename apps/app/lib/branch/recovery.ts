@@ -192,7 +192,7 @@ export function restartDevServer(
 ): Promise<void> {
   return launchDevServer(id, deps, {
     successMessage: "Dev server restarted",
-    failureTitle: "Couldn't restart dev server",
+    failureTitle: "Couldn’t restart dev server",
   })
 }
 
@@ -206,7 +206,7 @@ export function runDevServer(
   deps: BranchRecoveryDeps
 ): Promise<void> {
   return launchDevServer(id, deps, {
-    failureTitle: "Couldn't run dev server",
+    failureTitle: "Couldn’t run dev server",
   })
 }
 
@@ -265,7 +265,7 @@ export async function stopDevServer(
   )
   if (!result.success) {
     deps.patchAgent(id, { devServerStoppedAt: undefined })
-    deps.toast.error("Couldn't stop dev server", result.error || undefined)
+    deps.toast.error("Couldn’t stop dev server", result.error || undefined)
   }
 }
 
@@ -284,7 +284,7 @@ export function restartSandbox(
     {
       startingMessage: "Restarting sandbox…",
       successMessage: "Sandbox restarted",
-      failureTitle: "Couldn't restart sandbox",
+      failureTitle: "Couldn’t restart sandbox",
       run: (agent, repo) => restartSandboxVm(agent.sandboxName, repo),
     },
     deps
@@ -305,7 +305,7 @@ export function recreate(
     {
       startingMessage: "Recreating from scratch…",
       successMessage: "Recreated from scratch",
-      failureTitle: "Couldn't recreate from scratch",
+      failureTitle: "Couldn’t recreate from scratch",
       run: (agent, repo) =>
         recreateSandbox(agent.sandboxName, repo, agent.ref, deps.roomId),
     },
@@ -334,7 +334,7 @@ export function startWorkspace(
     {
       startingMessage: "Restarting dev server…",
       successMessage: "Dev server restarted",
-      failureTitle: "Couldn't restart dev server",
+      failureTitle: "Couldn’t restart dev server",
       run: async (agent, repo) => {
         const result = await restartDevServerSandbox(agent.sandboxName, repo)
         if (!result.success) return result
@@ -391,7 +391,7 @@ export function reopen(
     id,
     {
       startingMessage: "Starting…",
-      failureTitle: "Couldn't reopen workspace",
+      failureTitle: "Couldn’t reopen workspace",
       run: (agent, repo) => reconnectSandbox(agent.sandboxName, repo),
     },
     deps

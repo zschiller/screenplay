@@ -33,7 +33,7 @@ describe("chat-store — errors in plain words, with Retry", () => {
     const [error] = chatStore.getSnapshot(chatId).messages
     expect(error).toEqual({
       role: "error",
-      content: "Couldn't approve the plan.",
+      content: "Couldn’t approve the plan.",
       detail: "HTTP 500",
     })
     expect(chatStore.canRetryError(error)).toBe(true)
@@ -151,7 +151,7 @@ describe("chat-store — errors in plain words, with Retry", () => {
     chatStore.cleanup(chatId)
   })
 
-  it("offers no Retry for a turn this client didn't start", () => {
+  it("offers no Retry for a turn this client didn’t start", () => {
     const chatId = newChat()
     chatStore.handleBroadcastEvent({
       type: "chat-control",
@@ -161,7 +161,7 @@ describe("chat-store — errors in plain words, with Retry", () => {
     })
 
     const [error] = chatStore.getSnapshot(chatId).messages
-    expect(error).toMatchObject({ content: "The agent couldn't be reached." })
+    expect(error).toMatchObject({ content: "The agent couldn’t be reached." })
     expect(chatStore.canRetryError(error)).toBe(false)
     chatStore.cleanup(chatId)
   })

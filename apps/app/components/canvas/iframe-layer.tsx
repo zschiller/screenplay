@@ -63,12 +63,12 @@ import type {
 } from "@/lib/postmessage-protocol"
 
 const UNASSIGNED_IN_GROUP =
-  "Choose a workspace from the group's title to preview it here."
+  "Choose a workspace from the group’s title to preview it here."
 /** The unanswered frame's copy when it can start a chat (#1358). */
 const START_A_CHAT =
-  "Start a chat to build something here, or choose a workspace from the frame's title."
+  "Start a chat to build something here, or choose a workspace from the frame’s title."
 const START_A_CHAT_IN_GROUP =
-  "Start a chat to build something here, or choose a workspace from the group's title."
+  "Start a chat to build something here, or choose a workspace from the group’s title."
 
 // Cached expected bridge version — fetched once per session.
 let expectedBridgeVersionPromise: Promise<string> | null = null

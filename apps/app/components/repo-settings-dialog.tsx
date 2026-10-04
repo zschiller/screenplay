@@ -136,7 +136,7 @@ function RepoSettingsForm({
     repo,
     canReveal: canRevealEnv,
     onRevealError: () =>
-      toast.error("Couldn't load the environment variables."),
+      toast.error("Couldn’t load the environment variables."),
   })
   const canSaveToAll = Boolean(repository && onSaveToAll)
   const [saveToAll, setSaveToAll] = useState(false)
@@ -155,7 +155,7 @@ function RepoSettingsForm({
       try {
         await saveCanvasRepoEnv(roomId, repo.id, env.text)
       } catch {
-        setError("Couldn't save the environment variables.")
+        setError("Couldn’t save the environment variables.")
         setSaving(false)
         return
       }
@@ -169,7 +169,7 @@ function RepoSettingsForm({
           updatedAt: Date.now(),
         })
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't save. Try again.")
+        setError(e instanceof Error ? e.message : "Couldn’t save. Try again.")
         setSaving(false)
         return
       }
@@ -199,7 +199,7 @@ function RepoSettingsForm({
     try {
       await resetCanvasRepoEnv(roomId, repo.id, from.envVars)
     } catch {
-      setError("Couldn't restore the environment variables.")
+      setError("Couldn’t restore the environment variables.")
       setSaving(false)
       return
     }

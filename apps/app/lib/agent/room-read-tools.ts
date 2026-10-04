@@ -78,13 +78,13 @@ export function buildWorkspaceReadTools(ports: WorkspaceReadPorts & Reader) {
   const tools = {
     read_workspace_chat: tool({
       description:
-        "Read what a Workspace's agent did: by default the last thing it was asked, a one-line summary of its last turn (files read and edited, commands run, failures) and its last reply. Pass `full: true` only when you need the whole transcript. Reads the Workspace's newest chat unless you pass `chatId`.",
+        "Read what a Workspace’s agent did: by default the last thing it was asked, a one-line summary of its last turn (files read and edited, commands run, failures) and its last reply. Pass `full: true` only when you need the whole transcript. Reads the Workspace’s newest chat unless you pass `chatId`.",
       inputSchema: z.object({
         workspaceId: z.string().describe("The Workspace id from read_canvas"),
         chatId: z
           .string()
           .optional()
-          .describe("One of the Workspace's chats, when it has several"),
+          .describe("One of the Workspace’s chats, when it has several"),
         full: z
           .boolean()
           .optional()
@@ -130,7 +130,7 @@ export function buildWorkspaceReadTools(ports: WorkspaceReadPorts & Reader) {
 
     read_workspace_diff: tool({
       description:
-        "Read a Workspace's changes: the `git diff` of its checkout against the repository's default branch (committed and uncommitted), plus untracked files. Pass `path` to see one file's changes. Read-only.",
+        "Read a Workspace’s changes: the `git diff` of its checkout against the repository’s default branch (committed and uncommitted), plus untracked files. Pass `path` to see one file’s changes. Read-only.",
       inputSchema: z.object({
         workspaceId: z.string().describe("The Workspace id from read_canvas"),
         path: z
@@ -153,14 +153,14 @@ export function buildWorkspaceReadTools(ports: WorkspaceReadPorts & Reader) {
             truncateOutput(diff, WORKSPACE_READ_LIMITS.diff),
           ].join("\n")
         } catch (err) {
-          return `Couldn't read Workspace "${target.title}"'s diff: ${errorText(err)}`
+          return `Couldn’t read Workspace "${target.title}"'s diff: ${errorText(err)}`
         }
       },
     }),
 
     read_workspace_file: tool({
       description:
-        "Read a file from a Workspace's checkout, line-numbered like `cat -n`. Reads up to 2000 lines; pass `offset` (1-based) and `limit` to window a large file. Read-only: you can't edit Workspace files.",
+        "Read a file from a Workspace’s checkout, line-numbered like `cat -n`. Reads up to 2000 lines; pass `offset` (1-based) and `limit` to window a large file. Read-only: you can’t edit Workspace files.",
       inputSchema: z.object({
         workspaceId: z.string().describe("The Workspace id from read_canvas"),
         path: z.string().describe("Path relative to the repo root"),
@@ -177,7 +177,7 @@ export function buildWorkspaceReadTools(ports: WorkspaceReadPorts & Reader) {
           }
           return renderFileWindow({ content, offset, limit })
         } catch (err) {
-          return `Couldn't read ${path} from Workspace "${target.title}": ${errorText(err)}`
+          return `Couldn’t read ${path} from Workspace "${target.title}": ${errorText(err)}`
         }
       },
     }),

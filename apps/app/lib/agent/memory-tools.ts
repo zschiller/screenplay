@@ -73,8 +73,8 @@ export function buildMemoryTools(ctx: MemoryToolContext) {
     write_memory: tool({
       description: [
         "Add, edit or remove a memory entry: a short note every later chat reads in its system prompt.",
-        "`account` memory is the personal preferences of the person who sent this message (how they like to work, write or be answered); it follows them to every canvas. `canvas` memory is facts about this canvas's work (decisions, conventions, facts about its repositories), shared with its members.",
-        `Add one short, self-contained sentence per entry (at most ${MEMORY_ENTRY_MAX_LENGTH} characters). Edit or remove by the id shown in brackets in your prompt's Account memory or Canvas memory block. Never save secrets or credentials.`,
+        "`account` memory is the personal preferences of the person who sent this message (how they like to work, write or be answered); it follows them to every canvas. `canvas` memory is facts about this canvas’s work (decisions, conventions, facts about its repositories), shared with its members.",
+        `Add one short, self-contained sentence per entry (at most ${MEMORY_ENTRY_MAX_LENGTH} characters). Edit or remove by the id shown in brackets in your prompt’s Account memory or Canvas memory block. Never save secrets or credentials.`,
       ].join(" "),
       inputSchema: jsonSchema<WriteMemoryInput>({
         type: "object",
@@ -83,7 +83,7 @@ export function buildMemoryTools(ctx: MemoryToolContext) {
             type: "string",
             enum: ["account", "canvas"],
             description:
-              "`account` for the sender's personal preferences, `canvas` for facts about this canvas's work.",
+              "`account` for the sender’s personal preferences, `canvas` for facts about this canvas’s work.",
           },
           action: { type: "string", enum: ["add", "edit", "remove"] },
           id: {
@@ -92,7 +92,7 @@ export function buildMemoryTools(ctx: MemoryToolContext) {
           },
           text: {
             type: "string",
-            description: "The entry's text, for add and edit.",
+            description: "The entry’s text, for add and edit.",
           },
         },
         required: ["scope", "action"],
@@ -134,7 +134,7 @@ async function writeMemory(
       ? `Saved to ${where}: [${entry.id}] ${entry.text}`
       : "Nothing saved."
   }
-  if (!id) return `Nothing changed: ${action} needs the entry's id.`
+  if (!id) return `Nothing changed: ${action} needs the entry’s id.`
   if (action === "edit") {
     if (!text?.trim()) return "Nothing changed: an edit needs text."
     return (await verbs.edit(id, text))
