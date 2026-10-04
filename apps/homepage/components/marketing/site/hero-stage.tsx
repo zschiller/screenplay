@@ -193,7 +193,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
         // through the same grain, solid only at the very top of the page.
         [floor.top - s, floor.top - s + floor.height * FAR],
         // Denser right behind the nav, so its links read over the copies.
-        [floor.top - s + NAV, 0.88],
+        [floor.top - s + NAV, 0.84],
       ]
     })
     const timers = new Set<ReturnType<typeof setTimeout>>()
