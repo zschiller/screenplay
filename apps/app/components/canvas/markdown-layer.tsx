@@ -57,11 +57,37 @@ import Mention from "@tiptap/extension-mention"
 import Placeholder from "@tiptap/extension-placeholder"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
-import { useDocumentFragment, useYjs } from "@/lib/yjs/context"
-import { useMarkdownLayers } from "@/lib/yjs/react"
+import { useDocumentFragment, useRoomId, useYjs } from "@/lib/yjs/context"
+import { useCanvasFiles, useMarkdownLayers } from "@/lib/yjs/react"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
+import { DocumentImageNodeView } from "@/components/canvas/document-image-node"
+import {
+  DocumentImagePicker,
+  type PickedImage,
+} from "@/components/canvas/document-image-picker"
+import { DocumentImage, imageAltFor } from "@/lib/document-image"
+import {
+  DocumentImageUpload,
+  imagesIn,
+  insertImageAt,
+  insertImageWhenSaved,
+  markPlace,
+  releasePlace,
+  uploadImages,
+  type DocumentImageUploadOptions,
+} from "@/lib/document-image-upload"
+import { DocumentSlashMenu } from "@/lib/document-slash-menu"
+import type { DocumentSlashItem } from "@/components/canvas/document-slash-menu-list"
+import { uploadAttachment } from "@/lib/chat-attachments"
+import {
+  copyAccountImageToCanvas,
+  listAccountFiles,
+} from "@/lib/files/account-actions"
+import { MODEL_IMAGE_TYPES } from "@/lib/files/attachments"
+import { baseName } from "@/lib/files/paths"
+import { toast } from "sonner"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
   LayerLabelMenu,
@@ -510,6 +536,29 @@ export function MarkdownLayer({
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
 
+  // Images: paste, drop and Upload image save into the canvas's files under
+  // `uploads/`, as chat attachments do, and Image from files picks one there
+  // (or in your account's files, copied in). The `/` menu's two picks hold
+  // their place in the body while their picker is open.
+  const roomId = useRoomId()
+  const canvasFiles = useCanvasFiles()
+  const imageOptions = useMemo<DocumentImageUploadOptions>(
+    () => ({
+      upload: async (file) => {
+        const result = await uploadAttachment(roomId, file)
+        return result.ok ? { ok: true, path: result.attachment.path } : result
+      },
+      onError: (message) => toast(message),
+    }),
+    [roomId]
+  )
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const imagePlaceRef = useRef<string | null>(null)
+  const [imagePickerOpen, setImagePickerOpen] = useState(false)
+  const onSlashPickRef = useRef<
+    (key: DocumentSlashItem["key"], pos: number) => void
+  >(() => {})
+
   // Mention suggestion needs the live layer lists every keystroke, but the
   // editor closes over its initial config. Funnel through refs so the
   // popover always reflects the current titles and excludes self-references.
@@ -664,6 +713,18 @@ export function MarkdownLayer({
               rootRef.current?.getBoundingClientRect() ?? null,
           }),
         }),
+        DocumentImage.extend({
+          addNodeView() {
+            return ReactNodeViewRenderer(DocumentImageNodeView)
+          },
+        }),
+        DocumentImageUpload.configure(imageOptions),
+        // onPick reads a ref, but only when a `/` menu item is picked, never
+        // during render.
+        // eslint-disable-next-line react-hooks/refs
+        DocumentSlashMenu.configure({
+          onPick: (key, pos) => onSlashPickRef.current(key, pos),
+        }),
         // onSelectThread reads a ref, but TipTap only invokes it when a
         // comment thread is clicked, never during render — the deferred ref
         // access is safe and the rule can't see that.
@@ -682,8 +743,66 @@ export function MarkdownLayer({
         },
       },
     },
-    [fragment, provider]
+    [fragment, provider, imageOptions]
   )
+
+  // The `/` menu's image picks: hold the place, then open the file chooser
+  // (Upload image) or the picker (Image from files).
+  useEffect(() => {
+    onSlashPickRef.current = (key, pos) => {
+      if (!editor) return
+      if (imagePlaceRef.current) releasePlace(editor, imagePlaceRef.current)
+      imagePlaceRef.current = markPlace(editor, pos, null)
+      if (key === "upload-image") imageInputRef.current?.click()
+      else setImagePickerOpen(true)
+    }
+  })
+
+  /** Take the place the `/` menu held, if it's still held. */
+  const takeImagePlace = () => {
+    const id = imagePlaceRef.current
+    imagePlaceRef.current = null
+    return editor && id ? { editor, id } : null
+  }
+
+  const onImageFilesChosen = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const images = imagesIn(e.target.files, imageOptions.onError)
+    e.target.value = ""
+    const place = takeImagePlace()
+    if (!place) return
+    const pos = releasePlace(place.editor, place.id)
+    if (pos !== null && images.length > 0) {
+      uploadImages(place.editor, images, pos, imageOptions)
+    }
+  }
+
+  const onImagePicked = (image: PickedImage) => {
+    const place = takeImagePlace()
+    if (!place) return
+    if (image.scope === "canvas") {
+      releasePlace(place.editor, place.id, (tr, pos) =>
+        insertImageAt(tr, pos, {
+          src: image.path,
+          alt: imageAltFor(image.path),
+        })
+      )
+      return
+    }
+    const pos = releasePlace(place.editor, place.id)
+    if (pos === null) return
+    void insertImageWhenSaved(
+      place.editor,
+      copyAccountImageToCanvas(roomId, image.path),
+      { pos, label: baseName(image.path), onError: imageOptions.onError }
+    )
+  }
+
+  const onImagePickerOpenChange = (open: boolean) => {
+    setImagePickerOpen(open)
+    if (open) return
+    const place = takeImagePlace()
+    if (place) releasePlace(place.editor, place.id)
+  }
 
   // Keep the cached title (sidebar/mention label) in sync with the editor's
   // first heading. Debounced so a flurry of keystrokes only writes once;
@@ -869,8 +988,16 @@ export function MarkdownLayer({
       // straight to <body> — outside both refs above. Treat a click inside its
       // popper wrapper the same as a click on the toolbar so choosing a block
       // type doesn't blur the editor and tear the toolbar down mid-select.
+      // The same goes for the `/` menu, portaled to <body> too, and the
+      // Image from files picker it opens.
       const el = target instanceof Element ? target : target.parentElement
-      if (el?.closest("[data-radix-popper-content-wrapper]")) return
+      if (
+        el?.closest(
+          "[data-radix-popper-content-wrapper], [data-composer-popup], [data-document-image-picker]"
+        )
+      ) {
+        return
+      }
       onStopEdit()
     }
     window.addEventListener("pointerdown", onDown, true)
@@ -1094,6 +1221,23 @@ export function MarkdownLayer({
               />
             )}
           </div>
+
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept={[...MODEL_IMAGE_TYPES].join(",")}
+            multiple
+            hidden
+            onChange={onImageFilesChosen}
+          />
+          <DocumentImagePicker
+            open={imagePickerOpen}
+            onOpenChange={onImagePickerOpenChange}
+            roomId={roomId}
+            canvasFiles={canvasFiles}
+            listAccountFiles={listAccountFiles}
+            onPick={onImagePicked}
+          />
 
           {bubbleAnchor &&
             editing &&

@@ -125,6 +125,7 @@ import { TextHTwoIcon as TextHTwoBase } from "@phosphor-icons/react/dist/ssr/Tex
 import { TextItalicIcon as TextItalicBase } from "@phosphor-icons/react/dist/ssr/TextItalic"
 import { TextStrikethroughIcon as TextStrikethroughBase } from "@phosphor-icons/react/dist/ssr/TextStrikethrough"
 import { TextTIcon as TextTBase } from "@phosphor-icons/react/dist/ssr/TextT"
+import { UploadSimpleIcon as UploadSimpleBase } from "@phosphor-icons/react/dist/ssr/UploadSimple"
 import { WarningIcon as WarningBase } from "@phosphor-icons/react/dist/ssr/Warning"
 import { WarningCircleIcon as WarningCircleBase } from "@phosphor-icons/react/dist/ssr/WarningCircle"
 import { XIcon as XBase } from "@phosphor-icons/react/dist/ssr/X"
@@ -375,6 +376,7 @@ export const TextStrikethroughIcon = phosphor(
   "ph-text-strikethrough"
 )
 export const TextTIcon = phosphor(TextTBase, "ph-text-t")
+export const UploadSimpleIcon = phosphor(UploadSimpleBase, "ph-upload-simple")
 export const WarningIcon = phosphor(WarningBase, "ph-warning")
 export const WarningCircleIcon = phosphor(
   WarningCircleBase,

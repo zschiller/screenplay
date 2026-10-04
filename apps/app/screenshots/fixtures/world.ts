@@ -118,7 +118,7 @@ export interface FixtureRoom {
     files?: FileEntryData[]
     /** Bytes per Canvas Files path, written to the private file store under
      *  the entry's `blobKey`. */
-    fileBodies?: Record<string, string>
+    fileBodies?: Record<string, FileFixtureBody>
     /**
      * Canvas Skills (#1555) a chat saved, shown in Canvas settings › Skills
      * (#1557). The seeder saves each through the skills module, so the doc
@@ -211,7 +211,10 @@ export interface FixtureWorld {
    * Account Files (#1521), shown in Settings › Files: the entries the seeder
    * encrypts into `kv_store` and the bodies it writes to the file store.
    */
-  accountFiles?: { files: FileEntryData[]; fileBodies: Record<string, string> }
+  accountFiles?: {
+    files: FileEntryData[]
+    fileBodies: Record<string, FileFixtureBody>
+  }
   /** Account Skills (#1558), shown in Settings › Skills. */
   accountSkills?: FixtureSkill[]
   /** The hosted build's half, seeded only by a `--hosted` run (#789). */
@@ -943,7 +946,8 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
         {
           path: "uploads/cart-sketch.png",
           mediaType: "image/png",
-          size: 310 * 1024,
+          body: { file: "cart-sketch.png" },
+          size: 44_633,
           addedById: LOCAL_USER_ID,
         },
         {
@@ -2070,12 +2074,19 @@ function repoConfigs(now: number): RepoConfig[] {
   ]
 }
 
+/**
+ * A fixture file's bytes: its text, or the name of a committed file in
+ * `fixtures/files/` (an image) that the seeder copies.
+ */
+export type FileFixtureBody = string | { file: string }
+
 type FileFixtureSpec =
   | { folder: string }
   | {
       path: string
       mediaType: string
-      body?: string
+      body?: FileFixtureBody
+      /** Bytes; a text body's own length when left out. */
       size?: number
       addedById?: string
     }
@@ -2089,7 +2100,7 @@ export function canvasFileFixtures(
   roomId: string,
   at: number,
   specs: FileFixtureSpec[]
-): { files: FileEntryData[]; fileBodies: Record<string, string> } {
+): { files: FileEntryData[]; fileBodies: Record<string, FileFixtureBody> } {
   return fileFixtures(`canvas/${roomId}`, roomId, at, specs)
 }
 
@@ -2101,7 +2112,7 @@ export function accountFileFixtures(
   userId: string,
   at: number,
   specs: FileFixtureSpec[]
-): { files: FileEntryData[]; fileBodies: Record<string, string> } {
+): { files: FileEntryData[]; fileBodies: Record<string, FileFixtureBody> } {
   return fileFixtures(
     accountFileKeyPrefix(userId),
     `account-${userId}`,
@@ -2115,9 +2126,9 @@ function fileFixtures(
   idPrefix: string,
   at: number,
   specs: FileFixtureSpec[]
-): { files: FileEntryData[]; fileBodies: Record<string, string> } {
+): { files: FileEntryData[]; fileBodies: Record<string, FileFixtureBody> } {
   const files: FileEntryData[] = []
-  const fileBodies: Record<string, string> = {}
+  const fileBodies: Record<string, FileFixtureBody> = {}
   specs.forEach((spec, i) => {
     const id = `file-${idPrefix}-${i}`
     const base = { id, createdAt: at - i * 60_000, updatedAt: at - i * 60_000 }
@@ -2138,7 +2149,11 @@ function fileFixtures(
       ...base,
       path: spec.path,
       kind: "file",
-      size: spec.size ?? new TextEncoder().encode(spec.body ?? "").byteLength,
+      size:
+        spec.size ??
+        (typeof spec.body === "string"
+          ? new TextEncoder().encode(spec.body).byteLength
+          : 0),
       mediaType: spec.mediaType,
       addedBy: spec.addedById ? "member" : "agent",
       addedById: spec.addedById ?? "chat-fixture",

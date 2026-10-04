@@ -1,5 +1,6 @@
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { eq } from "drizzle-orm"
 import * as Y from "yjs"
 
@@ -34,6 +35,7 @@ import { FIXTURE_SESSION_TOKEN } from "../lib/hosted"
 import { renderFrameCaptures, type FrameCaptureRequest } from "./frame-captures"
 import {
   buildFixtureWorld,
+  type FileFixtureBody,
   type FixtureRoom,
   type FixtureSkill,
   type FixtureWorld,
@@ -573,7 +575,7 @@ async function seedRoomDocs(
       if (entry.kind !== "file" || body === undefined) continue
       const path = join(ctx.filesDir, entry.blobKey)
       await mkdir(dirname(path), { recursive: true })
-      await writeFile(path, body)
+      await writeFile(path, await fileFixtureBytes(body))
     }
 
     captureCount += await seedRoomThumbnail(room, ctx)
@@ -586,7 +588,7 @@ async function seedRoomDocs(
     if (entry.kind !== "file" || body === undefined) continue
     const path = join(ctx.filesDir, entry.blobKey)
     await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, body)
+    await writeFile(path, await fileFixtureBytes(body))
   }
 
   await seedAccountSkills(world, ctx.filesDir, ctx.db)
@@ -823,4 +825,13 @@ async function seedRoomThumbnail(
     .where(eq(schema.room.id, room.id))
 
   return rendered.length
+}
+
+/** A fixture file's bytes: its text, or the committed file it names. */
+async function fileFixtureBytes(
+  body: FileFixtureBody
+): Promise<string | Buffer> {
+  if (typeof body === "string") return body
+  const here = dirname(fileURLToPath(import.meta.url))
+  return readFile(join(here, "files", body.file))
 }
