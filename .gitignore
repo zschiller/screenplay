@@ -48,6 +48,11 @@ pnpm-debug.log*
 #  - capture sets (the committed sample set lives in apps/app/screenshots/sample/)
 apps/app/.screenshots/
 
+# the local build's own data when run with plain `next dev` (thumbnails, saved
+# files, agent context folders; lib/blob/local-fs.ts, lib/files/local-fs.ts) —
+# never committed, and ignored so Turbopack doesn't rebuild on every write.
+apps/app/.screenplay/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
