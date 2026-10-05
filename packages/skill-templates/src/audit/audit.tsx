@@ -1,9 +1,11 @@
-// The design-audit findings page. Phone first, one column: header, filter
-// tabs (All / Calls / one per depth), then one card per finding with its
-// captures and its pick: Fix or Skip, or a call's options drawn like the
-// chat's question card. A bar pinned to the bottom carries the tally, a note
-// and Copy (Send to chat on a canvas, where a call the chat asks about with a
-// question card answers that card).
+// The design-audit findings page: header, filter tabs (All / Calls / one per
+// depth), then one card per finding with its captures and its pick: Fix or
+// Skip, or a call's options drawn like the chat's question card. Each pick
+// starts on the recommendation, in grey. From 1280px it's list and detail
+// (shared/detail.tsx): every finding listed on the left, one at a time in the
+// middle, its pick pinned on the right. A bar pinned to the bottom carries
+// the tally, a note and Copy (Send to chat on a canvas, where a call the chat
+// asks about with a question card answers that card).
 
 import * as React from "react"
 
@@ -14,6 +16,8 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@workspace/ui/components/alert"
+
+import { cn } from "@workspace/ui/lib/utils"
 
 import {
   answer,
@@ -38,6 +42,15 @@ import {
   type Tab,
   Tag,
 } from "../shared/kit.tsx"
+import {
+  ABOUT,
+  DEFAULTED,
+  DetailItem,
+  DetailLayout,
+  DetailNav,
+  detailOnly,
+  useDetail,
+} from "../shared/detail.tsx"
 import { CopyBar, Html, load, store } from "../shared/page.tsx"
 import { Shots, type Img } from "../shared/shots.tsx"
 import { useTheme } from "../shared/theme.tsx"
@@ -196,14 +209,25 @@ export function Audit({
     if (note.trim()) L.push("Note: " + note.trim())
     return L.join("\n")
   }
-  const n = (v: string) =>
-    findings.filter((f) => state.picks[f.id] === v).length
-  const skipped = n("skip")
+  // Every pick starts on the recommendation, so the tally counts changes
+  const rec = (f: Finding) => (f.call ? recOf(f)?.id : "fix")
+  const changed = findings.filter(
+    (f) => state.picks[f.id] && state.picks[f.id] !== rec(f)
+  ).length
+  const need = findings.filter((f) => !rec(f) && !state.picks[f.id]).length
   const status = (
     <>
-      <b>{findings.filter((f) => state.picks[f.id]).length}</b> of{" "}
-      {findings.length} answered
-      {skipped > 0 && ` · ${skipped} skipped`}
+      <b>{changed}</b> changed
+      <span className="max-sm:hidden">
+        {" "}
+        · {findings.length - changed - need} keep my recommendation
+      </span>
+      {need > 0 && (
+        <>
+          {" "}
+          · <b>{need}</b> need you
+        </>
+      )}
     </>
   )
 
@@ -218,6 +242,8 @@ export function Audit({
   ]
   const shows = (f: Finding) =>
     filter === "all" || (filter === "calls" ? !!f.call : f.id[0] === filter)
+  const detail = useDetail(findings.filter(shows).map((f) => f.id))
+  const about = detail.sel === ABOUT
 
   return (
     <Shell
@@ -230,8 +256,10 @@ export function Audit({
       }}
       tabsLabel="Filter"
       theme={theme}
+      wide
       bar={
         <CopyBar
+          wide
           status={status}
           note={state.note}
           setNote={(note) => setState((s) => ({ ...s, note }))}
@@ -245,53 +273,83 @@ export function Audit({
         />
       }
     >
-      <Intro meta={`Design audit · ${page.date}`}>
-        {page.lede.map((l, i) => (
-          <Html as="p" key={i} html={l} />
-        ))}
-        <Links links={page.links ?? []} />
-      </Intro>
-      {notices.map((x, i) => (
-        <Notice key={i} title={x.title} body={x.body} />
-      ))}
-      {depths.map((d) => (
-        <section
-          key={d.key}
-          hidden={!findings.some((f) => f.id[0] === d.key && shows(f))}
-          className="flex flex-col"
+      <DetailLayout
+        about="About this audit"
+        detail={detail}
+        groups={depths.map((d) => ({
+          name: d.name,
+          items: findings
+            .filter((f) => f.id[0] === d.key && shows(f))
+            .map((f) => ({
+              id: f.id,
+              title: f.title,
+              done: !!state.picks[f.id],
+            })),
+        }))}
+      >
+        <Intro
+          meta={`Design audit · ${page.date}`}
+          className={detailOnly(about)}
         >
-          <SectionHead title={d.name} blurb={d.blurb} />
-          {findings
-            .filter((f) => f.id[0] === d.key)
-            .map((f) => (
-              <FindingCard
-                key={f.id}
-                f={f}
-                hidden={!shows(f)}
-                picked={state.picks[f.id]}
-                pick={pick}
-                choose={choose}
-                chatOnly={chatOnly === f.id}
-                note={state.notes[f.id] || ""}
-                setNote={(v) =>
-                  setState((s) => ({
-                    ...s,
-                    notes: { ...s.notes, [f.id]: v },
-                  }))
-                }
-              />
-            ))}
-        </section>
-      ))}
-      {filter === "all" && extra.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {extra.map(([t, items]) => (
-            <Fold key={t} title={t}>
-              <FoldList items={items} />
-            </Fold>
+          {page.lede.map((l, i) => (
+            <Html as="p" key={i} html={l} />
           ))}
-        </div>
-      )}
+          <Links links={page.links ?? []} />
+        </Intro>
+        {notices.map((x, i) => (
+          <div key={i} className={detailOnly(about)}>
+            <Notice title={x.title} body={x.body} />
+          </div>
+        ))}
+        {depths.map((d) => (
+          <section
+            key={d.key}
+            hidden={!findings.some((f) => f.id[0] === d.key && shows(f))}
+            className={cn("flex flex-col", detailOnly(detail.sel[0] === d.key))}
+          >
+            <div className="xl:hidden">
+              <SectionHead title={d.name} blurb={d.blurb} />
+            </div>
+            {findings
+              .filter((f) => f.id[0] === d.key)
+              .map((f) => (
+                <FindingCard
+                  key={f.id}
+                  f={f}
+                  hidden={!shows(f)}
+                  shown={detail.sel === f.id}
+                  nav={<DetailNav detail={detail} noun="findings" />}
+                  rec={rec(f)}
+                  picked={state.picks[f.id]}
+                  pick={pick}
+                  choose={choose}
+                  chatOnly={chatOnly === f.id}
+                  note={state.notes[f.id] || ""}
+                  setNote={(v) =>
+                    setState((s) => ({
+                      ...s,
+                      notes: { ...s.notes, [f.id]: v },
+                    }))
+                  }
+                />
+              ))}
+          </section>
+        ))}
+        {filter === "all" && extra.length > 0 && (
+          <div className={cn("flex flex-col gap-3", detailOnly(about))}>
+            {extra.map(([t, items]) => (
+              <Fold key={t} title={t}>
+                <FoldList items={items} />
+              </Fold>
+            ))}
+          </div>
+        )}
+        {about && (
+          <div className="hidden xl:block">
+            <DetailNav detail={detail} noun="findings" />
+          </div>
+        )}
+      </DetailLayout>
     </Shell>
   )
 }
@@ -311,6 +369,9 @@ function Notice({ title, body }: { title: string; body: string }) {
 function FindingCard({
   f,
   hidden,
+  shown,
+  nav,
+  rec,
   picked,
   pick,
   choose,
@@ -320,6 +381,11 @@ function FindingCard({
 }: {
   f: Finding
   hidden: boolean
+  /** The finding list and detail shows */
+  shown: boolean
+  nav: React.ReactNode
+  /** The recommended pick, shown in grey until someone picks */
+  rec?: string
   picked?: string
   pick: (id: string, v: string) => void
   choose: (f: Finding, v: string) => void
@@ -329,78 +395,95 @@ function FindingCard({
   setNote: (v: string) => void
 }) {
   return (
-    <article
+    <DetailItem
       id={f.id.toLowerCase()}
+      open={!picked}
       hidden={hidden}
-      className="flex min-w-0 scroll-mt-16 flex-col gap-2.5 border-b py-5"
-    >
-      <ItemHead id={f.id} title={f.title} />
-      <div className="flex flex-wrap gap-1.5">
-        <Tag tone={SEV_TONE[f.sev]}>{SEV[f.sev]}</Tag>
-        {f.call && <Tag>Call</Tag>}
-        {f.pend && <Tag tone="medium">{f.pend.tag}</Tag>}
-        {f.still && <Tag>{f.still}</Tag>}
-        {f.related && <Tag>Related {f.related}</Tag>}
-      </div>
-      <Html as="p" html={f.wrong} className="max-w-[72ch] text-sm" />
-      {f.evidence?.length ? (
-        <Fold title="Evidence">
-          <ul className="m-0 pl-4.5 text-xs text-muted-foreground">
-            {f.evidence.map((e) => (
-              <li key={e}>
-                <code className="font-mono [overflow-wrap:anywhere]">{e}</code>
-              </li>
-            ))}
-          </ul>
-        </Fold>
-      ) : null}
-      <p className="max-w-[72ch] text-sm">
-        <b className="font-semibold">Fix.</b> <Html as="span" html={f.fix} />
-      </p>
-      {f.pend && <Notice title={f.pend.tag} body={f.pend.why} />}
-      <Shots list={f.shots} className={PAIR} />
-      {f.call ? (
+      shown={shown}
+      nav={nav}
+      head={
         <>
-          <Html
-            as="p"
-            html={f.call.q}
-            className="mt-1 max-w-[72ch] text-sm font-medium"
-          />
-          <ItemNote
-            label={`Note on ${f.id}`}
-            note={note}
-            setNote={setNote}
-            stacked
-          >
-            <Choices
-              name={`pick-${f.id}`}
-              value={picked}
-              onChange={(v) => choose(f, v)}
-              choices={[
-                ...f.call.options.map((o) => ({
-                  value: o.id,
-                  label: `${o.id} · ${o.label}`,
-                  rec: o.rec,
-                })),
-                { value: "skip", label: "Skip", quiet: true },
-              ]}
-            />
-            {chatOnly && <AnswerInChat />}
-          </ItemNote>
+          <ItemHead id={f.id} title={f.title} />
+          <div className="flex flex-wrap gap-1.5">
+            <Tag tone={SEV_TONE[f.sev]}>{SEV[f.sev]}</Tag>
+            {f.call && <Tag>Call</Tag>}
+            {f.call && !rec && !picked && (
+              <Tag className="text-foreground">Needs you</Tag>
+            )}
+            {f.pend && <Tag tone="medium">{f.pend.tag}</Tag>}
+            {f.still && <Tag>{f.still}</Tag>}
+            {f.related && <Tag>Related {f.related}</Tag>}
+          </div>
+          <Html as="p" html={f.wrong} className="max-w-[72ch] text-sm" />
+          {f.evidence?.length ? (
+            <Fold title="Evidence">
+              <ul className="m-0 pl-4.5 text-xs text-muted-foreground">
+                {f.evidence.map((e) => (
+                  <li key={e}>
+                    <code className="font-mono [overflow-wrap:anywhere]">
+                      {e}
+                    </code>
+                  </li>
+                ))}
+              </ul>
+            </Fold>
+          ) : null}
+          <p className="max-w-[72ch] text-sm">
+            <b className="font-semibold">Fix.</b>{" "}
+            <Html as="span" html={f.fix} />
+          </p>
+          {f.pend && <Notice title={f.pend.tag} body={f.pend.why} />}
         </>
-      ) : (
-        <ItemNote label={`Note on ${f.id}`} note={note} setNote={setNote}>
-          <Segmented
-            aria-label={`Pick for ${f.id}`}
-            value={picked ?? ""}
-            onChange={(v) => pick(f.id, v || picked!)}
-            items={[
-              { value: "fix", label: "Fix" },
-              { value: "skip", label: "Skip" },
-            ]}
-          />
-        </ItemNote>
-      )}
-    </article>
+      }
+      shots={f.shots?.length ? <Shots list={f.shots} className={PAIR} /> : null}
+      answer={
+        f.call ? (
+          <>
+            <Html
+              as="p"
+              html={f.call.q}
+              className="mt-1 max-w-[72ch] text-sm font-medium lg:mt-0"
+            />
+            <ItemNote
+              label={`Note on ${f.id}`}
+              note={note}
+              setNote={setNote}
+              stacked
+            >
+              <div className={cn("contents", !picked && rec && DEFAULTED)}>
+                <Choices
+                  name={`pick-${f.id}`}
+                  value={picked ?? rec}
+                  onChange={(v) => choose(f, v)}
+                  choices={[
+                    ...f.call.options.map((o) => ({
+                      value: o.id,
+                      label: `${o.id} · ${o.label}`,
+                      rec: o.rec,
+                    })),
+                    { value: "skip", label: "Skip", quiet: true },
+                  ]}
+                />
+              </div>
+              {chatOnly && <AnswerInChat />}
+            </ItemNote>
+          </>
+        ) : (
+          <ItemNote label={`Note on ${f.id}`} note={note} setNote={setNote}>
+            <Segmented
+              aria-label={`Pick for ${f.id}`}
+              value={picked ?? "fix"}
+              // Pressing the grey Fix picks it; pressing a pick again clears it
+              onChange={(v) => pick(f.id, v || picked || "fix")}
+              items={[
+                { value: "fix", label: "Fix" },
+                { value: "skip", label: "Skip" },
+              ]}
+              className={picked ? undefined : DEFAULTED}
+            />
+          </ItemNote>
+        )
+      }
+    />
   )
 }

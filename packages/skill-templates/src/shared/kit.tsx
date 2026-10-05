@@ -27,7 +27,7 @@ import {
 } from "@workspace/ui/components/toggle-group"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { Html, Label } from "./page.tsx"
+import { Html, Label, WIDE } from "./page.tsx"
 import { ThemeButton, ThemeContext } from "./theme.tsx"
 import { Lightbox } from "./shots.tsx"
 
@@ -49,8 +49,11 @@ export function Shell({
   tabsLabel,
   theme: [dark, toggleTheme],
   bar,
+  wide,
   children,
 }: {
+  /** From 1024px the page is 1184px wide (pass `wide` to its CopyBar too) */
+  wide?: boolean
   title: string
   tabs: Tab[]
   tab: string
@@ -90,7 +93,10 @@ export function Shell({
             className="sticky top-[env(safe-area-inset-top,0px)] z-[6] border-b bg-background px-4 md:px-6"
           >
             <div
-              className="mx-auto flex flex-wrap items-center gap-x-4 md:flex-nowrap"
+              className={cn(
+                "mx-auto flex flex-wrap items-center gap-x-4 md:flex-nowrap",
+                wide && WIDE
+              )}
               style={{ maxWidth: WIDTH }}
             >
               <h1
@@ -131,7 +137,12 @@ export function Shell({
               </div>
             </div>
           </div>
-          <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6 px-4 md:px-6">
+          <div
+            className={cn(
+              "mx-auto flex w-full max-w-[880px] flex-col gap-6 px-4 md:px-6",
+              wide && "lg:max-w-[1232px]"
+            )}
+          >
             {children}
           </div>
         </Tabs>
