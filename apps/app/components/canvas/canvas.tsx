@@ -213,7 +213,7 @@ import { CanvasToolbar } from "./canvas-toolbar"
 
 import { CanvasZoomMenu } from "./canvas-zoom-menu"
 
-import { showsLayerDetail, unionRect } from "@/lib/canvas/camera"
+import { unionRect } from "@/lib/canvas/camera"
 import { viewRequests } from "@/lib/canvas/view-requests"
 import { roomChatId } from "@/lib/chat/room-chat"
 import { isSketchChat, sketchChatSession } from "@/lib/chat/sketch-chat"
@@ -2409,7 +2409,6 @@ export function Canvas({
                   hideResizeHandles={
                     editingDocumentLayerId !== null ||
                     selectedGroupIds.size > 0 ||
-                    !showsLayerDetail(zoom) ||
                     // An interacting frame is for using the preview, not
                     // resizing it: its edges belong to the page.
                     focusedIframeLayerId !== null ||

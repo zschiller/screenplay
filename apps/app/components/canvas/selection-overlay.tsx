@@ -6,6 +6,7 @@ import type {
   IframeLayerLayoutMap,
   ReorderHandle,
 } from "@/lib/canvas/layout"
+import { showsResizeHandles } from "@/lib/canvas/camera"
 import type { SnapGuide } from "@/lib/canvas/snap"
 import { CANVAS_COLOR, resolveCanvasColor } from "@/lib/canvas/tokens"
 
@@ -334,7 +335,13 @@ export function SelectionOverlay({
     ) {
       const id = selectedIframeLayerIds.values().next().value as string
       const edges = frameEdges.get(id)
-      if (edges) {
+      const layout = iframeLayerLayouts.get(id)
+      // Same per-Layer rule as the grab zones in the Layer Shell.
+      if (
+        edges &&
+        layout &&
+        showsResizeHandles(layout.width, layout.height, zoom)
+      ) {
         const { l, t, r, b } = edges
         const mx = snap((l + r) / 2)
         const my = snap((t + b) / 2)

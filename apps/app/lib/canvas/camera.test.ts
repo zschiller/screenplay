@@ -4,6 +4,7 @@ import {
   fitRectToViewport,
   fitScale,
   showsLayerDetail,
+  showsResizeHandles,
   stepZoom,
   unionRect,
   zoomAtPoint,
@@ -128,5 +129,17 @@ describe("showsLayerDetail", () => {
   it("hides layer detail below a quarter zoom", () => {
     expect(showsLayerDetail(0.25)).toBe(true)
     expect(showsLayerDetail(0.1)).toBe(false)
+  })
+})
+
+describe("showsResizeHandles", () => {
+  it("keeps handles on a big Layer at any zoom", () => {
+    expect(showsResizeHandles(1280, 800, 0.1)).toBe(true)
+  })
+
+  it("hides handles once the short side is under 48px on screen", () => {
+    expect(showsResizeHandles(1280, 480, 0.1)).toBe(true)
+    expect(showsResizeHandles(1280, 470, 0.1)).toBe(false)
+    expect(showsResizeHandles(40, 400, 1)).toBe(false)
   })
 })
