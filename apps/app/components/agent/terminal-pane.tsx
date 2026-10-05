@@ -349,7 +349,8 @@ export function TerminalPane({
               >
                 <ScrollArea
                   orientation="horizontal"
-                  className="min-w-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:hidden"
+                  // A tab past the edge fades out rather than being cut off.
+                  className="min-w-0 flex-1 [mask-image:linear-gradient(to_right,black_calc(100%-16px),transparent)] [&_[data-slot=scroll-area-scrollbar]]:hidden"
                 >
                   <div
                     className={cn(
