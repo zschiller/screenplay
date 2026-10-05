@@ -8,11 +8,13 @@ import { getGroupMembers } from "@/lib/canvas/layout"
 import { createCanvasUndo } from "@/lib/canvas/undo"
 import {
   documentFragment,
-  fragmentBodyToPlainText,
-  replaceFragmentBodyPreservingTitle,
   seedDocumentFragment,
   setFragmentTitle,
 } from "@/lib/yjs/fragment-text"
+import {
+  readDocumentBody,
+  writeDocumentMarkdown,
+} from "@/lib/document-markdown"
 import {
   COLLECTION_KEYS,
   createRoomCollections,
@@ -126,7 +128,9 @@ function seedCanvas(r: ReturnType<typeof room>) {
   const fragment = documentFragment(doc, "doc-1")
   seedDocumentFragment(fragment)
   setFragmentTitle(fragment, "Launch spec")
-  replaceFragmentBodyPreservingTitle(fragment, "Ship **Friday**.\n\n- QA")
+  writeDocumentMarkdown(fragment, "Ship **Friday**.\n\n- QA", {
+    keepTitle: true,
+  })
   collections.chatSessions.set(
     "chat-ws-1",
     baseChat("chat-ws-1", { branchId: "ws-1", label: "Checkout chat" })
@@ -162,7 +166,7 @@ describe("remove and undo", () => {
       /^Undid: removed frame "Settings", document "Launch spec"\.\nIds: /
     )
     expect(canvasState(r.doc)).toEqual(original)
-    expect(fragmentBodyToPlainText(documentFragment(r.doc, "doc-1"))).toMatch(
+    expect(readDocumentBody(documentFragment(r.doc, "doc-1"))).toMatch(
       /Friday[\s\S]*QA/
     )
     expect(findEmptyGroups(r.collections)).toEqual([])

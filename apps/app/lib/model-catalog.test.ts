@@ -126,6 +126,7 @@ describe("resolveModels", () => {
       serverDefault: null,
     }
     expect(resolveModels(state, { stored: opus.id })).toEqual({
+      models: [],
       model: opus.id,
       defaultModel: opus.id,
       noAgents: false,

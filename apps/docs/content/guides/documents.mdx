@@ -83,8 +83,10 @@ app.
 
 The quote sits above the input with the document’s title, the line range and
 the first lines of the text. Type your question and send: the agent gets the
-document, the lines and the passage along with it. Nothing is sent until you
-do. Click **×** on the quote to drop it, or select other text and click
+document, the lines and the passage along with it. Lines count the document
+the way the agent reads it, as markdown with a blank line between paragraphs,
+so the agent finds the passage on the line the quote names. Nothing is sent
+until you do. Click **×** on the quote to drop it, or select other text and click
 **Reply in chat** again to replace it.
 
 <Screenshot
@@ -114,7 +116,9 @@ documents too, on a canvas with no repository or beside workspaces.
 
 A chat edits only the documents it wrote. It can rewrite the body, append to
 it and change the title, and its edits merge live into the shared document, so
-it never overwrites what you’re typing. Every chat can read every document,
+it never overwrites what you’re typing. A chat reads a document’s formatting,
+images and mentions, each mention by its current name, and appending keeps
+them all. Every chat can read every document,
 but to have a chat change one you made, ask it to write a new one or edit the
 text yourself. When the chat that wrote a document is deleted, any chat can
 edit it, and the first one that does becomes the chat it belongs to. The agent’s tool calls show as **Create document**, **Rewrite

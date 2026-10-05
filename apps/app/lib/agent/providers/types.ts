@@ -21,6 +21,13 @@ export interface ModelInfo {
     key: string
     label: string
   }
+  /**
+   * The entry a new chat on this Harness runs (desktop only): its curated
+   * default model, or its one bare `harness:<key>` entry. The model menu falls
+   * back to it when a chat's model leaves the menu, so the chat stays on its
+   * Harness (`lib/harness-model-menu.ts`).
+   */
+  isDefault?: true
 }
 
 /**

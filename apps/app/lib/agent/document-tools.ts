@@ -8,12 +8,11 @@ import { getGroupMembers, placeNewGroupBeside } from "@/lib/canvas/layout"
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { editRight } from "@/lib/canvas/document-owner"
+import { documentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 import {
-  documentFragment,
-  fragmentBodyToPlainText,
-  replaceFragmentBodyPreservingTitle,
-  setFragmentTitle,
-} from "@/lib/yjs/fragment-text"
+  appendDocumentMarkdown,
+  writeDocumentMarkdown,
+} from "@/lib/document-markdown"
 
 /**
  * A chat's Document tools (#1314): it creates Documents, and edits the ones it
@@ -100,10 +99,9 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
             }).docId
             if (title) ops.renameDocument(docId, title)
             if (content) {
-              replaceFragmentBodyPreservingTitle(
-                documentFragment(doc, docId),
-                content
-              )
+              writeDocumentMarkdown(documentFragment(doc, docId), content, {
+                keepTitle: true,
+              })
             }
           })
           return `Created document "${title || "Untitled"}" (id ${docId}).`
@@ -112,7 +110,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     replace_document_body: tool({
       description:
-        "Replace the body of a Document you made (or one whose chat was deleted, which makes it yours), below its title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`), and images all work. An image is `![alt](path)` on its own line, where `path` is an image in the canvas’s saved files (`uploads/sketch.png`; wrap a path with spaces in `<…>`), and the Document shows it. The title is set separately; don’t repeat it as a top-level `#` heading. Use this when you’ve redrafted the Document; for incremental edits prefer `append_to_document_body`.",
+        "Replace the body of a Document you made (or one whose chat was deleted, which makes it yours), below its title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`), images and mentions all work. A mention is `[@<name>](mention:<kind>:<id>)`, as `read_document` shows them, where kind is `document`, `chat` or `mockup`. An image is `![alt](path)` on its own line, where `path` is an image in the canvas’s saved files (`uploads/sketch.png`; wrap a path with spaces in `<…>`), and the Document shows it. The title is set separately; don’t repeat it as a top-level `#` heading. Use this when you’ve redrafted the Document; for incremental edits prefer `append_to_document_body`.",
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {
@@ -123,17 +121,16 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
       }),
       execute: async ({ document_id, content }) =>
         editOwned(document_id, (c) => {
-          replaceFragmentBodyPreservingTitle(
-            documentFragment(c.doc, document_id),
-            content
-          )
+          writeDocumentMarkdown(documentFragment(c.doc, document_id), content, {
+            keepTitle: true,
+          })
           return `Replaced document body (${content.length} characters).`
         }),
     }),
 
     append_to_document_body: tool({
       description:
-        "Append a block of text to the end of a Document you made (or one whose chat was deleted, which makes it yours). Use the same markdown as `replace_document_body`. Keeps everything already in the Document, but flattens inline marks already present in it — the appended text keeps its own marks. Use `replace_document_body` when the Document’s existing marks must survive.",
+        "Append a block of text to the end of a Document you made (or one whose chat was deleted, which makes it yours). Use the same markdown as `replace_document_body`. Everything already in the Document stays as it is.",
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {
@@ -144,15 +141,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
       }),
       execute: async ({ document_id, content }) =>
         editOwned(document_id, (c) => {
-          const fragment = documentFragment(c.doc, document_id)
-          // Re-derive the existing body (excluding the title) and concatenate.
-          // Cheap on small docs and avoids needing a precise "insert at end"
-          // API for the parser; the round trip loses inline marks but keeps
-          // the title verbatim.
-          const existingBody = fragmentBodyToPlainText(fragment)
-          const next =
-            existingBody.length > 0 ? `${existingBody}\n\n${content}` : content
-          replaceFragmentBodyPreservingTitle(fragment, next)
+          appendDocumentMarkdown(documentFragment(c.doc, document_id), content)
           return `Appended ${content.length} characters to the document.`
         }),
     }),

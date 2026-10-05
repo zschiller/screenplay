@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import type { MentionItem, MentionKind } from "@/components/agent/mention-list"
 import { workspaceLabel } from "@/lib/workspace-label"
+import { mentionTargetLabel } from "@/lib/document-markdown"
 import {
   useBranches,
   useChatSessions,
@@ -15,11 +16,6 @@ export const MENTION_ICON_MASK: Record<MentionKind, string> = {
   "markdown-layer": "document",
   chat: "chat",
   "mockup-layer": "mockup",
-}
-
-/** A mention node's kind; one saved before kinds existed is a document. */
-export function mentionKindOf(kind: unknown): MentionKind {
-  return kind === "chat" || kind === "mockup-layer" ? kind : "markdown-layer"
 }
 
 /**
@@ -53,7 +49,7 @@ export function useChatAndMockupMentions(): MentionItem[] {
 
 /**
  * The live name of what a mention points at, so a mention follows a rename;
- * undefined when it's gone or unnamed.
+ * undefined when it's gone or unnamed. `read_document` names it the same way.
  */
 export function useMentionTargetLabel(
   kind: MentionKind,
@@ -63,13 +59,10 @@ export function useMentionTargetLabel(
   const branches = useBranches()
   const sessions = useChatSessions()
   const mockups = useMockupLayers()
-  if (kind === "markdown-layer") {
-    return docs.find((d) => d.id === id)?.title || undefined
-  }
-  if (kind === "mockup-layer") {
-    return mockups.find((m) => m.id === id)?.title || undefined
-  }
-  const branch = branches.find((b) => b.id === id)
-  if (branch) return workspaceLabel(branch)
-  return sessions.find((s) => s.id === id)?.label || undefined
+  return mentionTargetLabel(kind, id, {
+    document: (docId) => docs.find((d) => d.id === docId),
+    mockup: (mockupId) => mockups.find((m) => m.id === mockupId),
+    workspace: (branchId) => branches.find((b) => b.id === branchId),
+    chat: (chatId) => sessions.find((s) => s.id === chatId),
+  })
 }

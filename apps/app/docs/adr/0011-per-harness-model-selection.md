@@ -72,17 +72,21 @@ the _application mechanism_**:
   which fails loud. The recovery is narrow on purpose: only `-32603` whose message
   names the model, only when a model was applied, only once per session.
 
-The dropdown list itself comes from the **Harness model catalog** (#527,
-`harnesses/model-catalog.ts`): the descriptor's curated floor is authoritative,
-and a discover-once-and-cached live augment only ever _appends_ a discovered
-modelId the floor doesn't already name (`mergeHarnessModels`). The production
-discovery advertises nothing today (the live augment is the deferred session-open
-seam, #526), so the dropdown is exactly each Harness's curated floor.
+The dropdown list is each Harness's curated floor (`harnessModels`), with its
+default entry marked. A Harness whose CLI reaches too many models to curate
+(OpenCode) lists one bare `harness:<key>` entry, which a device replaces with the
+models chosen in Settings. The **Harness model menu** (`lib/harness-model-menu.ts`)
+builds that menu on the client and resolves the id a picker sits on: an id that
+left the menu (a bare id after models were chosen, an unchecked or retired model)
+falls to the same Harness's default entry, never another Harness. The live-discovery
+augment the first plan expected was removed (#1663): it only ever had an empty
+production adapter.
 
 ### (b) Carry the choice as `harness:<key>:<modelId>`, stored verbatim on `agent_chat.model`
 
 The chat's stored `model` id is the single home for the selection — no parallel
-column (#524, `harnesses/model-id.ts`):
+column (#524, `harnesses/model-id.ts`, client-safe so the server and the model
+menu share the one codec):
 
 - `harness:<key>` — the Harness's own default (unchanged from before this codec;
   every pre-codec row keeps its meaning).
@@ -143,10 +147,7 @@ through it after the session opens.
 - **ADR 0003 (honest provider seam / build-time backend switch).** The model
   dropdown is a **desktop-backend** surface (`harnessModels` runs only there), and
   that backend split is the same build-time switch the `SandboxProvider` and the
-  Harness Availability resolver ride. The catalog's discover-once-and-cache
-  staleness contract deliberately mirrors the desktop resolver's once-per-launch
-  `hostBinary` detection: a model added to a subscription shows up after a restart,
-  never via a mid-session re-probe.
+  Harness Availability resolver ride.
 
 - **ADR 0006 (ACP-native engine seam).** The model axis **refines the external
   engine's model; it never selects the engine.** A `harness:<key>:<modelId>` id
@@ -171,8 +172,8 @@ through it after the session opens.
   chat's stored id to the Harness default and the chat keeps running — at the cost
   of one silent, logged fallback and a single retry on the affected turn.
 - The curated floor is a maintenance commitment: new models a Harness gains are
-  invisible until either the descriptor is updated or the deferred session-open
-  discovery augment (#526) lands and surfaces them after a restart.
+  invisible until the descriptor is updated (or, for an uncurated Harness, until
+  someone chooses them in Settings).
 - The `harness:<key>:<modelId>` format is now part of the persisted wire contract
   (`agent_chat.model`) and the `SANDBOX_HARNESSES`/Terminal-Tab key namespace —
   the colon-free, comma-free `Harness.key` invariant must hold for every shipped

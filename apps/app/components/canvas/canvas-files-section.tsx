@@ -248,17 +248,26 @@ export function deleteDescription(
   node: FileTreeNode,
   readers: string = CANVAS_COPY.readers
 ): string {
+  // Chat attachments and document images live under `uploads/`, so deleting
+  // one blanks it wherever it's shown.
+  const lost = (it: string) =>
+    isUpload(node.entry.path)
+      ? ` Documents and messages that show ${it} lose ${it}.`
+      : ""
   if (node.entry.kind === "file") {
     const who = readers.charAt(0).toUpperCase() + readers.slice(1)
-    return `${who} can no longer open it. You can’t undo this.`
+    return `${who} can no longer open it.${lost("it")} You can’t undo this.`
   }
   if (node.descendants === 0) {
     return "The folder is empty. You can’t undo this."
   }
   return node.descendants === 1
-    ? `The 1 item in it goes too, and ${readers} can no longer open it. You can’t undo this.`
-    : `The ${node.descendants} items in it go too, and ${readers} can no longer open them. You can’t undo this.`
+    ? `The 1 item in it goes too, and ${readers} can no longer open it.${lost("it")} You can’t undo this.`
+    : `The ${node.descendants} items in it go too, and ${readers} can no longer open them.${lost("them")} You can’t undo this.`
 }
+
+const isUpload = (path: string) =>
+  path === "uploads" || path.startsWith("uploads/")
 
 /**
  * One row of the tree, built like the canvas sidebar's layer rows: a

@@ -1,6 +1,8 @@
 import * as Y from "yjs"
 import type { Editor } from "@tiptap/core"
-import type { Node as PMNode } from "@tiptap/pm/model"
+import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model"
+import { TextSelection } from "@tiptap/pm/state"
+import { documentBodyMarkdown } from "@/lib/document-markdown"
 import {
   absolutePositionToRelativePosition,
   relativePositionToAbsolutePosition,
@@ -50,17 +52,20 @@ export function decodeAnchor(editor: Editor, encoded: string): number | null {
 }
 
 /** Plain-text content between two ProseMirror positions, with `\n` between
- *  block boundaries — same flavor used by `fragmentBodyToPlainText` so the
- *  quoted text matches what an LLM sees as the document body. */
+ *  block boundaries: the words a comment quotes, without markdown. */
 export function getQuotedText(doc: PMNode, from: number, to: number): string {
   return doc.textBetween(from, to, "\n", "\n")
 }
 
+/** Stand-ins for the two ends of a range while the body is serialized. */
+const FROM_MARK = "\uE000"
+const TO_MARK = "\uE001"
+
 /**
- * 1-indexed body line numbers spanned by `[from, to]`. The title heading
- * (the doc's first child) is excluded — line 1 is the first body block.
- * Each top-level textblock counts as one line. Code blocks expand to one
- * line per `\n` in their text, matching how the user reads them.
+ * 1-indexed body line numbers spanned by `[from, to]`, counted in the body's
+ * markdown exactly as `read_document` returns it (`document-markdown.ts`), so
+ * an agent finds “Line N” on line N of what it reads. The title heading isn't
+ * part of the body: line 1 is the body's first line.
  */
 export function getLineNumbers(
   doc: PMNode,
@@ -68,38 +73,36 @@ export function getLineNumbers(
   to: number
 ): { lineFrom: number; lineTo: number } {
   const titleEnd = doc.firstChild ? doc.firstChild.nodeSize : 0
-  const fromBody = Math.max(from, titleEnd)
-  const toBody = Math.max(to, titleEnd)
+  // Mark both ends in the text (the later one first, so the earlier position
+  // still holds), then find them in the serialized body.
+  const marked = [
+    [Math.max(to, titleEnd), TO_MARK],
+    [Math.max(from, titleEnd), FROM_MARK],
+  ].reduce<PMNode>(
+    (d, [pos, mark]) => insertMark(d, pos as number, mark as string),
+    doc
+  )
+  const markdown = documentBodyMarkdown(marked.toJSON())
+  const lineOf = (mark: string) => {
+    const at = markdown.indexOf(mark)
+    return at < 0 ? 1 : markdown.slice(0, at).split("\n").length
+  }
+  const lineFrom = lineOf(FROM_MARK)
+  return { lineFrom, lineTo: Math.max(lineOf(TO_MARK), lineFrom) }
+}
 
-  let line = 0
-  let lineFrom = 1
-  let lineTo = 1
-
-  doc.descendants((node, pos) => {
-    if (pos < titleEnd) return false
-    if (!node.isTextblock) return true
-
-    const blockStart = pos
-    const blockEnd = pos + node.nodeSize
-    const internalLines =
-      node.type.name === "codeBlock"
-        ? Math.max(1, (node.textContent.match(/\n/g)?.length ?? 0) + 1)
-        : 1
-
-    if (fromBody >= blockStart && fromBody <= blockEnd) {
-      const before = node.textContent.slice(0, fromBody - blockStart - 1)
-      lineFrom = line + 1 + (before.match(/\n/g)?.length ?? 0)
-    }
-    if (toBody >= blockStart && toBody <= blockEnd) {
-      const before = node.textContent.slice(0, toBody - blockStart - 1)
-      lineTo = line + 1 + (before.match(/\n/g)?.length ?? 0)
-    }
-
-    line += internalLines
-    return false
-  })
-
-  return { lineFrom, lineTo: Math.max(lineTo, lineFrom) }
+/** `doc` with `mark` typed at `pos`, or the nearest place text can go. */
+function insertMark(doc: PMNode, pos: number, mark: string): PMNode {
+  const at = TextSelection.near(doc.resolve(Math.min(pos, doc.content.size)))
+  try {
+    return doc.replace(
+      at.from,
+      at.from,
+      new Slice(Fragment.from(doc.type.schema.text(mark)), 0, 0)
+    )
+  } catch {
+    return doc
+  }
 }
 
 /** Format a quote + line range for inclusion in a chat message to Claude. */

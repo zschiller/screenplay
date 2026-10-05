@@ -1,4 +1,15 @@
-import { HARNESS_ID_PREFIX } from "./types"
+// Client-safe on purpose: no `server-only` import, so the model menu
+// (`lib/harness-model-menu.ts`) reads and builds ids with this one codec too.
+
+/**
+ * Wire-format prefix marking a chat's stored `model` id as a **Harness
+ * selection** (`harness:<key>`) rather than a `provider:<model>` id. The same
+ * `harness:` form names the Terminal Tab key and the Harness catalog key — there
+ * is no separate adapter-key namespace (#476). The model dropdown emits these on
+ * the desktop backend, the external engine reads them back to pick the adapter
+ * (#479), and `agent_chat.model` persists them verbatim.
+ */
+export const HARNESS_ID_PREFIX = "harness:"
 
 /**
  * A chat's stored model id, decoded: which Harness runs it (`key`) and,
