@@ -314,28 +314,13 @@ describe("skill tools", () => {
     expect(await account.list()).toEqual([])
   })
 
-  it("deletes a Skill, which no chat then reads", async () => {
-    const skills = canvas()
+  it("has no tool to delete a Skill", () => {
     const tools = buildSkillTools({
-      canvas: skills,
+      canvas: canvas(),
       chatId: "chat-a",
       app: appSkillSource(),
     })
-    await skills.save({
-      name: "review",
-      content: skillMd("review", "Review.", "BODY"),
-      author: { addedBy: "agent", addedById: "chat-a" },
-    })
-
-    expect(await run(tools, "delete_skill", { name: "review" })).toBe(
-      'Deleted the canvas skill "review".'
-    )
-    expect(await run(tools, "read_skill", { name: "review" })).toContain(
-      'Unknown skill: "review"'
-    )
-    expect(await run(tools, "delete_skill", { name: "review" })).toBe(
-      'Error: No skill named "review".'
-    )
+    expect(Object.keys(tools).sort()).toEqual(["read_skill", "save_skill"])
   })
 
   describe("App Skills with supporting files (#1642)", () => {

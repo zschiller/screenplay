@@ -61,6 +61,7 @@ beforeEach(() => {
   offeredSkillState.mockResolvedValue({
     ok: true,
     savedTo: null,
+    replaces: [],
     replacesBuiltIn: true,
   })
   saveOfferedSkill.mockResolvedValue(undefined)
@@ -108,10 +109,27 @@ describe("SkillSaveCard", () => {
     offeredSkillState.mockResolvedValue({
       ok: true,
       savedTo: "account",
+      replaces: [],
       replacesBuiltIn: false,
     })
     renderCard()
     expect(await screen.findByText("Saved to your account")).toBeTruthy()
+    expect(screen.queryByText("Replaces the Built in skill")).toBe(null)
+  })
+
+  it("says which saved skills of that name a save replaces", async () => {
+    offeredSkillState.mockResolvedValue({
+      ok: true,
+      savedTo: null,
+      replaces: ["canvas", "account"],
+      replacesBuiltIn: true,
+    })
+    renderCard()
+    expect(
+      await screen.findByText(
+        "Replaces the canvas skill and your account skill"
+      )
+    ).toBeTruthy()
     expect(screen.queryByText("Replaces the Built in skill")).toBe(null)
   })
 

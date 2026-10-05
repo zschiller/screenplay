@@ -273,13 +273,6 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     category: "edit",
     label: subject("name", "code"),
   },
-  delete_skill: {
-    verb: "Delete skill",
-    icon: "trash",
-    kind: "delete",
-    category: "edit",
-    label: subject("name", "code"),
-  },
   read_dev_server_logs: {
     verb: "Read dev server logs",
     icon: "logs",

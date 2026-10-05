@@ -87,4 +87,32 @@ describe("parseFrontmatter", () => {
 
     expect(metadata).toEqual({ name: "deploy", description: "Deploy." })
   })
+
+  it("reads a single-quoted description, with '' as one quote", () => {
+    const raw = [
+      "---",
+      "name: docs",
+      "description: 'docs (editable docs people''s teams share)'",
+      "---",
+      "body",
+    ].join("\n")
+
+    expect(parseFrontmatter(raw, "x").metadata.description).toBe(
+      "docs (editable docs people's teams share)"
+    )
+  })
+
+  it("reads a double-quoted description's escapes", () => {
+    const raw = [
+      "---",
+      "name: docs",
+      'description: "Say \\"done\\" with a \\\\ path"',
+      "---",
+      "body",
+    ].join("\n")
+
+    expect(parseFrontmatter(raw, "x").metadata.description).toBe(
+      'Say "done" with a \\ path'
+    )
+  })
 })

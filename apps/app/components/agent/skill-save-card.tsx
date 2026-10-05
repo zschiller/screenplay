@@ -59,6 +59,25 @@ const SCOPE_LABEL: Record<SkillSaveScope, string> = {
   canvas: "Save to canvas",
 }
 
+const REPLACED_NOUN: Record<SkillSaveScope, string> = {
+  account: "your account skill",
+  canvas: "the canvas skill",
+}
+
+/**
+ * What a save would replace: the skills of that name already saved, else the
+ * Built in one (which a saved one already takes the place of).
+ */
+function replacesLine(
+  replaces: readonly SkillSaveScope[],
+  builtIn: boolean
+): string | null {
+  if (replaces.length > 0) {
+    return `Replaces ${replaces.map((s) => REPLACED_NOUN[s]).join(" and ")}`
+  }
+  return builtIn ? "Replaces the Built in skill" : null
+}
+
 const SAVED_LABEL: Record<SkillSaveScope, string> = {
   account: "Saved to your account",
   canvas: "Saved to this canvas",
@@ -67,12 +86,18 @@ const SAVED_LABEL: Record<SkillSaveScope, string> = {
 type State =
   | { kind: "loading" }
   | { kind: "invalid" }
-  | { kind: "ready"; savedTo: SkillSaveScope | null; replacesBuiltIn: boolean }
+  | {
+      kind: "ready"
+      savedTo: SkillSaveScope | null
+      replaces: SkillSaveScope[]
+      replacesBuiltIn: boolean
+    }
 
 /**
  * The card a chat shows for a Skill its agent offered with `save_skill`
- * (#1633): the Skill's name and description, whether it takes the place of a
- * Built in Skill, and Save to account, Save to canvas and View. Nothing is
+ * (#1633): the Skill's name and description, what it would replace (a
+ * canvas or account Skill of that name, or a Built in one), and Save to
+ * account, Save to canvas and View. Nothing is
  * saved until someone presses Save; the agent's suggested scope comes first.
  * Once saved, the card says where, for everyone and after a reload, since it
  * asks the server whether that scope holds this Skill as offered.
@@ -153,6 +178,10 @@ export function SkillSaveCard({
   const scopes: SkillSaveScope[] =
     suggested === "account" ? ["account", "canvas"] : ["canvas", "account"]
   const savedTo = state.kind === "ready" ? state.savedTo : null
+  const replaces =
+    state.kind === "ready"
+      ? replacesLine(savedTo ? [] : state.replaces, state.replacesBuiltIn)
+      : null
 
   return (
     <>
@@ -168,10 +197,8 @@ export function SkillSaveCard({
               {description}
             </p>
           )}
-          {state.kind === "ready" && state.replacesBuiltIn && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Replaces the Built in skill
-            </p>
+          {replaces && (
+            <p className="mt-1 text-xs text-muted-foreground">{replaces}</p>
           )}
           <div className="mt-3 flex items-center gap-2">
             {state.kind === "loading" ? (

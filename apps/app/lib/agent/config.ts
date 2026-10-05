@@ -216,9 +216,9 @@ export function renderSkillSaving(
   senderless = false
 ): string {
   return [
-    `- When the user asks you to remember how to do something, or you’ve worked out a procedure later chats on this canvas should follow, offer it as a skill with \`${t("save_skill")}\`: the chat shows it as a card and the user saves it to their account or the canvas. Change one by offering it again, and remove one with \`${t("delete_skill")}\`.`,
+    `- When the user asks you to remember how to do something, or you’ve worked out a procedure later chats on this canvas should follow, offer it as a skill with \`${t("save_skill")}\`: the chat shows it as a card and the user saves it to their account or the canvas. Change one by offering it again. You can’t delete skills: when the user wants one gone, tell them to delete it in Settings › Skills (their account’s) or Canvas settings › Skills (the canvas’s).`,
     senderless
-      ? "- Nobody sent this turn, so it has no account skills: suggest and delete `canvas` skills only."
+      ? "- Nobody sent this turn, so it has no account skills: offer `canvas` skills only."
       : '- Suggest `scope: "account"` for a procedure that’s the user’s own rather than this canvas’s (how they like a write-up done, wherever they work), which every chat they message uses on any canvas; suggest `canvas` for the rest.',
   ].join("\n")
 }

@@ -223,7 +223,6 @@ describe("room chat target", () => {
       "create_frames",
       "create_workspaces",
       "delete_saved_file",
-      "delete_skill",
       "list_changes",
       "list_saved_files",
       "make_saved_folder",
@@ -1135,7 +1134,7 @@ describe("account skills in every kind", () => {
       expect(ben.systemPrompt).not.toContain("Ana’s writing voice.")
     })
 
-    it(`gives a ${kind} turn nobody sent no account skills, and refuses the scope`, async () => {
+    it(`gives a ${kind} turn nobody sent no account skills`, async () => {
       accountSkillLists.clear()
       const room = roomOn("room-1")
       await saveTo(
@@ -1146,12 +1145,6 @@ describe("account skills in every kind", () => {
       const wake = (await prepare(room, { userId: "ana", senderless: true }))!
       expect(wake.systemPrompt).not.toContain("Ana’s writing voice.")
       expect(wake.systemPrompt).toContain("it has no account skills")
-      expect(
-        await call(wake.tools, "delete_skill", {
-          scope: "account",
-          name: "voice",
-        })
-      ).toMatch(/nobody sent this turn/)
       // An offer is only a card, whoever presses it.
       expect(
         await call(wake.tools, "save_skill", {
@@ -1170,7 +1163,6 @@ describe("account skills in every kind", () => {
   it("ranks a canvas skill over an account skill of the same name", async () => {
     accountSkillLists.clear()
     const room = roomOn("room-1")
-    const ben = kinds.sketch.tools(room, { userId: "ben" })
     await saveTo(
       canvasSkills(room),
       "review",
@@ -1188,13 +1180,6 @@ describe("account skills in every kind", () => {
     expect(
       await call(prepared.tools, "read_skill", { name: "review" })
     ).toContain("The canvas’s way.")
-    // Deleting the account one leaves the canvas's.
-    expect(
-      await call(ben, "delete_skill", { scope: "account", name: "review" })
-    ).toBe('Deleted the account skill "review".')
-    expect(await call(ben, "read_skill", { name: "review" })).toContain(
-      "The canvas’s way."
-    )
   })
 })
 

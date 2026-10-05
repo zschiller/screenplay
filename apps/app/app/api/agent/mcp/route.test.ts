@@ -453,7 +453,6 @@ describe("a Workspace chat’s MCP route", () => {
       "create_pr",
       "read_skill",
       "save_skill",
-      "delete_skill",
     ])
     const annotations = (name: string) =>
       result.tools.find((t: { name: string }) => t.name === name).annotations
