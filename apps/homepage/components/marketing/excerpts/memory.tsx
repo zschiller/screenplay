@@ -5,10 +5,11 @@ import {
   CrosshairIcon,
   FilePdfIcon,
   NotepadIcon,
+  PaperclipIcon,
 } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { Frame, UserBubble, versions } from "./canvas"
+import { Frame, Tool, UserBubble, versions } from "./canvas"
 import { Fit } from "./fit"
 import { ChatHeader, Send, ToolRow } from "./make"
 import { Northwind } from "./northwind"
@@ -156,7 +157,12 @@ function MemoryChat() {
             Plan
           </span>
           <CrosshairIcon className="size-3.5 text-muted-foreground" />
-          <Send className="ml-auto" />
+          <span className="ml-auto flex gap-0.5">
+            <Tool>
+              <PaperclipIcon className="text-muted-foreground" />
+            </Tool>
+            <Send />
+          </span>
         </div>
       </div>
     </div>

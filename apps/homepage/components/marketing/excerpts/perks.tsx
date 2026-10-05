@@ -1,7 +1,14 @@
 import { BroadcastIcon } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { Frame, FrameBar, UserBubble, WorkspaceGlyph, versions } from "./canvas"
+import {
+  Frame,
+  FrameBar,
+  Tool,
+  UserBubble,
+  WorkspaceGlyph,
+  versions,
+} from "./canvas"
 import { Fit } from "./fit"
 import { ChatHeader } from "./make"
 import { Northwind } from "./northwind"
@@ -95,7 +102,13 @@ export function PerkLive() {
         label="Home"
         workspace={split.title}
         selected
-        bar={<FrameBar live />}
+        bar={
+          <FrameBar>
+            <Tool active>
+              <BroadcastIcon />
+            </Tool>
+          </FrameBar>
+        }
         style={{ left: 40, top: 36, width: 280 }}
       >
         <Northwind version={split.version} />
