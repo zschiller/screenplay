@@ -11,7 +11,6 @@ import {
 } from "react"
 
 import {
-  CaretRightIcon,
   ChatCircleIcon,
   ChatsIcon,
   PencilSimpleIcon,
@@ -528,7 +527,6 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   } = menu
   const [search, setSearch] = useState("")
   const searching = search.trim() !== ""
-  const [doneOpen, setDoneOpen] = useState(false)
   const sections = useMemo(
     () => groupWorkspaces(activeBranches, (b) => stateOf(b).section),
     [activeBranches, stateOf]
@@ -600,24 +598,8 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
               </CommandGroup>
             )}
             {doneBranches.length > 0 && (
-              <CommandGroup className="pt-0">
-                <CommandItem
-                  value="Done"
-                  aria-expanded={doneOpen}
-                  onSelect={() => setDoneOpen((v) => !v)}
-                  className="text-muted-foreground"
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center">
-                    <CaretRightIcon
-                      className={cn(
-                        "size-3.5 transition-transform",
-                        doneOpen && "rotate-90"
-                      )}
-                    />
-                  </span>
-                  Done ({doneBranches.length})
-                </CommandItem>
-                {doneOpen && rows(doneBranches)}
+              <CommandGroup heading="Done" className="pt-0">
+                {rows(doneBranches)}
               </CommandGroup>
             )}
           </>
