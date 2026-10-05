@@ -477,6 +477,7 @@ function RepositoriesSection({
             <Button
               asChild
               variant="ghost"
+              size="sm"
               className="-ml-2.5 text-muted-foreground"
             >
               <Link href="/settings?section=repositories">
