@@ -181,3 +181,11 @@ export function checkAttachment(file: AttachmentCandidate): AttachmentCheck {
 export function isInlineImage(mediaType: string, size: number): boolean {
   return MODEL_IMAGE_TYPES.has(mediaType) && size <= INLINE_IMAGE_MAX_BYTES
 }
+
+/** The file picker's `accept` list: the files {@link checkAttachment} takes. */
+export const ATTACHMENT_ACCEPT = [
+  ...[...IMAGE_EXTENSIONS, "pdf", ...TEXT_EXTENSIONS].map((ext) => `.${ext}`),
+  ...MODEL_IMAGE_TYPES,
+  "application/pdf",
+  "text/*",
+].join(",")

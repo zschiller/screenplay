@@ -207,4 +207,59 @@ describe("Composer attachments (#1525)", () => {
     )
     expect(chips()).toHaveLength(0)
   })
+
+  it("attaches files picked with Attach files", () => {
+    const { attach } = port()
+    const { composer } = renderComposer(attach)
+    const input = composer.querySelector<HTMLInputElement>("input[type=file]")!
+    const click = vi.spyOn(input, "click")
+
+    fireEvent.click(screen.getByRole("button", { name: "Attach files" }))
+    expect(click).toHaveBeenCalledTimes(1)
+    fireEvent.change(input, {
+      target: { files: [file("shot.png", "image/png"), file("a.ts", "")] },
+    })
+
+    expect(attach.upload).toHaveBeenCalledTimes(2)
+    expect(chips()).toHaveLength(2)
+  })
+
+  it("has no Attach files where the composer takes no files", () => {
+    renderComposer()
+    expect(screen.queryByRole("button", { name: "Attach files" })).toBeNull()
+  })
+
+  it("says it takes a file dragged over the window, and attaches a drop anywhere", () => {
+    // jsdom lays nothing out; the composer is on screen.
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
+      {},
+    ] as unknown as DOMRectList)
+    const { attach } = port()
+    renderComposer(attach)
+    const files = [file("shot.png", "image/png")]
+    const dataTransfer = { files, types: ["Files"], getData: () => "" }
+
+    fireEvent.dragOver(window, { dataTransfer })
+    expect(screen.getByText("Drop files to attach")).toBeTruthy()
+    fireEvent.dragLeave(window, { dataTransfer, relatedTarget: null })
+    expect(screen.queryByText("Drop files to attach")).toBeNull()
+
+    fireEvent.dragOver(window, { dataTransfer })
+    fireEvent.drop(document.body, { dataTransfer })
+    expect(screen.queryByText("Drop files to attach")).toBeNull()
+    expect(attach.upload).toHaveBeenCalledTimes(1)
+    vi.restoreAllMocks()
+  })
+
+  it("leaves a dragged text or link alone", () => {
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([
+      {},
+    ] as unknown as DOMRectList)
+    renderComposer(port().attach)
+    fireEvent.dragOver(window, {
+      dataTransfer: { files: [], types: ["text/plain"], getData: () => "hi" },
+    })
+    expect(screen.queryByText("Drop files to attach")).toBeNull()
+    vi.restoreAllMocks()
+  })
 })

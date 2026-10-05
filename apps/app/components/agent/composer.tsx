@@ -16,6 +16,7 @@ import {
   CheckIcon,
   ClipboardTextIcon,
   CrosshairIcon,
+  PaperclipIcon,
   SquareIcon,
 } from "@workspace/ui/components/icons"
 import { nanoid } from "nanoid"
@@ -60,7 +61,7 @@ import {
   type MessageAttachment,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
-import { checkAttachment } from "@/lib/files/attachments"
+import { ATTACHMENT_ACCEPT, checkAttachment } from "@/lib/files/attachments"
 import type { AttachmentUpload } from "@/lib/chat-attachments"
 import {
   buildOutgoingTurn,
@@ -635,7 +636,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     // Bumped when the composer is re-pointed at another draft, so an upload
     // that finishes afterwards doesn't land on the wrong one.
     const attachGenerationRef = useRef(0)
+    // A file is being dragged over the window: the composer says it takes it.
     const [dragging, setDragging] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
     // Reached by the construction-time editor callbacks; set below.
     const persistDraftRef = useRef<(ed: Editor) => void>(() => {})
     const addFilesRef = useRef<(files: File[]) => void>(() => {})
@@ -1059,6 +1062,45 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       addFilesRef.current = addFiles
     }, [addFiles])
 
+    // A file dragged anywhere over the window lights the composer up, and a
+    // drop anywhere attaches it here: nothing else in the app takes files.
+    // A drop the composer or its editor already took is left alone, as is
+    // one while the composer is out of sight (a closed panel).
+    useEffect(() => {
+      if (!attach) return undefined
+      const shown = () =>
+        (editorContainerRef.current?.getClientRects().length ?? 0) > 0
+      const onDragOver = (e: DragEvent) => {
+        if (!e.dataTransfer?.types.includes("Files") || !shown()) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = "copy"
+        setDragging(true)
+      }
+      // Leaving the window enters no element.
+      const onDragLeave = (e: DragEvent) => {
+        if (!e.relatedTarget) setDragging(false)
+      }
+      const onDrop = (e: DragEvent) => {
+        setDragging(false)
+        if (e.defaultPrevented || !shown()) return
+        const files = droppedFiles(e.dataTransfer)
+        if (files.length === 0) return
+        e.preventDefault()
+        addFilesRef.current(files)
+      }
+      const onDragEnd = () => setDragging(false)
+      window.addEventListener("dragover", onDragOver)
+      window.addEventListener("dragleave", onDragLeave)
+      window.addEventListener("drop", onDrop)
+      window.addEventListener("dragend", onDragEnd)
+      return () => {
+        window.removeEventListener("dragover", onDragOver)
+        window.removeEventListener("dragleave", onDragLeave)
+        window.removeEventListener("drop", onDrop)
+        window.removeEventListener("dragend", onDragEnd)
+      }
+    }, [attach])
+
     const removeAttached = useCallback(
       (id: string) => {
         const target = attachedRef.current.find((a) => a.id === id)
@@ -1204,18 +1246,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
         data-slot="composer"
         className={className}
         // A file dropped anywhere on the composer attaches, not only on the
-        // text: the editor's own drop handles one dropped on it first.
+        // text: the editor's own drop handles one dropped on it first. With
+        // no attach port, the drop is taken only to say why it isn't.
         onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes("Files")) return
+          if (attach || !e.dataTransfer.types.includes("Files")) return
           e.preventDefault()
-          e.dataTransfer.dropEffect = attach ? "copy" : "none"
-          if (attach) setDragging(true)
-        }}
-        onDragLeave={(e) => {
-          if (
-            !e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)
-          )
-            setDragging(false)
+          e.dataTransfer.dropEffect = "none"
         }}
         onDrop={(e) => {
           setDragging(false)
@@ -1230,6 +1266,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           data-dragging={dragging || undefined}
           className="has-disabled:bg-transparent has-disabled:opacity-100 data-dragging:border-ring dark:has-disabled:bg-input/30"
         >
+          {dragging && (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] bg-background"
+            >
+              <div className="flex size-full items-center justify-center gap-2 rounded-[inherit] text-sm font-medium text-foreground dark:bg-input/30">
+                <PaperclipIcon className="size-4 text-muted-foreground" />
+                Drop files to attach
+              </div>
+            </div>
+          )}
           {(inputHeader || hasAttachments) && (
             <InputGroupAddon align="block-start" className="flex-col">
               {inputHeader}
@@ -1370,11 +1417,34 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 <CrosshairIcon />
               </IconButton>
             )}
-            {hideSend ? null : (
-              <span className="ml-auto inline-flex">
-                {isStreaming &&
-                onStop &&
-                !(queueWhileStreaming && (hasContent || hasAttachments)) ? (
+            {attach && (
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ATTACHMENT_ACCEPT}
+                hidden
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? [])
+                  // Picking the same file again still fires a change.
+                  e.target.value = ""
+                  if (files.length > 0) addFiles(files)
+                }}
+              />
+            )}
+            {(attach || !hideSend) && (
+              <span className="ml-auto inline-flex gap-0.5">
+                {attach && (
+                  <IconButton
+                    label="Attach files"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <PaperclipIcon />
+                  </IconButton>
+                )}
+                {hideSend ? null : isStreaming &&
+                  onStop &&
+                  !(queueWhileStreaming && (hasContent || hasAttachments)) ? (
                   <IconButton label="Stop" variant="default" onClick={onStop}>
                     <SquareIcon weight="fill" />
                   </IconButton>
