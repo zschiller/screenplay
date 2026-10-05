@@ -522,11 +522,15 @@ function OptionText({ q, o }: { q: Question; o: Option }) {
   )
 }
 
-/** Captures sit on a muted stage, so a screenshot of a page never reads as part of this one. */
+/**
+ * Captures sit on a muted stage, so a screenshot of a page never reads as part
+ * of this one. In dark it steps off the page about as little as it does in
+ * light, rather than as a grey slab.
+ */
 function Stage({ o }: { o: Option }) {
   if (!o.shots?.length && !o.html) return null
   return (
-    <div className="flex min-w-0 flex-col items-center gap-4 bg-muted px-4 py-5 md:px-8 md:py-8">
+    <div className="flex min-w-0 flex-col items-center gap-4 bg-muted px-4 py-5 md:px-8 md:py-8 dark:bg-muted/45">
       {o.html && <Html as="div" html={o.html} />}
       <Shots
         list={o.shots}

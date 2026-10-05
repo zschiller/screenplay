@@ -2,11 +2,13 @@
 
 import { useCallback, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
+import { useTheme } from "next-themes"
 import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRefs } from "@/hooks/use-mockup-refs"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
+import { useMockupPageTheme } from "@/hooks/use-mockup-page-theme"
 import {
   useMockupChatLink,
   useMockupPageChat,
@@ -320,6 +322,12 @@ export function MockupLayer({
   const question = useMockupQuestion(link, layer.id)
   const viewer = { focused, driver, live: shared, liveDriver }
   const voice = pageVoice(viewer)
+  // The page matches the app's theme; a live page keeps its own control's.
+  const { resolvedTheme } = useTheme()
+  useMockupPageTheme(
+    page.port,
+    shared || !resolvedTheme ? null : resolvedTheme === "dark" ? "dark" : "light"
+  )
   useMockupPageChat(page.port, {
     question,
     answerable: pageAnswers(viewer),
