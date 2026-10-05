@@ -5,9 +5,9 @@ import type { NodeViewProps } from "@tiptap/react"
 import type { MentionKind } from "@/components/agent/mention-list"
 import {
   MENTION_ICON_MASK,
-  mentionKindOf,
   useMentionTargetLabel,
 } from "@/lib/document-mentions"
+import { mentionKindOf } from "@/lib/document-markdown"
 
 /**
  * Renders a mention pill with the *live* name of what it points at: a
