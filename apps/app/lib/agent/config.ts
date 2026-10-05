@@ -426,7 +426,7 @@ export function buildAgentSystemPrompt(opts: {
     ? `\n\nWorkspace context:\n${repoSystemPrompt.trim()}`
     : ""
   const settingUpBlock = opts.settingUp
-    ? `\n\nWorkspace setup: the code is checked out, but dependencies are still installing and the dev server hasn’t started. Read and change code now. Don’t install dependencies or start the dev server yourself, and hold off on builds, tests and previews until \`${t("read_dev_server_logs")}\` says the dev server is running.`
+    ? `\n\nWorkspace setup: the code is checked out, but dependencies may still be installing and the dev server hasn’t started. Read and change code now. Don’t install dependencies or start the dev server yourself, and hold off on builds, tests and previews until \`${t("read_dev_server_logs")}\` says the dev server is running.`
     : ""
   const directoryBlock = renderLayerDirectory(layerDirectory, t, opts.chatId)
   const accountBlock = renderAccountMemory(opts.accountMemory)

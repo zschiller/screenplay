@@ -126,7 +126,7 @@ export const workspaceChatTarget: ChatTargetSpec<
             ref: branch.ref,
             autoNamed: branch.autoNamedBranch !== false,
             systemPrompt: repos.get(branch.repoId)?.systemPrompt,
-            settingUp: branch.status === "creating",
+            settingUp: branch.codeReady === true,
           }
         })
         .catch(() => undefined),

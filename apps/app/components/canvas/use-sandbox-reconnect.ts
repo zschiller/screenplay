@@ -138,12 +138,14 @@ export function useSandboxReconnect({
               status: "starting",
               statusMessage: "Restarting…",
               error: "",
+              codeReady: undefined,
             })
             recreateSandbox(
               action.sandboxName,
               action.repo,
               action.ref,
-              roomId
+              roomId,
+              agent.id
             ).then((restartResult) => {
               if (restartResult.success) {
                 updateAgentInStorage(agent.id, {
@@ -153,14 +155,15 @@ export function useSandboxReconnect({
                   status: "running",
                   statusMessage: "",
                   error: "",
+                  codeReady: undefined,
                 })
               } else {
                 updateAgentInStorage(agent.id, {
                   status: "stopped",
                   statusMessage: "",
+                  codeReady: undefined,
                   error:
-                    restartResult.error ||
-                    "Couldn’t restart. Press Retry.",
+                    restartResult.error || "Couldn’t restart. Press Retry.",
                 })
               }
             })

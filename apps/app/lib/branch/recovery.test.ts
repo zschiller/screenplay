@@ -102,7 +102,10 @@ describe("restartSandbox (Sandbox Restart)", () => {
 
     await restartSandbox("branch-1", deps)
 
-    expect(lifecycle.restartSandbox).toHaveBeenCalledWith("sandbox-1", REPO)
+    expect(lifecycle.restartSandbox).toHaveBeenCalledWith("sandbox-1", REPO, {
+      roomId: "room-1",
+      branchId: "branch-1",
+    })
     expect(lifecycle.recreateSandbox).not.toHaveBeenCalled()
     expect(deps.patches.map((p) => p.patch.status)).toEqual([
       "starting",
@@ -117,6 +120,19 @@ describe("restartSandbox (Sandbox Restart)", () => {
     expect(deps.toasts).toEqual([
       { kind: "success", message: "Sandbox restarted" },
     ])
+  })
+
+  it("clears a leftover codeReady when it starts and when it settles", async () => {
+    // The sandbox fn marks the Branch codeReady once its code is back; the
+    // runner only clears it, so a past attempt's flag never starts the agent.
+    lifecycle.restartSandbox.mockResolvedValue(ok)
+    const deps = makeDeps()
+
+    await restartSandbox("branch-1", deps)
+
+    for (const { patch } of deps.patches) {
+      expect(patch).toHaveProperty("codeReady", undefined)
+    }
   })
 
   it("flips starting → error and toasts the error on failure", async () => {
@@ -166,7 +182,8 @@ describe("recreate (Recreate)", () => {
       "sandbox-1",
       REPO,
       "feature/x",
-      "room-1"
+      "room-1",
+      "branch-1"
     )
     expect(lifecycle.restartSandbox).not.toHaveBeenCalled()
     expect(deps.patches[0].patch.statusMessage).toBe("Recreating from scratch…")
@@ -394,7 +411,10 @@ describe("startWorkspace", () => {
     lifecycle.restartSandbox.mockResolvedValue(ok)
     const deps = makeDeps()
     await startWorkspace("branch-1", deps, { local: false })
-    expect(lifecycle.restartSandbox).toHaveBeenCalledWith("sandbox-1", REPO)
+    expect(lifecycle.restartSandbox).toHaveBeenCalledWith("sandbox-1", REPO, {
+      roomId: "room-1",
+      branchId: "branch-1",
+    })
     expect(lifecycle.restartDevServer).not.toHaveBeenCalled()
     expect(deps.patches.at(-1)?.patch.status).toBe("running")
   })
@@ -407,6 +427,9 @@ describe("startWorkspace", () => {
     const deps = makeDeps()
     await startWorkspace("branch-1", deps, { local: true })
     expect(lifecycle.restartSandbox).not.toHaveBeenCalled()
+    // The worktree is already there, so the agent can start at once.
+    expect(deps.patches[0]?.patch.codeReady).toBe(true)
+    expect(deps.patches.at(-1)?.patch).toHaveProperty("codeReady", undefined)
     expect(deps.patches.map((p) => p.patch.status)).toEqual([
       "starting",
       "running",
