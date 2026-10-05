@@ -15,6 +15,7 @@ import {
 } from "@/lib/agent/outgoing-turn"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { viewRequestIds, viewRequests } from "@/lib/canvas/view-requests"
+import { workingLayerOf } from "@/lib/chat/working-layer"
 import { isFixtureWorld } from "@/lib/fixture-world"
 import {
   echoedUserTurn,
@@ -63,6 +64,12 @@ export type ChatState = {
    * Null when no run is going.
    */
   runStart: number | null
+  /**
+   * The Mockups and Documents the running turn is changing, by layer id, with
+   * when this client saw it start on each (#1725). Chat Sync mirrors it into
+   * the Chat Session, where it holds them; empty when no run is going.
+   */
+  workingLayers: Readonly<Record<string, number>>
 }
 
 /** A Steer the agent hasn't taken yet (#1190). */
@@ -250,6 +257,7 @@ const DEFAULT_STATE: ChatState = {
   steerable: null,
   returnedSteers: [],
   runStart: null,
+  workingLayers: {},
 }
 
 async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
@@ -796,7 +804,7 @@ class ChatStore {
       // back to clearing local streaming state so the user isn't stuck, and say
       // so in the transcript: the run may still be going on the server.
       const msg = e instanceof Error ? e.message : String(e)
-      this.update(chatId, { isStreaming: false })
+      this.update(chatId, { isStreaming: false, workingLayers: {} })
       this.appendError(chatId, "Couldn’t stop the agent.", msg, () =>
         this.stopMessage(roomId, chatId)
       )
@@ -847,7 +855,11 @@ class ChatStore {
         this.acpAgentText.delete(chatId)
         this.acpThoughtText.delete(chatId)
         this.askedHere.delete(chatId)
-        this.update(chatId, { isStreaming: false, runStart: null })
+        this.update(chatId, {
+          isStreaming: false,
+          runStart: null,
+          workingLayers: {},
+        })
         this.drainQueue(chatId)
         break
       }
@@ -1121,6 +1133,17 @@ class ChatStore {
     } else {
       this.update(chatId, { messages: [...prev, message] })
     }
+    this.addWorkingLayer(chatId, workingLayerOf(merged))
+  }
+
+  /** Add a layer the running turn is changing to its list, once (#1725). */
+  private addWorkingLayer(chatId: string, layerId: string | null) {
+    const state = this.getOrCreate(chatId)
+    if (!layerId || !state.isStreaming) return
+    if (state.workingLayers[layerId] !== undefined) return
+    this.update(chatId, {
+      workingLayers: { ...state.workingLayers, [layerId]: Date.now() },
+    })
   }
 
   // --- Plan approval ---

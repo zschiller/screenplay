@@ -35,7 +35,7 @@ import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import { isSketchChat, sketchChatSession } from "@/lib/chat/sketch-chat"
-import { lastChangedBy } from "@/lib/canvas/layer-chat"
+import { lastChangedBy, layerHolder } from "@/lib/canvas/layer-chat"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import type {
   BranchData,
@@ -900,6 +900,11 @@ export function summarizeCanvas(
     const chat = chatId ? chats.find((c) => c.id === chatId) : undefined
     return chat && `last changed by chat "${clip(chat.label)}"`
   }
+  // The chat whose running turn is changing it (#1725), if one is.
+  const holderOf = (layerId: string) => {
+    const chat = layerHolder(layerId, chats)
+    return chat && `chat "${clip(chat.label)}" is changing it now`
+  }
 
   return [
     section(
@@ -961,6 +966,7 @@ export function summarizeCanvas(
     section("Documents", documents, CANVAS_SUMMARY_LIMITS.documents, (d) =>
       [
         `- [${d.id}] "${clip(d.title || "Untitled")}"`,
+        holderOf(d.id),
         lastChatOf(lastChangedBy(d)),
         groupOf.get(d.id) && `Group ${groupOf.get(d.id)}`,
       ]
@@ -971,6 +977,7 @@ export function summarizeCanvas(
       [
         `- [${m.id}] "${clip(m.title || "Untitled")}"`,
         `${Math.round(m.width)}×${Math.round(m.height)}`,
+        holderOf(m.id),
         lastChatOf(lastChangedBy(m)),
         groupOf.get(m.id) && `Group ${groupOf.get(m.id)}`,
       ]

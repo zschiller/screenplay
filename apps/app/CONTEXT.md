@@ -406,9 +406,13 @@ A rich-text layer whose body is a TipTap-owned `Y.XmlFragment` keyed
 `markdown-layer-{id}`. Its title is mirrored into both the fragment heading and
 the layer's collection record. Any chat reads and edits any Document with its
 tools (#1724); each create or edit records the chat as its **last chat**
-(`lastChangedByChatId`, read from `ownerChatId` on older records), where its
-Reply in chat and Send to agent go (`lib/canvas/layer-chat.ts`). Its label
-shows only its title. One a person made and no chat changed has no last chat.
+(`lastChangedByChatId`, read from `ownerChatId` on older records). While a
+chat's running turn is changing it, that chat is its **holder** (#1725): the
+Chat Session's `workingLayers` lists it, and another chat's edit is refused
+with the holder's name; the earliest to start on it wins, and the list clears
+with `isStreaming`. Reply in chat and Send to agent go to the holder, else the
+last chat (`lib/canvas/layer-chat.ts`). Its label shows only its title. One a
+person made and no chat changed has no last chat.
 _Avoid_: note, text layer; "document chat" (Documents are not Chat Targets
 since #1314).
 
@@ -416,7 +420,7 @@ since #1314).
 A static HTML page a chat wrote, shown on the canvas with no Sandbox
 (#1309). Its page is a `Y.Text` keyed `mockup-layer-{id}` beside its record
 (`MockupLayerData`: size, title and the `lastChangedByChatId` of its last
-chat, as a Document's). Mockups have no status; the Set aside / Current / Built status (#1310)
+chat, as a Document's, and held as a Document is). Mockups have no status; the Set aside / Current / Built status (#1310)
 was removed. Older records may still carry a `status` field, which nothing
 reads.
 It renders in an `<iframe srcdoc sandbox="allow-scripts">` with no

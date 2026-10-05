@@ -12,13 +12,16 @@ import {
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
+import { holdLayer } from "@/lib/agent/layer-hold"
 
 /**
  * A chat's Mockup tools (#1309): write a static HTML page onto the canvas as a
  * Mockup Layer, rewrite any Mockup on the canvas (#1724), and read any
  * Mockup's page back (#1313), e.g. to build a picked take. Each create or
  * update records the chat as the Mockup's `lastChangedByChatId`, which its
- * Knobs Ask and drafts go to (`lib/canvas/layer-chat`).
+ * Knobs Ask and drafts go to (`lib/canvas/layer-chat`), and holds the Mockup
+ * for the rest of the turn: another chat's update is refused meanwhile
+ * (#1725, `layer-hold.ts`).
  *
  * Writes go through the turn's `room.mutateDoc` and Canvas Operations, so a
  * Mockup lands exactly as one a member's client would write. They read through
@@ -76,7 +79,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
       execute: async ({ title, html, width, height }) => {
         const created = await ctx.room.mutateDoc(({ doc }) => {
           const collections = createRoomCollections(doc)
-          return createCanvasOps(collections).createMockup({
+          const made = createCanvasOps(collections).createMockup({
             html,
             title,
             width: width ?? DEFAULT_IFRAME_LAYER_WIDTH,
@@ -84,6 +87,8 @@ export function buildMockupTools(ctx: MockupToolContext) {
             lastChangedByChatId: ctx.chatId,
             groupId: mockupGroupFor(collections, ctx.chatId),
           })
+          if (made) holdLayer(collections, ctx.chatId, made.mockupId)
+          return made
         })
         if (!created) return "The Mockup couldn’t be placed. Try again."
         return `Created Mockup "${title}" (id ${created.mockupId}).`
@@ -92,7 +97,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
 
     update_mockup: tool({
       description:
-        "Change any Mockup on the canvas, whichever chat made it: replace its whole page, its title, or both. The canvas re-renders it in place.",
+        "Change any Mockup on the canvas, whichever chat made it, unless another chat is changing it right now: replace its whole page, its title, or both. The canvas re-renders it in place.",
       inputSchema: z.object({
         mockup_id: z.string().describe("The id create_mockup returned"),
         html: htmlSchema.optional(),
@@ -106,6 +111,8 @@ export function buildMockupTools(ctx: MockupToolContext) {
           const collections = createRoomCollections(doc)
           const mockup = collections.mockupLayers.get(mockup_id)
           if (!mockup) return "missing" as const
+          const refused = holdLayer(collections, ctx.chatId, mockup_id)
+          if (refused) return { refused }
           const ops = createCanvasOps(collections)
           ops.batch(() => {
             collections.mockupLayers.update(mockup_id, {
@@ -116,6 +123,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
           return "updated" as const
         })
         if (outcome === "missing") return `There’s no Mockup ${mockup_id}.`
+        if (typeof outcome === "object") return outcome.refused
         return `Updated Mockup ${mockup_id}.`
       },
     }),

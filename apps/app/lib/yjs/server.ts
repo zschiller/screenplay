@@ -52,6 +52,11 @@ type ChatBroadcastInput = ChatBroadcastEvent extends infer T
  * the streaming state. Trimming at the next start instead means the prior
  * end event has already been observed standalone before the array is
  * compacted.
+ *
+ * The end of a turn (its end, a stop, or the heal of a dead one) also clears
+ * the chat's working list in the same transaction, which releases the
+ * Mockups and Documents it held (#1725), whether or not a client is there to
+ * mirror the end.
  */
 export async function broadcastChatEventViaDoc(
   roomId: string,
@@ -72,5 +77,11 @@ export async function broadcastChatEventViaDoc(
       arr.delete(0, arr.length)
     }
     arr.push([JSON.parse(JSON.stringify(withId)) as unknown])
+    if (withId.type === "chat-stream-end") {
+      const { chatSessions } = getRoomCollections(doc)
+      if (chatSessions.get(event.chatId)?.workingLayers) {
+        chatSessions.update(event.chatId, { workingLayers: undefined })
+      }
+    }
   })
 }

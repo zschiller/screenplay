@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 import {
+  heldByOther,
   lastChangedBy,
   layerChat,
+  layerHolder,
+  layerRoute,
   layerChats,
   layerWorkspaceIds,
 } from "./layer-chat"
@@ -105,6 +108,61 @@ describe("layerWorkspaceIds", () => {
         ["doc-1", "ws-1"],
         ["doc-5", "ws-2"],
       ])
+    )
+  })
+})
+
+describe("holding a layer (#1725)", () => {
+  const working = (
+    id: string,
+    layers: Record<string, number>,
+    more: object = {}
+  ) => ({
+    id,
+    branchId: `ws-${id}`,
+    createdAt: 1,
+    isStreaming: true,
+    workingLayers: layers,
+    ...more,
+  })
+
+  it.each([
+    ["nobody while no turn changes it", [working("a", {})], undefined],
+    ["the chat whose turn is changing it", [working("a", { m: 5 })], "a"],
+    [
+      "the chat that started on it first",
+      [working("a", { m: 5 }), working("b", { m: 2 })],
+      "b",
+    ],
+    [
+      "nobody once the turn ended",
+      [working("a", { m: 5 }, { isStreaming: false })],
+      undefined,
+    ],
+    [
+      "nobody for a closed chat",
+      [working("a", { m: 5 }, { closedAt: 9 })],
+      undefined,
+    ],
+  ])("is held by %s", (_, list, expected) => {
+    expect(layerHolder("m", list)?.id).toBe(expected)
+  })
+
+  it("lets the holder change it and refuses everyone else", () => {
+    const list = [working("a", { m: 5 }), working("b", { m: 7 })]
+    expect(heldByOther("m", "a", list)).toBeUndefined()
+    expect(heldByOther("m", "b", list)?.id).toBe("a")
+    expect(heldByOther("m", "c", list)?.id).toBe("a")
+    expect(heldByOther("other", "c", list)).toBeUndefined()
+  })
+
+  it("routes to the holder before the last changer", () => {
+    const list = [working("a", { m: 5 }), working("b", {})]
+    expect(layerRoute({ id: "m", lastChangedByChatId: "b" }, list)).toBe("a")
+    expect(layerRoute({ id: "n", lastChangedByChatId: "b" }, list)).toBe("b")
+    expect(layerRoute({ id: "n", ownerChatId: "b" }, list)).toBe("b")
+    expect(layerChats([{ id: "m", lastChangedByChatId: "b" }], list)).toEqual(
+      new Map([["m", { kind: "workspace", chatId: "a", branchId: "ws-a" }]])
     )
   })
 })

@@ -1,4 +1,4 @@
-import { lastChangedBy, layerChat } from "@/lib/canvas/layer-chat"
+import { lastChangedBy, layerChat, layerRoute } from "@/lib/canvas/layer-chat"
 import { isSketchChat } from "@/lib/chat/sketch-chat"
 import { mockupQuestion, type MockupQuestion } from "@/lib/agent/question"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -12,8 +12,9 @@ import type { ChatSessionData, MockupLayerData } from "@/lib/types"
  * question, answer). React-free; the canvas builds one link from its stores
  * and hands it to every Mockup (`components/canvas/mockup-chat-link.tsx`).
  *
- * The chat that speaks for a Mockup is its {@link layerChat}: the Sketch Chat
- * that last changed it, or that chat's Workspace's chat (#1724). A Mockup
+ * The chat that speaks for a Mockup is the {@link layerChat} of its
+ * {@link layerRoute}: the Sketch Chat holding it (#1725) or else the one that
+ * last changed it, or that chat's Workspace's chat (#1724). A Mockup
  * without one (made by hand, or whose last chat was deleted) goes to the chat
  * the panel shows, or a new Sketch Chat when the panel shows
  * the Coordinator. A question is the exception: any chat may ask one about a
@@ -40,7 +41,13 @@ export interface MockupChatLinkDeps {
   >[]
   chats: readonly Pick<
     ChatSessionData,
-    "id" | "branchId" | "target" | "createdAt"
+    | "id"
+    | "branchId"
+    | "target"
+    | "createdAt"
+    | "isStreaming"
+    | "closedAt"
+    | "workingLayers"
   >[]
   /** Each chat's transcript, as loaded with the canvas (the chat store). */
   transcripts: {
@@ -100,7 +107,7 @@ export function createMockupChatLink(deps: MockupChatLinkDeps): MockupChatLink {
   const mockupOf = (id: string) => mockups.find((m) => m.id === id)
   const chatOf = (id: string) => {
     const mockup = mockupOf(id)
-    return mockup ? layerChat(lastChangedBy(mockup), chats) : null
+    return mockup ? layerChat(layerRoute(mockup, chats), chats) : null
   }
 
   /** Open the chat that speaks for a Mockup and return its id. */
