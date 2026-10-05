@@ -1,8 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Button } from "@workspace/ui/components/button"
 import { GitPullRequestIcon } from "@workspace/ui/components/icons"
+import {
+  Questionnaire,
+  QuestionnaireChoice,
+  QuestionnaireChoiceDescription,
+  QuestionnaireChoices,
+  QuestionnaireDescription,
+  QuestionnaireItem,
+  QuestionnaireTitle,
+} from "@workspace/ui/components/questionnaire"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { callIdentity } from "@/lib/agent/tool-description"
@@ -14,7 +22,8 @@ import {
   type OfferedMerge,
   type OfferedMergeState,
 } from "@/lib/github-merge-actions"
-import { ChatDisclosure } from "./chat-disclosure"
+import { inputStore } from "@/lib/input-store"
+import { InlineRef } from "./inline-ref"
 
 type ToolCallMessage = AgentMessage & { role: "tool_call" }
 
@@ -49,6 +58,9 @@ export function parseOfferedMerge(
   }
 }
 
+/** The other choice, sent to the agent as the user’s answer. */
+const NOT_NOW = "Not now"
+
 const METHOD_LABEL: Record<MergeMethod, string> = {
   squash: "Squash and merge",
   merge: "Merge",
@@ -73,9 +85,10 @@ type State =
 
 /**
  * The card a chat shows for a pull request its agent offered to merge with
- * `merge_pr`: the PR’s title, whether its checks pass, and one Merge button
- * in the method the agent asked for or the repository’s first allowed one.
- * Nothing merges until a member presses it, with their own GitHub account,
+ * `merge_pr`, drawn like a question card: “Merge #12 …?”, whether its checks
+ * pass, and two choices, the merge in the method the agent asked for (or the
+ * repository’s first allowed one) and Not now, which answers the agent.
+ * Nothing merges until a member picks it, with their own GitHub account,
  * and only at the head the card shows. Once merged it says so, for everyone
  * and after a reload, since it reads the PR’s state from GitHub.
  *
@@ -85,10 +98,12 @@ type State =
 export function MergePrCard({
   message,
   roomId,
+  chatId,
   fallback,
 }: {
   message: ToolCallMessage
   roomId: string
+  chatId?: string
   fallback: ReactNode
 }) {
   const done = message.status === "completed"
@@ -100,6 +115,7 @@ export function MergePrCard({
   const [state, setState] = useState<State>({ kind: "loading" })
   const [merging, setMerging] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [declined, setDeclined] = useState(false)
 
   useEffect(() => {
     if (!offered) return
@@ -137,7 +153,7 @@ export function MergePrCard({
       : pr.methods[0])
 
   const merge = async () => {
-    if (!pr || !method) return
+    if (!pr || !method || pr.state !== "open" || merging) return
     setMerging(true)
     setError(null)
     try {
@@ -159,96 +175,98 @@ export function MergePrCard({
     }
   }
 
-  const title = pr ? `#${offered.number} ${pr.title}` : `#${offered.number}`
+  // Not now goes to the agent as the user’s next message, like a question
+  // card’s choice; the merge itself is the card’s own action.
+  const notNow = () => {
+    if (!chatId || declined) return
+    setDeclined(true)
+    void inputStore.send(chatId, NOT_NOW).then((ok) => {
+      if (!ok) setDeclined(false)
+    })
+  }
 
-  return (
-    <ChatDisclosure
-      collapsible={false}
-      icon={<GitPullRequestIcon aria-hidden className="size-3 shrink-0" />}
-      title={<span className="truncate font-medium">{title}</span>}
-      headerProps={{ "data-testid": "merge-pr-card" }}
-    >
-      <div className="px-3 py-2.5">
-        {state.kind === "loading" && (
-          <Spinner className="size-4" aria-label="Checking pull request…" />
-        )}
-        {state.kind === "failed" && (
-          <p className="text-sm text-muted-foreground">{state.error}</p>
-        )}
-        {pr && (
-          <PrBody
-            pr={pr}
-            method={method ?? undefined}
-            merging={merging}
-            onMerge={merge}
-          />
-        )}
-        {error && (
-          <p role="alert" className="mt-2 text-xs text-muted-foreground">
-            {error}
-          </p>
-        )}
-      </div>
-    </ChatDisclosure>
-  )
-}
-
-/**
- * The card's body. An open PR has its status line, then its Merge button;
- * once there is nothing to press, the status and Open on GitHub share a row.
- */
-function PrBody({
-  pr,
-  method,
-  merging,
-  onMerge,
-}: {
-  pr: OfferedMergeState
-  method: MergeMethod | undefined
-  merging: boolean
-  onMerge: () => void
-}) {
-  const canMerge = pr.state === "open" && !pr.draft && !!method
-  const status =
-    pr.state === "merged"
+  const merged = pr?.state === "merged"
+  const canMerge =
+    !!pr && pr.state === "open" && !pr.draft && !!method && !declined
+  const status = !pr
+    ? null
+    : merged
       ? "Merged"
       : pr.state === "closed"
         ? "Closed without merging"
         : pr.draft
           ? "Draft: mark it ready for review on GitHub first"
           : statusLine(pr)
-  const open = (
-    <Button
-      size="sm"
-      variant="ghost"
-      className="ml-auto"
-      onClick={() => window.open(pr.url, "_blank", "noopener")}
-    >
-      Open on GitHub
-    </Button>
-  )
-  if (!canMerge) {
-    return (
-      <div className="flex items-center gap-2">
-        <p className="text-sm text-muted-foreground">{status}</p>
-        {open}
-      </div>
-    )
-  }
+
   return (
-    <>
-      <p className="text-sm text-muted-foreground">{status}</p>
-      <div className="mt-3 flex items-center gap-2">
-        <Button
-          size="sm"
-          disabled={merging || pr.mergeableState === "dirty"}
-          onClick={onMerge}
-        >
-          {merging && <Spinner />}
-          {METHOD_LABEL[method!]}
-        </Button>
-        {open}
-      </div>
-    </>
+    <Questionnaire
+      data-testid="merge-pr-card"
+      onSubmit={(e) => e.preventDefault()}
+    >
+      <QuestionnaireItem name={`merge-${message.toolCallId}`}>
+        <QuestionnaireTitle className="text-sm">
+          Merge{" "}
+          <InlineRef
+            kind="workspace"
+            icon={<GitPullRequestIcon aria-hidden weight="bold" />}
+            onClick={
+              pr ? () => window.open(pr.url, "_blank", "noopener") : undefined
+            }
+          >
+            #{offered.number}
+            {pr ? ` ${pr.title}` : ""}
+          </InlineRef>
+          ?
+        </QuestionnaireTitle>
+        <QuestionnaireDescription className="mt-1 text-xs">
+          {state.kind === "loading" ? (
+            <Spinner className="size-3" aria-label="Checking pull request…" />
+          ) : state.kind === "failed" ? (
+            state.error
+          ) : (
+            status
+          )}
+        </QuestionnaireDescription>
+        {pr && method && pr.state !== "closed" && !pr.draft && (
+          <div className="flex flex-col gap-1">
+            <QuestionnaireChoices>
+              <QuestionnaireChoice
+                value="merge"
+                checked={merged || merging}
+                // Like a question card, the picked choice stays at full
+                // strength; picking it again does nothing (see `merge`).
+                disabled={
+                  !merged &&
+                  !merging &&
+                  (!canMerge || pr.mergeableState === "dirty")
+                }
+                onChange={merge}
+              >
+                <span className="flex items-center gap-1.5">
+                  {METHOD_LABEL[method]}
+                  {merging && <Spinner className="size-3" />}
+                </span>
+                <QuestionnaireChoiceDescription className="text-xs">
+                  With your GitHub account
+                </QuestionnaireChoiceDescription>
+              </QuestionnaireChoice>
+              <QuestionnaireChoice
+                value="not-now"
+                checked={declined}
+                disabled={!chatId || ((merged || merging) && !declined)}
+                onChange={notNow}
+              >
+                {NOT_NOW}
+              </QuestionnaireChoice>
+            </QuestionnaireChoices>
+            {error && (
+              <p role="alert" className="text-xs text-muted-foreground">
+                {error}
+              </p>
+            )}
+          </div>
+        )}
+      </QuestionnaireItem>
+    </Questionnaire>
   )
 }

@@ -1399,6 +1399,7 @@ function ToolCallItem({
       <MergePrCard
         message={message}
         roomId={roomId}
+        chatId={chatId}
         fallback={<ToolCallRow message={message} />}
       />
     )

@@ -395,12 +395,13 @@ repositories.
 
 ### Merging a pull request
 
-Ask an agent to merge a pull request and it shows a card instead of merging:
-the pull request’s title, whether its checks pass or it has conflicts, and a
-**Squash and merge** button (or **Merge**, or **Rebase and merge**, whichever
-the repository allows or you asked for). Nothing merges until someone presses
-it, and it merges with the GitHub account of whoever pressed. If anyone pushes
-to the pull request after the card showed it, the merge fails rather than
+Ask an agent to merge a pull request and it asks you first, on a card like
+its other questions: “Merge #12 …?”, whether the checks pass or it has
+conflicts, and two choices. **Squash and merge** (or **Merge**, or **Rebase
+and merge**, whichever the repository allows or you asked for) merges it with
+the GitHub account of whoever picked it; **Not now** tells the agent to leave
+it. Nothing merges until someone picks the merge. If anyone pushes to the pull
+request after the card showed it, the merge fails rather than
 merging changes nobody saw. Viewers can’t merge.
 
 ## Chat naming

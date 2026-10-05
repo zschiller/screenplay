@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { AgentMessage } from "@/lib/agent/types"
+import { inputStore } from "@/lib/input-store"
 
 const offeredMergeState = vi.fn()
 const mergeOfferedPr = vi.fn()
@@ -34,7 +35,7 @@ function call(
         type: "content",
         content: {
           type: "text",
-          text: "Showed a merge card for acme/web#7 (Fix sign-in). Nothing merges until someone presses Merge on it.",
+          text: "Showed a merge card for acme/web#7 (Fix sign-in). Nothing merges until someone picks Merge on it; Not now comes back as their next message.",
         },
       },
     ],
@@ -59,10 +60,14 @@ function renderCard(message = call()) {
     <MergePrCard
       message={message}
       roomId="room-1"
+      chatId="chat-1"
       fallback={<div data-testid="fallback">row</div>}
     />
   )
 }
+
+const choice = async (name: RegExp) =>
+  (await screen.findByRole("radio", { name })) as HTMLInputElement
 
 beforeEach(() => {
   offeredMergeState.mockResolvedValue(pr)
@@ -75,13 +80,12 @@ afterEach(() => {
 })
 
 describe("MergePrCard", () => {
-  it("shows the PR and its checks, and merges nothing until pressed", async () => {
+  it("asks like a question card, and merges nothing until picked", async () => {
     renderCard()
-    const button = await screen.findByRole("button", {
-      name: "Squash and merge",
-    })
+    const merge = await choice(/Squash and merge/)
     expect(screen.getByText("#7 Fix sign-in")).toBeTruthy()
     expect(screen.getByText("All checks have passed")).toBeTruthy()
+    expect(screen.getByRole("radio", { name: /Not now/ })).toBeTruthy()
     expect(offeredMergeState).toHaveBeenCalledWith("room-1", {
       repo: "acme/web",
       number: 7,
@@ -89,7 +93,7 @@ describe("MergePrCard", () => {
     })
     expect(mergeOfferedPr).not.toHaveBeenCalled()
 
-    fireEvent.click(button)
+    fireEvent.click(merge)
     expect(await screen.findByText("Merged")).toBeTruthy()
     expect(mergeOfferedPr).toHaveBeenCalledWith("room-1", {
       repo: "acme/web",
@@ -97,22 +101,34 @@ describe("MergePrCard", () => {
       method: "squash",
       sha: "abc123",
     })
-    expect(screen.queryByRole("button", { name: /merge/i })).toBeNull()
+    expect(merge.checked).toBe(true)
+    expect(
+      (screen.getByRole("radio", { name: /Not now/ }) as HTMLInputElement)
+        .disabled
+    ).toBe(true)
   })
 
   it("uses the method the agent asked for when the repository allows it", async () => {
     renderCard(call({ rawInput: { number: 7, method: "merge" } }))
-    expect(await screen.findByRole("button", { name: "Merge" })).toBeTruthy()
+    expect(await choice(/^Merge/)).toBeTruthy()
+    expect(screen.queryByRole("radio", { name: /Squash/ })).toBeNull()
   })
 
   it("can’t merge a conflicted PR, and says why", async () => {
     offeredMergeState.mockResolvedValue({ ...pr, mergeableState: "dirty" })
     renderCard()
-    const button = await screen.findByRole("button", {
-      name: "Squash and merge",
-    })
+    const merge = await choice(/Squash and merge/)
     expect(screen.getByText("Has conflicts with its base")).toBeTruthy()
-    expect((button as HTMLButtonElement).disabled).toBe(true)
+    expect(merge.disabled).toBe(true)
+  })
+
+  it("answers the agent with Not now, and merges nothing", async () => {
+    const send = vi.spyOn(inputStore, "send").mockResolvedValue(true)
+    renderCard()
+    fireEvent.click(await choice(/Not now/))
+    expect(send).toHaveBeenCalledWith("chat-1", "Not now")
+    expect(mergeOfferedPr).not.toHaveBeenCalled()
+    send.mockRestore()
   })
 
   it("shows GitHub’s refusal", async () => {
@@ -121,9 +137,7 @@ describe("MergePrCard", () => {
       error: "Head branch was modified (409)",
     })
     renderCard()
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Squash and merge" })
-    )
+    fireEvent.click(await choice(/Squash and merge/))
     expect((await screen.findByRole("alert")).textContent).toBe(
       "Head branch was modified (409)"
     )
