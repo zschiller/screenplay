@@ -1254,6 +1254,7 @@ function UserBubble({
       {(displayContent.trim() || attachments.length === 0) && (
         <ChatMarkdown
           tone="bubble"
+          size="prose"
           urlTransform={(url) => url}
           components={components}
           className="max-w-[85%] rounded-xl bg-muted px-3 py-1.5 dark:bg-input/70"
@@ -1326,7 +1327,11 @@ function AssistantMessage({ content }: { content: string }) {
     [tasks, facts]
   )
   return (
-    <ChatMarkdown components={components} urlTransform={keepReferenceLinks}>
+    <ChatMarkdown
+      size="prose"
+      components={components}
+      urlTransform={keepReferenceLinks}
+    >
       {content}
     </ChatMarkdown>
   )
