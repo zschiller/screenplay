@@ -237,8 +237,9 @@ function BranchPicker({
             aria-label={
               workspace ? `Chat: ${workspaceLabel(workspace)}` : "Choose a chat"
             }
-            // Names win: the Workspace gives up its width first.
-            className="group flex min-w-10 shrink-[100] items-center text-xs text-muted-foreground outline-none focus-visible:outline-none"
+            // Names win: the Workspace gives up its width first. As tall as
+            // the Workspace mention, so picking one moves nothing.
+            className="group flex h-5 min-w-10 shrink-[100] items-center text-xs text-muted-foreground outline-none focus-visible:outline-none"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >

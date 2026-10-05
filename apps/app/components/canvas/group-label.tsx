@@ -267,9 +267,10 @@ export function WorkspaceChooser({
         <button
           type="button"
           aria-label={title}
-          // Names win: the chooser gives up its width first.
+          // Names win: the chooser gives up its width first. As tall as the
+          // Workspace mention, so picking one moves nothing.
           className={cn(
-            "flex min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none",
+            "flex h-5 min-w-10 shrink-[100] items-center outline-none focus-visible:outline-none",
             className
           )}
           onPointerDown={(e) => e.stopPropagation()}
