@@ -91,6 +91,7 @@ import { MoonIcon as MoonBase } from "@phosphor-icons/react/dist/ssr/Moon"
 import { NavigationArrowIcon as NavigationArrowBase } from "@phosphor-icons/react/dist/ssr/NavigationArrow"
 import { NotepadIcon as NotepadBase } from "@phosphor-icons/react/dist/ssr/Notepad"
 import { NotePencilIcon as NotePencilBase } from "@phosphor-icons/react/dist/ssr/NotePencil"
+import { PaperclipIcon as PaperclipBase } from "@phosphor-icons/react/dist/ssr/Paperclip"
 import { PathIcon as PathBase } from "@phosphor-icons/react/dist/ssr/Path"
 import { PauseCircleIcon as PauseCircleBase } from "@phosphor-icons/react/dist/ssr/PauseCircle"
 import { PencilSimpleIcon as PencilSimpleBase } from "@phosphor-icons/react/dist/ssr/PencilSimple"
@@ -329,6 +330,7 @@ export const NavigationArrowIcon = phosphor(
 )
 export const NotepadIcon = phosphor(NotepadBase, "ph-notepad")
 export const NotePencilIcon = phosphor(NotePencilBase, "ph-note-pencil")
+export const PaperclipIcon = phosphor(PaperclipBase, "ph-paperclip")
 export const PathIcon = phosphor(PathBase, "ph-path")
 export const PauseCircleIcon = phosphor(PauseCircleBase, "ph-pause-circle")
 export const PencilSimpleIcon = phosphor(PencilSimpleBase, "ph-pencil-simple")
