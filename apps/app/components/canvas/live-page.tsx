@@ -112,8 +112,6 @@ export interface LivePageAppEvents {
   onScroll?: (id: string, scrollX: number, scrollY: number) => void
   onReady?: (id: string, version: string | undefined) => void
   onHmrStatus?: (id: string, status: HmrStatus) => void
-  /** A Mockup page drafted a message for its chat, from a tap (#1645). */
-  onDraft?: (id: string, text: string) => void
 }
 
 export interface LivePageOptions {
@@ -210,7 +208,6 @@ export function useLivePage({
     onScroll: app?.onScroll,
     onReady: app?.onReady,
     onHmrStatus: app?.onHmrStatus,
-    onDraft: app?.onDraft,
     onKnobsDeclared: writes?.knobsDeclared,
     onSharedStateChanged: writes?.sharedState,
   })

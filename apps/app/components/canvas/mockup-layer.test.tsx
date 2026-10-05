@@ -4,6 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { MockupLayerData } from "@/lib/types"
+import type { AgentMessage } from "@/lib/agent/types"
+import {
+  createMockupChatLink,
+  type MockupChatLink,
+} from "@/lib/canvas/mockup-chat-link"
+import { MockupChatLinkProvider } from "./mockup-chat-link"
 import { MockupLayer } from "./mockup-layer"
 
 // The page's HTML lives in the Room doc and the runtime comes from the
@@ -62,24 +68,29 @@ const stream = {
   frame: () => ({}),
 } as unknown as FrameStreamConnection
 
-function renderMockup(props: Partial<Parameters<typeof MockupLayer>[0]> = {}) {
+function renderMockup(
+  props: Partial<Parameters<typeof MockupLayer>[0]> = {},
+  link: MockupChatLink | null = null
+) {
   const noop = () => {}
   const element = (p: typeof props) => (
-    <MockupLayer
-      layer={LAYER}
-      zoom={1}
-      selected
-      multiSelected={false}
-      spaceHeld={false}
-      worldX={0}
-      worldY={0}
-      onSelect={noop}
-      onMoveGroup={noop}
-      onMoveSelected={noop}
-      onResize={noop}
-      onRename={noop}
-      {...p}
-    />
+    <MockupChatLinkProvider value={link}>
+      <MockupLayer
+        layer={LAYER}
+        zoom={1}
+        selected
+        multiSelected={false}
+        spaceHeld={false}
+        worldX={0}
+        worldY={0}
+        onSelect={noop}
+        onMoveGroup={noop}
+        onMoveSelected={noop}
+        onResize={noop}
+        onRename={noop}
+        {...p}
+      />
+    </MockupChatLinkProvider>
   )
   const view = render(element(props))
   return { ...view, rerender: (p: typeof props) => view.rerender(element(p)) }
@@ -197,7 +208,7 @@ describe("MockupLayer scroll (#1563)", () => {
   })
 })
 
-describe("MockupLayer drafts (#1645)", () => {
+describe("MockupLayer's chat link (#1645, #1644, #1662)", () => {
   function fromPage(data: unknown) {
     const iframe = document.querySelector("iframe")!
     act(() => {
@@ -207,26 +218,96 @@ describe("MockupLayer drafts (#1645)", () => {
     })
   }
   const draft = { type: "screenplay:draft", text: "Picked B" }
+  const ROOM = "room-chat-r1"
+  const NO_MESSAGES: AgentMessage[] = []
+
+  /** A canvas whose Sketch Chat made the Mockup, and the Coordinator. */
+  function canvasLink(transcripts: Record<string, AgentMessage[]> = {}) {
+    const calls = {
+      prefill: vi.fn(),
+      sendWhenOpen: vi.fn(),
+      showRoomChat: vi.fn(),
+      showSketchChat: vi.fn(),
+    }
+    const link = createMockupChatLink({
+      mockups: [{ ...LAYER, ownerChatId: "sketch-1" }],
+      chats: [
+        { id: ROOM, target: "room", createdAt: 0 },
+        { id: "sketch-1", target: "sketch", createdAt: 1 },
+      ],
+      transcripts: {
+        messages: (id) => transcripts[id] ?? NO_MESSAGES,
+        subscribe: () => () => {},
+      },
+      panel: {
+        shown: () => null,
+        showSketchChat: calls.showSketchChat,
+        showWorkspaceChat: vi.fn(),
+        showRoomChat: calls.showRoomChat,
+        openWorkspaceChat: vi.fn(),
+        newSketchChat: vi.fn(),
+      },
+      input: { prefill: calls.prefill, sendWhenOpen: calls.sendWhenOpen },
+      draftSource: { set: vi.fn() },
+      answered: new Set(),
+    })
+    return { link, calls }
+  }
 
   it("hands the chat a draft from the page this viewer is interacting with", () => {
-    const onDraft = vi.fn()
-    renderMockup({ onDraft, focused: true })
+    const { link, calls } = canvasLink()
+    renderMockup({ focused: true }, link)
     fromPage(draft)
-    expect(onDraft).toHaveBeenCalledWith("mockup-1", "Picked B")
+    expect(calls.showSketchChat).toHaveBeenCalledWith("sketch-1")
+    expect(calls.prefill).toHaveBeenCalledWith("sketch-1", "Picked B")
   })
 
   it("ignores a draft while this viewer isn't interacting with the page", () => {
-    const onDraft = vi.fn()
-    renderMockup({ onDraft })
+    const { link, calls } = canvasLink()
+    renderMockup({}, link)
     fromPage(draft)
-    expect(onDraft).not.toHaveBeenCalled()
+    expect(calls.prefill).not.toHaveBeenCalled()
   })
 
   it("ignores a draft while the agent drives the page", () => {
-    const onDraft = vi.fn()
-    renderMockup({ onDraft, focused: true, driver: { kind: "agent" } })
+    const { link, calls } = canvasLink()
+    renderMockup({ focused: true, driver: { kind: "agent" } }, link)
     fromPage(draft)
-    expect(onDraft).not.toHaveBeenCalled()
+    expect(calls.prefill).not.toHaveBeenCalled()
+  })
+
+  it("shows the Coordinator's question on the page, and the tap answers it in the Coordinator", () => {
+    const { link, calls } = canvasLink({
+      [ROOM]: [
+        {
+          role: "tool_call",
+          toolCallId: "q1",
+          title: "ask_question",
+          status: "completed",
+          content: [],
+          rawInput: {
+            question: "Which row?",
+            options: ["Prices", "Names only"],
+            mockup_id: LAYER.id,
+          },
+        },
+      ],
+    })
+    renderMockup({ focused: true }, link)
+    const frame = document.querySelector("iframe")!.contentWindow!
+    const posted = vi.spyOn(frame, "postMessage")
+    fromPage({ type: "screenplay:question-request" })
+    expect(posted).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: "screenplay:question-apply",
+        question: expect.objectContaining({ id: "q1", question: "Which row?" }),
+      }),
+      "*"
+    )
+
+    fromPage({ type: "screenplay:question-answer", id: "q1", index: 1 })
+    expect(calls.showRoomChat).toHaveBeenCalledOnce()
+    expect(calls.sendWhenOpen).toHaveBeenCalledWith(ROOM, "Names only")
   })
 })
 

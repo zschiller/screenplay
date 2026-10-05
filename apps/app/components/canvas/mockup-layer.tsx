@@ -15,8 +15,12 @@ import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRefs } from "@/hooks/use-mockup-refs"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
-import { useMockupQuestion, usePageQuestion } from "@/hooks/use-mockup-question"
-import type { MockupQuestion } from "@/lib/agent/question"
+import {
+  useMockupChatLink,
+  useMockupPageChat,
+  useMockupQuestion,
+} from "@/components/canvas/mockup-chat-link"
+import { pageVoice } from "@/lib/canvas/mockup-chat-link"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
@@ -141,18 +145,6 @@ interface MockupLayerProps {
   onDomReady?: (id: string, dom: ScreenplayDom | null) => void
   /** Where the page's Knobs and shared state are written. */
   writes?: LivePageWrites
-  /** Start an "add a knob" request in the chat that made the mockup. */
-  onAskForKnob?: () => void
-  /**
-   * The page's `screenplay.draft(text)` (#1645): put `text` in the composer of
-   * the chat that made the mockup. Called only for a tap this viewer made.
-   */
-  onDraft?: (id: string, text: string) => void
-  /**
-   * The page answered the question its chat asked about it (#1644,
-   * `screenplay.answer`), as a click on the card would.
-   */
-  onAnswerQuestion?: (found: MockupQuestion, index: number) => void
   /**
    * The mockup takes clicks, scrolls and keys (Interact), as a frame does:
    * the canvas stops panning over it and Esc returns.
@@ -277,9 +269,6 @@ export function MockupLayer({
   onHover,
   onDomReady,
   writes,
-  onAskForKnob,
-  onDraft,
-  onAnswerQuestion,
   focused = false,
   driver = NOBODY_DRIVES,
   askedForControl,
@@ -326,19 +315,6 @@ export function MockupLayer({
   if (settled && shownDoc !== builtDoc) setShownDoc(builtDoc)
   const srcDoc = settled ? builtDoc : shownDoc
   const shared = !!sharedStream
-  // A draft speaks for the person, so it counts only from a tap this viewer
-  // made: in their own copy while they Interact and the agent isn't driving
-  // it, or in the live page while they have control. The runtime checks for
-  // the tap too, but page script could post the message itself.
-  const draftFromViewer = shared
-    ? liveDriver.kind === "you"
-    : focused && driver.kind !== "agent"
-  const handleDraft = useCallback(
-    (id: string, text: string) => {
-      if (draftFromViewer) onDraft?.(id, text)
-    },
-    [draftFromViewer, onDraft]
-  )
   const page = useLivePage({
     id: layer.id,
     // This viewer's own iframe, or the live page's stream.
@@ -361,7 +337,7 @@ export function MockupLayer({
     record: layer,
     writes,
     // Scroll syncs between copies, as a frame's does (#1563).
-    app: { onScroll: onScrollChange, onDraft: handleDraft },
+    app: { onScroll: onScrollChange },
     interactive: focused,
     driver,
     zoom,
@@ -375,15 +351,24 @@ export function MockupLayer({
     // screenshot there is rendered from a read of the page.
     snapshot: true,
   })
-  // The question its chat asked about it (#1644). The page answers only
-  // while this viewer interacts with it and the agent isn't driving it: page
-  // script can post an answer without the runtime's tap check, and the agent
-  // mustn't answer its own question. A live page is one page every viewer's
-  // canvas hears from, so it shows the question but can't answer it: each
-  // viewer would send the answer again.
-  const question = useMockupQuestion(layer.id, layer.ownerChatId)
-  const canAnswer = focused && driver.kind !== "agent" && !shared
-  usePageQuestion(page.port, question, canAnswer ? onAnswerQuestion : undefined)
+  // The page's link to its chat (#1662): the question any chat asked about
+  // it (#1644), and a draft (#1645) or answer from a tap that speaks for this
+  // viewer.
+  const link = useMockupChatLink()
+  const question = useMockupQuestion(link, layer.id)
+  const voice = pageVoice({ focused, driver, live: shared, liveDriver })
+  useMockupPageChat(page.port, {
+    question,
+    onDraft:
+      link && voice.draft ? (text) => link.draft(layer.id, text) : undefined,
+    onAnswer:
+      link && voice.answer
+        ? (found, index) => link.answer(found, index)
+        : undefined,
+  })
+  const onAskForKnob = link?.canAsk(layer.id)
+    ? () => link.askForKnob(layer.id)
+    : undefined
 
   const chrome = livePageChrome({
     driver,
