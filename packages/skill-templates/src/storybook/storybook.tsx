@@ -1,7 +1,9 @@
-// The design-storybook page. Phone first, one column at every width: the
-// stage shows the chosen state; under it, a segmented control per dimension,
-// the state's name and notes, and a note field. A second tab lists every
-// state. A bar pinned to the bottom counts the notes and copies them.
+// The design-storybook page. Phone first, one column at every width: a bar
+// pinned to the top holds the title and the tabs; the stage shows the chosen
+// state; under it, a segmented control per dimension, the state's name and
+// notes, a note field, and what the storybook is for. A second tab lists
+// every state. A bar pinned to the bottom counts the notes and copies them,
+// or on a canvas sends them to the chat's composer.
 
 import * as React from "react"
 
@@ -10,22 +12,14 @@ import { useSharedState } from "@screenplay.space/state"
 import { Button } from "@workspace/ui/components/button"
 import { CaretLeftIcon, CaretRightIcon } from "@workspace/ui/components/icons"
 import { Input } from "@workspace/ui/components/input"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@workspace/ui/components/tabs"
+import { TabsContent } from "@workspace/ui/components/tabs"
 import { Textarea } from "@workspace/ui/components/textarea"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@workspace/ui/components/toggle-group"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { Intro, Segmented, Shell } from "../shared/kit.tsx"
 import { CopyBar, Html, Label, load, store } from "../shared/page.tsx"
-import { Lightbox, Shots } from "../shared/shots.tsx"
-import { ThemeButton, ThemeContext, useTheme } from "../shared/theme.tsx"
+import { Shots } from "../shared/shots.tsx"
+import { useTheme } from "../shared/theme.tsx"
 import type { Control, Page, Render, State, Value } from "./types.ts"
 
 type Values = Record<string, Value>
@@ -51,7 +45,8 @@ export function Storybook({
   states: State[]
   render?: Render
 }) {
-  const [dark, toggleTheme] = useTheme()
+  const theme = useTheme()
+  const [dark] = theme
   // Every state's full values: a missing key takes the control's default
   const full = React.useCallback(
     (set?: Values): Values =>
@@ -124,6 +119,67 @@ export function Storybook({
     }
   }, [current])
 
+  // The stage keeps one height for every state, so nothing above the controls
+  // moves: the tallest capture at the stage's width, and on a wide screen no
+  // taller than leaves the controls and the state's name on the first screen
+  const stageRef = React.useRef<HTMLDivElement>(null)
+  const controlsRef = React.useRef<HTMLDivElement>(null)
+  const nameRef = React.useRef<HTMLDivElement>(null)
+  const [ratio, setRatio] = React.useState(0)
+  React.useEffect(() => {
+    let live = true
+    const srcs = all.flatMap((s) =>
+      s.shots ? [dark && s.shots.dk ? s.shots.dk : s.shots.p] : []
+    )
+    Promise.all(
+      srcs.map(
+        (src) =>
+          new Promise<number>((done) => {
+            const img = new Image()
+            img.onload = () =>
+              done(img.naturalWidth ? img.naturalHeight / img.naturalWidth : 0)
+            img.onerror = () => done(0)
+            img.src = src
+          })
+      )
+    ).then((r) => live && setRatio(Math.max(0, ...r)))
+    return () => {
+      live = false
+    }
+  }, [all, dark])
+  const [box, setBox] = React.useState({ width: 0, room: Infinity })
+  React.useLayoutEffect(() => {
+    const measure = () => {
+      const stage = stageRef.current
+      if (!stage) return
+      const bar = document.getElementById("copy-bar")?.offsetHeight ?? 0
+      const below =
+        (controlsRef.current?.offsetHeight ?? 0) +
+        (nameRef.current?.offsetHeight ?? 0) +
+        16 * 3 + // the gaps, and room above the bar
+        bar
+      const top = stage.getBoundingClientRect().top + scrollY
+      setBox({
+        width: stage.clientWidth,
+        room: matchMedia("(min-width: 48rem)").matches
+          ? Math.max(240, innerHeight - top - below)
+          : Infinity,
+      })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (stageRef.current) ro.observe(stageRef.current)
+    addEventListener("resize", measure)
+    return () => {
+      ro.disconnect()
+      removeEventListener("resize", measure)
+    }
+  }, [tab])
+  const stageHeight =
+    ratio && box.width
+      ? Math.round(Math.min(box.width * ratio, box.room))
+      : undefined
+
   const go = (s?: { vals: Values }) => s && setVals({ ...s.vals })
   const step = (d: number) => go(all[(index + d + all.length) % all.length])
   // Arrow keys step through the states, except while typing
@@ -184,162 +240,17 @@ export function Storybook({
       : "No notes yet") + (general.trim() ? " · general note" : "")
 
   return (
-    <ThemeContext.Provider value={dark}>
-      <Lightbox>
-        <div className="mx-auto flex max-w-[880px] flex-col gap-5 px-4 pt-6 pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:gap-6 md:px-6 md:pt-10">
-          <header>
-            <div className="flex items-center justify-between gap-3">
-              <Label accent>
-                Design storybook · {page.date}
-                {page.round > 1 && ` · Round ${page.round}`}
-              </Label>
-              <ThemeButton dark={dark} toggle={toggleTheme} />
-            </div>
-            <h1 className="mt-2 mb-2.5 font-heading text-title-xl text-balance">
-              {page.title}
-            </h1>
-            <blockquote className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground">
-              {page.quote}
-            </blockquote>
-            {page.where && (
-              <Html
-                as="p"
-                html={page.where}
-                className="mt-2 text-sm text-muted-foreground"
-              />
-            )}
-          </header>
-          <Tabs
-            value={tab}
-            onValueChange={setTab}
-            className="flex flex-col gap-5 md:gap-6"
-          >
-            <TabsList
-              variant="line"
-              aria-label="View"
-              className="h-auto w-full justify-start gap-4 rounded-none border-b p-0 pb-[5px]"
-            >
-              <TabsTrigger value="story" className="h-full flex-none px-0">
-                Story
-              </TabsTrigger>
-              <TabsTrigger value="all" className="h-full flex-none px-0">
-                All states ({all.length})
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="story" className="flex min-w-0 flex-col gap-4">
-              <Stage
-                state={current}
-                caption={label(vals)}
-                render={render}
-                vals={vals}
-                dark={dark}
-              />
-              <div className="flex flex-col gap-3">
-                {/* Controls sit right under the stage, above the text that changes per state, so they never move as you tap. */}
-                {controls.map((c) => (
-                  <ControlRow
-                    key={c.key}
-                    control={c}
-                    value={vals[c.key]!}
-                    choose={(v) => choose(c, v)}
-                    reachable={(v) => reachable(c, v)}
-                  />
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <h2 className="min-w-0 flex-1 text-lg font-medium text-balance">
-                  {current ? current.name : label(vals)}
-                </h2>
-                <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-                  {current ? `${index + 1} of ${all.length}` : "Custom"}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Previous state"
-                  onClick={() => step(-1)}
-                >
-                  <CaretLeftIcon />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Next state"
-                  onClick={() => step(1)}
-                >
-                  <CaretRightIcon />
-                </Button>
-              </div>
-              {current?.why && (
-                <Html
-                  as="p"
-                  html={current.why}
-                  className="max-w-[72ch] text-sm"
-                />
-              )}
-              {current?.said && (
-                <Html
-                  as="blockquote"
-                  html={"Earlier: " + current.said}
-                  className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground"
-                />
-              )}
-              <label className="flex flex-col gap-1.5">
-                <Label>Note on this state</Label>
-                <Textarea
-                  id="state-note"
-                  placeholder="What should change here"
-                  value={notes[noteKey] ?? ""}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="min-h-18 resize-y text-sm md:text-sm"
-                />
-              </label>
-            </TabsContent>
-            <TabsContent value="all">
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
-                {all.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    aria-current={s === current}
-                    onClick={() => {
-                      go(s)
-                      setTab("story")
-                      scrollTo({ top: 0 })
-                    }}
-                    className="group flex flex-col gap-1.5 text-left outline-none"
-                  >
-                    <span
-                      className={cn(
-                        "grid aspect-[4/3] place-items-center overflow-hidden border bg-muted p-2 group-focus-visible:ring-3 group-focus-visible:ring-ring/50",
-                        s === current && "border-foreground"
-                      )}
-                    >
-                      {s.shots && (
-                        <img
-                          src={dark && s.shots.dk ? s.shots.dk : s.shots.p}
-                          alt=""
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      )}
-                    </span>
-                    <span className="flex items-baseline gap-1.5 text-sm">
-                      {notes[s.id]?.trim() && (
-                        <span
-                          aria-label="has a note"
-                          className="size-1.5 flex-none -translate-y-px rounded-full bg-info"
-                        />
-                      )}
-                      {s.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
+    <Shell
+      title={page.title}
+      tabs={[
+        { value: "story", label: "Story" },
+        { value: "all", label: "All states", count: all.length },
+      ]}
+      tab={tab}
+      setTab={setTab}
+      tabsLabel="View"
+      theme={theme}
+      bar={
         <CopyBar
           status={status}
           note={general}
@@ -349,10 +260,123 @@ export function Storybook({
           copyLabel="Copy notes"
           outLabel="Notes to copy"
           text={text}
-          maxWidth="832px"
+          send
         />
-      </Lightbox>
-    </ThemeContext.Provider>
+      }
+    >
+      <TabsContent value="story" className="flex min-w-0 flex-col gap-4">
+        <Stage
+          state={current}
+          caption={label(vals)}
+          render={render}
+          vals={vals}
+          dark={dark}
+          height={stageHeight}
+          stageRef={stageRef}
+        />
+        <div ref={controlsRef} className="flex flex-col gap-3">
+          {/* Controls sit right under the stage, above the text that changes per state, so they never move as you tap. */}
+          {controls.map((c) => (
+            <ControlRow
+              key={c.key}
+              control={c}
+              value={vals[c.key]!}
+              choose={(v) => choose(c, v)}
+              reachable={(v) => reachable(c, v)}
+            />
+          ))}
+        </div>
+        <div ref={nameRef} className="flex items-center gap-2">
+          <h2 className="min-w-0 flex-1 text-lg font-medium text-balance">
+            {current ? current.name : label(vals)}
+          </h2>
+          <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+            {current ? `${index + 1} of ${all.length}` : "Custom"}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Previous state"
+            onClick={() => step(-1)}
+          >
+            <CaretLeftIcon />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Next state"
+            onClick={() => step(1)}
+          >
+            <CaretRightIcon />
+          </Button>
+        </div>
+        {current?.why && (
+          <Html as="p" html={current.why} className="max-w-[72ch] text-sm" />
+        )}
+        {current?.said && (
+          <Html
+            as="blockquote"
+            html={"Earlier: " + current.said}
+            className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground"
+          />
+        )}
+        <label className="flex flex-col gap-1.5">
+          <Label>Note on this state</Label>
+          <Textarea
+            id="state-note"
+            placeholder="What should change here"
+            value={notes[noteKey] ?? ""}
+            onChange={(e) => setNote(e.target.value)}
+            className="min-h-18 resize-y text-sm md:text-sm"
+          />
+        </label>
+        <About page={page} />
+      </TabsContent>
+      <TabsContent value="all" className="flex flex-col gap-6">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+          {all.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              aria-current={s === current}
+              onClick={() => {
+                go(s)
+                setTab("story")
+                scrollTo({ top: 0 })
+              }}
+              className="group flex flex-col gap-1.5 text-left outline-none"
+            >
+              <span
+                className={cn(
+                  "grid aspect-[4/3] place-items-center overflow-hidden border bg-muted p-2 group-focus-visible:ring-3 group-focus-visible:ring-ring/50",
+                  s === current && "border-foreground"
+                )}
+              >
+                {s.shots && (
+                  <img
+                    src={dark && s.shots.dk ? s.shots.dk : s.shots.p}
+                    alt=""
+                    className="max-h-full max-w-full object-contain"
+                  />
+                )}
+              </span>
+              <span className="flex items-baseline gap-1.5 text-sm">
+                {notes[s.id]?.trim() && (
+                  <span
+                    aria-label="has a note"
+                    className="size-1.5 flex-none -translate-y-px rounded-full bg-foreground"
+                  />
+                )}
+                {s.name}
+              </span>
+            </button>
+          ))}
+        </div>
+        <About page={page} />
+      </TabsContent>
+    </Shell>
   )
 }
 
@@ -363,12 +387,17 @@ function Stage({
   render,
   vals,
   dark,
+  height,
+  stageRef,
 }: {
   state: State | null
   caption: string
   render?: Render
   vals: Values
   dark: boolean
+  /** One height for every state; the capture fits inside it, centred */
+  height?: number
+  stageRef: React.Ref<HTMLDivElement>
 }) {
   const live = React.useRef<HTMLDivElement>(null)
   React.useEffect(() => {
@@ -377,17 +406,50 @@ function Stage({
   }, [render, vals, dark])
   if (render)
     return (
-      <div className="border bg-muted p-2 md:p-4">
+      <div ref={stageRef} className="border bg-muted p-2 md:p-4">
         <div ref={live} className="w-full" />
       </div>
     )
-  if (!state?.shots)
-    return (
-      <div className="grid min-h-40 place-items-center border bg-muted p-4 text-sm text-muted-foreground">
-        No capture for this state
-      </div>
-    )
-  return <Shots list={[{ ...state.shots, cap: caption, bare: true }]} />
+  return (
+    <div
+      ref={stageRef}
+      style={height ? { height } : undefined}
+      className="grid min-w-0 place-items-center"
+    >
+      {state?.shots ? (
+        <Shots
+          list={[{ ...state.shots, cap: caption, bare: true }]}
+          // The capture keeps its shape: as wide as the stage, or less when the stage's height holds it
+          className="max-h-full max-w-full [&_button]:max-h-full [&_figure]:max-h-full [&_img]:max-h-(--stage-img) [&_img]:w-auto [&_img]:max-w-full"
+          style={
+            height
+              ? ({ "--stage-img": `${height - 2}px` } as React.CSSProperties)
+              : undefined
+          }
+        />
+      ) : (
+        <div className="grid size-full min-h-40 place-items-center border bg-muted p-4 text-sm text-muted-foreground">
+          No capture for this state
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** What the storybook is for, under the work: the owner's words and where the part lives. */
+function About({ page }: { page: Page }) {
+  return (
+    <Intro
+      meta={
+        `Design storybook · ${page.date}` +
+        (page.round > 1 ? ` · Round ${page.round}` : "")
+      }
+      quote={page.quote}
+      className="border-t pt-4"
+    >
+      {page.where && <Html as="p" html={page.where} />}
+    </Intro>
+  )
 }
 
 /** One dimension: a segmented control, or a field for a live free value. */
@@ -427,30 +489,23 @@ function ControlRow({
         ]
       : c.values!.map((v) => [v, v])
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    // On a wide screen the label sits beside its control, a row shorter each
+    <div className="flex min-w-0 flex-col gap-1.5 md:grid md:grid-cols-[112px_minmax(0,1fr)] md:items-center md:gap-3">
       <Label id={id}>{c.label}</Label>
-      <ToggleGroup
-        type="single"
+      <Segmented
         aria-labelledby={id}
         value={String(options.findIndex(([v]) => v === value))}
         // Picking the current value again keeps it
-        onValueChange={(i) => i && choose(options[Number(i)]![0])}
+        onChange={(i) => i && choose(options[Number(i)]![0])}
+        // Dimmed when no state has this value next to the others; it still jumps to the closest one
+        items={options.map(([v, l], i) => ({
+          value: String(i),
+          label: l,
+          dim: !reachable(v),
+        }))}
         className="flex w-full flex-wrap"
-      >
-        {options.map(([v, l], i) => (
-          <ToggleGroupItem
-            key={l}
-            value={String(i)}
-            // Dimmed when no state has this value next to the others; it still jumps to the closest one
-            className={cn(
-              "flex-[1_0_auto] px-2.5",
-              !reachable(v) && "opacity-50"
-            )}
-          >
-            {l}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+        itemClassName="flex-[1_0_auto] px-2.5"
+      />
     </div>
   )
 }

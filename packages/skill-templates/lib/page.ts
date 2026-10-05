@@ -15,6 +15,13 @@ export const MARKER =
 // font-sans, font-heading and font-mono at these variables.
 const FONTS =
   '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Instrument+Sans:wdth,wght@75..100,400..700&family=Unbounded:wght@400&display=swap">'
+// A Mockup only swaps a `files:` reference written in its markup, not one in
+// the data, so a page on a canvas lists its captures here once and the
+// runtime shows each by the path the data names (src/shared/shots.tsx)
+const FILES = `<!-- Captures on a canvas: add an img per path the data names, its alt that path and its src the canvas File as files:<path>. -->
+<div id="files" hidden>
+</div>`
+
 const FONT_TOKENS = `:root{--font-ui:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-title:"Unbounded",ui-sans-serif,system-ui,sans-serif;--font-code:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}`
 
 const TOKENS_CSS = fileURLToPath(
@@ -71,11 +78,12 @@ export type PageParts = {
   /** Everything under MARKER: the bundle's style, mount point and script. */
   body: string
   /**
-   * A page for a Mockup, which loads nothing from the network: no font link
-   * (the fallback fonts stand in) and no brand swapping, since an App Skill's
-   * template keeps the Screenplay look.
+   * A page for a Mockup, which loads nothing from the network: its font link
+   * is this `skill:` reference to the App Skill's fonts (lib/fonts.ts), and
+   * there's no brand swapping, since an App Skill's template keeps the
+   * Screenplay look.
    */
-  mockup?: boolean
+  mockupFonts?: string
 }
 
 export function assemble({
@@ -84,16 +92,17 @@ export function assemble({
   data,
   tokens,
   body,
-  mockup,
+  mockupFonts,
 }: PageParts) {
   return [
     `<title>${title}</title>`,
-    mockup
+    mockupFonts
       ? `<!-- ${about} -->`
       : `<!-- ${about} Swap the tokens and the font link for the repo's brand; they use shadcn's variable names. -->`,
-    ...(mockup ? [] : [FONTS]),
+    mockupFonts ? `<link rel="stylesheet" href="${mockupFonts}">` : FONTS,
     `<style>\n${tokens}\n</style>`,
     `<script>\n${data.trim()}\n</script>`,
+    ...(mockupFonts ? [FILES] : []),
     MARKER,
     body,
   ].join("\n")

@@ -1,10 +1,11 @@
 // The design-audit findings page. Phone first, one column: header, filter
 // tabs (All / Calls / one per depth), then one card per finding with its
-// captures and its pick row. A bar pinned to the bottom carries the tally, a
-// note and Copy.
+// captures and its pick: Fix or Skip, or a call's options drawn like the
+// chat's question card. A bar pinned to the bottom carries the tally, a note
+// and Copy (Send to chat on a canvas, where a call the chat asks about with a
+// question card answers that card).
 
 import * as React from "react"
-import { flushSync } from "react-dom"
 
 import { useSharedState } from "@screenplay.space/state"
 
@@ -13,24 +14,26 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@workspace/ui/components/alert"
-import { Badge } from "@workspace/ui/components/badge"
-import { Button } from "@workspace/ui/components/button"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@workspace/ui/components/collapsible"
-import { CaretRightIcon, CheckIcon } from "@workspace/ui/components/icons"
-import { Textarea } from "@workspace/ui/components/textarea"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@workspace/ui/components/toggle-group"
-import { cn } from "@workspace/ui/lib/utils"
 
-import { CopyBar, Html, Label, load, store } from "../shared/page.tsx"
-import { Lightbox, Shots, type Img } from "../shared/shots.tsx"
-import { ThemeButton, ThemeContext, useTheme } from "../shared/theme.tsx"
+import { answer, askedId, cardIndex, useCardQuestion } from "../shared/chat.ts"
+import { Choices } from "../shared/choices.tsx"
+import {
+  Fold,
+  FoldList,
+  Intro,
+  ItemHead,
+  ItemNote,
+  Links,
+  PAIR,
+  SectionHead,
+  Segmented,
+  Shell,
+  type Tab,
+  Tag,
+} from "../shared/kit.tsx"
+import { CopyBar, Html, load, store } from "../shared/page.tsx"
+import { Shots, type Img } from "../shared/shots.tsx"
+import { useTheme } from "../shared/theme.tsx"
 
 export type Page = {
   title: string
@@ -57,7 +60,7 @@ export type Finding = {
 export type Extra = [string, string[]]
 
 const SEV = { high: "High", med: "Medium", low: "Low" }
-const SEV_TEXT = { high: "text-destructive", med: "text-warning", low: "" }
+const SEV_TONE = { high: "high", med: "medium", low: "plain" } as const
 
 type State = {
   picks: Record<string, string>
@@ -78,7 +81,7 @@ export function Audit({
   findings: Finding[]
   extra: Extra[]
 }) {
-  const [dark, toggleTheme] = useTheme()
+  const theme = useTheme()
   const KEY = "audit-" + page.slug
   const [state, setState] = React.useState<State>(() => {
     const s = load<State>(KEY)
@@ -93,6 +96,35 @@ export function Audit({
   useSharedState("filter", filter, setFilter)
 
   const calls = findings.filter((f) => f.call)
+  // The call the chat's open question card asks about, on a canvas
+  const card = useCardQuestion()
+  const asked = askedId(
+    card,
+    Object.fromEntries(
+      calls.map((f) => [f.id, f.call!.options.map((o) => o.label)])
+    )
+  )
+  const askedCall = asked ? findings.find((f) => f.id === asked) : undefined
+  // An answer on the card (from here, the chat or anyone) is that call's pick
+  const answeredOption =
+    card && askedCall && card.answer?.index != null
+      ? askedCall.call!.options.find(
+          (_, i, all) =>
+            cardIndex(
+              card,
+              all.map((o) => o.label),
+              i
+            ) === card.answer!.index
+        )?.id
+      : undefined
+  React.useEffect(() => {
+    if (!asked || !answeredOption) return
+    setState((s) =>
+      s.picks[asked] === answeredOption
+        ? s
+        : { ...s, picks: { ...s.picks, [asked]: answeredOption } }
+    )
+  }, [asked, answeredOption])
   const recOf = (f: Finding) => f.call?.options.find((o) => o.rec)
   const pick = (id: string, v: string) =>
     setState((s) => {
@@ -101,6 +133,17 @@ export function Audit({
       else picks[id] = v
       return { ...s, picks }
     })
+  // A call's option, chosen on the page: answers the chat's card too when
+  // it's the call the card asks about and the option is one of the card's
+  const choose = (f: Finding, v: string) => {
+    if (f.id === asked && card && !card.answer) {
+      const labels = f.call!.options.map((o) => o.label)
+      const i = f.call!.options.findIndex((o) => o.id === v)
+      const at = i < 0 ? -1 : cardIndex(card, labels, i)
+      if (at >= 0) answer(at)
+    }
+    setState((s) => ({ ...s, picks: { ...s.picks, [f.id]: v } }))
+  }
   const label = (f: Finding, v: string) => {
     if (v === "fix") return "Fix"
     if (v === "skip") return "Skip"
@@ -146,121 +189,39 @@ export function Audit({
   }
   const n = (v: string) =>
     findings.filter((f) => state.picks[f.id] === v).length
-  const picked = findings.filter(
-    (f) => state.picks[f.id] && state.picks[f.id] !== "skip"
-  ).length
+  const skipped = n("skip")
   const status = (
     <>
-      <b>{picked}</b> picked · <b>{n("skip")}</b> skipped ·{" "}
-      {calls.filter((f) => state.picks[f.id]).length} of {calls.length} calls ·{" "}
-      {findings.filter((f) => !state.picks[f.id]).length} left
+      <b>{findings.filter((f) => state.picks[f.id]).length}</b> of{" "}
+      {findings.length} answered
+      {skipped > 0 && ` · ${skipped} skipped`}
     </>
   )
 
-  const tabs: [string, string][] = [
-    ["all", "All · " + findings.length],
-    ["calls", "Calls · " + calls.length],
-    ...depths.map((d): [string, string] => [
-      d.key,
-      `${d.name} · ${findings.filter((f) => f.id[0] === d.key).length}`,
-    ]),
+  const tabs: Tab[] = [
+    { value: "all", label: "All", count: findings.length },
+    { value: "calls", label: "Calls", count: calls.length },
+    ...depths.map((d) => ({
+      value: d.key,
+      label: d.name,
+      count: findings.filter((f) => f.id[0] === d.key).length,
+    })),
   ]
   const shows = (f: Finding) =>
     filter === "all" || (filter === "calls" ? !!f.call : f.id[0] === filter)
 
   return (
-    <ThemeContext.Provider value={dark}>
-      <Lightbox>
-        <div className="mx-auto flex max-w-[960px] flex-col gap-6 px-4 pt-6 pb-[calc(112px+env(safe-area-inset-bottom,0px))] md:px-6 md:pt-10">
-          <header>
-            <div className="flex items-center justify-between gap-3">
-              <Label accent>Design audit · {page.date}</Label>
-              <ThemeButton dark={dark} toggle={toggleTheme} />
-            </div>
-            <h1 className="mt-2 mb-2.5 font-heading text-title-xl text-balance">
-              {page.title}
-            </h1>
-            <div className="flex max-w-[72ch] flex-col gap-2 text-sm text-muted-foreground">
-              {page.lede.map((l, i) => (
-                <Html as="p" key={i} html={l} />
-              ))}
-              {page.links?.length ? (
-                <p>
-                  {page.links.map(([t, u], i) => (
-                    <React.Fragment key={u}>
-                      {i > 0 && " · "}
-                      <a href={u} className="text-foreground underline">
-                        {t}
-                      </a>
-                    </React.Fragment>
-                  ))}
-                </p>
-              ) : null}
-            </div>
-          </header>
-          <nav
-            aria-label="Filter"
-            className="sticky top-[env(safe-area-inset-top,0px)] z-[6] -mx-4 [scrollbar-width:none] overflow-x-auto border-b bg-background px-4 py-2 md:-mx-6 md:px-6 [&::-webkit-scrollbar]:hidden"
-          >
-            <ToggleGroup
-              type="single"
-              value={filter}
-              onValueChange={(v) => {
-                if (!v) return
-                setFilter(v)
-                scrollTo({ top: 0 })
-              }}
-              className="border-0 p-0"
-            >
-              {tabs.map(([k, l]) => (
-                <ToggleGroupItem key={k} value={k} className="h-8 px-2.5">
-                  {l}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </nav>
-          {notices.map((x, i) => (
-            <Alert key={i} role="note" className="border-warning">
-              <AlertTitle>{x.title}</AlertTitle>
-              <AlertDescription>
-                <Html as="span" html={x.body} />
-              </AlertDescription>
-            </Alert>
-          ))}
-          {depths.map((d) => (
-            <React.Fragment key={d.key}>
-              {(filter === "all" || filter === d.key) && (
-                <div className="mt-2 flex flex-col gap-1 border-b border-foreground pb-2.5">
-                  <h2 className="m-0 font-heading text-title-md text-balance">
-                    {d.name}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">{d.blurb}</p>
-                </div>
-              )}
-              {findings
-                .filter((f) => f.id[0] === d.key)
-                .map((f) => (
-                  <FindingCard
-                    key={f.id}
-                    f={f}
-                    hidden={!shows(f)}
-                    picked={state.picks[f.id]}
-                    pick={pick}
-                    note={state.notes[f.id] || ""}
-                    setNote={(v) =>
-                      setState((s) => ({
-                        ...s,
-                        notes: { ...s.notes, [f.id]: v },
-                      }))
-                    }
-                  />
-                ))}
-            </React.Fragment>
-          ))}
-          {extra.map(([t, items]) => (
-            <Fold key={t} title={t} items={items} />
-          ))}
-        </div>
+    <Shell
+      title={page.title}
+      tabs={tabs}
+      tab={filter}
+      setTab={(v) => {
+        setFilter(v)
+        scrollTo({ top: 0 })
+      }}
+      tabsLabel="Filter"
+      theme={theme}
+      bar={
         <CopyBar
           status={status}
           note={state.note}
@@ -271,10 +232,69 @@ export function Audit({
           fallbackLabel="Select and copy"
           outLabel="Picks to copy"
           text={text}
-          maxWidth="912px"
+          send
         />
-      </Lightbox>
-    </ThemeContext.Provider>
+      }
+    >
+      <Intro meta={`Design audit · ${page.date}`}>
+        {page.lede.map((l, i) => (
+          <Html as="p" key={i} html={l} />
+        ))}
+        <Links links={page.links ?? []} />
+      </Intro>
+      {notices.map((x, i) => (
+        <Notice key={i} title={x.title} body={x.body} />
+      ))}
+      {depths.map((d) => (
+        <section
+          key={d.key}
+          hidden={!findings.some((f) => f.id[0] === d.key && shows(f))}
+          className="flex flex-col"
+        >
+          <SectionHead title={d.name} blurb={d.blurb} />
+          {findings
+            .filter((f) => f.id[0] === d.key)
+            .map((f) => (
+              <FindingCard
+                key={f.id}
+                f={f}
+                hidden={!shows(f)}
+                picked={state.picks[f.id]}
+                pick={pick}
+                choose={choose}
+                note={state.notes[f.id] || ""}
+                setNote={(v) =>
+                  setState((s) => ({
+                    ...s,
+                    notes: { ...s.notes, [f.id]: v },
+                  }))
+                }
+              />
+            ))}
+        </section>
+      ))}
+      {filter === "all" && extra.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {extra.map(([t, items]) => (
+            <Fold key={t} title={t}>
+              <FoldList items={items} />
+            </Fold>
+          ))}
+        </div>
+      )}
+    </Shell>
+  )
+}
+
+/** Work in flight that may change findings: an outlined warning. */
+function Notice({ title, body }: { title: string; body: string }) {
+  return (
+    <Alert role="note" className="border-warning">
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>
+        <Html as="span" html={body} />
+      </AlertDescription>
+    </Alert>
   )
 }
 
@@ -283,6 +303,7 @@ function FindingCard({
   hidden,
   picked,
   pick,
+  choose,
   note,
   setNote,
 }: {
@@ -290,156 +311,82 @@ function FindingCard({
   hidden: boolean
   picked?: string
   pick: (id: string, v: string) => void
+  choose: (f: Finding, v: string) => void
   note: string
   setNote: (v: string) => void
 }) {
-  const [noteOpen, setNoteOpen] = React.useState(!!note)
-  const noteRef = React.useRef<HTMLTextAreaElement>(null)
-  const choices: [string, string, boolean][] = [
-    ...(f.call
-      ? f.call.options.map((o): [string, string, boolean] => [
-          o.id,
-          `${o.id} · ${o.label}`,
-          !!o.rec,
-        ])
-      : [["fix", "Fix", false] as [string, string, boolean]]),
-    ["skip", "Skip", false],
-  ]
   return (
     <article
       id={f.id.toLowerCase()}
       hidden={hidden}
-      className="flex min-w-0 scroll-mt-16 flex-col gap-2.5 border-b pb-5"
+      className="flex min-w-0 scroll-mt-16 flex-col gap-2.5 border-b py-5"
     >
-      <header className="flex items-baseline gap-2.5">
-        <span className="flex-none font-mono text-sm font-semibold text-info">
-          {f.id}
-        </span>
-        <h3 className="m-0 text-sm font-medium text-balance">{f.title}</h3>
-      </header>
+      <ItemHead id={f.id} title={f.title} />
       <div className="flex flex-wrap gap-1.5">
-        <Badge variant="outline" className={SEV_TEXT[f.sev]}>
-          {SEV[f.sev]}
-        </Badge>
-        {f.call && (
-          <Badge variant="outline" className="text-info">
-            Call
-          </Badge>
-        )}
-        {f.pend && (
-          <Badge variant="outline" className="text-warning">
-            {f.pend.tag}
-          </Badge>
-        )}
-        {f.still && <Badge variant="outline">{f.still}</Badge>}
-        {f.related && <Badge variant="outline">Related {f.related}</Badge>}
+        <Tag tone={SEV_TONE[f.sev]}>{SEV[f.sev]}</Tag>
+        {f.call && <Tag>Call</Tag>}
+        {f.pend && <Tag tone="medium">{f.pend.tag}</Tag>}
+        {f.still && <Tag>{f.still}</Tag>}
+        {f.related && <Tag>Related {f.related}</Tag>}
       </div>
       <Html as="p" html={f.wrong} className="max-w-[72ch] text-sm" />
       {f.evidence?.length ? (
-        <Collapsible className="group/ev">
-          <CollapsibleTrigger className="flex cursor-pointer items-center gap-1 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
-            <CaretRightIcon className="size-3.5 transition-transform group-data-[state=open]/ev:rotate-90" />
-            Evidence
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <ul className="m-0 mt-1.5 pl-4.5 text-xs text-muted-foreground">
-              {f.evidence.map((e) => (
-                <li key={e}>
-                  <code className="font-mono [overflow-wrap:anywhere]">
-                    {e}
-                  </code>
-                </li>
-              ))}
-            </ul>
-          </CollapsibleContent>
-        </Collapsible>
+        <Fold title="Evidence">
+          <ul className="m-0 pl-4.5 text-xs text-muted-foreground">
+            {f.evidence.map((e) => (
+              <li key={e}>
+                <code className="font-mono [overflow-wrap:anywhere]">{e}</code>
+              </li>
+            ))}
+          </ul>
+        </Fold>
       ) : null}
       <p className="max-w-[72ch] text-sm">
         <b className="font-semibold">Fix.</b> <Html as="span" html={f.fix} />
       </p>
-      {f.pend && (
-        <div className="max-w-[72ch] rounded-lg border border-warning px-3 py-2.5 text-sm">
-          <b className="font-semibold">{f.pend.tag}.</b>{" "}
-          <Html as="span" html={f.pend.why} />
-        </div>
+      {f.pend && <Notice title={f.pend.tag} body={f.pend.why} />}
+      <Shots list={f.shots} className={PAIR} />
+      {f.call ? (
+        <>
+          <Html
+            as="p"
+            html={f.call.q}
+            className="mt-1 max-w-[72ch] text-sm font-medium"
+          />
+          <ItemNote
+            label={`Note on ${f.id}`}
+            note={note}
+            setNote={setNote}
+            stacked
+          >
+            <Choices
+              name={`pick-${f.id}`}
+              value={picked}
+              onChange={(v) => choose(f, v)}
+              choices={[
+                ...f.call.options.map((o) => ({
+                  value: o.id,
+                  label: `${o.id} · ${o.label}`,
+                  rec: o.rec,
+                })),
+                { value: "skip", label: "Skip", quiet: true },
+              ]}
+            />
+          </ItemNote>
+        </>
+      ) : (
+        <ItemNote label={`Note on ${f.id}`} note={note} setNote={setNote}>
+          <Segmented
+            aria-label={`Pick for ${f.id}`}
+            value={picked ?? ""}
+            onChange={(v) => pick(f.id, v || picked!)}
+            items={[
+              { value: "fix", label: "Fix" },
+              { value: "skip", label: "Skip" },
+            ]}
+          />
+        </ItemNote>
       )}
-      {f.call && (
-        <div className="max-w-[72ch] rounded-lg bg-muted px-3 py-2.5 text-sm">
-          <b className="font-semibold">Call.</b>{" "}
-          <Html as="span" html={f.call.q} />
-        </div>
-      )}
-      <Shots
-        list={f.shots}
-        className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-2"
-      />
-      <div
-        role="group"
-        aria-label={`Pick for ${f.id}`}
-        className="flex flex-wrap gap-2"
-      >
-        {choices.map(([v, l, rec]) => {
-          const on = picked === v
-          return (
-            <Button
-              key={v}
-              type="button"
-              size="lg"
-              variant={on ? "default" : "outline"}
-              aria-pressed={on}
-              onClick={() => pick(f.id, v)}
-            >
-              {on && <CheckIcon data-icon="inline-start" />}
-              {l}
-              {rec && <span className={on ? "" : "text-info"}>· rec</span>}
-            </Button>
-          )
-        })}
-        <Button
-          type="button"
-          size="lg"
-          variant="ghost"
-          className="text-muted-foreground"
-          onClick={() => {
-            flushSync(() => setNoteOpen(!noteOpen))
-            if (!noteOpen) noteRef.current?.focus()
-          }}
-        >
-          Note
-        </Button>
-      </div>
-      <Textarea
-        ref={noteRef}
-        hidden={!noteOpen}
-        aria-label={`Note on ${f.id}`}
-        placeholder={`Note on ${f.id}`}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        className="min-h-14 resize-y text-sm md:text-sm"
-      />
     </article>
-  )
-}
-
-/** Closing notes: checked and fine, merged, method. */
-function Fold({ title, items }: { title: string; items: string[] }) {
-  return (
-    <Collapsible className="group/fold rounded-lg border">
-      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1.5 px-3.5 py-3 text-left text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-        <CaretRightIcon className="size-3.5 text-muted-foreground transition-transform group-data-[state=open]/fold:rotate-90" />
-        {title}
-      </CollapsibleTrigger>
-      <CollapsibleContent className="px-3.5 pb-3.5">
-        <ul
-          className={cn(
-            "m-0 flex flex-col gap-1 pl-4.5 text-sm text-muted-foreground"
-          )}
-        >
-          {items.map((x, i) => (
-            <Html as="li" key={i} html={x} />
-          ))}
-        </ul>
-      </CollapsibleContent>
-    </Collapsible>
   )
 }

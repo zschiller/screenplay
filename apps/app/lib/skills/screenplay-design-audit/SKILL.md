@@ -51,7 +51,9 @@ way, each finding carries its tag, what’s wrong, where and the fix. A visual
 fix whose look matters gets its After picture, on the page or as its own
 Mockup titled `<tag> · After`. Then ask each call with
 its own `ask_question`: an option per fix, the one you’d pick marked
-recommended. End your turn.
+recommended. When the call is on a findings page, pass the page’s
+`mockup_id`, start the question with the call’s tag (“H2: …”) and use the
+page’s option labels, so a pick on the page answers the card. End your turn.
 
 Done when every finding has a tag and a fix, and every call is asked.
 
