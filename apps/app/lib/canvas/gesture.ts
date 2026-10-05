@@ -411,6 +411,8 @@ export type GestureIntent =
   | {
       type: "resizeLayer"
       iframeLayerId: string
+      /** The dragged edge or corner: a side edge leaves the height alone. */
+      edge: ResizeEdge
       width: number
       height: number
       /** World-space shift for the parent group (non-zero only for w/n edges). */
@@ -749,6 +751,7 @@ function reduceResizeMove(
     intent: {
       type: "resizeLayer",
       iframeLayerId: ctx.iframeLayerId,
+      edge: ctx.edge,
       width: newWidth,
       height: newHeight,
       shiftX,

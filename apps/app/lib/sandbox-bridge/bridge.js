@@ -476,38 +476,7 @@
           })
           reply(d.id, true, { path: currentPath(), rects })
         } else if (d.op === "getDocumentSize") {
-          // Measure the true content extent (used by Fit-to-content). Plain
-          // scrollWidth/scrollHeight is `max(viewport, content)`, so when the
-          // artboard is already larger than its content it just echoes the
-          // current size and Fit becomes a no-op. Walking elements and taking
-          // the union of their viewport-relative rects (plus current scroll)
-          // gives the actual content bounds, regardless of viewport size.
-          const body = document.body
-          let width = 0
-          let height = 0
-          if (body) {
-            const sx = window.scrollX || 0
-            const sy = window.scrollY || 0
-            const all = body.getElementsByTagName("*")
-            for (let i = 0; i < all.length; i++) {
-              const el = all[i]
-              const cs = window.getComputedStyle(el)
-              // Fixed elements stick to the viewport rather than contributing
-              // to scrollable content; including them would inflate the size
-              // by scrollY whenever the page is scrolled.
-              if (cs.position === "fixed" || cs.display === "none") continue
-              const r = el.getBoundingClientRect()
-              if (r.width === 0 && r.height === 0) continue
-              const right = r.right + sx
-              const bottom = r.bottom + sy
-              if (right > width) width = right
-              if (bottom > height) height = bottom
-            }
-            // Fallback for empty/odd documents.
-            if (width <= 0) width = body.scrollWidth || 0
-            if (height <= 0) height = body.scrollHeight || 0
-          }
-          reply(d.id, true, { width: width, height: height })
+          reply(d.id, true, contentSize())
         } else if (d.op === "elementAtPoint") {
           const x = typeof d.x === "number" ? d.x : 0
           const y = typeof d.y === "number" ? d.y : 0
@@ -583,6 +552,8 @@
         )
       } else if (d.type === "screenplay:cursor-mode") {
         setCursorMode(d.mode)
+      } else if (d.type === "screenplay:watch-content-size") {
+        watchContentSize(d.on === true)
       }
     } catch (err) {
       reply(d.id, false, (err && err.message) || err)
@@ -1944,6 +1915,108 @@
       history.pushState(null, "", path)
       dispatchEvent(new PopStateEvent("popstate", { state: null }))
     })
+  }
+
+  // The page's content extent, for Fit to content. Plain
+  // scrollWidth/scrollHeight is `max(viewport, content)`, so when the artboard
+  // is already larger than its content it just echoes the current size and
+  // Fit becomes a no-op. Walking elements and taking the union of their
+  // viewport-relative rects (plus current scroll) gives the actual content
+  // bounds, regardless of viewport size.
+  function contentSize() {
+    const body = document.body
+    let width = 0
+    let height = 0
+    if (body) {
+      const sx = window.scrollX || 0
+      const sy = window.scrollY || 0
+      const all = body.getElementsByTagName("*")
+      for (let i = 0; i < all.length; i++) {
+        const el = all[i]
+        const cs = window.getComputedStyle(el)
+        // Fixed elements stick to the viewport rather than contributing
+        // to scrollable content; including them would inflate the size
+        // by scrollY whenever the page is scrolled.
+        if (cs.position === "fixed" || cs.display === "none") continue
+        const r = el.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) continue
+        const right = r.right + sx
+        const bottom = r.bottom + sy
+        if (right > width) width = right
+        if (bottom > height) height = bottom
+      }
+      // Fallback for empty/odd documents.
+      if (width <= 0) width = body.scrollWidth || 0
+      if (height <= 0) height = body.scrollHeight || 0
+    }
+    return { width: width, height: height }
+  }
+
+  // Fit to content left on: report the content's size as it changes, so the
+  // canvas can keep the frame's height on it. A change that only the
+  // viewport's height made (the canvas just resized the frame) isn't
+  // reported: content sized in vh would otherwise grow the frame forever.
+  let contentWatch = null
+  function watchContentSize(on) {
+    if (!on) {
+      if (contentWatch) contentWatch.stop()
+      contentWatch = null
+      return
+    }
+    if (contentWatch) return
+    let lastWidth = window.innerWidth
+    let lastHeight = window.innerHeight
+    let lastReported = null
+    let mutated = true
+    let timer = null
+    function measure() {
+      timer = null
+      const viewportOnly =
+        !mutated &&
+        window.innerWidth === lastWidth &&
+        window.innerHeight !== lastHeight
+      mutated = false
+      lastWidth = window.innerWidth
+      lastHeight = window.innerHeight
+      if (viewportOnly && lastReported !== null) return
+      const size = contentSize()
+      const height = Math.ceil(size.height)
+      if (height === lastReported) return
+      lastReported = height
+      parent.postMessage(
+        { type: "screenplay:content-size", width: size.width, height: height },
+        "*"
+      )
+    }
+    function schedule() {
+      if (!timer) timer = setTimeout(measure, 100)
+    }
+    const mutations = new MutationObserver(() => {
+      mutated = true
+      schedule()
+    })
+    mutations.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true,
+    })
+    // Images and fonts loading resize the body without a mutation.
+    const resizes =
+      typeof ResizeObserver === "function" ? new ResizeObserver(schedule) : null
+    if (resizes && document.body) resizes.observe(document.body)
+    window.addEventListener("resize", schedule)
+    window.addEventListener("load", schedule)
+    schedule()
+    contentWatch = {
+      stop() {
+        if (timer) clearTimeout(timer)
+        mutations.disconnect()
+        if (resizes) resizes.disconnect()
+        window.removeEventListener("resize", schedule)
+        window.removeEventListener("load", schedule)
+      },
+    }
   }
 
   // Scroll tracking. Trailing-edge throttle at ~20Hz keeps Yjs writes

@@ -116,6 +116,7 @@ const BRIDGE_WRITES = new Set([
   "screenplay:scroll-to",
   "screenplay:knob-values",
   "screenplay:shared-state-apply",
+  "screenplay:watch-content-size",
 ])
 // What the page reports that the room records: the primary hears it, once.
 // The picker, gestures and navigation reports aren't relayed: a shared frame
@@ -127,6 +128,7 @@ const PRIMARY_EVENTS = new Set([
   "screenplay:knobs-declared",
   "screenplay:shared-state",
   "screenplay:shared-state-request",
+  "screenplay:content-size",
 ])
 
 // The agent's party id (lib/canvas/frame-control.ts), the user its view

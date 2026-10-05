@@ -22,6 +22,7 @@ import {
 } from "@workspace/ui/components/icons"
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -63,7 +64,11 @@ export interface LayerMenuActions {
     height: number
     onSelect: (width: number, height: number) => void
   }
-  onFitToContent?: () => void
+  /** Fit to content, a toggle: on, the height follows the page's content. */
+  fitToContent?: {
+    checked: boolean
+    onCheckedChange: (checked: boolean) => void
+  }
   /** The frame's Workspace's menu, under Chat (H4). */
   chat?: {
     branchId: string | null | undefined
@@ -177,7 +182,7 @@ function LayerMenuItems({
   const hasWorkspaceMenu = useHasWorkspaceMenu(branchId)
   const showChat =
     !!chat && (hasWorkspaceMenu || !!chat.onPlay || !!chat.onOpenInBrowser)
-  const showFrameItems = !!actions.size || !!actions.onFitToContent || showChat
+  const showFrameItems = !!actions.size || !!actions.fitToContent || showChat
 
   return (
     <>
@@ -204,11 +209,14 @@ function LayerMenuItems({
               onSelect={actions.size.onSelect}
             />
           )}
-          {actions.onFitToContent && (
-            <DropdownMenuItem onSelect={actions.onFitToContent}>
+          {actions.fitToContent && (
+            <DropdownMenuCheckboxItem
+              checked={actions.fitToContent.checked}
+              onCheckedChange={actions.fitToContent.onCheckedChange}
+            >
               <ArrowsOutSimpleIcon />
               Fit to content
-            </DropdownMenuItem>
+            </DropdownMenuCheckboxItem>
           )}
           {showChat && chat && (
             <DropdownMenuSub>

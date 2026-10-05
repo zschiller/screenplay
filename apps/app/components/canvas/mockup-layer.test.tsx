@@ -417,12 +417,17 @@ describe("MockupLayer sizes", () => {
         pointerType: "mouse",
       }
     )
-    return screen.getAllByRole("menuitem").map((item) => item.textContent)
+    return [
+      ...document.querySelectorAll(
+        '[role="menuitem"],[role="menuitemcheckbox"]'
+      ),
+    ].map((item) => item.textContent)
   }
 
   it("offers a frame's Device size and Fit to content", () => {
     renderMockup({
       onSetSize: () => {},
+      onSetFitToContent: () => {},
       onDuplicate: () => {},
       onRemove: () => {},
     })
@@ -451,19 +456,40 @@ describe("MockupLayer sizes", () => {
     expect(onSetSize).toHaveBeenCalledWith("mockup-1", 375, 667)
   })
 
-  it("fits to the page's full size", async () => {
-    const onSetSize = vi.fn()
-    renderMockup({ onSetSize })
+  it("turns Fit to content on at the page's content height", async () => {
+    const onSetFitToContent = vi.fn()
+    renderMockup({ onSetFitToContent })
     openMenu()
-    await act(async () => {
-      fireEvent.click(screen.getByRole("menuitem", { name: "Fit to content" }))
+    const item = screen.getByRole("menuitemcheckbox", {
+      name: "Fit to content",
     })
-    expect(onSetSize).toHaveBeenCalledWith("mockup-1", 402, 1800)
+    expect(item.getAttribute("aria-checked")).toBe("false")
+    await act(async () => {
+      fireEvent.click(item)
+    })
+    expect(onSetFitToContent).toHaveBeenCalledWith("mockup-1", true, 1800)
+  })
+
+  it("turns Fit to content off, keeping the height", async () => {
+    const onSetFitToContent = vi.fn()
+    renderMockup({
+      layer: { ...LAYER, fitHeight: true },
+      onSetFitToContent,
+    })
+    openMenu()
+    const item = screen.getByRole("menuitemcheckbox", {
+      name: "Fit to content",
+    })
+    expect(item.getAttribute("aria-checked")).toBe("true")
+    await act(async () => {
+      fireEvent.click(item)
+    })
+    expect(onSetFitToContent).toHaveBeenCalledWith("mockup-1", false)
   })
 
   it("has nothing to fit while the chat is still sketching it", () => {
     html = ""
-    renderMockup({ onSetSize: () => {} })
+    renderMockup({ onSetSize: () => {}, onSetFitToContent: () => {} })
     expect(openMenu()).not.toContain("Fit to content")
   })
 })

@@ -561,6 +561,8 @@ function CanvasMemberLayerImpl({
                 onResizeStart={gestureLayerHandlers.onResizeStart}
                 onResizeEnd={gestureLayerHandlers.onResizeEnd}
                 onSetSize={layerMutations.setMockupSize}
+                onSetFitToContent={layerMutations.setFitToContent}
+                onFollowContentHeight={layerMutations.followContentHeight}
                 onRename={layerMutations.renameMockup}
                 onDuplicate={groupActions.duplicateMockup}
                 onRemove={removeMockup}
@@ -714,8 +716,9 @@ function CanvasMemberLayerImpl({
                   ? () => onAskForKnob(iframeLayer.branchId!)
                   : undefined
               }
-              onFitToContent={layerMutations.fitToContent}
-              onSetSize={layerMutations.fitToContent}
+              onSetFitToContent={layerMutations.setFitToContent}
+              onFollowContentHeight={layerMutations.followContentHeight}
+              onSetSize={layerMutations.setFrameSize}
               multiSelected={multiSelected}
               spaceHeld={spaceHeld}
               commentMode={commentMode}

@@ -105,6 +105,7 @@ export interface IframeLayerData {
   knobValues?: JsonObject
   sharedState?: JsonObject
   colorScheme?: "light" | "dark"
+  fitHeight?: boolean
 }
 
 const NOBODY_DRIVES: FrameDriverView = { kind: "none" }
@@ -222,8 +223,10 @@ interface IframeLayerProps {
   onDuplicate?: () => void
   /** Start an "add a knob" request in this frame's Workspace chat. */
   onAskForKnob?: () => void
-  /** Resize the frame to match the iframe's documentElement scrollWidth/scrollHeight. */
-  onFitToContent?: (id: string, width: number, height: number) => void
+  /** Turn Fit to content on (at the page's content height) or off. */
+  onSetFitToContent?: (id: string, on: boolean, height?: number) => void
+  /** The page's content height, while Fit to content is on. */
+  onFollowContentHeight?: (id: string, height: number) => void
   /** Set the frame to an explicit width/height (used by the device-preset menu). */
   onSetSize?: (id: string, width: number, height: number) => void
   multiSelected: boolean
@@ -380,7 +383,8 @@ export function IframeLayer({
   onOpenInBrowser,
   onDuplicate,
   onAskForKnob,
-  onFitToContent,
+  onSetFitToContent,
+  onFollowContentHeight,
   onSetSize,
   multiSelected,
   spaceHeld,
@@ -591,7 +595,8 @@ export function IframeLayer({
     anchorRef: frameRef,
     toolbarRef,
   })
-  const showFit = !!onFitToContent && !!iframeLayer.branchId
+  const showFit = !!onSetFitToContent && !!iframeLayer.branchId
+  const fitHeight = showFit && !!iframeLayer.fitHeight
   // Report content-ready transitions up to the thumbnail heartbeat (#474). The
   // first paint and the re-paint after a route/branch change (which drops
   // `contentReady` then reports it again) both flow through here, so the
@@ -683,6 +688,7 @@ export function IframeLayer({
     onDomReady,
     iframeRef,
     bodyRef,
+    onContentHeight: fitHeight ? onFollowContentHeight : undefined,
   })
   const { dom } = page
   const chrome = livePageChrome({
@@ -693,15 +699,21 @@ export function IframeLayer({
     onLiveCopy: shared,
   })
 
-  const handleFitToContent = useCallback(async () => {
-    try {
-      const size = await dom.getDocumentSize()
-      if (!size) return
-      onFitToContent?.(iframeLayer.id, size.width, size.height)
-    } catch {
-      // Bridge timeout / iframe not ready — ignore.
-    }
-  }, [dom, iframeLayer.id, onFitToContent])
+  // Fit to content: on, the height snaps to the page's content and then
+  // follows it; the width stays where it was set.
+  const handleFitToContent = useCallback(
+    async (on: boolean) => {
+      if (!on) return onSetFitToContent?.(iframeLayer.id, false)
+      let height: number | undefined
+      try {
+        height = (await dom.getDocumentSize())?.height
+      } catch {
+        // Bridge timeout / iframe not ready: the page reports it once ready.
+      }
+      onSetFitToContent?.(iframeLayer.id, true, height)
+    },
+    [dom, iframeLayer.id, onSetFitToContent]
+  )
 
   // The frame's one menu (I7): the toolbar's … and its sidebar row's … both
   // open this. The chat's menu (H4), the same one as its header's …, sits in
@@ -717,7 +729,9 @@ export function IframeLayer({
           onSelect: (w, h) => onSetSize(iframeLayer.id, w, h),
         }
       : undefined,
-    onFitToContent: showFit ? handleFitToContent : undefined,
+    fitToContent: showFit
+      ? { checked: fitHeight, onCheckedChange: handleFitToContent }
+      : undefined,
     chat: {
       branchId: iframeLayer.branchId,
       onPlay: onPlay ? () => onPlay(iframeLayer.id) : undefined,

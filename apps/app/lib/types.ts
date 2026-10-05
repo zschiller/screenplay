@@ -322,6 +322,12 @@ export type IframeLayerData = {
    * viewer's own iframe. Hosted only. Absent is not live.
    */
   live?: boolean
+  /**
+   * Fit to content is on: the height follows the page's content, the width
+   * stays where it was set. Resizing the height by hand, or picking a
+   * Device size, turns it off. Absent is off.
+   */
+  fitHeight?: boolean
 }
 
 /**
@@ -435,6 +441,12 @@ export type MockupLayerData = {
   /** What the live page's `prefers-color-scheme` matches: its Theme knob,
    *  as on a frame. Light when unset. */
   colorScheme?: "light" | "dark"
+  /**
+   * Fit to content is on: the height follows the page's content, the width
+   * stays where it was set. Resizing the height by hand, or picking a
+   * Device size, turns it off. Absent is off.
+   */
+  fitHeight?: boolean
 }
 
 export type ViewportData = {

@@ -3,8 +3,9 @@ import { UndoManager } from "yjs"
 import { groupBranchId } from "@/lib/canvas/group-workspace"
 import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
 import { getGroupMembers } from "@/lib/canvas/layout"
-import { CANVAS_OPS_ORIGIN } from "@/lib/canvas/ops"
+import { CANVAS_OPS_ORIGIN, CONTENT_HEIGHT_ORIGIN } from "@/lib/canvas/ops"
 import {
+  FIT_CONTENT_MAX_HEIGHT,
   MIN_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
 } from "@/lib/constants"
@@ -302,7 +303,7 @@ describe("updateMockup", () => {
 })
 
 describe("duplicateIframeLayer", () => {
-  it("copies size, label, Workspace and route to the end of its Group", () => {
+  it("copies size, Fit to content, label, Workspace and route to the end of its Group", () => {
     const { ops, collections } = makeHarness()
     collections.iframeLayers.set(
       "layer-1",
@@ -312,6 +313,7 @@ describe("duplicateIframeLayer", () => {
         height: 844,
         branchId: "branch-1",
         route: "/cart",
+        fitHeight: true,
       })
     )
     collections.iframeLayers.set("layer-2", baseLayer("layer-2"))
@@ -329,6 +331,7 @@ describe("duplicateIframeLayer", () => {
       height: 844,
       branchId: "branch-1",
       route: "/cart",
+      fitHeight: true,
     })
     expect(
       collections.iframeLayerGroups.get("group-1")?.members?.map((m) => m.id)
@@ -340,6 +343,67 @@ describe("duplicateIframeLayer", () => {
 
     expect(ops.duplicateIframeLayer("gone")).toBeUndefined()
     expect(collections.iframeLayers.toArray()).toEqual([])
+  })
+})
+
+describe("followContentHeight", () => {
+  it("sets a fitting frame's height to its content, outside Undo's origin", () => {
+    const { doc, ops, collections } = makeHarness()
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { fitHeight: true })
+    )
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    expect(ops.followContentHeight("layer-1", 1234.2)).toBe(true)
+
+    expect(collections.iframeLayers.get("layer-1")).toMatchObject({
+      width: 400,
+      height: 1235,
+    })
+    expect(origins).toEqual([CONTENT_HEIGHT_ORIGIN])
+  })
+
+  it("follows a Mockup's page too", () => {
+    const { ops, collections } = makeHarness()
+    const { mockupId } = ops.createMockup({
+      html: "<p>Hi</p>",
+      title: "Hi",
+      width: 400,
+      height: 300,
+      anchor: { x: 0, y: 0 },
+    })!
+    ops.patch("mockupLayers", mockupId, { fitHeight: true })
+
+    ops.followContentHeight(mockupId, 900)
+
+    expect(collections.mockupLayers.get(mockupId)?.height).toBe(900)
+  })
+
+  it("leaves a frame whose Fit to content is off", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set("layer-1", baseLayer("layer-1"))
+
+    expect(ops.followContentHeight("layer-1", 900)).toBe(false)
+    expect(collections.iframeLayers.get("layer-1")?.height).toBe(300)
+  })
+
+  it("keeps between the minimum and a ceiling", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set(
+      "layer-1",
+      baseLayer("layer-1", { fitHeight: true })
+    )
+
+    ops.followContentHeight("layer-1", 10)
+    expect(collections.iframeLayers.get("layer-1")?.height).toBe(
+      MIN_IFRAME_LAYER_HEIGHT
+    )
+    ops.followContentHeight("layer-1", 1e9)
+    expect(collections.iframeLayers.get("layer-1")?.height).toBe(
+      FIT_CONTENT_MAX_HEIGHT
+    )
   })
 })
 

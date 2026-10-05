@@ -5,7 +5,11 @@ import type { CanvasOps } from "@/lib/canvas/ops"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import type { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 import { getGroupMembers } from "@/lib/canvas/layout"
-import { MOCKUP_MIN_HEIGHT, MOCKUP_MIN_WIDTH } from "@/lib/constants"
+import {
+  FIT_CONTENT_MAX_HEIGHT,
+  MOCKUP_MIN_HEIGHT,
+  MOCKUP_MIN_WIDTH,
+} from "@/lib/constants"
 import {
   MIN_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
@@ -29,8 +33,9 @@ import type { LivePageWrites } from "./live-page"
  * to a bare `patch`:
  *  - `updateRoute` reports the Create-Flow trail pan and applies it to the
  *    zoom/pan transform so the navigated frame stays visually anchored.
- *  - `fitToContent` marks the frame's thumbnail dirty when its size actually
- *    changes, so a recapture fires at the new size.
+ *  - `setFrameSize`, `setFitToContent` and `followContentHeight` mark the
+ *    frame's thumbnail dirty when its size actually changes, so a recapture
+ *    fires at the new size.
  *
  * Constructed from `ops`, `collections`, and the dirty-frame `captureTracker`,
  * plus the two refs `updateRoute` reads — the zoom/pan transform handle and the
@@ -73,10 +78,18 @@ export interface LayerMutations {
    */
   updateRoute: (id: string, route: string, replace?: boolean) => void
   /**
-   * Resize the frame to fit its content (or a device preset). Marks the
-   * thumbnail dirty only when the size actually changes.
+   * Set the frame's size outright (a Device size), which turns its Fit to
+   * content off. Marks the thumbnail dirty only when the size actually
+   * changes.
    */
-  fitToContent: (id: string, width: number, height: number) => void
+  setFrameSize: (id: string, width: number, height: number) => void
+  /**
+   * Turn a frame's or Mockup's Fit to content on, its height set to the
+   * page's content height when known, or off, leaving the height as it is.
+   */
+  setFitToContent: (id: string, on: boolean, height?: number) => void
+  /** The page's content height changed while Fit to content is on. */
+  followContentHeight: (id: string, height: number) => void
 
   // --- Markdown Layer writers ---
   /** Resize a document by edge deltas, shifting its group anchor as needed. */
@@ -93,9 +106,9 @@ export interface LayerMutations {
   setTitleCache: (id: string, title: string) => void
 
   // --- Mockup Layer writers ---
-  /** Set a mockup's size outright: a device size, or its page's full size
-   *  (Fit to content). Dragging an edge resizes it through the Canvas Gesture,
-   *  as a frame's does. */
+  /** Set a mockup's size outright (a Device size), which turns its Fit to
+   *  content off. Dragging an edge resizes it through the Canvas Gesture, as
+   *  a frame's does. */
   setMockupSize: (id: string, width: number, height: number) => void
   /** Rename a mockup (its title lives on the record alone). */
   renameMockup: (id: string, title: string) => void
@@ -203,19 +216,60 @@ export function useLayerMutations({
     [ops, transformRef, createFlowIframeLayerIdRef]
   )
 
-  const fitToContent = useCallback(
+  const setFrameSize = useCallback(
     (id: string, width: number, height: number) => {
-      // Ceil rather than round so sub-pixel content extents never shrink the
-      // iframeLayer below the actual content (which would creep smaller on each
-      // repeated Fit click).
+      // Ceil rather than round so a sub-pixel size never shrinks the frame
+      // below it.
       const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, Math.ceil(width))
       const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, Math.ceil(height))
       const prev = collections.iframeLayers.get(id)
-      ops.patch("iframeLayers", id, { width: newWidth, height: newHeight })
-      // Fit-to-content and device-size presets resize the frame too, so the
-      // manifest discards its now-mismatched capture — mark it dirty to
-      // recapture at the new size when the size actually changed.
+      ops.patch("iframeLayers", id, {
+        width: newWidth,
+        height: newHeight,
+        ...(prev?.fitHeight ? { fitHeight: false } : {}),
+      })
+      // Device-size presets resize the frame too, so the manifest discards
+      // its now-mismatched capture — mark it dirty to recapture at the new
+      // size when the size actually changed.
       if (prev && (prev.width !== newWidth || prev.height !== newHeight)) {
+        captureTracker.markDirty(id)
+      }
+    },
+    [ops, collections, captureTracker]
+  )
+
+  const setFitToContent = useCallback(
+    (id: string, on: boolean, height?: number) => {
+      const frame = collections.iframeLayers.get(id)
+      const min = frame ? MIN_IFRAME_LAYER_HEIGHT : MOCKUP_MIN_HEIGHT
+      const fields =
+        on && height !== undefined
+          ? {
+              fitHeight: on,
+              height: Math.min(
+                FIT_CONTENT_MAX_HEIGHT,
+                Math.max(min, Math.ceil(height))
+              ),
+            }
+          : { fitHeight: on }
+      if (frame) {
+        ops.patch("iframeLayers", id, fields)
+        if ("height" in fields && fields.height !== frame.height) {
+          captureTracker.markDirty(id)
+        }
+      } else {
+        ops.patch("mockupLayers", id, fields)
+      }
+    },
+    [ops, collections, captureTracker]
+  )
+
+  const followContentHeight = useCallback(
+    (id: string, height: number) => {
+      if (
+        ops.followContentHeight(id, height) &&
+        collections.iframeLayers.get(id)
+      ) {
         captureTracker.markDirty(id)
       }
     },
@@ -259,14 +313,16 @@ export function useLayerMutations({
 
   const setMockupSize = useCallback(
     (id: string, width: number, height: number) => {
-      // Ceil, as Fit to content on a frame does, so a sub-pixel page never
-      // shrinks a little on each click.
+      // Ceil, as a frame's size does.
       ops.patch("mockupLayers", id, {
         width: Math.max(MOCKUP_MIN_WIDTH, Math.ceil(width)),
         height: Math.max(MOCKUP_MIN_HEIGHT, Math.ceil(height)),
+        ...(collections.mockupLayers.get(id)?.fitHeight
+          ? { fitHeight: false }
+          : {}),
       })
     },
-    [ops]
+    [ops, collections]
   )
 
   const renameMockup = useCallback(
@@ -338,7 +394,9 @@ export function useLayerMutations({
       updateColorScheme,
       updateLive,
       updateRoute,
-      fitToContent,
+      setFrameSize,
+      setFitToContent,
+      followContentHeight,
       resizeDocument,
       setTitle,
       setTitleCache,
@@ -359,7 +417,9 @@ export function useLayerMutations({
       updateColorScheme,
       updateLive,
       updateRoute,
-      fitToContent,
+      setFrameSize,
+      setFitToContent,
+      followContentHeight,
       resizeDocument,
       setTitle,
       setTitleCache,
