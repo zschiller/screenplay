@@ -26,7 +26,8 @@ import type {
  *   asynchronously, and a newer hover (or a reset) supersedes an in-flight one.
  *
  * The layers a pick can hit are frames and Mockups (#1309), as
- * {@link TargetLayer}s: a Mockup counts as its owning chat's Workspace's.
+ * {@link TargetLayer}s: a Mockup counts as the Workspace's of the chat that
+ * last changed it.
  *
  * The pick key is the requesting Composer's **Branch id**. Agent chats pass it as
  * their `sandboxId` prop (a sandbox-backed agent's id *is* its Branch id), and
@@ -35,7 +36,7 @@ import type {
 
 /**
  * A layer a pick can hit: a frame, or a Mockup, whose `branchId` is the
- * Workspace of the chat that made it (a Mockup has no route of its own). An
+ * Workspace of the chat that last changed it (a Mockup has no route of its own). An
  * `IframeLayerData` is one as it stands.
  */
 export interface TargetLayer {

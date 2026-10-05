@@ -126,7 +126,7 @@ function CanvasMemberLayerImpl({
   iframeLayerGroups: IframeLayerGroupData[]
   iframeLayers: IframeLayerData[]
   markdownLayers: MarkdownLayerData[]
-  /** The Workspace of each Document's and Mockup's owning chat (#1314, #1309), by layer id. */
+  /** The Workspace of the chat that last changed each Document and Mockup (#1724), by layer id. */
   documentWorkspaces: ReadonlyMap<string, string>
   mockupLayers: MockupLayerData[]
   selection: CanvasSelection
@@ -469,13 +469,6 @@ function CanvasMemberLayerImpl({
                 placement={placement}
                 remoteSelectedColor={remoteSelectedColor}
                 groupLabel={groupLabel}
-                // The chat that made it, unless the group label names it
-                // (#1314); a hand-made Document names none.
-                ownerWorkspace={
-                  groupNamesWorkspace
-                    ? undefined
-                    : workspaceOf(documentWorkspaces.get(doc.id))
-                }
                 groupSelected={groupSelected}
                 onSelect={handleDocumentLayerSelect}
                 onResize={layerMutations.resizeDocument}
@@ -509,13 +502,6 @@ function CanvasMemberLayerImpl({
                 // frame.
                 key={mockupStream ? `${mockup.id}:live` : mockup.id}
                 layer={mockup}
-                // The chat that made it, unless the group label names it
-                // (#1309), as a chat-made Document does.
-                ownerWorkspace={
-                  groupNamesWorkspace
-                    ? undefined
-                    : workspaceOf(documentWorkspaces.get(mockup.id))
-                }
                 zoom={zoom}
                 labelHidden={labelsHidden.has(mockup.id)}
                 // Mockups share the Document selection Set.

@@ -25,7 +25,7 @@ function setup() {
   )
   collections.markdownLayers.set(
     "doc-1",
-    baseDoc("doc-1", { title: "Plan", ownerChatId: "chat-1" })
+    baseDoc("doc-1", { title: "Plan", lastChangedByChatId: "chat-1" })
   )
   collections.markdownLayers.set("doc-2", baseDoc("doc-2", { title: "Notes" }))
   collections.mockupLayers.set("mock-1", {

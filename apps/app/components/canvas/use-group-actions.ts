@@ -74,7 +74,7 @@ export interface GroupActions {
    */
   duplicateIframeLayer: (iframeLayerId: string) => string | undefined
   /**
-   * Append a copy of a Mockup (page, size, knobs, owning chat) to the end of
+   * Append a copy of a Mockup (page, size, knobs, last chat) to the end of
    * its group — the mockup bar's Duplicate. Returns the copy's id.
    */
   duplicateMockup: (mockupId: string) => string | undefined

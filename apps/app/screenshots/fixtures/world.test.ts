@@ -136,8 +136,9 @@ describe("fixture world — referential integrity", () => {
         if (chat.target !== "room") expect(branchIds).toContain(chat.branchId)
       }
       for (const layer of doc.markdownLayers ?? []) {
-        // A chat-made Document names a chat that exists (#1314).
-        if (layer.ownerChatId) expect(chatIds).toContain(layer.ownerChatId)
+        // A chat-made Document names a chat that exists (#1314, #1724).
+        if (layer.lastChangedByChatId)
+          expect(chatIds).toContain(layer.lastChangedByChatId)
       }
       for (const plan of doc.plans ?? []) {
         expect(chatIds).toContain(plan.chatId)
@@ -160,9 +161,9 @@ describe("fixture world — referential integrity", () => {
       const mockupIds = (doc.mockupLayers ?? []).map((l) => l.id).sort()
       expect(Object.keys(doc.mockupHtml ?? {}).sort()).toEqual(mockupIds)
       for (const mockup of doc.mockupLayers ?? []) {
-        if (mockup.ownerChatId)
+        if (mockup.lastChangedByChatId)
           expect((doc.chatSessions ?? []).map((c) => c.id)).toContain(
-            mockup.ownerChatId
+            mockup.lastChangedByChatId
           )
       }
     }

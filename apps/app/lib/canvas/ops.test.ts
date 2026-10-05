@@ -156,7 +156,7 @@ describe("removeDocuments", () => {
     const { ops, collections } = makeHarness()
     collections.markdownLayers.set(
       "doc-1",
-      baseDoc("doc-1", { ownerChatId: "chat-1" })
+      baseDoc("doc-1", { lastChangedByChatId: "chat-1" })
     )
     collections.chatSessions.set(
       "chat-1",
@@ -227,7 +227,7 @@ describe("createMockup", () => {
       title: "Option A",
       width: 400,
       height: 300,
-      ownerChatId: "chat-1",
+      lastChangedByChatId: "chat-1",
       groupId: "group-1",
     })
 
@@ -236,9 +236,9 @@ describe("createMockup", () => {
       { kind: "iframe-layer", id: "layer-1" },
       { kind: "mockup-layer", id: result!.mockupId },
     ])
-    expect(collections.mockupLayers.get(result!.mockupId)?.ownerChatId).toBe(
-      "chat-1"
-    )
+    expect(
+      collections.mockupLayers.get(result!.mockupId)?.lastChangedByChatId
+    ).toBe("chat-1")
   })
 
   it("writes nothing when the named Group is missing", () => {
@@ -265,7 +265,7 @@ describe("updateMockup", () => {
       title: "Option A",
       width: 400,
       height: 300,
-      ownerChatId: "chat-1",
+      lastChangedByChatId: "chat-1",
     })!
 
     expect(
@@ -275,7 +275,7 @@ describe("updateMockup", () => {
     expect(mockupHtml(doc, mockupId).toString()).toBe("<p>B</p>")
     expect(collections.mockupLayers.get(mockupId)).toMatchObject({
       title: "Option B",
-      ownerChatId: "chat-1",
+      lastChangedByChatId: "chat-1",
     })
   })
 
@@ -417,7 +417,7 @@ describe("duplicateMockup", () => {
       title: "Option A",
       width: 400,
       height: 300,
-      ownerChatId: "chat-1",
+      lastChangedByChatId: "chat-1",
       groupId: "group-1",
     })!
     collections.mockupLayers.update(mockupId, {
@@ -437,7 +437,7 @@ describe("duplicateMockup", () => {
       width: 400,
       height: 300,
       title: "Option A copy",
-      ownerChatId: "chat-1",
+      lastChangedByChatId: "chat-1",
       knobs: [{ id: "tone" }],
       knobValues: { tone: "warm" },
     })
@@ -490,7 +490,7 @@ describe("removeBranch", () => {
       title: "Option A",
       width: 400,
       height: 300,
-      ownerChatId: "chat-1",
+      lastChangedByChatId: "chat-1",
     })!
 
     ops.removeBranch("agent-1")
@@ -986,7 +986,7 @@ describe("createDocument", () => {
 
     // No chat comes with it (#1314): a hand-made Document has no owner.
     expect(collections.chatSessions.toArray()).toEqual([])
-    expect(document?.ownerChatId).toBeUndefined()
+    expect(document?.lastChangedByChatId).toBeUndefined()
     expect(findEmptyGroups(collections)).toEqual([])
   })
 
@@ -996,10 +996,12 @@ describe("createDocument", () => {
     const { docId } = ops.createDocument(
       { x: 0, y: 0 },
       { width: 320, height: 240 },
-      { ownerChatId: "chat-1" }
+      { lastChangedByChatId: "chat-1" }
     )
 
-    expect(collections.markdownLayers.get(docId)?.ownerChatId).toBe("chat-1")
+    expect(collections.markdownLayers.get(docId)?.lastChangedByChatId).toBe(
+      "chat-1"
+    )
   })
 
   it("clamps a below-minimum size up to the document floor", () => {
@@ -1443,14 +1445,14 @@ describe("createBranch", () => {
       title: "",
       width: 390,
       height: 844,
-      ownerChatId: chatId,
+      lastChangedByChatId: chatId,
       anchor: { x: 40, y: 60 },
     })
 
     expect(collections.mockupLayers.get("drawn-1")).toMatchObject({
       width: 390,
       height: 844,
-      ownerChatId: chatId,
+      lastChangedByChatId: chatId,
     })
     const group = collections.iframeLayerGroups
       .toArray()

@@ -349,10 +349,10 @@ interface MarkdownLayerProps {
   /** The group label — only set on the leftmost member of a multi-member group. */
   groupLabel?: GroupLabelValue
   /**
-   * The Workspace of the chat that made this Document (#1314), named after its
-   * title unless the group label names it. Unset for a hand-made Document.
+   * A chat's Workspace, named after the title. The canvas names none since
+   * any chat changes any layer (#1724): an idle layer shows only its title.
    */
-  ownerWorkspace?: FrameWorkspace
+  chatWorkspace?: FrameWorkspace
   /** True when the parent group is selected. Drives label color, frame
    *  highlight, and click behavior (clicks are a no-op while the group owns
    *  the selection — same as IframeLayer). */
@@ -399,7 +399,7 @@ export function MarkdownLayer({
   userColor,
   placement,
   groupLabel,
-  ownerWorkspace,
+  chatWorkspace,
   groupSelected,
   remoteSelectedColor,
   onSelect,
@@ -1010,17 +1010,17 @@ export function MarkdownLayer({
           onRename={onRename ? (next) => onRename(layer.id, next) : undefined}
           editableRef={titleEditableRef}
           trailing={
-            (ownerWorkspace || showMenu) && (
+            (chatWorkspace || showMenu) && (
               <>
-                {ownerWorkspace && (
+                {chatWorkspace && (
                   <MaybeWorkspaceHoverCard
-                    branchId={ownerWorkspace.branchId}
+                    branchId={chatWorkspace.branchId}
                     side="bottom"
                   >
                     {/* The mention doesn't take the trigger's props; this span
                         does. Names win: the Workspace gives up its width first. */}
                     <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
-                      <CompactWorkspaceMention workspace={ownerWorkspace} />
+                      <CompactWorkspaceMention workspace={chatWorkspace} />
                     </span>
                   </MaybeWorkspaceHoverCard>
                 )}

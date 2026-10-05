@@ -460,7 +460,7 @@ function northwindRoom(
           height: 700,
           title: "Pricing launch checklist",
           // The Pricing FAQ chat wrote it (#1314), so it shows that chat.
-          ownerChatId: ids.chats.faq,
+          lastChangedByChatId: ids.chats.faq,
         },
       ],
       iframeLayerGroups: [
@@ -622,7 +622,7 @@ function simpleRoom(spec: {
   const mockups: MockupLayerData[] = (spec.mockups ?? []).map(
     ([title, , width, height], i) => ({
       id: `mockup-${spec.sandboxName}-${i}`,
-      ownerChatId: `chat-${spec.sandboxName}`,
+      lastChangedByChatId: `chat-${spec.sandboxName}`,
       title,
       width,
       height,

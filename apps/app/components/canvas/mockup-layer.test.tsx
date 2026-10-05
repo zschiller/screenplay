@@ -232,7 +232,7 @@ describe("MockupLayer's chat link (#1645, #1644, #1662)", () => {
       showSketchChat: vi.fn(),
     }
     const link = createMockupChatLink({
-      mockups: [{ ...LAYER, ownerChatId: "sketch-1" }],
+      mockups: [{ ...LAYER, lastChangedByChatId: "sketch-1" }],
       chats: [
         { id: ROOM, target: "room", createdAt: 0 },
         { id: "sketch-1", target: "sketch", createdAt: 1 },

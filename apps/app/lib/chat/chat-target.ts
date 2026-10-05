@@ -30,7 +30,7 @@ import { isSketchChat } from "@/lib/chat/sketch-chat"
  * repository (`lib/chat/sketch-chat.ts`). One value, so an impossible
  * combination (a sandbox and a Room at once) can't be written. The chat store
  * maps it to the wire target in one place. A Document is no longer a target
- * (#1314): the chat that made one edits it with its own tools.
+ * (#1314): any chat edits any Document with its own tools (#1724).
  */
 export type ChatTarget =
   | {

@@ -23,7 +23,7 @@ function canvas() {
   collections.iframeLayers.set("frame-2", baseLayer("frame-2"))
   collections.markdownLayers.set(
     "doc-1",
-    baseDoc("doc-1", { ownerChatId: "chat-1" })
+    baseDoc("doc-1", { lastChangedByChatId: "chat-1" })
   )
   collections.chatSessions.set(
     "chat-1",
@@ -61,13 +61,15 @@ describe("⌘Z", () => {
     ).toEqual(["frame-1", "frame-2", "doc-1"])
   })
 
-  it("brings a deleted document back with its owner", () => {
+  it("brings a deleted document back with its last chat", () => {
     const { ops, collections, undo } = canvas()
     ops.removeDocuments(["doc-1"])
     expect(collections.chatSessions.has("chat-1")).toBe(true)
 
     undo.undo()
-    expect(collections.markdownLayers.get("doc-1")?.ownerChatId).toBe("chat-1")
+    expect(collections.markdownLayers.get("doc-1")?.lastChangedByChatId).toBe(
+      "chat-1"
+    )
   })
 
   it("skips what a running prototype reports on its frame", () => {
@@ -134,7 +136,7 @@ describe("⌘Z on a Mockup (#1309)", () => {
       title: "Option A",
       width: 400,
       height: 300,
-      ownerChatId: "chat-2",
+      lastChangedByChatId: "chat-2",
     })!
     Y.applyUpdate(h.doc, Y.encodeStateAsUpdate(server, sv), "provider")
     return { ...h, mockupId, server, serverOps }
@@ -157,7 +159,9 @@ describe("⌘Z on a Mockup (#1309)", () => {
     ops.removeMockups([mockupId])
 
     undo.undo()
-    expect(collections.mockupLayers.get(mockupId)?.ownerChatId).toBe("chat-2")
+    expect(collections.mockupLayers.get(mockupId)?.lastChangedByChatId).toBe(
+      "chat-2"
+    )
     expect(mockupHtml(doc, mockupId).toString()).toBe("<p>A</p>")
   })
 

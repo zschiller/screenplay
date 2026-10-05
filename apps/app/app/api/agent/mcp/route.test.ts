@@ -503,7 +503,9 @@ describe("a Workspace chat’s MCP route", () => {
   const harnessPrompt = (harnessKey: string) =>
     buildAgentSystemPrompt({
       layerDirectory: {
-        documents: [{ id: "doc-1", title: "Plan", ownerChatId: "chat-ws-1" }],
+        documents: [
+          { id: "doc-1", title: "Plan", lastChangedByChatId: "chat-ws-1" },
+        ],
       },
       chatId: "chat-ws-1",
       skills: [
@@ -609,7 +611,7 @@ describe("a Workspace chat’s MCP route", () => {
     const [doc] = collections.markdownLayers.toArray()
     expect(doc).toMatchObject({
       title: "Sign-in notes",
-      ownerChatId: "chat-ws-1",
+      lastChangedByChatId: "chat-ws-1",
     })
   })
 

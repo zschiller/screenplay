@@ -304,13 +304,16 @@ describe("sending a Mockup box’s ask", () => {
     return t
   }
 
-  function expectEmptyMockup(t: ReturnType<typeof setup>, ownerChatId: string) {
+  function expectEmptyMockup(
+    t: ReturnType<typeof setup>,
+    lastChangedByChatId: string
+  ) {
     const mockup = t.onlyMockup()
     expect(mockup).toMatchObject({
       width: 390,
       height: 600,
       title: "",
-      ownerChatId,
+      lastChangedByChatId,
     })
     expect(mockupHtml(t.doc, mockup!.id).toString()).toBe("")
     expect(t.setSelectedDocumentLayerIds).toHaveBeenLastCalledWith(
@@ -464,8 +467,8 @@ describe("defaultFrameAnswerer", () => {
       { id: "blank" },
     ],
     ownedLayers: [
-      { id: "mockup", ownerChatId: "c1" },
-      { id: "doc", ownerChatId: "c2" },
+      { id: "mockup", lastChangedByChatId: "c1" },
+      { id: "doc", lastChangedByChatId: "c2" },
       { id: "handmade" },
     ],
     chatSessions: [
@@ -481,14 +484,14 @@ describe("defaultFrameAnswerer", () => {
     expect(answer(["f2"])).toEqual({ kind: "workspace", branchId: "b2" })
   })
 
-  it("answers with a selected Mockup’s owner chat’s Workspace", () => {
+  it("answers with the Workspace of the chat that last changed a selected Mockup", () => {
     expect(answer([], ["mockup"])).toEqual({
       kind: "workspace",
       branchId: "b1",
     })
   })
 
-  it("answers with a selected Document’s owner chat’s Workspace", () => {
+  it("answers with the Workspace of the chat that last changed a selected Document", () => {
     expect(answer([], ["doc"])).toEqual({ kind: "workspace", branchId: "b2" })
   })
 

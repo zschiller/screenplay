@@ -123,7 +123,7 @@ function seedCanvas(r: ReturnType<typeof room>) {
   )
   collections.markdownLayers.set(
     "doc-1",
-    baseDoc("doc-1", { title: "Launch spec", ownerChatId: "chat-ws-1" })
+    baseDoc("doc-1", { title: "Launch spec", lastChangedByChatId: "chat-ws-1" })
   )
   const fragment = documentFragment(doc, "doc-1")
   seedDocumentFragment(fragment)
@@ -478,7 +478,9 @@ describe("read_canvas", () => {
     expect(summary).toContain(
       '- [frame-1] "Settings" · /settings · 400×300 · Workspace ws-1 · Group group-1'
     )
-    expect(summary).toContain('- [doc-1] "Launch spec" · Group group-1')
+    expect(summary).toContain(
+      '- [doc-1] "Launch spec" · last changed by chat "Checkout chat" · Group group-1'
+    )
   })
 })
 

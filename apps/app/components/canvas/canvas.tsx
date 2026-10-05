@@ -38,7 +38,7 @@ import {
 } from "@/lib/yjs/react"
 
 import { createCanvasOps } from "@/lib/canvas/ops"
-import { documentWorkspaceIds, layerOwners } from "@/lib/canvas/document-owner"
+import { layerChats, layerWorkspaceIds } from "@/lib/canvas/layer-chat"
 
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 
@@ -593,10 +593,10 @@ export function Canvas({
     [mockupLayers]
   )
   const chatSessions = useChatSessions()
-  // Each chat-made Document's and Mockup's Workspace (#1314, #1309), for its
-  // label and the Group's, and where it goes live (#1523).
+  // The Workspace of the chat that last changed each Document and Mockup
+  // (#1724), for the Group's label and where a Mockup goes live (#1523).
   const documentWorkspaces = useMemo(
-    () => documentWorkspaceIds(sizedLayers, chatSessions),
+    () => layerWorkspaceIds(sizedLayers, chatSessions),
     [sizedLayers, chatSessions]
   )
   // Live frames (#1516): on hosted, a frame someone turns live is one browser
@@ -790,8 +790,9 @@ export function Canvas({
   // dimmed frames), the hit-test and the highlight sequencing live in the
   // React-free core it wraps; Escape during a pick goes through the shared
   // precedence the keyboard controller applies.
-  // What a pick can hit: frames, and Mockups as their owning chat's Workspace's
-  // (#1309), so a chat can target an element in a Mockup it made.
+  // What a pick can hit: frames, and Mockups as the Workspace's of the chat
+  // that last changed them (#1309, #1724), so a chat can target an element in
+  // a Mockup it made.
   const targetLayers = useMemo<TargetLayer[]>(
     () => [
       ...iframeLayers,
@@ -1089,15 +1090,15 @@ export function Canvas({
   const diffStats = useDiffStats(agents, repos)
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
-  // Where Reply in chat and Send to agent on a chat-made Document go: the
-  // Sketch Chat that made it, or its Workspace's chat.
-  const documentOwners = useMemo(
-    () => layerOwners(markdownLayers, chatSessions),
+  // Where Reply in chat and Send to agent on a Document go: the Sketch Chat
+  // that last changed it, or that chat's Workspace's chat (#1724).
+  const documentChats = useMemo(
+    () => layerChats(markdownLayers, chatSessions),
     [markdownLayers, chatSessions]
   )
-  const documentOwner = useCallback(
-    (documentId: string) => documentOwners.get(documentId) ?? null,
-    [documentOwners]
+  const documentChat = useCallback(
+    (documentId: string) => documentChats.get(documentId) ?? null,
+    [documentChats]
   )
   // Every chat with no repository, newest first.
   const sketchChats = useMemo(
@@ -1526,7 +1527,7 @@ export function Canvas({
     referenceInputsRef.current = {
       iframeLayerLayouts,
       chatTarget,
-      documentOwner,
+      documentChat,
     }
   })
 
@@ -1604,13 +1605,13 @@ export function Canvas({
     (frameId: string) => commentFrameInfo.get(frameId)?.branchId,
     [commentFrameInfo]
   )
-  // A Document's threads go to the chat that made it, else to the Workspace
-  // chat the panel shows (#1314).
+  // A Document's threads go to the chat that last changed it, else to the
+  // Workspace chat the panel shows (#1314, #1724).
   const commentDocumentChat = useCallback(
     (documentId: string) => {
-      const owner = documentOwner(documentId)
-      if (owner?.kind === "workspace") {
-        return { chatId: owner.chatId, branchId: owner.branchId }
+      const found = documentChat(documentId)
+      if (found?.kind === "workspace") {
+        return { chatId: found.chatId, branchId: found.branchId }
       }
       if (chatTarget.target?.kind !== "agent") return null
       const branchId = chatTarget.target.agent.id
@@ -1619,7 +1620,7 @@ export function Canvas({
       )
       return { branchId, chatId: shown?.id }
     },
-    [documentOwner, chatTarget, chatSessions]
+    [documentChat, chatTarget, chatSessions]
   )
   const commentDocumentTitle = useCallback(
     (documentId: string) =>

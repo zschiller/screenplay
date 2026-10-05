@@ -42,10 +42,19 @@ function canvas(opts: { shown?: ShownChat } = {}) {
     { id: "ws-chat", branchId: "branch-1", createdAt: 3 },
   ]
   const mockups = [
-    { id: "sketched", title: "Pricing", ownerChatId: "sketch-1" },
-    { id: "workspaced", title: "Cart", ownerChatId: "ws-early" },
-    { id: "orphaned", title: "Old", ownerChatId: "deleted-chat" },
-    { id: "by-coordinator", title: "Plan", ownerChatId: ROOM },
+    { id: "sketched", title: "Pricing", lastChangedByChatId: "sketch-1" },
+    { id: "workspaced", title: "Cart", lastChangedByChatId: "ws-early" },
+    // Made by the Sketch Chat, changed since by the Workspace's chat (#1724).
+    {
+      id: "taken-over",
+      title: "Receipt",
+      ownerChatId: "sketch-1",
+      lastChangedByChatId: "ws-chat",
+    },
+    // From before #1724: only the chat that made it is recorded.
+    { id: "legacy", title: "Banner", ownerChatId: "sketch-1" },
+    { id: "orphaned", title: "Old", lastChangedByChatId: "deleted-chat" },
+    { id: "by-coordinator", title: "Plan", lastChangedByChatId: ROOM },
     { id: "by-hand", title: "" },
   ]
   const messages = new Map<string, AgentMessage[]>()
@@ -98,7 +107,7 @@ function canvas(opts: { shown?: ShownChat } = {}) {
 }
 
 describe("which chat a Mockup's page talks to (#1662)", () => {
-  it("drafts in the Sketch Chat that made it", () => {
+  it("drafts in the Sketch Chat that last changed it", () => {
     const c = canvas()
     c.link().draft("sketched", "Picked B")
     expect(c.log).toEqual(["sketch sketch-1"])
@@ -108,14 +117,27 @@ describe("which chat a Mockup's page talks to (#1662)", () => {
     ])
   })
 
-  it("drafts in its Workspace's chat, whichever of its chats made it", () => {
+  it("drafts in the chat that changed it last, not the one that made it", () => {
+    const c = canvas()
+    c.link().draft("taken-over", "Picked B")
+    expect(c.log).toEqual(["workspace branch-1 ws-chat"])
+    expect(c.prefills).toEqual([["ws-chat", "Picked B"]])
+  })
+
+  it("drafts in the chat that made a Mockup from before #1724", () => {
+    const c = canvas()
+    c.link().draft("legacy", "Picked B")
+    expect(c.prefills).toEqual([["sketch-1", "Picked B"]])
+  })
+
+  it("drafts in its Workspace's chat, whichever of its chats changed it", () => {
     const c = canvas()
     c.link().draft("workspaced", "Picked B")
     expect(c.log).toEqual(["workspace branch-1 ws-chat"])
     expect(c.prefills).toEqual([["ws-chat", "Picked B"]])
   })
 
-  it("drafts in the chat the panel shows when it has no owner", () => {
+  it("drafts in the chat the panel shows when no chat on the canvas changed it", () => {
     for (const id of ["orphaned", "by-coordinator", "by-hand"]) {
       const sketch = canvas({ shown: { kind: "sketch", chatId: "sketch-1" } })
       sketch.link().draft(id, "Hi")
@@ -139,9 +161,11 @@ describe("which chat a Mockup's page talks to (#1662)", () => {
     link.askForKnob("sketched")
     link.askForKnob("workspaced")
     link.askForKnob("orphaned")
+    link.askForKnob("by-hand")
     expect(c.prefills.map(([id]) => id)).toEqual([
       "sketch-1",
       "ws-chat",
+      "new-sketch",
       "new-sketch",
     ])
     expect(c.prefills[0]![1]).toBe(
@@ -149,13 +173,11 @@ describe("which chat a Mockup's page talks to (#1662)", () => {
     )
   })
 
-  it("offers the Knobs Ask only on a chat-made Mockup or one whose chat is gone", () => {
+  it("offers the Knobs Ask on every Mockup (#1724)", () => {
     const link = canvas().link()
-    expect(link.canAsk("sketched")).toBe(true)
-    expect(link.canAsk("workspaced")).toBe(true)
-    expect(link.canAsk("orphaned")).toBe(true)
-    expect(link.canAsk("by-hand")).toBe(false)
-    expect(link.canAsk("by-coordinator")).toBe(false)
+    for (const id of ["sketched", "workspaced", "orphaned", "by-hand"]) {
+      expect(link.canAsk(id)).toBe(true)
+    }
     expect(link.canAsk("missing")).toBe(false)
   })
 })
@@ -192,7 +214,7 @@ describe("a question about a Mockup (#1644, #1662)", () => {
     expect(c.sends).toEqual([[ROOM, "Prices"]])
   })
 
-  it("answers an ownerless Mockup's question in the chat that asked it", () => {
+  it("answers a question about a Mockup no chat changed in the chat that asked it", () => {
     const c = canvas()
     c.say("sketch-1", asked("q1", "by-hand"))
     const link = c.link()
@@ -200,7 +222,7 @@ describe("a question about a Mockup (#1644, #1662)", () => {
     expect(c.sends).toEqual([["sketch-1", "Prices"]])
   })
 
-  it("prefers an open question to an answered one, then the owner's", () => {
+  it("prefers an open question to an answered one, then the last changer’s", () => {
     const c = canvas()
     c.say("sketch-1", asked("own-answered", "sketched"), reply("Prices"))
     c.say(ROOM, asked("room-open", "sketched"))
