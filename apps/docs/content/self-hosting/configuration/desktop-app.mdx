@@ -45,8 +45,9 @@ at runtime and re-injected by the shell when it spawns the sidecar.
 ## Lifecycle
 
 Tauri owns the sidecar end-to-end. All of this runs off the main thread, so the
-window paints a loading screen (a spinner drawn in the homepage’s liquid
-dither, on the app’s own light or dark background) the moment the app opens:
+window paints a loading screen (the app’s spinner arc drawn in the homepage’s
+liquid dither, on the app’s own light or dark background) the moment the app
+opens:
 
 1. **Port** — binds `127.0.0.1:0` for a free port and hands it to the sidecar.
 2. **Spawn** — extracts the bundled tree (while recovering the login shell’s

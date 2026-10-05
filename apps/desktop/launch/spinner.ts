@@ -1,47 +1,30 @@
 import { createFluid } from "../../homepage/components/marketing/site/fluid"
 
 /**
- * The launch screen's spinner: the homepage hero's liquid dither, stirred on
- * its own. The window opens on still water; an unseen stirrer winds up over
- * EASE ms and then circles, and the only thing drawn is where the water it
- * moves bends the light: grain where the stirred surface focuses it, shaded
- * through the hero's 8×8 Bayer thresholds at the hero's grain size. The
- * stirrer chases its circle the way the hero's peek chases the pointer, and
- * the circle leans toward the cursor.
+ * The launch screen's spinner: the app's Loader2 arc drawn in the homepage
+ * hero's liquid dither. A 300° ring of grain turns once a second, solid at
+ * its head and dissolving through the hero's 8×8 Bayer thresholds behind it.
+ * The head stirs the hero's fluid solver as it goes, and the marbling that
+ * stirring carries ripples the grain along the arc.
  *
  * Built into dist/launch by scripts/build-launch.mjs.
  */
 
-// The stage, in CSS px; the water fades to clear before its edge.
-const BOX = 560
+// The stage, in CSS px.
+const BOX = 40
 // The fluid's cell size, in CSS px.
-const G = 4
-// The stirrer's circle: its radius, and how long a turn takes once wound up.
-const ORBIT = 64
-const PERIOD = 1300
-// How long the stirrer takes to wind up from rest.
-const EASE = 1500
-// The reach of the stirrer's push, in cells, and how hard it pushes per cell
-// moved (the hero's 1.6).
-const REACH = 6
-const PUSH = 1.6
-// The hero's water is never stirred in circles for long; kept circling it
-// spins up into a whirlpool. A little extra damping and a faster pull back
-// to rest keep it a spinner.
-const DAMP = 0.92
-const RELAX = 0.05
-// How far the circle leans toward the cursor, at most, in CSS px.
-const LEAN = 46
-// The focus levels the bright lines trace, and their width as a share of
-// each level.
-const LINES = [0.5, 1.3]
-const LINE_WIDTH = 0.1
-// The lines are drawn half filled over an even ramp of the focus, so most of
-// the stirred water sits between clear and solid and the crosshatch shows.
-const LINE_FILL = 0.55
-const RAMP = 0.7
-const RAMP_SCALE = 1.4
-const RAMP_FLOOR = 0.1
+const G = 2
+// The ring's radius and half its width, in CSS px, and how long a turn takes.
+const ORBIT = 12
+const HALF_WIDTH = 4
+const PERIOD = 1000
+// How much of the turn the arc covers, from its head back (Loader2's 300°).
+const ARC = 300 / 360
+// How hard the head stirs the water, and how far its push reaches, in cells.
+const PUSH = 1.4
+const REACH = 2.4
+// How much the marbling lightens and darkens the grain along the arc.
+const RIPPLE = 0.3
 // The fluid steps every 40ms whatever the frame rate, as on the homepage.
 const STEP = 40
 
@@ -66,6 +49,31 @@ const smooth = (k: number) => {
   return c * c * (3 - 2 * c)
 }
 
+// Value noise for the marbled bands, as the hero veil draws them.
+const perm = new Uint8Array(512)
+{
+  let s = 7
+  const a = [...Array(256).keys()]
+  for (let i = 255; i > 0; i--) {
+    s = (s * 16807) % 2147483647
+    const j = s % (i + 1)
+    ;[a[i], a[j]] = [a[j]!, a[i]!]
+  }
+  for (let i = 0; i < 512; i++) perm[i] = a[i & 255]!
+}
+const hash = (x: number, y: number) => perm[(perm[x & 255]! + y) & 255]! / 255
+function noise(x: number, y: number) {
+  const xi = Math.floor(x)
+  const yi = Math.floor(y)
+  const u = smooth(x - xi)
+  const v = smooth(y - yi)
+  const a = hash(xi, yi)
+  const b = hash(xi + 1, yi)
+  const c = hash(xi, yi + 1)
+  const d = hash(xi + 1, yi + 1)
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
+}
+
 // One grain per 3 device pixels on retina screens, 2 elsewhere, as the hero.
 const cell = Math.min(window.devicePixelRatio || 1, 2) >= 2 ? 1.5 : 2
 const cols = Math.round(BOX / cell)
@@ -77,11 +85,6 @@ const img = ctx.createImageData(cols, cols)
 
 const gw = Math.ceil(BOX / G) + 2
 const fluid = createFluid(gw, gw)
-// How much the carried surface bunches up at each node, |det J - 1| of the
-// map from where the water started to where it is: where refraction
-// focuses light. Kept for this step and the last, to blend between.
-let focus = new Float32Array(gw * gw)
-let lastFocus = new Float32Array(gw * gw)
 
 let ink = [0, 0, 0]
 function readInk() {
@@ -91,103 +94,28 @@ function readInk() {
   ink = [...probe.getImageData(0, 0, 1, 1).data.slice(0, 3)]
 }
 readInk()
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  readInk()
-  draw(1)
-})
 
-// The stirrer's speed follows a smoothstep up over EASE, so its angle is
-// that curve's integral, and its push grows the same way.
-function wound(t: number) {
-  if (t >= EASE) return t - EASE / 2
-  const u = t / EASE
-  return EASE * (u * u * u - (u * u * u * u) / 2)
-}
-const angle = (t: number) => (wound(t) / PERIOD) * Math.PI * 2 - Math.PI / 2
-const strength = (t: number) => smooth(t / EASE)
+const angle = (t: number) => (t / PERIOD) * Math.PI * 2 - Math.PI / 2
 
-// The cursor, in the stage's CSS px, and the circle's centre, which eases
-// toward it.
-const cursor = { x: 0, y: 0, on: false }
-addEventListener("pointermove", (e) => {
-  const r = stage.getBoundingClientRect()
-  cursor.x = e.clientX - r.left
-  cursor.y = e.clientY - r.top
-  cursor.on = true
-})
-document.documentElement.addEventListener("pointerleave", () => {
-  cursor.on = false
-})
-const hub = { x: BOX / 2, y: BOX / 2 }
-// Where the stirrer is: it chases its point on the circle as the hero's peek
-// chases the pointer. Easing pulls it inside the circle, so it aims at a
-// circle that much wider and lands on ORBIT.
-const stirrer = { x: 0, y: 0, placed: false }
-const AIM = 0.3
-const WIDEN = 0.85
-
+// The head pushes the water along the ring as it turns, in a few splats per
+// step so its wake is unbroken. A trace of dye keeps the solver awake.
 function stir(t: number) {
   fluid.keep()
-  let tx = BOX / 2
-  let ty = BOX / 2
-  if (cursor.on) {
-    const dx = cursor.x - tx
-    const dy = cursor.y - ty
-    const d = Math.hypot(dx, dy) || 1
-    const lean = LEAN * (1 - Math.exp(-d / 300))
-    tx += (dx / d) * lean
-    ty += (dy / d) * lean
-  }
-  hub.x += (tx - hub.x) * 0.08
-  hub.y += (ty - hub.y) * 0.08
-
-  const a = angle(t)
-  const ax = hub.x + (Math.cos(a) * ORBIT) / WIDEN
-  const ay = hub.y + (Math.sin(a) * ORBIT) / WIDEN
-  if (!stirrer.placed) Object.assign(stirrer, { x: ax, y: ay, placed: true })
-  const px = stirrer.x
-  const py = stirrer.y
-  stirrer.x += (ax - px) * AIM
-  stirrer.y += (ay - py) * AIM
-  // Push along the path moved since the last step, as the hero does, so the
-  // wake is unbroken. A trace of dye keeps the solver awake; it isn't drawn.
-  const dx = (stirrer.x - px) / G
-  const dy = (stirrer.y - py) / G
-  const f = strength(t) * PUSH
-  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 1.5))
-  for (let n = 1; n <= steps; n++) {
+  const from = angle(t - STEP)
+  const to = angle(t)
+  const splats = 3
+  for (let n = 1; n <= splats; n++) {
+    const a = from + ((to - from) * n) / splats
     fluid.splat(
-      px / G + (dx * n) / steps,
-      py / G + (dy * n) / steps,
-      (dx * f) / steps,
-      (dy * f) / steps,
+      (BOX / 2 + Math.cos(a) * ORBIT) / G,
+      (BOX / 2 + Math.sin(a) * ORBIT) / G,
+      (-Math.sin(a) * PUSH) / splats,
+      (Math.cos(a) * PUSH) / splats,
       REACH,
-      0.001 / steps
+      0.001 / splats
     )
   }
   fluid.step()
-
-  const { vx, vy, mx, my } = fluid
-  for (let r = 0, i = 0; r < gw; r++) {
-    for (let c = 0; c < gw; c++, i++) {
-      vx[i]! *= DAMP
-      vy[i]! *= DAMP
-      mx[i]! += (c - mx[i]!) * RELAX
-      my[i]! += (r - my[i]!) * RELAX
-    }
-  }
-  const spare = lastFocus
-  lastFocus = focus
-  focus = spare
-  for (let r = 1; r < gw - 1; r++) {
-    for (let c = 1, i = r * gw + 1; c < gw - 1; c++, i++) {
-      const a = (mx[i + 1]! - mx[i - 1]!) / 2
-      const b = (mx[i + gw]! - mx[i - gw]!) / 2
-      const d = (my[i + 1]! - my[i - 1]!) / 2
-      const e = (my[i + gw]! - my[i - gw]!) / 2
-      focus[i] = Math.abs(a * e - b * d - 1)
-    }
-  }
 }
 
 function at(field: Float32Array, j: number, fx: number, fy: number) {
@@ -197,51 +125,51 @@ function at(field: Float32Array, j: number, fx: number, fy: number) {
 }
 
 // `blend` is how far between the last step and this one the frame falls.
-function draw(blend: number) {
+function draw(t: number, blend: number) {
+  const { mx, my, prevMx, prevMy } = fluid
   const data = img.data
   const [ir, ig, ib] = ink
-  const edge = BOX / 2 - 4
+  const head = angle(t)
+  const s = t / 1000
   for (let r = 0, i = 0; r < cols; r++) {
     const py = r * cell + cell / 2
-    const gy = py / G
-    const y0 = gy | 0
-    const fy = gy - y0
+    const dy = py - BOX / 2
     for (let c = 0; c < cols; c++, i++) {
       const o = i * 4
       const px = c * cell + cell / 2
-      const gx = px / G
-      const x0 = gx | 0
-      const j = y0 * gw + x0
-      // Still water: nothing to draw.
-      if (
-        focus[j]! < 0.05 &&
-        lastFocus[j]! < 0.05 &&
-        focus[j + 1]! < 0.05 &&
-        focus[j + gw]! < 0.05 &&
-        focus[j + gw + 1]! < 0.05
-      ) {
+      const dx = px - BOX / 2
+      // Across the ring: solid along its middle, thinning to clear at its
+      // edges. Along it: solid at the head, thinning to clear at the tail.
+      const across = 1 - Math.abs(Math.hypot(dx, dy) - ORBIT) / HALF_WIDTH
+      let behind = (head - Math.atan2(dy, dx)) % (Math.PI * 2)
+      if (behind < 0) behind += Math.PI * 2
+      const along = 1 - behind / (Math.PI * 2 * ARC)
+      if (across <= 0 || along <= 0) {
         data[o + 3] = 0
         continue
       }
+      const gx = px / G
+      const gy = py / G
+      const x0 = gx | 0
+      const y0 = gy | 0
+      const j = y0 * gw + x0
       const fx = gx - x0
-      const f =
-        at(lastFocus, j, fx, fy) * (1 - blend) + at(focus, j, fx, fy) * blend
-      let line = 0
-      for (const level of LINES) {
-        const z = (f - level) / (level * LINE_WIDTH)
-        line = Math.max(line, Math.exp(-z * z))
-      }
-      let k = Math.max(
-        line * LINE_FILL,
-        RAMP * (1 - Math.exp(-Math.max(f - RAMP_FLOOR, 0) / RAMP_SCALE))
+      const fy = gy - y0
+      const ux = at(prevMx, j, fx, fy) * (1 - blend) + at(mx, j, fx, fy) * blend
+      const uy = at(prevMy, j, fx, fy) * (1 - blend) + at(my, j, fx, fy) * blend
+      const band = Math.sin(
+        noise(ux * G * 0.05 + s * 0.35, uy * G * 0.05 - s * 0.28) * 16 + s * 1.6
       )
-      // Fade to clear before the stage's edge.
-      const rim = 1 - Math.hypot(px - BOX / 2, py - BOX / 2) / edge
-      k *= rim <= 0 ? 0 : Math.min(rim * 2.5, 1)
+      // The arc's shade falls off evenly from head to tail, so every Bayer
+      // level along the way shows as its own crosshatch.
+      const k =
+        Math.min(across * 2.5, 1) *
+        Math.min(along * 1.25, 1) *
+        (1 + RIPPLE * band)
       data[o] = ir!
       data[o + 1] = ig!
       data[o + 2] = ib!
-      data[o + 3] = smooth(k) > BAYER[(r & 7) * 8 + (c & 7)]! ? 255 : 0
+      data[o + 3] = k > BAYER[(r & 7) * 8 + (c & 7)]! ? 255 : 0
     }
   }
   ctx.putImageData(img, 0, 0)
@@ -257,12 +185,17 @@ function advance(ms: number) {
     stir(clock - into + STEP)
     into -= STEP
   }
-  draw(into / STEP)
+  draw(clock, into / STEP)
 }
 
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  readInk()
+  draw(clock, 1)
+})
+
 if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-  // One still frame of the spinner, wound up.
-  for (let t = 0; t < EASE + PERIOD; t += STEP) advance(STEP)
+  // One still frame of the spinner.
+  for (let t = 0; t < PERIOD; t += STEP) advance(STEP)
 } else {
   let last = performance.now()
   const frame = (now: number) => {

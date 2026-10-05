@@ -9,9 +9,10 @@
       shell then navigates this webview to the local server. It follows the
       app's own theme tokens (packages/ui globals.css) and the system light/dark
       setting, so the hand-off to the app is a content change, not a flash. Only
-      the spinner shows: the homepage hero's liquid dither, stirred in a circle
-      from still water (launch/spinner.ts, built into dist/launch by
-      scripts/build-launch.mjs).
+      the spinner shows: the app's Loader2 arc drawn in the homepage hero's
+      liquid dither (launch/spinner.ts, built into dist/launch by
+      scripts/build-launch.mjs). It fades in just after launch, so a quick
+      one barely shows it.
     -->
     <style>
       :root {
@@ -60,11 +61,12 @@
         text-align: center;
       }
       /* The spinner's canvas has a pixel per grain, scaled up without
-         smoothing; spinner.js sizes both. Its water fades out well before the
-         edge, so the box itself never shows. */
+         smoothing; spinner.js sizes both. */
       .stage {
-        width: 560px;
-        height: 560px;
+        width: 40px;
+        height: 40px;
+        opacity: 0;
+        animation: fade-in 400ms ease-out 300ms forwards;
       }
       .stage canvas {
         display: block;
@@ -93,6 +95,11 @@
       }
       body.failed .error {
         display: flex;
+      }
+      @keyframes fade-in {
+        to {
+          opacity: 1;
+        }
       }
     </style>
   </head>
