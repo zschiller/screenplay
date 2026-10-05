@@ -59,4 +59,4 @@ states the storybook holds and anything you noticed.
 Notes arrive as a message drafted on the page or as a targeted element.
 Each is work on its state: a fix to the part goes in your Workspace; a
 question with more than one fair answer becomes an exploration
-(screenplay-explore-with-mockups) when the user wants options.
+(screenplay-design-exploration) when the user wants options.

@@ -39,7 +39,7 @@ export const templates: Template[] = [
     about:
       "Design exploration page. Fill PAGE, TODAY and ROUNDS in the data script; the page renders from them.",
     out: ".agents/skills/design-exploration/exploration-template.html",
-    skill: "screenplay-explore-with-mockups",
+    skill: "screenplay-design-exploration",
   },
   {
     name: "audit",
