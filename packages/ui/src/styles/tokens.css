@@ -157,6 +157,9 @@
 
 .dark,
 :root:not(.dark) .inverted {
+    /* The page is pure black, so the fills above it step up further than
+       stock shadcn's (0.269 on 0.145): 0.14 and 0.18 vanished next to black.
+       Muted matches the chat bubble's input/70 fill (about 0.22). */
     --background: oklch(0 0 0);
     --foreground: oklch(1 0 0);
     --card: oklch(0 0 0);
@@ -165,11 +168,11 @@
     --popover-foreground: oklch(1 0 0);
     --primary: oklch(1 0 0);
     --primary-foreground: oklch(0 0 0);
-    --secondary: oklch(0.14 0 0);
+    --secondary: oklch(0.22 0 0);
     --secondary-foreground: oklch(1 0 0);
-    --muted: oklch(0.14 0 0);
+    --muted: oklch(0.22 0 0);
     --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.18 0 0);
+    --accent: oklch(0.24 0 0);
     --accent-foreground: oklch(1 0 0);
     --destructive: oklch(0.66 0.225 27);
     --destructive-fill: oklch(0.66 0.225 27);
@@ -199,7 +202,7 @@
     --sidebar-foreground: oklch(1 0 0);
     --sidebar-primary: oklch(1 0 0);
     --sidebar-primary-foreground: oklch(0 0 0);
-    --sidebar-accent: oklch(0.18 0 0);
+    --sidebar-accent: oklch(0.24 0 0);
     --sidebar-accent-foreground: oklch(1 0 0);
     --sidebar-border: oklch(1 0 0 / 16%);
     --sidebar-ring: oklch(0.667 0.295 322.15);
