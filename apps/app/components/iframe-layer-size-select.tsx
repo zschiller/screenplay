@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
+import { cn } from "@workspace/ui/lib/utils"
 import {
   IFRAME_LAYER_SIZE_CATEGORY_ICONS,
   GROUPED_IFRAME_LAYER_SIZE_PRESETS,
@@ -37,11 +38,18 @@ export function IframeLayerSizeSelect({
 
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger id={id} size={size} className={className}>
+      <SelectTrigger
+        id={id}
+        size={size}
+        // The trigger clamps its value with `-webkit-box`, which WebKit (the
+        // desktop app) sizes from the row's min-content and so cut the name
+        // short. The row is one line anyway; lay it out as plain flex.
+        className={cn("[&>span]:line-clamp-none", className)}
+      >
         <SelectValue>
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 whitespace-nowrap">
             <SelectedIcon className="size-4 text-muted-foreground" />
-            <span className="truncate">{selected.label}</span>
+            <span>{selected.label}</span>
             <span className="text-muted-foreground tabular-nums">
               {formatIframeLayerSize(selected)}
             </span>
