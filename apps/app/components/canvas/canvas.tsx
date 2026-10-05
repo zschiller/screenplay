@@ -38,7 +38,12 @@ import {
 } from "@/lib/yjs/react"
 
 import { createCanvasOps } from "@/lib/canvas/ops"
-import { layerChats, layerWorkspaceIds } from "@/lib/canvas/layer-chat"
+import {
+  layerChats,
+  layerHolders,
+  layerWorkspaceIds,
+} from "@/lib/canvas/layer-chat"
+import { workingChatsOf } from "@/components/canvas/working-chat"
 
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 
@@ -598,6 +603,12 @@ export function Canvas({
   const documentWorkspaces = useMemo(
     () => layerWorkspaceIds(sizedLayers, chatSessions),
     [sizedLayers, chatSessions]
+  )
+  // The chat working on each Document and Mockup right now (#1726), for its
+  // label.
+  const workingChats = useMemo(
+    () => workingChatsOf(layerHolders(chatSessions), agents),
+    [chatSessions, agents]
   )
   // Live frames (#1516): on hosted, a frame someone turns live is one browser
   // in its Workspace's Sandbox, streamed to everyone on the canvas; every
@@ -2265,6 +2276,7 @@ export function Canvas({
                             iframeLayers={iframeLayers}
                             markdownLayers={markdownLayers}
                             documentWorkspaces={documentWorkspaces}
+                            workingChats={workingChats}
                             mockupLayers={mockupLayers}
                             selection={selection}
                             onIframeWheel={camera.handleIframeWheel}

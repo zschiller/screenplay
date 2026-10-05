@@ -31,6 +31,7 @@ import type { ElementReference } from "./use-element-reference"
 import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
 import { frameWorkspaceOf } from "./frame-nav"
+import type { WorkingChat } from "./working-chat"
 import { hiddenGroupLabels, hiddenLayerLabels } from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
@@ -77,6 +78,7 @@ function CanvasMemberLayerImpl({
   iframeLayers,
   markdownLayers,
   documentWorkspaces,
+  workingChats,
   mockupLayers,
   selection,
   onIframeWheel,
@@ -128,6 +130,8 @@ function CanvasMemberLayerImpl({
   markdownLayers: MarkdownLayerData[]
   /** The Workspace of the chat that last changed each Document and Mockup (#1724), by layer id. */
   documentWorkspaces: ReadonlyMap<string, string>
+  /** The chat working on each Document and Mockup right now (#1726), by layer id. */
+  workingChats: ReadonlyMap<string, WorkingChat>
   mockupLayers: MockupLayerData[]
   selection: CanvasSelection
   /** Forwarded wheel from inside an interactive iframe (cursor-centered zoom).
@@ -469,6 +473,9 @@ function CanvasMemberLayerImpl({
                 placement={placement}
                 remoteSelectedColor={remoteSelectedColor}
                 groupLabel={groupLabel}
+                // Named even when the group label names its Workspace, so
+                // the Group shows which layer the chat is on (#1726).
+                workingChat={workingChats.get(doc.id)}
                 groupSelected={groupSelected}
                 onSelect={handleDocumentLayerSelect}
                 onResize={layerMutations.resizeDocument}
@@ -502,6 +509,8 @@ function CanvasMemberLayerImpl({
                 // frame.
                 key={mockupStream ? `${mockup.id}:live` : mockup.id}
                 layer={mockup}
+                // Named even when the group label names its Workspace (#1726).
+                workingChat={workingChats.get(mockup.id)}
                 zoom={zoom}
                 labelHidden={labelsHidden.has(mockup.id)}
                 // Mockups share the Document selection Set.

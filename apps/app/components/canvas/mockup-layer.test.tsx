@@ -495,3 +495,18 @@ describe("MockupLayer sizes", () => {
     expect(openMenu()).not.toContain("Fit to content")
   })
 })
+
+describe("MockupLayer's working chat (#1726)", () => {
+  it("names the chat working on it with the 9-dot, and drops it when the turn ends", () => {
+    const { rerender } = renderMockup({
+      workingChat: { chatId: "sketch-1", label: "Receipt ideas" },
+    })
+    expect(screen.getByText("Receipt ideas")).toBeTruthy()
+    expect(screen.getByRole("img", { name: "Working" })).toBeTruthy()
+
+    rerender({ workingChat: undefined })
+    expect(screen.queryByText("Receipt ideas")).toBeNull()
+    expect(screen.queryByRole("img", { name: "Working" })).toBeNull()
+    expect(screen.getByText("Checkout")).toBeTruthy()
+  })
+})

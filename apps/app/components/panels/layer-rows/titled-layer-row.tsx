@@ -10,6 +10,8 @@ import {
 } from "@workspace/ui/components/editable-text"
 import { cn } from "@workspace/ui/lib/utils"
 import { LayerMenu } from "@/components/canvas/layer-menu"
+import { WORKING } from "@/components/canvas/working-chat"
+import { WorkspaceStateGlyph } from "@/components/workspace-mention"
 import { markdownLayerKind } from "@/lib/layer-kinds/markdown-layer"
 import { mockupLayerKind } from "@/lib/layer-kinds/mockup-layer"
 import type { LayerKindDescriptor } from "@/lib/layer-kinds/types"
@@ -48,6 +50,7 @@ function TitledLayerRow<T extends TitledLayer>({
   item,
   variant,
   selected,
+  working,
   onSelect,
   onActivate,
   onRename,
@@ -73,6 +76,14 @@ function TitledLayerRow<T extends TitledLayer>({
     />
   )
 
+  // A chat working on it (#1726): the 9-dot at the row's end, under the ⋯
+  // that covers the end on hover.
+  const workingGlyph = working && (
+    <span role="img" aria-label="Working" className="ml-auto flex shrink-0">
+      <WorkspaceStateGlyph line={WORKING} />
+    </span>
+  )
+
   if (variant === "flat") {
     return (
       <SidebarMenuButton
@@ -93,6 +104,7 @@ function TitledLayerRow<T extends TitledLayer>({
       >
         <Icon className="shrink-0 text-sidebar-foreground/70" />
         {nameEditable}
+        {workingGlyph}
       </SidebarMenuButton>
     )
   }
@@ -116,6 +128,7 @@ function TitledLayerRow<T extends TitledLayer>({
       >
         <Icon className="shrink-0 text-sidebar-foreground/70" />
         {nameEditable}
+        {workingGlyph}
       </button>
     </SidebarMenuSubButton>
   )
