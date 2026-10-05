@@ -87,6 +87,9 @@ export function LayerTitleBar({
   children,
   tag,
 }: LayerTitleBarProps) {
+  // Far out, a label is just the Layer's name: the group label's Workspace
+  // and the name's accessories would crowd the rows of Layers above.
+  const compact = !showsLayerDetail(zoom)
   // Compose the caller's base move-drag handlers with the reorder-request
   // hook. Pointerdown first asks the canvas to lift this layer into a
   // reorder drag (multi-member groups capture the gesture); for single-
@@ -133,14 +136,12 @@ export function LayerTitleBar({
         width: tag ? layerWidth * zoom : undefined,
         marginBottom: 4 / zoom,
       }}
-      // Far out, a label is just the Layer's name: the group label and the
-      // name's accessories would crowd the rows of Layers above.
-      data-compact={showsLayerDetail(zoom) ? undefined : ""}
+      data-compact={compact ? "" : undefined}
       {...labelDragHandlers}
     >
       {groupLabel && !reorderDragPopped && (
         <div
-          className="pointer-events-auto group-data-compact/title-bar:hidden"
+          className="pointer-events-auto"
           style={
             reorderDragTranslateX != null || reorderDragTranslateY != null
               ? {
@@ -155,12 +156,13 @@ export function LayerTitleBar({
         >
           <GroupLabel
             label={groupLabel.label}
-            workspace={groupLabel.workspace}
+            // Far out a group label is just the Group's name, like a Layer's.
+            workspace={compact ? undefined : groupLabel.workspace}
             groupSelected={groupSelected}
             color={groupLabel.remoteSelectedColor}
             onSelectGroup={groupLabel.onSelect}
             onRename={groupLabel.onRename}
-            menu={groupLabel.menu}
+            menu={compact ? undefined : groupLabel.menu}
             dragHandlers={groupLabelDragHandlers}
           />
         </div>

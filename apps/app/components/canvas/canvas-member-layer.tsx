@@ -31,7 +31,7 @@ import type { ElementReference } from "./use-element-reference"
 import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
 import { frameWorkspaceOf } from "./frame-nav"
-import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
+import { hiddenGroupLabels, hiddenLayerLabels } from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
 import { useGoLive } from "./use-go-live"
@@ -244,6 +244,18 @@ function CanvasMemberLayerImpl({
     () => hiddenLayerLabels(effectiveIframeLayerLayouts.values(), zoom),
     [effectiveIframeLayerLayouts, zoom]
   )
+  const groupLabelsHidden = useMemo(() => {
+    const leaders = new Map<string, string>()
+    for (const group of iframeLayerGroups) {
+      const members = getGroupMembers(group)
+      if (members.length > 1) leaders.set(group.id, members[0].id)
+    }
+    return hiddenGroupLabels(
+      effectiveIframeLayerLayouts.values(),
+      leaders,
+      zoom
+    )
+  }, [iframeLayerGroups, effectiveIframeLayerLayouts, zoom])
   // Going live (#1520): the toggle spins until the first picture, and a
   // failure turns the frame back off and says why.
   const liveIds = useMemo(
@@ -362,7 +374,7 @@ function CanvasMemberLayerImpl({
           // The group label, worn by the Group's leftmost member. Every Layer
           // kind hands it to its Layer Shell untouched.
           const groupName =
-            index === 0 && showGroupLabel
+            index === 0 && showGroupLabel && !groupLabelsHidden.has(group.id)
               ? groupDisplayNames.get(group.id)
               : undefined
           const groupLabel: GroupLabelValue | undefined = groupName
