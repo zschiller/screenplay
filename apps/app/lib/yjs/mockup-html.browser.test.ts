@@ -345,9 +345,13 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
     await frame.getByRole("radio", { name: /^B/ }).first().click()
     await frame.getByRole("button", { name: "Pick B" }).click()
     await frame.getByRole("button", { name: "Send to chat" }).click()
-    const posted = (await page.evaluate(
-      "window.posted.filter((m) => /answer|draft/.test(m.type))"
-    )) as { type: string; text?: string }[]
+    const answersAndDrafts = async () =>
+      (await page.evaluate(
+        "window.posted.filter((m) => /answer|draft/.test(m.type))"
+      )) as { type: string; text?: string }[]
+    // The draft's message can land after the click resolves.
+    await expect.poll(async () => (await answersAndDrafts()).length).toBe(2)
+    const posted = await answersAndDrafts()
     expect(posted[0]).toEqual({
       type: "screenplay:question-answer",
       id: "call-1",
