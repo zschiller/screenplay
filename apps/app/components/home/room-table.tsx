@@ -478,7 +478,10 @@ function SortableHead({
           active ? setOrder(order === "asc" ? "desc" : "asc") : setSort(sortKey)
         }
       >
-        {label}
+        {/* Trim the label to its cap height so the button centres the caps,
+            not the font's line box, on the arrow. The line box's centre moves
+            with each platform's font metrics; the cap height doesn't. */}
+        <span className="[text-box:trim-both_cap_alphabetic]">{label}</span>
         {active ? (
           order === "asc" ? (
             <ArrowUpIcon />
