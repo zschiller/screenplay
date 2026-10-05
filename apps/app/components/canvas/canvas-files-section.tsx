@@ -376,7 +376,7 @@ export function FileRow({
       {folder && open && children && (
         // No stock 1px nudge: it adds up level by level and staggers the
         // right-aligned sizes. The margin keeps the guide under the icon.
-        <SidebarMenuSub className="ml-[15px] translate-x-0">
+        <SidebarMenuSub className="ml-[15px] translate-x-0 gap-0 py-0">
           {children}
         </SidebarMenuSub>
       )}

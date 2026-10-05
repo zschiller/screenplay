@@ -302,7 +302,7 @@ export function SkillDialog({
             </Button>
           </div>
         ) : path.endsWith(".md") ? (
-          <ChatMarkdown className="[&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
+          <ChatMarkdown className="prose-headings:text-sm prose-headings:font-semibold">
             {content ?? ""}
           </ChatMarkdown>
         ) : (

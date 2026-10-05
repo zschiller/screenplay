@@ -56,8 +56,9 @@ export function skillSourceLabel(item: SkillMentionItem): string {
 }
 
 /**
- * Suggestion popover for the `/` skill picker. Each row shows the Skill's
- * name, where it comes from, and its description. Picking one fires `command`
+ * Suggestion popover for the `/` skill picker, on the inverted surface like
+ * the app's menus and the @ list. Each row shows the Skill's name, where it
+ * comes from, and its description. Picking one fires `command`
  * with the Skill name as both the mention id and label so the composer
  * inserts a single atomic chip.
  *
@@ -109,7 +110,7 @@ export const SkillMentionList = forwardRef<
         const i = items.findIndex((s) => s.name === name)
         if (i >= 0) setSelected(i)
       }}
-      className="rounded-lg! shadow-md ring-1 ring-foreground/10"
+      className="inverted rounded-lg! shadow-md ring-1 ring-foreground/10"
     >
       <CommandList>
         {/* While the per-Branch index is still loading, say so rather than
