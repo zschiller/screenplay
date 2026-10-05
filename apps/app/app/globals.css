@@ -69,6 +69,8 @@
   --canvas-group-merge: var(--canvas-snap);
   --canvas-comment: oklch(0.88 0.179 95);
   --canvas-plane: oklch(0.975 0 0);
+  /* A frame's empty body: bg-white / dark:bg-neutral-900. */
+  --canvas-frame-body: oklch(1 0 0);
 
   --z-canvas-overlay: 10;
   --z-canvas-annotations: 20;
@@ -86,6 +88,7 @@
   --canvas-highlight: oklch(0.66 0.198 293);
   --canvas-comment: oklch(0.88 0.179 95);
   --canvas-plane: oklch(0.07 0 0);
+  --canvas-frame-body: oklch(0.205 0 0);
 }
 
 @theme inline {

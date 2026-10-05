@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import { FrameStatus, statusScale } from "./frame-status"
+import { FrameStatus } from "./frame-status"
+import { statusTier, type StatusParts } from "./status-fit"
 
 afterEach(cleanup)
 
@@ -32,52 +33,59 @@ describe("FrameStatus on an unanswered frame (#1358)", () => {
   })
 })
 
-describe("FrameStatus zoomed out (I17)", () => {
-  it("counter-scales the block, not the frame's background", () => {
+describe("FrameStatus on the canvas (I17)", () => {
+  const block = (zoom: number, frameWidth = 1440, frameHeight = 900) => {
     const { container } = render(
       <FrameStatus
         stage="booting"
-        zoom={0.25}
-        frameWidth={1440}
-        frameHeight={900}
+        zoom={zoom}
+        frameWidth={frameWidth}
+        frameHeight={frameHeight}
       />
     )
     const root = container.firstElementChild as HTMLElement
     expect(root.style.transform).toBe("")
-    const block = root.querySelector<HTMLElement>(
-      "[data-slot=frame-status-block]"
-    )
-    expect(block?.style.transform).toBe("scale(2.5)")
+    return root.querySelector<HTMLElement>("[data-slot=frame-status-block]")!
+  }
+
+  it("counter-scales the block, not the frame's background, zoomed out", () => {
+    expect(block(0.25).style.transform).toBe("scale(4)")
   })
 
-  it("scales with the canvas at 100% and closer", () => {
-    const { container } = render(
-      <FrameStatus
-        stage="booting"
-        zoom={2}
-        frameWidth={1440}
-        frameHeight={900}
-      />
-    )
-    const block = container.querySelector<HTMLElement>(
-      "[data-slot=frame-status-block]"
-    )
-    expect(block?.style.transform).toBe("")
+  it("keeps its UI size zoomed in too", () => {
+    expect(block(2).style.transform).toBe("scale(0.5)")
+  })
+
+  it("is 1:1 at 100% and without a frame size", () => {
+    expect(block(1).style.transform).toBe("")
+    expect(block(0.5, 0, 0).style.transform).toBe("")
   })
 })
 
-describe("statusScale", () => {
-  it("is 1/zoom while the frame has room", () => {
-    expect(statusScale(0.5, 1440, 1080)).toBe(2)
+describe("statusTier", () => {
+  // A block 320 × 180: 40 of description, 40 of buttons, a 32px icon.
+  const parts: StatusParts = {
+    width: 320,
+    height: 180,
+    description: 40,
+    actions: 40,
+    bareWidth: 160,
+    icon: 32,
+  }
+
+  it("shows the whole block with 24px clear to the edges", () => {
+    expect(statusTier(parts, 368, 228)).toBe("full")
+    expect(statusTier(parts, 367, 228)).not.toBe("full")
   })
 
-  it("is capped by the frame's size", () => {
-    expect(statusScale(0.1, 1440, 900)).toBe(2.5)
-    expect(statusScale(0.1, 960, 2000)).toBe(2)
+  it("drops the description, then the buttons, then the title", () => {
+    expect(statusTier(parts, 300, 188)).toBe("no-description")
+    expect(statusTier(parts, 300, 148)).toBe("title")
+    expect(statusTier(parts, 200, 100)).toBe("icon")
+    expect(statusTier(parts, 40, 40)).toBe("none")
   })
 
-  it("never shrinks the block", () => {
-    expect(statusScale(1.5, 1440, 900)).toBe(1)
-    expect(statusScale(0.5, 480, 320)).toBe(1)
+  it("never shrinks: a narrow frame drops parts instead", () => {
+    expect(statusTier(parts, 200, 2000)).toBe("icon")
   })
 })

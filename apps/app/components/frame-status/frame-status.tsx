@@ -23,7 +23,7 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { useLiveZoom } from "@/components/canvas/live-zoom"
+import { STATUS_BLOCK, STATUS_HIDE, useStatusFit } from "./status-fit"
 
 import type { FrameStage } from "./frame-stage"
 
@@ -40,8 +40,8 @@ export interface FrameStatusProps {
   onOpenLogs?: () => void
   /** Start a chat on an unanswered frame: reopen its ask card (#1358). */
   onStartChat?: () => void
-  /** The canvas zoom and the frame's size, on the canvas. Zoomed out, the
-   *  screen counter-scales to stay readable (see `statusScale`). */
+  /** The canvas zoom and the frame's size, on the canvas. The block keeps its
+   *  UI size at every zoom and drops what doesn't fit (see `useStatusFit`). */
   zoom?: number
   frameWidth?: number
   frameHeight?: number
@@ -76,34 +76,6 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
   },
 }
 
-/** The smallest box the status block scales into, as if the frame were this
- *  size. Wider than its widest content (`max-w-sm`, 384px) so the block always
- *  keeps clear space to the frame's edges. */
-const MIN_BOX = { width: 480, height: 360 }
-
-/**
- * How much the status block scales up on a zoomed-out canvas: by 1/zoom, so
- * it keeps its normal on-screen size, like a frame's label. Capped by the
- * frame's size, so the block never lays out in less than `MIN_BOX` and a small
- * frame shrinks it rather than clipping it. 1 at 100% and closer.
- */
-export function statusScale(
-  zoom: number,
-  frameWidth: number,
-  frameHeight: number
-): number {
-  if (!(zoom > 0)) return 1
-  return Math.max(
-    1,
-    Math.min(1 / zoom, frameWidth / MIN_BOX.width, frameHeight / MIN_BOX.height)
-  )
-}
-
-/** The counter-scale as a transform; none at 1. */
-function scaleTransform(scale: number) {
-  return scale > 1 ? `scale(${scale})` : ""
-}
-
 /**
  * The one status screen a frame shows in place of its preview (issue #731), on
  * the canvas and in the prototype player alike: which stage the Workspace is
@@ -113,9 +85,12 @@ function scaleTransform(scale: number) {
  * activity only. The root is pointer-transparent so a frame on the canvas still
  * drags and selects through it; only the buttons take the pointer.
  *
- * Zoomed out, the block counter-scales about the frame's centre so it stays
- * readable (I17), while the background still covers the frame. It follows the
- * live zoom through a gesture, so it never jumps.
+ * On the canvas the block stays at UI size at every zoom, like the frame's
+ * label, while the background still covers the frame (I17). A frame too small
+ * on screen for all of it drops the description, then the buttons, then the
+ * title, rather than shrinking it, so side by side every frame's block reads
+ * at the same size. It lays out at a fixed width, so it never wraps to the
+ * frame's.
  */
 export function FrameStatus({
   stage,
@@ -135,17 +110,19 @@ export function FrameStatus({
   const retry = failed ? onRetry : stage === "stopped" ? onStart : undefined
   const logs = failed ? onOpenLogs : undefined
   const startChat = stage === "unassigned" ? onStartChat : undefined
-  const scale = statusScale(zoom, frameWidth, frameHeight)
+  const description =
+    stage === "workspace-failed" && detail
+      ? detail
+      : (progress || stage === "unassigned") && detail
+        ? detail
+        : copy.description
 
-  // The `zoom` prop lands only when a zoom gesture settles; mid-gesture the
-  // live zoom restyles the block directly, so it holds its size instead of
-  // snapping at the end of each step. A transform alone never relayouts, and
-  // only a changed one is written.
   const blockRef = useRef<HTMLDivElement | null>(null)
-  useLiveZoom((live) => {
-    const el = blockRef.current
-    const next = scaleTransform(statusScale(live, frameWidth, frameHeight))
-    if (el && el.style.transform !== next) el.style.transform = next
+  useStatusFit(blockRef, {
+    zoom,
+    width: frameWidth,
+    height: frameHeight,
+    contentKey: [stage, description, !!retry, !!logs, !!startChat].join("|"),
   })
 
   return (
@@ -159,8 +136,7 @@ export function FrameStatus({
       <div
         ref={blockRef}
         data-slot="frame-status-block"
-        className="flex flex-col items-center gap-3"
-        style={{ transform: scaleTransform(scale) }}
+        className={cn("flex flex-col items-center gap-3", STATUS_BLOCK)}
       >
         <EmptyHeader>
           <EmptyMedia variant="icon" className="mb-1">
@@ -177,22 +153,24 @@ export function FrameStatus({
               <FrameCornersIcon className="text-muted-foreground" />
             )}
           </EmptyMedia>
-          <EmptyTitle>{copy.title}</EmptyTitle>
-          {stage === "workspace-failed" && detail ? (
-            <EmptyDescription className="line-clamp-3 font-mono text-sm break-words">
-              {detail}
-            </EmptyDescription>
-          ) : (
-            <EmptyDescription>
-              {(progress || stage === "unassigned") && detail
-                ? detail
-                : copy.description}
-            </EmptyDescription>
-          )}
+          <EmptyTitle className={STATUS_HIDE.title}>{copy.title}</EmptyTitle>
+          <EmptyDescription
+            className={cn(
+              STATUS_HIDE.description,
+              stage === "workspace-failed" &&
+                detail &&
+                "line-clamp-3 font-mono text-sm break-words"
+            )}
+          >
+            {description}
+          </EmptyDescription>
         </EmptyHeader>
         {(retry || logs || startChat) && (
           <EmptyContent
-            className="pointer-events-auto w-auto flex-row justify-center gap-2"
+            className={cn(
+              "pointer-events-auto w-auto flex-row justify-center gap-2",
+              STATUS_HIDE.actions
+            )}
             // Keep the press on the button: the canvas would otherwise read it as
             // a select or the start of a drag on the frame underneath.
             onPointerDown={(e) => e.stopPropagation()}
