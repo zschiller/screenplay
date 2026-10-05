@@ -7,7 +7,6 @@ import {
   type MentionItem,
   type MentionListHandle,
 } from "@/components/agent/mention-list"
-import type { MarkdownLayerData } from "@/lib/types"
 
 /**
  * Item shape passed into the suggestion popover. `kind` is preserved on the
@@ -17,20 +16,13 @@ import type { MarkdownLayerData } from "@/lib/types"
 export type LayerMentionItem = MentionItem
 
 /**
- * Build a TipTap Mention `suggestion` config listing documents on the
- * canvas. Both the agent chat input and the markdown body editor wire `@`
- * to this so a single picker covers every chat-targetable layer kind. A
- * Document's body also lists the canvas's chats and mockups.
+ * Build a TipTap Mention `suggestion` config over the given candidates
+ * (`mentionCandidates` / `useMentionCandidates`, already in registry order).
+ * The agent chat input lists documents; a Document's body lists every kind.
  */
 export function buildLayerMentionSuggestion(opts: {
-  getMarkdownLayers: () => MarkdownLayerData[]
-  /** Optional: the chats and mockups to list after the documents. */
-  getOtherItems?: () => MentionItem[]
-  /**
-   * Optional: a layer id to exclude from the candidate list — a doc
-   * shouldn't be able to @-mention itself.
-   */
-  getExcludeId?: () => string | undefined
+  /** What to offer, every kind in registry order. */
+  getItems: () => MentionItem[]
   /**
    * Optional anchor element for clamping the popover horizontally so it
    * doesn't escape the chat panel / document tile bounds.
@@ -56,18 +48,9 @@ export function buildLayerMentionSuggestion(opts: {
     char: "@",
     items: ({ query }) => {
       const q = query.toLowerCase()
-      const exclude = opts.getExcludeId?.()
-      const docs: LayerMentionItem[] = opts
-        .getMarkdownLayers()
-        .filter((d) => d.id !== exclude)
-        .map((d) => ({
-          kind: "markdown-layer" as const,
-          id: d.id,
-          label: d.title || "Untitled",
-        }))
       // Up to 12 of each kind, so many documents never hide the rest.
       const perKind = new Map<string, number>()
-      return [...docs, ...(opts.getOtherItems?.() ?? [])].filter((item) => {
+      return opts.getItems().filter((item) => {
         if (!item.label.toLowerCase().includes(q)) return false
         const n = perKind.get(item.kind) ?? 0
         perKind.set(item.kind, n + 1)

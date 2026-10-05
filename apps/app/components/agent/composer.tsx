@@ -31,6 +31,7 @@ import StarterKit from "@tiptap/starter-kit"
 import Mention from "@tiptap/extension-mention"
 import { mergeAttributes, Node, type JSONContent } from "@tiptap/core"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
+import { mentionCandidates } from "@/lib/mention-kinds"
 import { buildSkillMentionSuggestion } from "@/lib/skill-mention-suggestion"
 import type { SkillMenuItem } from "@/lib/skills-store"
 import {
@@ -769,7 +770,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
             // render — so the ref reads are deferred and safe here.
             // eslint-disable-next-line react-hooks/refs
             buildLayerMentionSuggestion({
-              getMarkdownLayers: () => markdownLayersRef.current,
+              getItems: () =>
+                mentionCandidates({ documents: markdownLayersRef.current }),
               getAnchorRect: () =>
                 editorContainerRef.current?.getBoundingClientRect() ?? null,
               getInputBoxRect: inputBoxRect,

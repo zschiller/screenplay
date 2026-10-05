@@ -9,7 +9,7 @@ import {
   type MentionListHandle,
 } from "./mention-list"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
-import type { MarkdownLayerData } from "@/lib/types"
+import { mentionCandidates } from "@/lib/mention-kinds"
 
 /**
  * The `@` list: documents, then (in a Document) chats and mockups, each kind
@@ -62,35 +62,15 @@ describe("MentionList", () => {
 })
 
 describe("buildLayerMentionSuggestion", () => {
-  const doc = (id: string, title: string) =>
-    ({ id, title }) as MarkdownLayerData
-
-  const itemsFor = (
-    query: string,
-    opts: Partial<Parameters<typeof buildLayerMentionSuggestion>[0]> = {}
-  ) =>
-    buildLayerMentionSuggestion({
-      getMarkdownLayers: () => [doc("d1", "Pricing notes"), doc("d2", "Brief")],
-      ...opts,
-    })!.items!({
+  const itemsFor = (query: string, items: MentionItem[] = ITEMS) =>
+    buildLayerMentionSuggestion({ getItems: () => items })!.items!({
       query,
       editor: null as never,
       signal: new AbortController().signal,
     }) as MentionItem[]
 
-  it("lists only documents when nothing else is passed, as the composer does", () => {
-    expect(itemsFor("").map((i) => i.kind)).toEqual([
-      "markdown-layer",
-      "markdown-layer",
-    ])
-  })
-
-  it("lists the other items after the documents, all narrowed by the query", () => {
-    const items = itemsFor("o", {
-      getExcludeId: () => "d2",
-      getOtherItems: () => ITEMS.slice(1),
-    })
-    expect(items.map((i) => i.label)).toEqual([
+  it("lists the candidates in order, all narrowed by the query", () => {
+    expect(itemsFor("o").map((i) => i.label)).toEqual([
       "Pricing notes",
       "Checkout polish",
       "Option A · Illustrated",
@@ -98,11 +78,13 @@ describe("buildLayerMentionSuggestion", () => {
   })
 
   it("keeps up to 12 of each kind, so many documents never hide the rest", () => {
-    const docs = Array.from({ length: 20 }, (_, i) => doc(`d${i}`, `Doc ${i}`))
-    const items = itemsFor("", {
-      getMarkdownLayers: () => docs,
-      getOtherItems: () => ITEMS.slice(3),
+    const docs = mentionCandidates({
+      documents: Array.from({ length: 20 }, (_, i) => ({
+        id: `d${i}`,
+        title: `Doc ${i}`,
+      })),
     })
+    const items = itemsFor("", [...docs, ...ITEMS.slice(3)])
     expect(items).toHaveLength(13)
     expect(items.at(-1)?.kind).toBe("mockup-layer")
   })
