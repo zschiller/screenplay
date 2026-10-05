@@ -368,8 +368,8 @@ function ToolContentBlock({
       >
         <ChatMarkdown
           tone="default"
-          size="xs"
-          className="[&_h1]:text-xs [&_h1]:font-semibold [&_h2]:text-xs [&_h2]:font-semibold [&_h3]:text-xs [&_li]:my-0 [&_ol]:my-1 [&_p]:my-1 [&_ul]:my-1"
+          size="sm"
+          className="[&_h1]:text-sm [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-sm [&_li]:my-0 [&_ol]:my-1 [&_p]:my-1 [&_ul]:my-1"
         >
           {text}
         </ChatMarkdown>
@@ -380,7 +380,7 @@ function ToolContentBlock({
     return (
       <div
         data-testid="tool-content-text"
-        className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 text-xs text-foreground`}
+        className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 text-sm text-foreground`}
       >
         {text}
       </div>
@@ -570,15 +570,15 @@ function ToolCallRow({
     <Spinner
       data-testid="tool-call-spinner"
       aria-label="Running"
-      className="size-3 shrink-0"
+      className="size-4 shrink-0"
     />
   ) : failed ? (
     <WarningCircleIcon
       aria-label="Failed"
-      className="size-3 shrink-0 text-destructive"
+      className="size-4 shrink-0 text-destructive"
     />
   ) : (
-    <RowIcon aria-hidden className="size-3 shrink-0" />
+    <RowIcon aria-hidden className="size-4 shrink-0" />
   )
   const headerProps = {
     "data-testid": "tool-call",
@@ -601,7 +601,7 @@ function ToolCallRow({
         ) : (
           <p
             data-testid="tool-call-no-reason"
-            className="px-2 py-1.5 text-xs text-destructive"
+            className="px-2 py-1.5 text-sm text-destructive"
           >
             The tool failed without reporting a reason.
           </p>
@@ -693,14 +693,14 @@ export function TaskGroup({
         icon={
           anyRunning ? (
             // A running Task is a subagent at work: LLM activity, so the grid.
-            <GripSpinner className="size-3 shrink-0" />
+            <GripSpinner className="size-4 shrink-0" />
           ) : anyFailed ? (
             <WarningCircleIcon
               aria-label="Failed"
-              className="size-3 shrink-0 text-destructive"
+              className="size-4 shrink-0 text-destructive"
             />
           ) : (
-            <RobotIcon aria-hidden className="size-3 shrink-0" />
+            <RobotIcon aria-hidden className="size-4 shrink-0" />
           )
         }
         title={renderTitleWithCode(task.title)}
@@ -744,14 +744,14 @@ export function FrameDriveGroup({
       onOpenChange={setExpanded}
       icon={
         running ? (
-          <Spinner aria-label="Running" className="size-3 shrink-0" />
+          <Spinner aria-label="Running" className="size-4 shrink-0" />
         ) : failed ? (
           <WarningCircleIcon
             aria-label="Failed"
-            className="size-3 shrink-0 text-destructive"
+            className="size-4 shrink-0 text-destructive"
           />
         ) : (
-          <CursorIcon aria-hidden className="size-3 shrink-0" />
+          <CursorIcon aria-hidden className="size-4 shrink-0" />
         )
       }
       title={
@@ -798,7 +798,7 @@ export function TurnSummaryRow({
     >
       <CollapsibleTrigger
         data-testid="turn-summary-trigger"
-        className="group/summary flex max-w-full min-w-0 items-start gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="group/summary flex max-w-full min-w-0 items-start gap-1.5 rounded-md py-0.5 pr-1 text-left text-sm leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <CaretRightIcon
           aria-hidden
@@ -905,7 +905,7 @@ function PlanMessage({
       collapsible={isRejected}
       open={expanded}
       onOpenChange={setExpanded}
-      icon={<ClipboardTextIcon aria-hidden className="size-3 shrink-0" />}
+      icon={<ClipboardTextIcon aria-hidden className="size-4 shrink-0" />}
       title={
         <span className="flex items-center gap-2">
           <span className="font-medium">Plan</span>
@@ -975,10 +975,10 @@ function ReasoningMessage({
     <ChatDisclosure
       open={expanded}
       onOpenChange={setExpanded}
-      icon={<LightbulbIcon aria-hidden className="size-3 shrink-0" />}
+      icon={<LightbulbIcon aria-hidden className="size-4 shrink-0" />}
       title="Reasoning"
     >
-      <ChatMarkdown tone="muted" size="xs" className="px-2 py-1.5">
+      <ChatMarkdown tone="muted" size="sm" className="px-2 py-1.5">
         {message.content}
       </ChatMarkdown>
     </ChatDisclosure>
@@ -1133,7 +1133,7 @@ function DelegatedMessage({
       onOpenChange={setExpanded}
       data-testid="delegated-message"
     >
-      <CollapsibleTrigger className="group/delegated flex max-w-full min-w-0 items-center gap-1.5 rounded-md py-0.5 pr-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+      <CollapsibleTrigger className="group/delegated flex max-w-full min-w-0 items-center gap-1.5 rounded-md py-0.5 pr-1 text-left text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
         <CaretRightIcon
           aria-hidden
           className="size-3 shrink-0 transition-transform group-data-[state=open]/delegated:rotate-90"

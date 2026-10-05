@@ -10,7 +10,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 
 const HEADER_CLASS =
-  "flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground"
+  "flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm text-muted-foreground"
 
 /**
  * The one expand/collapse section the chat transcript uses: reasoning, a

@@ -541,7 +541,7 @@ function PaneTab({
           MOTION,
           open
             ? cn("text-sm", terminal.kind === "shell" && "min-w-[100px]")
-            : "min-w-0 text-xs font-normal data-active:text-muted-foreground group-data-[variant=line]/tabs-list:data-active:after:opacity-0 dark:data-active:text-muted-foreground"
+            : "min-w-0 text-sm font-normal data-active:text-muted-foreground group-data-[variant=line]/tabs-list:data-active:after:opacity-0 dark:data-active:text-muted-foreground"
         )}
       >
         {terminal.kind === "dev-server" ? (

@@ -1307,7 +1307,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           <EditorContent editor={editor} className="w-full" />
           <InputGroupAddon align="block-end" className="gap-0.5">
             {modelsStatus === "failed" ? (
-              <span className="flex items-center gap-1 pl-0.75 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1 pl-0.75 text-sm text-muted-foreground">
                 Couldn’t load models.
                 <InputGroupButton
                   size="sm"
@@ -1318,7 +1318,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 </InputGroupButton>
               </span>
             ) : noAgents ? (
-              <span className="pl-0.75 text-xs text-muted-foreground">
+              <span className="pl-0.75 text-sm text-muted-foreground">
                 {isLocalBuild ? (
                   <>
                     No coding agent found. Install Claude Code or Codex in{" "}
