@@ -76,6 +76,11 @@ export interface ProvisionRequest {
   envVars?: string
   /** Progress reporting — one human-readable message per step as it starts. */
   onStatus?: (message: string) => Promise<void> | void
+  /**
+   * The checkout is there and git is configured: the agent can start while
+   * the dependency install and the dev server, which come next, finish.
+   */
+  onCodeReady?: (sandboxName: string) => Promise<void> | void
 }
 
 export type ProvisionResult = SandboxActionResult<{
@@ -85,8 +90,9 @@ export type ProvisionResult = SandboxActionResult<{
 
 /**
  * Provision a Branch's Sandbox end to end: make sure its git branch exists,
- * create the Sandbox from the right source, run the Repo's setup alongside the
- * harness + ripgrep installs, launch the dev server, and configure git. Returns
+ * create the Sandbox from the right source, configure git (then `onCodeReady`:
+ * the agent can start), run the Repo's setup alongside the harness + ripgrep
+ * installs, and launch the dev server. Returns
  * the running Sandbox's name and preview domain, or the first load-bearing
  * step's (redacted) failure. The harness and ripgrep installs are best-effort
  * and never fail provisioning.
@@ -204,7 +210,14 @@ export async function provisionSandbox(
   if (!created.success) return created
   const name = created.value
 
-  // Step 3: setup + the selected harnesses + ripgrep in parallel. Only setup is
+  // Step 3: git identity / remote / upstream. It needs only the checkout, so
+  // it runs before the slow steps: from here the agent can work on the code.
+  await report("Configuring git…")
+  const git = await configureAgentGit(name, repo, branch)
+  if (!git.success) return git
+  await req.onCodeReady?.(name)
+
+  // Step 4: setup + the selected harnesses + ripgrep in parallel. Only setup is
   // load-bearing: `installHarnesses` logs and swallows a failed CLI, and
   // ripgrep's result is ignored. Harness keys come from SANDBOX_HARNESSES.
   await report("Installing dependencies…")
@@ -215,7 +228,7 @@ export async function provisionSandbox(
   ])
   if (!setup.success) return setup
 
-  // Step 4: dev server + bridge proxy.
+  // Step 5: dev server + bridge proxy.
   await report("Starting dev server…")
   const server = await startDevServer(
     name,
@@ -224,11 +237,6 @@ export async function provisionSandbox(
     env
   )
   if (!server.success) return server
-
-  // Step 5: git identity / remote / upstream.
-  await report("Configuring git…")
-  const git = await configureAgentGit(name, repo, branch)
-  if (!git.success) return git
 
   return {
     success: true,

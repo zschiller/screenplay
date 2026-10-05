@@ -363,13 +363,32 @@ describe("send_to_workspace", () => {
     const result = await send({ workspace_id: "ws-1", message: "Make it pink" })
 
     expect(result).toContain('Queued for "New chat" [chat chat-1]')
-    // Sent by provisioning once the sandbox runs, not now.
+    // Sent by provisioning once the code is checked out, not now.
     expect(launched).toEqual([])
     expect(collections.branches.get("ws-1")?.pendingSeed).toEqual({
       chatId: "chat-1",
       message: "Make it pink",
       coordinatorChatId: expect.any(String),
     })
+  })
+
+  it("sends straight to a Workspace still setting up once its code is checked out", async () => {
+    const { collections, launched, send } = sendHarness()
+    collections.branches.set(
+      "ws-1",
+      baseBranch("ws-1", { status: "creating", codeReady: true })
+    )
+    collections.chatSessions.set(
+      "chat-1",
+      baseChat("chat-1", { branchId: "ws-1" })
+    )
+
+    await send({ workspace_id: "ws-1", message: "Make it pink" })
+
+    expect(launched).toEqual([
+      expect.objectContaining({ chatId: "chat-1", message: "Make it pink" }),
+    ])
+    expect(collections.branches.get("ws-1")?.pendingSeed).toBeUndefined()
   })
 
   it("queues the message in the Workspace’s one chat and returns", async () => {
@@ -819,7 +838,7 @@ describe("open_pull_request and remove_workspace (#901, #1217)", () => {
       repoName: undefined,
     })
     expect(await call(ports, "open_pull_request", "ws-1")).toBe(
-      "\"Fix sign-in redirect\" isn’t in a GitHub repository, so it can’t have a pull request."
+      '"Fix sign-in redirect" isn’t in a GitHub repository, so it can’t have a pull request.'
     )
     expect(opened).toEqual([])
     expect(deleted).toEqual([])

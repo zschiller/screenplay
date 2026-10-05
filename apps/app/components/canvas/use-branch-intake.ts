@@ -15,6 +15,7 @@ import {
 } from "unique-names-generator"
 
 import { withBasePath } from "@/lib/base-path"
+import { agentCanStart } from "@/lib/branch/workspace-state"
 import { chatStore } from "@/lib/chat-store"
 import { dispatchPrompt } from "@/lib/chat/agent-prompt"
 import { deleteBranch } from "@/lib/github-actions"
@@ -273,7 +274,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   // nothing queued). Non-empty prompt (#324) -> the full seeded path: a Branch
   // name derived from the prompt, a Chat Session pre-seeded with the chosen
   // model, and the prompt queued to fire as the first message exactly once the
-  // Sandbox reaches `running`. The fired body is the Composer's Message-Markers
+  // agent can start (its code is checked out). The fired body is the Composer's Message-Markers
   // wire text, so model, plan-mode, `@`-Layer mentions, and `/`-Skills all ride
   // through unchanged. A non-default base derives `flow:"duplicate-branch"`
   // (#325); the chosen base rides along as the source the server forks from.
@@ -399,7 +400,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           })
 
           // Queue the seed prompt; the dispatch effect below fires it exactly
-          // once, when the Sandbox reaches `running` (and drops it on error).
+          // once, when the agent can start (its code is checked out).
           if (plan.firePromptOnRunning && chatId) {
             pendingPromptsRef.current.set(id, {
               chatId,
@@ -491,8 +492,9 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   )
 
   // Dispatch prompts queued by the prompt-first create handler (createBranch)
-  // once their agent's sandbox reaches `running`. Deleting the entry before
-  // sending means the prompt fires exactly once — never before `running`, and
+  // once their agent can start: its code is checked out (`agentCanStart`), with
+  // the install and dev server still finishing. Deleting the entry before
+  // sending means the prompt fires exactly once — never before then, and
   // never re-sent on a later reconnect. A failed setup keeps its entry, so the
   // prompt fires once Retry or Recreate brings the Sandbox up (#791); the
   // entry goes when its Workspace is deleted.
@@ -505,8 +507,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
     for (const agent of agents) {
       const queued = pendingPromptsRef.current.get(agent.id)
       if (!queued) continue
-      if (agent.status !== "running" || !agent.sandboxName || !agent.ref)
-        continue
+      if (!agentCanStart(agent) || !agent.sandboxName || !agent.ref) continue
       pendingPromptsRef.current.delete(agent.id)
       // The seed fires through the shared Agent-prompt dispatch. Its Chat
       // Session already exists (created in the same transaction as the Branch),

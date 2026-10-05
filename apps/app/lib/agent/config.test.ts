@@ -104,6 +104,17 @@ describe("buildAgentSystemPrompt — skills block", () => {
   })
 })
 
+describe("a turn that starts while the Workspace sets up", () => {
+  it("says the install and dev server are still finishing, only then", () => {
+    const base = { layerDirectory: EMPTY_DIRECTORY, skills: APP_SKILLS }
+    const early = buildAgentSystemPrompt({ ...base, settingUp: true })
+
+    expect(early).toContain("Workspace setup:")
+    expect(early).toContain("`read_dev_server_logs`")
+    expect(buildAgentSystemPrompt(base)).not.toContain("Workspace setup:")
+  })
+})
+
 describe("tool names per engine (#1223)", () => {
   const ROOM_TOOLS = [
     "read_canvas",

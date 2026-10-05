@@ -395,6 +395,11 @@ export function buildAgentSystemPrompt(opts: {
   accountFiles?: readonly FileEntryData[] | null
   /** Where a harness reads the saved files on disk (#1524). */
   contextFolder?: string | null
+  /**
+   * The Workspace's code is checked out but its install and dev server are
+   * still finishing (`codeReady`): the turn started early.
+   */
+  settingUp?: boolean
   toolNaming?: ToolNaming
 }): string {
   const { repoSystemPrompt, layerDirectory, skills, memory } = opts
@@ -418,6 +423,9 @@ export function buildAgentSystemPrompt(opts: {
   const repoBlock = repoSystemPrompt?.trim()
     ? `\n\nWorkspace context:\n${repoSystemPrompt.trim()}`
     : ""
+  const settingUpBlock = opts.settingUp
+    ? `\n\nWorkspace setup: the code is checked out, but dependencies are still installing and the dev server hasn’t started. Read and change code now. Don’t install dependencies or start the dev server yourself, and hold off on builds, tests and previews until \`${t("read_dev_server_logs")}\` says the dev server is running.`
+    : ""
   const directoryBlock = renderLayerDirectory(layerDirectory, t, opts.chatId)
   const accountBlock = renderAccountMemory(opts.accountMemory)
   const memoryBlock = renderCanvasMemory(memory)
@@ -431,6 +439,7 @@ export function buildAgentSystemPrompt(opts: {
     skillsBlock +
     agentSystemPromptTail(naming) +
     repoBlock +
+    settingUpBlock +
     `\n\n${renderMemorySaving(t, opts.accountMemory)}` +
     (accountBlock ? `\n${accountBlock}` : "") +
     (memoryBlock ? `\n${memoryBlock}` : "") +

@@ -121,6 +121,33 @@ export function workspaceSettingUp(branch: StatusLineBranch): boolean {
   )
 }
 
+/**
+ * Whether the Workspace's agent can take a turn: its sandbox runs, or it's
+ * still setting up but its code is checked out (the install and dev server
+ * finish behind the agent).
+ */
+export function agentCanStart(
+  branch: Pick<BranchData, "status" | "codeReady">
+): boolean {
+  return (
+    branch.status === "running" ||
+    (branch.status === "creating" && branch.codeReady === true)
+  )
+}
+
+/**
+ * Whether the Workspace is still setting up with nothing for its agent yet:
+ * creating before its code is checked out, or starting.
+ */
+export function workspaceBooting(
+  branch: Pick<BranchData, "status" | "codeReady">
+): boolean {
+  return (
+    (branch.status === "creating" || branch.status === "starting") &&
+    !agentCanStart(branch)
+  )
+}
+
 /** The Workspaces with a plan waiting for approval, from the room's plans. */
 function planPendingBranchIds(
   plans: readonly Pick<PlanData, "branchId" | "status">[]

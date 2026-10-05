@@ -32,6 +32,11 @@ To watch it happen, open **Dev server** under the workspace’s composer (see
 [Terminals](/guides/agent#terminals)). When the server is up, the frame shows
 the app.
 
+The agent doesn’t wait for all of that. As soon as the branch is checked out,
+it starts on your first message, reading and changing code (or sketching a
+mockup) while the setup script and dev server finish. It holds off on
+installs, builds, tests and previews until the dev server is running.
+
 Every chat starts on a branch of its own, so two agents never push to the
 same branch. To build on a branch that already exists, ask the Coordinator to
 start a chat from it: the new chat starts from that branch on a new one.
