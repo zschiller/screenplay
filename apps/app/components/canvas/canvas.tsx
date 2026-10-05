@@ -1799,11 +1799,16 @@ export function Canvas({
       drawTool,
       getWrapper: () => canvasWrapperRef.current,
       getMoveAssembly: buildMoveAssembly,
-      getIframeLayerSize: (id) => {
-        const a = collections.iframeLayers.get(id)
+      getResizeLayerSize: (id) => {
+        // Frames and Mockups both resize through the device snap.
+        const a =
+          collections.iframeLayers.get(id) ?? collections.mockupLayers.get(id)
         return a ? { width: a.width, height: a.height } : null
       },
-      markFrameDirty: (id) => captureTracker.markDirty(id),
+      markFrameDirty: (id) => {
+        // Only frames have captures to retake.
+        if (collections.iframeLayers.get(id)) captureTracker.markDirty(id)
+      },
       clearLayerHover: () => setHoveredIframeLayerId(null),
     }
   })
