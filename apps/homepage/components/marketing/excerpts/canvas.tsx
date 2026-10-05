@@ -75,23 +75,25 @@ export function WorkspaceGlyph({
   if (state === "ready") {
     return <CircleIcon className={cn("size-3 shrink-0", className)} />
   }
+  // HTML spans masked to a dot rather than SVG circles: browsers animate their
+  // opacity off the main thread, so the hero's cursor sim can't stall the
+  // shimmer (as in the app's GripSpinner).
   return (
-    <svg
-      viewBox="0 0 24 24"
+    <span
       aria-hidden
-      className={cn("size-3 shrink-0 fill-current", className)}
+      className={cn("relative inline-block size-3 shrink-0", className)}
     >
       {DOTS.map(([cx, cy], i) => (
-        <circle
+        <span
           key={i}
-          cx={cx}
-          cy={cy}
-          r={2}
-          className="grip-dot"
-          style={{ animationDelay: `${-((i * 7) % 9) * 0.21}s` }}
+          className="grip-dot absolute inset-0 bg-current"
+          style={{
+            mask: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='${cx}' cy='${cy}' r='2'/%3E%3C/svg%3E") 0 0 / 100% 100%`,
+            animationDelay: `${-((i * 7) % 9) * 0.21}s`,
+          }}
         />
       ))}
-    </svg>
+    </span>
   )
 }
 
