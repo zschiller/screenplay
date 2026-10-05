@@ -49,19 +49,13 @@ import Placeholder from "@tiptap/extension-placeholder"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useDocumentFragment, useRoomId, useYjs } from "@/lib/yjs/context"
-import { useCanvasFiles, useMarkdownLayers } from "@/lib/yjs/react"
+import { useCanvasFiles } from "@/lib/yjs/react"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { DOCUMENT_BLOCK_TYPES } from "@/lib/document-block-types"
-import {
-  MENTION_ICON_MASK,
-  useChatAndMockupMentions,
-} from "@/lib/document-mentions"
-import {
-  DocumentMention,
-  documentExtensions,
-  mentionKindOf,
-} from "@/lib/document-markdown"
+import { useMentionCandidates } from "@/lib/document-mentions"
+import { DocumentMention, documentExtensions } from "@/lib/document-markdown"
+import { MENTION_KIND_REGISTRY, mentionKindOf } from "@/lib/mention-kinds"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { DocumentImageNodeView } from "@/components/canvas/document-image-node"
 import {
@@ -521,10 +515,8 @@ export function MarkdownLayer({
   // Mention suggestion needs the live layer lists every keystroke, but the
   // editor closes over its initial config. Funnel through refs so the
   // popover always reflects the current titles and excludes self-references.
-  const markdownLayers = useMarkdownLayers()
-  const markdownLayersRef = useRef<MarkdownLayerData[]>(markdownLayers)
-  const otherMentions = useChatAndMockupMentions()
-  const otherMentionsRef = useRef(otherMentions)
+  const mentionItems = useMentionCandidates({ excludeId: layer.id })
+  const mentionItemsRef = useRef(mentionItems)
   const layerIdRef = useRef(layer.id)
 
   // Title cache lives on `MarkdownLayerData.title` — sidebar rows, mentions,
@@ -538,8 +530,7 @@ export function MarkdownLayer({
   // The editor closes over its initial config, so these refs are how the
   // mention popover and title-writeback see current values every keystroke.
   useEffect(() => {
-    markdownLayersRef.current = markdownLayers
-    otherMentionsRef.current = otherMentions
+    mentionItemsRef.current = mentionItems
     layerIdRef.current = layer.id
     onTitleChangeRef.current = onTitleChange
     titleCacheRef.current = layer.title
@@ -606,7 +597,7 @@ export function MarkdownLayer({
                 {
                   ...options.HTMLAttributes,
                   "data-inline-ref-mask":
-                    MENTION_ICON_MASK[mentionKindOf(node.attrs.kind)],
+                    MENTION_KIND_REGISTRY[mentionKindOf(node.attrs.kind)].mask,
                 },
                 ["span", { class: "inline-ref-label" }, label],
               ]
@@ -618,9 +609,7 @@ export function MarkdownLayer({
             // closures are deferred past render, so it's suppressed here.
             // eslint-disable-next-line react-hooks/refs
             suggestion: buildLayerMentionSuggestion({
-              getMarkdownLayers: () => markdownLayersRef.current,
-              getOtherItems: () => otherMentionsRef.current,
-              getExcludeId: () => layerIdRef.current,
+              getItems: () => mentionItemsRef.current,
               below: true,
               getAnchorRect: () =>
                 rootRef.current?.getBoundingClientRect() ?? null,

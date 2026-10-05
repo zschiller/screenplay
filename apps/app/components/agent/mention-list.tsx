@@ -7,34 +7,17 @@ import {
   useImperativeHandle,
   useState,
 } from "react"
-import {
-  type Icon,
-  ChatCircleIcon,
-  FileTextIcon,
-  ScribbleIcon,
-} from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
+import {
+  MENTION_KIND_REGISTRY,
+  type MentionCandidate,
+} from "@/lib/mention-kinds"
 
-/** What a mention points at: a document, a chat or a mockup. */
-export type MentionKind = "markdown-layer" | "chat" | "mockup-layer"
-
-export interface MentionItem {
-  /** Discriminator so the popover can group mentions by kind and propagate
-   *  the kind onto the Mention node. */
-  kind: MentionKind
-  id: string
-  label: string
-}
-
-/** Each kind's group heading and icon, in the order the groups list. */
-export const MENTION_KINDS: Record<
-  MentionKind,
-  { heading: string; Icon: Icon }
-> = {
-  "markdown-layer": { heading: "Documents", Icon: FileTextIcon },
-  chat: { heading: "Chats", Icon: ChatCircleIcon },
-  "mockup-layer": { heading: "Mockups", Icon: ScribbleIcon },
-}
+/**
+ * One row of the `@` list. Its `kind` groups it under the kind's heading and
+ * carries onto the Mention node it inserts.
+ */
+export type MentionItem = MentionCandidate
 
 export interface MentionListHandle {
   /** Forward an editor key event into the popover; returns true if consumed. */
@@ -49,7 +32,8 @@ interface MentionListProps {
 /**
  * Suggestion popover for the chat / document body Mention extension, drawn
  * like the app's dropdown menus (the inverted surface, their labels and item
- * rows). Items arrive grouped by kind, each group under its heading.
+ * rows). Items arrive grouped by kind, each group under its heading, with
+ * the kind's heading and icon from the mention kind registry.
  */
 export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
   function MentionList({ items, command }, ref) {
@@ -104,7 +88,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
       >
         {items.map((item, i) => {
           const startsGroup = items[i - 1]?.kind !== item.kind
-          const { heading, Icon } = MENTION_KINDS[item.kind]
+          const { heading, Icon } = MENTION_KIND_REGISTRY[item.kind]
           return (
             <Fragment key={`${item.kind}:${item.id}`}>
               {startsGroup && i > 0 && (

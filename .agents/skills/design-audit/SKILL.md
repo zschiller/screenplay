@@ -1,13 +1,13 @@
 ---
 name: design-audit
-description: Design audit of a repo's user-facing surfaces, run in four stages. Use when asked to audit a product, site or docs, combine audits into a plan, put a plan's calls on a decisions page, or start the work from pasted decisions.
+description: Design audit of a repo's user-facing surfaces, run in four stages. Use when asked to audit a product, site, docs, screen or flow, combine audits into a plan, put a plan's calls on a decisions page, or start the work from pasted decisions.
 ---
 
 # Design audit
 
 A **surface** is one user-facing product area, such as a marketing site, a docs site, a web or desktop app, or a CLI. A **depth** is one lens on a surface. A **call** is a question only the owner can answer. Each stage runs in its own thread and produces a published Artifact. Tickets and PRs start in stage 4, once the owner has answered the calls.
 
-Work out from the ask which stage you are in, then do that stage only.
+Work out from the ask which stage you are in, then do that stage only. A **small audit** (one screen or one flow) skips the stages and runs in one thread, as [Small audits](#small-audits) describes.
 
 ## 0. Surfaces and rules (before the first audit)
 
@@ -25,14 +25,14 @@ Done when every surface has an id, a start command and a capture method, and the
 The three depths:
 
 - **Product**: whether every claim is true, and what a real user is missing. Cite the code (`file:line`) for each claim you check.
-- **Hierarchy**: what a person sees first, what they can reach, and where flows dead-end. For a docs surface this is wayfinding; for an app it's interaction.
-- **Visual nits**: spacing, type, colour and component drift against the rules from stage 0. Build the fixes as a patch or branch, with before and after captures in every theme.
+- **Hierarchy**: what a person sees first, what they can reach, and where flows dead-end. For a docs surface this is wayfinding; for an app it's interaction: drive it with real input to reach the empty, error, loading and open-menu states.
+- **Visual nits**: spacing, type, colour and component drift against the rules from stage 0, measured from the DOM rather than eyeballed from a screenshot. Build the fixes as a patch or branch, with before and after captures in every theme.
 
 Tag each finding with its depth letter and a number (P3, H7, N12). Label each capture Now, Mockup or After. Leave out anything the settled lists from stage 0 already cover. When the owner names work in flight that may change a finding (an open exploration, a rewrite), add it to `NOTICES` and mark each finding it touches with `pend`.
 
-Publish the findings from [`audit-template.html`](audit-template.html), one page per thread (depths audited together share a page). Fill only its data arrays: each finding gets its captures, and a finding only the owner can decide gets a `call` with 2 or 3 options, the recommended one marked. The rest is a built page under the template's `Generated below this line` marker, so read and edit only the part above it; it works as is: filter tabs, captures in the viewer's theme with a Light/Dark switch, Fix or Skip and an option per call, per-finding notes, and Copy picks, which the owner pastes back. Load `artifact-design`, swap the token block (shadcn variable names) and font link for the repo's brand, and run `node --check` on the data script once. When the repo holds the templates' source (the package that builds them), change a page there and rebuild instead.
+Publish the findings from [`audit-template.html`](audit-template.html), one page per thread (depths audited together share a page). Fill only its data arrays: each finding gets its captures, and a finding only the owner can decide gets a `call` with 2 or 3 options, the recommended one marked. The rest is a built page under the template's `Generated below this line` marker, so read and edit only the part above it. Each pick starts on the recommendation, and the owner pastes back what Copy picks gives them. Load `artifact-design`, swap the token block (shadcn variable names) and font link for the repo's brand, and run `node --check` on the data script once. When the repo holds the templates' source (the package that builds them), change a page there and rebuild instead. When you also ask a call in chat, start the question with its tag ("H2: …") and use the page's option labels, so the answer maps back onto the page.
 
-Done when every finding has a tag and a pick row, every product claim has a citation, every visual finding has captures, and the published page copies its picks.
+Done when every finding has a tag and a pick row, every product claim has a citation, every surface has been looked at through every depth in every theme it ships, every visual finding has captures, and the published page copies its picks.
 
 ## 2. Combine: one thread per surface, after all three audits are done
 
@@ -54,3 +54,13 @@ Done when every call in every plan is either a question on the page or its own e
 4. Start one thread or agent per PR, and brief each with its plan link, its PR section and the answers it waits on. PRs that wait on no call start first. Steps that need the owner's own machine run there.
 
 Done when every note has an answer and every PR has a thread whose brief carries the answers it depends on.
+
+## Small audits
+
+When the scope is one screen or one flow, one thread does the whole audit:
+
+1. Gather the rules as stage 0 describes, for that screen only.
+2. Audit it through all three depths as stage 1 describes and publish one findings page. A handful of findings with no calls can go straight in the reply instead. Ask each call on its own, tagged as stage 1 describes.
+3. Once the owner has answered, fix what they picked on one branch, smallest and surest first, and check each fix in every theme. A skipped finding is dropped; a rejected direction goes in memory's settled list so no later audit raises it again.
+
+Done when every picked finding is fixed or named as left open. Reply with the PR link, what changed by tag, and anything left open.
