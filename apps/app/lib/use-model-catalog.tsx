@@ -17,7 +17,7 @@ import {
   type ModelCatalog,
   type ResolvedModels,
 } from "@/lib/model-catalog"
-import { fetchModelCatalog, type ModelInfo } from "@/lib/models-store"
+import { fetchModelCatalog } from "@/lib/models-store"
 import {
   getSkillMenuItems,
   skillSourceKey,
@@ -25,10 +25,7 @@ import {
   type SkillSource,
 } from "@/lib/skills-store"
 import { useDefaultModel } from "@/lib/default-model-store"
-import {
-  expandHarnessModelChoices,
-  useHarnessModelChoices,
-} from "@/lib/harness-model-choices"
+import { useHarnessModelChoices } from "@/lib/harness-model-choices"
 
 /** The app's catalog, over the `/api/agent/models` and `/skills` routes. */
 export const httpCatalogSource: CatalogSource = {
@@ -57,7 +54,6 @@ export function ModelCatalogProvider({
 
 export interface ModelCatalogView extends ResolvedModels {
   status: CatalogStatus
-  models: ModelInfo[]
   retry: () => void
 }
 
@@ -76,17 +72,12 @@ export function useModelCatalog(chosen?: string | null): ModelCatalogView {
   const stored = useDefaultModel()
   // The models chosen in Settings for OpenCode stand in for its one entry.
   const choices = useHarnessModelChoices()
-  const models = useMemo(
-    () => expandHarnessModelChoices(state.models, choices),
-    [state.models, choices]
+  const resolved = useMemo(
+    () => resolveModels(state, { chosen, stored, choices }),
+    [state, chosen, stored, choices]
   )
   useEffect(() => catalog.load(), [catalog])
-  return {
-    ...resolveModels({ ...state, models }, { chosen, stored }),
-    status: state.status,
-    models,
-    retry: catalog.retry,
-  }
+  return { ...resolved, status: state.status, retry: catalog.retry }
 }
 
 export type { SkillSource }

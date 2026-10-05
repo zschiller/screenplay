@@ -12,20 +12,6 @@ import type { SandboxInstance } from "@/lib/sandbox/types"
 export const BROKERED_VALUE = "brokered"
 
 /**
- * Wire-format prefix marking a chat's stored `model` id as a **Harness
- * selection** (`harness:<key>`) rather than a `provider:<model>` id. The same
- * `harness:` form names the Terminal Tab key and the Harness catalog key — there
- * is no separate adapter-key namespace (#476). The model dropdown emits these on
- * the desktop backend, the external engine reads them back to pick the adapter
- * (#479), and `agent_chat.model` persists them verbatim.
- *
- * Lives in this leaf (beside the codec in `./model-id`) so the
- * model-enumeration fold can build harness ids without pulling the engine
- * graph in.
- */
-export const HARNESS_ID_PREFIX = "harness:"
-
-/**
  * The always-commit-and-push rule, as markdown. Every harness seeds this into
  * its own *home-level* agents file (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
  * …) so each session inherits the rule without it ever being written into the
@@ -103,10 +89,7 @@ export interface AcpAdapter {
  * claude-code) carried on `agent_chat.model` as `harness:<key>:<id>` — it may
  * itself contain colons; the codec splits only on the first colon after the key
  * so it survives intact (`decodeHarnessModelId`). The descriptor's {@link
- * Harness.models} is the **curated floor**; the {@link
- * import("./model-catalog").HarnessModelCatalog} reads it through and may append a
- * discovered-once-and-cached live model on top, but the dropdown code path is
- * identical either way (#522/#527).
+ * Harness.models} is the **curated floor** the dropdown lists (#522).
  */
 export interface HarnessModel {
   /** Opaque ACP model alias selecting a model within the Harness. */
@@ -320,10 +303,8 @@ export interface Harness {
    * degrades to a single selectable "harness default" entry (bare
    * `harness:<key>`), so the dropdown never regresses below the harness-picker
    * behavior. `enumerateModels` is stateless, so this list can never be a live
-   * session's `availableModels` — it's the descriptor's **curated floor** (#523),
-   * which the {@link import("./model-catalog").HarnessModelCatalog} treats as
-   * authoritative and only appends discovered-once-and-cached live models on top
-   * of (#527).
+   * session's `availableModels` — it's the descriptor's **curated floor**
+   * (#523), and the dropdown lists exactly it.
    */
   models?: HarnessModel[]
 

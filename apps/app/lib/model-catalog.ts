@@ -4,7 +4,7 @@ import {
   type SkillMenuItem,
   type SkillSource,
 } from "@/lib/skills-store"
-import { resolveDefaultModel } from "@/lib/model-selection"
+import { modelMenu, type HarnessModelChoices } from "@/lib/harness-model-menu"
 
 /**
  * The model and skill catalog behind every Composer and model picker: the
@@ -107,6 +107,8 @@ export function createModelCatalog(source: CatalogSource): ModelCatalog {
 }
 
 export interface ResolvedModels {
+  /** What the picker lists: the catalog with this device's chosen models. */
+  models: ModelInfo[]
   /** The model the picker sits on: the chosen one if still valid. */
   model: string
   /** The model new chats start from: the user's, else the server's. */
@@ -116,24 +118,32 @@ export interface ResolvedModels {
 }
 
 /**
- * Resolve a picker's model from the catalog, by precedence: the chosen model
- * (a chat's or row's own pick) → the user's default from Settings → the
- * server default → the first model. See {@link resolveDefaultModel}.
+ * Resolve a picker's menu and model from the catalog, by precedence: the
+ * chosen model (a chat's or row's own pick) → the user's default from
+ * Settings → the server default → the first model. An id that left the menu
+ * stays on its own Harness. See {@link modelMenu}.
  */
 export function resolveModels(
   state: CatalogState,
-  { chosen, stored }: { chosen?: string | null; stored?: string | null }
+  {
+    chosen,
+    stored,
+    choices = {},
+  }: {
+    chosen?: string | null
+    stored?: string | null
+    choices?: HarnessModelChoices
+  }
 ): ResolvedModels {
-  const { models, serverDefault } = state
   return {
-    model: resolveDefaultModel({
-      perSession: chosen || null,
+    ...modelMenu({
+      models: state.models,
+      choices,
+      chosen,
       stored,
-      serverDefault,
-      models,
+      serverDefault: state.serverDefault,
     }),
-    defaultModel: resolveDefaultModel({ stored, serverDefault, models }),
-    noAgents: state.status === "loaded" && models.length === 0,
+    noAgents: state.status === "loaded" && state.models.length === 0,
   }
 }
 

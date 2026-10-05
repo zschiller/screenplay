@@ -10,7 +10,6 @@ import {
   type HostBinaryProber,
 } from "./host-binary"
 import { encodeHarnessModelId } from "./model-id"
-import { harnessModelCatalog, type HarnessModelCatalog } from "./model-catalog"
 import { type Harness } from "./types"
 
 /**
@@ -101,14 +100,13 @@ export function filterByCapability(
  * its models nested (replacing the single "Installed agents" heading this fold
  * emitted before per-Harness model selection existed).
  *
- * Each Harness's model list comes from the {@link HarnessModelCatalog} — its
- * curated floor plus a discover-once-and-cached live augment (#527) — not the raw
- * {@link Harness.models} field; today the augment is empty, so the lists are the
- * curated floor and this fold's output is unchanged from the static slice (#525).
- * A Harness whose catalog list is non-empty contributes one
- * `harness:<key>:<modelId>` entry per model; one whose list is empty degrades to a
- * single bare `harness:<key>` "harness default" entry, so the dropdown never
- * regresses below the harness-picker behavior. The ids are the wire form
+ * Each Harness's list is its curated {@link Harness.models}: one
+ * `harness:<key>:<modelId>` entry per model, or a single bare `harness:<key>`
+ * "harness default" entry when it curates none, so the dropdown never regresses
+ * below the harness-picker behavior. The entry a new chat on that Harness would
+ * run (its `defaultModelId`, else its first model, else the bare entry) is
+ * marked `isDefault`, so the menu can keep a chat whose model left it on the
+ * same Harness (`lib/harness-model-menu.ts`). The ids are the wire form
  * `agent_chat.model` persists and the external engine reads back (#479, via the
  * {@link encodeHarnessModelId} codec).
  *
@@ -116,34 +114,30 @@ export function filterByCapability(
  * backend folds the provider registry into `provider:` models, the desktop
  * backend folds detected CLIs into these. An empty list yields `[]` — the
  * dropdown's actionable empty state, never a hardcoded fallback agent. Preserves
- * the list's (catalog) order, models in catalog order within each. The catalog is
- * injectable so the fold is testable without the singleton's discovery.
+ * the list's (catalog) order, models in curated order within each.
  */
-export async function harnessModels(
-  available: AvailableHarness[],
-  catalog: HarnessModelCatalog = harnessModelCatalog
-): Promise<ModelInfo[]> {
-  const lists = await Promise.all(
-    filterByCapability(available, "chat").map(async ({ harness }) => {
-      const provider = { key: harness.key, label: harness.label }
-      const models = await catalog.list(harness)
-      if (models.length === 0) {
-        return [
-          {
-            id: encodeHarnessModelId(harness.key),
-            label: harness.label,
-            provider,
-          },
-        ]
-      }
-      return models.map((model) => ({
-        id: encodeHarnessModelId(harness.key, model.id),
-        label: model.label,
-        provider,
-      }))
-    })
-  )
-  return lists.flat()
+export function harnessModels(available: AvailableHarness[]): ModelInfo[] {
+  return filterByCapability(available, "chat").flatMap(({ harness }) => {
+    const provider = { key: harness.key, label: harness.label }
+    const models = harness.models ?? []
+    if (models.length === 0) {
+      return [
+        {
+          id: encodeHarnessModelId(harness.key),
+          label: harness.label,
+          provider,
+          isDefault: true,
+        },
+      ]
+    }
+    const defaultId = harness.defaultModelId ?? models[0]!.id
+    return models.map((model) => ({
+      id: encodeHarnessModelId(harness.key, model.id),
+      label: model.label,
+      provider,
+      ...(model.id === defaultId && { isDefault: true }),
+    }))
+  })
 }
 
 /**
