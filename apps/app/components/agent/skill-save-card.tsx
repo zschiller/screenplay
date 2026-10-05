@@ -208,12 +208,12 @@ export function SkillSaveCard({
                 skill?
               </span>
               {description && (
-                <span className="line-clamp-2 text-xs text-muted-foreground">
+                <span className="line-clamp-2 text-sm text-muted-foreground">
                   {description}
                 </span>
               )}
               {replaces && (
-                <span className="text-xs text-muted-foreground">
+                <span className="text-sm text-muted-foreground">
                   {replaces}
                 </span>
               )}
@@ -235,7 +235,7 @@ export function SkillSaveCard({
           </ConfirmationAccepted>
         </ConfirmationTitle>
         {error && (
-          <p role="alert" className="text-xs text-muted-foreground">
+          <p role="alert" className="text-sm text-muted-foreground">
             {error}
           </p>
         )}

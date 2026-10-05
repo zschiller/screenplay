@@ -30,7 +30,7 @@ export function DocumentImageNodeView({ node, selected }: NodeViewProps) {
       {failed === url || !src ? (
         <div
           className={cn(
-            "flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground",
+            "flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground",
             selected && "outline-2 outline-offset-2 outline-ring"
           )}
         >

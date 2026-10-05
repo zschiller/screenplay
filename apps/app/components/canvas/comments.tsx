@@ -819,7 +819,7 @@ function QuoteHeader({
         : `Lines ${lineFrom}–${lineTo}`
       : null
   return (
-    <div className="rounded-sm border-l-2 border-border bg-muted px-2 py-1.5 text-xs leading-snug text-muted-foreground">
+    <div className="rounded-sm border-l-2 border-border bg-muted px-2 py-1.5 text-sm leading-snug text-muted-foreground">
       {range && (
         <div className="mb-0.5 font-medium text-foreground">{range}</div>
       )}

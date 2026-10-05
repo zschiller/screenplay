@@ -863,7 +863,7 @@ function WorkspaceMenuRow({
         }
       />
       {showRepoNames && (
-        <span className="shrink-0 truncate text-xs text-muted-foreground">
+        <span className="shrink-0 truncate text-sm text-muted-foreground">
           {repoShortName(repo)}
         </span>
       )}

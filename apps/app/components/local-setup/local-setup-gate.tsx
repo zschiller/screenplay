@@ -170,7 +170,7 @@ export function LocalSetupGate({
         <div className="flex items-center justify-between gap-3 pt-1">
           {/* While Finish is off, the line beside it says why, for everyone
               (and names it for screen readers through aria-describedby). */}
-          <p id={finishReasonId} className="text-xs text-muted-foreground">
+          <p id={finishReasonId} className="text-sm text-muted-foreground">
             {released
               ? "You can change these later in Settings."
               : finishBlockedReason({ harnessDone, githubDone })}

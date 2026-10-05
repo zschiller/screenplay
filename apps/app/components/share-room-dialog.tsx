@@ -165,7 +165,7 @@ export function ShareRoomDialog({
                     )}
                   </div>
                   {c.isOwner ? (
-                    <span className="text-xs text-muted-foreground">Owner</span>
+                    <span className="text-sm text-muted-foreground">Owner</span>
                   ) : (
                     <Button
                       variant="ghost"

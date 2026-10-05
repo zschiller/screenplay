@@ -137,7 +137,7 @@ export const SkillMentionList = forwardRef<
                     {skillSourceLabel(item)}
                   </span>
                 </span>
-                <span className="line-clamp-2 pl-6 text-xs text-muted-foreground">
+                <span className="line-clamp-2 pl-6 text-sm text-muted-foreground">
                   {item.description}
                 </span>
               </CommandItem>

@@ -246,7 +246,7 @@ function ResultItem({
       <span className="truncate">{name}</span>
       <span
         title={location}
-        className="ml-auto min-w-0 shrink truncate text-xs text-muted-foreground"
+        className="ml-auto min-w-0 shrink truncate text-sm text-muted-foreground"
       >
         {location}
       </span>

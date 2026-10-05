@@ -523,7 +523,7 @@ function DetachedNote({
           ? "Text removed"
           : "Element not found"
   return (
-    <span className={cn("block text-xs text-muted-foreground", className)}>
+    <span className={cn("block text-sm text-muted-foreground", className)}>
       {reason}
       {where && (
         <>
@@ -623,7 +623,7 @@ function ThreadRow({
           </p>
         )}
         {detail && (
-          <div className="mt-0.5 text-xs text-muted-foreground">{detail}</div>
+          <div className="mt-0.5 text-sm text-muted-foreground">{detail}</div>
         )}
         {thread.agentStatus && (
           <AgentStatusChip

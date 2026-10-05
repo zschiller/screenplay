@@ -47,7 +47,7 @@ function placeholderDom(spec: PendingSpec, label: string | null): HTMLElement {
   el.setAttribute("data-image-pending", "")
   if (label === null) return el
   el.className =
-    "my-2 flex h-24 items-center justify-center gap-2 rounded-md bg-muted text-xs text-muted-foreground"
+    "my-2 flex h-24 items-center justify-center gap-2 rounded-md bg-muted text-sm text-muted-foreground"
   const root = createRoot(el)
   root.render(
     <>
