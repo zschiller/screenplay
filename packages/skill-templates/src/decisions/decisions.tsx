@@ -180,7 +180,10 @@ export function Decisions({
     (q) => isAnswered(answers[q.id]!) && answers[q.id]!.v !== "o0"
   ).length
   const shown = surfaces.filter((s) => filter === "all" || filter === s.key)
-  const detail = useDetail(shown.flatMap((s) => s.qs.map((q) => q.id)))
+  const detail = useDetail(
+    shown.flatMap((s) => s.qs.map((q) => q.id)),
+    { asked: card?.answer ? null : asked }
+  )
   const about = detail.sel === ABOUT
   const action = onCanvas() ? "Send to chat" : "Copy decisions"
   const back = onCanvas()
