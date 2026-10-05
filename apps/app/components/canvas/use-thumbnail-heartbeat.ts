@@ -57,6 +57,8 @@ export function useThumbnailHeartbeat(
     let layoutTimer: ReturnType<typeof setTimeout> | null = null
     let captureTimer: ReturnType<typeof setTimeout> | null = null
     let initialTimer: ReturnType<typeof setTimeout> | null = null
+    const retryTimers = new Set<ReturnType<typeof setTimeout>>()
+    let unmounted = false
     let lastCapture = 0
     // The most recent layout-lane POST, so `flushLayout` can await an already
     // fired-but-in-flight rebuild (not just one still sitting on the debounce).
@@ -82,14 +84,28 @@ export function useThumbnailHeartbeat(
 
     // Capture lane: screenshot the frames that are ready+dirty right now. No-op
     // when nothing settled (the debounce can outlive its dirty frames if they
-    // were already cleared). Clears dirty so the next round starts clean.
+    // were already cleared). Clears dirty so the next round starts clean. When
+    // the server's cooldown drops the round (another capture just ran, say a
+    // chat drawing its Mockups one after another), the subset goes dirty again
+    // once the cooldown ends, so its frames still get their pictures.
     function fireCapture() {
       captureTimer = null
       const subset = tracker.dirtySubset()
       if (subset.length === 0) return
       tracker.clear(subset)
       lastCapture = Date.now()
-      post(subset)
+      void post(subset)
+        .then((res) => (res instanceof Response && res.ok ? res.json() : null))
+        .then((body: unknown) => {
+          const retryInMs = skippedRetryMs(body)
+          if (retryInMs === null || unmounted) return
+          retryTimers.add(
+            setTimeout(() => {
+              for (const id of subset) tracker.markDirty(id)
+            }, retryInMs)
+          )
+        })
+        .catch(() => {})
     }
 
     // Layout lane: rebuild the manifest's rects from the current doc, no browser.
@@ -160,6 +176,8 @@ export function useThumbnailHeartbeat(
     }
 
     return () => {
+      unmounted = true
+      for (const timer of retryTimers) clearTimeout(timer)
       doc.off("update", onDocUpdate)
       unsubscribe()
       window.removeEventListener("pagehide", onPageHide)
@@ -192,4 +210,18 @@ export function useThumbnailHeartbeat(
   // Stable handle that defers to whichever effect run is live (or a no-op once
   // unmounted), so callers can hold it across renders.
   return useMemo(() => ({ flushLayout: () => flushRef.current() }), [])
+}
+
+/**
+ * How long until the server's capture cooldown ends, from a capture POST's
+ * response body, or `null` when the round wasn't skipped.
+ */
+function skippedRetryMs(body: unknown): number | null {
+  if (!body || typeof body !== "object") return null
+  const { skipped, retryInMs } = body as {
+    skipped?: unknown
+    retryInMs?: unknown
+  }
+  if (skipped !== true) return null
+  return typeof retryInMs === "number" && retryInMs > 0 ? retryInMs : 0
 }

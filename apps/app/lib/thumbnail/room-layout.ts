@@ -5,6 +5,7 @@ import {
   type IframeLayerLayoutMap,
 } from "@/lib/canvas/layout"
 import type { RoomReader } from "@/lib/room-access"
+import { mockupHtml } from "@/lib/yjs/mockup-html"
 
 /**
  * One layer as the capture path sees it: its label (for the manifest) and the
@@ -17,11 +18,15 @@ import type { RoomReader } from "@/lib/room-access"
  * screenshot, so they land with a `null` `previewUrl` — a captureless
  * placeholder labeled by the document's title — and still occupy their place in
  * the composed thumbnail.
+ *
+ * A Mockup Layer has no preview URL either, but it has its page: `mockupHtml`
+ * carries it (when it isn't empty), and the capture renders that page itself.
  */
 export type CaptureFrame = {
   id: string
   label: string
   previewUrl: string | null
+  mockupHtml?: string
 }
 
 /**
@@ -58,17 +63,28 @@ export async function readRoomCaptureLayout(
         previewUrl: previewDomain ? previewDomain + (a.route ?? "") : null,
       }
     })
-    // Document and mockup layers have no preview URL to screenshot, so they
-    // ride the path as captureless placeholders labeled by their title —
-    // they hold their place in the composed thumbnail alongside iframe layers.
-    const titledFrames: CaptureFrame[] = [
-      ...markdownLayers,
-      ...mockupLayers,
-    ].map((m) => ({
+    // Document layers have no preview URL to screenshot, so they ride the
+    // path as captureless placeholders labeled by their title — they hold
+    // their place in the composed thumbnail alongside iframe layers.
+    const documentFrames: CaptureFrame[] = markdownLayers.map((m) => ({
       id: m.id,
       label: m.title,
       previewUrl: null,
     }))
-    return { layouts, frames: [...iframeFrames, ...titledFrames] }
+    // A Mockup carries its page, which the capture renders in place of a
+    // preview; one nobody has filled yet stays a placeholder.
+    const mockupFrames: CaptureFrame[] = mockupLayers.map((m) => {
+      const html = mockupHtml(c.doc, m.id).toString()
+      return {
+        id: m.id,
+        label: m.title,
+        previewUrl: null,
+        ...(html.trim() ? { mockupHtml: html } : {}),
+      }
+    })
+    return {
+      layouts,
+      frames: [...iframeFrames, ...documentFrames, ...mockupFrames],
+    }
   })
 }

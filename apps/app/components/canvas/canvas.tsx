@@ -754,11 +754,13 @@ export function Canvas({
   // the selection → presence broadcast are presence effects, owned by the Canvas
   // Camera controller now (PRD #588) — the canvas presence owner.
 
-  // Prune capture bookkeeping for frames removed from the canvas so a deleted
-  // frame's stale dirty flag never lands in a POSTed subset (#474).
+  // Prune capture bookkeeping for frames and Mockups removed from the canvas
+  // so a deleted one's stale dirty flag never lands in a POSTed subset (#474).
   useEffect(() => {
-    captureTracker.retain(new Set(allIframeLayers.map((layer) => layer.id)))
-  }, [captureTracker, allIframeLayers])
+    captureTracker.retain(
+      new Set([...allIframeLayers, ...mockupLayers].map((layer) => layer.id))
+    )
+  }, [captureTracker, allIframeLayers, mockupLayers])
   // Workspace ↔ frame hover cross-highlighting (#793): a frame hovered on the
   // Canvas lights up its Workspace in the sidebar, and a Workspace hovered in
   // the sidebar outlines its frames here.
