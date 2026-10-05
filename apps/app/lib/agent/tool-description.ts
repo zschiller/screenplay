@@ -321,6 +321,26 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
         : null,
   },
   list_labels: { verb: "List labels", icon: "list", kind: "read" },
+  review_pr: {
+    verb: "Review",
+    icon: "eye",
+    kind: "other",
+    label: (input) => {
+      const verb =
+        input.event === "approve"
+          ? "Approve"
+          : input.event === "request_changes"
+            ? "Request changes on"
+            : "Review"
+      return issueNumber(verb)(input)
+    },
+  },
+  merge_pr: {
+    verb: "Offer to merge",
+    icon: "merge",
+    kind: "other",
+    label: issueNumber("Offer to merge"),
+  },
   read_pr_diff: {
     verb: "Read diff of",
     icon: "diff",

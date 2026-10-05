@@ -120,6 +120,7 @@ import { ChatDisclosure } from "./chat-disclosure"
 import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
 import { QuestionCard } from "./question-card"
 import { isSaveSkillCall, SkillSaveCard } from "./skill-save-card"
+import { isMergePrCall, MergePrCard } from "./merge-pr-card"
 import { Avatar, AvatarImage } from "@workspace/ui/components/avatar"
 import type { ChatSender } from "@/hooks/use-chat-senders"
 import {
@@ -1387,6 +1388,15 @@ function ToolCallItem({
   if (roomId && isSaveSkillCall(message)) {
     return (
       <SkillSaveCard
+        message={message}
+        roomId={roomId}
+        fallback={<ToolCallRow message={message} />}
+      />
+    )
+  }
+  if (roomId && isMergePrCall(message)) {
+    return (
+      <MergePrCard
         message={message}
         roomId={roomId}
         fallback={<ToolCallRow message={message} />}

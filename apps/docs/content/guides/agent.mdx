@@ -322,6 +322,8 @@ agent the chat runs on. Paths are relative to the repository.
 | **Close**, **Reopen**, **Update** _#12_        | Closed, reopened or relabelled an issue or pull request, as you                                                                   |
 | **Link** _#12 and #14_, **List labels**        | Linked two issues as blocked by or sub-issue, as you, or read the labels                                                          |
 | **Read diff of** _#7_, **Read checks of** _#7_ | Read a pull request’s changed files or its CI checks                                                                              |
+| **Approve**, **Request changes on** _#7_       | Reviewed a pull request, as you                                                                                                   |
+| **Offer to merge** _#7_                        | Showed a [merge card](#merging-a-pull-request); merges when you press it                                                          |
 | **Submit plan**                                | Presented a plan for approval                                                                                                     |
 | A question with options                        | Asked you to pick an option                                                                                                       |
 
@@ -385,10 +387,21 @@ CI checks, to see why one is red.
 
 When you ask, it can also open an issue, comment on an issue or pull request,
 reply to a review comment, close, reopen, retitle or relabel one, and link
-issues with GitHub’s blocked-by edges and sub-issues. These
+issues with GitHub’s blocked-by edges and sub-issues. It can also review a pull
+request: approve it, request changes, or comment on its lines. These
 post with your GitHub account, the same one that pushes the chat’s
 commits, so they show as yours on GitHub. It only reaches the canvas’s
 repositories.
+
+### Merging a pull request
+
+Ask an agent to merge a pull request and it shows a card instead of merging:
+the pull request’s title, whether its checks pass or it has conflicts, and a
+**Squash and merge** button (or **Merge**, or **Rebase and merge**, whichever
+the repository allows or you asked for). Nothing merges until someone presses
+it, and it merges with the GitHub account of whoever pressed. If anyone pushes
+to the pull request after the card showed it, the merge fails rather than
+merging changes nobody saw. Viewers can’t merge.
 
 ## Chat naming
 

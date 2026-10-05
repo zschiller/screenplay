@@ -13,6 +13,7 @@ import {
   type PrChecks,
   type PrFiles,
 } from "@/lib/github-issues"
+import { canvasGitHubRepos, pickCanvasRepo } from "@/lib/canvas-github-repos"
 import { annotateTools } from "@/lib/mcp/tool-server"
 import type { RoomReader } from "@/lib/room-access"
 
@@ -39,8 +40,6 @@ export interface GitHubToolContext {
   client?: (token: string) => GitHubIssuesClient
 }
 
-type CanvasRepo = GitHubRepoRef & { id: string }
-
 /** A read's longest output; the rest of a long thread is cut. */
 const MAX_OUTPUT = 60_000
 
@@ -50,6 +49,10 @@ const repoParam = z
   .describe(
     "The repository as owner/name. Defaults to this Workspace’s repository, or the canvas’s only one."
   )
+
+/** What merge_pr tells the agent about the card it showed. */
+const MERGE_CARD_NOTE =
+  "whether it merged reaches you only if you read the pull request again later."
 
 const numberParam = z
   .number()
@@ -73,40 +76,15 @@ export function buildGitHubTools(ctx: GitHubToolContext) {
           "Nothing changed on GitHub: nobody sent this turn, so there is no one to post as. Tell the user what you’d post instead.",
       }
     }
-    const { repos, own } = await ctx.room.readDoc(({ repos, branches }) => {
-      const list: CanvasRepo[] = repos
-        .toArray()
-        .filter((r) => r.repoOwner && r.repoName)
-        .map((r) => ({ id: r.id, owner: r.repoOwner, name: r.repoName }))
-      const branch = ctx.sandboxName
-        ? branches.toArray().find((b) => b.sandboxName === ctx.sandboxName)
-        : undefined
-      return { repos: list, own: branch?.repoId }
-    })
-    const names = repos.map((r) => `${r.owner}/${r.name}`).join(", ")
-    let picked: CanvasRepo | undefined
-    if (repo) {
-      const want = repo.trim().toLowerCase()
-      picked = repos.find((r) => `${r.owner}/${r.name}`.toLowerCase() === want)
-      if (!picked) {
-        return {
-          error: repos.length
-            ? `${repo} isn’t one of this canvas’s repositories: ${names}.`
-            : "This canvas has no GitHub repositories.",
-        }
-      }
-    } else {
-      picked =
-        repos.find((r) => r.id === own) ??
-        (repos.length === 1 ? repos[0] : undefined)
-      if (!picked) {
-        return {
-          error: repos.length
-            ? `Name the repository: this canvas has ${names}.`
-            : "This canvas has no GitHub repositories.",
-        }
-      }
-    }
+    const { repos, own } = await ctx.room.readDoc((c) => ({
+      repos: canvasGitHubRepos(c),
+      own: ctx.sandboxName
+        ? c.branches.toArray().find((b) => b.sandboxName === ctx.sandboxName)
+            ?.repoId
+        : undefined,
+    }))
+    const picked = pickCanvasRepo(repos, repo, own)
+    if ("error" in picked) return picked
     const token = await tokenFor(ctx.userId)
     if (!token) {
       return {
@@ -115,7 +93,7 @@ export function buildGitHubTools(ctx: GitHubToolContext) {
       }
     }
     return {
-      repo: { owner: picked.owner, name: picked.name },
+      repo: { owner: picked.repo.owner, name: picked.repo.name },
       client: clientFor(token),
     }
   }
@@ -306,6 +284,68 @@ export function buildGitHubTools(ctx: GitHubToolContext) {
       },
     }),
 
+    review_pr: tool({
+      description:
+        "Submit a review on a GitHub pull request, as the member this turn runs for, and only when the user asks: approve, request_changes or comment, with a markdown `body` and optional `comments` on lines of the diff’s new side (read them with read_pr_diff). GitHub doesn’t let anyone approve their own pull request.",
+      inputSchema: z.object({
+        number: numberParam,
+        event: z.enum(["approve", "request_changes", "comment"]),
+        body: z.string().optional(),
+        comments: z
+          .array(
+            z.object({
+              path: z.string(),
+              line: z.number().int().positive(),
+              body: z.string().min(1),
+            })
+          )
+          .optional(),
+        repo: repoParam,
+      }),
+      execute: async ({ number, event, body, comments, repo }) => {
+        const r = await resolve(repo, true)
+        if ("error" in r) return r.error
+        try {
+          const { url } = await r.client.review(r.repo, number, {
+            event,
+            body,
+            comments,
+          })
+          const verb = {
+            approve: "Approved",
+            request_changes: "Requested changes on",
+            comment: "Reviewed",
+          }[event]
+          return `${verb} #${number}: ${url}`
+        } catch (e) {
+          return failed(e)
+        }
+      },
+    }),
+
+    merge_pr: tool({
+      description: `Offer to merge a GitHub pull request: the chat shows a card with its checks and a Merge button, and it merges only when a member presses it, with their GitHub account. Only when the user asks for a merge. \`method\` (squash, merge or rebase) defaults to the repository’s first allowed one. After calling this, end your turn; ${MERGE_CARD_NOTE}`,
+      inputSchema: z.object({
+        number: numberParam,
+        method: z.enum(["squash", "merge", "rebase"]).optional(),
+        repo: repoParam,
+      }),
+      execute: async ({ number, repo }) => {
+        const r = await resolve(repo, false)
+        if ("error" in r) return r.error
+        try {
+          const pr = await r.client.checks(r.repo, number)
+          if (pr.state !== "open") return `#${number} is already ${pr.state}.`
+          if (pr.draft) {
+            return `#${number} is a draft; it needs marking ready for review before it can merge.`
+          }
+          return `Showed a merge card for ${r.repo.owner}/${r.repo.name}#${number} (${pr.title}). Nothing merges until someone presses Merge on it.`
+        } catch (e) {
+          return failed(e)
+        }
+      },
+    }),
+
     read_pr_diff: tool({
       description:
         "Read a pull request’s changed files with each one’s diff. `path` narrows it to one file. Your own Workspace’s changes are in its git; this is for any pull request.",
@@ -351,6 +391,9 @@ export function buildGitHubTools(ctx: GitHubToolContext) {
     update_issue: write,
     link_issues: write,
     list_labels: read,
+    review_pr: write,
+    // Only offers a card; the merge is the member's own press.
+    merge_pr: { readOnlyHint: true, openWorldHint: true },
     read_pr_diff: read,
     read_pr_checks: read,
   })
