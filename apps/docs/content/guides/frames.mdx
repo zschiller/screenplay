@@ -5,7 +5,7 @@ description: Live previews of your app at any route and device size.
 
 # Frames
 
-A frame is a live preview of a workspace’s dev server. It’s a real browser
+A frame is a live preview of a chat’s dev server. It’s a real browser
 view, so hot reload, client-side routing, and app state all work as normal.
 
 <Screenshot
@@ -15,30 +15,30 @@ view, so hot reload, client-side routing, and app state all work as normal.
 
 ## Adding frames
 
-- A new workspace gets a frame automatically once its dev server is up.
+- A new chat gets a frame automatically once its dev server is up.
 - The **Frame** tool (<kbd>F</kbd>) drops a 1280×800 frame where you click,
   or draws one where you drag. As you let go, the frame asks what it should
   show. Type what to build and press <kbd>Enter</kbd> (<kbd>Shift</kbd>
   <kbd>Enter</kbd> for a new line). The frame’s size is sent along as the
-  viewport, so a phone-sized frame gets a mobile layout. A frame shows a
-  workspace, and a workspace needs a repository, so on a canvas with no
+  viewport, so a phone-sized frame gets a mobile layout. A frame shows a chat’s
+  code, and that needs a repository, so on a canvas with no
   [repository](/guides/repositories) the Frame tool is off until you add one.
 - The chip beside **Send** says who answers. With nothing selected it’s
-  **New chat**: a new chat starts on it, and its workspace boots in that
+  **New chat**: a new chat starts on it, and its code boots in that
   frame. If you had a frame, mockup or document selected when you drew, it’s
-  that layer’s workspace instead: the frame shows that workspace, and your
-  message goes to its chat, as if you’d sent it there (see
+  that layer’s chat instead: the frame shows that chat’s code, and your
+  message goes to that chat, as if you’d sent it there (see
   [Sending while the agent works](/guides/agent#sending-while-the-agent-works)).
-  Click the chip to switch between **New chat** and any workspace.
+  Click the chip to switch between **New chat** and any other chat.
 
   <Screenshot
     name="frame-ask-answerer"
-    alt="A frame drawn with the Home frame selected: the chip names the Home frame’s workspace, and its menu lists New chat and every workspace"
+    alt="A frame drawn with the Home frame selected: the chip names the Home frame’s chat, and its menu lists New chat and every chat"
   />
 
 - Press <kbd>Esc</kbd> or click elsewhere to skip the question. The frame
-  stays and shows **No workspace**. Click **Start a chat** in it to ask again,
-  or pick a workspace for it from its title (**Choose a workspace**).
+  stays and shows **No chat**. Click **Start a chat** in it to ask again,
+  or pick a chat for it from its title (**Choose a chat**).
 
   <ScreenshotRow>
     <Screenshot
@@ -48,32 +48,32 @@ view, so hot reload, client-side routing, and app state all work as normal.
     />
     <Screenshot
       name="frame-unanswered"
-      caption="Skipped: no workspace yet."
-      alt="A frame with no workspace, offering Start a chat"
+      caption="Skipped: no chat yet."
+      alt="A frame with no chat, offering Start a chat"
     />
   </ScreenshotRow>
 
 - **Show all routes** in the chat menu adds a group with a frame for
-  every route the workspace has visited.
+  every route the chat’s preview has visited.
 
 ## The title bar
 
 Above each frame:
 
 - **Name**: double-click to rename.
-- **Workspace**, with its state icon, unless its
-  [group](/guides/canvas#a-groups-workspace) names it because every frame in
-  the group shows the same one. Click it to switch the frame’s workspace.
-  When the group names it, hover the frame’s name and click **Set workspace**
+- **Chat**, with its state icon, unless its
+  [group](/guides/canvas#a-groups-chat) names it because every frame in
+  the group shows the same one. Click it to switch the frame’s chat.
+  When the group names it, hover the frame’s name and click **Choose chat**
   to switch just this frame.
 
 Switching keeps the frame’s route and state; this is how you compare
-workspaces on the same screen. Picking one that differs from the other frames
-in its group moves the workspace from the group’s title onto each frame’s.
+chats on the same screen. Picking one that differs from the other frames
+in its group moves the chat from the group’s title onto each frame’s.
 
 Under the selected frame, an address bar shows its route. Click the route to edit
 it in place, like a browser’s address bar: type any path and press **Enter**, or
-pick a route the workspace has visited from the list under the bar. **Esc**
+pick a route the chat’s preview has visited from the list under the bar. **Esc**
 puts the route back. Routes you visit while interacting
 are added to the list automatically.
 
@@ -86,21 +86,21 @@ stays put. Only a page with no client-side router reloads onto the new route.
 <ScreenshotRow>
   <Screenshot
     name="route-picker"
-    caption="Click the route to edit it, or pick one the workspace has visited."
+    caption="Click the route to edit it, or pick one the chat’s preview has visited."
     alt="The route selected for editing in the address bar, with /, /customers and /pricing listed under it"
   />
 
   <Screenshot
     name="frame-branch-picker"
-    caption="Hover a frame’s name and click Set workspace to point it at another one."
-    alt="The workspace list, opened from Set workspace beside a frame’s name"
+    caption="Hover a frame’s name and click Choose chat to point it at another one."
+    alt="The chat list, opened from Choose chat beside a frame’s name"
   />
 </ScreenshotRow>
 
 ## The frame toolbar
 
 When exactly one frame, and nothing else, is selected, a toolbar like a
-browser’s appears under it. A frame with no workspace has no toolbar until you
+browser’s appears under it. A frame with no chat has no toolbar until you
 pick one; its [menu](/guides/canvas#layer-menus) is **…** after its name
 instead. From left to right:
 
@@ -113,7 +113,7 @@ instead. From left to right:
 | **Interact**          | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it, though <kbd>Space</kbd>-drag outside it still pans. Double-clicking a frame does the same. The button and the frame’s outline turn pink, and <kbd>Esc</kbd> (even from inside the preview) or a click outside the frame returns to the canvas. |
 | **Go live**           | <Only hosted /> Switches the frame from everyone’s own copy to one live browser everyone on the canvas watches, and back. See [Live frames](#live-frames).                                                                                                                                                                                            |
 | **Knobs**             | Live controls your app declares. See [Knobs](#knobs).                                                                                                                                                                                                                                                                                                 |
-| **Frame options**     | The [frame menu](/guides/canvas#layer-menus): **Rename**, **Duplicate**, **Device size**, **Fit to content**, a **Chat** submenu with the [chat menu](/guides/workspaces#workspace-actions), and **Delete**. Its row in the layers list opens the same menu.                                                                                          |
+| **Frame options**     | The [frame menu](/guides/canvas#layer-menus): **Rename**, **Duplicate**, **Device size**, **Fit to content**, a **Chat** submenu with the [chat menu](/guides/chats#chat-actions), and **Delete**. Its row in the layers list opens the same menu.                                                                                                    |
 
 <Screenshot
   name="frame-tooltip-interact"
@@ -130,8 +130,8 @@ the start of the address says why; hover it to read the reason:
 
 - **Yellow**: **Dev server disconnected**. The page is still there, but its
   dev server stopped answering, so edits won’t show until it’s back.
-- **Red**: **Preview failed**. The workspace or its dev server didn’t start.
-- **Grey**: **Workspace stopped**. Its sandbox is stopped.
+- **Red**: **Preview failed**. The chat’s code or its dev server didn’t start.
+- **Grey**: **Preview stopped**. Its sandbox is stopped.
 
 The frame itself shows the detail and what to do; see
 [Preview states](#preview-states).
@@ -184,7 +184,7 @@ scroll position.
 To look at the very same page together, click **Go live** (the broadcast
 button after **Interact** in the frame’s toolbar). Going live works like
 navigating: it’s the frame’s, so it happens for everyone on the canvas. The
-frame’s browser starts in its workspace’s sandbox, on the frame’s current
+frame’s browser starts in its chat’s sandbox, on the frame’s current
 page, and everyone’s copy of that frame switches to it. The title line shows
 a **Live** badge with the broadcast icon. When one of you
 clicks through the page the others see it happen. Anyone who opens the canvas while the frame is live lands on it live.
@@ -193,9 +193,9 @@ Until the live page’s first picture arrives, a spinner takes the broadcast
 icon’s place, and clicking again does nothing. If the frame can’t go live, it
 goes back to everyone’s own copy and a message says why:
 
-- The workspace isn’t running, or its dev server is stopped. Start it, then
+- The chat’s code isn’t running, or its dev server is stopped. Start it, then
   click **Go live** again.
-- The workspace didn’t answer, for example while its sandbox wakes up from
+- The chat’s code didn’t answer, for example while its sandbox wakes up from
   sleep and doesn’t come back.
 - The frame’s browser didn’t start, or took too long to show the page.
 
@@ -239,7 +239,7 @@ ask has waited 3 minutes without the driver clicking, scrolling or typing in
 the frame, control passes to you, or to whoever asked before you.
 
 A live frame streams at up to twice its size, so it stays sharp when you zoom in
-to 200%. When a workspace’s sandbox goes to sleep, its frames’ browsers stop
+to 200%. When a chat’s sandbox goes to sleep, its frames’ browsers stop
 with it; when it wakes up, each frame reopens at the page it was on.
 
 Comment pins, Knobs, the element picker and **Fit to content** work on a
@@ -254,7 +254,7 @@ in the desktop app, follows your system’s appearance instead.
 
 A live frame nobody has on screen pauses a few seconds later, and its page keeps
 its state. Scroll back to it and it shows its last picture at once, then picks
-up live where it left off. A workspace keeps six frames’ browsers open. Past
+up live where it left off. A chat keeps six frames’ browsers open. Past
 that, the frame nobody has looked at for longest closes its browser, and the
 next time someone looks at it, it reopens at the page it was on, still signed
 in and with its saved settings, but anything the page only held in memory,
@@ -270,7 +270,7 @@ on your Mac.
 
 ## The agent driving a frame
 
-A Workspace chat’s agent can use a frame: click, type, press keys, scroll,
+A chat’s agent can use a frame: click, type, press keys, scroll,
 pick options, drag and hover, like you would. It reads the page’s buttons, links and
 fields to find what to act on, and looks at the frame after each step to
 check it worked. Ask it to show you what it built, or to get a frame into a
@@ -287,7 +287,7 @@ How it drives depends on how you ask:
 Each step shows up in the chat as a short line, like **Click** `Save`,
 **Hover** `Info` or **Type** `ada@example.com`, so you can see where it went if something goes
 wrong. When no frame shows what it needs, or you’re using the one there,
-the agent opens a new frame beside its workspace’s other frames instead of taking
+the agent opens a new frame beside its chat’s other frames instead of taking
 yours over.
 
 - **Asking is the go-ahead.** Asking the agent in the chat lets it drive, even
@@ -337,8 +337,8 @@ in another app.
   something (a page’s **Copy** button, or <kbd>⌘</kbd> <kbd>C</kbd>), it sees
   what was copied and your clipboard is put back as it was. When it pastes,
   it pastes what it copied, never what’s on your clipboard.
-- **It picks files from its workspace.** When a step opens a file picker, the
-  agent answers it with files from the frame’s workspace, and no panel opens.
+- **It picks files from its chat’s code.** When a step opens a file picker, the
+  agent answers it with files from the code of the frame’s chat, and no panel opens.
   For a file anywhere else, it asks you to choose it. When you click a file
   input yourself, you get the usual Finder panel.
 - **Native dropdowns and pickers stay closed.** It can’t open a native
@@ -402,7 +402,7 @@ them.
 />
 
 With no knobs declared, the popover explains what knobs are and offers **Ask
-the agent to add a knob**, which opens the workspace’s chat with a prompt
+the agent to add a knob**, which opens the frame’s chat with a prompt
 filled in.
 
 ## Shared state
@@ -414,14 +414,14 @@ frame and synced to everyone.
 
 ## Preview states
 
-While there’s no live page, a frame shows where its workspace is:
+While there’s no live page, a frame shows where its chat’s code is:
 
-- **No workspace** until you pick one for the frame.
-- **Setting up the workspace**, then **Starting dev server**, while the workspace starts.
-- **Workspace failed to start** if setup failed, and **Dev server not
+- **No chat** until you pick one for the frame.
+- **Setting up the code**, then **Starting dev server**, while the chat’s code starts.
+- **Setup failed** when setup fails, and **Dev server not
   responding** if the server doesn’t answer in time. Both offer **Retry** and
   **Open logs**.
-- **Workspace stopped** when its sandbox is stopped. Click **Start**.
+- **Preview stopped** when its sandbox is stopped. Click **Start**.
 
 <Callout type="info">
   A preview that never loads usually means the dev server isn’t listening on the

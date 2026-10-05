@@ -95,7 +95,7 @@ describe("DeleteRepoDialog", () => {
   it("warns about unpushed work only when some would be lost", () => {
     renderDialog()
     expect(screen.getByRole("alert").textContent).toBe(
-      "Unpushed work in 1 workspace will be lost."
+      "Unpushed work in 1 chat will be lost."
     )
     cleanup()
 

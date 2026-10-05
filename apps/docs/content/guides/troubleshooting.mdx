@@ -23,12 +23,12 @@ providers](/self-hosting/configuration/model-providers).
 ## Previews
 
 **A frame never shows the app.** It stays on **Starting dev server**, or ends
-on **Dev server not responding** or **Workspace failed to start**. On a
-failure, click **Open logs** on the frame: the workspace’s **Dev server**
+on **Dev server not responding** or **Setup failed**. On a
+failure, click **Open logs** on the frame: the chat’s **Dev server**
 terminal shows the dev server’s and portless’s output. The usual cause is a
 run script that doesn’t serve on the port Screenplay assigned, covered next.
 Fix what the logs show, then click **Retry**. You can also ask the
-workspace’s agent to debug the preview, since it reads the same output.
+chat’s agent to debug the preview, since it reads the same output.
 
 <Only desktop /> **“The dev server didn’t start on the port Screenplay gave
 it”**. This is `DevServerPortIgnoredError`: the dev server is running but never
@@ -36,7 +36,7 @@ listened on its assigned port, usually because the run script ignores `$PORT`.
 
 1. Edit the repository in **Canvas settings** and add the port to its **Run
    script**, for example `vite --port $PORT --strictPort`.
-2. Use **… → Restart → Restart dev server** on the workspace.
+2. Use **… → Restart → Restart dev server** on the chat.
 
 See [When the preview never loads](/guides/building/dev-server#when-the-preview-never-loads).
 
@@ -53,17 +53,17 @@ turbo run dev --filter=web -- --port $PORT
 Alternatively, add `"passThroughEnv": ["PORT"]` to the `dev` task in
 `turbo.json`. See [Monorepos](/guides/building/dev-server#monorepos).
 
-## Workspaces
+## Chats
 
-<Only desktop /> **“The branch … is already open in another workspace on this
-computer”**. Desktop workspaces are git worktrees of one shared clone, and git
-checks out each branch only once. Close the workspace that has the branch open,
-or open a different branch. See [One branch, one
-workspace](/guides/workspaces#one-branch-one-workspace).
+<Only desktop /> **“The branch … is already open in another chat on this
+computer”**. On desktop each chat’s code is a git worktree of one shared clone,
+and git checks out each branch only once. Close the chat that has the branch
+open, or open a different branch. See [One branch, one
+chat](/guides/chats#one-branch-one-chat).
 
 <Only desktop /> **“The branch … is checked out in your local clone”**. The same
 limit, against your own checkout: the agent would be editing your clone
-directly. Switch your clone to another branch, then open the workspace again.
+directly. Switch your clone to another branch, then open the chat again.
 
 <Only desktop /> **“Not a git repository”**. The folder you added isn’t a git
 repository. Add a local clone or a GitHub repository instead; see [Adding a

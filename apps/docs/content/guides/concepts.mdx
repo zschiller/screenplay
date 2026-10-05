@@ -1,6 +1,6 @@
 ---
 title: Core concepts
-description: Canvases, the Coordinator, repositories, workspaces, frames, groups, documents, mockups and their agents, and how they fit together.
+description: Canvases, the Coordinator, repositories, chats, frames, groups, documents, mockups and their agents, and how they fit together.
 ---
 
 # Core concepts
@@ -30,16 +30,16 @@ name.
 
 The **Coordinator** is the canvas’s own chat, and where the agent panel opens.
 Every canvas has exactly one, shared by everyone on it. It sees the whole
-canvas: each workspace’s status, changes and pull request, and every frame and
+canvas: each chat’s status, changes and pull request, and every frame and
 document. It arranges the canvas for you, and when you ask for a change, a
-document or a mockup it sends a message to the right workspace’s agent, which
-does the work. The Coordinator makes nothing itself. It can also start new workspaces, open a
-workspace’s pull request and remove a workspace, right away.
+document or a mockup it sends a message to the right chat’s agent, which
+does the work. The Coordinator makes nothing itself. It can also start new chats, open a
+chat’s pull request and remove a chat, right away.
 → [The Coordinator](/guides/coordinator)
 
 ## Repository
 
-A **repository** on a canvas is the code its workspaces run, together with the
+A **repository** on a canvas is the code its chats run, together with the
 settings Screenplay needs to run it: a setup script (for example
 `npm install`), a run script that starts the dev server, and a few optional
 extras. You add and edit them in Canvas settings. One canvas can hold several
@@ -48,36 +48,36 @@ appear twice with different settings, which suits monorepos. Your repositories
 live in **Settings → Repositories**, ready to add to any canvas.
 → [Repositories](/guides/repositories)
 
-## Workspace
+## Chat
 
-A **workspace** is one git branch of a repository, running in its own isolated
+A **chat** is one git branch of a repository, running in its own isolated
 **sandbox**:
 
 - On the **desktop app**, a sandbox is a git worktree on your machine, and the
-  dev server runs locally on a port assigned to that workspace.
+  dev server runs locally on a port assigned to that chat.
 - On the **hosted app**, a sandbox is a cloud VM with its own clone of the
   repository.
 
-Each workspace has a title (the agent writes it from your first message), its
-own dev server, and its own agent chat and terminals. The **Chats**
+Each chat has a title (the agent writes it from your first message), its
+own dev server, and its own agent and terminals. The **Chats**
 button at the top right of the agent panel lists every chat, like threads in
-a project: each workspace’s chat by its title, grouped by what it’s doing. On a canvas with several repositories each row ends with its
+a project: each by its title, grouped by what it’s doing. On a canvas with several repositories each row ends with its
 repository’s name.
-Workspaces are cheap: create one for every idea you want to try and compare
+Chats are cheap: start one for every idea you want to try and compare
 them side by side.
-→ [Workspaces](/guides/workspaces)
+→ [Chats](/guides/chats)
 
 ## Frame
 
 A **frame** is a live preview on the canvas. It shows one route of one
-workspace’s dev server at a chosen device size. Frames are real browsers:
+chat’s dev server at a chosen device size. Frames are real browsers:
 switch into **Interact** mode and you can click through the app.
 → [Frames](/guides/frames)
 
 ## Document
 
 A **document** is a rich-text page on the canvas for specs, checklists, notes
-and plans. Documents are edited collaboratively, and a workspace’s chat can
+and plans. Documents are edited collaboratively, and a chat can
 write one for you and keep editing it.
 → [Documents](/guides/documents)
 
@@ -85,8 +85,8 @@ write one for you and keep editing it.
 
 A **mockup** is a self-contained page a chat draws on the canvas to show a
 design option. It needs no dev server, so it shows up at once, beside its
-workspace’s frames or in a group of its own, and you can click through it.
-It names the workspace of the chat that made it, and only that chat can change
+chat’s frames or in a group of its own, and you can click through it.
+It names the chat that made it, and only that chat can change
 it. → [Mockups](/guides/mockups)
 
 ## Group
@@ -94,16 +94,16 @@ it. → [Mockups](/guides/mockups)
 A **group** is a row of frames, documents and mockups laid out left to right, so the
 desktop and mobile versions of a page, or the steps of a flow, stay together.
 Every frame, document and mockup lives in one. When all of a group’s frames show the
-same workspace, as the screens of one flow do, the group names it once;
+same chat, as the screens of one flow do, the group names it once;
 otherwise each frame names its own.
 → [Groups](/guides/canvas#groups)
 
-## Workspace agent
+## Agent
 
-A **workspace agent** does the coding. Every workspace has exactly one chat,
-and only that chat changes its code. When you (or the Coordinator) give it
+Each chat’s **agent** does the coding, and only that chat changes its code.
+When you (or the Coordinator) give it
 work, it reads files, edits them, runs commands, and commits inside that
-workspace’s sandbox. It can read other workspaces’ code, but never changes
+chat’s sandbox. It can read other chats’ code, but never changes
 it. Where the agent comes
 from depends on how you run Screenplay:
 
@@ -114,7 +114,7 @@ from depends on how you run Screenplay:
   OpenAI-compatible endpoint).
 
 Alongside chat, **terminal tabs** give you plain interactive shells in the
-same sandbox. → [Workspace chats](/guides/agent),
+same sandbox. → [Working with the agent](/guides/agent),
 [Terminal tabs](/guides/terminals)
 
 ## Memory
@@ -134,7 +134,7 @@ them, and you browse or delete them in Canvas settings. → [Files](/guides/file
 
 A **skill** is a packaged set of instructions a chat loads when a task calls
 for it, like a release-notes checklist. Type <kbd>/</kbd> in any chat to pick
-one. Skills come from the workspace’s repository, the canvas, your account
+one. Skills come from the chat’s repository, the canvas, your account
 and Screenplay itself, which ships a few, such as a design audit. Ask a chat to
 save what you worked out as a skill, and it offers a card to save it to the
 canvas or your account. → [Agent skills](/guides/building/skills)
@@ -144,14 +144,14 @@ canvas or your account. → [Agent skills](/guides/building/skills)
 The UI labels are deliberately friendlier than the code’s names. If you read
 the source or the self-hosting docs:
 
-| In the UI       | In the code        |
-| --------------- | ------------------ |
-| Canvas          | Room               |
-| Repository      | Repo               |
-| Coordinator     | Room Target        |
-| Workspace       | Branch             |
-| Frame           | Iframe Layer       |
-| Group           | Iframe Layer Group |
-| Document        | Markdown Layer     |
-| Mockup          | Mockup Layer       |
-| Workspace agent | Engine             |
+| In the UI   | In the code        |
+| ----------- | ------------------ |
+| Canvas      | Room               |
+| Repository  | Repo               |
+| Coordinator | Room Target        |
+| Chat        | Branch             |
+| Frame       | Iframe Layer       |
+| Group       | Iframe Layer Group |
+| Document    | Markdown Layer     |
+| Mockup      | Mockup Layer       |
+| Agent       | Engine             |

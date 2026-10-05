@@ -162,8 +162,7 @@ export async function provisionSandbox(
         return {
           success: false,
           error:
-            (!created.success && created.error) ||
-            "Couldn’t set up the workspace.",
+            (!created.success && created.error) || "Couldn’t set up the code.",
         }
       }
     }
@@ -183,8 +182,7 @@ export async function provisionSandbox(
         return {
           success: false,
           error:
-            (!created.success && created.error) ||
-            "Couldn’t set up the workspace.",
+            (!created.success && created.error) || "Couldn’t set up the code.",
         }
       }
     }

@@ -3,32 +3,43 @@ import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
-import { extractUiStrings } from "./extract"
-import { findCopyViolations } from "./rules"
+import { extractProse, extractUiStrings } from "./extract"
+import { findCopyViolations, findProseViolations } from "./rules"
 
 const appDir = fileURLToPath(new URL("../../", import.meta.url))
 
 /**
  * Where user-facing copy lives. `app/api` answers other code, `lib/agent`
- * and `lib/frame-drive/tools.ts` write prompts and tool descriptions for the
- * model, and tests quote copy rather than render it — none of them is read
- * by a person as UI.
+ * (but for `tool-description.ts`, the chat's tool rows)
+ * and `lib/frame-drive`'s tools and prompt write prompts and tool
+ * descriptions for the model, and tests (and the shared contract suite) quote
+ * copy rather than render it — none of them is read by a person as UI.
  */
 function uiSourceFiles(): string[] {
-  return execFileSync(
-    "git",
-    ["ls-files", "app", "components", "hooks", "lib"],
-    {
+  return (
+    execFileSync("git", ["ls-files", "app", "components", "hooks", "lib"], {
       cwd: appDir,
       encoding: "utf8",
-    }
+    })
+      .split("\n")
+      .filter((f) => /\.tsx?$/.test(f))
+      .filter((f) => !/\.test\.tsx?$/.test(f))
+      .filter((f) => !f.startsWith("app/api/"))
+      // The tool rows a chat shows are copy; the rest of lib/agent is prompts.
+      .filter(
+        (f) =>
+          !f.startsWith("lib/agent/") || f === "lib/agent/tool-description.ts"
+      )
+      .filter(
+        (f) =>
+          ![
+            "lib/frame-drive/tools.ts",
+            "lib/frame-drive/prompt.ts",
+            "lib/frame-drive/contract-suite.ts",
+          ].includes(f)
+      )
+      .filter((f) => !f.startsWith("lib/ui-copy/"))
   )
-    .split("\n")
-    .filter((f) => /\.tsx?$/.test(f))
-    .filter((f) => !/\.test\.tsx?$/.test(f))
-    .filter((f) => !f.startsWith("app/api/") && !f.startsWith("lib/agent/"))
-    .filter((f) => f !== "lib/frame-drive/tools.ts")
-    .filter((f) => !f.startsWith("lib/ui-copy/"))
 }
 
 describe("UI copy uses the glossary's UI labels", () => {
@@ -47,6 +58,19 @@ describe("UI copy uses the glossary's UI labels", () => {
     // See lib/ui-copy/rules.ts for the labels, and CONTEXT.md for the glossary.
     expect(problems).toEqual([])
   })
+
+  it("no prose says “workspace”: people know it as a chat", () => {
+    const problems: string[] = []
+    for (const file of uiSourceFiles()) {
+      const source = readFileSync(appDir + file, "utf8")
+      for (const s of extractProse(file, source)) {
+        for (const v of findProseViolations(s.text)) {
+          problems.push(`${file}:${s.line} “${s.text}” — ${v.rule}`)
+        }
+      }
+    }
+    expect(problems).toEqual([])
+  })
 })
 
 describe("findCopyViolations", () => {
@@ -55,8 +79,10 @@ describe("findCopyViolations", () => {
     ["Add project", "project → repository (or canvas)"],
     ["Each iframeLayer runs a live preview", "iframeLayer → frame"],
     ["Back to room", "room → canvas"],
-    ["Search workspaces...", "use the … character"],
-    ["Choose a branch", "branch → workspace"],
+    ["Search chats...", "use the … character"],
+    ["Choose a workspace", "workspace → chat"],
+    ["Workspace stopped", "workspace → chat"],
+    ["Choose a branch", "branch → chat"],
     ["Drove Checkout", "drive → control (or use)"],
     ["Driving {}", "drive → control (or use)"],
   ])("flags %j", (text, rule) => {
@@ -64,7 +90,8 @@ describe("findCopyViolations", () => {
   })
 
   it.each([
-    "Search workspaces…",
+    "Search chats…",
+    "Choose a chat",
     "Also delete 2 branches on remote",
     "Choose the base branch",
     "Open branch on GitHub",
@@ -77,6 +104,27 @@ describe("findCopyViolations", () => {
     "Take control",
   ])("passes %j", (text) => {
     expect(findCopyViolations(text)).toEqual([])
+  })
+})
+
+describe("findProseViolations", () => {
+  it.each([
+    "The workspace is still starting…",
+    "Couldn’t reopen Workspace",
+    "Unpushed work in 2 workspaces will be lost.",
+  ])("flags %j", (text) => {
+    expect(findProseViolations(text).map((v) => v.rule)).toEqual([
+      "workspace → chat",
+    ])
+  })
+
+  it.each([
+    "has-[[data-slot=workspace-mention-end]]:hidden",
+    "@workspace/ui/components/button",
+    'use "workspace" or "coordinator".',
+    "Still setting up the code…",
+  ])("passes %j", (text) => {
+    expect(findProseViolations(text)).toEqual([])
   })
 })
 
@@ -95,7 +143,7 @@ describe("extractUiStrings", () => {
           </div>
         )
         toast.error("Failed to delete canvas")
-        const item = { id: "branch", label: "Workspace & sandbox" }
+        const item = { id: "branch", label: "Chat & sandbox" }
       `)
     ).toEqual([
       "attr:title Rename canvas",
@@ -104,7 +152,7 @@ describe("extractUiStrings", () => {
       "jsx-text Save",
       "attr:placeholder Comment on {}…",
       "toast Failed to delete canvas",
-      "prop:label Workspace & sandbox",
+      "prop:label Chat & sandbox",
     ])
   })
 

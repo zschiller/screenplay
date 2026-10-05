@@ -7,7 +7,7 @@ description: Install Claude Code, Codex and OpenCode in sandboxes, without handi
 
 Besides the built-in agent, Screenplay can install **bring-your-own coding
 CLIs** (“harnesses”) in every sandbox, where anyone can run one from a
-workspace’s [shells](/guides/terminals). On desktop, a harness *is* the chat
+chat’s [shells](/guides/terminals). On desktop, a harness *is* the chat
 agent. Each CLI is a descriptor in
 `apps/app/lib/agent/harnesses/`:
 
@@ -72,10 +72,10 @@ not in a repository. Claude Code, Codex and OpenCode can all back it.
 OpenCode runs its own adapter, `opencode acp`, and names these tools
 `screenplay_<tool>`.
 
-A workspace chat on a CLI edits files and runs commands with the CLI’s own
+A chat on a CLI edits files and runs commands with the CLI’s own
 tools. It reaches Screenplay’s tools through the same server: the dev server,
 frames, documents, mockups, skills and opening a pull request. Their output
-has the workspace’s environment variable values removed, as in the built-in
+has the chat’s environment variable values removed, as in the built-in
 agent.
 
 ## Adding a CLI

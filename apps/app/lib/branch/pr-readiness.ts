@@ -141,11 +141,11 @@ function blockerOf(input: PrReadinessInput): PrBlocker | null {
   if (input.availability === "connect")
     return { kind: "connect-github", reason: CONNECT_GITHUB_FOR_PR_HINT }
   if (branch.status === "creating" || branch.status === "starting")
-    return { kind: "starting", reason: "The workspace is still starting…" }
+    return { kind: "starting", reason: "Still setting up the code…" }
   if (branch.status === "error" || branch.error)
-    return { kind: "setup-failed", reason: "The workspace’s setup failed." }
+    return { kind: "setup-failed", reason: "The chat’s setup failed." }
   if (!branch.sandboxName || !branch.ref)
-    return { kind: "not-ready", reason: "The workspace isn’t ready yet." }
+    return { kind: "not-ready", reason: "The chat isn’t ready yet." }
   if (input.agentWorking)
     return { kind: "agent-working", reason: "The agent is still working." }
   if (!input.hasChanges)

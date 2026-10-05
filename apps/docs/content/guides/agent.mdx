@@ -1,41 +1,40 @@
 ---
-title: Workspace chats
-description: Give a workspace’s agent work, point it at elements and documents, review plans, and follow what it does.
+title: Working with the agent
+description: Give a chat’s agent work, point it at elements and documents, review plans, and follow what it does.
 ---
 
-# Workspace chats
+# Working with the agent
 
 The agent panel on the right (<kbd>⌘</kbd> <kbd>I</kbd>) is where you work
 with the agent. With nothing selected it shows the canvas’s
-[Coordinator](/guides/coordinator). Pick a workspace and it chats with that
-workspace’s agent instead, and everything the agent does happens inside that
-workspace’s sandbox.
+[Coordinator](/guides/coordinator). Pick a chat and you talk to that
+chat’s agent instead, and everything the agent does happens inside that
+chat’s sandbox.
 
 The Coordinator uses the same composer, with less in it. It is one chat with
 no terminals, and has no **Plan** toggle or crosshair.
 
-Every workspace has exactly one chat, from the moment it starts, and that chat
-is the only one that changes the workspace’s code. More work in parallel means
-more workspaces: each is its own branch, sandbox, dev server and chat. A
-workspace’s chat can read other workspaces’ code and frames, but never changes
-them. It can also [write documents](/guides/documents#documents-a-chat-writes)
+Every chat has its own branch, sandbox, dev server and terminals from the
+moment it starts, and it’s the only chat that changes that code. More work in
+parallel means more chats. A chat can read other chats’ code and frames, but
+never changes them. It can also [write documents](/guides/documents#documents-a-chat-writes)
 on the canvas, and edits the ones it wrote.
 
 ## Choosing a target
 
 The **Chats** button at the far right of the Coordinator’s header opens the
-list of every workspace’s chat by its title, with the workspace’s status icon
+list of every chat by its title, with its status icon
 and pull request, grouped by what each is doing (see
-[The Chats menu](/guides/workspaces#the-chats-menu)). Pick one to open its
+[The Chats menu](/guides/chats#the-chats-menu)). Pick one to open its
 chat. When you switch back to a target, the panel reopens the chat
 you last used there.
 
-In a workspace the header reads **Coordinator / _workspace_**: click
-**Coordinator** to go back. Hover the workspace’s name for its
-[hover card](/guides/workspaces#the-hover-card), and click the **…** after it
-for the [chat menu](/guides/workspaces#workspace-actions). On the right are the
-workspace’s **+/−** diff and a **Create PR** button (see
-[Pull requests](/guides/workspaces#pull-requests)). Once its pull request is
+In a chat the header reads **Coordinator / _chat title_**: click
+**Coordinator** to go back. Hover the chat’s name for its
+[hover card](/guides/chats#the-hover-card), and click the **…** after it
+for the [chat menu](/guides/chats#chat-actions). On the right are the
+chat’s **+/−** diff and a **Create PR** button (see
+[Pull requests](/guides/chats#pull-requests)). Once its pull request is
 open, the button links to it and the **+/−** goes.
 
 ## Chats with no repository
@@ -51,34 +50,34 @@ repository at all.
   with none answers it. Elsewhere, pick **New chat, no repository** in the
   box’s chip.
 - Ask the [Coordinator](/guides/coordinator) for a document or mockup that
-  isn’t about a workspace’s code, and it starts one for you.
+  isn’t about any chat’s code, and it starts one for you.
 
 Its header reads **Coordinator / _chat title_**. Its first message names it,
-like a workspace’s chat; rename or delete it from its **…** in the Chats
+like any other chat; rename or delete it from its **…** in the Chats
 menu. Deleting it keeps the mockups and documents it made. The Chats menu
 lists these chats under
 **No repository**, with a spinner while the agent works and an orange dot
-while its question waits for you, as on a workspace’s chat.
+while its question waits for you, as on any other chat.
 
 ## Terminals
 
-The workspace’s chat fills the panel. Under the composer, a quiet line names
-the workspace’s terminals: **Dev server** first, with a dot showing what
+The chat fills the panel. Under the composer, a quiet line names
+the chat’s terminals: **Dev server** first, with a dot showing what
 the dev server is doing, then your own [terminals](/guides/terminals). At
 the right edge, **Stop** stops the dev server and **Run** starts it again,
 without opening the pane.
 
 <Screenshot
   name="terminal-footnote"
-  alt="The line under the composer naming Dev server and the workspace’s terminals"
+  alt="The line under the composer naming Dev server and the chat’s terminals"
 />
 
 Click a name to open the terminal pane under the chat on it. The open pane
 has its terminals as tabs, **+** to open a [shell](/guides/terminals), and a caret at the
 right to hide it. Drag the line between the chat and the pane to give either
 more room; drag it all the way down to close the pane. <kbd>⌃</kbd> <kbd>`</kbd>
-opens and closes it from anywhere in a workspace. The pane remembers its
-height and whether it’s open, the same in every workspace, and never opens by
+opens and closes it from anywhere in a chat. The pane remembers its
+height and whether it’s open, the same in every chat, and never opens by
 itself.
 
 **Dev server** shows the setup script’s and dev server’s output. It’s read
@@ -90,7 +89,7 @@ show. A frame’s **Open logs** opens the pane on it.
 The footnote and the open pane’s bar both have **Stop** while the dev server
 runs, and **Run** once it’s stopped or has crashed. Stopping it leaves the
 sandbox running and its output on screen; **Run** starts it the same way
-**Restart dev server** in the workspace’s menu does. <kbd>⌃</kbd> <kbd>C</kbd>
+**Restart dev server** in the chat’s menu does. <kbd>⌃</kbd> <kbd>C</kbd>
 in **Dev server** never stops it.
 
 The dot beside **Dev server** is the same for everyone on the canvas:
@@ -102,7 +101,7 @@ The dot beside **Dev server** is the same for everyone on the canvas:
 | Red   | It crashed: the preview stopped answering and nobody stopped it. |
 
 A stopped dev server stays stopped, even after a reload, until someone runs
-it again. The workspace’s agent can stop and start it too, and the dot
+it again. The chat’s agent can stop and start it too, and the dot
 follows.
 
 <Screenshot
@@ -112,8 +111,8 @@ follows.
 
 ## Earlier chats
 
-A canvas from before workspaces had one chat can hold several chats on one
-workspace. The newest is the workspace’s chat, and the panel always shows it.
+A canvas from before each branch had exactly one chat can hold several chats
+on one branch. The newest is the one the panel always shows.
 The older ones are kept but no longer appear in the panel.
 
 ## The composer
@@ -224,7 +223,7 @@ marked with its name, like **Claude Code**.
 
 Instead of describing a button, point at it. Click the **crosshair** (or
 press <kbd>⌘</kbd> <kbd>E</kbd>), then click any element in one of this
-workspace’s frames or in a [mockup](/guides/mockups) its chat drew. A token
+chat’s frames or in a [mockup](/guides/mockups) it drew. A token
 like `⌖ a` is inserted where your cursor was, and the agent receives the
 element’s CSS selector, route, and frame, or for a mockup, which mockup it’s
 in. Hover the
@@ -232,7 +231,7 @@ token to highlight the element on the canvas. <kbd>Esc</kbd> cancels picking.
 
 <Screenshot
   name="target-picking"
-  alt="Picking an element: the workspace’s frames stay active while others dim"
+  alt="Picking an element: the chat’s frames stay active while others dim"
 />
 
 <Screenshot
@@ -248,7 +247,7 @@ instead of editing. It works the same in chats running Claude Code, Codex or
 OpenCode on desktop: Codex plans in its own Plan setting, OpenCode in its
 read-only plan agent, and you approve their plans on the same card. OpenCode
 has no step that asks to carry out its plan, so its last reply in a plan turn
-is the plan the card shows. Plan mode is for workspace chats; the Coordinator has no
+is the plan the card shows. Plan mode is for chats; the Coordinator has no
 **Plan** toggle.
 
 <Screenshot
@@ -269,14 +268,14 @@ from, and the one it would pick marked **Recommended**. Pick an option to send
 it as your reply; the agent carries on from there. From the keyboard, the
 arrow keys move between options without sending, and Enter or Space sends
 the one you’re on. To answer
-something else, just type it in the composer. Until you answer, a workspace
-chat’s question reads **Question waiting** and puts the orange
-[needs-you dot](/guides/workspaces#the-chats-menu) on the **Chats**
+something else, just type it in the composer. Until you answer, a chat’s
+question reads **Question waiting** and puts the orange
+[needs-you dot](/guides/chats#the-chats-menu) on the **Chats**
 button.
 
 Once answered, the question keeps the option you chose selected and can’t be
 answered again. On a [shared canvas](/guides/collaboration) it also says who
-answered it. Workspace chats and the [Coordinator](/guides/coordinator)
+answered it. Chats and the [Coordinator](/guides/coordinator)
 can both ask questions this way, in the browser and on desktop, including
 chats running on Claude Code, Codex or OpenCode.
 
@@ -301,8 +300,8 @@ agent the chat runs on. Paths are relative to the repository.
 | **Read skill** _name_                          | Loaded a skill’s instructions                                                                                                     |
 | **Save skill** _name_                          | Offered a skill: a card to save it to your account or the canvas ([skills](/guides/building/skills#saving-a-skill-to-the-canvas)) |
 | **Read dev server logs**                       | Read the dev server’s recent output                                                                                               |
-| **Restart dev server**                         | Restarted the workspace’s dev server                                                                                              |
-| **Stop dev server**                            | Stopped the workspace’s dev server                                                                                                |
+| **Restart dev server**                         | Restarted the chat’s dev server                                                                                                   |
+| **Stop dev server**                            | Stopped the chat’s dev server                                                                                                     |
 | **Start dev server**                           | Started a stopped dev server again                                                                                                |
 | **View frame**                                 | Looked at a frame’s preview, or its last capture                                                                                  |
 | **Read frame HTML**                            | Read the page in a frame as HTML                                                                                                  |
@@ -349,18 +348,18 @@ A few defaults are worth knowing:
 
 - **The agent commits and pushes after every change.** Commits are made under
   your identity, which matters on shared canvases.
-- **The workspace preview updates on its own.** The dev server hot-reloads as
+- **The chat’s preview updates on its own.** The dev server hot-reloads as
   files change. The agent can read the dev server’s output (the same as the
   **Dev server** terminal) to debug a broken preview, restart the dev server
   when a change needs it, and stop or start it when you ask.
 - **The agent can see the frames.** It can take a screenshot of a frame, or
   read the page in it as HTML with the styles included, for example to start a
-  mockup from how the app looks now. It reads its own workspace’s frame unless
+  mockup from how the app looks now. It reads its own chat’s frame unless
   it names another one; any frame on the canvas can be read, never changed.
-  Workspace chats running on Claude Code, Codex or OpenCode on desktop get
+  Chats running on Claude Code, Codex or OpenCode on desktop get
   these tools and the dev server ones too.
 - **The agent can take screenshots without a frame.** It renders any route of
-  a workspace’s preview in the background, at any width (a phone, a wide
+  a chat’s preview in the background, at any width (a phone, a wide
   screen) or as the whole scrolling page, and any public web page by its
   address. It can keep a screenshot in the canvas’s
   [saved files](/guides/files) to put in a document or a mockup, or for a later
@@ -387,15 +386,14 @@ CI checks, to see why one is red.
 When you ask, it can also open an issue, comment on an issue or pull request,
 reply to a review comment, close, reopen, retitle or relabel one, and link
 issues with GitHub’s blocked-by edges and sub-issues. These
-post with your GitHub account, the same one that pushes the workspace’s
+post with your GitHub account, the same one that pushes the chat’s
 commits, so they show as yours on GitHub. It only reaches the canvas’s
 repositories.
 
 ## Chat naming
 
-A workspace’s chat is named from its first message. That message usually
-titles the workspace and names its branch too, and then the chat takes the
-workspace’s title; see [Titles](/guides/workspaces#titles) for when it does.
+A chat is named from its first message. That message usually
+names its branch too; see [Titles](/guides/chats#titles) for when it does.
 
 <Callout type="info">
   **“No coding agent found”** on desktop means no supported CLI is installed.

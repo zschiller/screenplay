@@ -384,7 +384,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
               previewDomain: "",
               port: repo.devServerPort ?? DEFAULT_DEV_SERVER_PORT,
               status: "creating",
-              statusMessage: "Setting up the workspace…",
+              statusMessage: "Setting up the code…",
               createdAt: Date.now(),
               autoNamedBranch: plan.autoNamedBranch,
               createFlow: plan.flow,

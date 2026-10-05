@@ -171,7 +171,7 @@ const CASES: {
       shown: true,
       blocker: {
         kind: "starting",
-        reason: "The workspace is still starting…",
+        reason: "Still setting up the code…",
       },
       running: false,
     },
@@ -184,7 +184,7 @@ const CASES: {
       shown: true,
       blocker: {
         kind: "setup-failed",
-        reason: "The workspace’s setup failed.",
+        reason: "The chat’s setup failed.",
       },
       running: false,
     },
@@ -195,7 +195,7 @@ const CASES: {
     expected: {
       existingPr: null,
       shown: true,
-      blocker: { kind: "not-ready", reason: "The workspace isn’t ready yet." },
+      blocker: { kind: "not-ready", reason: "The chat isn’t ready yet." },
       running: false,
     },
   },
@@ -205,7 +205,7 @@ const CASES: {
     expected: {
       existingPr: null,
       shown: true,
-      blocker: { kind: "not-ready", reason: "The workspace isn’t ready yet." },
+      blocker: { kind: "not-ready", reason: "The chat isn’t ready yet." },
       running: false,
     },
   },

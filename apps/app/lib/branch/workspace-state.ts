@@ -90,9 +90,7 @@ function workspaceStatusLine(
       kind: "progress",
       step:
         stepLabel(branch.statusMessage) ||
-        (branch.status === "creating"
-          ? "Setting up the workspace"
-          : "Starting"),
+        (branch.status === "creating" ? "Setting up the code" : "Starting"),
     }
   }
   const needsYou: WorkspaceStatusLine | null = ctx.planPending

@@ -138,3 +138,41 @@ export function extractUiStrings(fileName: string, source: string): UiString[] {
   visit(sf)
   return out
 }
+
+/**
+ * Every piece of **prose** in a source file: string literals, template text
+ * and JSX text that hold a space, so a sentence rather than an identifier,
+ * a route or a key. Broader than {@link extractUiStrings} (it can't tell an
+ * error a person reads from a log line), so it backs only rules for words
+ * that never belong in either, like "workspace".
+ */
+export function extractProse(fileName: string, source: string): UiString[] {
+  const sf = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  )
+  const out: UiString[] = []
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return
+    if (
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node) ||
+      ts.isJsxText(node)
+    ) {
+      const text = node.text.replace(/\s+/g, " ").trim()
+      if (text.includes(" ")) {
+        const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf))
+        out.push({ line: line + 1, text, kind: "prose" })
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return out
+}

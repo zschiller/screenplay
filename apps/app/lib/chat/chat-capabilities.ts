@@ -33,7 +33,7 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
     placeholder: "Ask the agent… (@ document, / skill)",
     emptyTitle: "Change what your frames show",
     emptyBody:
-      "The agent edits this workspace’s code and can run commands, and your frames update as it works. It can write documents on the canvas too.",
+      "The agent edits this chat’s code and can run commands, and your frames update as it works. It can write documents on the canvas too.",
     starters: [
       "Explain how this page is built",
       "Tighten the spacing on mobile",

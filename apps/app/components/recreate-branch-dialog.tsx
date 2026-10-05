@@ -44,10 +44,10 @@ export function RecreateBranchDialog({
       onOpenChange={onOpenChange}
       verb="Recreate"
       itemName={workspaceTitle ?? branchName}
-      itemNoun="workspace"
+      itemNoun="chat"
       description={
         <>
-          Recreate rebuilds this workspace from git. Uncommitted changes are{" "}
+          Recreate rebuilds this chat’s code from git. Uncommitted changes are{" "}
           <strong>permanently discarded</strong>. To keep them, use “
           {isLocalBuild ? "Restart dev server" : "Restart sandbox"}” instead.
         </>

@@ -8,7 +8,7 @@ import { Steps } from "nextra/components"
 # Self-hosting
 
 The hosted build of Screenplay is a multi-user Next.js app. People sign in
-with GitHub, share canvases, and each workspace runs in its own cloud sandbox
+with GitHub, share canvases, and each chat runs in its own cloud sandbox
 VM. This section covers deploying it.
 
 <Callout type="info">
@@ -29,7 +29,7 @@ swappable. The defaults are what the reference deployment uses:
 | **GitHub OAuth app** | Sign-in, plus `repo` scope to clone and push for users | [GitHub](https://github.com/settings/developers) | — |
 | **Postgres** | Users, sessions, canvases, members, comments, agent history, encrypted settings | [Neon](https://neon.tech) (serverless HTTP driver) | Any Postgres; [swap the driver](/self-hosting/database#using-a-different-postgres-driver) |
 | **Yjs host** | Realtime sync of each canvas document, agent streams, and presence | [Liveblocks](https://liveblocks.io) | Hocuspocus, y-websocket, … ([how](/self-hosting/configuration/yjs-host)) |
-| **Sandbox provider** | One Linux VM per workspace | [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) | E2B, Modal, … ([how](/self-hosting/configuration/sandbox-provider)) |
+| **Sandbox provider** | One Linux VM per chat | [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) | E2B, Modal, … ([how](/self-hosting/configuration/sandbox-provider)) |
 | **Model provider** | The agent. At least one is required. | Anthropic | OpenAI, Google, Vercel AI Gateway, any OpenAI-compatible API ([how](/self-hosting/configuration/model-providers)) |
 | **Blob store** | Canvas thumbnails | [Vercel Blob](https://vercel.com/docs/vercel-blob) | S3, R2, GCS, … ([how](/self-hosting/configuration/blob-store)) |
 

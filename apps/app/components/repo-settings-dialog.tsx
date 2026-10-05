@@ -225,7 +225,7 @@ function RepoSettingsForm({
     <>
       <RepoDialogHeader
         title="Edit repository"
-        description="Defaults for new workspaces on this canvas."
+        description="Defaults for new chats on this canvas."
         source={repo.repoFullName}
       />
 

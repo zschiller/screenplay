@@ -80,7 +80,7 @@ export function IframeLayerLabel({
   let trailing: React.ReactNode = null
   if (!showWorkspace) {
     // The Group's label names the Workspace (or offers one for every frame);
-    // hovering this frame's name offers "Set workspace" for just this frame,
+    // hovering this frame's name offers "Choose chat" for just this frame,
     // like a mixed Group's label does for all of them (#1276).
     if (onAssignBranch) {
       trailing = (
@@ -90,7 +90,7 @@ export function IframeLayerLabel({
             onPick: onAssignBranch,
           }}
           currentBranchId={workspace?.branchId}
-          title="Set workspace"
+          title="Choose chat"
           placeholder={`Show ${label || "Untitled"} from…`}
           // Hidden but holding its place, so hovering the spot where it
           // appears shows it too. Out of sight it gives the name its width.
@@ -156,7 +156,7 @@ export function IframeLayerLabel({
 }
 
 interface BranchPickerProps {
-  /** Unset on an unassigned frame, which offers "Choose a workspace". */
+  /** Unset on an unassigned frame, which offers "Choose a chat". */
   workspace?: FrameWorkspace
   assignableBranches: BranchData[]
   onAssignBranch: (branchId: string) => void
@@ -214,7 +214,7 @@ export function SharedStateIndicator({
 /**
  * The Workspace a frame names on its label, as a switcher: the shared mention
  * (the one the Workspace list uses), with the up-down chevron on hover. An
- * unassigned frame shows "Choose a workspace" instead.
+ * unassigned frame shows "Choose a chat" instead.
  */
 function BranchPicker({
   workspace,
@@ -235,9 +235,7 @@ function BranchPicker({
           <button
             type="button"
             aria-label={
-              workspace
-                ? `Workspace: ${workspaceLabel(workspace)}`
-                : "Choose a workspace"
+              workspace ? `Chat: ${workspaceLabel(workspace)}` : "Choose a chat"
             }
             // Names win: the Workspace gives up its width first.
             className="group flex min-w-10 shrink-[100] items-center text-xs text-muted-foreground outline-none focus-visible:outline-none"
@@ -247,7 +245,7 @@ function BranchPicker({
             {workspace ? (
               <CompactWorkspaceMention workspace={workspace} />
             ) : (
-              <span className="truncate">Choose a workspace</span>
+              <span className="truncate">Choose a chat</span>
             )}
             <CaretUpDownIcon
               aria-hidden

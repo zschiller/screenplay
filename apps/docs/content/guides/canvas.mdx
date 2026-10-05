@@ -12,9 +12,9 @@ A canvas has three regions:
 - **The canvas itself**: an infinite surface of frames and documents, with
   the toolbar at the bottom center.
 - **Agent panel** (<kbd>⌘</kbd> <kbd>I</kbd>): the [Coordinator](/guides/coordinator), or chat and
-  terminals for the selected workspace. Its **Chats** button
+  terminals for the selected chat. Its **Chats** button
   lists every chat (see
-  [The Chats menu](/guides/workspaces#the-chats-menu)).
+  [The Chats menu](/guides/chats#the-chats-menu)).
 
 The shortcuts hide and show the side panels. While one is hidden, **Show
 sidebar** at the top left or **Show chat** at the top right brings it back.
@@ -100,7 +100,7 @@ after the name of a selected document or group. Its tooltip names the object:
 - **Rename** and **Duplicate** (frames and mockups).
 - **Device size** and **Fit to content** (frames and mockups).
 - A frame’s **Chat** submenu with its
-  [chat menu](/guides/workspaces#workspace-actions).
+  [chat menu](/guides/chats#chat-actions).
 - **Delete**.
 
 ## Groups
@@ -123,44 +123,44 @@ such as a page’s desktop and mobile versions or the steps of a signup flow.
 
 A group disappears when its last member is removed.
 
-### A group’s workspace
+### A group’s chat
 
-When every frame in a group shows the same workspace, as the screens of one
+When every frame in a group shows the same chat, as the screens of one
 flow do, the group names it after the group’s name: its state icon (a spinner
 while it sets up, moving dots while its agent works), its title, and its pull
-request when there’s room. Its frames leave the workspace off their own titles;
-to show one of them from another workspace, hover the frame’s name and click
-**Set workspace** after it.
+request when there’s room. Its frames leave the chat off their own titles;
+to show one of them from another chat, hover the frame’s name and click
+**Choose chat** after it.
 
-When the frames show different workspaces, as parallel explorations do, the
-group names none, and each frame’s title ends with its own workspace. Switching
-one frame to another workspace turns a flow into such a group; switching it back
+When the frames show different chats, as parallel explorations do, the
+group names none, and each frame’s title ends with its own chat. Switching
+one frame to another chat turns a flow into such a group; switching it back
 turns it into a flow again. To put every frame in such a group on one
-workspace, hover the group’s name and click **Set workspace** after it. A group
+chat, hover the group’s name and click **Choose chat** after it. A group
 with a single frame has no group label, so that frame’s title names the
-workspace instead.
+chat instead.
 
-To show a flow from another workspace, click the group’s workspace and pick one
+To show a flow from another chat, click the group’s chat and pick one
 from the list (for a group named Checkout, it reads **Show Checkout from…**).
 Every frame in the group moves, each keeping its route, state and size.
 Documents in the group are unaffected. The switch is one undo step, and
 everyone on the canvas sees it at once.
 
-A group whose frames have no workspace yet shows **Choose a workspace** after
-its name instead, and its frames show No workspace, with **Start a chat** to
+A group whose frames have no chat yet shows **Choose a chat** after
+its name instead, and its frames show **No chat**, with **Start a chat** to
 build something new in them, until you pick. Picking one
-sets the group and all of its frames. Once some frames have a workspace and
+sets the group and all of its frames. Once some frames have a chat and
 others don’t, each frame offers its own list. A group of documents only has no
-workspace: when its last frame is moved out, split off or deleted, the group
-drops its workspace, and the next frame to join sets it.
+chat: when its last frame is moved out, split off or deleted, the group
+drops its chat, and the next frame to join sets it.
 
 ## The layers list
 
 The sidebar’s layer list mirrors the canvas. Groups with several
-members appear as folders. A flow’s row ends with its workspace (state icon
+members appear as folders. A flow’s row ends with its chat (state icon
 and title, with its pull request at the row’s end), and its frame rows show
 just their names. In a group whose frames differ, and in single-frame groups,
-each frame row ends with its own workspace instead.
+each frame row ends with its own chat instead.
 
 - Click to select; <kbd>Shift</kbd>-click to add to the selection.
 - Double-click to zoom to it.
@@ -180,7 +180,7 @@ Deleting a frame, document or group happens at once, whether from the layers
 list, the frame toolbar or the <kbd>Delete</kbd> key, with no confirm and no
 toast; <kbd>⌘</kbd> <kbd>Z</kbd> brings it back. Everyone on the canvas sees
 the delete, and the undo. Deleting a
-workspace or a repository still asks first, because undo can’t bring those
+chat or a repository still asks first, because undo can’t bring those
 back.
 
 <Callout type="info">

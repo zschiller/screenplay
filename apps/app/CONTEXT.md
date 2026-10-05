@@ -9,7 +9,7 @@ use the same words.
 **Naming convention — code = concept, UI = label.** Code uses the structural
 term; the UI shows a friendlier label, and the two are deliberately decoupled.
 The three nested concepts are **Room** (shown to users as "Canvas") → **Repo**
-(shown as "Repository") → **Branch** (shown as "Workspace"). Code — types, files,
+(shown as "Repository") → **Branch** (shown as "Chat"). Code — types, files,
 Y.Doc keys, props, routes — always uses the structural term; the UI labels
 appear only in rendered user-facing strings, never as identifiers. The word
 **agent** in code refers to the AI runtime (the Engine), never to a Branch.
@@ -19,11 +19,12 @@ any common noun: canvas, repository, workspace, frame, mockup, document, chat.
 Only **Coordinator** keeps its capital. A label or sentence that starts with
 one capitalises it as usual ("Workspace stopped", the Mockup tool).
 
-**Chat or workspace in UI copy.** A chat is the thing people start, find,
-rename, delete and pick: New chat, the Chats menu, Chat options, Search chats.
-"Workspace" only names the code copy a chat works in: setup, the dev server,
-and what a frame shows ("Choose a workspace", "The workspace is still
-starting…").
+**Chat, never workspace, in UI copy.** A chat is the thing people start,
+find, rename, delete and pick: New chat, the Chats menu, Chat options, Search
+chats, a frame's "Choose a chat". The code copy a chat works in is "the chat's
+code" or just "the code" ("Setting up the code", "Still setting up the
+code…"). "Workspace" is the code's word only; `lib/ui-copy` fails on it in
+any prose outside the model's prompts.
 
 ## Language
 
@@ -133,7 +134,8 @@ error**, never silently shares or steals a checkout. A Branch has exactly one
 chat, its **Workspace Chat** (#1315). Rendered in the sidebar by
 its branch's name. Lives in the room's Y.Doc as the `branches` collection
 (`BranchData`).
-_Shown to users as_: "Workspace".
+_Shown to users as_: "chat" (its code is "the chat's code"); "Workspace" is
+the code's name for it and never reaches the screen.
 _Avoid_: agent (reserve for the AI runtime — see Agent below); sandbox, run;
 calling one-Branch-per-ref a domain invariant (it is the desktop storage model
 surfacing, absent on the hosted backend) — and equally, assuming the hosted

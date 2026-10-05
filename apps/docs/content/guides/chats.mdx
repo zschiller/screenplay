@@ -1,19 +1,21 @@
 ---
-title: Workspaces
-description: Create workspaces with their own live environment, and manage them from the Chats menu.
+title: Chats
+description: Start chats with their own live environment, and manage them from the Chats menu.
 ---
 
-# Workspaces
+# Chats
 
-A workspace is one git branch of a repository, running in its own sandbox with
-its own dev server, frames, one agent chat, and terminals. A workspace and its
-chat share one title. The **Chats** button at the top right of the Coordinator
-opens the list of every chat on the canvas, by title. Wherever a workspace is named, on a row or a group or frame label, it shows the same way: an icon for what it’s doing, its
-title, and its pull request when there’s room.
+A chat is one git branch of a repository, running in its own sandbox with
+its own dev server, frames, agent and terminals. The **Chats** button at the
+top right of the Coordinator opens the list of every chat on the canvas, by
+title. Wherever a chat is named, on a row or a group or frame label, it shows
+the same way: an icon for what it’s doing, its title, and its pull request
+when there’s room.
 
-## Creating workspaces
+## Starting chats
 
-Every new chat gets its own workspace. There are two ways to start one:
+Every new chat gets its own branch, sandbox and dev server. There are two
+ways to start one:
 
 - **Draw a frame** with the **Frame** tool (<kbd>F</kbd>) and type what it
   should show. A new chat starts on the repository you used last, from its
@@ -21,14 +23,14 @@ Every new chat gets its own workspace. There are two ways to start one:
 - **Ask the Coordinator.** It picks the repository and the branch to start
   from, and can start several chats at once.
 
-The agent titles the workspace from your first message in sentence case (for
+The agent titles the chat from your first message in sentence case (for
 example “Add pricing FAQ”) and names its branch from the same words
 (`add-pricing-faq`).
 
-A new workspace’s frame appears on the canvas straight away, and the canvas
-zooms to it. The workspace goes through **creating** and **starting** while
+A new chat’s frame appears on the canvas straight away, and the canvas
+zooms to it. The chat goes through **creating** and **starting** while
 it checks out the branch, runs the setup script, and boots the dev server.
-To watch it happen, open **Dev server** under the workspace’s composer (see
+To watch it happen, open **Dev server** under the chat’s composer (see
 [Terminals](/guides/agent#terminals)). When the server is up, the frame shows
 the app.
 
@@ -41,32 +43,31 @@ Every chat starts on a branch of its own, so two agents never push to the
 same branch. To build on a branch that already exists, ask the Coordinator to
 start a chat from it: the new chat starts from that branch on a new one.
 
-A canvas with no repository yet says that workspaces need one, with an
+A canvas with no repository yet says that chats need one, with an
 **Add repository** button that goes straight to
 [adding one](/guides/repositories#adding-a-repository).
 
 ## Titles
 
-A workspace is named by its title everywhere: the Chats menu, the agent
-panel’s header, the canvas list and each frame’s workspace badge and address
+A chat is named by its title everywhere: the Chats menu, the agent
+panel’s header, the canvas list and each frame’s chat badge and address
 bar. Titles are in sentence case, like “Add pricing FAQ”. Where a title comes
-from depends on how the workspace started:
+from depends on how the chat started:
 
-- **From a frame or a new repository**, the first message in the
-  workspace’s chat titles it and renames its branch to match (for
-  example `add-pricing-faq`). If that branch name is already taken on the
-  remote, a numeric suffix is added.
-- **From a Coordinator plan**, the workspace takes the title from the plan,
+- **From a frame or a new repository**, the chat’s first message titles it
+  and renames its branch to match (for example `add-pricing-faq`). If that
+  branch name is already taken on the remote, a numeric suffix is added.
+- **From a Coordinator plan**, the chat takes the title from the plan,
   and its branch is named from that title when it’s created. Its first
   message renames neither.
 
-Earlier chats on a canvas from before workspaces had one chat keep their own
-names and never change the workspace’s title or branch.
+Earlier chats on a canvas, from before each branch had exactly one chat, keep
+their own names and never change the title or branch.
 
-Renaming a workspace (**… → Rename**, then type over its title) changes only
+Renaming a chat (**… → Rename**, then type over its title) changes only
 the title, so it never touches the branch, its pull request or anyone’s
 checkout. The branch keeps the name it was given. To rebase it or rename it,
-ask the agent in its chat.
+ask the agent in the chat.
 
 ## The Chats menu
 
@@ -77,8 +78,8 @@ ask the agent in its chat.
 
 The **Chats** button sits at the far right of the
 [Coordinator](/guides/coordinator)’s header, the agent panel’s top
-level. In a workspace, click **Coordinator** in the header to get back to it.
-An orange dot on the **Chats** button means a workspace needs you: its setup
+level. In a chat, click **Coordinator** in the header to get back to it.
+An orange dot on the **Chats** button means a chat needs you: its setup
 failed, its plan waits for your approval, its agent
 [asked you a question](/guides/agent#questions), or its pull request can’t
 merge. An open pull request waiting on review doesn’t count. A
@@ -86,11 +87,11 @@ merge. An open pull request waiting on review doesn’t count. A
 while its question waits.
 Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
 
-- a **search** field that finds a chat by its title or its workspace’s
-  branch, including done ones;
+- a **search** field that finds a chat by its title or its branch,
+  including done ones;
 - **+** and **…** beside the search field, which stay there while you
   search;
-- one row for each workspace’s chat, under **Working**, **Needs you** and
+- one row for each chat, under **Working**, **Needs you** and
   **Idle** (see [Order](#order));
 - under **No repository**, any
   [chats with no repository](/guides/agent#chats-with-no-repository), with a
@@ -106,31 +107,30 @@ first.
 
 Each chat row shows:
 
-- a **status icon** for what the workspace is doing: a spinner while it
+- a **status icon** for what the chat is doing: a spinner while it
   starts, an activity spinner while the agent works, an orange dot when it
   needs you (a plan to approve, a question to answer, or a pull request that
   can’t merge), a small
   circle when it’s ready, a dashed circle when it’s stopped, a check circle
-  when it’s [done](#marking-a-workspace-done), or a warning when setup failed.
+  when it’s [done](#marking-a-chat-done), or a warning when setup failed.
   Click the warning for the error, with **Retry**, **Recreate** and
   **Copy error**;
-- the chat’s **title**, which is its workspace’s title, never its branch. A
-  workspace without one (created before titles
-  existed, or not asked anything yet) reads **New chat** until you
-  rename it or its first chat message names it;
-- at the end, the workspace’s **pull request** as a small outlined badge:
+- the chat’s **title**, never its branch. A chat without one (created before
+  titles existed, or not asked anything yet) reads **New chat** until you
+  rename it or its first message names it;
+- at the end, the chat’s **pull request** as a small outlined badge:
   GitHub’s icon for its state in GitHub’s colours (green open, purple
   merged, red closed, and red with a merge-conflict icon when failing checks
   or a conflict block the merge) and its number. When the row is too narrow for both, the badge is hidden
   rather than cutting off the title. With no pull request the row shows
-  **+/− line counts** for changes compared with the base branch. A workspace
+  **+/− line counts** for changes compared with the base branch. A chat
   that’s starting, stopped or failed shows neither;
 - on a canvas with two or more repositories, the **repository’s short name**
   at the end, so you can tell web and API work apart. With one repository
   it’s never shown.
 
-The agent panel’s header, a frame’s workspace list and the
-**Remove** repository dialog show a workspace the same way: the status icon,
+The agent panel’s header, a frame’s chat list and the
+**Remove** repository dialog show a chat the same way: the status icon,
 then the title, then the pull request badge (the header keeps its own pull
 request button instead).
 
@@ -142,21 +142,21 @@ question waits for your answer, or its pull request can’t merge) and **Idle**
 (ready or stopped, including a pull request waiting on review). Each section
 gets its own heading, and empty sections are hidden.
 
-Inside each section, the workspace whose agent was last asked something
+Inside each section, the chat whose agent was last asked something
 comes first; one that never ran a turn counts from when it was created.
-[Done](#marking-a-workspace-done) workspaces stay in their own section at the
+[Done](#marking-a-chat-done) chats stay in their own section at the
 bottom.
 
-Hover a row to see where the workspace is used: the canvas list lights up the
-[groups](/guides/canvas#a-groups-workspace) on it and the frames that show
+Hover a row to see where the chat is used: the canvas list lights up the
+[groups](/guides/canvas#a-groups-chat) on it and the frames that show
 it, and the canvas outlines those frames. It works the other way too: while
-the menu is open, hovering a group, a frame, or a group’s workspace lights up
-its workspace’s row.
+the menu is open, hovering a group, a frame, or a group’s chat lights up
+that chat’s row.
 
 ### The hover card
 
-Hover a workspace row, the workspace’s name in the agent panel’s header, or a
-workspace named on a group or frame label, to see its
+Hover a chat row, the chat’s name in the agent panel’s header, or a
+chat named on a group or frame label, to see its
 details:
 
 - its title and what it’s doing now, such as the setup step and how long it
@@ -164,19 +164,19 @@ details:
 - its **repository**, its **git branch**, the **base** branch its changes are
   compared with, and its **changes** as +/− line counts.
 
-This is where you find a workspace’s branch name, since rows and labels show
+This is where you find a chat’s branch name, since rows and labels show
 its title.
 
 On a group or frame label, the card ends with **Open chat**, which opens
-the workspace’s chat in the agent panel.
+the chat in the agent panel.
 
-## Workspace actions
+## Chat actions
 
-Click **…** after the workspace’s name in its chat header, or hover its chat
+Click **…** after the chat’s name in its header, or hover the chat
 in the Chats menu and click **…**. A frame’s **… → Chat** submenu holds
-the same menu. It starts with the one action the workspace’s state calls for
+the same menu. It starts with the one action the chat’s state calls for
 (**Retry setup** after a failed setup, **Mark as done** once its pull request
-has merged, **Create pull request**, **Reopen** on a done workspace, or **Open
+has merged, **Create pull request**, **Reopen** on a done chat, or **Open
 prototype player**), then the rest, with dividers between
 viewing, git, pull requests and managing actions:
 
@@ -184,15 +184,15 @@ viewing, git, pull requests and managing actions:
 
 | Item                          | What it does                                                                                                         |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Open prototype player**     | Opens [play mode](/guides/play-mode) for this workspace.                                                             |
+| **Open prototype player**     | Opens [play mode](/guides/play-mode) for this chat.                                                                  |
 | **Open in browser**           | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`. |
-| **Show all routes**           | Adds a group with one frame per route the workspace has visited.                                                     |
+| **Show all routes**           | Adds a group with one frame per route the chat’s preview has visited.                                                |
 | **Create pull request**       | Opens a PR into the repository’s default branch. See [Pull requests](#pull-requests).                                |
-| **Pull requests**             | Lists every PR the workspace opened, newest first. Click one to open it on GitHub.                                   |
-| **Rename**                    | Renames the workspace’s title. The git branch stays as it is.                                                        |
+| **Pull requests**             | Lists every PR the chat opened, newest first. Click one to open it on GitHub.                                        |
+| **Rename**                    | Renames the chat’s title. The git branch stays as it is.                                                             |
 | **Restart**                   | See [Restarting](#restarting).                                                                                       |
-| **Mark as done** / **Reopen** | See [Marking a workspace done](#marking-a-workspace-done).                                                           |
-| **Delete**                    | Deletes the chat with its workspace and frames, and optionally its branch on GitHub.                                 |
+| **Mark as done** / **Reopen** | See [Marking a chat done](#marking-a-chat-done).                                                                     |
+| **Delete**                    | Deletes the chat with its sandbox and frames, and optionally its branch on GitHub.                                   |
 
 ## Restarting
 
@@ -225,24 +225,24 @@ When a preview gets stuck, **Restart** offers escalating fixes:
   survive restarts.
 </Callout>
 
-## Marking a workspace done
+## Marking a chat done
 
-When you’re finished with a workspace, **… → Mark as done** puts it away
+When you’re finished with a chat, **… → Mark as done** puts it away
 without deleting anything:
 
 - its dev server stops;
-- its frames leave the canvas. Documents and other workspaces’ frames in the
+- its frames leave the canvas. Documents and other chats’ frames in the
   same group stay where they are;
 - its row moves into a collapsed **Done** section at the bottom of the
   Chats menu, with a check circle for its status icon;
-- its chat and history stay, and frame workspace lists stop offering it.
+- its messages and history stay, and frame chat lists stop offering it.
 
 Everyone on the canvas sees it as done. It isn’t available while the agent is
-working. Merging its pull request doesn’t mark a workspace done, but once it
+working. Merging its pull request doesn’t mark a chat done, but once it
 has merged, **Mark as done** moves to the top of the menu.
 
-A toast says how many frames were hidden. Its **Undo** reopens the workspace
-straight away. Later, open **Done** and choose **… → Reopen**. The workspace
+A toast says how many frames were hidden. Its **Undo** reopens the chat
+straight away. Later, open **Done** and choose **… → Reopen**. The chat
 starts again and its frames return where they were.
 
 ## Pull requests
@@ -257,15 +257,15 @@ There are three ways to open a PR:
   a link card in the chat.
 
 PRs target the repository’s default branch. The current PR’s state (open,
-merged, or closed) is shown at the end of the workspace row and on the header
+merged, or closed) is shown at the end of the chat’s row and on the header
 button.
 **Create PR** and **Create pull request** always agree. They show only when
-the repository is on GitHub, and they’re available once the workspace has
+the repository is on GitHub, and they’re available once the chat has
 changes to propose and no one’s agent is working on it; hover either one while
 it’s disabled to see why. If you aren’t connected to GitHub, both show
 disabled and their tooltip points you to **Settings › GitHub**. While the
-workspace has an open PR, the header button links to it instead of offering
-another, and a done workspace offers no new PR. While the PR is being
+chat has an open PR, the header button links to it instead of offering
+another, and a done chat offers no new PR. While the PR is being
 created, the button shows a spinner, the menu item reads **Creating pull
 request…**, and neither can start a second one.
 
@@ -291,8 +291,8 @@ the PR with the GitHub account of the person who started the chat.
 
 ### The next pull request
 
-A workspace keeps going after its PR merges, and its next PR is a new one.
-The next message in its chat, whoever sends it, first moves the workspace onto
+A chat keeps going after its PR merges, and its next PR is a new one.
+The next message in it, whoever sends it, first moves the chat onto
 the latest code from the default branch, so the next PR carries only new
 changes. Screenplay does this itself when nothing can be lost: no uncommitted
 changes, and every commit already in the merged PR. Otherwise it asks the
@@ -301,20 +301,20 @@ you if something would be lost. **Create PR** then comes back, available once
 there are new changes. After a PR is closed without merging, **Create PR**
 comes back straight away.
 
-The **Pull requests** group in the chat menu lists every PR the workspace has
+The **Pull requests** group in the chat menu lists every PR the chat has
 opened, newest first. Each shows its number in its state’s colour (green open,
 purple merged, red closed) and its title; click one to open it on GitHub.
 
 ## Deleting
 
-**… → Delete** deletes the chat, its workspace and its frames, and shuts down
+**… → Delete** deletes the chat and its frames, and shuts down
 its sandbox. The dialog says in a sentence what’s deleted and that the git
 branch stays, and warns when uncommitted changes, or on the hosted app
 unpushed commits, would be lost. If
 you’re connected to GitHub and the repository has a GitHub remote, it also offers
 **Also delete the branch on GitHub**, which also closes an open PR. It’s off
 by default. If the remote
-delete fails, the workspace is still deleted and a warning names the branch
+delete fails, the chat is still deleted and a warning names the branch
 left on the remote.
 
 <Screenshot
@@ -325,13 +325,13 @@ left on the remote.
 Documents and mockups the chat made stay on the canvas. Any other chat can
 then change them, and the first one that does takes them over.
 
-## One branch, one workspace
+## One branch, one chat
 
 <Only desktop />
 
-On desktop, every workspace is a git worktree of one shared clone, and git
+On desktop, every chat’s code is a git worktree of one shared clone, and git
 allows each branch to be checked out only once. Opening a branch that’s
-already open in another workspace, or checked out in your own clone, fails
+already open in another chat, or checked out in your own clone, fails
 with a clear error rather than sharing the checkout. On the hosted app each
 sandbox is an independent clone, so there’s no such limit. For the exact
-errors and fixes, see [Troubleshooting](/guides/troubleshooting#workspaces).
+errors and fixes, see [Troubleshooting](/guides/troubleshooting#chats).

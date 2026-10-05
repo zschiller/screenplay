@@ -1448,7 +1448,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await page.mouse.move(name.x, name.y)
       await clickAt(
         page,
-        await centerOf(page, "button[aria-label='Set workspace']"),
+        await centerOf(page, "button[aria-label='Choose chat']"),
         900
       )
     },

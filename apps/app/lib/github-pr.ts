@@ -105,7 +105,7 @@ export async function createGitHubPr(
 
   if (!branch) throw new Error("Agent branch not found in storage")
   if (!repoOwner || !repoName || !defaultBranch) {
-    throw new Error("Workspace repo info not found in storage")
+    throw new Error("Couldn’t find this chat’s repository.")
   }
 
   const token = await getGitHubTokenForUser(userId)

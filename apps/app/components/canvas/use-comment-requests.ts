@@ -116,7 +116,7 @@ export function useCommentRequests({
             : `Sent ${sent} of ${ids.size} to the agent`,
           {
             description:
-              "A comment needs a running workspace, and can’t be sent again while the agent is on it.",
+              "A comment needs its chat’s code running, and can’t be sent again while the agent is on it.",
           }
         )
       }

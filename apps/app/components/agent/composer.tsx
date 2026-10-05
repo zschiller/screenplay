@@ -1411,7 +1411,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 hint={
                   targetEligible
                     ? undefined
-                    : "Show this workspace in a frame first."
+                    : "Show this chat in a frame first."
                 }
                 disabled={noAgents || !targetEligible}
                 onClick={triggerPick}

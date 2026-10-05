@@ -147,12 +147,12 @@ export function TerminalTab({
               </span>
             ) : overlay.status === "provisioning" ? (
               <span className="flex items-center gap-2">
-                <Spinner className="size-4" /> The workspace is still starting…
+                <Spinner className="size-4" /> Still setting up the code…
               </span>
             ) : overlay.status === "error" ? (
               <span className="max-w-sm">{overlay.message}</span>
             ) : (
-              <span>The workspace is still starting…</span>
+              <span>Still setting up the code…</span>
             )}
           </div>
         )}

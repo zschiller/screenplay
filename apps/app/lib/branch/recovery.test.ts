@@ -363,13 +363,13 @@ describe("guards", () => {
     expect(deps.patches).toEqual([
       {
         id: "branch-1",
-        patch: { status: "error", error: "Workspace not found" },
+        patch: { status: "error", error: "Repository not found" },
       },
     ])
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
       message: "Couldn’t restart sandbox",
-      description: "Workspace not found",
+      description: "Repository not found",
     })
     expect(lifecycle.restartSandbox).not.toHaveBeenCalled()
   })
@@ -383,7 +383,7 @@ describe("guards", () => {
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
       message: "Couldn’t restart dev server",
-      description: "Workspace not found",
+      description: "Repository not found",
     })
     expect(lifecycle.restartDevServer).not.toHaveBeenCalled()
   })
@@ -497,7 +497,7 @@ describe("markDone and reopen (#976)", () => {
     expect(deps.toasts).toEqual([
       {
         kind: "error",
-        message: "Couldn’t reopen workspace",
+        message: "Couldn’t reopen chat",
         description: "expired",
       },
     ])

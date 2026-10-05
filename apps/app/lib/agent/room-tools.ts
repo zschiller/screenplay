@@ -455,7 +455,7 @@ async function createWorkspaces(
             previewDomain: "",
             port: repo.devServerPort ?? DEFAULT_DEV_SERVER_PORT,
             status: "creating",
-            statusMessage: "Setting up the workspace…",
+            statusMessage: "Setting up the code…",
             createdAt: Date.now(),
             // Titled up front, so the seed message mustn't rename the branch.
             autoNamedBranch: false,
