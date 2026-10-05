@@ -209,6 +209,11 @@ export function serializeElement(label: string, ref: string): string {
 // `)` to keep each marker self-contained.
 const ELEMENT_MARKER_RE = /\[element:\s*([^\]]+)\]\(element:([^)]+)\)/g
 
+/** The refs of a body's inline `[element: …](element:<ref>)` markers, in order. */
+export function elementMarkerRefs(body: string): string[] {
+  return [...body.matchAll(ELEMENT_MARKER_RE)].map((m) => m[2]!)
+}
+
 /**
  * Renderer-only transform: rewrite each inline
  * `[element: <label>](element:<ref>)` marker into the token markdown-link form

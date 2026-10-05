@@ -333,13 +333,13 @@ export function AgentChat({
   }, [returnedSteers, takeReturnedSteers, restoreToComposer])
 
   // Element targeting (PRD #616): agent chats in a room can target this branch's
-  // own preview frames. The Composer's target icon / ⌘E calls this, which asks
+  // own preview frames, and the Coordinator any frame or Mockup. The Composer's target icon / ⌘E calls this, which asks
   // the Canvas (through the targeting store) to run a one-shot crosshair pick
   // over the eligible frames and resolves with the picked element — or null when
   // cancelled or when no Canvas is mounted (doc chats, the seed composer).
   //
-  // The pick key is a **Branch id**: Element Targeting's eligibility rule
-  // matches it against each frame's `branchId`.
+  // The pick key is a **Branch id** (or `ANY_BRANCH`): Element Targeting's
+  // eligibility rule matches it against each frame's `branchId`.
   const { pickBranchId } = capabilities
   const handlePickElement = useCallback(() => {
     if (!pickBranchId) return Promise.resolve(null)
@@ -621,6 +621,7 @@ export function AgentChat({
           }
           onPickElement={pickBranchId ? handlePickElement : undefined}
           targetEligible={targetEligible}
+          targetHint={capabilities.pickHint}
           focusKey={quote?.key}
         />
       )}

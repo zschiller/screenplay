@@ -18,6 +18,12 @@ import {
   type WorkspaceReadPorts,
 } from "@/lib/agent/room-read-tools"
 import { annotateTools } from "@/lib/mcp/tool-server"
+import {
+  buildTargetedElementsFooter,
+  elementMarkerRefs,
+  TARGETED_ELEMENTS_FOOTER_TOKEN,
+  type TargetedElement,
+} from "@/lib/agent/message-markers"
 import { isBranchBusy } from "@/lib/branch-busy"
 import {
   createdWorkspacesResult,
@@ -184,7 +190,11 @@ export function buildRoomTools(
         required: ["workspace_id", "message"],
       }),
       execute: async ({ workspace_id, message }) =>
-        sendToWorkspace(ports, workspace_id, message),
+        sendToWorkspace(
+          ports,
+          workspace_id,
+          await withTargetedElements(ports, message)
+        ),
     }),
     [CREATE_WORKSPACES_TOOL]: tool({
       description:
@@ -225,7 +235,15 @@ export function buildRoomTools(
         },
         required: ["workspaces"],
       }),
-      execute: async (input) => createWorkspaces(ports, input),
+      execute: async (input) =>
+        createWorkspaces(ports, {
+          workspaces: await Promise.all(
+            (input?.workspaces ?? []).map(async (w) => ({
+              ...w,
+              prompt: await withTargetedElements(ports, w?.prompt),
+            }))
+          ),
+        }),
     }),
     [OPEN_PULL_REQUEST_TOOL]: tool({
       description:
@@ -291,7 +309,8 @@ export function buildRoomTools(
         },
         required: ["title", "prompt"],
       }),
-      execute: async ({ title, prompt }) => startChat(ports, title, prompt),
+      execute: async ({ title, prompt }) =>
+        startChat(ports, title, await withTargetedElements(ports, prompt)),
     }),
     send_to_chat: tool({
       description:
@@ -312,7 +331,7 @@ export function buildRoomTools(
         required: ["chat_id", "message"],
       }),
       execute: async ({ chat_id, message }) =>
-        sendToChat(ports, chat_id, message),
+        sendToChat(ports, chat_id, await withTargetedElements(ports, message)),
     }),
   }
   return {
@@ -785,6 +804,40 @@ async function sendToWorkspace(
     model: target.model,
   })
   return sentToWorkspaceResult(target.title, target.chatId)
+}
+
+/**
+ * A Delegated Message with the detail of each element it targets. The user
+ * targets an element in the Coordinator's composer, and the Coordinator passes
+ * its inline `[element: …](element:<ref>)` marker on to the chat that owns the
+ * frame or Mockup; this appends the `Targeted elements:` footer entry the
+ * Coordinator chat's user turns carry for each such ref, so the receiving
+ * agent gets the route and selector and its chat shows the element's hover
+ * card. A message with no marker, or one that already has the footer, goes as
+ * written, as does one whose refs no user turn carries.
+ */
+export async function withTargetedElements(
+  ports: Pick<RoomToolPorts, "readChatTranscript" | "coordinatorChatId">,
+  message: unknown
+): Promise<string> {
+  if (typeof message !== "string") return ""
+  const refs = elementMarkerRefs(message)
+  if (refs.length === 0 || message.includes(TARGETED_ELEMENTS_FOOTER_TOKEN)) {
+    return message
+  }
+  const transcript = await ports
+    .readChatTranscript(ports.coordinatorChatId)
+    .catch(() => [])
+  const known = new Map<string, TargetedElement>()
+  for (const m of transcript) {
+    if (m.role !== "user") continue
+    for (const e of m.targetedElements ?? []) known.set(e.ref, e)
+  }
+  const carried = [...new Set(refs)].flatMap((ref) => {
+    const entry = known.get(ref)
+    return entry ? [entry] : []
+  })
+  return message.trimEnd() + buildTargetedElementsFooter(carried)
 }
 
 /**

@@ -8,7 +8,13 @@ import {
   type TerminalTabSummary,
   type SketchTurnRequest,
   type WorkspaceTurnRequest,
+  withTargetedElements,
 } from "@/lib/agent/room-tools"
+import {
+  parseTargetedElementsFooter,
+  serializeElement,
+  type TargetedElement,
+} from "@/lib/agent/message-markers"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
@@ -326,6 +332,68 @@ describe("chats with no repository", () => {
       run("send_to_chat", { chat_id: "s-1", message: "Again" })
     ).rejects.toThrow(/is working on a turn/)
     expect(launched).toHaveLength(1)
+  })
+})
+
+describe("targeted elements in a Delegated Message", () => {
+  const button: TargetedElement = {
+    ref: "el-1",
+    route: "/pricing",
+    selector: "main > button.cta",
+    frameLabel: "Pricing",
+    iframeLayerId: "frame-1",
+  }
+  const transcriptPorts = (elements: TargetedElement[]) => ({
+    coordinatorChatId: "room-chat-1",
+    readChatTranscript: async (chatId: string) =>
+      chatId === "room-chat-1"
+        ? [
+            {
+              role: "user" as const,
+              content: `Make ${serializeElement("button", "el-1")} pink`,
+              targetedElements: elements,
+            },
+            { role: "assistant" as const, content: "Sending it on." },
+          ]
+        : [],
+  })
+
+  it("carries the route and selector of each element the Coordinator passes on", async () => {
+    const message = `Make ${serializeElement("button", "el-1")} pink.`
+    const out = await withTargetedElements(transcriptPorts([button]), message)
+    expect(out.startsWith(message)).toBe(true)
+    expect(parseTargetedElementsFooter(out)).toEqual([button])
+  })
+
+  it("leaves a message with no element, or an element no turn carries, as written", async () => {
+    const ports = transcriptPorts([button])
+    expect(await withTargetedElements(ports, "Make it pink")).toBe(
+      "Make it pink"
+    )
+    const stray = `Make ${serializeElement("a", "el-9")} pink`
+    expect(await withTargetedElements(ports, stray)).toBe(stray)
+  })
+
+  it("rides along with send_to_workspace into the owning chat", async () => {
+    const { collections } = makeHarness()
+    collections.branches.set("ws-1", baseBranch("ws-1"))
+    collections.chatSessions.set("chat", baseChat("chat", { branchId: "ws-1" }))
+    const launched: WorkspaceTurnRequest[] = []
+    const ports: RoomToolPorts = {
+      ...portsOver(collections),
+      ...transcriptPorts([button]),
+      launchWorkspaceTurn: async (request) => {
+        launched.push(request)
+      },
+    }
+    await buildRoomTools("room-1", ports).send_to_workspace.execute!(
+      {
+        workspace_id: "ws-1",
+        message: `Make ${serializeElement("button", "el-1")} pink`,
+      },
+      { toolCallId: "t1", messages: [], context: {} }
+    )
+    expect(parseTargetedElementsFooter(launched[0]!.message)).toEqual([button])
   })
 })
 

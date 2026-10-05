@@ -12,7 +12,8 @@ chat’s agent instead, and everything the agent does happens inside that
 chat’s sandbox.
 
 The Coordinator uses the same composer, with less in it. It is one chat with
-no terminals, and has no **Plan** toggle or crosshair.
+no terminals, and has no **Plan** toggle. Its crosshair picks in every frame
+and mockup, and it passes the element on to the chat that owns it.
 
 Every chat has its own branch, sandbox, preview and terminals from the
 moment it starts, and it’s the only chat that changes that code. More work in

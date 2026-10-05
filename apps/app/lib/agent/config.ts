@@ -8,8 +8,10 @@ import {
 } from "@/lib/files/context-folder"
 import { MEMORY_PROMPT_LIMIT } from "@/lib/memory/canvas"
 import {
+  ELEMENT_MARKER_TOKEN,
   MENTION_MARKER_TOKEN,
   PLAN_MODE_MARKER,
+  TARGETED_ELEMENTS_FOOTER_TOKEN,
   CANVAS_VIEW_FOOTER_TOKEN,
   REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
@@ -604,6 +606,8 @@ export function buildRoomSystemPrompt(opts: {
     renderMemorySaving(t, opts.accountMemory),
     "",
     `Mentions: the user’s message may reference canvas documents as \`${MENTION_MARKER_TOKEN}\` markers, listed with their ids under a \`${REFERENCED_DOCS_FOOTER_TOKEN}\` footer; read them with \`${t("read_document")}\`.`,
+    "",
+    `Targeted elements: the user can pick an element in any frame or mockup. It arrives as an \`${ELEMENT_MARKER_TOKEN}\` marker, with its route, selector and frame or mockup id under a \`${TARGETED_ELEMENTS_FOOTER_TOKEN}\` footer. To look at one in a frame, call \`${t("read_frame_html")}\` with its selector. You can’t change it: send the ask to the chat that owns that frame or mockup (the canvas summary says which), and copy the marker into your message exactly as written. Its route and selector go along with it.`,
     "",
     `What "this" means: ${canvasViewPrompt}`,
     "",

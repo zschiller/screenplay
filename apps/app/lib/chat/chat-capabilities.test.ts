@@ -1,18 +1,19 @@
 import { describe, expect, it } from "vitest"
+import { ANY_BRANCH } from "@/lib/canvas/element-targeting"
 import {
   CHAT_CAPABILITIES,
   chatCapabilitiesOf,
 } from "@/lib/chat/chat-capabilities"
 
 describe("CHAT_CAPABILITIES", () => {
-  it("turns on the sandbox affordances for an agent chat only, and `/` everywhere", () => {
+  it("turns on Plan for an agent chat only, targeting for it and the Coordinator, and `/` everywhere", () => {
     const on = (k: "skills" | "planMode" | "elementPicking") =>
       Object.entries(CHAT_CAPABILITIES)
         .filter(([, row]) => row[k])
         .map(([kind]) => kind)
     expect(on("skills")).toEqual(["agent", "room", "sketch"])
     expect(on("planMode")).toEqual(["agent"])
-    expect(on("elementPicking")).toEqual(["agent"])
+    expect(on("elementPicking")).toEqual(["agent", "room"])
   })
 
   it("offers the `/` skill menu in every chat's placeholder (#1556)", () => {
@@ -47,10 +48,16 @@ describe("chatCapabilitiesOf", () => {
     expect(caps.pickBranchId).toBe("b1")
   })
 
-  it("resolves no Sandbox for the Room chat, only its own Skills", () => {
+  it("resolves no Sandbox for the Room chat, only its own Skills, and picks anywhere", () => {
     const caps = chatCapabilitiesOf({ kind: "room" })
     expect(caps.skillSandboxName).toBeUndefined()
     expect(caps.skillChat).toBe("room")
-    expect(caps.pickBranchId).toBeUndefined()
+    expect(caps.pickBranchId).toBe(ANY_BRANCH)
+  })
+
+  it("picks nothing in a chat with no repository", () => {
+    expect(
+      chatCapabilitiesOf({ kind: "sketch", chatId: "c1" }).pickBranchId
+    ).toBeUndefined()
   })
 })

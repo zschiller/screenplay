@@ -100,7 +100,7 @@ describe("AgentChat — affordances per Chat Target", () => {
     ).toBeTruthy()
   })
 
-  it("gives the Coordinator’s chat none of the sandbox affordances", () => {
+  it("gives the Coordinator’s chat no Plan toggle, and a crosshair that picks anywhere", () => {
     renderChat({ kind: "room" })
 
     // Its `/` menu lists the canvas's and the Coordinator's Skills (#1556).
@@ -111,8 +111,8 @@ describe("AgentChat — affordances per Chat Target", () => {
     })
     expect(screen.queryByRole("button", { name: "Plan" })).toBeNull()
     expect(
-      screen.queryByRole("button", { name: /target an element/i })
-    ).toBeNull()
+      screen.getByRole("button", { name: /target an element/i })
+    ).toBeTruthy()
     expect(placeholder()).toBe("Ask the Coordinator… (@ document, / skill)")
     expect(screen.getByText("Ask about this canvas")).toBeTruthy()
     expect(
