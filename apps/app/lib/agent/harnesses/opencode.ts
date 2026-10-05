@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { SandboxInstance } from "@/lib/sandbox/types"
+import { AGENTS_SKILLS_DIR } from "@/lib/skills/sources"
 import {
   commitAndPushRuleMarkdown,
   type AcpAdapter,
@@ -331,7 +332,10 @@ export function opencodeDirectoriesEnv(
       },
       skills: {
         ...skills,
-        paths: [...paths, ...directories.map((dir) => `${dir}/.agents/skills`)],
+        paths: [
+          ...paths,
+          ...directories.map((dir) => `${dir}/${AGENTS_SKILLS_DIR}`),
+        ],
       },
     }),
   }

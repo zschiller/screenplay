@@ -3,11 +3,7 @@ import "server-only"
 import { after } from "next/server"
 import { toolsetOn } from "./toolset"
 import type { RoomDoc } from "@/lib/room-access"
-import {
-  accountFilesFor,
-  accountSkillsFor,
-  prepareChatTarget,
-} from "./chat-target-kinds"
+import { accountFilesFor, prepareChatTarget } from "./chat-target-kinds"
 import { workspaceChatTarget } from "./workspace-chat-target"
 import { roomChatTarget, type RoomTarget } from "./room-chat-target"
 import { sketchChatTarget } from "./sketch-chat-target"
@@ -87,17 +83,12 @@ import {
 } from "./coordinator-wake"
 import { loadChatTranscript } from "./history-load"
 import { renderLastTurn } from "./room-read-tools"
-import { roomChatId, roomIdOfRoomChat } from "@/lib/chat/room-chat"
+import { roomChatId } from "@/lib/chat/room-chat"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { sandboxSecrets } from "@/lib/env-store"
 import { canvasFiles } from "@/lib/files"
 import { withAttachedImages } from "@/lib/files/attach"
 import { savedFileSections } from "@/lib/files/context-folder"
-import { canvasSkills } from "@/lib/skills/canvas"
-import { appSkillSource } from "@/lib/skills"
-import { sketchAppSkills } from "./sketch-tools"
-import { savedSkillSections } from "@/lib/skills/on-disk"
-import { enumerateRepoSkillsForSandbox } from "@/lib/skills/sandbox-index"
 
 /**
  * Turn Launch over the live database, Room broadcast and `after()`, for a turn
@@ -105,32 +96,16 @@ import { enumerateRepoSkillsForSandbox } from "@/lib/skills/sandbox-index"
  * doorbell through it; their `roomId` is the same Room.
  */
 export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
-  // A harness reads the canvas's and the sender's saved files (#1524) and
-  // Skills (#1559) on disk, with the App Skills its kind of chat sees.
-  resolveEngine: (input) =>
+  // A harness reads the canvas's and the sender's saved files (#1524) on
+  // disk, and the Skills its Chat Target's Skill Sources hold (#1559, #1664).
+  resolveEngine: ({ skills, ...input }) =>
     resolveLiveEngine({
       ...input,
       contextSections: () => {
         const sender = { userId: room.userId, senderless: input.senderless }
-        const { sandboxName } = input
         return {
           ...savedFileSections(canvasFiles(room), accountFilesFor(sender)),
-          ...savedSkillSections({
-            canvas: canvasSkills(room),
-            account: accountSkillsFor(sender),
-            app: roomIdOfRoomChat(input.chatId)
-              ? appSkillSource("coordinator")
-              : sandboxName
-                ? appSkillSource()
-                : sketchAppSkills,
-            // The harness reads the Branch's own Skills from the checkout.
-            shadowed: sandboxName
-              ? async () =>
-                  (await enumerateRepoSkillsForSandbox(sandboxName)).map(
-                    (s) => s.name
-                  )
-              : undefined,
-          }),
+          ...skills?.contextSections(),
         }
       },
     }),
@@ -306,18 +281,22 @@ export function roomTurn(input: {
   senderless?: boolean
 }): TurnTarget {
   const { room, chatId } = input
+  const target = coordinatorTarget(room, chatId, {
+    requesterId: input.requesterId,
+    senderless: input.senderless,
+    harnessKey: turnHarnessKey(input.model),
+  })
+  const skills = roomChatTarget.skills(room, target)
   return {
+    skills,
     async prepare() {
       await ensureRoomChat(room)
       const prepared = await prepareChatTarget(
         room,
         roomChatTarget,
-        coordinatorTarget(room, chatId, {
-          requesterId: input.requesterId,
-          senderless: input.senderless,
-          harnessKey: turnHarnessKey(input.model),
-        }),
-        toolNamingForTurn(input.model)
+        target,
+        toolNamingForTurn(input.model),
+        skills
       )
       if (!prepared) return null
 
@@ -542,7 +521,16 @@ export function sandboxTurn(input: {
 }): TurnTarget {
   const { room, chatId, sandboxName, userId, message, planMode } = input
   const { roomId } = room
+  const target = {
+    sandboxName,
+    chatId,
+    userId,
+    ...(input.senderless ? { senderless: true } : {}),
+    harnessKey: turnHarnessKey(input.model),
+  }
+  const skills = workspaceChatTarget.skills(room, target)
   return {
+    skills,
     async prepare() {
       // A chat is "new" if it has no prior ACP-native records. More reliable
       // than the client-supplied `isFirstChat`.
@@ -552,14 +540,9 @@ export function sandboxTurn(input: {
         prepareChatTarget(
           room,
           workspaceChatTarget,
-          {
-            sandboxName,
-            chatId,
-            userId,
-            ...(input.senderless ? { senderless: true } : {}),
-            harnessKey: turnHarnessKey(input.model),
-          },
-          toolNamingForTurn(input.model)
+          target,
+          toolNamingForTurn(input.model),
+          skills
         ),
         // Recent activity (#885): this Workspace just saw a turn start.
         stampWorkspaceActivity(room, sandboxName, Date.now()).catch(() => {}),
@@ -666,7 +649,15 @@ export function sketchTurn(input: {
 }): TurnTarget {
   const { room, chatId, message } = input
   const { roomId } = room
+  const target = {
+    chatId,
+    userId: room.userId,
+    ...(input.senderless ? { senderless: true } : {}),
+    harnessKey: turnHarnessKey(input.model),
+  }
+  const skills = sketchChatTarget.skills(room, target)
   return {
+    skills,
     async prepare() {
       // The client adds the chat record as it sends, so its first turn can
       // beat the record here: make it then, as `ensureRoomChat` does. A chat
@@ -684,13 +675,9 @@ export function sketchTurn(input: {
       const prepared = await prepareChatTarget(
         room,
         sketchChatTarget,
-        {
-          chatId,
-          userId: room.userId,
-          ...(input.senderless ? { senderless: true } : {}),
-          harnessKey: turnHarnessKey(input.model),
-        },
-        toolNamingForTurn(input.model)
+        target,
+        toolNamingForTurn(input.model),
+        skills
       )
       if (!prepared) return null
 

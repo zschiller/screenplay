@@ -4,7 +4,6 @@ import type { ToolSet } from "ai"
 // The agent kind enumerates Skills from its sandbox and the room kind lists
 // the member's Terminal Tabs from the database; neither matters to memory.
 vi.mock("@/lib/skills/sandbox-index", () => ({
-  enumerateRepoSkillsForSandbox: vi.fn().mockResolvedValue([]),
   repoSkillFsForSandbox: vi.fn().mockResolvedValue(null),
 }))
 // Saved files' and Skills' bytes, in memory.
@@ -69,7 +68,7 @@ import {
   prepareChatTarget,
   type ChatTargetSpec,
 } from "@/lib/agent/chat-target-kinds"
-import { enumerateRepoSkillsForSandbox } from "@/lib/skills/sandbox-index"
+import { repoSkillFsForSandbox } from "@/lib/skills/sandbox-index"
 import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
 import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
@@ -963,9 +962,13 @@ describe("canvas skills in every kind", () => {
         author,
       })
     }
-    vi.mocked(enumerateRepoSkillsForSandbox).mockResolvedValueOnce([
-      { name: "deploy", description: "Repo deploy.", origin: "repo" },
-    ])
+    vi.mocked(repoSkillFsForSandbox).mockResolvedValueOnce({
+      list: async (dir) => (dir === ".claude/skills" ? ["deploy"] : null),
+      read: async (path) =>
+        path === ".claude/skills/deploy/SKILL.md"
+          ? skillMd("deploy", "Repo deploy.")
+          : null,
+    })
 
     const ctx = await workspaceChatTarget.loadContext(r, workspaceTarget)
     const prompt = workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
@@ -988,10 +991,10 @@ describe("canvas skills in every kind", () => {
 
   it("gives the Coordinator canvas Skills but no Repo Skills", async () => {
     const r = room()
-    vi.mocked(enumerateRepoSkillsForSandbox).mockClear()
+    vi.mocked(repoSkillFsForSandbox).mockClear()
     const ctx = await roomChatTarget.loadContext(r, { userId: "user-1" })
 
-    expect(enumerateRepoSkillsForSandbox).not.toHaveBeenCalled()
+    expect(repoSkillFsForSandbox).not.toHaveBeenCalled()
     expect(ctx!.skills.every((s) => s.origin !== "repo")).toBe(true)
   })
 })

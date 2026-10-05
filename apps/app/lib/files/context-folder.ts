@@ -12,7 +12,7 @@ import { syncFileMirror } from "./mirror"
  *
  * The folder is made of named sections, each a subfolder its own sync owns:
  * `canvas` and `account` hold the saved files, and `.claude` and `.agents`
- * the saved Skills (#1559, `lib/skills/on-disk.ts`). Every sync rewrites the folder to
+ * the saved Skills (#1559, `lib/skills/sources.ts`). Every sync rewrites the folder to
  * match, so a section that's gone, and anything else left in the folder, is
  * removed. Agents never write back through it: edits made there are lost on
  * the next turn.

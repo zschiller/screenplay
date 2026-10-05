@@ -1,8 +1,11 @@
 import "server-only"
 
-import { getSkill, getSkillIndex, openSkill } from "@/lib/skills"
-import type { SkillMetadata } from "@/lib/skills/frontmatter"
-import type { SkillToolContext } from "./skill-tools"
+import {
+  getSkill,
+  getSkillIndex,
+  openSkill,
+  type AppSkills,
+} from "@/lib/skills"
 
 /**
  * The App Skills a Sketch Chat can read: the ones about the pages it writes
@@ -11,17 +14,12 @@ import type { SkillToolContext } from "./skill-tools"
  */
 const SKETCH_SKILLS = new Set(["screenplay-add-knob", "screenplay-share-state"])
 
-/** The Sketch Chat's App Skill index, for its prompt. */
-export function sketchSkillIndex(): SkillMetadata[] {
-  return getSkillIndex().filter((s) => SKETCH_SKILLS.has(s.name))
-}
-
 /**
- * A Sketch Chat's App Skills for its Skill tools (`skill-tools.ts`): the
- * Mockup ones only.
+ * A Sketch Chat's App Skills, for its Skill Sources (`sketch-chat-target.ts`):
+ * the Mockup ones only.
  */
-export const sketchAppSkills: SkillToolContext["app"] = {
-  index: sketchSkillIndex,
+export const sketchAppSkills: AppSkills = {
+  index: () => getSkillIndex().filter((s) => SKETCH_SKILLS.has(s.name)),
   read: (name) => (SKETCH_SKILLS.has(name) ? getSkill(name) : null),
   open: (name) => (SKETCH_SKILLS.has(name) ? openSkill(name) : null),
 }

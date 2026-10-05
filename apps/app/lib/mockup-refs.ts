@@ -6,7 +6,7 @@ import { normalizeFilePath } from "@/lib/files/paths"
  * A `src` or `href` attribute may be
  *
  * - `skill:<skill>/<path>`: a supporting file of a Skill the canvas can see,
- *   resolved by the Skill precedence (repo, canvas, account, App), or
+ *   resolved as the chat that made the page resolves it (`lib/skills/sources.ts`), or
  * - `files:<path>`: a canvas File, e.g. a screenshot `screenshot_page` saved.
  *
  * The page text keeps the references; the canvas resolves them when it builds

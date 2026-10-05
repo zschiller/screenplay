@@ -1,7 +1,7 @@
 import type { SandboxInstance } from "@/lib/sandbox/types"
 
 import { parseFrontmatter } from "./frontmatter"
-import type { OriginTaggedSkill } from "./merged"
+import type { OriginTaggedSkill } from "./sources"
 
 /**
  * Repo Skills are Skills a Branch carries in its own checked-out repo at
@@ -65,16 +65,19 @@ export async function enumerateRepoSkills(
 }
 
 /**
- * Read a single Repo Skill's full content (frontmatter + body) by name, the
- * sandbox-first half of the merged body resolver. Returns `null` when the
- * Branch has no Repo Skill of that name, so the resolver can fall back to the
- * App Skill of the same name.
+ * Read one file of a Repo Skill by path inside its folder (`SKILL.md` for its
+ * whole content). Returns `null` when the Branch has no such file, so Skill
+ * Sources (`sources.ts`) can fall back to the next source.
  */
-export async function readRepoSkillBody(
+export async function readRepoSkillFile(
   fs: RepoSkillFs,
-  name: string
+  name: string,
+  path: string
 ): Promise<string | null> {
-  return fs.read(`${SKILLS_DIR}/${name}/SKILL.md`)
+  const parts = [name, ...path.split("/")]
+  // A name or path that climbs out of the Skill's folder has no file.
+  if (parts.some((p) => p === "" || p === "." || p === "..")) return null
+  return fs.read(`${SKILLS_DIR}/${parts.join("/")}`)
 }
 
 /**

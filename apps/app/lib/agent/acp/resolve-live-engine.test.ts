@@ -67,7 +67,7 @@ import { savedFileSections } from "@/lib/files/context-folder"
 import { createFiles, memoryFileIndex, type Files } from "@/lib/files/files"
 import { memoryFileStore } from "@/lib/files/store"
 import { loadAppSkills, type AppSkills } from "@/lib/skills"
-import { savedSkillSections } from "@/lib/skills/on-disk"
+import { skillSources } from "@/lib/skills/sources"
 import { createSavedSkills, type SavedSkills } from "@/lib/skills/saved"
 import { ExternalEngine, type ExternalEngineConfig } from "./acp-engine"
 import { inProcessEngine } from "./in-process-engine"
@@ -564,6 +564,12 @@ describe("resolveLiveEngine — context folder", () => {
   const skillMd = (name: string, body = "Step one.") =>
     `---\nname: ${name}\ndescription: Do ${name}.\n---\n${body}`
 
+  const noAppSkills: AppSkills = {
+    index: () => [],
+    read: () => null,
+    open: () => null,
+  }
+
   /** The engine's context folder with the saved Skills too, as a turn gets it (#1559). */
   async function skillsContextOf(opts: {
     canvasSkills: SavedSkills
@@ -577,12 +583,19 @@ describe("resolveLiveEngine — context folder", () => {
       roomId: "room-1",
       contextSections: () => ({
         ...savedFileSections(canvas, account),
-        ...savedSkillSections({
+        ...skillSources({
           canvas: opts.canvasSkills,
           account: opts.accountSkills,
-          app: opts.appSkills,
-          shadowed: async () => opts.repoSkills ?? [],
-        }),
+          app: opts.appSkills ?? noAppSkills,
+          // The Branch's own Skills, which the harness reads from the checkout.
+          repo: async () => ({
+            list: async () => opts.repoSkills ?? [],
+            read: async (path) => {
+              const name = path.split("/")[2]!
+              return opts.repoSkills?.includes(name) ? skillMd(name) : null
+            },
+          }),
+        }).contextSections(),
       }),
     })
     return (engine as unknown as { config: ExternalEngineConfig }).config

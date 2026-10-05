@@ -885,9 +885,17 @@ model by name + description and loaded in full on demand (`read_skill`), never
 always-on. Exists as a Repo Skill, a Canvas Skill, an Account Skill, a Harness
 Skill or an App Skill. Every chat sees one merged index; when two share a name,
 the higher-ranked one **shadows** the other, Repo, then Canvas, then Account,
-then Harness, then App (`lib/skills/merged.ts`). The Coordinator and
-chats with no repository get no Repo Skills.
+then Harness, then App. The Coordinator and chats with no repository get no
+Repo Skills.
 _Avoid_: command, macro, plugin.
+
+**Skill Sources** (`lib/skills/sources.ts`, #1664):
+Every Skill one chat sees, as one value its Chat Target builds per turn: the
+merged index, a Skill's body, its supporting files and the context folder's
+Skill sections. The precedence and the skills folder layout live only here, so
+the prompt, `read_skill`, a harness's context folder and a Mockup page's
+`skill:` references resolve the same Skill for the same chat.
+_Avoid_: picking a chat's App Skills by its kind outside its Chat Target.
 
 **App Skill**:
 A Skill screenplay ships in its own source (`lib/skills/`); branch-independent

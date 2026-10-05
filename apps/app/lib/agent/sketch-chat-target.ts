@@ -18,12 +18,11 @@ import { buildDocumentTools } from "./document-tools"
 import { buildMockupTools } from "./mockup-tools"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
-import { sketchAppSkills, sketchSkillIndex } from "./sketch-tools"
+import { sketchAppSkills } from "./sketch-tools"
 import { buildSkillTools } from "./skill-tools"
-import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
-import { loadAccountSkills } from "@/lib/skills/account"
-import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
-import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
+import { canvasSkills } from "@/lib/skills/canvas"
+import { agentSkillsFor } from "@/lib/skills/agent-skills"
+import { skillSources, type OriginTaggedSkill } from "@/lib/skills/sources"
 import { buildFileTools } from "./file-tools"
 import { chatPageScreenshotTools } from "./page-screenshot-ports"
 import { buildMemoryTools } from "./memory-tools"
@@ -65,21 +64,31 @@ export interface SketchContext {
 /** No sandbox: Documents and Mockups only, and nothing that touches code. */
 export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
   kind: "sketch",
-  async loadContext(room, target) {
+  // The canvas's, the sender's and the agent's own, then the Mockup App
+  // Skills; no repository.
+  skills(room, target) {
+    return skillSources({
+      canvas: room && canvasSkills(room),
+      account: accountSkillsFor(target),
+      agent: agentSkillsFor(target.harnessKey),
+      app: sketchAppSkills,
+    })
+  },
+  async loadContext(
+    room,
+    target,
+    skills = sketchChatTarget.skills(room, target)
+  ) {
     const [
       layerDirectory,
-      canvas,
-      account,
-      agent,
+      skillIndex,
       memory,
       files,
       accountMemory,
       accountFiles,
     ] = await Promise.all([
       loadLayerDirectory(room),
-      loadCanvasSkills(room),
-      loadAccountSkills(turnSender(target)),
-      loadAgentSkills(agentSkillsFor(target.harnessKey)),
+      skills.index(),
       loadCanvasMemory(room),
       loadCanvasFiles(room),
       loadAccountMemory(turnSender(target)),
@@ -88,12 +97,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
     return {
       chatId: target.chatId,
       layerDirectory,
-      skills: mergeSkillIndexes({
-        canvas,
-        account,
-        agent,
-        app: sketchSkillIndex(),
-      }),
+      skills: skillIndex,
       memory,
       files,
       accountMemory,
@@ -115,8 +119,8 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
       toolNaming: naming,
     })
   },
-  tools(room, target) {
-    const { chatId, userId, harnessKey } = target
+  tools(room, target, skills = sketchChatTarget.skills(room, target)) {
+    const { chatId, userId } = target
     return {
       shared: {
         ...buildDocumentTools({ room, chatId }),
@@ -125,11 +129,10 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
         ...chatFrameDriveTools({ room, userId }),
         // The canvas's Skills and the Mockup App Skills (#1555).
         ...buildSkillTools({
+          skills,
           canvas: canvasSkills(room),
           account: accountSkillsFor(target),
           chatId,
-          app: sketchAppSkills,
-          agent: agentSkillsFor(harnessKey),
         }),
         ...buildLayerReadTools({ room }),
         // Any page, in the background: a Workspace's route at any size, or a

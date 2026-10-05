@@ -4,7 +4,11 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { buildSkillTools } from "@/lib/agent/skill-tools"
+import {
+  buildSkillTools as buildToolsOver,
+  type SkillToolContext,
+} from "@/lib/agent/skill-tools"
+import { skillSources, type SkillSourceInputs } from "@/lib/skills/sources"
 import { memoryFileIndex } from "@/lib/files/files"
 import { memoryFileStore } from "@/lib/files/store"
 import { appSkillSource, loadAppSkills } from "@/lib/skills"
@@ -14,6 +18,20 @@ import {
   SKILL_MAX_BYTES,
   type SavedSkills,
 } from "@/lib/skills/saved"
+
+/** The Skill tools over Skill Sources built from `ctx`, as a Chat Target builds them. */
+function buildSkillTools(
+  ctx: Omit<SkillToolContext, "skills"> & SkillSourceInputs
+) {
+  const { canvas, account, chatId, appSkillSet, ...sources } = ctx
+  return buildToolsOver({
+    skills: skillSources({ canvas, account, ...sources }),
+    canvas,
+    account,
+    chatId,
+    appSkillSet,
+  })
+}
 
 /** One canvas's saved Skills, the way every chat on it shares them. */
 function canvas(): SavedSkills {
@@ -155,6 +173,7 @@ describe("skill tools", () => {
         index: async () =>
           Object.keys(own).map((name) => ({ name, description: "Mine." })),
         read: async (name) => own[name] ?? null,
+        file: async () => undefined,
       },
     })
 

@@ -4,8 +4,11 @@ import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { agentSkillsFor } from "@/lib/skills/agent-skills"
-import { getSkillIndex } from "@/lib/skills"
-import { mergeSkillIndexes } from "@/lib/skills/merged"
+import { appSkillSource } from "@/lib/skills"
+import { memoryFileIndex } from "@/lib/files/files"
+import { memoryFileStore } from "@/lib/files/store"
+import { createSavedSkills } from "@/lib/skills/saved"
+import { skillSources } from "@/lib/skills/sources"
 
 /**
  * Harness Skills (#1560): the desktop agent's own Skills, read from a fake
@@ -29,7 +32,34 @@ async function skill(dir: string, folder: string, content: string) {
 const skillMd = (name: string, description: string, body = "") =>
   `---\nname: ${name}\ndescription: ${description}\n---\n${body}`
 
+/** A canvas's saved Skills holding `name`. */
+async function savedWith(name: string) {
+  const saved = createSavedSkills({
+    index: memoryFileIndex(),
+    store: memoryFileStore(),
+    keyPrefix: "canvas/room-1/skills",
+  })
+  await saved.save({
+    name,
+    content: skillMd(name, "Canvas."),
+    author: { addedBy: "agent", addedById: "chat-1" },
+  })
+  return saved
+}
+
 describe("agentSkillsFor", () => {
+  it("reads a file beside a Skill's SKILL.md, and none outside its folder", async () => {
+    await skill(".claude/skills", "tidy", skillMd("tidy", "Tidy up."))
+    await writeFile(join(home, ".claude/skills/tidy/notes.md"), "NOTES")
+
+    const agent = agentSkillsFor("claude-code", home)!
+    expect(await agent.file("tidy", "notes.md")).toBe("NOTES")
+    expect(await agent.file("tidy", "gone.md")).toBeNull()
+    expect(await agent.file("tidy", "../tidy/notes.md")).toBe("NOTES")
+    expect(await agent.file("tidy", "../../x")).toBeNull()
+    expect(await agent.file("nope", "notes.md")).toBeUndefined()
+  })
+
   it("lists Claude Code's ~/.claude/skills, named Claude Code", async () => {
     await skill(".claude/skills", "tidy", skillMd("tidy", "Tidy up.", "TIDY"))
     await skill(".agents/skills", "codex-only", skillMd("codex-only", "No."))
@@ -108,12 +138,18 @@ describe("agentSkillsFor", () => {
     )
     await skill(".claude/skills", "notes", skillMd("notes", "Mine."))
 
-    const merged = mergeSkillIndexes({
-      repo: [{ name: "deploy", description: "Repo." }],
-      canvas: [{ name: "review", description: "Canvas." }],
-      agent: await agentSkillsFor("claude-code", home)!.index(),
-      app: getSkillIndex(),
-    })
+    const merged = await skillSources({
+      repo: async () => ({
+        list: async () => ["deploy"],
+        read: async (path) =>
+          path === ".claude/skills/deploy/SKILL.md"
+            ? skillMd("deploy", "Repo.")
+            : null,
+      }),
+      canvas: await savedWith("review"),
+      agent: agentSkillsFor("claude-code", home),
+      app: appSkillSource(),
+    }).index()
     const of = (name: string) => merged.find((s) => s.name === name)
     expect(of("deploy")).toMatchObject({ origin: "repo" })
     expect(of("review")).toMatchObject({ origin: "canvas" })

@@ -3,35 +3,25 @@ import "server-only"
 import { jsonSchema, tool, type JSONSchema7 } from "ai"
 
 import { annotateTools } from "@/lib/mcp/tool-server"
-import { appSkills, type AppSkillSet, type AppSkills } from "@/lib/skills"
-import {
-  formatMergedListing,
-  mergeSkillIndexes,
-  resolveSkillBody,
-} from "@/lib/skills/merged"
-import {
-  enumerateRepoSkills,
-  readRepoSkillBody,
-  type RepoSkillFs,
-} from "@/lib/skills/repo-skills"
+import { appSkills, type AppSkillSet } from "@/lib/skills"
+import { formatSkillListing, type SkillSources } from "@/lib/skills/sources"
 import {
   prepareSkill,
-  renderSkill,
   type SavedSkills,
   type SkillFile,
 } from "@/lib/skills/saved"
-import { loadAgentSkills, type AgentSkills } from "@/lib/skills/agent-skills"
 
 /**
  * A chat's Skill tools (#1555): `read_skill` loads a Skill from the chat's
- * merged index, and `save_skill` and `delete_skill` keep the saved Skills.
- * Every chat kind gets all three, from its own App Skills and, on a Workspace
- * chat, its Branch's Repo Skills. On a desktop harness, `read_skill` also
- * reads the agent's own Skills (#1560). Each write takes a `scope`: `canvas`
- * (the canvas's, shared with its members) or `account` (the turn sender's
- * own, on every canvas, #1558), which a turn nobody sent refuses.
+ * Skill Sources (`lib/skills/sources.ts`, built by its Chat Target), and
+ * `save_skill` and `delete_skill` keep the saved Skills. Every chat kind gets
+ * all three. Each write takes a `scope`: `canvas` (the canvas's, shared with
+ * its members) or `account` (the turn sender's own, on every canvas, #1558),
+ * which a turn nobody sent refuses.
  */
 export interface SkillToolContext {
+  /** Every Skill the chat sees, in precedence. */
+  skills: SkillSources
   /** The canvas's saved Skills. */
   canvas: SavedSkills
   /**
@@ -42,20 +32,11 @@ export interface SkillToolContext {
   account?: SavedSkills | null
   /** The chat the tools act for: what its saves record as their author. */
   chatId: string
-  /** The App Skills this kind of chat sees. */
-  app: AppSkills
   /**
    * Every App Skill, whose supporting files a saved copy keeps; Screenplay's
    * own by default.
    */
   appSkillSet?: AppSkillSet
-  /**
-   * The Branch's Repo Skills, on a Workspace chat; `null` when its sandbox
-   * can't be reached. The Coordinator and chats with no repository have none.
-   */
-  repo?: () => Promise<RepoSkillFs | null>
-  /** The coding agent's own Skills, on a desktop harness (#1560). */
-  agent?: AgentSkills | null
 }
 
 const scopeProperty: JSONSchema7 = {
@@ -73,18 +54,9 @@ const NO_ACCOUNT =
 
 export function buildSkillTools(ctx: SkillToolContext) {
   /** The scope's Skills, or `null` for account Skills on a turn nobody sent. */
-  const skills = (scope: Scope["scope"]): SavedSkills | null =>
+  const saved = (scope: Scope["scope"]): SavedSkills | null =>
     scope === "account" ? (ctx.account ?? null) : ctx.canvas
-  // A store that can't be read has none of the name, so the lookup goes on.
-  const savedReader =
-    (scope: SavedSkills) =>
-    async (n: string): Promise<string | null> => {
-      const read = await scope.read(n).catch(() => null)
-      return read?.ok ? renderSkill(read.value.content, read.value.files) : null
-    }
-  const appListing = formatMergedListing(
-    mergeSkillIndexes({ app: ctx.app.index() })
-  )
+  const appListing = formatSkillListing(ctx.skills.appIndex())
 
   const tools = {
     read_skill: tool({
@@ -97,26 +69,10 @@ export function buildSkillTools(ctx: SkillToolContext) {
         required: ["name"],
       }),
       execute: async ({ name }) => {
-        const fs = ctx.repo ? await ctx.repo() : null
-        const content = await resolveSkillBody(name, {
-          ...(fs ? { repo: (n: string) => readRepoSkillBody(fs, n) } : {}),
-          canvas: savedReader(ctx.canvas),
-          ...(ctx.account ? { account: savedReader(ctx.account) } : {}),
-          ...(ctx.agent ? { agent: ctx.agent.read } : {}),
-          app: (n) => ctx.app.read(n),
-        })
+        const content = await ctx.skills.read(name)
         if (content) return content
         // Unknown name → list the merged set so the model can pick a real one.
-        const merged = mergeSkillIndexes({
-          app: ctx.app.index(),
-          canvas: await ctx.canvas.list().catch(() => []),
-          account: (await ctx.account?.list().catch(() => [])) ?? [],
-          agent: await loadAgentSkills(ctx.agent ?? null),
-          ...(fs
-            ? { repo: await enumerateRepoSkills(fs).catch(() => []) }
-            : {}),
-        })
-        return `Unknown skill: "${name}". Available skills:\n${formatMergedListing(merged)}`
+        return `Unknown skill: "${name}". Available skills:\n${formatSkillListing(await ctx.skills.index())}`
       },
     }),
 
@@ -165,8 +121,8 @@ export function buildSkillTools(ctx: SkillToolContext) {
         const prepared = prepareSkill({ name, content, files: all })
         if (!prepared.ok) return `Error: ${prepared.error}`
         const { stripped } = prepared.value
-        const fs = ctx.repo ? await ctx.repo() : null
-        const shadowed = fs && (await readRepoSkillBody(fs, name)) !== null
+        const holders = await ctx.skills.holders(name)
+        const shadowed = holders.includes("repo")
         return [
           `Showed "${name}" to the person as a card with Save to account and Save to canvas. It’s saved only when they press one, and chats can use it from their next turn after that.`,
           ...(stripped.length
@@ -178,7 +134,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
             ? [
                 `This branch’s repository has a skill named "${name}" too, and in this chat the repository’s wins.`,
               ]
-            : ctx.app.read(name) !== null
+            : holders.includes("app")
               ? [
                   `Once saved, it takes the place of Screenplay’s own skill "${name}".`,
                 ]
@@ -204,7 +160,7 @@ export function buildSkillTools(ctx: SkillToolContext) {
         required: ["name"],
       }),
       execute: async ({ scope, name }) => {
-        const scoped = skills(scope)
+        const scoped = saved(scope)
         if (!scoped) return NO_ACCOUNT
         const removed = await scoped.remove(name)
         if (!removed.ok) return `Error: ${removed.error}`

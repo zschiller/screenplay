@@ -1,4 +1,5 @@
 import type { Tool } from "ai"
+import type { SkillSources } from "@/lib/skills/sources"
 import type { Engine } from "./acp/engine-seam"
 import type { SessionUpdate } from "./acp/schema"
 import type { ChatControlEvent } from "@/lib/chat-store"
@@ -61,6 +62,12 @@ export interface PreparedTurn {
  */
 export interface TurnTarget {
   prepare(): Promise<PreparedTurn | null>
+  /**
+   * The chat's Skill Sources for the turn (#1664), built by its Chat Target:
+   * what a harness's context folder writes as Skills. Absent on a turn whose
+   * engine has no folder to write.
+   */
+  skills?: SkillSources
   /**
    * The same target for a later message: the turn Steers left over from this
    * one start (#1190), with the chat's current model and plan mode. Without
@@ -145,6 +152,8 @@ export interface TurnLaunchDeps {
     model?: string
     roomId: string
     senderless?: boolean
+    /** See {@link TurnTarget.skills}. */
+    skills?: SkillSources
   }): Promise<Engine>
   /** The chat's most recent plan still awaiting a decision, if any. */
   findPendingPlan(chatId: string): Promise<{ id: string } | null>
@@ -280,6 +289,7 @@ export async function launchTurn(
     model: request.model,
     roomId,
     ...(request.senderless ? { senderless: true } : {}),
+    ...(target.skills ? { skills: target.skills } : {}),
   })
 
   // A retry that finds some other turn after the failed one sends its ask as
