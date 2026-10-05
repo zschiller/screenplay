@@ -458,6 +458,8 @@ describe("a Workspace chat’s MCP route", () => {
       "update_issue",
       "link_issues",
       "list_labels",
+      "review_pr",
+      "merge_pr",
       "read_pr_diff",
       "read_pr_checks",
       "read_skill",

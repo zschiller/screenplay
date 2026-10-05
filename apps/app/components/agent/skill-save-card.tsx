@@ -7,8 +7,15 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { Button } from "@workspace/ui/components/button"
-import { BookOpenIcon } from "@workspace/ui/components/icons"
+import {
+  Confirmation,
+  ConfirmationAccepted,
+  ConfirmationAction,
+  ConfirmationActions,
+  ConfirmationRequest,
+  ConfirmationTitle,
+} from "@workspace/ui/components/confirmation"
+import { CheckIcon } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { SkillDialog } from "@/components/skills/saved-skill-list"
 import { bareToolName } from "@/lib/agent/tool-name"
@@ -21,7 +28,7 @@ import {
   type SkillSaveScope,
 } from "@/lib/skills/actions"
 import type { OpenedSkill, SkillFile } from "@/lib/skills/saved"
-import { ChatDisclosure } from "./chat-disclosure"
+import { InlineRef } from "./inline-ref"
 
 type ToolCallMessage = AgentMessage & { role: "tool_call" }
 
@@ -97,8 +104,9 @@ type State =
  * The card a chat shows for a Skill its agent offered with `save_skill`
  * (#1633): the Skill's name and description, what it would replace (a
  * canvas or account Skill of that name, or a Built in one), and Save to
- * account, Save to canvas and View. Nothing is
- * saved until someone presses Save; the agent's suggested scope comes first.
+ * account and Save to canvas, as a Confirmation; the name opens the whole
+ * Skill. Nothing is saved until someone presses Save; the agent's suggested
+ * scope is the primary button.
  * Once saved, the card says where, for everyone and after a reload, since it
  * asks the server whether that scope holds this Skill as offered.
  *
@@ -185,58 +193,70 @@ export function SkillSaveCard({
 
   return (
     <>
-      <ChatDisclosure
-        collapsible={false}
-        icon={<BookOpenIcon aria-hidden className="size-4 shrink-0" />}
-        title={<span className="font-medium">{offered.name}</span>}
-        headerProps={{ "data-testid": "skill-save-card" }}
+      <Confirmation
+        data-testid="skill-save-card"
+        state={savedTo ? "accepted" : "requested"}
       >
-        <div className="px-3 py-2.5">
-          {description && (
-            <p className="line-clamp-2 text-sm text-muted-foreground">
-              {description}
-            </p>
-          )}
-          {replaces && (
-            <p className="mt-1 text-xs text-muted-foreground">{replaces}</p>
-          )}
-          <div className="mt-3 flex items-center gap-2">
-            {state.kind === "loading" ? (
-              <Spinner className="size-4" aria-label="Checking skill…" />
-            ) : savedTo ? (
-              <p role="status" className="text-sm text-muted-foreground">
-                {SAVED_LABEL[savedTo]}
-              </p>
-            ) : (
-              scopes.map((scope, i) => (
-                <Button
-                  key={scope}
-                  size="sm"
-                  variant={i === 0 ? "default" : "outline"}
-                  disabled={saving !== null}
-                  onClick={() => save(scope)}
-                >
-                  {saving === scope && <Spinner />}
-                  {SCOPE_LABEL[scope]}
-                </Button>
-              ))
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="ml-auto"
-              onClick={() => setViewing(true)}
+        <ConfirmationTitle>
+          <ConfirmationRequest>
+            <span className="flex flex-col gap-0.5">
+              <span>
+                Save the{" "}
+                <InlineRef kind="skill" onClick={() => setViewing(true)}>
+                  {offered.name}
+                </InlineRef>{" "}
+                skill?
+              </span>
+              {description && (
+                <span className="line-clamp-2 text-xs text-muted-foreground">
+                  {description}
+                </span>
+              )}
+              {replaces && (
+                <span className="text-xs text-muted-foreground">
+                  {replaces}
+                </span>
+              )}
+            </span>
+          </ConfirmationRequest>
+          <ConfirmationAccepted>
+            <span
+              data-testid="card-outcome"
+              className="flex items-center gap-1.5"
             >
-              View
-            </Button>
-          </div>
-          {error && (
-            <p role="alert" className="mt-2 text-xs text-muted-foreground">
-              {error}
-            </p>
+              <CheckIcon aria-hidden className="size-4" />
+              <span>
+                <InlineRef kind="skill" onClick={() => setViewing(true)}>
+                  {offered.name}
+                </InlineRef>{" "}
+                {savedTo ? SAVED_LABEL[savedTo].toLowerCase() : ""}
+              </span>
+            </span>
+          </ConfirmationAccepted>
+        </ConfirmationTitle>
+        {error && (
+          <p role="alert" className="text-xs text-muted-foreground">
+            {error}
+          </p>
+        )}
+        <ConfirmationActions>
+          {state.kind === "loading" ? (
+            <Spinner className="size-4" aria-label="Checking skill…" />
+          ) : (
+            [...scopes].reverse().map((scope, i) => (
+              <ConfirmationAction
+                key={scope}
+                variant={i === scopes.length - 1 ? "default" : "outline"}
+                disabled={saving !== null}
+                onClick={() => save(scope)}
+              >
+                {saving === scope && <Spinner />}
+                {SCOPE_LABEL[scope]}
+              </ConfirmationAction>
+            ))
           )}
-        </div>
-      </ChatDisclosure>
+        </ConfirmationActions>
+      </Confirmation>
       <SkillDialog
         skill={
           viewing

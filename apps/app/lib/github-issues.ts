@@ -49,6 +49,29 @@ export interface GitHubIssuesClient {
   files(repo: GitHubRepoRef, number: number): Promise<PrFiles>
   /** A pull request's head commit, mergeability and check runs. */
   checks(repo: GitHubRepoRef, number: number): Promise<PrChecks>
+  /** Submits a review: approve, request changes, or comment, with line comments. */
+  review(
+    repo: GitHubRepoRef,
+    number: number,
+    input: PrReview
+  ): Promise<{ url: string }>
+  /** The merge methods the repository allows, its preferred one first. */
+  mergeMethods(repo: GitHubRepoRef): Promise<MergeMethod[]>
+  /** Merges a pull request, only while its head is still `sha`. */
+  merge(
+    repo: GitHubRepoRef,
+    number: number,
+    input: { method: MergeMethod; sha: string }
+  ): Promise<{ sha: string }>
+}
+
+export type MergeMethod = "squash" | "merge" | "rebase"
+
+export interface PrReview {
+  event: "approve" | "request_changes" | "comment"
+  body?: string
+  /** Comments on lines of the diff's new side. */
+  comments?: Array<{ path: string; line: number; body: string }>
 }
 
 export interface PrFiles {
@@ -66,6 +89,9 @@ export interface PrFiles {
 }
 
 export interface PrChecks {
+  title: string
+  url: string
+  draft: boolean
   sha: string
   state: string
   /** GitHub's `mergeable_state`: clean, dirty (a conflict), blocked… */
@@ -461,6 +487,9 @@ export function gitHubIssuesClient(
 
     async checks(repo, number) {
       const pr = await call<{
+        title: string
+        html_url: string
+        draft?: boolean
         state: string
         merged: boolean
         mergeable_state?: string | null
@@ -476,6 +505,9 @@ export function gitHubIssuesClient(
         }>
       }>(path(repo, `/commits/${pr.head.sha}/check-runs?per_page=100`))
       return {
+        title: pr.title,
+        url: pr.html_url,
+        draft: pr.draft ?? false,
         sha: pr.head.sha,
         state: pr.merged ? "merged" : pr.state,
         mergeableState: pr.mergeable_state ?? null,
@@ -488,6 +520,51 @@ export function gitHubIssuesClient(
           summary: r.output?.summary ?? null,
         })),
       }
+    },
+
+    async review(repo, number, { event, body, comments }) {
+      const raw = await call<{ html_url: string }>(
+        path(repo, `/pulls/${number}/reviews`),
+        {
+          method: "POST",
+          body: {
+            event: event.toUpperCase(),
+            ...(body ? { body } : {}),
+            ...(comments?.length
+              ? {
+                  comments: comments.map((c) => ({
+                    path: c.path,
+                    line: c.line,
+                    side: "RIGHT",
+                    body: c.body,
+                  })),
+                }
+              : {}),
+          },
+        }
+      )
+      return { url: raw.html_url }
+    },
+
+    async mergeMethods(repo) {
+      const raw = await call<{
+        allow_squash_merge?: boolean
+        allow_merge_commit?: boolean
+        allow_rebase_merge?: boolean
+      }>(path(repo, ""))
+      const methods: MergeMethod[] = []
+      if (raw.allow_squash_merge !== false) methods.push("squash")
+      if (raw.allow_merge_commit !== false) methods.push("merge")
+      if (raw.allow_rebase_merge !== false) methods.push("rebase")
+      return methods
+    },
+
+    async merge(repo, number, { method, sha }) {
+      const raw = await call<{ sha: string }>(
+        path(repo, `/pulls/${number}/merge`),
+        { method: "PUT", body: { merge_method: method, sha } }
+      )
+      return { sha: raw.sha }
     },
   }
 }

@@ -73,14 +73,15 @@ afterEach(() => {
 })
 
 describe("SkillSaveCard", () => {
-  it("shows the skill with the suggested scope first, and saves nothing until pressed", async () => {
+  it("asks to save the skill, with the suggested scope as the primary action, and saves nothing until pressed", async () => {
     renderCard()
     const account = await screen.findByRole("button", {
       name: "Save to account",
     })
     const canvas = screen.getByRole("button", { name: "Save to canvas" })
+    // Like a confirmation, the primary action comes last, on the right.
     expect(
-      account.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING
+      canvas.compareDocumentPosition(account) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
     expect(screen.getByText("design-exploration")).toBeTruthy()
     expect(
@@ -95,7 +96,9 @@ describe("SkillSaveCard", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Save to canvas" })
     )
-    expect(await screen.findByText("Saved to this canvas")).toBeTruthy()
+    expect((await screen.findByTestId("card-outcome")).textContent).toBe(
+      "design-exploration saved to this canvas"
+    )
     expect(saveOfferedSkill).toHaveBeenCalledWith("room-1", "canvas", {
       name: "design-exploration",
       content,
@@ -113,7 +116,9 @@ describe("SkillSaveCard", () => {
       replacesBuiltIn: false,
     })
     renderCard()
-    expect(await screen.findByText("Saved to your account")).toBeTruthy()
+    expect((await screen.findByTestId("card-outcome")).textContent).toBe(
+      "design-exploration saved to your account"
+    )
     expect(screen.queryByText("Replaces the Built in skill")).toBe(null)
   })
 
