@@ -1258,7 +1258,7 @@ function UserBubble({
           size="prose"
           urlTransform={(url) => url}
           components={components}
-          className="max-w-[85%] rounded-xl bg-muted px-3 py-1.5 dark:bg-input/70"
+          className="max-w-[85%] rounded-xl bg-muted px-3.5 py-2 dark:bg-input/70"
         >
           {displayContent}
         </ChatMarkdown>

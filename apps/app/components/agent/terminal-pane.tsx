@@ -357,8 +357,8 @@ export function TerminalPane({
                       "flex w-max items-center pr-2 transition-[height,padding,gap]",
                       MOTION,
                       open
-                        ? "h-10 gap-1 py-[3px] pl-[11px]"
-                        : "h-6 gap-0.5 pl-1"
+                        ? "h-10 gap-1 py-[3px] pl-[15px]"
+                        : "h-6 gap-0.5 pl-2"
                     )}
                   >
                     {terminals.map((terminal, i) => (
@@ -399,7 +399,7 @@ export function TerminalPane({
               {/* Closed, this row matches the footnote names' 24px line. */}
               <div
                 className={cn(
-                  "flex shrink-0 items-center gap-0.5 self-start pr-3 pl-1 transition-[height]",
+                  "flex shrink-0 items-center gap-0.5 self-start pr-4 pl-1 transition-[height]",
                   MOTION,
                   open ? "h-10" : "h-6"
                 )}

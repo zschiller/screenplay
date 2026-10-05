@@ -319,9 +319,9 @@ export function useTerminalPane({
         // becomes a pixel-remainder lottery on the pane height, and losing it
         // clips the terminal's last line (where a TUI paints its input box).
         // Here FitAddon subtracts it explicitly, so the geometry is correct at
-        // every pane height. 12px sides = the chat's `p-3` gutter, so text
+        // every pane height. 16px sides = the chat's `p-4` gutter, so text
         // doesn't jump sideways when switching between chat and terminal tabs.
-        el.style.padding = "4px 12px"
+        el.style.padding = "4px 16px"
       }
 
       // Fit the terminal to the pane — but only when it's actually visible AND
