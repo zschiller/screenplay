@@ -94,7 +94,11 @@ type CollectionKey = keyof RecordByKey
  */
 export type CreateBranchSpec = {
   branch: Omit<BranchData, "id" | "pendingIframeLayerSeed">
-  chat?: { label: string; model?: string }
+  /**
+   * The Branch's chat. `id` is for a caller that already points at the chat
+   * (a drawn Mockup's owner, #1359); a fresh one is minted otherwise.
+   */
+  chat?: { id?: string; label: string; model?: string }
   /**
    * A frame already on the canvas to show the new Branch in (a drawn frame
    * answered by New chat, #1356). It is assigned in the same transaction and
@@ -812,7 +816,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       })
       if (frameId) assignBranch(frameId, branchId)
       if (spec.chat) {
-        chatId = nanoid()
+        chatId = spec.chat.id ?? nanoid()
         collections.chatSessions.set(chatId, {
           id: chatId,
           branchId,

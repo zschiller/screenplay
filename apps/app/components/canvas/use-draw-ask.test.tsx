@@ -37,8 +37,9 @@ const payload = (text: string, model = "model-x") =>
 /**
  * The module over a real room Y.Doc. The Workspace's chat, the chat store and
  * Branch Intake are fakes that record what they were handed; the fake create
- * makes the Branch and its chat the way Branch Intake does, in one batch, and
- * runs the module's `afterCreate` there.
+ * makes the Branch and its chat the way Branch Intake does, in one batch, under
+ * the chat id the module hands it. `naming` holds the create back, the way
+ * Branch Intake waits on naming the Branch.
  */
 function setup(
   opts: {
@@ -48,6 +49,8 @@ function setup(
     /** The Workspace chat a prompt lands in; none while it starts. */
     workspaceChat?: string
     selected?: { frames?: string[]; owned?: string[] }
+    /** Resolves once the new Branch is named; until then nothing is created. */
+    naming?: Promise<void>
   } = {}
 ) {
   const { doc, ops, collections } = makeHarness()
@@ -72,17 +75,21 @@ function setup(
       specs: ComposerSpec[],
       createOpts?: CreateBranchOptions
     ) => {
+      await opts.naming
       ops.batch(() => {
         const result = ops.createBranch({
           branch: {
             ...baseBranch("ignored", { repoId }),
             status: "creating",
           },
-          chat: { label: "New", model: specs[0]!.model },
+          chat: {
+            id: createOpts?.chatId,
+            label: "New",
+            model: specs[0]!.model,
+          },
           frameId: createOpts?.frameId,
         })
         created.push(result)
-        createOpts?.afterCreate?.(result)
       })
     }
   )
@@ -385,20 +392,28 @@ describe("sending a Mockup box’s ask", () => {
     )
   })
 
-  it("starts a new chat whose empty Mockup lands with its Branch, camera kept", async () => {
-    const t = opened()
+  it("starts a new chat whose empty Mockup stays drawn while its Branch is named, camera kept", async () => {
+    let named!: () => void
+    const t = opened({ naming: new Promise<void>((r) => (named = r)) })
 
-    await act(async () =>
-      t.hook.result.current.send(payload("x"), { kind: "new-chat" })
-    )
+    act(() => t.hook.result.current.send(payload("x"), { kind: "new-chat" }))
 
+    // Nothing is created yet, but the box is already its chat’s Mockup.
+    expect(t.created).toHaveLength(0)
     expect(t.createBranch).toHaveBeenCalledWith(
       "repo-1",
       [expect.objectContaining({ baseBranch: "main", model: "model-x" })],
       expect.objectContaining({ keepView: true })
     )
-    const chatId = t.created[0]!.chatId!
-    expectEmptyMockup(t, chatId)
+    const { chatId } = t.createBranch.mock.calls[0]![2]!
+    expectEmptyMockup(t, chatId!)
+
+    await act(async () => named())
+
+    expect(t.created[0]!.chatId).toBe(chatId)
+    expect(t.collections.chatSessions.get(chatId!)?.branchId).toBe(
+      t.created[0]!.branchId
+    )
   })
 })
 

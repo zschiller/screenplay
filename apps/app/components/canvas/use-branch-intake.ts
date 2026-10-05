@@ -92,10 +92,11 @@ export interface CreateBranchOptions {
    */
   frameId?: string
   /**
-   * Runs inside the create's transaction once the Branch and its chat exist,
-   * so what it writes lands in the same undo step.
+   * The id the Branch's chat gets, minted by the caller so what it places
+   * right away (a drawn Mockup, owned by this chat) needn't wait for the
+   * create, which first waits on naming the Branch.
    */
-  afterCreate?: (created: { branchId: string; chatId?: string }) => void
+  chatId?: string
   /** Leave the camera and selection where they are. */
   keepView?: boolean
 }
@@ -391,11 +392,11 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
                 : {}),
             },
             // Seed a Chat Session only for prompted rows; bare rows get none.
-            ...(plan.seedChat ? { chat: { label, model } } : {}),
+            ...(plan.seedChat
+              ? { chat: { id: single?.chatId, label, model } }
+              : {}),
             ...(frameId ? { frameId } : {}),
           })
-
-          single?.afterCreate?.({ branchId: id, chatId })
 
           // Queue the seed prompt; the dispatch effect below fires it exactly
           // once, when the Sandbox reaches `running` (and drops it on error).
