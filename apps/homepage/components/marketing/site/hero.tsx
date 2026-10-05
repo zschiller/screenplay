@@ -22,7 +22,12 @@ export function Hero() {
             <br className="sm:hidden" /> to code,
             <br /> on one canvas.
           </h1>
-          <div className="mt-14 grid items-end gap-6 md:mb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-12">
+          {/* The header's phone Download lands here, 108px under the bar like
+              the sections, so the lede, buttons and note come into view whole. */}
+          <div
+            id="download"
+            className="mt-14 grid scroll-mt-[108px] items-end gap-6 md:mb-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-12"
+          >
             <p className="max-w-[36ch] text-lg leading-[1.45] sm:text-[22px]">
               Coding agents plan, mock up and build from your own repo, with
               every version live side by side.
