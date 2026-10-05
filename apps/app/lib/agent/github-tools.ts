@@ -339,7 +339,7 @@ export function buildGitHubTools(ctx: GitHubToolContext) {
           if (pr.draft) {
             return `#${number} is a draft; it needs marking ready for review before it can merge.`
           }
-          return `Showed a merge card for ${r.repo.owner}/${r.repo.name}#${number} (${pr.title}). Nothing merges until someone picks Merge on it; Not now comes back as their next message.`
+          return `Showed a merge card for ${r.repo.owner}/${r.repo.name}#${number} (${pr.title}). Nothing merges until someone presses Merge on it; Not now comes back as their next message.`
         } catch (e) {
           return failed(e)
         }

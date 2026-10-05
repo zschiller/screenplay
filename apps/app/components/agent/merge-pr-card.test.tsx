@@ -35,7 +35,7 @@ function call(
         type: "content",
         content: {
           type: "text",
-          text: "Showed a merge card for acme/web#7 (Fix sign-in). Nothing merges until someone picks Merge on it; Not now comes back as their next message.",
+          text: "Showed a merge card for acme/web#7 (Fix sign-in). Nothing merges until someone presses Merge on it; Not now comes back as their next message.",
         },
       },
     ],
@@ -66,8 +66,8 @@ function renderCard(message = call()) {
   )
 }
 
-const choice = async (name: RegExp) =>
-  (await screen.findByRole("radio", { name })) as HTMLInputElement
+const action = async (name: string) =>
+  (await screen.findByRole("button", { name })) as HTMLButtonElement
 
 beforeEach(() => {
   offeredMergeState.mockResolvedValue(pr)
@@ -80,12 +80,12 @@ afterEach(() => {
 })
 
 describe("MergePrCard", () => {
-  it("asks like a question card, and merges nothing until picked", async () => {
+  it("asks to merge, and merges nothing until pressed", async () => {
     renderCard()
-    const merge = await choice(/Squash and merge/)
+    const merge = await action("Squash and merge")
     expect(screen.getByText("#7 Fix sign-in")).toBeTruthy()
     expect(screen.getByText("All checks have passed")).toBeTruthy()
-    expect(screen.getByRole("radio", { name: /Not now/ })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Not now" })).toBeTruthy()
     expect(offeredMergeState).toHaveBeenCalledWith("room-1", {
       repo: "acme/web",
       number: 7,
@@ -94,30 +94,28 @@ describe("MergePrCard", () => {
     expect(mergeOfferedPr).not.toHaveBeenCalled()
 
     fireEvent.click(merge)
-    expect(await screen.findByText("Merged")).toBeTruthy()
+    expect((await screen.findByTestId("card-outcome")).textContent).toBe(
+      "Merged #7 Fix sign-in"
+    )
     expect(mergeOfferedPr).toHaveBeenCalledWith("room-1", {
       repo: "acme/web",
       number: 7,
       method: "squash",
       sha: "abc123",
     })
-    expect(merge.checked).toBe(true)
-    expect(
-      (screen.getByRole("radio", { name: /Not now/ }) as HTMLInputElement)
-        .disabled
-    ).toBe(true)
+    expect(screen.queryByRole("button", { name: "Not now" })).toBe(null)
   })
 
   it("uses the method the agent asked for when the repository allows it", async () => {
     renderCard(call({ rawInput: { number: 7, method: "merge" } }))
-    expect(await choice(/^Merge/)).toBeTruthy()
-    expect(screen.queryByRole("radio", { name: /Squash/ })).toBeNull()
+    expect(await action("Merge")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Squash/ })).toBeNull()
   })
 
   it("can’t merge a conflicted PR, and says why", async () => {
     offeredMergeState.mockResolvedValue({ ...pr, mergeableState: "dirty" })
     renderCard()
-    const merge = await choice(/Squash and merge/)
+    const merge = await action("Squash and merge")
     expect(screen.getByText("Has conflicts with its base")).toBeTruthy()
     expect(merge.disabled).toBe(true)
   })
@@ -125,8 +123,11 @@ describe("MergePrCard", () => {
   it("answers the agent with Not now, and merges nothing", async () => {
     const send = vi.spyOn(inputStore, "send").mockResolvedValue(true)
     renderCard()
-    fireEvent.click(await choice(/Not now/))
+    fireEvent.click(await action("Not now"))
     expect(send).toHaveBeenCalledWith("chat-1", "Not now")
+    expect((await screen.findByTestId("card-outcome")).textContent).toBe(
+      "Didn’t merge #7 Fix sign-in"
+    )
     expect(mergeOfferedPr).not.toHaveBeenCalled()
     send.mockRestore()
   })
@@ -137,7 +138,7 @@ describe("MergePrCard", () => {
       error: "Head branch was modified (409)",
     })
     renderCard()
-    fireEvent.click(await choice(/Squash and merge/))
+    fireEvent.click(await action("Squash and merge"))
     expect((await screen.findByRole("alert")).textContent).toBe(
       "Head branch was modified (409)"
     )

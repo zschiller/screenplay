@@ -542,7 +542,7 @@ describe("reviews and merges", () => {
   it("offers a merge card and merges nothing itself", async () => {
     const { run, calls } = setup(openPr())
     expect(await run("merge_pr", { number: 7 })).toBe(
-      "Showed a merge card for acme/web#7 (Fix sign-in). Nothing merges until someone picks Merge on it; Not now comes back as their next message."
+      "Showed a merge card for acme/web#7 (Fix sign-in). Nothing merges until someone presses Merge on it; Not now comes back as their next message."
     )
     expect(calls.every((c) => c.method === "GET")).toBe(true)
   })

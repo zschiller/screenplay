@@ -13,7 +13,7 @@ import { openRoom } from "@/lib/room-access"
 
 /**
  * The merge card's server side: an agent's `merge_pr` only shows the card, and
- * a pull request merges when a member picks Merge on it, with their own
+ * a pull request merges when a member presses Merge on it, with their own
  * GitHub account. Both actions reach only the canvas's repositories.
  */
 

@@ -1,16 +1,20 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { GitPullRequestIcon } from "@workspace/ui/components/icons"
 import {
-  Questionnaire,
-  QuestionnaireChoice,
-  QuestionnaireChoiceDescription,
-  QuestionnaireChoices,
-  QuestionnaireDescription,
-  QuestionnaireItem,
-  QuestionnaireTitle,
-} from "@workspace/ui/components/questionnaire"
+  CheckIcon,
+  GitPullRequestIcon,
+  XIcon,
+} from "@workspace/ui/components/icons"
+import {
+  Confirmation,
+  ConfirmationAccepted,
+  ConfirmationAction,
+  ConfirmationActions,
+  ConfirmationRejected,
+  ConfirmationRequest,
+  ConfirmationTitle,
+} from "@workspace/ui/components/confirmation"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { bareToolName } from "@/lib/agent/tool-name"
 import { callIdentity } from "@/lib/agent/tool-description"
@@ -85,10 +89,10 @@ type State =
 
 /**
  * The card a chat shows for a pull request its agent offered to merge with
- * `merge_pr`, drawn like a question card: “Merge #12 …?”, whether its checks
- * pass, and two choices, the merge in the method the agent asked for (or the
+ * `merge_pr`, as a Confirmation: “Merge #12 …?”, whether its checks pass,
+ * and two buttons, the merge in the method the agent asked for (or the
  * repository’s first allowed one) and Not now, which answers the agent.
- * Nothing merges until a member picks it, with their own GitHub account,
+ * Nothing merges until a member presses it, with their own GitHub account,
  * and only at the head the card shows. Once merged it says so, for everyone
  * and after a reload, since it reads the PR’s state from GitHub.
  *
@@ -198,75 +202,78 @@ export function MergePrCard({
           ? "Draft: mark it ready for review on GitHub first"
           : statusLine(pr)
 
-  return (
-    <Questionnaire
-      data-testid="merge-pr-card"
-      onSubmit={(e) => e.preventDefault()}
+  const decided = merged ? "accepted" : declined ? "rejected" : "requested"
+  const prRef = (
+    <InlineRef
+      kind="workspace"
+      icon={<GitPullRequestIcon aria-hidden weight="bold" />}
+      onClick={pr ? () => window.open(pr.url, "_blank", "noopener") : undefined}
     >
-      <QuestionnaireItem name={`merge-${message.toolCallId}`}>
-        <QuestionnaireTitle className="text-sm">
-          Merge{" "}
-          <InlineRef
-            kind="workspace"
-            icon={<GitPullRequestIcon aria-hidden weight="bold" />}
-            onClick={
-              pr ? () => window.open(pr.url, "_blank", "noopener") : undefined
-            }
+      #{offered.number}
+      {pr ? ` ${pr.title}` : ""}
+    </InlineRef>
+  )
+
+  return (
+    <Confirmation data-testid="merge-pr-card" state={decided}>
+      <ConfirmationTitle>
+        <ConfirmationRequest>
+          <span className="flex flex-col gap-0.5">
+            <span>Merge {prRef}?</span>
+            <span className="text-xs text-muted-foreground">
+              {state.kind === "loading" ? (
+                <Spinner
+                  className="size-3"
+                  aria-label="Checking pull request…"
+                />
+              ) : state.kind === "failed" ? (
+                state.error
+              ) : (
+                status
+              )}
+            </span>
+          </span>
+        </ConfirmationRequest>
+        <ConfirmationAccepted>
+          <span
+            data-testid="card-outcome"
+            className="flex items-center gap-1.5"
           >
-            #{offered.number}
-            {pr ? ` ${pr.title}` : ""}
-          </InlineRef>
-          ?
-        </QuestionnaireTitle>
-        <QuestionnaireDescription className="mt-1 text-xs">
-          {state.kind === "loading" ? (
-            <Spinner className="size-3" aria-label="Checking pull request…" />
-          ) : state.kind === "failed" ? (
-            state.error
-          ) : (
-            status
-          )}
-        </QuestionnaireDescription>
-        {pr && method && pr.state !== "closed" && !pr.draft && (
-          <div className="flex flex-col gap-1">
-            <QuestionnaireChoices>
-              <QuestionnaireChoice
-                value="merge"
-                checked={merged || merging}
-                // Like a question card, the picked choice stays at full
-                // strength; picking it again does nothing (see `merge`).
-                disabled={
-                  !merged &&
-                  !merging &&
-                  (!canMerge || pr.mergeableState === "dirty")
-                }
-                onChange={merge}
-              >
-                <span className="flex items-center gap-1.5">
-                  {METHOD_LABEL[method]}
-                  {merging && <Spinner className="size-3" />}
-                </span>
-                <QuestionnaireChoiceDescription className="text-xs">
-                  With your GitHub account
-                </QuestionnaireChoiceDescription>
-              </QuestionnaireChoice>
-              <QuestionnaireChoice
-                value="not-now"
-                checked={declined}
-                disabled={!chatId || ((merged || merging) && !declined)}
-                onChange={notNow}
-              >
-                {NOT_NOW}
-              </QuestionnaireChoice>
-            </QuestionnaireChoices>
-            {error && (
-              <p role="alert" className="text-xs text-muted-foreground">
-                {error}
-              </p>
-            )}
-          </div>
-        )}
-      </QuestionnaireItem>
-    </Questionnaire>
+            <CheckIcon aria-hidden className="size-4" />
+            <span>Merged {prRef}</span>
+          </span>
+        </ConfirmationAccepted>
+        <ConfirmationRejected>
+          <span
+            data-testid="card-outcome"
+            className="flex items-center gap-1.5"
+          >
+            <XIcon aria-hidden className="size-4" />
+            <span>Didn’t merge {prRef}</span>
+          </span>
+        </ConfirmationRejected>
+      </ConfirmationTitle>
+      {error && (
+        <p role="alert" className="text-xs text-muted-foreground">
+          {error}
+        </p>
+      )}
+      <ConfirmationActions>
+        <ConfirmationAction
+          variant="outline"
+          disabled={!chatId || merging}
+          onClick={notNow}
+        >
+          {NOT_NOW}
+        </ConfirmationAction>
+        <ConfirmationAction
+          disabled={!canMerge || merging || pr?.mergeableState === "dirty"}
+          onClick={merge}
+        >
+          {merging && <Spinner />}
+          {method ? METHOD_LABEL[method] : "Merge"}
+        </ConfirmationAction>
+      </ConfirmationActions>
+    </Confirmation>
   )
 }

@@ -40,7 +40,7 @@ const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
  * Coordinator call that names a Workspace, whose task row is the point of the
  * turn (#896), a question card (#1312), which shows what was asked and
  * answered, a skill card (#1633), which waits for someone to save it, or a
- * merge card, which waits for someone to pick Merge.
+ * merge card, which waits for someone to press Merge.
  */
 function isPinned(message: AgentMessage): boolean {
   if (PINNED_ROLES.has(message.role)) return true
