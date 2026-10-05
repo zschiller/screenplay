@@ -111,7 +111,6 @@ function renderMenu(
       onDeleteSketchChat={noop}
       onRestartDevServer={noop}
       onCreatePr={noop}
-      onRefreshBranch={noop}
       onRecreateBranch={noop}
       onRetryBranch={noop}
       onMarkBranchDone={noop}

@@ -14,7 +14,7 @@ export const GO_LIVE_FAILED: Record<
   string
 > = {
   "not-running": "Couldn’t go live because the chat’s code isn’t running.",
-  "dev-server-stopped": "Couldn’t go live because the dev server is stopped.",
+  "dev-server-stopped": "Couldn’t go live because the preview is stopped.",
   unreachable: "Couldn’t go live because the chat’s code didn’t answer.",
   failed: "Couldn’t go live because the frame’s browser didn’t start.",
   timeout: "Couldn’t go live because the frame took too long to start.",

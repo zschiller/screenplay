@@ -571,7 +571,7 @@ describe("restartSandbox", () => {
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
-    expect(result.error).toMatch(/recreate from scratch/i)
+    expect(result.error).toMatch(/set up again/i)
     // Crucially: no reclone. No VM was created and the provision pipeline never
     // ran.
     expect(fake.createCalls).toHaveLength(0)
@@ -590,7 +590,7 @@ describe("restartSandbox", () => {
 
     expect(result.success).toBe(false)
     if (result.success) throw new Error("expected failure")
-    expect(result.error).toMatch(/recreate from scratch/i)
+    expect(result.error).toMatch(/set up again/i)
     expect(fake.createCalls).toHaveLength(0)
     expect(configureAgentGit).not.toHaveBeenCalled()
   })
@@ -821,7 +821,7 @@ describe("stopDevServer (#1342)", () => {
     expect(result).toEqual({ success: true, value: undefined })
     expect(fake.getCalls).toEqual([{ name: "sandbox-a", resume: false }])
     expect(commands[0]).toContain("kill -KILL")
-    expect(commands[1]).toContain("[Dev server stopped]")
+    expect(commands[1]).toContain("[Preview stopped]")
     // The log is appended to, never truncated: the output stays visible.
     expect(commands.join("\n")).not.toContain(": >")
     expect(fake.createCalls).toHaveLength(0)

@@ -22,21 +22,21 @@ providers](/self-hosting/configuration/model-providers).
 
 ## Previews
 
-**A frame never shows the app.** It stays on **Starting dev server**, or ends
-on **Dev server not responding** or **Setup failed**. On a
-failure, click **Open logs** on the frame: the chat’s **Dev server**
-terminal shows the dev server’s and portless’s output. The usual cause is a
+**A frame never shows the app.** It stays on **Starting preview**, or ends
+on **Preview not responding** or **Setup failed**. On a
+failure, click **Open logs** on the frame: the chat’s **Preview**
+terminal shows the preview’s and portless’s output. The usual cause is a
 run script that doesn’t serve on the port Screenplay assigned, covered next.
 Fix what the logs show, then click **Retry**. You can also ask the
 chat’s agent to debug the preview, since it reads the same output.
 
-<Only desktop /> **“The dev server didn’t start on the port Screenplay gave
-it”**. This is `DevServerPortIgnoredError`: the dev server is running but never
-listened on its assigned port, usually because the run script ignores `$PORT`.
+<Only desktop /> **“The preview didn’t start on the port Screenplay gave it”**.
+This is `DevServerPortIgnoredError`: the preview is running but never listened
+on its assigned port, usually because the run script ignores `$PORT`.
 
 1. Edit the repository in **Canvas settings** and add the port to its **Run
    script**, for example `vite --port $PORT --strictPort`.
-2. Use **… → Restart → Restart dev server** on the chat.
+2. Use **… → Restart preview** on the chat.
 
 See [When the preview never loads](/guides/building/dev-server#when-the-preview-never-loads).
 

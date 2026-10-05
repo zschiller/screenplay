@@ -27,6 +27,11 @@ export type ConfirmDialogProps = {
   /** The item's own name, quoted in the title: Delete “Quarterly plan”? */
   itemName?: string
   /**
+   * The title, when the verb can't start it ("Set up “Checkout” again?").
+   * Defaults to the verb and the quoted name.
+   */
+  title?: string
+  /**
    * What kind of thing the item is ("canvas", "comment"). Used in the title
    * when there's no name to quote (Delete comment?) and in the fallback error.
    */
@@ -86,6 +91,7 @@ export function ConfirmDialog({
   verb,
   itemName,
   itemNoun,
+  title,
   description,
   children,
   cancelLabel = "Cancel",
@@ -128,7 +134,7 @@ export function ConfirmDialog({
       >
         <AlertDialogHeader>
           <AlertDialogTitle className="break-words">
-            {confirmTitle(verb, itemName, itemNoun)}
+            {title ?? confirmTitle(verb, itemName, itemNoun)}
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div>{description}</div>

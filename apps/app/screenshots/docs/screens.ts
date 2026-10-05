@@ -1237,7 +1237,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   }),
   screen({
     name: "ws-restart",
-    description: "The Workspace menu's Restart submenu.",
+    description: "The chat menu's Restart preview and Set up again… items.",
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [460, 0, 820, 520],
@@ -1245,12 +1245,12 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await openRowMenu(page, "Hero gradient")
-      await hoverMenuItem(page, "Restart")
+      await hoverMenuItem(page, "Restart preview")
     },
   }),
   screen({
     name: "recreate-dialog",
-    description: "Recreate from scratch, confirming.",
+    description: "Set up again…, confirming.",
     path: ROOM,
     cookies: WITH_CHAT,
     focus: DIALOG,
@@ -1259,8 +1259,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await camera(page, VIEW.hero)
       await unfreeze(page)
       await openRowMenu(page, "Hero gradient")
-      await hoverMenuItem(page, "Restart")
-      await clickMenuItem(page, "Recreate from scratch", 1200)
+      await clickMenuItem(page, "Set up again…", 1200)
     },
   }),
   screen({
@@ -1381,6 +1380,27 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
       await clickFrameToolbar(page, "Frame options")
+    },
+  }),
+  screen({
+    name: "frame-preview-menu",
+    viewport: TALL_VIEWPORT,
+    description: "The frame menu's Preview submenu.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    crop: [560, 40, 640, 440],
+    // The open submenu alone, like Device size's.
+    ...clipped(
+      boxAround("body", "Open in prototype player", {
+        closest: "[role=menu]",
+      }),
+      { pad: 0 }
+    ),
+    prepare: async (page) => {
+      await camera(page, VIEW.frameCloseUp)
+      await selectLayer(page, "Home")
+      await clickFrameToolbar(page, "Frame options")
+      await hoverMenuItem(page, "Preview")
     },
   }),
   screen({
@@ -1571,8 +1591,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   screen({
     name: "logs",
     ...clipped(CHAT_FOOT, { within: "#chat", pad: 0 }),
-    description:
-      "The Terminal Pane open on Dev server, the dev server's output.",
+    description: "The Terminal Pane open on Preview, the dev server's output.",
     path: ROOM,
     cookies: WITH_CHAT,
     beforeNavigate: (page) => stubLogs(page, "live", LOGS_SAMPLE),
@@ -1581,7 +1600,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await selectWorkspace(page, "Hero gradient")
       await page
         .getByRole("tablist", { name: "Terminals" })
-        .getByRole("tab", { name: "Dev server" })
+        .getByRole("tab", { name: "Preview" })
         .click()
       await sleep(page, 2500)
     },
@@ -1669,7 +1688,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await selectWorkspace(page, "Customer stories")
       await page
         .getByRole("tablist", { name: "Terminals" })
-        .getByRole("tab", { name: "Dev server" })
+        .getByRole("tab", { name: "Preview" })
         .click()
       await page
         .getByRole("button", { name: "New terminal", exact: true })

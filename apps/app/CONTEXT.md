@@ -331,7 +331,8 @@ the Agent is working, so a broken preview can be fixed mid-turn. The Agent
 can run it itself (`restart_dev_server`), next to `read_dev_server_logs` for
 the log the Logs panel tails (`lib/agent/dev-server-tools.ts`; a desktop
 harness reaches both over the MCP route).
-_Shown to users as_: "Restart dev server".
+_Shown to users as_: "Restart preview" (the dev server is "the preview" on
+screen: its terminal tab, frame states and toasts).
 _Avoid_: "restart" unqualified (it collapses this with the VM-cycling Sandbox
 Restart and the destructive Recreate — say which one).
 
@@ -345,7 +346,9 @@ working, since it cycles the VM mid-turn. **Exists only where Hibernation does**
 on a non-hibernating provider (the desktop local backend) the action is hidden
 entirely — there is no VM to cycle, so the offered restarts there are Dev Server
 Restart and Recreate.
-_Shown to users as_: "Restart sandbox".
+_Shown to users as_: nothing by name: no menu offers it (the agent pushes every
+turn, so it rarely kept anything Recreate doesn't). A stopped frame's hosted
+Start runs it ("Starting preview…").
 _Avoid_: conflating with Dev Server Restart (no VM cycle) or Recreate (which
 destroys the working tree).
 
@@ -355,7 +358,8 @@ branch fresh from git, discarding the working tree. This is the only path that
 throws away uncommitted work, so it is gated behind a confirm and is never a
 silent fallback (see ADR 0005). Also the auto-recovery path when a Sandbox's
 snapshot has fully expired and there is nothing left to restore.
-_Shown to users as_: "Recreate from scratch".
+_Shown to users as_: "Set up again…" (confirming); a failed setup's Retry is
+"Set up again", with no confirm.
 _Avoid_: "reset", "reclone" (casual); using it for the working-tree-preserving
 Sandbox Restart.
 

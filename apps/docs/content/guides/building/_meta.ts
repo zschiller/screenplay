@@ -1,5 +1,5 @@
 const meta = {
-  "dev-server": "Dev server & ports",
+  "dev-server": "Preview & ports",
   knobs: "Knobs",
   "shared-state": "Shared state",
   skills: "Agent skills",

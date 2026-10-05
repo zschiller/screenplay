@@ -18,8 +18,8 @@
  *   control", "Ana has control"); a tool row says the agent "Used" a page.
  *   "Frame Drive" is the code's name for it and stays there.
  *
- * "Sandbox" is deliberately absent: it is a UI label in its own right
- * ("Restart sandbox"), so its misuse is a review call, not a lint.
+ * "Sandbox" is deliberately absent: the menus no longer say it, but error
+ * text from the backend may, so its misuse is a review call, not a lint.
  */
 
 export interface CopyViolation {

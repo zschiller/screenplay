@@ -13,6 +13,7 @@ import {
 } from "react"
 import {
   ArrowsOutSimpleIcon,
+  AppWindowIcon,
   ChatCircleIcon,
   CopyIcon,
   DotsThreeIcon,
@@ -53,7 +54,7 @@ import { DeviceSizeSubMenu } from "./device-size-menu"
  * two can't drift.
  *
  * The items, in order, each shown when the object has it: Rename, Duplicate,
- * then the frame's Device size, Fit to content and Chat, then Delete.
+ * then the frame's Device size, Fit to content, Preview and Chat, then Delete.
  */
 export interface LayerMenuActions {
   /** The object, for the trigger's name ("Frame options"). */
@@ -69,11 +70,16 @@ export interface LayerMenuActions {
     checked: boolean
     onCheckedChange: (checked: boolean) => void
   }
-  /** The frame's Workspace's menu, under Chat (H4). */
+  /**
+   * The frame's chat's menu (H4), split in two: Preview (what acts on the
+   * running app the frame shows) and Chat (what acts on the chat itself).
+   */
   chat?: {
     branchId: string | null | undefined
     onPlay?: () => void
     onOpenInBrowser?: () => void
+    /** Open logs: the chat's Preview terminal. */
+    onOpenLogs?: () => void
   }
   /** Delete, when the object can be removed. */
   onDelete?: () => void
@@ -219,36 +225,57 @@ function LayerMenuItems({
             </DropdownMenuCheckboxItem>
           )}
           {showChat && chat && (
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <ChatCircleIcon />
-                Chat
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {hasWorkspaceMenu && branchId ? (
-                  // The Workspace's whole menu, as in its chat header (H4),
-                  // opening on this frame.
-                  <WorkspaceMenuItems
-                    branchId={branchId}
-                    onRename={() => onPendingRename({ kind: "chat", branchId })}
-                    onPlay={chat.onPlay}
-                    onOpenInBrowser={chat.onOpenInBrowser}
-                  />
-                ) : (
-                  <>
-                    {chat.onPlay && (
-                      <DropdownMenuItem onSelect={chat.onPlay}>
-                        <PlayIcon />
-                        Open prototype player
-                      </DropdownMenuItem>
-                    )}
-                    {chat.onOpenInBrowser && (
-                      <OpenInBrowserItem onOpen={chat.onOpenInBrowser} />
-                    )}
-                  </>
-                )}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            <>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <AppWindowIcon />
+                  Preview
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {hasWorkspaceMenu && branchId ? (
+                    <WorkspaceMenuItems
+                      part="preview"
+                      branchId={branchId}
+                      onRename={() =>
+                        onPendingRename({ kind: "chat", branchId })
+                      }
+                      onPlay={chat.onPlay}
+                      onOpenInBrowser={chat.onOpenInBrowser}
+                      onOpenLogs={chat.onOpenLogs}
+                    />
+                  ) : (
+                    <>
+                      {chat.onPlay && (
+                        <DropdownMenuItem onSelect={chat.onPlay}>
+                          <PlayIcon />
+                          Open in prototype player
+                        </DropdownMenuItem>
+                      )}
+                      {chat.onOpenInBrowser && (
+                        <OpenInBrowserItem onOpen={chat.onOpenInBrowser} />
+                      )}
+                    </>
+                  )}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              {hasWorkspaceMenu && branchId && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <ChatCircleIcon />
+                    Chat
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <WorkspaceMenuItems
+                      part="chat"
+                      branchId={branchId}
+                      onRename={() =>
+                        onPendingRename({ kind: "chat", branchId })
+                      }
+                    />
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+            </>
           )}
         </>
       )}

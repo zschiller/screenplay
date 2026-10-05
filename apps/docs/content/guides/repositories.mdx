@@ -6,7 +6,7 @@ description: Add repositories to a canvas and tell Screenplay how to run them.
 # Repositories
 
 A canvas runs code from one or more repositories. Each has the scripts that
-set it up and start its dev server. You manage them in **Canvas settings**:
+set it up and start its preview. You manage them in **Canvas settings**:
 click **…** next to the canvas name at the top left and choose **Settings**.
 
 <Screenshot
@@ -71,19 +71,19 @@ instead.
 
 ## Repository settings
 
-| Setting                   | What it does                                                                                                                                                                            |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Setup script**          | Runs once when a chat’s code is set up, e.g. `npm install`.                                                                                                                             |
-| **Run script**            | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                                                                                    |
-| **Dev server port**       | <Only hosted /> The port your dev server listens on.                                                                                                                                    |
-| **Environment variables** | <Only hosted /> `KEY=value` lines every chat gets. Stored encrypted; see [who sees the values](#environment-variable-values).                                                           |
-| **Files to copy**         | <Only desktop /> Files from your folder to copy into each chat’s code (default `.env*`), so local secrets come along. One pattern per line. Only for a local folder, not a GitHub repository or clone URL.                                               |
-| **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                                                                        |
-| **Agent instructions**    | Extra instructions for the agent in this repository, e.g. “Work in the Next.js app under `apps/web`”. _(Advanced)_                                                                      |
-| **Name**                  | Optional. A short name like `web` or `api`, shown instead of the repository’s name in chats, and beside its `owner/name` in repository lists. Tells apart two setups of one repository. |
+| Setting                   | What it does                                                                                                                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Setup script**          | Runs once when a chat’s code is set up, e.g. `npm install`.                                                                                                                                                |
+| **Run script**            | Starts the app your frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                                                                                                              |
+| **Preview port**          | <Only hosted /> The port your preview listens on.                                                                                                                                                          |
+| **Environment variables** | <Only hosted /> `KEY=value` lines every chat gets. Stored encrypted; see [who sees the values](#environment-variable-values).                                                                              |
+| **Files to copy**         | <Only desktop /> Files from your folder to copy into each chat’s code (default `.env*`), so local secrets come along. One pattern per line. Only for a local folder, not a GitHub repository or clone URL. |
+| **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                                                                                           |
+| **Agent instructions**    | Extra instructions for the agent in this repository, e.g. “Work in the Next.js app under `apps/web`”. _(Advanced)_                                                                                         |
+| **Name**                  | Optional. A short name like `web` or `api`, shown instead of the repository’s name in chats, and beside its `owner/name` in repository lists. Tells apart two setups of one repository.                    |
 
 The run script has to serve on the port Screenplay assigns. Most frameworks
-handle this automatically; see [Dev server & ports](/guides/building/dev-server) if
+handle this automatically; see [Preview & ports](/guides/building/dev-server) if
 yours doesn’t.
 
 To change settings later, click **Edit** on the repository in Canvas

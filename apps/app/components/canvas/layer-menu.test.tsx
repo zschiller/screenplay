@@ -76,7 +76,7 @@ describe("LayerMenuContent", () => {
       "Duplicate ⌘D",
       "Device size",
       "Fit to content",
-      "Chat",
+      "Preview",
       "Delete",
     ])
   })
@@ -193,7 +193,7 @@ describe("LayerMenu", () => {
       "Duplicate ⌘D",
       "Device size",
       "Fit to content",
-      "Chat",
+      "Preview",
       "Delete",
     ])
   })

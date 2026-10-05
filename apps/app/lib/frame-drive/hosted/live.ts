@@ -94,7 +94,7 @@ async function sharedFrame(
     return "The frame shows no chat’s code, so there’s no shared browser to use."
   }
   if (!branch.previewDomain) {
-    return "The chat’s dev server isn’t running, so its frame has nothing to show."
+    return "The chat’s preview isn’t running, so its frame has nothing to show."
   }
   const stream = await workspaceStream(branch.sandboxName, branch.port)
   if (typeof stream === "string") return stream

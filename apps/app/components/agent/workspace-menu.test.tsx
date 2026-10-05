@@ -114,7 +114,6 @@ function renderHeader(b: BranchData, { provider = true } = {}) {
         onDeleteSketchChat={noop}
         onRestartDevServer={noop}
         onCreatePr={noop}
-        onRefreshBranch={noop}
         onRecreateBranch={noop}
         onRetryBranch={noop}
         onMarkBranchDone={noop}
@@ -155,12 +154,13 @@ describe("Workspace chat header", () => {
       .getAllByRole("menuitem")
       .map((item) => item.textContent)
     expect(items).toEqual([
-      "Open prototype player",
+      "Open in prototype player",
       "Open in browser",
       "Show all routes",
+      "Restart preview",
+      "Set up again…",
       "Create pull request",
       "Rename",
-      "Restart",
       "Mark as done",
       "Delete",
     ])

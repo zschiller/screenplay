@@ -6,7 +6,7 @@ description: Start chats with their own live environment, and manage them from t
 # Chats
 
 A chat is one git branch of a repository, running in its own sandbox with
-its own dev server, frames, agent and terminals. The **Chats** button at the
+its own preview, frames, agent and terminals. The **Chats** button at the
 top right of the Coordinator opens the list of every chat on the canvas, by
 title. Wherever a chat is named, on a row or a group or frame label, it shows
 the same way: an icon for what it’s doing, its title, and its pull request
@@ -14,7 +14,7 @@ when there’s room.
 
 ## Starting chats
 
-Every new chat gets its own branch, sandbox and dev server. There are two
+Every new chat gets its own branch, sandbox and preview. There are two
 ways to start one:
 
 - **Draw a frame** with the **Frame** tool (<kbd>F</kbd>) and type what it
@@ -29,15 +29,15 @@ example “Add pricing FAQ”) and names its branch from the same words
 
 A new chat’s frame appears on the canvas straight away, and the canvas
 zooms to it. The chat goes through **creating** and **starting** while
-it checks out the branch, runs the setup script, and boots the dev server.
-To watch it happen, open **Dev server** under the chat’s composer (see
+it checks out the branch, runs the setup script, and starts the preview.
+To watch it happen, open **Preview** under the chat’s composer (see
 [Terminals](/guides/agent#terminals)). When the server is up, the frame shows
 the app.
 
 The agent doesn’t wait for all of that. As soon as the branch is checked out,
 it starts on your first message, reading and changing code (or sketching a
-mockup) while the setup script and dev server finish. It holds off on
-installs, builds, tests and previews until the dev server is running.
+mockup) while the setup script and preview finish. It holds off on
+installs, builds, tests and previews until the preview is running.
 
 Every chat starts on a branch of its own, so two agents never push to the
 same branch. To build on a branch that already exists, ask the Coordinator to
@@ -175,54 +175,56 @@ the chat in the agent panel.
 ## Chat actions
 
 Click **…** after the chat’s name in its header, or hover the chat
-in the Chats menu and click **…**. A frame’s **… → Chat** submenu holds
-the same menu. It starts with the one action the chat’s state calls for
-(**Retry setup** after a failed setup, **Mark as done** once its pull request
-has merged, **Create pull request**, **Reopen** on a done chat, or **Open
-prototype player**), then the rest, with dividers between
-viewing, git, pull requests and managing actions:
+in the Chats menu and click **…**. It starts with the one action the chat’s
+state calls for (**Set up again** after a failed setup, **Mark as done** once
+its pull request has merged, **Create pull request**, **Reopen** on a done
+chat, or **Open in prototype player**), then the rest, with dividers between
+viewing, restarting, git, pull requests and managing actions:
 
 <Screenshot name="ws-menu" alt="The chat menu" />
 
-| Item                          | What it does                                                                                                         |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Open prototype player**     | Opens [play mode](/guides/play-mode) for this chat.                                                                  |
-| **Open in browser**           | Opens the dev server in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`. |
-| **Show all routes**           | Adds a group with one frame per route the chat’s preview has visited.                                                |
-| **Create pull request**       | Opens a PR into the repository’s default branch. See [Pull requests](#pull-requests).                                |
-| **Pull requests**             | Lists every PR the chat opened, newest first. Click one to open it on GitHub.                                        |
-| **Rename**                    | Renames the chat’s title. The git branch stays as it is.                                                             |
-| **Restart**                   | See [Restarting](#restarting).                                                                                       |
-| **Mark as done** / **Reopen** | See [Marking a chat done](#marking-a-chat-done).                                                                     |
-| **Delete**                    | Deletes the chat with its sandbox and frames, and optionally its branch on GitHub.                                   |
+A frame’s **…** menu splits the same items in two. **Preview** holds what
+acts on the running app: **Set up again** (after a failed setup), **Open in
+prototype player**, **Open in browser**, **Add frames for all routes**,
+**Open logs**, **Restart preview** and **Set up again…**. **Chat** holds
+**Open chat**, **Create pull request** (or the chat’s pull requests),
+**Rename**, **Mark as done** and **Delete chat**.
+
+| Item                          | What it does                                                                                                      |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Open in prototype player**  | Opens [play mode](/guides/play-mode) for this chat.                                                               |
+| **Open in browser**           | Opens the preview in your browser. On desktop this is a stable URL like `http://my-branch.my-app.localhost:1355`. |
+| **Show all routes**           | Adds a group with one frame per route the chat’s preview has visited.                                             |
+| **Restart preview**           | See [Restarting](#restarting).                                                                                    |
+| **Set up again…**             | See [Restarting](#restarting).                                                                                    |
+| **Create pull request**       | Opens a PR into the repository’s default branch. See [Pull requests](#pull-requests).                             |
+| **Pull requests**             | Lists every PR the chat opened, newest first. Click one to open it on GitHub.                                     |
+| **Rename**                    | Renames the chat’s title. The git branch stays as it is.                                                          |
+| **Mark as done** / **Reopen** | See [Marking a chat done](#marking-a-chat-done).                                                                  |
+| **Delete**                    | Deletes the chat with its sandbox and frames, and optionally its branch on GitHub.                                |
 
 ## Restarting
 
-When a preview gets stuck, **Restart** offers escalating fixes:
+When a preview gets stuck, the chat menu offers two fixes:
 
 <Screenshot
   name="ws-restart"
-  alt="The Restart submenu: Restart dev server and Recreate from scratch"
+  alt="The chat menu’s Restart preview and Set up again… items"
 />
 
-- **Restart dev server** restarts only the dev server process. It’s quick,
+- **Restart preview** restarts only the preview process. It’s quick,
   keeps every file, and works even while the agent is busy. Try it first.
-  To stop the dev server instead, see
-  [Running and stopping the dev server](/guides/agent#running-and-stopping-the-dev-server).
-- **Restart sandbox** <Only hosted /> restarts the whole sandbox VM. Your working
-  tree, including uncommitted changes, is restored from a snapshot.
-- **Recreate from scratch** deletes the sandbox and checks the branch out
-  fresh. **Uncommitted changes are permanently discarded**, so you’ll be asked
-  to confirm.
+  To stop the preview instead, see
+  [Running and stopping the preview](/guides/agent#running-and-stopping-the-preview).
+- **Set up again…** deletes the sandbox and checks the branch out fresh
+  from its last push. **Changes that weren’t pushed are permanently
+  discarded**, so you’ll be asked to confirm.
 
-After **Restart sandbox** or **Recreate from scratch**, the agent can take
-your next message as soon as the code is back, the same as in a new chat,
-while the setup script and dev server finish.
+After **Set up again…**, the agent can take your next message as soon as the
+code is back, the same as in a new chat, while the setup script and preview
+finish.
 
-<Screenshot
-  name="recreate-dialog"
-  alt="The Recreate from scratch confirmation"
-/>
+<Screenshot name="recreate-dialog" alt="The Set up again confirmation" />
 
 <Callout type="warning">
   On the hosted app, sandboxes are ephemeral VMs that are reclaimed when idle.
@@ -236,7 +238,7 @@ while the setup script and dev server finish.
 When you’re finished with a chat, **… → Mark as done** puts it away
 without deleting anything:
 
-- its dev server stops;
+- its preview stops;
 - its frames leave the canvas. Documents and other chats’ frames in the
   same group stay where they are;
 - its row moves into a collapsed **Done** section at the bottom of the

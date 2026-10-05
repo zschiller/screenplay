@@ -668,6 +668,10 @@ export function IframeLayer({
       branchId: iframeLayer.branchId,
       onPlay: onPlay ? () => onPlay(iframeLayer.id) : undefined,
       onOpenInBrowser,
+      onOpenLogs:
+        iframeLayer.branchId && onOpenLogs
+          ? () => onOpenLogs(iframeLayer.branchId!)
+          : undefined,
     },
     onDelete: () => onRemove(iframeLayer.id),
   }

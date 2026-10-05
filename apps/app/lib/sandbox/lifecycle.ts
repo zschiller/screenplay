@@ -524,7 +524,7 @@ export async function restartSandbox(
       return {
         success: false,
         error:
-          "Couldn’t take a snapshot to restart from. Use “Recreate from scratch” to rebuild the code from git, which discards uncommitted changes.",
+          "Couldn’t take a snapshot to restart from. Use “Set up again…” to rebuild the code from its last push, which discards changes that weren’t pushed.",
       }
     }
 
@@ -713,7 +713,7 @@ export async function stopDevServer(
       cmd: "sh",
       args: [
         "-c",
-        `printf '\\n[Dev server stopped]\\n' >> ${sandboxLogPath(sandbox.name)} 2>/dev/null; true`,
+        `printf '\\n[Preview stopped]\\n' >> ${sandboxLogPath(sandbox.name)} 2>/dev/null; true`,
       ],
     })
     return { success: true, value: undefined }

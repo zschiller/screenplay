@@ -489,7 +489,7 @@ export const INTERACTIONS: Interaction[] = [
         page,
         page
           .getByRole("tablist", { name: "Terminals" })
-          .getByRole("tab", { name: "Dev server" })
+          .getByRole("tab", { name: "Preview" })
       )
       await page.mouse.move(0, 0)
       await page.waitForTimeout(1400)

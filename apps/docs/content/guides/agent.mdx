@@ -14,7 +14,7 @@ chat’s sandbox.
 The Coordinator uses the same composer, with less in it. It is one chat with
 no terminals, and has no **Plan** toggle or crosshair.
 
-Every chat has its own branch, sandbox, dev server and terminals from the
+Every chat has its own branch, sandbox, preview and terminals from the
 moment it starts, and it’s the only chat that changes that code. More work in
 parallel means more chats. A chat can read other chats’ code and frames, but
 never changes them. It can also [write documents](/guides/documents#documents-a-chat-writes)
@@ -62,14 +62,14 @@ while its question waits for you, as on any other chat.
 ## Terminals
 
 The chat fills the panel. Under the composer, a quiet line names
-the chat’s terminals: **Dev server** first, with a dot showing what
-the dev server is doing, then your own [terminals](/guides/terminals). At
-the right edge, **Stop** stops the dev server and **Run** starts it again,
+the chat’s terminals: **Preview** first, with a dot showing what
+the preview is doing, then your own [terminals](/guides/terminals). At
+the right edge, **Stop** stops the preview and **Run** starts it again,
 without opening the pane.
 
 <Screenshot
   name="terminal-footnote"
-  alt="The line under the composer naming Dev server and the chat’s terminals"
+  alt="The line under the composer naming Preview and the chat’s terminals"
 />
 
 Click a name to open the terminal pane under the chat on it. The open pane
@@ -80,33 +80,33 @@ opens and closes it from anywhere in a chat. The pane remembers its
 height and whether it’s open, the same in every chat, and never opens by
 itself.
 
-**Dev server** shows the setup script’s and dev server’s output. It’s read
+**Preview** shows the setup script’s and the preview’s output. It’s read
 only, and it can’t be closed or renamed, so the pane always has something to
 show. A frame’s **Open logs** opens the pane on it.
 
-### Running and stopping the dev server
+### Running and stopping the preview
 
-The footnote and the open pane’s bar both have **Stop** while the dev server
+The footnote and the open pane’s bar both have **Stop** while the preview
 runs, and **Run** once it’s stopped or has crashed. Stopping it leaves the
 sandbox running and its output on screen; **Run** starts it the same way
-**Restart dev server** in the chat’s menu does. <kbd>⌃</kbd> <kbd>C</kbd>
-in **Dev server** never stops it.
+**Restart preview** in the chat’s menu does. <kbd>⌃</kbd> <kbd>C</kbd>
+in **Preview** never stops it.
 
-The dot beside **Dev server** is the same for everyone on the canvas:
+The dot beside **Preview** is the same for everyone on the canvas:
 
 | Dot   | Meaning                                                          |
 | ----- | ---------------------------------------------------------------- |
-| Green | The dev server is running.                                       |
+| Green | The preview is running.                                          |
 | Grey  | It’s stopped, or the sandbox is still starting.                  |
 | Red   | It crashed: the preview stopped answering and nobody stopped it. |
 
-A stopped dev server stays stopped, even after a reload, until someone runs
+A stopped preview stays stopped, even after a reload, until someone runs
 it again. The chat’s agent can stop and start it too, and the dot
 follows.
 
 <Screenshot
   name="logs"
-  alt="The terminal pane open under the chat on Dev server, streaming the dev server’s output"
+  alt="The terminal pane open under the chat on Preview, streaming the preview’s output"
 />
 
 ## Earlier chats
@@ -350,16 +350,16 @@ A few defaults are worth knowing:
 
 - **The agent commits and pushes after every change.** Commits are made under
   your identity, which matters on shared canvases.
-- **The chat’s preview updates on its own.** The dev server hot-reloads as
-  files change. The agent can read the dev server’s output (the same as the
-  **Dev server** terminal) to debug a broken preview, restart the dev server
+- **The chat’s preview updates on its own.** The preview hot-reloads as
+  files change. The agent can read the preview’s output (the same as the
+  **Preview** terminal) to debug a broken preview, restart the preview
   when a change needs it, and stop or start it when you ask.
 - **The agent can see the frames.** It can take a screenshot of a frame, or
   read the page in it as HTML with the styles included, for example to start a
   mockup from how the app looks now. It reads its own chat’s frame unless
   it names another one; any frame on the canvas can be read, never changed.
   Chats running on Claude Code, Codex or OpenCode on desktop get
-  these tools and the dev server ones too.
+  these tools and the preview ones too.
 - **The agent can take screenshots without a frame.** It renders any route of
   a chat’s preview in the background, at any width (a phone, a wide
   screen) or as the whole scrolling page, and any public web page by its

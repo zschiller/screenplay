@@ -46,7 +46,7 @@ const STATUS_LABEL: Record<
   Exclude<FramePreviewStatus, "live" | "loading">,
   string
 > = {
-  disconnected: "Dev server disconnected",
+  disconnected: "Preview disconnected",
   failed: "Preview failed",
   stopped: "Preview stopped",
 }

@@ -208,8 +208,8 @@ export function restartDevServer(
   deps: BranchRecoveryDeps
 ): Promise<void> {
   return launchDevServer(id, deps, {
-    successMessage: "Dev server restarted",
-    failureTitle: "Couldn’t restart dev server",
+    successMessage: "Preview restarted",
+    failureTitle: "Couldn’t restart preview",
   })
 }
 
@@ -223,7 +223,7 @@ export function runDevServer(
   deps: BranchRecoveryDeps
 ): Promise<void> {
   return launchDevServer(id, deps, {
-    failureTitle: "Couldn’t run dev server",
+    failureTitle: "Couldn’t run preview",
   })
 }
 
@@ -282,7 +282,7 @@ export async function stopDevServer(
   )
   if (!result.success) {
     deps.patchAgent(id, { devServerStoppedAt: undefined })
-    deps.toast.error("Couldn’t stop dev server", result.error || undefined)
+    deps.toast.error("Couldn’t stop preview", result.error || undefined)
   }
 }
 
@@ -299,9 +299,9 @@ export function restartSandbox(
   return runSandboxRecovery(
     id,
     {
-      startingMessage: "Restarting sandbox…",
-      successMessage: "Sandbox restarted",
-      failureTitle: "Couldn’t restart sandbox",
+      startingMessage: "Starting preview…",
+      successMessage: "Preview started",
+      failureTitle: "Couldn’t start preview",
       run: (agent, repo, id) =>
         restartSandboxVm(agent.sandboxName, repo, {
           roomId: deps.roomId,
@@ -324,9 +324,9 @@ export function recreate(
   return runSandboxRecovery(
     id,
     {
-      startingMessage: "Recreating from scratch…",
-      successMessage: "Recreated from scratch",
-      failureTitle: "Couldn’t recreate from scratch",
+      startingMessage: "Setting up the code again…",
+      successMessage: "Code set up again",
+      failureTitle: "Couldn’t set up the code again",
       run: (agent, repo) =>
         recreateSandbox(agent.sandboxName, repo, agent.ref, deps.roomId, id),
     },
@@ -340,9 +340,9 @@ export function recreate(
  * runner, unlike the bare Dev Server Restart, so the frame follows the Workspace
  * from `starting` to `running`, or back to `error` with the new reason.
  *
- * Hosted, it is Sandbox Restart. The local build has no VM to restore (see the
- * restart submenu in `branch-overflow-menu.tsx`), so there it restarts the dev
- * server in the existing worktree.
+ * Hosted, it is Sandbox Restart. The local build has no VM to restore, so
+ * there it restarts the dev server in the existing worktree. Either way it's
+ * the frame's Start, so its copy says so ("Starting preview…").
  */
 export function startWorkspace(
   id: string,
@@ -353,9 +353,9 @@ export function startWorkspace(
   return runSandboxRecovery(
     id,
     {
-      startingMessage: "Restarting dev server…",
-      successMessage: "Dev server restarted",
-      failureTitle: "Couldn’t restart dev server",
+      startingMessage: "Starting preview…",
+      successMessage: "Preview started",
+      failureTitle: "Couldn’t start preview",
       codeReadyAtStart: true,
       run: async (agent, repo) => {
         const result = await restartDevServerSandbox(agent.sandboxName, repo)
