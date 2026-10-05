@@ -19,10 +19,8 @@ import {
   type FrameCapture,
   type ManifestLayer,
 } from "@/lib/thumbnail/manifest"
-import {
-  documentFragment,
-  writeMarkdownToFragment,
-} from "@/lib/yjs/fragment-text"
+import { documentFragment } from "@/lib/yjs/fragment-text"
+import { writeDocumentMarkdown } from "@/lib/document-markdown"
 import { createSavedSkills } from "@/lib/skills/saved"
 import { listFileIndex, memoryFileListStore } from "@/lib/files/account-files"
 import { accountFileKeyPrefix } from "@/lib/files/paths"
@@ -646,7 +644,9 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
   for (const [layerId, markdown] of Object.entries(
     fixture.markdownBodies ?? {}
   )) {
-    writeMarkdownToFragment(documentFragment(doc, layerId), markdown)
+    writeDocumentMarkdown(documentFragment(doc, layerId), markdown, {
+      keepTitle: false,
+    })
   }
   for (const [layerId, html] of Object.entries(fixture.mockupHtml ?? {})) {
     writeMockupHtml(mockupHtml(doc, layerId), html)

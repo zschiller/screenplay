@@ -43,11 +43,8 @@ import {
   useEditorState,
 } from "@tiptap/react"
 import { Extension } from "@tiptap/core"
-import StarterKit from "@tiptap/starter-kit"
-import Document from "@tiptap/extension-document"
 import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
-import Mention from "@tiptap/extension-mention"
 import Placeholder from "@tiptap/extension-placeholder"
 import { useCanvasAnchoredPortal } from "@/hooks/use-canvas-anchored-portal"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
@@ -58,9 +55,13 @@ import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { DOCUMENT_BLOCK_TYPES } from "@/lib/document-block-types"
 import {
   MENTION_ICON_MASK,
-  mentionKindOf,
   useChatAndMockupMentions,
 } from "@/lib/document-mentions"
+import {
+  DocumentMention,
+  documentExtensions,
+  mentionKindOf,
+} from "@/lib/document-markdown"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { DocumentImageNodeView } from "@/components/canvas/document-image-node"
 import {
@@ -163,13 +164,6 @@ function inlineCommentDraft(
     canvasY: (top - root.getBoundingClientRect().top) / zoom,
   }
 }
-
-/** Forces every doc to start with a heading — that heading is the title.
- *  Body blocks follow. Mirrors how Notion's page model is shaped: there's
- *  always a title slot at the top, body comes after. */
-const DocumentWithTitle = Document.extend({
-  content: "heading block*",
-})
 
 /** Enter inside the title shouldn't split it into a second heading (the
  *  default ProseMirror behavior would leave you with two H1s, the second
@@ -581,16 +575,59 @@ export function MarkdownLayer({
   const editor = useEditor(
     {
       extensions: [
-        // Disable StarterKit's TrailingNode: it auto-appends an empty node
-        // of the schema's default type at the end of the doc, and our
-        // schema (`heading block*`) makes that default a heading — leaving
-        // an invisible trailing H1 stuck at the bottom of every doc.
-        StarterKit.configure({
-          undoRedo: false,
-          document: false,
-          trailingNode: false,
+        // The Document's schema, as the server reads and writes its markdown
+        // (`document-markdown.ts`), with node views on mentions and images.
+        ...documentExtensions({
+          mention: DocumentMention.extend({
+            addNodeView() {
+              return ReactNodeViewRenderer(MarkdownLayerMentionNodeView, {
+                as: "span",
+              })
+            },
+          }).configure({
+            // The node view (MarkdownLayerMentionNodeView) drives the in-editor
+            // render; these attrs cover the serialized/static-render path.
+            HTMLAttributes: { class: "inline-ref" },
+            renderText({ node }) {
+              const label =
+                (node.attrs.label as string | undefined) ?? node.attrs.id
+              return `@${label}`
+            },
+            renderHTML({ options, node }) {
+              const label =
+                (node.attrs.label as string | undefined) ??
+                (node.attrs.id as string)
+              return [
+                "span",
+                {
+                  ...options.HTMLAttributes,
+                  "data-inline-ref-mask":
+                    MENTION_ICON_MASK[mentionKindOf(node.attrs.kind)],
+                },
+                ["span", { class: "inline-ref-label" }, label],
+              ]
+            },
+            deleteTriggerWithBackspace: true,
+            // These getters read refs, but TipTap only invokes them while the
+            // user types (suggestion lookup) — never during render — so the
+            // deferred ref access is safe. The lint rule can't see that the
+            // closures are deferred past render, so it's suppressed here.
+            // eslint-disable-next-line react-hooks/refs
+            suggestion: buildLayerMentionSuggestion({
+              getMarkdownLayers: () => markdownLayersRef.current,
+              getOtherItems: () => otherMentionsRef.current,
+              getExcludeId: () => layerIdRef.current,
+              below: true,
+              getAnchorRect: () =>
+                rootRef.current?.getBoundingClientRect() ?? null,
+            }),
+          }),
+          image: DocumentImage.extend({
+            addNodeView() {
+              return ReactNodeViewRenderer(DocumentImageNodeView)
+            },
+          }),
         }),
-        DocumentWithTitle,
         TitleEnterBehavior,
         Placeholder.configure({
           // Only the title slot gets a placeholder — empty body blocks stay
@@ -622,67 +659,6 @@ export function MarkdownLayer({
             label.append(document.createTextNode(user.name))
             caret.append(label)
             return caret
-          },
-        }),
-        Mention.extend({
-          addNodeView() {
-            return ReactNodeViewRenderer(MarkdownLayerMentionNodeView, {
-              as: "span",
-            })
-          },
-          addAttributes() {
-            return {
-              ...this.parent?.(),
-              kind: {
-                default: "markdown-layer",
-                parseHTML: (el) =>
-                  el.getAttribute("data-kind") ?? "markdown-layer",
-                renderHTML: (attrs) =>
-                  attrs.kind ? { "data-kind": attrs.kind as string } : {},
-              },
-            }
-          },
-        }).configure({
-          // The node view (MarkdownLayerMentionNodeView) drives the in-editor
-          // render; these attrs cover the serialized/static-render path.
-          HTMLAttributes: { class: "inline-ref" },
-          renderText({ node }) {
-            const label =
-              (node.attrs.label as string | undefined) ?? node.attrs.id
-            return `@${label}`
-          },
-          renderHTML({ options, node }) {
-            const label =
-              (node.attrs.label as string | undefined) ??
-              (node.attrs.id as string)
-            return [
-              "span",
-              {
-                ...options.HTMLAttributes,
-                "data-inline-ref-mask":
-                  MENTION_ICON_MASK[mentionKindOf(node.attrs.kind)],
-              },
-              ["span", { class: "inline-ref-label" }, label],
-            ]
-          },
-          deleteTriggerWithBackspace: true,
-          // These getters read refs, but TipTap only invokes them while the
-          // user types (suggestion lookup) — never during render — so the
-          // deferred ref access is safe. The lint rule can't see that the
-          // closures are deferred past render, so it's suppressed here.
-          // eslint-disable-next-line react-hooks/refs
-          suggestion: buildLayerMentionSuggestion({
-            getMarkdownLayers: () => markdownLayersRef.current,
-            getOtherItems: () => otherMentionsRef.current,
-            getExcludeId: () => layerIdRef.current,
-            below: true,
-            getAnchorRect: () =>
-              rootRef.current?.getBoundingClientRect() ?? null,
-          }),
-        }),
-        DocumentImage.extend({
-          addNodeView() {
-            return ReactNodeViewRenderer(DocumentImageNodeView)
           },
         }),
         DocumentImageUpload.configure(imageOptions),

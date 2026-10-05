@@ -90,10 +90,8 @@ import type { RoomDoc } from "@/lib/room-access"
 import { accountSkills } from "@/lib/skills/account"
 import { canvasSkills } from "@/lib/skills/canvas"
 import { agentContextFolder } from "@/lib/files/context-folder"
-import {
-  documentFragment,
-  fragmentBodyToPlainText,
-} from "@/lib/yjs/fragment-text"
+import { documentFragment } from "@/lib/yjs/fragment-text"
+import { readDocumentBody } from "@/lib/document-markdown"
 import {
   baseBranch,
   baseChat,
@@ -1246,7 +1244,7 @@ describe("a Workspace chat’s Document tools", () => {
         }
       ).execute(input, {} as never)
     const body = (id: string) =>
-      fragmentBodyToPlainText(documentFragment(collections.doc, id))
+      readDocumentBody(documentFragment(collections.doc, id))
     return { collections, room, target, tools, run, body }
   }
 
