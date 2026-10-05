@@ -209,6 +209,12 @@ export type BranchData = {
   prChecksFailed?: boolean
   prConflict?: boolean
   /**
+   * When the open PR's newest review was submitted, as PR Watch last saw it
+   * (#1704), or the PR's creation when it had none: a review after it is
+   * new, and wakes the agent.
+   */
+  prReviewsSince?: string
+  /**
    * The PR whose events stopped waking the agent (#1703): it took
    * `PR_WAKE_CAP` wake turns in a row with no message from a person, so the
    * Workspace needs you. A person writing in its chat clears it.

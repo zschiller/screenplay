@@ -155,7 +155,7 @@ const event = (kind: PrEventKind, number = 7): ChatPrEvent => ({
 })
 
 describe("PR wakes (#1703)", () => {
-  it.each(["checks_failed", "conflict", "merged", "closed"] as const)(
+  it.each(["checks_failed", "conflict", "review", "merged", "closed"] as const)(
     "%s queues one wake turn on the Workspace Chat",
     async (kind) => {
       const chat = fakeChat()

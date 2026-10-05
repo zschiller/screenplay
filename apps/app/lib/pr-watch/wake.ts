@@ -6,9 +6,9 @@ import type { PrEvent } from "./watch"
 
 /**
  * **PR wakes** (#1703): which PR events start a turn in the Branch's Workspace
- * Chat, and the order they go in. Checks failing, a conflict, the merge and
- * the close each wake the chat's agent, acting for the Branch's owner, so it
- * fixes and pushes or says why not. A wake never joins a turn in flight: it
+ * Chat, and the order they go in. Checks failing, a conflict, a review
+ * (#1704), the merge and the close each wake the chat's agent, acting for the
+ * Branch's owner, so it fixes and pushes or says why not. A wake never joins a turn in flight: it
  * waits, held, until the chat's run is over, and goes on the next look. After
  * {@link PR_WAKE_CAP} wakes in a row on one PR with no message from a person,
  * the next event only shows as its line and the chat turns needs-you, so a
