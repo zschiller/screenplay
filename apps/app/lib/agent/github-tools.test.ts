@@ -300,3 +300,191 @@ describe("writes", () => {
     expect(tokens).toEqual([])
   })
 })
+
+describe("native links", () => {
+  it("reads an issue’s blocking edges, parent and sub-issues", async () => {
+    const { run } = setup({
+      "GET /repos/acme/web/issues/12": () =>
+        issue({
+          comments: 0,
+          issue_dependencies_summary: {
+            total_blocked_by: 1,
+            total_blocking: 0,
+          },
+          sub_issues_summary: { total: 1 },
+          parent_issue_url: "https://api.github.com/repos/acme/web/issues/10",
+        }),
+      "GET /repos/acme/web/issues/12/comments": () => [],
+      "GET /repos/acme/web/issues/12/dependencies/blocked_by": () => [
+        issue({ number: 11, title: "Session store" }),
+      ],
+      "GET /repos/acme/web/issues/12/sub_issues": () => [
+        issue({ number: 14, title: "Redirect test", state: "closed" }),
+      ],
+      "GET /repos/acme/web/issues/12/parent": () =>
+        issue({ number: 10, title: "Auth spec" }),
+    })
+    const out = await run("read_issue", { number: 12 })
+    expect(out).toContain("Sub-issue of: #10 Auth spec (open)")
+    expect(out).toContain("Sub-issues: #14 Redirect test (closed)")
+    expect(out).toContain("Blocked by: #11 Session store (open)")
+    expect(out).not.toContain("Blocking:")
+  })
+
+  it("adds a blocking edge on the blocked issue, by the blocker’s id", async () => {
+    const { run, calls } = setup({
+      "GET /repos/acme/web/issues/11": () => issue({ number: 11, id: 5011 }),
+      "POST /repos/acme/web/issues/12/dependencies/blocked_by": () => ({}),
+    })
+    expect(
+      await run("link_issues", { number: 11, relation: "blocks", other: 12 })
+    ).toBe("Linked #11 blocking #12.")
+    expect(calls.at(-1)).toEqual({
+      method: "POST",
+      path: "/repos/acme/web/issues/12/dependencies/blocked_by",
+      body: { issue_id: 5011 },
+    })
+  })
+
+  it("adds and removes a sub-issue on its parent", async () => {
+    const { run, calls } = setup({
+      "GET /repos/acme/web/issues/14": () => issue({ number: 14, id: 5014 }),
+      "POST /repos/acme/web/issues/10/sub_issues": () => ({}),
+      "DELETE /repos/acme/web/issues/10/sub_issue": () => ({}),
+    })
+    await run("link_issues", { number: 10, relation: "parent_of", other: 14 })
+    expect(
+      await run("link_issues", {
+        number: 14,
+        relation: "child_of",
+        other: 10,
+        remove: true,
+      })
+    ).toBe("Removed #14 as a sub-issue of #10.")
+    expect(calls.filter((c) => c.method !== "GET")).toEqual([
+      {
+        method: "POST",
+        path: "/repos/acme/web/issues/10/sub_issues",
+        body: { sub_issue_id: 5014 },
+      },
+      {
+        method: "DELETE",
+        path: "/repos/acme/web/issues/10/sub_issue",
+        body: { sub_issue_id: 5014 },
+      },
+    ])
+  })
+
+  it("refuses to link on a turn nobody sent", async () => {
+    const { run, calls } = setup({}, { senderless: true })
+    expect(
+      await run("link_issues", { number: 1, relation: "blocks", other: 2 })
+    ).toMatch(/nobody sent this turn/)
+    expect(calls).toEqual([])
+  })
+
+  it("lists labels", async () => {
+    const { run } = setup({
+      "GET /repos/acme/web/labels": () => [
+        { name: "bug", description: "Something is broken" },
+        { name: "ready-for-agent", description: null },
+      ],
+    })
+    expect(await run("list_labels", {})).toBe(
+      "bug: Something is broken\nready-for-agent"
+    )
+  })
+})
+
+describe("pull request diff and checks", () => {
+  const files = () => [
+    {
+      filename: "src/auth.ts",
+      status: "modified",
+      additions: 2,
+      deletions: 1,
+      patch: "@@ -1 +1,2 @@\n-a\n+b\n+c",
+    },
+    {
+      filename: "logo.png",
+      status: "added",
+      additions: 0,
+      deletions: 0,
+    },
+  ]
+
+  it("reads every changed file with its diff", async () => {
+    const { run } = setup({ "GET /repos/acme/web/pulls/7/files": files })
+    expect(await run("read_pr_diff", { number: 7 })).toBe(
+      [
+        "2 files changed:",
+        "- src/auth.ts: modified, +2 −1",
+        "- logo.png: added, +0 −0",
+        "",
+        "--- src/auth.ts",
+        "@@ -1 +1,2 @@\n-a\n+b\n+c",
+        "",
+        "--- logo.png",
+        "(no diff: binary or too large)",
+      ].join("\n")
+    )
+  })
+
+  it("narrows to one file, and names the files when it isn’t one", async () => {
+    const { run } = setup({ "GET /repos/acme/web/pulls/7/files": files })
+    expect(await run("read_pr_diff", { number: 7, path: "src/auth.ts" })).toBe(
+      "\n--- src/auth.ts\n@@ -1 +1,2 @@\n-a\n+b\n+c"
+    )
+    expect(await run("read_pr_diff", { number: 7, path: "x.ts" })).toBe(
+      "x.ts isn’t one of its changed files: src/auth.ts, logo.png."
+    )
+  })
+
+  it("reads the head commit’s checks, with a failing one’s summary", async () => {
+    const { run } = setup({
+      "GET /repos/acme/web/pulls/7": () => ({
+        state: "open",
+        merged: false,
+        mergeable_state: "blocked",
+        head: { sha: "abcdef1234" },
+      }),
+      "GET /repos/acme/web/commits/abcdef1234/check-runs": () => ({
+        check_runs: [
+          {
+            name: "typecheck",
+            status: "completed",
+            conclusion: "success",
+            html_url: "https://ci/1",
+            output: { title: "ok", summary: "all good" },
+          },
+          {
+            name: "unit (1)",
+            status: "completed",
+            conclusion: "failure",
+            html_url: "https://ci/2",
+            output: { title: "1 failed", summary: "auth.test.ts: expected 1" },
+          },
+          {
+            name: "browser",
+            status: "in_progress",
+            conclusion: null,
+            html_url: "https://ci/3",
+          },
+        ],
+      }),
+    })
+    expect(await run("read_pr_checks", { number: 7 })).toBe(
+      [
+        "#7 is open, on commit abcdef1. Mergeable state: blocked.",
+        "",
+        "- typecheck: success https://ci/1",
+        "",
+        "- unit (1): failure https://ci/2",
+        "  1 failed",
+        "  auth.test.ts: expected 1",
+        "",
+        "- browser: in_progress https://ci/3",
+      ].join("\n")
+    )
+  })
+})

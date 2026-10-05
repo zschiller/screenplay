@@ -130,8 +130,9 @@ GitHub account of whoever owns the workspace, even when someone else asked or
 the Coordinator followed up on its own.
 
 The Coordinator can also search and read the canvas’s GitHub issues and pull
-requests with their comments, and, when you ask, open an issue, comment, or
-close or reopen one. Those post with the GitHub account of whoever sent the
+requests with their comments, a pull request’s changes and CI checks, and the
+labels; and, when you ask, open an issue, comment, close or reopen one, or link
+issues as blocked by or sub-issues. Those post with the GitHub account of whoever sent the
 message. When it follows up on its own, it can read GitHub but not post.
 
 Removing a workspace works like **Delete** in the Chats menu: its chat and
@@ -193,16 +194,16 @@ reads a workspace names it, such as **Read changes in** _Checkout_. Once a
 change to the canvas finishes, its row says what changed, such as **Renamed
 Group “Hero” to “Sign-in”**.
 
-| Kind    | Rows                                                                                                                                                                          |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read    | **Read canvas**, **Read document**, **Read chat**, **Read workspace diff**, **Read workspace file**, **View frame**, **Read frame HTML**, **Screenshot page**, **Read skill** |
-| Arrange | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**                        |
-| View    | **Show on canvas**                                                                                                                                                            |
-| Chats   | **Start chats**, **Start chat**, **Stop chat**, **Create pull request**, **Delete chat**                                                                                      |
-| GitHub  | **Search issues**, **Read** _#12_, **Create issue**, **Comment on** _#12_, **Close** / **Reopen** / **Update** _#12_                                                          |
-| Memory  | **Save to canvas memory**                                                                                                                                                     |
-| Files   | **List saved files**, **Open saved file**, **Save file**, **Move saved file**, **Delete saved file**, **Make folder**                                                         |
-| Skills  | **Save skill**                                                                                                                                                                |
+| Kind    | Rows                                                                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read    | **Read canvas**, **Read document**, **Read chat**, **Read workspace diff**, **Read workspace file**, **View frame**, **Read frame HTML**, **Screenshot page**, **Read skill**               |
+| Arrange | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**                                      |
+| View    | **Show on canvas**                                                                                                                                                                          |
+| Chats   | **Start chats**, **Start chat**, **Stop chat**, **Create pull request**, **Delete chat**                                                                                                    |
+| GitHub  | **Search issues**, **Read** _#12_, **Create issue**, **Comment on** _#12_, **Close** / **Reopen** / **Update** _#12_, **Link**, **List labels**, **Read diff of** / **Read checks of** _#7_ |
+| Memory  | **Save to canvas memory**                                                                                                                                                                   |
+| Files   | **List saved files**, **Open saved file**, **Save file**, **Move saved file**, **Delete saved file**, **Make folder**                                                                       |
+| Skills  | **Save skill**                                                                                                                                                                              |
 
 A message to a workspace shows as its [card](#messages-to-workspaces) rather
 than a row, and a [question](/guides/agent#questions) it

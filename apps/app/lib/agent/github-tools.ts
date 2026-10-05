@@ -10,13 +10,17 @@ import {
   type GitHubRepoRef,
   type IssueSummary,
   type IssueThread,
+  type PrChecks,
+  type PrFiles,
 } from "@/lib/github-issues"
 import { annotateTools } from "@/lib/mcp/tool-server"
 import type { RoomReader } from "@/lib/room-access"
 
 /**
  * A chat's GitHub tools: search and read issues and pull requests with their
- * comments, open issues, comment, and close or reopen. Workspace chats and
+ * comments, open issues, comment, close or reopen, link them with GitHub's
+ * native blocking edges and sub-issues, list labels; and read a pull
+ * request's diff and CI checks. Workspace chats and
  * the Coordinator get them, in process and over the harness MCP route, like
  * `create_pr`. They reach only the canvas's repositories, and run with the
  * GitHub account of the member the turn runs for, so a comment or issue is
@@ -248,6 +252,93 @@ export function buildGitHubTools(ctx: GitHubToolContext) {
         }
       },
     }),
+
+    link_issues: tool({
+      description:
+        "Add or remove GitHub’s native link between two issues in the same repository. `blocked_by`: `number` waits on `other`. `blocks`: `other` waits on `number`. `parent_of`: `other` becomes a sub-issue of `number`. `child_of`: `number` becomes a sub-issue of `other`. Posts as the member this turn runs for, and only when the user asks. read_issue shows the links.",
+      inputSchema: z.object({
+        number: numberParam,
+        relation: z.enum(["blocked_by", "blocks", "parent_of", "child_of"]),
+        other: z
+          .number()
+          .int()
+          .positive()
+          .describe("The other issue’s number."),
+        remove: z.boolean().optional().describe("Remove the link instead."),
+        repo: repoParam,
+      }),
+      execute: async ({ number, relation, other, remove, repo }) => {
+        const r = await resolve(repo, true)
+        if ("error" in r) return r.error
+        try {
+          await r.client.link(r.repo, number, relation, other, remove)
+          const phrase = {
+            blocked_by: `#${number} blocked by #${other}`,
+            blocks: `#${number} blocking #${other}`,
+            parent_of: `#${other} as a sub-issue of #${number}`,
+            child_of: `#${number} as a sub-issue of #${other}`,
+          }[relation]
+          return `${remove ? "Removed" : "Linked"} ${phrase}.`
+        } catch (e) {
+          return failed(e)
+        }
+      },
+    }),
+
+    list_labels: tool({
+      description:
+        "List the repository’s GitHub labels with their descriptions, to pick existing ones for create_issue or update_issue.",
+      inputSchema: z.object({ repo: repoParam }),
+      execute: async ({ repo }) => {
+        const r = await resolve(repo, false)
+        if ("error" in r) return r.error
+        try {
+          const labels = await r.client.labels(r.repo)
+          if (labels.length === 0) return "The repository has no labels."
+          return labels
+            .map((l) =>
+              l.description ? `${l.name}: ${l.description}` : l.name
+            )
+            .join("\n")
+        } catch (e) {
+          return failed(e)
+        }
+      },
+    }),
+
+    read_pr_diff: tool({
+      description:
+        "Read a pull request’s changed files with each one’s diff. `path` narrows it to one file. Your own Workspace’s changes are in its git; this is for any pull request.",
+      inputSchema: z.object({
+        number: numberParam,
+        path: z.string().optional().describe("One changed file’s path."),
+        repo: repoParam,
+      }),
+      execute: async ({ number, path, repo }) => {
+        const r = await resolve(repo, false)
+        if ("error" in r) return r.error
+        try {
+          return formatFiles(await r.client.files(r.repo, number), path)
+        } catch (e) {
+          return failed(e)
+        }
+      },
+    }),
+
+    read_pr_checks: tool({
+      description:
+        "Read a pull request’s CI: every check run on its latest commit with its result and summary, and whether it can merge (a conflict shows as dirty).",
+      inputSchema: z.object({ number: numberParam, repo: repoParam }),
+      execute: async ({ number, repo }) => {
+        const r = await resolve(repo, false)
+        if ("error" in r) return r.error
+        try {
+          return formatChecks(number, await r.client.checks(r.repo, number))
+        } catch (e) {
+          return failed(e)
+        }
+      },
+    }),
   }
   // Each reaches GitHub; none deletes anything, and a close reopens.
   const read = { readOnlyHint: true, openWorldHint: true }
@@ -258,6 +349,10 @@ export function buildGitHubTools(ctx: GitHubToolContext) {
     create_issue: write,
     comment_on_issue: write,
     update_issue: write,
+    link_issues: write,
+    list_labels: read,
+    read_pr_diff: read,
+    read_pr_checks: read,
   })
 }
 
@@ -280,6 +375,13 @@ function formatThread(t: IssueThread): string {
     `${kind} #${t.number}, ${state}, by ${t.author}. ${t.url}`,
   ]
   if (t.labels.length) lines.push(`Labels: ${t.labels.join(", ")}`)
+  const rel = t.relations
+  const refs = (list: IssueSummary[]) =>
+    list.map((i) => `#${i.number} ${i.title} (${i.state})`).join("; ")
+  if (rel.parent) lines.push(`Sub-issue of: ${refs([rel.parent])}`)
+  if (rel.subIssues.length) lines.push(`Sub-issues: ${refs(rel.subIssues)}`)
+  if (rel.blockedBy.length) lines.push(`Blocked by: ${refs(rel.blockedBy)}`)
+  if (rel.blocking.length) lines.push(`Blocking: ${refs(rel.blocking)}`)
   lines.push("", t.body.trim() || "(no description)")
   for (const c of t.timeline) {
     const on = c.on ? ` on ${c.on}` : ""
@@ -289,8 +391,55 @@ function formatThread(t: IssueThread): string {
   }
   if (t.truncated)
     lines.push("", "(Comments past the first 500 were left out.)")
-  const out = lines.join("\n")
+  return capped(lines.join("\n"))
+}
+
+function capped(out: string): string {
   return out.length > MAX_OUTPUT
-    ? `${out.slice(0, MAX_OUTPUT)}\n\n(Cut: the thread is longer than this.)`
+    ? `${out.slice(0, MAX_OUTPUT)}\n\n(Cut: there is more than this.)`
     : out
+}
+
+function formatFiles({ files, more }: PrFiles, only?: string): string {
+  const picked = only ? files.filter((f) => f.path === only) : files
+  if (only && picked.length === 0) {
+    return `${only} isn’t one of its changed files: ${files.map((f) => f.path).join(", ")}.`
+  }
+  const lines: string[] = []
+  if (!only) {
+    lines.push(`${files.length} files changed:`)
+    for (const f of files) {
+      const from = f.previousPath ? ` (from ${f.previousPath})` : ""
+      lines.push(
+        `- ${f.path}${from}: ${f.status}, +${f.additions} −${f.deletions}`
+      )
+    }
+    if (more) lines.push("(Files past the first 500 were left out.)")
+  }
+  for (const f of picked) {
+    lines.push("", `--- ${f.path}`)
+    lines.push(f.patch ?? "(no diff: binary or too large)")
+  }
+  return capped(lines.join("\n"))
+}
+
+function formatChecks(number: number, c: PrChecks): string {
+  const lines = [
+    `#${number} is ${c.state}, on commit ${c.sha.slice(0, 7)}.${c.mergeableState ? ` Mergeable state: ${c.mergeableState}.` : ""}`,
+  ]
+  if (c.runs.length === 0) lines.push("No checks ran on this commit.")
+  for (const run of c.runs) {
+    const result =
+      run.status === "completed" ? (run.conclusion ?? "completed") : run.status
+    lines.push("", `- ${run.name}: ${result} ${run.url}`)
+    // A failing run's own summary says what broke; a passing one's is noise.
+    if (
+      run.conclusion &&
+      !["success", "skipped", "neutral"].includes(run.conclusion)
+    ) {
+      if (run.title) lines.push(`  ${run.title}`)
+      if (run.summary) lines.push(`  ${run.summary.trim().slice(0, 2000)}`)
+    }
+  }
+  return capped(lines.join("\n"))
 }

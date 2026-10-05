@@ -33,6 +33,51 @@ export interface GitHubIssuesClient {
     number: number,
     input: IssueUpdate
   ): Promise<IssueRef & { state: string }>
+  /** Adds (or removes) a native blocking edge or sub-issue link. */
+  link(
+    repo: GitHubRepoRef,
+    number: number,
+    relation: IssueRelation,
+    other: number,
+    remove?: boolean
+  ): Promise<void>
+  /** The repository's labels, with their descriptions. */
+  labels(
+    repo: GitHubRepoRef
+  ): Promise<Array<{ name: string; description: string | null }>>
+  /** A pull request's changed files, with each one's patch. */
+  files(repo: GitHubRepoRef, number: number): Promise<PrFiles>
+  /** A pull request's head commit, mergeability and check runs. */
+  checks(repo: GitHubRepoRef, number: number): Promise<PrChecks>
+}
+
+export interface PrFiles {
+  files: Array<{
+    path: string
+    /** added, removed, modified, renamed… */
+    status: string
+    additions: number
+    deletions: number
+    /** Absent for a binary or very large file. */
+    patch?: string
+    previousPath?: string
+  }>
+  more: boolean
+}
+
+export interface PrChecks {
+  sha: string
+  state: string
+  /** GitHub's `mergeable_state`: clean, dirty (a conflict), blocked… */
+  mergeableState: string | null
+  runs: Array<{
+    name: string
+    status: string
+    conclusion: string | null
+    url: string
+    title: string | null
+    summary: string | null
+  }>
 }
 
 export interface IssueRef {
@@ -68,7 +113,22 @@ export interface IssueThread extends IssueSummary {
   timeline: IssueComment[]
   /** More comments exist than were read. */
   truncated: boolean
+  /** Its native links: what blocks it, what it blocks, its parent and sub-issues. */
+  relations: IssueRelations
 }
+
+export interface IssueRelations {
+  blockedBy: IssueSummary[]
+  blocking: IssueSummary[]
+  parent: IssueSummary | null
+  subIssues: IssueSummary[]
+}
+
+/**
+ * A native link between two issues, read from `number`: `blocked_by` means
+ * `number` waits on `other`, `parent_of` makes `other` its sub-issue.
+ */
+export type IssueRelation = "blocked_by" | "blocks" | "parent_of" | "child_of"
 
 export interface IssueUpdate {
   state?: "open" | "closed"
@@ -124,6 +184,13 @@ type RawIssue = {
   labels: Array<string | { name?: string }>
   updated_at: string
   pull_request?: { merged_at?: string | null }
+  id?: number
+  parent_issue_url?: string | null
+  sub_issues_summary?: { total: number } | null
+  issue_dependencies_summary?: {
+    total_blocked_by: number
+    total_blocking: number
+  } | null
 }
 type RawComment = {
   id: number
@@ -173,16 +240,18 @@ export function gitHubIssuesClient(
 
   async function call<T>(
     url: string,
-    init?: { method: string; body: unknown }
+    init?: { method: string; body?: unknown }
   ): Promise<T> {
     const res = await fetchImpl(url, {
       method: init?.method ?? "GET",
-      headers: init
-        ? { ...headers, "Content-Type": "application/json" }
-        : headers,
-      body: init ? JSON.stringify(init.body) : undefined,
+      headers:
+        init?.body !== undefined
+          ? { ...headers, "Content-Type": "application/json" }
+          : headers,
+      body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
     })
     if (!res.ok) throw await errorOf(res)
+    if (res.status === 204) return undefined as T
     return (await res.json()) as T
   }
 
@@ -195,6 +264,42 @@ export function gitHubIssuesClient(
       if (batch.length < 100) return { items, more: false }
     }
     return { items, more: true }
+  }
+
+  /** Only asks GitHub for the links its summaries say exist. */
+  async function relationsOf(
+    repo: GitHubRepoRef,
+    issue: RawIssue
+  ): Promise<IssueRelations> {
+    const deps = issue.issue_dependencies_summary
+    const n = issue.number
+    const [blockedBy, blocking, subIssues, parent] = await Promise.all([
+      deps?.total_blocked_by
+        ? call<RawIssue[]>(path(repo, `/issues/${n}/dependencies/blocked_by`))
+        : [],
+      deps?.total_blocking
+        ? call<RawIssue[]>(path(repo, `/issues/${n}/dependencies/blocking`))
+        : [],
+      issue.sub_issues_summary?.total
+        ? call<RawIssue[]>(path(repo, `/issues/${n}/sub_issues?per_page=100`))
+        : [],
+      issue.parent_issue_url
+        ? call<RawIssue>(path(repo, `/issues/${n}/parent`))
+        : null,
+    ])
+    return {
+      blockedBy: blockedBy.map(summary),
+      blocking: blocking.map(summary),
+      subIssues: subIssues.map(summary),
+      parent: parent ? summary(parent) : null,
+    }
+  }
+
+  /** An issue's id, which the link endpoints take instead of its number. */
+  async function idOf(repo: GitHubRepoRef, number: number): Promise<number> {
+    const raw = await call<RawIssue>(path(repo, `/issues/${number}`))
+    if (raw.id === undefined) throw new Error(`#${number} has no id`)
+    return raw.id
   }
 
   return {
@@ -252,12 +357,14 @@ export function gitHubIssuesClient(
         }
       }
       timeline.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      const relations = await relationsOf(repo, issue)
       return {
         ...summary(issue),
         body: issue.body ?? "",
         stateReason: issue.state_reason ?? null,
         timeline,
         truncated: more,
+        relations,
       }
     },
 
@@ -292,6 +399,95 @@ export function gitHubIssuesClient(
       })
       const s = summary(raw)
       return { number: s.number, url: s.url, state: s.state }
+    },
+
+    async link(repo, number, relation, other, remove = false) {
+      // Every link is stored on one side: the blocked issue, or the parent.
+      const [owner, target] =
+        relation === "blocked_by" || relation === "parent_of"
+          ? [number, other]
+          : [other, number]
+      const id = await idOf(repo, target)
+      const blocking = relation === "blocked_by" || relation === "blocks"
+      if (blocking) {
+        const base = `/issues/${owner}/dependencies/blocked_by`
+        await (remove
+          ? call(path(repo, `${base}/${id}`), { method: "DELETE" })
+          : call(path(repo, base), { method: "POST", body: { issue_id: id } }))
+      } else {
+        await (remove
+          ? call(path(repo, `/issues/${owner}/sub_issue`), {
+              method: "DELETE",
+              body: { sub_issue_id: id },
+            })
+          : call(path(repo, `/issues/${owner}/sub_issues`), {
+              method: "POST",
+              body: { sub_issue_id: id },
+            }))
+      }
+    },
+
+    async labels(repo) {
+      const listed = await list<{ name: string; description?: string | null }>(
+        path(repo, "/labels")
+      )
+      return listed.items.map((l) => ({
+        name: l.name,
+        description: l.description ?? null,
+      }))
+    },
+
+    async files(repo, number) {
+      const listed = await list<{
+        filename: string
+        status: string
+        additions: number
+        deletions: number
+        patch?: string
+        previous_filename?: string
+      }>(path(repo, `/pulls/${number}/files`))
+      return {
+        files: listed.items.map((f) => ({
+          path: f.filename,
+          status: f.status,
+          additions: f.additions,
+          deletions: f.deletions,
+          patch: f.patch,
+          previousPath: f.previous_filename,
+        })),
+        more: listed.more,
+      }
+    },
+
+    async checks(repo, number) {
+      const pr = await call<{
+        state: string
+        merged: boolean
+        mergeable_state?: string | null
+        head: { sha: string }
+      }>(path(repo, `/pulls/${number}`))
+      const data = await call<{
+        check_runs: Array<{
+          name: string
+          status: string
+          conclusion: string | null
+          html_url: string
+          output?: { title?: string | null; summary?: string | null }
+        }>
+      }>(path(repo, `/commits/${pr.head.sha}/check-runs?per_page=100`))
+      return {
+        sha: pr.head.sha,
+        state: pr.merged ? "merged" : pr.state,
+        mergeableState: pr.mergeable_state ?? null,
+        runs: data.check_runs.map((r) => ({
+          name: r.name,
+          status: r.status,
+          conclusion: r.conclusion,
+          url: r.html_url,
+          title: r.output?.title ?? null,
+          summary: r.output?.summary ?? null,
+        })),
+      }
     },
   }
 }

@@ -456,6 +456,10 @@ describe("a Workspace chat’s MCP route", () => {
       "create_issue",
       "comment_on_issue",
       "update_issue",
+      "link_issues",
+      "list_labels",
+      "read_pr_diff",
+      "read_pr_checks",
       "read_skill",
       "save_skill",
     ])

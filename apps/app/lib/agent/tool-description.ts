@@ -307,6 +307,32 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
       return issueNumber(verb)(input)
     },
   },
+  link_issues: {
+    verb: "Link",
+    icon: "list",
+    kind: "other",
+    label: (input) =>
+      typeof input.number === "number" && typeof input.other === "number"
+        ? {
+            verb: input.remove ? "Unlink" : "Link",
+            detail: `#${input.number} and #${input.other}`,
+            as: "text",
+          }
+        : null,
+  },
+  list_labels: { verb: "List labels", icon: "list", kind: "read" },
+  read_pr_diff: {
+    verb: "Read diff of",
+    icon: "diff",
+    kind: "read",
+    label: issueNumber("Read diff of"),
+  },
+  read_pr_checks: {
+    verb: "Read checks of",
+    icon: "list",
+    kind: "read",
+    label: issueNumber("Read checks of"),
+  },
   read_skill: {
     verb: "Read skill",
     icon: "skill",
