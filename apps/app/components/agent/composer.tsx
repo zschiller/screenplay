@@ -1307,8 +1307,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 Couldn’t load models.
                 <InputGroupButton
-                  size="xs"
-                  className="text-xs text-foreground"
+                  size="sm"
+                  className="text-foreground"
                   onClick={retryModels}
                 >
                   Retry
@@ -1341,8 +1341,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                       <span className="-ml-1.5 inline-flex">
                         <DropdownMenuTrigger asChild>
                           <InputGroupButton
-                            size="xs"
-                            className="text-xs text-foreground"
+                            size="sm"
+                            className="text-foreground"
                           >
                             {currentModelLabel}
                             <CaretDownIcon />
@@ -1388,11 +1388,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <InputGroupButton
-                      size="xs"
+                      size="sm"
                       variant={planMode ? "secondary" : "ghost"}
                       onClick={() => onPlanModeChange(!planMode)}
                       aria-pressed={!!planMode}
-                      className="text-xs text-foreground"
+                      className="text-foreground"
                     >
                       <ClipboardTextIcon />
                       Plan

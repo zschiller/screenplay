@@ -748,10 +748,10 @@ function NewThreadComposer({
         onEscape={onCancel}
       />
       <ComposerFooter>
-        <Button size="xs" variant="ghost" onClick={onCancel} disabled={pending}>
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
-        <Button size="xs" onClick={submit} disabled={pending || empty}>
+        <Button size="sm" onClick={submit} disabled={pending || empty}>
           Comment
         </Button>
       </ComposerFooter>

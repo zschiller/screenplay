@@ -97,7 +97,7 @@ export function WorkspaceStatusIcon({
         </pre>
         <div className="flex items-center gap-2">
           <Button
-            size="xs"
+            size="sm"
             onClick={() => {
               setOpen(false)
               onRetry()
@@ -106,7 +106,7 @@ export function WorkspaceStatusIcon({
             Retry
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onClick={() => {
               setOpen(false)
@@ -116,7 +116,7 @@ export function WorkspaceStatusIcon({
             Recreate
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             className="ml-auto"
             onClick={copyError}

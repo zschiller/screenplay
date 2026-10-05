@@ -258,7 +258,7 @@ function NodeTypeDropdown({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="xs"
+          size="sm"
           tabIndex={-1}
           className="text-muted-foreground"
         >

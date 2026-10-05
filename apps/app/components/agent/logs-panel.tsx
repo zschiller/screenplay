@@ -288,7 +288,7 @@ export function LogsPanel({
         </span>
         <Button
           variant="outline"
-          size="xs"
+          size="sm"
           className="shrink-0"
           onClick={retry}
         >

@@ -239,7 +239,7 @@ function AnswererChip({
   const noRepository = answerer.kind === "sketch" && workspaces.length === 0
   if (noRepository && !sketchChats?.length) {
     return (
-      <span className="-ml-1.5 inline-flex min-w-0 items-center px-2 text-xs text-foreground">
+      <span className="-ml-1.5 inline-flex min-w-0 items-center px-2.5 text-sm text-foreground">
         New chat
       </span>
     )
@@ -262,9 +262,9 @@ function AnswererChip({
       <span className="-ml-1.5 inline-flex min-w-0">
         <PopoverTrigger asChild>
           <InputGroupButton
-            size="xs"
+            size="sm"
             aria-label="Who answers"
-            className="max-w-48 text-xs text-foreground"
+            className="max-w-48 text-foreground"
           >
             {label}
             <CaretDownIcon />

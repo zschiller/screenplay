@@ -2622,7 +2622,7 @@ export function Canvas({
                         {isOwner && (
                           <>
                             <Button
-                              size="xs"
+                              size="sm"
                               className="ml-1"
                               onClick={() => setShareDialogOpen(true)}
                             >

@@ -145,7 +145,7 @@ function StopOrRunButton({ devServer }: { devServer: DevServer }) {
     <Button
       type="button"
       variant="ghost"
-      size="xs"
+      size="sm"
       className="font-normal text-muted-foreground"
       disabled={pending}
       onClick={action}
