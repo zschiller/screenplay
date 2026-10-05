@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import * as Y from "yjs"
 
 import type {
   BranchData,
@@ -16,6 +17,7 @@ const readDoc = vi.fn()
 const ROOM = { roomId: "room-1", readDoc }
 
 import { readRoomCaptureLayout } from "./room-layout"
+import { mockupHtml, writeMockupHtml } from "@/lib/yjs/mockup-html"
 
 /** Wire the stubbed doc read to a fake collections snapshot. */
 function withDoc(snapshot: {
@@ -24,10 +26,12 @@ function withDoc(snapshot: {
   markdownLayers?: MarkdownLayerData[]
   mockupLayers?: MockupLayerData[]
   groups?: IframeLayerGroupData[]
+  doc?: Y.Doc
 }) {
   readDoc.mockImplementation((fn: (c: unknown) => unknown) =>
     Promise.resolve(
       fn({
+        doc: snapshot.doc ?? new Y.Doc(),
         branches: { toMap: () => snapshot.branches ?? new Map() },
         iframeLayers: { toArray: () => snapshot.iframeLayers ?? [] },
         markdownLayers: { toArray: () => snapshot.markdownLayers ?? [] },
@@ -81,7 +85,7 @@ describe("readRoomCaptureLayout", () => {
     })
   })
 
-  it("places a mockup layer as a captureless placeholder labeled by its title", async () => {
+  it("places an empty mockup layer as a captureless placeholder labeled by its title", async () => {
     withDoc({
       mockupLayers: [{ id: "m1", width: 300, height: 200, title: "Option A" }],
       groups: [
@@ -93,6 +97,29 @@ describe("readRoomCaptureLayout", () => {
 
     expect(layouts.get("m1")).toMatchObject({ width: 300, height: 200 })
     expect(frames).toEqual([{ id: "m1", label: "Option A", previewUrl: null }])
+  })
+
+  it("hands a mockup layer's page to the capture", async () => {
+    const doc = new Y.Doc()
+    writeMockupHtml(mockupHtml(doc, "m1"), "<h1>Option A</h1>")
+    withDoc({
+      doc,
+      mockupLayers: [{ id: "m1", width: 300, height: 200, title: "Option A" }],
+      groups: [
+        { id: "g1", x: 0, y: 0, members: [{ kind: "mockup-layer", id: "m1" }] },
+      ],
+    })
+
+    const { frames } = await readRoomCaptureLayout(ROOM)
+
+    expect(frames).toEqual([
+      {
+        id: "m1",
+        label: "Option A",
+        previewUrl: null,
+        mockupHtml: "<h1>Option A</h1>",
+      },
+    ])
   })
 
   it("keeps iframe-layer frames bound to their Branch's preview URL", async () => {

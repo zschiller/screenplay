@@ -535,6 +535,8 @@ function CanvasMemberLayerImpl({
                 dimmed={dimmedIframeLayerIds.has(mockup.id)}
                 onHover={reference.setInspectHover}
                 onDomReady={reference.onIframeLayerDomReady}
+                onCaptureReadyChange={handleCaptureReadyChange}
+                onCaptureDirty={handleCaptureDirty}
                 writes={layerMutations.mockupPage}
                 focused={focusedIframeLayerId === mockup.id}
                 driver={frameControl.driverOf(mockup.id)}

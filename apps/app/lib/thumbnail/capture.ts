@@ -8,7 +8,8 @@ import {
   type FrameCapture,
   type ThumbnailManifest,
 } from "./manifest"
-import type { RoomReader } from "@/lib/room-access"
+import type { RoomAccess, RoomReader } from "@/lib/room-access"
+import { mockupPageUrl } from "./mockup-page"
 import { readRoomCaptureLayout } from "./room-layout"
 import { thumbnailCapturer, type ThumbnailCapturer } from "./capturer"
 
@@ -58,8 +59,9 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 /**
  * Capture a Room's thumbnail as a per-frame composite. Reads the room's layout
  * once (`readRoomCaptureLayout`), screenshots each ready Iframe Layer's live
- * preview URL through the injected {@link ThumbnailCapturer} seam — called once
- * per frame — resizes and stores each capture, then builds and persists the
+ * preview URL, and each filled Mockup's page (`mockupPageUrl`), through the
+ * injected {@link ThumbnailCapturer} seam — called once per frame — resizes
+ * and stores each capture, then builds and persists the
  * {@link ThumbnailManifest} on the Room row. No single baked `thumbnailUrl`
  * anymore: the grid composes positioned images from the manifest at display
  * time.
@@ -89,7 +91,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
  * opening no browser at all.
  */
 export async function captureRoomThumbnail(
-  room: RoomReader,
+  room: RoomReader | RoomAccess,
   capturer: ThumbnailCapturer = thumbnailCapturer,
   options?: { frameIds?: readonly string[] }
 ): Promise<ThumbnailManifest> {
@@ -110,16 +112,19 @@ export async function captureRoomThumbnail(
   const captures = new Map<string, FrameCapture>()
   for (const frame of frames) {
     const layout = layouts.get(frame.id)
-    if (!frame.previewUrl || !layout) continue
+    if ((!frame.previewUrl && !frame.mockupHtml) || !layout) continue
     if (dirtySet && !dirtySet.has(frame.id)) continue
 
     try {
+      const pageUrl =
+        frame.previewUrl ??
+        (await mockupPageUrl(room, frame.id, frame.mockupHtml ?? ""))
       // Capture at the frame's own shape so the screenshot shares its aspect
       // ratio — the iframe on the canvas renders its page at exactly these
       // dimensions, so this reproduces what the user sees rather than a fixed
       // viewport cropped to fit.
       const pngBuffer = await withTimeout(
-        capturer.capture(frame.previewUrl, {
+        capturer.capture(pageUrl, {
           width: layout.width,
           height: layout.height,
         }),

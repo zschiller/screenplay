@@ -18,22 +18,29 @@ type PutCall = [
   opts: { contentType: string; cacheControlMaxAge?: number },
 ]
 
-const { put, setRoomThumbnailManifest, getRoom, readRoomCaptureLayout } =
-  vi.hoisted(() => ({
-    put: vi.fn((key: string) =>
-      Promise.resolve({ url: `https://blob.example/${key}` })
-    ),
-    setRoomThumbnailManifest: vi.fn(() => Promise.resolve()),
-    getRoom: vi.fn(
-      (): Promise<{ thumbnailManifest: ThumbnailManifest | null } | null> =>
-        Promise.resolve(null)
-    ),
-    readRoomCaptureLayout: vi.fn(),
-  }))
+const {
+  put,
+  setRoomThumbnailManifest,
+  getRoom,
+  readRoomCaptureLayout,
+  mockupPageUrl,
+} = vi.hoisted(() => ({
+  put: vi.fn((key: string) =>
+    Promise.resolve({ url: `https://blob.example/${key}` })
+  ),
+  setRoomThumbnailManifest: vi.fn(() => Promise.resolve()),
+  getRoom: vi.fn(
+    (): Promise<{ thumbnailManifest: ThumbnailManifest | null } | null> =>
+      Promise.resolve(null)
+  ),
+  readRoomCaptureLayout: vi.fn(),
+  mockupPageUrl: vi.fn(async (_room: unknown, id: string) => `data:${id}`),
+}))
 
 vi.mock("@/lib/blob", () => ({ blobStore: { put } }))
 vi.mock("@/lib/rooms", () => ({ setRoomThumbnailManifest, getRoom }))
 vi.mock("./room-layout", () => ({ readRoomCaptureLayout }))
+vi.mock("./mockup-page", () => ({ mockupPageUrl }))
 
 import sharp from "sharp"
 import { captureRoomThumbnail } from "./capture"
@@ -203,6 +210,66 @@ describe("captureRoomThumbnail", () => {
     })
     // The booting frame lands captureless (a neutral placeholder).
     expect(manifest.frames[1]!.capture).toBeNull()
+  })
+
+  it("captures a mockup's page, and leaves an empty mockup captureless", async () => {
+    const png = await fakePng()
+    const capturer: ThumbnailCapturer = { capture: vi.fn(async () => png) }
+
+    readRoomCaptureLayout.mockResolvedValue({
+      layouts: new Map([
+        ["m1", layout("m1", { x: 0, y: 0, width: 400, height: 300 })],
+        ["m2", layout("m2", { x: 420, y: 0, width: 400, height: 300 })],
+      ]),
+      frames: [
+        {
+          id: "m1",
+          label: "Option A",
+          previewUrl: null,
+          mockupHtml: "<h1>A</h1>",
+        },
+        { id: "m2", label: "Drawn", previewUrl: null },
+      ],
+    } satisfies RoomCaptureLayout)
+
+    const manifest = await captureRoomThumbnail(ROOM, capturer)
+
+    expect(mockupPageUrl).toHaveBeenCalledWith(ROOM, "m1", "<h1>A</h1>")
+    expect(capturer.capture).toHaveBeenCalledTimes(1)
+    expect(capturer.capture).toHaveBeenCalledWith("data:m1", {
+      width: 400,
+      height: 300,
+    })
+    expect(manifest.frames.map((f) => f.capture?.url ?? null)).toEqual([
+      "https://blob.example/thumbnails/room-1/m1.webp",
+      null,
+    ])
+  })
+
+  it("keeps a mockup's last image when its page can't be loaded", async () => {
+    const png = await fakePng()
+    const capturer: ThumbnailCapturer = { capture: vi.fn(async () => png) }
+    mockupPageUrl.mockRejectedValueOnce(new Error("too large"))
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    readRoomCaptureLayout.mockResolvedValue({
+      layouts: new Map([
+        ["m1", layout("m1", { x: 0, y: 0, width: 400, height: 300 })],
+      ]),
+      frames: [
+        {
+          id: "m1",
+          label: "Option A",
+          previewUrl: null,
+          mockupHtml: "<h1>A</h1>",
+        },
+      ],
+    } satisfies RoomCaptureLayout)
+
+    const manifest = await captureRoomThumbnail(ROOM, capturer)
+
+    expect(capturer.capture).not.toHaveBeenCalled()
+    expect(manifest.frames[0]!.capture).toBeNull()
   })
 
   it("skips a frame whose capture throws, persisting every other frame's capture", async () => {
