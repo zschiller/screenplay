@@ -223,14 +223,15 @@ export interface PageVoice {
  * The one gate for what a tap on the page says for this viewer. In their own
  * copy: a draft or an answer, while they Interact and the agent isn't driving
  * it (the agent mustn't answer its own question). On a live page, which every
- * viewer's canvas hears from: a draft only while they have control, so one
- * canvas speaks; never an answer, since the page can't tell one viewer it may
- * answer and the rest it may not, so people answer in the chat. The runtime
- * checks for the tap too, but page script could post the message itself.
+ * viewer's canvas hears from: a draft or an answer only while they have
+ * control, so only the controller's canvas speaks (only their input reaches
+ * the shared page) and the question is answered once. The runtime checks for
+ * the tap too, but page script could post the message itself.
  */
 export function pageVoice(viewer: MockupViewer): PageVoice {
   if (viewer.live) {
-    return { draft: viewer.liveDriver.kind === "you", answer: false }
+    const speaks = viewer.liveDriver.kind === "you"
+    return { draft: speaks, answer: speaks }
   }
   const speaks = viewer.focused && viewer.driver.kind !== "agent"
   return { draft: speaks, answer: speaks }
@@ -239,12 +240,19 @@ export function pageVoice(viewer: MockupViewer): PageVoice {
 /**
  * Whether a tap on the page can answer its question at all, which the page is
  * told (`answerable`) so it keeps a pick it can't send on the page and says to
- * answer in the chat, rather than showing it as the card's answer. Never on a
- * live page (see {@link pageVoice}), the same for every viewer; in their own
- * copy, unless the agent drives it. Unlike `pageVoice`, focus doesn't count:
- * nothing reaches a page they aren't interacting with, and the page shouldn't
- * change as they start to.
+ * answer in the chat, rather than showing it as the card's answer. On a live
+ * page, while a person has control (#1688): every viewer's canvas tells the
+ * one shared page, so this reads only shared state and is the same for each,
+ * whoever has control; {@link pageVoice} picks the one canvas that sends. Not
+ * while nobody can tap, nor while the agent drives. In their own copy, unless
+ * the agent drives it. Unlike `pageVoice`, focus doesn't count: nothing
+ * reaches a page they aren't interacting with, and the page shouldn't change
+ * as they start to.
  */
 export function pageAnswers(viewer: MockupViewer): boolean {
-  return !viewer.live && viewer.driver.kind !== "agent"
+  if (viewer.live) {
+    const kind = viewer.liveDriver.kind
+    return kind === "you" || kind === "person"
+  }
+  return viewer.driver.kind !== "agent"
 }

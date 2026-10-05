@@ -309,6 +309,102 @@ describe("MockupLayer's chat link (#1645, #1644, #1662)", () => {
     expect(calls.showRoomChat).toHaveBeenCalledOnce()
     expect(calls.sendWhenOpen).toHaveBeenCalledWith(ROOM, "Names only")
   })
+
+  describe("on a live page (#1688)", () => {
+    const asked: AgentMessage[] = [
+      {
+        role: "tool_call",
+        toolCallId: "q1",
+        title: "ask_question",
+        status: "completed",
+        content: [],
+        rawInput: {
+          question: "Which row?",
+          options: ["Prices", "Names only"],
+          mockup_id: LAYER.id,
+        },
+      },
+    ]
+    const sam = {
+      kind: "person",
+      id: "u2",
+      name: "Sam",
+      color: "#f80",
+    } as const
+
+    /** A live page every viewer's canvas hears, over the stream's bridge. */
+    function liveStream() {
+      const listeners = new Set<(message: unknown) => void>()
+      const posted = vi.fn()
+      const port = {
+        post: (message: unknown) => {
+          posted(message)
+          return true
+        },
+        subscribe: (listener: (message: unknown) => void) => {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
+      }
+      const live = {
+        bridgePort: () => port,
+        frame: () => ({}),
+      } as unknown as FrameStreamConnection
+      const fromLivePage = (data: unknown) =>
+        act(() => listeners.forEach((listener) => listener(data)))
+      return { live, posted, fromLivePage }
+    }
+
+    it("answers once from the canvas of the person in control", () => {
+      const { link, calls } = canvasLink({ [ROOM]: asked })
+      const { live, posted, fromLivePage } = liveStream()
+      renderMockup(
+        { sharedStream: live, live: true, liveDriver: { kind: "you" } },
+        link
+      )
+      fromLivePage({ type: "screenplay:question-request" })
+      expect(posted).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          question: expect.objectContaining({ id: "q1", answerable: true }),
+        })
+      )
+
+      fromLivePage({ type: "screenplay:question-answer", id: "q1", index: 1 })
+      fromLivePage({ type: "screenplay:question-answer", id: "q1", index: 1 })
+      expect(calls.sendWhenOpen).toHaveBeenCalledOnce()
+      expect(calls.sendWhenOpen).toHaveBeenCalledWith(ROOM, "Names only")
+    })
+
+    it("leaves the answer to their canvas while someone else has control, still answerable", () => {
+      const { link, calls } = canvasLink({ [ROOM]: asked })
+      const { live, posted, fromLivePage } = liveStream()
+      renderMockup({ sharedStream: live, live: true, liveDriver: sam }, link)
+      fromLivePage({ type: "screenplay:question-request" })
+      expect(posted).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          question: expect.objectContaining({ id: "q1", answerable: true }),
+        })
+      )
+
+      fromLivePage({ type: "screenplay:question-answer", id: "q1", index: 1 })
+      expect(calls.sendWhenOpen).not.toHaveBeenCalled()
+      expect(calls.showRoomChat).not.toHaveBeenCalled()
+    })
+
+    it("says to answer in the chat while nobody has control", () => {
+      const { link, calls } = canvasLink({ [ROOM]: asked })
+      const { live, posted, fromLivePage } = liveStream()
+      renderMockup({ sharedStream: live, live: true }, link)
+      fromLivePage({ type: "screenplay:question-request" })
+      expect(posted).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          question: expect.objectContaining({ answerable: false }),
+        })
+      )
+      fromLivePage({ type: "screenplay:question-answer", id: "q1", index: 1 })
+      expect(calls.sendWhenOpen).not.toHaveBeenCalled()
+    })
+  })
 })
 
 describe("MockupLayer sizes", () => {

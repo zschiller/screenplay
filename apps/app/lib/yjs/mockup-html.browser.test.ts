@@ -363,8 +363,9 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
     await page.evaluate("document.querySelector('iframe').remove()")
   })
 
-  // While a tap can't answer (the page is live, or the agent drives it), Pick keeps the
-  // pick on the page, sends nothing and says to answer in the chat.
+  // While a tap can't answer (a live page nobody has control of, or the agent
+  // drives it), Pick keeps the pick on the page, sends nothing and says to
+  // answer in the chat.
   it("keeps the pick on the page while it can't answer the card", async () => {
     const { html, resources } = templatePage(
       "screenplay-explore-with-mockups",
