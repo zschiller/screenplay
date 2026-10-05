@@ -63,23 +63,3 @@ export function groupWorkspace(
   if (frames.length === 0 && !branchId) return null
   return { branchId, frames }
 }
-
-/**
- * The Group switcher's footer (#869), read before picking: how many frames
- * move.
- */
-export function groupSwitchSummary(moving: number): string {
-  return moving === 1
-    ? "Moves 1 frame. It keeps its route and state."
-    : `Moves ${moving} frames. Each keeps its route and state.`
-}
-
-/**
- * The footer under an unassigned Group's "Choose a workspace" list (#871):
- * the pick sets every frame in the Group.
- */
-export function groupAssignSummary(frames: number): string {
-  if (frames === 1) return "Applies to its frame."
-  if (frames === 2) return "Applies to both frames."
-  return `Applies to all ${frames} frames.`
-}

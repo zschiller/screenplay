@@ -84,16 +84,14 @@ export function CompactWorkspaceMention({
  * The searchable Workspace list a frame's Workspace switchers open (the label
  * pickers, issue #867): each row the shared Workspace
  * mention (#974: state icon, plain name, PR badge or line count) and a check on
- * the current one. The Group switcher (#869) opens it too, with a footer
- * saying what the pick moves. A drawn frame's ask card (#1357) opens it with
- * New chat as its first row.
+ * the current one. The Group switcher (#869) opens it too. A drawn frame's
+ * ask card (#1357) opens it with New chat as its first row.
  */
 export function WorkspaceCommandList({
   branches,
   currentBranchId,
   onPick,
   placeholder = "Search chats…",
-  footer,
   newChat,
   sketch,
 }: {
@@ -102,8 +100,6 @@ export function WorkspaceCommandList({
   onPick: (branchId: string) => void
   /** The search field's prompt; the Group switcher asks "Show <Group> from…". */
   placeholder?: string
-  /** Muted lines under the list, read before picking (#869). */
-  footer?: string[]
   /** A New chat row above the Workspaces, checked when it's the pick. */
   newChat?: { current: boolean; onPick: () => void }
   /**
@@ -194,13 +190,6 @@ export function WorkspaceCommandList({
           })}
         </CommandGroup>
       </CommandList>
-      {footer && footer.length > 0 && (
-        <div className="border-t px-3 py-2 text-xs text-muted-foreground">
-          {footer.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </div>
-      )}
     </Command>
   )
 }
