@@ -284,26 +284,29 @@ canvas is open and every few minutes when it isn’t. When something changes,
 the chat shows it as a quiet line across the conversation: the PR’s icon and
 number in its colour, then what happened.
 
-| Line                     | When                                                              |
-| ------------------------ | ----------------------------------------------------------------- |
-| **checks failed · lint** | Checks on the PR start failing. The line names the failed checks. |
-| **checks passed**        | Checks pass again after failing.                                  |
-| **conflict**             | The PR conflicts with the branch it merges into.                  |
-| **merged**               | The PR was merged.                                                |
-| **closed**               | The PR was closed without merging.                                |
+| Line                             | When                                                                                                                                                                  |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **checks failed · lint**         | Checks on the PR start failing. The line names the failed checks.                                                                                                     |
+| **checks passed**                | Checks pass again after failing.                                                                                                                                      |
+| **conflict**                     | The PR conflicts with the branch it merges into.                                                                                                                      |
+| **review from ada · 2 comments** | Someone reviews the PR or replies on one of its review comments. The line names them and counts their comments, or its verdict, like “approved”, when there are none. |
+| **merged**                       | The PR was merged.                                                                                                                                                    |
+| **closed**                       | The PR was closed without merging.                                                                                                                                    |
 
 Failing checks and conflicts are red with the merge-conflict icon, closed PRs
-red with the closed icon, passing checks green and merges purple, like the PR
-badge. With the canvas closed, Screenplay checks
+red with the closed icon, passing checks and reviews green and merges purple,
+like the PR badge. With the canvas closed, Screenplay checks
 the PR with the GitHub account of the person who started the chat.
 
 ### The agent acts on its own
 
-Failing checks, a conflict, a merge and a close also start a turn for the
-chat’s agent, right after the line, so you don’t have to come back and ask.
-It reads the failing checks or brings the base branch in, fixes the cause and
-pushes, or replies saying why it can’t. After a merge or a close it replies
-in one line. Checks passing again is only a line.
+Failing checks, a conflict, a review, a merge and a close also start a turn
+for the chat’s agent, right after the line, so you don’t have to come back and
+ask. It reads the failing checks or brings the base branch in, fixes the cause
+and pushes, or replies saying why it can’t. After a review it fixes what the
+review asks for and replies with what it changed and what it left. After a
+merge or a close it replies in one line. Checks passing again is only a line.
+A review the agent posted itself never starts a turn.
 
 The agent acts for the person who started the chat, with their GitHub
 account, and this works with the canvas closed. It never interrupts a turn

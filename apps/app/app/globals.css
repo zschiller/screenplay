@@ -16,7 +16,15 @@
 /* The app's text steps: 12px meta (`text-xs`), 13px UI (`text-sm`), and 14px
    `text-prose` for what's said in a chat: replies, sent messages and questions
    that sit on the chat itself rather than in a row or card. Every step keeps
-   a 20px line except meta, so a row is the same height at either size. */
+   a 20px line except meta, so a row is the same height at either size.
+
+   12px is only for text that annotates something else and isn't read as a
+   sentence: values (timestamps, counts, diff stats, PR numbers, sizes), chips
+   in a fixed box (badges, Kbd, pin numbers, avatar initials), code (inline
+   code, tool output, the terminal, routes), and labels over a group (mono
+   eyebrows, section labels, canvas labels), plus stock tooltips. A sentence,
+   an empty state, anything clickable, a row's name or second line, or a form
+   is 13px. */
 @theme {
   --text-sm: 0.8125rem;
   --text-sm--line-height: calc(1.25 / 0.8125);

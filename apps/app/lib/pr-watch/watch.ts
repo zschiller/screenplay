@@ -1,4 +1,5 @@
 import type { PrEventKind, PrEventMark } from "@/lib/agent/message-markers"
+import { prReviewDetail, type PrReviewSummary } from "./events"
 import type { BranchPrChecks } from "@/lib/pr-checks"
 import type { RoomDoc } from "@/lib/room-access"
 import type { BranchData, PastPr, RepoData } from "@/lib/types"
@@ -27,6 +28,19 @@ export interface PrTarget {
   /** The member who created the Branch (`BranchData.createdBy`), when known.
    *  The server tick reads GitHub with their account. */
   ownerId?: string
+  /** The cached PR's last seen review time (#1704): the reader only counts
+   *  the comments of reviews after it. */
+  reviewsSince?: { number: number; at: string }
+}
+
+/** A submitted review on an open PR (#1704). */
+export interface PrReviewRead extends PrReviewSummary {
+  /** When it was submitted, ISO 8601. */
+  submittedAt: string
+  url: string
+  /** Posted by the agent (it carries `AGENT_POST_MARK`), so it never wakes
+   *  the agent. */
+  byAgent?: boolean
 }
 
 /** A PR as GitHub reports it now. */
@@ -48,6 +62,15 @@ export interface PrLookup {
   failingChecks?: string[]
   /** Whether the open PR conflicts with its base. */
   conflict?: boolean
+  /** The open PR's reviews (#1704); absent when they couldn't be read. */
+  reviews?: {
+    /** The newest review's submit time, or the PR's creation when it has
+     *  none: the next look's “since”. */
+    latestAt: string
+    /** The reviews submitted after the target's `reviewsSince`, oldest
+     *  first. */
+    fresh: PrReviewRead[]
+  }
 }
 
 /** Looks up a Branch's newest PR; `null` when there is none or the lookup
@@ -58,7 +81,13 @@ export type GitHubPrReader = (target: PrTarget) => Promise<PrLookup | null>
 export interface PrEvent extends PrEventMark {
   branchId: string
   url: string
+  /** A review event's review, for the agent's sentence. */
+  review?: PrReviewSummary
 }
+
+/** An event as {@link prEvents} finds it, before it's bound to its Branch. */
+type FoundPrEvent = Omit<PrEventMark, "number"> &
+  Partial<Pick<PrEvent, "url" | "review">>
 
 /** The Branch's cached PR, as the doc holds it. */
 type CachedPr = Pick<
@@ -70,6 +99,7 @@ type CachedPr = Pick<
   | "prChecks"
   | "prChecksFailed"
   | "prConflict"
+  | "prReviewsSince"
 >
 
 /**
@@ -96,6 +126,9 @@ export function prTargets(
       repo: repo.repoName,
       branch: b.ref,
       ...(b.createdBy ? { ownerId: b.createdBy } : {}),
+      ...(typeof b.prNumber === "number" && b.prReviewsSince
+        ? { reviewsSince: { number: b.prNumber, at: b.prReviewsSince } }
+        : {}),
     })
   }
   return targets
@@ -106,12 +139,9 @@ export function prTargets(
  * already cached under the same number has a before to compare with: a PR seen
  * for the first time is the new baseline and says nothing.
  */
-export function prEvents(
-  cached: CachedPr,
-  next: PrLookup
-): Array<Omit<PrEventMark, "number">> {
+export function prEvents(cached: CachedPr, next: PrLookup): FoundPrEvent[] {
   if (cached.prNumber !== next.number || !cached.prState) return []
-  const events: Array<Omit<PrEventMark, "number">> = []
+  const events: FoundPrEvent[] = []
   if (cached.prState === "open" && next.state === "merged") {
     events.push({ kind: "merged" })
   } else if (cached.prState === "open" && next.state === "closed") {
@@ -129,7 +159,24 @@ export function prEvents(
     events.push({ kind: "checks_passed" })
   }
   if (next.conflict && !cached.prConflict) events.push({ kind: "conflict" })
+  events.push(...reviewEvents(cached, next))
   return events
+}
+
+/**
+ * Each review submitted since the last look, once (#1704). A PR cached before
+ * reviews were watched has no “since” yet: its first look is the baseline.
+ * The agent's own reviews only move the baseline.
+ */
+function reviewEvents(cached: CachedPr, next: PrLookup): FoundPrEvent[] {
+  const since = cached.prReviewsSince
+  if (!since || !next.reviews) return []
+  return next.reviews.fresh
+    .filter((r) => r.submittedAt > since && !r.byAgent)
+    .map(({ author, verdict, comments, url }) => {
+      const review = { author, verdict, comments }
+      return { kind: "review", detail: prReviewDetail(review), url, review }
+    })
 }
 
 /** The cached fields a lookup writes. Checks and conflict only mean anything
@@ -150,7 +197,17 @@ function cachedFields(cached: CachedPr, pr: PrLookup): CachedPr {
     prChecks: open ? pr.checks : undefined,
     prChecksFailed: open && failed ? true : undefined,
     prConflict: open ? pr.conflict || undefined : undefined,
+    prReviewsSince: open ? reviewsSince(cached, pr) : undefined,
   }
+}
+
+/** The latest review time seen on an open PR; kept when its reviews
+ *  couldn't be read, and never moved back by a lagging read. */
+function reviewsSince(cached: CachedPr, pr: PrLookup): string | undefined {
+  const kept = cached.prNumber === pr.number ? cached.prReviewsSince : undefined
+  const latest = pr.reviews?.latestAt
+  if (!latest) return kept
+  return kept && kept > latest ? kept : latest
 }
 
 function sameCache(a: CachedPr, b: CachedPr): boolean {
@@ -161,7 +218,8 @@ function sameCache(a: CachedPr, b: CachedPr): boolean {
     a.prBlocked === b.prBlocked &&
     a.prChecks === b.prChecks &&
     a.prChecksFailed === b.prChecksFailed &&
-    a.prConflict === b.prConflict
+    a.prConflict === b.prConflict &&
+    a.prReviewsSince === b.prReviewsSince
   )
 }
 
@@ -219,7 +277,7 @@ export async function watchRoomPrs(
         continue
       }
       for (const e of prEvents(cur, pr)) {
-        events.push({ ...e, branchId: id, number: pr.number, url: pr.url })
+        events.push({ url: pr.url, ...e, branchId: id, number: pr.number })
       }
       const next = cachedFields(cur, pr)
       const patch = {

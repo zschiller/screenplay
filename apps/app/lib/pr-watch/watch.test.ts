@@ -8,6 +8,7 @@ import {
   watchRoomPrs,
   type GitHubPrReader,
   type PrLookup,
+  type PrReviewRead,
   type PrTarget,
 } from "./watch"
 
@@ -262,6 +263,135 @@ describe("watchRoomPrs", () => {
   })
 })
 
+describe("watchRoomPrs reports reviews (#1704)", () => {
+  const T0 = "2026-10-05T10:00:00Z"
+  const review = (
+    more: Partial<PrReviewRead> & { submittedAt: string }
+  ): PrReviewRead => ({
+    author: "ada",
+    verdict: "changes_requested",
+    comments: 2,
+    url: `${URL}#pullrequestreview-1`,
+    ...more,
+  })
+  const reviewed = (latestAt: string, ...fresh: PrReviewRead[]) =>
+    open({ reviews: { latestAt, fresh } })
+
+  it("baselines a PR's reviews on the first look, and says nothing", async () => {
+    const { room, collections } = seed({
+      prNumber: 7,
+      prUrl: URL,
+      prState: "open",
+    })
+    expect(await watchThrough(room, reviewed(T0))).toEqual([])
+    expect(collections.branches.get("b1")?.prReviewsSince).toBe(T0)
+  })
+
+  it("reports each new review once, naming its author and comments", async () => {
+    const { room, collections } = seed({
+      prNumber: 7,
+      prUrl: URL,
+      prState: "open",
+      prReviewsSince: T0,
+    })
+    const first = review({ submittedAt: "2026-10-05T10:05:00Z" })
+    const second = review({
+      submittedAt: "2026-10-05T10:06:00Z",
+      author: "lin",
+      verdict: "approved",
+      comments: 0,
+    })
+    expect(
+      await watchThrough(
+        room,
+        reviewed(first.submittedAt, first),
+        // A lagging read that still lists the first review.
+        reviewed(second.submittedAt, first, second),
+        reviewed(second.submittedAt)
+      )
+    ).toEqual(["review from ada · 2 comments", "review from lin · approved"])
+    expect(collections.branches.get("b1")?.prReviewsSince).toBe(
+      second.submittedAt
+    )
+  })
+
+  it("asks the reader for reviews after the last one seen", async () => {
+    const { room } = seed({
+      prNumber: 7,
+      prUrl: URL,
+      prState: "open",
+      prReviewsSince: T0,
+    })
+    const github = fakeGitHub(null)
+    await watchRoomPrs(room, github.read)
+    expect(github.asked[0]?.reviewsSince).toEqual({ number: 7, at: T0 })
+  })
+
+  it("never reports a review the agent posted", async () => {
+    const { room, collections } = seed({
+      prNumber: 7,
+      prUrl: URL,
+      prState: "open",
+      prReviewsSince: T0,
+    })
+    const own = review({ submittedAt: "2026-10-05T10:05:00Z", byAgent: true })
+    expect(await watchThrough(room, reviewed(own.submittedAt, own))).toEqual([])
+    expect(collections.branches.get("b1")?.prReviewsSince).toBe(own.submittedAt)
+  })
+
+  it("keeps the last seen review when reviews can't be read", async () => {
+    const { room, collections } = seed({
+      prNumber: 7,
+      prUrl: URL,
+      prState: "open",
+      prReviewsSince: T0,
+    })
+    expect(await watchThrough(room, open())).toEqual([])
+    expect(collections.branches.get("b1")?.prReviewsSince).toBe(T0)
+  })
+
+  it("carries the review into the event and the agent's message", async () => {
+    const { room } = seed({
+      prNumber: 7,
+      prUrl: URL,
+      prState: "open",
+      prReviewsSince: T0,
+    })
+    const r = review({ submittedAt: "2026-10-05T10:05:00Z" })
+    const { events } = await watchRoomPrs(
+      room,
+      fakeGitHub(reviewed(r.submittedAt, r)).read
+    )
+    expect(events).toEqual([
+      {
+        branchId: "b1",
+        number: 7,
+        kind: "review",
+        detail: "ada · 2 comments",
+        url: r.url,
+        review: { author: "ada", verdict: "changes_requested", comments: 2 },
+      },
+    ])
+    expect(projectUserTurn(prEventMessage(events[0]!))).toMatchObject({
+      prEvent: { number: 7, kind: "review", detail: "ada · 2 comments" },
+      body: expect.stringContaining(
+        "ada reviewed PR #7 and requested changes, with 2 comments on lines."
+      ),
+    })
+  })
+
+  it("clears the review baseline once the PR merges", async () => {
+    const { room, collections } = seed({
+      prNumber: 7,
+      prUrl: URL,
+      prState: "open",
+      prReviewsSince: T0,
+    })
+    await watchThrough(room, { number: 7, url: URL, state: "merged" })
+    expect(collections.branches.get("b1")?.prReviewsSince).toBeUndefined()
+  })
+})
+
 describe("PR event messages", () => {
   it("round-trip through the chat's user-turn projection", () => {
     const wire = prEventMessage({
@@ -288,6 +418,10 @@ describe("PR event messages", () => {
       "checks failed · lint"
     )
     expect(prEventLabel({ kind: "merged" })).toBe("merged")
+    expect(prEventLabel({ kind: "review", detail: "ada · 1 comment" })).toBe(
+      "review from ada · 1 comment"
+    )
+    expect(prEventState("review")).toEqual({ state: "open" })
     expect(prEventState("checks_passed")).toEqual({ state: "open" })
     expect(prEventState("merged")).toEqual({ state: "merged" })
     expect(prEventState("checks_failed")).toEqual({
