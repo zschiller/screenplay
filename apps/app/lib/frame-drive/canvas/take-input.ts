@@ -19,7 +19,10 @@ export async function takeFrameInput(
   setTakesPointer: (on: boolean) => void
 ): Promise<{
   window: { x: number; y: number } | null
-  release: () => void
+  /** Hand the input back. With `rest`, the pointer stays in the frame until
+   *  the person's pointer moves or presses on the canvas, or `release` is
+   *  called again. */
+  release: (rest?: boolean) => void
 }> {
   const before = document.activeElement
   if (at) {
@@ -46,12 +49,30 @@ export async function takeFrameInput(
   }
 
   let released = false
+  // While a hover rests, gives the pointer back to the canvas.
+  let resting: (() => void) | null = null
   return {
     window: point,
-    release() {
+    release(rest = false) {
+      if (resting) return resting()
       if (released) return
       released = true
-      if (at) setTakesPointer(false)
+      if (at && rest && point) {
+        // The pointer rests where the hover left it. Taking it back now would
+        // put the overlay over the page, and the browser's next hit test would
+        // end the hover the gesture was for. The person's own pointer, moving
+        // or pressing anywhere on the canvas, takes it back; inside the frame
+        // their events go to the page, so the canvas never sees them.
+        const back = () => {
+          removeEventListener("pointermove", back, true)
+          removeEventListener("pointerdown", back, true)
+          resting = null
+          setTakesPointer(false)
+        }
+        addEventListener("pointermove", back, true)
+        addEventListener("pointerdown", back, true)
+        resting = back
+      } else if (at) setTakesPointer(false)
       // Give the keyboard back to a field the person was typing in. Otherwise
       // it stays in the frame, as after a person's click, so a menu or field
       // the gesture opened doesn't close on losing focus.

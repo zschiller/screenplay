@@ -476,7 +476,7 @@ function Coordinator() {
       </div>
       <div className="m-3 mt-0 flex flex-col gap-3 rounded-lg border border-border p-3 text-[13px]">
         <span className="truncate text-muted-foreground">
-          Ask the Coordinator… (@ document)
+          Ask the Coordinator… (@ document, / skill)
         </span>
         <div className="flex items-center gap-3 text-xs">
           <span className="flex items-center gap-1">

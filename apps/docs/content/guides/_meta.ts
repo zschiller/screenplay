@@ -19,7 +19,12 @@ const meta = {
   collaboration: "Sharing & collaboration",
   home: "Home & organizing",
   "-- build": { type: "separator", title: "Building for Screenplay" },
-  building: { title: "Building for Screenplay", display: "children" },
+  building: {
+    title: "Building for Screenplay",
+    display: "children",
+    // Open even off its pages: the phone menu closes folders by default.
+    theme: { collapsed: false },
+  },
   "-- ref": { type: "separator", title: "Reference" },
   settings: "Settings",
   "keyboard-shortcuts": "Keyboard shortcuts",

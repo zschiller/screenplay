@@ -61,7 +61,7 @@ export function ChatHeader({
         {pr ? (
           <span className="flex h-6 items-center gap-1 rounded-md border border-input bg-input/30 px-2 text-xs font-medium [&_svg]:size-3.5">
             <GitPullRequestIcon />
-            Create pull request
+            Create PR
           </span>
         ) : null}
       </span>
@@ -69,14 +69,14 @@ export function ChatHeader({
   )
 }
 
-/** Ship it: the built take's chat, Create pull request in its header. */
+/** Ship it: the built take's chat, Create PR in its header. */
 export function PrHeaderExcerpt() {
   return (
     <Fit
       width={320}
       height={256}
       role="img"
-      aria-label="The Dark hero chat, with Create pull request in its header."
+      aria-label="The Dark hero chat, with Create PR in its header."
       className="border border-border bg-background text-foreground"
     >
       <div className="flex size-full flex-col">

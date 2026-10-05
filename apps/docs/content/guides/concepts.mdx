@@ -60,8 +60,8 @@ A **workspace** is one git branch of a repository, running in its own isolated
 
 Each workspace has a title (the agent writes it from your first message), its
 own dev server, and its own agent chat and terminals. The **Chats**
-button at the top right of the agent panel lists every chat in one flat
-list, like threads in a project: each workspace’s chat by its title. On a canvas with several repositories each row ends with its
+button at the top right of the agent panel lists every chat, like threads in
+a project: each workspace’s chat by its title, grouped by what it’s doing. On a canvas with several repositories each row ends with its
 repository’s name.
 Workspaces are cheap: create one for every idea you want to try and compare
 them side by side.
@@ -83,10 +83,11 @@ write one for you and keep editing it.
 
 ## Mockup
 
-A **mockup** is a static page a workspace chat draws on the canvas to show a
+A **mockup** is a self-contained page a chat draws on the canvas to show a
 design option. It needs no dev server, so it shows up at once, beside its
-workspace’s frames or in a group of its own. It shows the workspace of the chat
-that made it, and only that chat can change it. → [Mockups](/guides/mockups)
+workspace’s frames or in a group of its own, and you can click through it.
+It names the workspace of the chat that made it, and only that chat can change
+it. → [Mockups](/guides/mockups)
 
 ## Group
 
@@ -108,7 +109,7 @@ from depends on how you run Screenplay:
 
 - **Desktop**: the coding CLI installed on your machine (Claude Code, Codex or OpenCode),
   running on your own login.
-- **Web app**: a built-in agent loop that uses the model providers the operator
+- **Hosted app**: a built-in agent loop that uses the model providers the operator
   configured (Anthropic, OpenAI, Google, the Vercel AI Gateway, or any
   OpenAI-compatible endpoint).
 
@@ -128,6 +129,15 @@ in Settings. → [Memory](/guides/memory)
 **Canvas files** are files chats save for a canvas, like research notes or a
 reference image. Every chat on the canvas can open them; agents organize
 them, and you browse or delete them in Canvas settings. → [Files](/guides/files)
+
+## Skills
+
+A **skill** is a packaged set of instructions a chat loads when a task calls
+for it, like a release-notes checklist. Type <kbd>/</kbd> in any chat to pick
+one. Skills come from the workspace’s repository, the canvas, your account
+and Screenplay itself, which ships a few, such as a design audit. Ask a chat to
+save what you worked out as a skill, and it offers a card to save it to the
+canvas or your account. → [Agent skills](/guides/building/skills)
 
 ## Names you’ll see in the code
 

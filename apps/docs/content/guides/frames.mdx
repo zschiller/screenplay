@@ -345,10 +345,12 @@ in another app.
   dropdown, date, time or colour picker, though it can still set its value.
 
 While a step lands, the frame takes the pointer and keyboard for a moment, as
-in Interact. A frame that’s scrolled off the canvas or covered can’t take a
-click, so the agent’s step there is simulated inside the page instead, with the
-limits a [mockup](/guides/mockups#the-agent-driving-a-mockup) in the browser
-has. Moving your own mouse over the frame hands hover back to you.
+in Interact. After a hover, the frame keeps the pointer so the page stays
+hovered, until you move your own mouse on the canvas. A frame that’s scrolled
+off the canvas or covered can’t take a click, so the agent’s step there is
+simulated inside the page instead, with the limits a
+[mockup](/guides/mockups#the-agent-driving-a-mockup) in the browser has.
+Moving your own mouse over the frame hands hover back to you.
 
 When a step needs something it can’t do, the agent says which and asks you to
 do it in the frame. Tell it in the chat when you’re done, and it carries on
