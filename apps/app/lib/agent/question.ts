@@ -179,7 +179,10 @@ export function mockupQuestion(
 }
 
 /** What the Mockup page sees of it (`screenplay.question()`). */
-export function toPageQuestion(found: MockupQuestion): PageQuestion {
+export function toPageQuestion(
+  found: MockupQuestion,
+  answerable: boolean
+): PageQuestion {
   const { question, answer } = found
   return {
     id: found.toolCallId,
@@ -187,6 +190,7 @@ export function toPageQuestion(found: MockupQuestion): PageQuestion {
     options: question.options.map((o) => ({ ...o })),
     recommended: question.recommended ?? null,
     answer: answer ? { index: answer.chosen } : null,
+    answerable,
   }
 }
 

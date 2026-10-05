@@ -19,7 +19,7 @@ const open: AskedQuestion = {
   },
 }
 
-function mount(found: AskedQuestion | null) {
+function mount(found: AskedQuestion | null, answerable = true) {
   const frameWindow = { postMessage: vi.fn() }
   const iframeRef = {
     current: { contentWindow: frameWindow } as unknown as HTMLIFrameElement,
@@ -28,9 +28,19 @@ function mount(found: AskedQuestion | null) {
   const onAnswer = vi.fn()
   const onDraft = vi.fn()
   const view = renderHook(
-    ({ found }: { found: AskedQuestion | null }) =>
-      useMockupPageChat(port, { question: found, onDraft, onAnswer }),
-    { initialProps: { found } }
+    (props: { found: AskedQuestion | null; answerable?: boolean }) =>
+      useMockupPageChat(port, {
+        question: props.found,
+        answerable: props.answerable ?? answerable,
+        onDraft,
+        onAnswer,
+      }),
+    {
+      initialProps: { found } as {
+        found: AskedQuestion | null
+        answerable?: boolean
+      },
+    }
   )
   const fromPage = (data: object) => {
     const event = new MessageEvent("message", { data })
@@ -58,6 +68,7 @@ describe("useMockupPageChat (#1644, #1645)", () => {
           ],
           recommended: 1,
           answer: null,
+          answerable: true,
         },
       },
       "*"
@@ -68,6 +79,24 @@ describe("useMockupPageChat (#1644, #1645)", () => {
     expect(frameWindow.postMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
         question: expect.objectContaining({ answer: { index: 0 } }),
+      }),
+      "*"
+    )
+  })
+
+  it("tells the page when a tap can't answer, and when that changes", () => {
+    const { frameWindow, view, fromPage } = mount(open, false)
+    fromPage({ type: "screenplay:question-request" })
+    expect(frameWindow.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        question: expect.objectContaining({ answerable: false }),
+      }),
+      "*"
+    )
+    view.rerender({ found: open, answerable: true })
+    expect(frameWindow.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        question: expect.objectContaining({ answerable: true }),
       }),
       "*"
     )

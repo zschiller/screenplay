@@ -12,6 +12,8 @@ export type CardQuestion = {
   recommended: number | null
   /** Null until someone answers; `index` null when they typed an answer. */
   answer: { index: number | null } | null
+  /** False while a pick here can't reach the card (the page is live, or the agent drives it): answer in the chat. */
+  answerable?: boolean
 }
 
 type Bridge = {
@@ -35,6 +37,19 @@ export function draft(text: string) {
 /** Answers the open question card with its option `index`, as a click on the card does. */
 export function answer(index: number) {
   return bridge()?.answer?.(index) ?? false
+}
+
+/**
+ * Whether a pick on the page answers the open card: false while the canvas
+ * can't take it (the page is live, or the agent drives it), so the pick stays on the page.
+ */
+export function canAnswer(q: CardQuestion | null): q is CardQuestion {
+  return !!q && !q.answer && q.answerable !== false
+}
+
+/** Whether the card is open but a pick here can't answer it: answer in the chat. */
+export function answersInChat(q: CardQuestion | null): q is CardQuestion {
+  return !!q && !q.answer && q.answerable === false
 }
 
 // The bridge only adds listeners, so one listener feeds every hook.

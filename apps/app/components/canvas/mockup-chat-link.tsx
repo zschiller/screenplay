@@ -50,6 +50,8 @@ export function useMockupQuestion(
 export interface MockupPageChat {
   /** The question the page offers (`screenplay.question()`). */
   question: AskedQuestion | null
+  /** Whether a tap on the page can answer it at all (see `pageAnswers`). */
+  answerable: boolean
   /**
    * The page drafted a message (`screenplay.draft`, #1645). Unset while this
    * viewer's tap may not draft (see `pageVoice`).
@@ -70,11 +72,11 @@ export interface MockupPageChat {
  */
 export function useMockupPageChat(
   port: BridgePort,
-  { question, onDraft, onAnswer }: MockupPageChat
+  { question, answerable, onDraft, onAnswer }: MockupPageChat
 ): void {
   const pageQuestion = useMemo(
-    () => (question ? toPageQuestion(question) : null),
-    [question]
+    () => (question ? toPageQuestion(question, answerable) : null),
+    [question, answerable]
   )
   const latest = useRef({ question, pageQuestion, onDraft, onAnswer })
   useEffect(() => {

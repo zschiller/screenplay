@@ -235,3 +235,16 @@ export function pageVoice(viewer: MockupViewer): PageVoice {
   const speaks = viewer.focused && viewer.driver.kind !== "agent"
   return { draft: speaks, answer: speaks }
 }
+
+/**
+ * Whether a tap on the page can answer its question at all, which the page is
+ * told (`answerable`) so it keeps a pick it can't send on the page and says to
+ * answer in the chat, rather than showing it as the card's answer. Never on a
+ * live page (see {@link pageVoice}), the same for every viewer; in their own
+ * copy, unless the agent drives it. Unlike `pageVoice`, focus doesn't count:
+ * nothing reaches a page they aren't interacting with, and the page shouldn't
+ * change as they start to.
+ */
+export function pageAnswers(viewer: MockupViewer): boolean {
+  return !viewer.live && viewer.driver.kind !== "agent"
+}

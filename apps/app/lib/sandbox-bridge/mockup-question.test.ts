@@ -17,6 +17,7 @@ type Question = {
   options: { label: string; detail?: string }[]
   recommended: number | null
   answer: { index: number | null } | null
+  answerable: boolean
 }
 const screenplay = () =>
   (
@@ -53,6 +54,7 @@ const open: Question = {
   options: [{ label: "Show prices" }, { label: "Names only" }],
   recommended: 1,
   answer: null,
+  answerable: true,
 }
 
 beforeAll(() => {
@@ -105,6 +107,14 @@ describe("Mockup question runtime (#1644)", () => {
     apply(open)
     expect(screenplay().answer(2)).toBe(false)
     expect(screenplay().answer(-1)).toBe(false)
+    await flush()
+    expect(posted).toEqual([])
+  })
+
+  it("does nothing where the canvas can't take an answer (the page is live, or the agent drives it)", async () => {
+    gesture(true)
+    apply({ ...open, answerable: false })
+    expect(screenplay().answer(1)).toBe(false)
     await flush()
     expect(posted).toEqual([])
   })

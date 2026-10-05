@@ -20,7 +20,7 @@ import {
   useMockupPageChat,
   useMockupQuestion,
 } from "@/components/canvas/mockup-chat-link"
-import { pageVoice } from "@/lib/canvas/mockup-chat-link"
+import { pageAnswers, pageVoice } from "@/lib/canvas/mockup-chat-link"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
@@ -356,9 +356,11 @@ export function MockupLayer({
   // viewer.
   const link = useMockupChatLink()
   const question = useMockupQuestion(link, layer.id)
-  const voice = pageVoice({ focused, driver, live: shared, liveDriver })
+  const viewer = { focused, driver, live: shared, liveDriver }
+  const voice = pageVoice(viewer)
   useMockupPageChat(page.port, {
     question,
+    answerable: pageAnswers(viewer),
     onDraft:
       link && voice.draft ? (text) => link.draft(layer.id, text) : undefined,
     onAnswer:

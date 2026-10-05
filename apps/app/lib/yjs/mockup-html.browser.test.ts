@@ -333,6 +333,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
                 ],
                 recommended: 0,
                 answer: null,
+                answerable: true,
               },
             },
             "*"
@@ -361,6 +362,62 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
     expect(posted[1]!.text).toContain("→ The first question: B: Short name")
     await page.evaluate("document.querySelector('iframe').remove()")
   })
+
+  // While a tap can't answer (the page is live, or the agent drives it), Pick keeps the
+  // pick on the page, sends nothing and says to answer in the chat.
+  it("keeps the pick on the page while it can't answer the card", async () => {
+    const { html, resources } = templatePage(
+      "screenplay-explore-with-mockups",
+      "exploration-template.html"
+    )
+    const doc = mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources)
+    await page.evaluate((srcdoc) => {
+      const w = window as unknown as { posted: unknown[] }
+      w.posted = []
+      const frame = document.createElement("iframe")
+      frame.setAttribute("sandbox", "allow-scripts")
+      frame.style.cssText = "width:1000px;height:800px"
+      addEventListener("message", (e) => {
+        const data = e.data
+        if (e.source !== frame.contentWindow || !data?.type) return
+        w.posted.push(data)
+        // The canvas's side: the sample data's question, still open
+        if (data.type === "screenplay:question-request")
+          frame.contentWindow!.postMessage(
+            {
+              type: "screenplay:question-apply",
+              question: {
+                id: "call-1",
+                question: "The first question",
+                options: [
+                  { label: "A: Short name" },
+                  { label: "B: Short name" },
+                ],
+                recommended: 0,
+                answer: null,
+                answerable: false,
+              },
+            },
+            "*"
+          )
+      })
+      frame.srcdoc = srcdoc
+      document.body.append(frame)
+    }, doc)
+    const frame = page.frameLocator("iframe")
+    await frame.getByRole("radio", { name: /^B/ }).first().click()
+    await frame.getByRole("button", { name: "Pick B" }).click()
+    await frame.getByRole("button", { name: "Picked B" }).waitFor()
+    await frame
+      .getByText("Answer in the chat")
+      .filter({ visible: true })
+      .waitFor()
+    const posted = (await page.evaluate(
+      "window.posted.filter((m) => /answer/.test(m.type))"
+    )) as unknown[]
+    expect(posted).toEqual([])
+    await page.evaluate("document.querySelector('iframe').remove()")
+  }, 20_000)
 })
 
 /** An App Skill's template page and the Skill files its references name. */

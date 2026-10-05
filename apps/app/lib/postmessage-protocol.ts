@@ -83,6 +83,12 @@ export interface PageQuestion {
   recommended: number | null
   /** Null while open; `index` is null when the reply wasn't an option. */
   answer: { index: number | null } | null
+  /**
+   * Whether a tap on the page can answer it at all: false on a live page or
+   * while the agent drives it (`pageAnswers`), when `screenplay.answer`
+   * returns false.
+   */
+  answerable: boolean
 }
 
 // Iframe -> Canvas

@@ -15,6 +15,8 @@ import { TabsContent } from "@workspace/ui/components/tabs"
 
 import {
   answer as answerCard,
+  answersInChat,
+  canAnswer,
   type CardQuestion,
   onCanvas,
   useCardQuestion,
@@ -31,6 +33,7 @@ import {
   Shell,
   Tag,
 } from "../shared/kit.tsx"
+import { AnswerInChat } from "../shared/choices.tsx"
 import { CopyBar, Facts, Html, Label, load, store } from "../shared/page.tsx"
 import { Shots } from "../shared/shots.tsx"
 import { useTheme } from "../shared/theme.tsx"
@@ -49,6 +52,8 @@ type PickProps = {
   pick: (q: string, v: string) => void
   /** The question the chat's open card asks, once it's answered (on a canvas). */
   sent?: string
+  /** The question the chat's open card asks while a pick here can't answer it (the page is live, or the agent drives it). */
+  chatOnly?: string
 }
 
 const norm = (s: string) => s.trim().toLowerCase()
@@ -129,7 +134,7 @@ export function Exploration({
   const pick = (k: string, v: string) => {
     if (answered && linked?.q.key === k) return
     const next = picks[k] === v ? undefined : v
-    if (next && linked?.q.key === k && card && !card.answer)
+    if (next && linked?.q.key === k && canAnswer(card))
       answerCard(linked.values.indexOf(next))
     setPicks({ ...picks, [k]: next })
     if (next === "changes") setNoteOpen(true)
@@ -173,7 +178,12 @@ export function Exploration({
 
   const [tab, setTab] = React.useState(`r${latest.n}`)
   useSharedState("round", tab, setTab)
-  const pickProps = { picks, pick, sent: answered ? linked!.q.key : undefined }
+  const pickProps = {
+    picks,
+    pick,
+    sent: answered ? linked!.q.key : undefined,
+    chatOnly: linked && answersInChat(card) ? linked.q.key : undefined,
+  }
 
   return (
     <Shell
@@ -300,6 +310,7 @@ function QuestionBlock({
   picks,
   pick,
   sent,
+  chatOnly,
 }: { round: Round; q: Question; i: number; live: boolean } & PickProps) {
   const n = r.questions.length
   const [opt, setOpt] = React.useState(
@@ -332,6 +343,7 @@ function QuestionBlock({
       picks={picks}
       pick={pick}
       sent={live && sent === q.key ? sent : undefined}
+      chatOnly={live && chatOnly === q.key ? chatOnly : undefined}
     />
   )
   return (
@@ -387,6 +399,7 @@ function Card({
   picks,
   pick,
   sent,
+  chatOnly,
 }: { q: Question; o: Option; live: boolean } & PickProps) {
   const mine = picks[q.key]
   return (
@@ -431,6 +444,7 @@ function Card({
               {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
             </Button>
           )}
+          {chatOnly && <AnswerInChat />}
         </div>
       )}
     </article>
