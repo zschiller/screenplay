@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type KeyboardEvent } from "react"
 import { Badge } from "@workspace/ui/components/badge"
 import {
   Questionnaire,
@@ -26,6 +26,10 @@ import { InlineRef } from "./inline-ref"
  * Once a user message follows the call, the card is answered: the chosen
  * option stays checked and the others are disabled, and on a shared Canvas
  * the card names who answered.
+ *
+ * Only a click, Space or Enter answers. Arrow keys move between choices
+ * without picking: a native radio group checks the choice it moves to, which
+ * here would send it.
  *
  * A question about a Mockup (#1644) names it under the question, and the name
  * brings it into view. Its page can answer the question too, sending the same
@@ -58,7 +62,40 @@ export function QuestionCard({
   const pick = (index: number) => {
     if (answered || !chatId) return
     setSent(index)
-    inputStore.send(chatId, question.options[index]!.label)
+    // A refused send holds its text in the chat for Retry; the card opens
+    // again so a pick can be made here.
+    void inputStore.send(chatId, question.options[index]!.label).then((ok) => {
+      if (!ok) setSent(null)
+    })
+  }
+
+  // On the choices, so it runs before the Questionnaire's own keys on the
+  // form, which skip a key handled here.
+  const onChoicesKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    // One radio per option, in order.
+    const radios = Array.from(
+      e.currentTarget.querySelectorAll<HTMLInputElement>("input[type=radio]")
+    )
+    const index = radios.indexOf(e.target as HTMLInputElement)
+    if (index < 0) return
+    if (e.key === "Enter") {
+      e.preventDefault()
+      if (!e.repeat) pick(index)
+      return
+    }
+    const inputs = radios.filter((r) => !r.disabled)
+    const at = inputs.indexOf(radios[index]!)
+    if (at < 0) return
+    const step =
+      e.key === "ArrowDown" || e.key === "ArrowRight"
+        ? 1
+        : e.key === "ArrowUp" || e.key === "ArrowLeft"
+          ? -1
+          : 0
+    if (!step) return
+    e.preventDefault()
+    inputs[(at + step + inputs.length) % inputs.length]!.focus()
   }
 
   return (
@@ -77,7 +114,7 @@ export function QuestionCard({
         {/* The answer line sits as close under the choices as a sender's
             name sits over their message. */}
         <div className="flex flex-col gap-1">
-          <QuestionnaireChoices>
+          <QuestionnaireChoices onKeyDown={onChoicesKeyDown}>
             {question.options.map((option, i) => (
               <QuestionnaireChoice
                 key={i}

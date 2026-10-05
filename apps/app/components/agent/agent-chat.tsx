@@ -370,7 +370,7 @@ export function AgentChat({
   useEffect(() => {
     return inputStore.subscribeSend(chatId, (text) => {
       if (!model && effectiveModel) onModelChange?.(effectiveModel)
-      void sendMessage(text, { model: effectiveModel })
+      return sendMessage(text, { model: effectiveModel })
     })
   }, [chatId, sendMessage, effectiveModel, model, onModelChange])
 

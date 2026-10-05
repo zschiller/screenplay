@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
 import type { AgentMessage } from "@/lib/agent/types"
+import { inputStore } from "@/lib/input-store"
 import { viewRequests, type ViewRequest } from "@/lib/canvas/view-requests"
 import { QuestionCard } from "./question-card"
 
@@ -67,5 +74,67 @@ describe("QuestionCard on a Mockup (#1644)", () => {
     expect(choice(/Names only/).checked).toBe(true)
     expect(choice(/Show prices/).disabled).toBe(true)
     expect(screen.queryByTestId("question-answered-by")).toBeNull()
+  })
+})
+
+describe("QuestionCard keys", () => {
+  const listen = (result: boolean | Promise<boolean> = true) => {
+    const sent: string[] = []
+    const unsubscribe = inputStore.subscribeSend("c", (t) => {
+      sent.push(t)
+      return result
+    })
+    return { sent, unsubscribe }
+  }
+
+  it("moves between choices with the arrow keys without sending", () => {
+    const { sent, unsubscribe } = listen()
+    render(<QuestionCard message={ask({})} chatId="c" />)
+
+    choice(/Show prices/).focus()
+    fireEvent.keyDown(choice(/Show prices/), { key: "ArrowDown" })
+    expect(document.activeElement).toBe(choice(/Names only/))
+    fireEvent.keyDown(choice(/Names only/), { key: "ArrowDown" })
+    expect(document.activeElement).toBe(choice(/Show prices/))
+    fireEvent.keyDown(choice(/Show prices/), { key: "ArrowUp" })
+    expect(document.activeElement).toBe(choice(/Names only/))
+    unsubscribe()
+
+    expect(sent).toEqual([])
+    expect(choice(/Show prices/).checked).toBe(false)
+    expect(choice(/Names only/).checked).toBe(false)
+  })
+
+  it("sends the focused choice on Enter", () => {
+    const { sent, unsubscribe } = listen()
+    render(<QuestionCard message={ask({})} chatId="c" />)
+
+    choice(/Names only/).focus()
+    fireEvent.keyDown(choice(/Names only/), { key: "Enter" })
+    unsubscribe()
+
+    expect(sent).toEqual(["Names only"])
+    expect(choice(/Names only/).checked).toBe(true)
+    expect(choice(/Show prices/).disabled).toBe(true)
+  })
+
+  it("opens again when the send is refused", async () => {
+    const { sent, unsubscribe } = listen(Promise.resolve(false))
+    render(<QuestionCard message={ask({})} chatId="c" />)
+
+    fireEvent.click(choice(/Names only/))
+    expect(choice(/Show prices/).disabled).toBe(true)
+    await waitFor(() => expect(choice(/Show prices/).disabled).toBe(false))
+    expect(choice(/Names only/).checked).toBe(false)
+
+    fireEvent.click(choice(/Show prices/))
+    unsubscribe()
+    expect(sent).toEqual(["Names only", "Show prices"])
+  })
+
+  it("opens again when no chat takes the send", async () => {
+    render(<QuestionCard message={ask({})} chatId="nobody" />)
+    fireEvent.click(choice(/Names only/))
+    await waitFor(() => expect(choice(/Show prices/).disabled).toBe(false))
   })
 })
