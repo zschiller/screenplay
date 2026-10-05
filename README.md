@@ -1,11 +1,10 @@
 <h1 align="center">Screenplay</h1>
 
-<p align="center"><strong>Every branch, side by side.</strong></p>
+<p align="center"><strong>From idea to code, on one canvas.</strong></p>
 
 <p align="center">
-  A canvas for building software with coding agents. Every branch gets its own
-  running app, laid out as live previews on an infinite canvas, with the
-  agent's chat right beside it.
+  Coding agents plan, mock up and build from your own repo, with every version
+  live side by side.
 </p>
 
 <p align="center">
@@ -17,24 +16,30 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/screenshots/hero.dark.webp">
-  <img alt="A Screenplay canvas: layers in the sidebar, desktop and mobile previews of a marketing site on the canvas, and the agent's chat on the right" src="apps/docs/public/screenshots/hero.light.webp">
+  <img alt="A Screenplay canvas: layers in the sidebar, desktop and mobile previews of a marketing site on the canvas, and the agent’s chat on the right" src="apps/docs/public/screenshots/hero.light.webp">
 </picture>
 
-## Why Screenplay
+## Every handoff starts from scratch
 
-Working with coding agents usually means a terminal per branch, a browser tab
-per dev server, and a lot of switching between them. Screenplay puts all of it
-on one canvas:
+The plan sits in a doc, the mockup in a design tool that has never seen your
+components, and the build in a terminal and a browser tab. Screenplay puts all
+three on one canvas, next to your code.
 
-- **Every branch runs.** Each workspace is its own git branch with its own dev
-  server. Try three directions at once and compare them visually.
-- **Every screen, every size.** Frames are live, clickable previews of any
-  route at desktop, tablet or phone size. Hot reload keeps them current.
-- **One place to ask.** The Coordinator sees every workspace, frame and
-  document on the canvas, hands work to the right workspace's agent, and tells
-  you when something needs you.
-- **Point, don't describe.** Target an element in a preview, mention a
-  document, or load a skill straight from the chat composer.
+## Plan it, sketch it, build it
+
+Type a prompt anywhere on the canvas and an agent makes it right there. It
+reads your code first, so whatever it makes fits your app.
+
+- **Plan it.** A plan or a spec, written as a document next to the work. It
+  stays current as things change.
+- **Sketch it.** Mockups made with your own components, styles and copy.
+  Compare a few takes before anything gets built.
+- **Build it.** The change runs live on a branch of its own, right beside the
+  other versions.
+- **Ship it.** Open a pull request for the version you keep.
+
+Chats share memory, files and skills, so what you tell one chat, every chat
+knows.
 
 <table>
   <tr>
@@ -43,7 +48,7 @@ on one canvas:
         <source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/screenshots/coordinator.dark.webp">
         <img alt="The Coordinator panel beside a canvas, offering questions about the canvas" src="apps/docs/public/screenshots/coordinator.light.webp">
       </picture>
-      <p><strong>Ask the Coordinator.</strong> It sees the whole canvas, so you can ask what changed in each workspace or which ones have a pull request.</p>
+      <p><strong>Ask the Coordinator.</strong> One chat for the whole canvas. It starts a chat for each version or task, follows every one, and tells you when one needs you.</p>
     </td>
     <td width="50%" valign="top">
       <picture>
@@ -57,7 +62,7 @@ on one canvas:
     <td width="50%" valign="top">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/screenshots/play-agent.dark.webp">
-        <img alt="Play mode: a workspace's app full screen with its chat docked on the right" src="apps/docs/public/screenshots/play-agent.light.webp">
+        <img alt="Play mode: a workspace’s app full screen with its chat docked on the right" src="apps/docs/public/screenshots/play-agent.light.webp">
       </picture>
       <p><strong>Try it full screen.</strong> Play mode opens any workspace as a clickable prototype, with its chat docked alongside.</p>
     </td>
@@ -73,13 +78,13 @@ on one canvas:
 
 ## Two ways to run it
 
-|                | Desktop app                                                                             | Self-hosted web app                                              |
-| -------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| **For**        | One person on a Mac with Apple silicon                                                  | A team, on infrastructure you deploy                             |
-| **Workspaces** | Git worktrees on your machine                                                           | Cloud sandbox VMs                                                |
-| **Agent**      | The coding CLI you already use (Claude Code, Codex, …), signed in with your own account | The built-in agent, on your model provider keys                  |
-| **Together**   | Single user                                                                             | Shared canvases, live cursors and comments                       |
-| **Start**      | [Quickstart](https://screenplay.space/docs/guides/quickstart)                                  | [Self-hosting guide](https://screenplay.space/docs/self-hosting) |
+|                | Desktop app                                                                      | Self-hosted web app                                                                                       |
+| -------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **For**        | One person on a Mac with Apple silicon                                           | A team, on infrastructure you deploy                                                                      |
+| **Workspaces** | Git worktrees on your machine                                                    | Cloud sandbox VMs                                                                                         |
+| **Agent**      | Claude Code, Codex or OpenCode, with the login and subscription you already have | The built-in agent, on Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint |
+| **Together**   | Single user                                                                      | Shared canvases, live cursors, comments and live frames                                                   |
+| **Start**      | [Quickstart](https://screenplay.space/docs/guides/quickstart)                    | [Self-hosting guide](https://screenplay.space/docs/self-hosting)                                          |
 
 Both are the same product, built from this repository.
 
@@ -106,7 +111,7 @@ Then open http://localhost:3000. The
 [Development guide](https://screenplay.space/docs/contributing) covers the
 multi-user build, the desktop app, and every contributor command.
 
-## What's in this repository
+## What’s in this repository
 
 | Path                                                     | What it is                                                                                   |
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
