@@ -409,17 +409,24 @@ describe("MockupLayer's chat link (#1645, #1644, #1662)", () => {
 
 describe("MockupLayer sizes", () => {
   /** Open the bar's … menu and list its items. */
-  function openMore() {
-    fireEvent.pointerDown(screen.getByRole("button", { name: "More" }), {
-      button: 0,
-      pointerType: "mouse",
-    })
+  function openMenu() {
+    fireEvent.pointerDown(
+      screen.getByRole("button", { name: "Mockup options" }),
+      {
+        button: 0,
+        pointerType: "mouse",
+      }
+    )
     return screen.getAllByRole("menuitem").map((item) => item.textContent)
   }
 
   it("offers a frame's Device size and Fit to content", () => {
-    renderMockup({ onSetSize: () => {}, onDuplicate: () => {} })
-    expect(openMore()).toEqual([
+    renderMockup({
+      onSetSize: () => {},
+      onDuplicate: () => {},
+      onRemove: () => {},
+    })
+    expect(openMenu()).toEqual([
       "Rename",
       "Duplicate⌘D",
       "Device size",
@@ -428,10 +435,15 @@ describe("MockupLayer sizes", () => {
     ])
   })
 
+  it("has no Delete when it can't be removed", () => {
+    renderMockup({ onSetSize: () => {} })
+    expect(openMenu()).not.toContain("Delete")
+  })
+
   it("sets a device size from the menu", () => {
     const onSetSize = vi.fn()
     renderMockup({ onSetSize })
-    openMore()
+    openMenu()
     fireEvent.keyDown(screen.getByRole("menuitem", { name: "Device size" }), {
       key: "ArrowRight",
     })
@@ -442,7 +454,7 @@ describe("MockupLayer sizes", () => {
   it("fits to the page's full size", async () => {
     const onSetSize = vi.fn()
     renderMockup({ onSetSize })
-    openMore()
+    openMenu()
     await act(async () => {
       fireEvent.click(screen.getByRole("menuitem", { name: "Fit to content" }))
     })
@@ -452,6 +464,6 @@ describe("MockupLayer sizes", () => {
   it("has nothing to fit while the chat is still sketching it", () => {
     html = ""
     renderMockup({ onSetSize: () => {} })
-    expect(openMore()).not.toContain("Fit to content")
+    expect(openMenu()).not.toContain("Fit to content")
   })
 })

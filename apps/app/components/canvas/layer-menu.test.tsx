@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
+import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
+  LayerMenu,
   LayerMenuContent,
   LayerMenuProvider,
   useRegisterLayerMenu,
@@ -80,6 +89,15 @@ describe("LayerMenuContent", () => {
     expect(items()).toEqual(["Rename", "Delete"])
   })
 
+  it("shows no Delete, and no separator before it, without a removal", () => {
+    openMenu({
+      actions: { noun: "mockup", onDuplicate: vi.fn() },
+      onRename: vi.fn(),
+    })
+    expect(items()).toEqual(["Rename", "Duplicate ⌘D"])
+    expect(screen.queryAllByRole("separator")).toEqual([])
+  })
+
   it("Delete calls the object's removal", () => {
     const onDelete = vi.fn()
     openMenu({ actions: { noun: "group", onDelete }, onRename: vi.fn() })
@@ -127,4 +145,96 @@ describe("a sidebar row's menu", () => {
     )
     expect(items()).toEqual(["Rename", "Delete"])
   })
+})
+
+/** Press a trigger the way Radix's dropdown opens on. */
+function press(trigger: HTMLElement) {
+  fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" })
+}
+
+describe("LayerMenu", () => {
+  const nouns = ["frame", "mockup", "document", "group"] as const
+  const names = {
+    frame: "Frame options",
+    mockup: "Mockup options",
+    document: "Document options",
+    group: "Group options",
+  }
+
+  it.each(nouns)("names every %s trigger after the object", (noun) => {
+    render(
+      <LayerMenuProvider>
+        <LayerMenu placement="toolbar" actions={{ noun }} />
+        <LayerMenu placement="label" actions={{ noun }} />
+        <LayerMenu placement="row" layerId="layer-1" actions={{ noun }} />
+      </LayerMenuProvider>
+    )
+    expect(screen.getAllByRole("button", { name: names[noun] })).toHaveLength(3)
+    expect(screen.queryByRole("button", { name: "More" })).toBeNull()
+  })
+
+  it("opens the object's menu from the toolbar", () => {
+    render(<LayerMenu placement="toolbar" actions={frame()} />)
+    press(screen.getByRole("button", { name: "Frame options" }))
+    expect(items()).toEqual([
+      "Duplicate ⌘D",
+      "Device size",
+      "Fit to content",
+      "Chat",
+      "Delete",
+    ])
+  })
+
+  /** A Canvas list of three rows of one kind, the middle one a Group header
+   *  with a member when `noun` is "group". */
+  function Rows({ noun }: { noun: (typeof nouns)[number] }) {
+    const [ids, setIds] = useState(["a", "b", "c"])
+    const row = (id: string) => (
+      <>
+        <button data-sidebar="menu-button">{`Row ${id}`}</button>
+        <LayerMenu
+          placement="row"
+          layerId={id}
+          actions={{
+            noun,
+            onDelete: () => setIds((all) => all.filter((x) => x !== id)),
+          }}
+        />
+      </>
+    )
+    return (
+      <LayerMenuProvider>
+        {ids.map((id) =>
+          noun === "group" && id === "b" ? (
+            <div key={id} data-sidebar="menu-item">
+              <div data-sidebar-row="group">{row(id)}</div>
+              <div data-sidebar-row="row">
+                <button data-sidebar="menu-sub-button">Member</button>
+              </div>
+            </div>
+          ) : (
+            <div key={id} data-sidebar-row="row">
+              {row(id)}
+            </div>
+          )
+        )}
+      </LayerMenuProvider>
+    )
+  }
+
+  it.each(nouns)(
+    "moves focus to the next row when a %s row's menu deletes it",
+    async (noun) => {
+      render(<Rows noun={noun} />)
+      const triggers = screen.getAllByRole("button", { name: names[noun] })
+      act(() => triggers[1]!.focus())
+      press(triggers[1]!)
+      fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }))
+      expect(screen.queryByText("Row b")).toBeNull()
+      // The menu's close moves focus once it has unmounted.
+      await waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByText("Row c"))
+      )
+    }
+  )
 })

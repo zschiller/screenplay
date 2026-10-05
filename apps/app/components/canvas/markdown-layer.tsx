@@ -94,7 +94,8 @@ import { baseName } from "@/lib/files/paths"
 import { toast } from "sonner"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
-  LayerLabelMenu,
+  LayerMenu,
+  useRegisterLayerMenu,
   type LayerMenuActions,
 } from "@/components/canvas/layer-menu"
 import {
@@ -481,12 +482,15 @@ export function MarkdownLayer({
 }: MarkdownLayerProps) {
   const { awareness } = useYjs()
   // A document has no toolbar until it's being edited, so its one menu (I7)
-  // sits on its label as … while it alone is selected.
+  // sits on its label as … while it alone is selected, and its sidebar row
+  // opens the same one.
   const titleEditableRef = useRef<EditableTextHandle>(null)
-  const menuActions: LayerMenuActions | undefined = onRemove
-    ? { noun: "document", onDelete: () => onRemove(layer.id) }
-    : undefined
-  const showMenu = !!menuActions && selected && !multiSelected && !editing
+  const menuActions: LayerMenuActions = {
+    noun: "document",
+    onDelete: onRemove ? () => onRemove(layer.id) : undefined,
+  }
+  useRegisterLayerMenu(layer.id, menuActions)
+  const showMenu = !!onRemove && selected && !multiSelected && !editing
   const provider = useMemo(() => ({ awareness }), [awareness])
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -1106,8 +1110,9 @@ export function MarkdownLayer({
                     </span>
                   </MaybeWorkspaceHoverCard>
                 )}
-                {showMenu && menuActions && (
-                  <LayerLabelMenu
+                {showMenu && (
+                  <LayerMenu
+                    placement="label"
                     actions={menuActions}
                     onRename={
                       onRename

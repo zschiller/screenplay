@@ -30,7 +30,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { FloatingToolbarButton } from "@workspace/ui/components/floating-toolbar"
 import { IconButton } from "@workspace/ui/components/icon-button"
+import { SidebarMenuAction } from "@workspace/ui/components/sidebar"
 import { cn } from "@workspace/ui/lib/utils"
 import { useChatsMenu } from "@/components/agent/chats-menu"
 import {
@@ -39,13 +41,15 @@ import {
 } from "@/components/agent/workspace-menu"
 import { MenuKeys } from "@/components/menu-keys"
 import { OpenInBrowserItem } from "@/components/open-in-browser-item"
+import { useFocusNeighbourOnDelete } from "@/components/panels/layer-rows/row-focus"
 import { DUPLICATE_KEYS } from "@/lib/canvas/shortcuts"
 import { DeviceSizeSubMenu } from "./device-size-menu"
 
 /**
  * One menu per object (I7): a frame, mockup, document or Group has one menu,
  * and the sidebar row's … and the canvas's … (the toolbar's, or the label's
- * for a document or Group) both render it from here, so the two can't drift.
+ * for a document or Group) both render it through {@link LayerMenu}, so the
+ * two can't drift.
  *
  * The items, in order, each shown when the object has it: Rename, Duplicate,
  * then the frame's Device size, Fit to content and Chat, then Delete.
@@ -66,11 +70,18 @@ export interface LayerMenuActions {
     onPlay?: () => void
     onOpenInBrowser?: () => void
   }
-  onDelete: () => void
+  /** Delete, when the object can be removed. */
+  onDelete?: () => void
 }
 
+/** Every … trigger's name and tooltip: "Frame options", "Group options". */
 export function layerMenuLabel(noun: LayerMenuActions["noun"]) {
   return `${noun.charAt(0).toUpperCase()}${noun.slice(1)} options`
+}
+
+/** A Group's menu, the same on its canvas label and its sidebar row. */
+export function groupLayerMenu(onDelete: () => void): LayerMenuActions {
+  return { noun: "group", onDelete }
 }
 
 type PendingRename = { kind: "layer" } | { kind: "chat"; branchId: string }
@@ -233,54 +244,129 @@ function LayerMenuItems({
           )}
         </>
       )}
-      {(canRename || actions.onDuplicate || showFrameItems) && (
-        <DropdownMenuSeparator />
+      {actions.onDelete && (
+        <>
+          {(canRename || actions.onDuplicate || showFrameItems) && (
+            <DropdownMenuSeparator />
+          )}
+          <DropdownMenuItem variant="destructive" onSelect={actions.onDelete}>
+            <TrashIcon />
+            Delete
+          </DropdownMenuItem>
+        </>
       )}
-      <DropdownMenuItem variant="destructive" onSelect={actions.onDelete}>
-        <TrashIcon />
-        Delete
-      </DropdownMenuItem>
     </>
   )
 }
 
+export type LayerMenuPlacement = "toolbar" | "label" | "row"
+
 /**
- * The … on a selected document's or Group's canvas label, which has no
- * toolbar of its own. Sits at the end of the label row at the name's height,
- * so showing it moves nothing.
+ * An object's … and its menu. `placement` picks the trigger:
+ * - `toolbar`: the last button on a selected frame's or Mockup's toolbar.
+ * - `label`: at the end of a canvas label row, at the name's height, for a
+ *   document, a Group or a frame with no toolbar; showing it moves nothing.
+ * - `row`: a sidebar row's hover …. It opens the menu the Layer published
+ *   (`actions` stands in while the Layer isn't mounted), and deleting from it
+ *   moves focus to the neighbouring row.
  */
-export function LayerLabelMenu({
+export function LayerMenu(
+  props: {
+    /** The menu; on a row, the stand-in until the Layer publishes one. */
+    actions: LayerMenuActions
+    /** Starts the inline rename of the object's name where the menu opened. */
+    onRename?: () => void
+    /** The trigger's classes, e.g. a row's hover placement. */
+    className?: string
+  } & (
+    | { placement: "toolbar" | "label" }
+    | {
+        placement: "row"
+        /** The row's Layer or Group, whose published menu it opens. */
+        layerId: string
+      }
+  )
+) {
+  if (props.placement === "row") return <RowLayerMenu {...props} />
+  const { placement, actions, onRename, className } = props
+  const label = layerMenuLabel(actions.noun)
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {placement === "toolbar" ? (
+          <FloatingToolbarButton label={label} className={className}>
+            <DotsThreeIcon className="text-muted-foreground" />
+          </FloatingToolbarButton>
+        ) : (
+          <IconButton label={label} asChild>
+            <button
+              type="button"
+              className={cn(
+                "inline-flex h-[18px] shrink-0 cursor-pointer items-center text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground data-[state=open]:text-foreground",
+                className
+              )}
+              // Pressing it opens the menu; it doesn't select, drag or reorder.
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+            >
+              <DotsThreeIcon className="size-4" />
+            </button>
+          </IconButton>
+        )}
+      </DropdownMenuTrigger>
+      {placement === "toolbar" ? (
+        <LayerMenuContent
+          actions={actions}
+          onRename={onRename}
+          side="bottom"
+          align="end"
+          sideOffset={8}
+        />
+      ) : (
+        <LayerMenuContent
+          actions={actions}
+          onRename={onRename}
+          side="bottom"
+          align="start"
+        />
+      )}
+    </DropdownMenu>
+  )
+}
+
+function RowLayerMenu({
+  layerId,
   actions,
   onRename,
   className,
 }: {
+  layerId: string
   actions: LayerMenuActions
   onRename?: () => void
   className?: string
 }) {
+  const { triggerRef, onOpenChange, onCloseAutoFocus } =
+    useFocusNeighbourOnDelete()
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <IconButton label={layerMenuLabel(actions.noun)} asChild>
-          <button
-            type="button"
-            className={cn(
-              "inline-flex h-[18px] shrink-0 cursor-pointer items-center text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground data-[state=open]:text-foreground",
-              className
-            )}
-            // Pressing it opens the menu; it doesn't select, drag or reorder.
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            <DotsThreeIcon className="size-4" />
-          </button>
+    <DropdownMenu onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger ref={triggerRef} asChild>
+        <IconButton
+          label={layerMenuLabel(actions.noun)}
+          tooltipSide="right"
+          asChild
+        >
+          <SidebarMenuAction className={className}>
+            <DotsThreeIcon />
+          </SidebarMenuAction>
         </IconButton>
       </DropdownMenuTrigger>
       <LayerMenuContent
+        layerId={layerId}
         actions={actions}
         onRename={onRename}
-        side="bottom"
+        onCloseAutoFocus={onCloseAutoFocus}
+        side="right"
         align="start"
       />
     </DropdownMenu>
@@ -336,6 +422,19 @@ export function useRegisterLayerMenu(id: string, actions: LayerMenuActions) {
     registry.set(id, actions)
   })
   useEffect(() => () => registry.set(id, undefined), [registry, id])
+}
+
+/** {@link useRegisterLayerMenu} as an element, for menus built in a list,
+ *  such as each Group's on the canvas. */
+export function PublishLayerMenu({
+  id,
+  actions,
+}: {
+  id: string
+  actions: LayerMenuActions
+}) {
+  useRegisterLayerMenu(id, actions)
+  return null
 }
 
 /** The menu a mounted Layer published, for its sidebar row. */

@@ -107,13 +107,13 @@ instead. From left to right:
 | Button                | What it does                                                                                                                                                                                                                                                                                                                                          |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Back**, **Forward** | Step through the routes this frame has shown.                                                                                                                                                                                                                                                                                                         |
-| **Address**           | The frame’s route. Click it to type a new one. A [status dot](#the-status-dot) at its start means the preview is down. At its end are **Record flow** and **Reload**.                                                                                                                                                                                  |
-| **Record flow**       | The dot inside the address. Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. The address turns red with a screen count while recording.                                                                    |
+| **Address**           | The frame’s route. Click it to type a new one. A [status dot](#the-status-dot) at its start means the preview is down. At its end are **Record flow** and **Reload**.                                                                                                                                                                                 |
+| **Record flow**       | The dot inside the address. Like Interact, but every time you navigate, a snapshot of the previous page is left behind in the group. Clicking through a signup therefore lays the whole flow out as a row of screens. The address turns red with a screen count while recording.                                                                      |
 | **Reload**            | Reloads the preview. While the page loads, a spinner takes its place.                                                                                                                                                                                                                                                                                 |
 | **Interact**          | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it, though <kbd>Space</kbd>-drag outside it still pans. Double-clicking a frame does the same. The button and the frame’s outline turn pink, and <kbd>Esc</kbd> (even from inside the preview) or a click outside the frame returns to the canvas. |
 | **Go live**           | <Only hosted /> Switches the frame from everyone’s own copy to one live browser everyone on the canvas watches, and back. See [Live frames](#live-frames).                                                                                                                                                                                            |
 | **Knobs**             | Live controls your app declares. See [Knobs](#knobs).                                                                                                                                                                                                                                                                                                 |
-| **More**              | The [frame menu](/guides/canvas#layer-menus): **Rename**, **Duplicate**, **Device size**, **Fit to content**, a **Chat** submenu with the [chat menu](/guides/workspaces#workspace-actions), and **Delete**. Its row in the layers list opens the same menu.                                                                                          |
+| **Frame options**     | The [frame menu](/guides/canvas#layer-menus): **Rename**, **Duplicate**, **Device size**, **Fit to content**, a **Chat** submenu with the [chat menu](/guides/workspaces#workspace-actions), and **Delete**. Its row in the layers list opens the same menu.                                                                                          |
 
 <Screenshot
   name="frame-tooltip-interact"
@@ -265,7 +265,7 @@ on your Mac.
 
 <Screenshot
   name="frame-more-menu"
-  alt="The More menu: Rename, Duplicate, Device size, Fit to content, Chat, Delete"
+  alt="The frame menu: Rename, Duplicate, Device size, Fit to content, Chat, Delete"
 />
 
 ## The agent driving a frame
@@ -362,18 +362,18 @@ inside the page.
 
 ## Sizes
 
-**More → Device size** sets exact device dimensions:
+**Frame options → Device size** sets exact device dimensions:
 
 <Screenshot
   name="device-size-menu"
   alt="The Device size menu grouped into Desktop, Tablet and Mobile"
 />
 
-| Group   | Presets                                                                                                                                                                                                         |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desktop | Desktop 4K (3840×2160), Desktop (1920×1080), MacBook Pro 16″ (1728×1117), MacBook Pro 14″ (1512×982), Laptop (1440×900), Laptop (1280×800)                                                                    |
-| Tablet  | iPad Pro 13″ (M4), iPad Pro 11″ (M4), iPad Air 13″ (M3), iPad Air 11″ (M3), iPad mini (A17 Pro), Galaxy Tab S10 Ultra                                                                                         |
-| Mobile  | iPhone 17 Pro Max, iPhone 17 Pro, iPhone 17, iPhone Air, iPhone SE, Pixel 9 Pro XL, Pixel 9 Pro, Galaxy S25 Ultra, Galaxy S25, Galaxy Z Fold (unfolded)                                                       |
+| Group   | Presets                                                                                                                                                 |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop | Desktop 4K (3840×2160), Desktop (1920×1080), MacBook Pro 16″ (1728×1117), MacBook Pro 14″ (1512×982), Laptop (1440×900), Laptop (1280×800)              |
+| Tablet  | iPad Pro 13″ (M4), iPad Pro 11″ (M4), iPad Air 13″ (M3), iPad Air 11″ (M3), iPad mini (A17 Pro), Galaxy Tab S10 Ultra                                   |
+| Mobile  | iPhone 17 Pro Max, iPhone 17 Pro, iPhone 17, iPhone Air, iPhone SE, Pixel 9 Pro XL, Pixel 9 Pro, Galaxy S25 Ultra, Galaxy S25, Galaxy Z Fold (unfolded) |
 
 You can also drag a corner handle. While resizing, the frame **snaps** to
 nearby device sizes, which are outlined as you get close. Hold <kbd>⌘</kbd>
@@ -418,7 +418,7 @@ While there’s no live page, a frame shows where its workspace is:
 - **Workspace stopped** when its sandbox is stopped. Click **Start**.
 
 <Callout type="info">
-  A preview that never loads usually means the dev server isn’t listening on
-  the port Screenplay assigned. See
+  A preview that never loads usually means the dev server isn’t listening on the
+  port Screenplay assigned. See
   [Troubleshooting](/guides/troubleshooting#previews).
 </Callout>

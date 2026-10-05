@@ -19,7 +19,7 @@ import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceHoverProps } from "@/lib/workspace-hover-store"
 import type { FrameWorkspace } from "./frame-nav"
-import { LayerLabelMenu, type LayerMenuActions } from "./layer-menu"
+import { LayerMenu, type LayerMenuActions } from "./layer-menu"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
 /** Switching a whole Group's Workspace from its label (#869), or one frame's
@@ -95,7 +95,8 @@ export function GroupLabel({ workspace, menu, ...props }: GroupLabelProps) {
   const hoverProps = useWorkspaceHoverProps(workspace?.branchId, "group")
   const editableRef = useRef<EditableTextHandle>(null)
   const menuButton = menu && (
-    <LayerLabelMenu
+    <LayerMenu
+      placement="label"
       actions={menu}
       onRename={
         props.onRename ? () => editableRef.current?.startEditing() : undefined

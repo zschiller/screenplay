@@ -36,7 +36,6 @@ import {
 
 import {
   CaretRightIcon,
-  DotsThreeIcon,
   FolderIcon,
   FolderOpenIcon,
   SidebarSimpleIcon,
@@ -44,7 +43,6 @@ import {
 import {
   SidebarGroup,
   SidebarGroupContent,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarProvider,
 } from "@workspace/ui/components/sidebar"
@@ -60,10 +58,6 @@ import {
   CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible"
 
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -99,11 +93,8 @@ import {
   makeIframeLayerRow,
 } from "@/components/panels/layer-rows/iframe-layer-row"
 import { renameOnF2 } from "@/components/panels/layer-rows/rename-key"
-import {
-  ROW_BUTTON_SELECTOR,
-  useFocusNeighbourOnDelete,
-} from "@/components/panels/layer-rows/row-focus"
-import { LayerMenuContent } from "@/components/canvas/layer-menu"
+import { ROW_BUTTON_SELECTOR } from "@/components/panels/layer-rows/row-focus"
+import { LayerMenu, groupLayerMenu } from "@/components/canvas/layer-menu"
 import {
   frameGroupRowActionClass,
   frameGroupRowButtonClass,
@@ -731,10 +722,7 @@ export function RoomSidebar({
                                   className="group/frame-collapsible flex flex-col"
                                 >
                                   <WithEditableRef>
-                                    {({
-                                      ref: groupNameRef,
-                                      deleteFocus: groupDeleteFocus,
-                                    }) => (
+                                    {({ ref: groupNameRef }) => (
                                       <SortableRow
                                         id={`group:${group.id}`}
                                         groupId={group.id}
@@ -815,47 +803,17 @@ export function RoomSidebar({
                                             ) : null
                                           })()}
                                         </GroupRowButton>
-                                        <DropdownMenu
-                                          onOpenChange={
-                                            groupDeleteFocus.onOpenChange
+                                        <LayerMenu
+                                          placement="row"
+                                          layerId={group.id}
+                                          actions={groupLayerMenu(() =>
+                                            onRemoveIframeLayerGroup(group.id)
+                                          )}
+                                          onRename={() =>
+                                            groupNameRef.current?.startEditing()
                                           }
-                                        >
-                                          <DropdownMenuTrigger
-                                            ref={groupDeleteFocus.triggerRef}
-                                            asChild
-                                          >
-                                            <IconButton
-                                              label="Group options"
-                                              tooltipSide="right"
-                                              asChild
-                                            >
-                                              <SidebarMenuAction
-                                                className={
-                                                  frameGroupRowActionClass
-                                                }
-                                              >
-                                                <DotsThreeIcon />
-                                              </SidebarMenuAction>
-                                            </IconButton>
-                                          </DropdownMenuTrigger>
-                                          <LayerMenuContent
-                                            actions={{
-                                              noun: "group",
-                                              onDelete: () =>
-                                                onRemoveIframeLayerGroup(
-                                                  group.id
-                                                ),
-                                            }}
-                                            onRename={() =>
-                                              groupNameRef.current?.startEditing()
-                                            }
-                                            onCloseAutoFocus={
-                                              groupDeleteFocus.onCloseAutoFocus
-                                            }
-                                            side="right"
-                                            align="start"
-                                          />
-                                        </DropdownMenu>
+                                          className={frameGroupRowActionClass}
+                                        />
                                       </SortableRow>
                                     )}
                                   </WithEditableRef>
@@ -929,19 +887,16 @@ export function RoomSidebar({
 /** Owns a single `EditableText` handle and hands it to its children via
  *  render prop, so a row's name input and the matching dropdown's
  *  "Rename" item can share one ref without lifting state up. The menu
- *  (`LayerMenuContent`) waits for its own close before starting the edit. */
+ *  (`LayerMenu`) waits for its own close before starting the edit. */
 function WithEditableRef({
   children,
 }: {
   children: (api: {
     ref: React.RefObject<EditableTextHandle | null>
-    /** Moves focus to the neighbouring row when the menu deletes this one. */
-    deleteFocus: ReturnType<typeof useFocusNeighbourOnDelete>
   }) => React.ReactNode
 }) {
   const ref = useRef<EditableTextHandle | null>(null)
-  const deleteFocus = useFocusNeighbourOnDelete()
-  return <>{children({ ref, deleteFocus })}</>
+  return <>{children({ ref })}</>
 }
 
 /** Renders one layer-row's `<Row />` + `<Menu />` pair, owning the
