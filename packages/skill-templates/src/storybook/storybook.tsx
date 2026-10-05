@@ -45,8 +45,7 @@ export function Storybook({
   states: State[]
   render?: Render
 }) {
-  const theme = useTheme()
-  const [dark] = theme
+  const dark = useTheme()
   // Every state's full values: a missing key takes the control's default
   const full = React.useCallback(
     (set?: Values): Values =>
@@ -249,7 +248,7 @@ export function Storybook({
       tab={tab}
       setTab={setTab}
       tabsLabel="View"
-      theme={theme}
+      dark={dark}
       bar={
         <CopyBar
           status={status}

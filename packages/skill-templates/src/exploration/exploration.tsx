@@ -89,7 +89,7 @@ export function Exploration({
   today: Today
   rounds: Round[]
 }) {
-  const theme = useTheme()
+  const dark = useTheme()
   const latest = rounds[0]!
   const Q = latest.questions
   const KEY = "exploration-" + page.slug
@@ -203,7 +203,7 @@ export function Exploration({
       tab={tab}
       setTab={setTab}
       tabsLabel="Rounds"
-      theme={theme}
+      dark={dark}
       wide
       bar={
         <CopyBar
