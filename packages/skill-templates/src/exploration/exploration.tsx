@@ -59,6 +59,8 @@ type PickProps = {
   sent?: string
   /** The question the chat's open card asks while a pick here can't answer it (the page is live, or the agent drives it). */
   chatOnly?: string
+  /** The question the chat's open card asks, until it's answered (on a canvas). */
+  asked?: string
 }
 
 const norm = (s: string) => s.trim().toLowerCase()
@@ -188,6 +190,7 @@ export function Exploration({
     pick,
     sent: answered ? linked!.q.key : undefined,
     chatOnly: linked && answersInChat(card) ? linked.q.key : undefined,
+    asked: linked && !card?.answer ? linked.q.key : undefined,
   }
 
   return (
@@ -292,7 +295,7 @@ function RoundPanel({
   shownTab: boolean
   page: Page
 } & PickProps) {
-  const { picks } = pickProps
+  const { picks, asked } = pickProps
   const beside = useBeside()
   const n = r.questions.length
   const ids = r.questions.map((_, i) => String(i + 1))
@@ -311,6 +314,9 @@ function RoundPanel({
   const detail = useDetail(ids, {
     key: `question:r${r.n}`,
     active: shownTab,
+    // A round with no feedback or shared points has nothing to say about it
+    about: !!(r.feedback || r.every?.length),
+    asked: live ? ids[r.questions.findIndex((q) => q.key === asked)] : null,
     // ← and → move through the shown question's options first
     step: (sel, by) => {
       const q = r.questions[ids.indexOf(sel)]
@@ -340,7 +346,7 @@ function RoundPanel({
         },
       ]}
     >
-      {(r.feedback || r.every) && (
+      {detail.about && (
         <div className={detailOnly(about)}>
           <About r={r} live={live} />
         </div>

@@ -40,14 +40,17 @@ const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
  * Coordinator call that names a Workspace, whose task row is the point of the
  * turn (#896), a question card (#1312), which shows what was asked and
  * answered, a skill card (#1633), which waits for someone to save it, or a
- * merge card, which waits for someone to press Merge.
+ * merge card, which waits for someone to press Merge, or a Marked done card
+ * (#1705), which says why the chat closed.
  */
 function isPinned(message: AgentMessage): boolean {
   if (PINNED_ROLES.has(message.role)) return true
   if (isQuestionCall(message)) return true
   if (
     message.role === "tool_call" &&
-    ["save_skill", "merge_pr"].includes(bareToolName(message.title))
+    ["save_skill", "merge_pr", "mark_done"].includes(
+      bareToolName(message.title)
+    )
   )
     return true
   return isCard(message)

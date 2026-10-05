@@ -405,7 +405,16 @@ export async function markDone(
  */
 export function reopen(
   id: string,
-  deps: BranchRecoveryDeps
+  deps: BranchRecoveryDeps,
+  {
+    codeReadyAtStart,
+  }: {
+    /**
+     * A message reopened it (#1705): the chat stays open on its transcript
+     * while the sandbox starts, and its turn runs once it has.
+     */
+    codeReadyAtStart?: boolean
+  } = {}
 ): Promise<RecoveryOutcome> {
   if (!deps.findAgent(id)) return Promise.resolve({ ok: true })
   deps.patchAgent(id, { doneAt: undefined })
@@ -414,6 +423,7 @@ export function reopen(
     {
       startingMessage: "Starting…",
       failureTitle: "Couldn’t reopen chat",
+      codeReadyAtStart,
       run: (agent, repo) => reconnectSandbox(agent.sandboxName, repo),
     },
     deps

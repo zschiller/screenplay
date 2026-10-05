@@ -100,6 +100,19 @@ describe("AgentChat — affordances per Chat Target", () => {
     ).toBeTruthy()
   })
 
+  it("asks to write to reopen a Done chat (#1705)", () => {
+    render(
+      <AgentChat
+        chatId="chat-agent"
+        roomId="room-1"
+        target={{ kind: "agent", branchId: "b1", sandboxName: "sbx-1" }}
+        onPlanModeChange={vi.fn()}
+        done
+      />
+    )
+    expect(placeholder()).toBe("Write to reopen…")
+  })
+
   it("gives the Coordinator’s chat no Plan toggle, and a crosshair that picks anywhere", () => {
     renderChat({ kind: "room" })
 

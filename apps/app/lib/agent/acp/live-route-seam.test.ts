@@ -168,6 +168,9 @@ function liveHarness(
       if (row) removeRows([row])
       return !!row
     },
+    async hasPersonSteer(runId) {
+      return steerRows.some((r) => r.runId === runId && r.userId !== null)
+    },
   }
   // Whether each run takes Steers, as its Engine reported (#1250).
   const runSteers = new Map<string, boolean>()
@@ -320,6 +323,7 @@ function liveHarness(
           }
         ),
       loadRunStatus: (id) => runState.runStatus(id),
+      async settleDone() {},
       async wakeCoordinator(end) {
         wakes.push(end)
       },

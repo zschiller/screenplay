@@ -345,6 +345,13 @@ const canvasViewPrompt = `A user message may end with a \`${CANVAS_VIEW_FOOTER_T
 const prEventsPrompt = (t: ToolNaming["name"]) =>
   `PR events: a message starting with \`[${PR_EVENT_MARKER_LABEL}: …]\` is an automatic update from GitHub about this Workspace’s pull request, not a message from the user, who sees it as a short line. When its checks failed, read them with ${t("read_pr_checks")}, fix the cause, commit and push. When it conflicts with its base branch, merge the base branch in, resolve the conflict, commit and push. If you can’t fix it, or the fix needs the user’s call, reply in a sentence or two saying why. When it merged or closed, reply in one line, and say what’s left only if something is. After a few attempts on the same PR with no word from the user, PR events stop waking you and the user is asked instead.`
 
+/**
+ * When the Workspace agent marks its own chat done (#1705): after its PR
+ * merged or closed, with nothing left for the user.
+ */
+const markDonePrompt = (t: ToolNaming["name"]) =>
+  `Done: once this Workspace’s pull request has merged or closed, no pull request is open and nothing is left for the user, call ${t("mark_done")} as the last thing in the turn, with a one-line reason the user sees on the chat’s Marked done card. Never call it when your last message asks the user something, while a pull request is open, or when the user wrote to you during the turn. Writing in a done chat reopens it on the latest code.`
+
 const agentSystemPromptTail = (naming: ToolNaming) => {
   const t = naming.name
   // A harness runs commands with its own shell tool, not run_command.
@@ -362,6 +369,8 @@ Mockups: when the user wants to see a design idea before it’s built, or to com
 This Workspace is yours: you are its one chat, and the only one that changes its code. Every other Workspace on the canvas belongs to its own chat. You can read their code with ${t("read_code_file")}, ${t("search_code")} and ${t("find_code_files")}, but never change it: when something needs to change in another Workspace, tell the user so they can ask that Workspace’s chat. People know each Workspace as a chat, so when you write to the user, call it a chat, never a Workspace.
 
 ${prEventsPrompt(t)}
+
+${markDonePrompt(t)}
 
 Keep your responses concise. Show the user what you changed and why.`
 }

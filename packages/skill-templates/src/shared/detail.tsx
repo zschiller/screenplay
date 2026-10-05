@@ -31,7 +31,10 @@ export const detailOnly = (on: boolean) => (on ? undefined : "xl:hidden")
  * `ids` unless a field or a choice has focus. A page with several lists
  * (one per tab) gives each its own `key` and listens only on the shown one;
  * `step` gets the arrow first and returns true when it moved something
- * inside the item, such as the exploration page's options.
+ * inside the item, such as the exploration page's options. A list with
+ * nothing to say about it (`about: false`) has no ABOUT entry and opens on
+ * its first item. `asked` is the item an open question card asks about:
+ * the list shows it once when the card arrives.
  */
 export function useDetail(
   ids: string[],
@@ -39,16 +42,27 @@ export function useDetail(
     key = "item",
     active = true,
     step: inner,
+    about = true,
+    asked = null,
   }: {
     key?: string
     active?: boolean
     step?: (sel: string, by: number) => boolean
+    about?: boolean
+    asked?: string | null
   } = {}
 ) {
-  const [sel, setSel] = React.useState(ABOUT)
+  const all = about || !ids.length ? [ABOUT, ...ids] : ids
+  const [sel, setSel] = React.useState(all[0]!)
   useSharedState(key, sel, setSel)
-  const all = [ABOUT, ...ids]
-  const shown = all.includes(sel) ? sel : ABOUT
+  const shownAsked = React.useRef<string | null>(null)
+  const askable = !!asked && ids.includes(asked)
+  React.useEffect(() => {
+    if (!askable || asked === shownAsked.current) return
+    shownAsked.current = asked
+    setSel(asked!)
+  }, [askable, asked])
+  const shown = all.includes(sel) ? sel : all[0]!
   const go = React.useCallback((id: string) => {
     setSel(id)
     scrollTo({ top: 0, behavior: "instant" })
@@ -78,17 +92,17 @@ export function useDetail(
     addEventListener("keydown", on)
     return () => removeEventListener("keydown", on)
   }, [active])
-  return { sel: shown, go, ids }
+  return { sel: shown, go, ids, about: all[0] === ABOUT }
 }
 
 /** The list column and the page beside it. */
 export function DetailLayout({
   about,
   groups,
-  detail: { sel, go },
+  detail: { sel, go, about: hasAbout },
   children,
 }: {
-  /** The About entry's title, such as “About this audit” */
+  /** The About entry's title, such as “About this audit”, shown while the list has one */
   about: string
   groups: ListGroup[]
   detail: ReturnType<typeof useDetail>
@@ -96,7 +110,7 @@ export function DetailLayout({
 }) {
   return (
     <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[224px_minmax(0,1fr)] xl:gap-10">
-      <List about={about} groups={groups} sel={sel} go={go} />
+      <List about={hasAbout ? about : null} groups={groups} sel={sel} go={go} />
       <div className="flex min-w-0 flex-col gap-6">{children}</div>
     </div>
   )
@@ -108,7 +122,7 @@ function List({
   sel,
   go,
 }: {
-  about: string
+  about: string | null
   groups: ListGroup[]
   sel: string
   go: (id: string) => void
@@ -126,7 +140,7 @@ function List({
       aria-label="Items"
       className="sticky top-[calc(var(--top-bar,0px)+24px)] -mx-2 hidden max-h-[calc(100vh-var(--top-bar,0px)-24px-88px)] [scrollbar-width:thin] flex-col gap-5 self-start overflow-y-auto xl:flex"
     >
-      <Row id={ABOUT} title={about} sel={sel} go={go} />
+      {about !== null && <Row id={ABOUT} title={about} sel={sel} go={go} />}
       {groups
         .filter((g) => g.items.length)
         .map((g) => (

@@ -49,6 +49,11 @@ export interface SteerInbox {
   drain(runId: string): Promise<Steer[]>
   /** Remove one Steer if it is still pending; false when it no longer is. */
   reclaim(id: string): Promise<boolean>
+  /**
+   * Whether a person sent a Steer into the run, still pending or already
+   * taken (#1705): the agent mustn't mark its chat done on them.
+   */
+  hasPersonSteer(runId: string): Promise<boolean>
 }
 
 // Send order, not `created_at`: two Steers sent in the same millisecond would
@@ -111,6 +116,14 @@ export function createSteerInbox(database: DB = defaultDb): SteerInbox {
         .delete(agentSteer)
         .where(and(eq(agentSteer.id, id), isNull(agentSteer.takenAt)))
         .returning({ id: agentSteer.id })
+      return rows.length > 0
+    },
+    async hasPersonSteer(runId) {
+      const rows = await database
+        .select({ id: agentSteer.id })
+        .from(agentSteer)
+        .where(and(eq(agentSteer.runId, runId), isNotNull(agentSteer.userId)))
+        .limit(1)
       return rows.length > 0
     },
   }

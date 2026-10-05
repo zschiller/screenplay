@@ -49,9 +49,10 @@ a visual fix whose look matters also gets Now and After pictures, saved with
 - Anything longer goes on one **findings page**: a Mockup titled
   `<scope> · Audit` built from this skill’s `audit-template.html`. It shows
   filter tabs by lens, each finding with its pictures, Fix or Skip, and each
-  call’s options. Copy the template whole and fill only its data script; its
-  `skill:` lines load the page, and its files comment says how to reference
-  the pictures.
+  call’s options. Copy the template whole and fill only its data script, with
+  the three lenses as its `DEPTHS` (P Product, H Hierarchy, V Visual) so its
+  tabs match your tags; its `skill:` lines load the page, and its files
+  comment says how to reference the pictures.
 - When the calls outgrow one card at a time (several plans, many calls), put
   them on one decisions page from `decisions-template.html` instead.
 
