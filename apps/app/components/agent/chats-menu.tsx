@@ -72,8 +72,8 @@ import {
 
 import type { DiffStats } from "@/hooks/use-diff-stats"
 
-import { useGitHubTokenProbe } from "@/hooks/use-github-token"
-import { prAvailability, type PrAvailability } from "@/hooks/use-can-create-pr"
+import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
+import { usePrReadiness } from "@/hooks/use-pr-readiness"
 
 import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 
@@ -192,11 +192,6 @@ type ChatsMenuValue = Omit<
   pendingBranchIds: Set<string>
   askDelete: (branchId: string) => void
   askRecreate: (branchId: string) => void
-  /**
-   * Whether a Repository's Workspaces can open a pull request: it has a GitHub
-   * remote and the GitHub API is reachable.
-   */
-  prAvailabilityOf: (repo: RepoData) => PrAvailability
   askDeleteSketchChat: (chatId: string) => void
   /**
    * Rename asked for where the title can't be edited (a frame's Workspace
@@ -246,11 +241,8 @@ export function ChatsMenuProvider({
   >(null)
 
   // Whether the GitHub API is reachable at all, for the delete dialog's
-  // remote-branch offer (issue #741) and Create pull request. Unknown (so
-  // unavailable) until probed.
-  const githubToken = useGitHubTokenProbe()
-  const githubTokenAvailable = githubToken === true
-  const prAvailabilityOf = (repo: RepoData) => prAvailability(repo, githubToken)
+  // remote-branch offer (issue #741). Unknown (so unavailable) until probed.
+  const githubTokenAvailable = useGitHubTokenAvailable()
   // What the delete confirm says is lost (issue #776): the Chat Sessions and
   // frames the Workspace cascades to, and its checkout's unpushed work.
   const chatSessions = useChatSessions()
@@ -390,7 +382,6 @@ export function ChatsMenuProvider({
     pendingBranchIds,
     askDelete,
     askRecreate,
-    prAvailabilityOf,
     askDeleteSketchChat,
     renameRequest,
     requestRename,
@@ -788,6 +779,13 @@ function WorkspaceMenuRow({
   const pr = menu.branchPrs.get(branch.id)
   const stats = menu.diffStats.get(branch.id)
   const hasStats = !!stats && (stats.additions > 0 || stats.deletions > 0)
+  const prReadiness = usePrReadiness({
+    branch,
+    repo,
+    pr,
+    hasChanges: hasStats,
+    onCreatePr: menu.onCreatePr,
+  })
   const label = workspaceLabel(branch)
   const showRepoNames = menu.sortedRepos.length > 1
 
@@ -892,7 +890,6 @@ function WorkspaceMenuRow({
             repo={repo}
             onPlay={menu.onPlayBranch}
             onRetry={menu.onRetryBranch}
-            hasChanges={hasStats}
             onRename={() => {
               pendingEditRef.current = true
             }}
@@ -903,9 +900,7 @@ function WorkspaceMenuRow({
               menu.setOpen(false)
               menu.onShowRoutes(id)
             }}
-            onCreatePr={menu.onCreatePr}
-            pr={pr}
-            prAvailability={menu.prAvailabilityOf(repo)}
+            prReadiness={prReadiness}
             onMarkDone={menu.onMarkBranchDone}
             onReopen={menu.onReopenBranch}
             onDelete={menu.askDelete}

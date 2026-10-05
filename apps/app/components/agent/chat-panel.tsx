@@ -1,12 +1,6 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useSyncExternalStore,
-} from "react"
+import { useEffect, useRef } from "react"
 import {
   ArrowUpRightIcon,
   ChatCircleIcon,
@@ -16,7 +10,6 @@ import {
   PlusIcon,
 } from "@workspace/ui/components/icons"
 import { createPullRequest } from "@/components/canvas/use-branch-actions"
-import { useIsCreatingPr } from "@/lib/creating-pr-store"
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -45,15 +38,11 @@ import type { ChatSessionData, TerminalTabData } from "@/lib/types"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import { DEV_SERVER_TERMINAL_ID } from "@/lib/chat/terminal-pane"
 import { useAppSession } from "@/lib/auth-client"
-import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
-import {
-  CONNECT_GITHUB_FOR_PR_HINT,
-  usePrAvailability,
-} from "@/hooks/use-can-create-pr"
-import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
+import { usePrReadiness } from "@/hooks/use-pr-readiness"
+import { useRepos } from "@/lib/yjs/react"
+import type { BranchPrInfo } from "@/lib/github-actions"
 import { prStateButtonColor } from "@/components/pr-state-color"
-import { chatStore } from "@/lib/chat-store"
 import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
 import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
@@ -64,62 +53,6 @@ type WorkspaceTarget = Extract<ChatPanelTarget, { kind: "agent" }>
 type SketchTarget = Extract<ChatPanelTarget, { kind: "sketch" }>
 
 const NO_TERMINALS: TerminalTabData[] = []
-
-// Scan a chat's messages newest-first for the most recent completed
-// `create_pr` tool call and pull the PR url/number out of its output. Pure over
-// `messages` so the `useMemo` below is a single reactive call the compiler can
-// preserve.
-function findLatestPr(
-  messages: AgentMessage[]
-): { url: string; number: string } | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]
-    if (
-      m.role === "tool_call" &&
-      m.title === "create_pr" &&
-      m.status === "completed"
-    ) {
-      const output = m.content
-        .map((b) =>
-          b.type === "content" && b.content.type === "text"
-            ? b.content.text
-            : ""
-        )
-        .join("\n")
-      const url = output.match(/https:\/\/github\.com\/[^\s]+/)?.[0]
-      const num = output.match(/#(\d+)/)?.[1]
-      if (url && num) return { url, number: num }
-    }
-  }
-  return null
-}
-
-function useLatestPr(chatId: string): { url: string; number: string } | null {
-  const messages = useSyncExternalStore(
-    (cb) => chatStore.subscribe(chatId, cb),
-    () => chatStore.getSnapshot(chatId).messages,
-    () => []
-  )
-  return useMemo(() => findLatestPr(messages), [messages])
-}
-
-function useAnyChatStreaming(chatIds: string[]): boolean {
-  const key = chatIds.join(",")
-  const subscribe = useCallback(
-    (cb: () => void) => {
-      const unsubs = chatIds.map((id) => chatStore.subscribe(id, cb))
-      return () => unsubs.forEach((u) => u())
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [key]
-  )
-  const getSnapshot = useCallback(
-    () => chatIds.some((id) => chatStore.getSnapshot(id).isStreaming),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [key]
-  )
-  return useSyncExternalStore(subscribe, getSnapshot, () => false)
-}
 
 interface ChatPanelProps {
   target: ChatPanelTarget
@@ -303,7 +236,6 @@ function WorkspaceChatPanel({
     selectedChatId && selectedChatId !== ownChatId
       ? chatSessions.find((c) => c.id === selectedChatId)
       : undefined
-  const shownChatId = shownEarlierChat?.id ?? ownChatId ?? ""
 
   // Select the Workspace's chat when nothing is, so the panel's selection
   // names what it shows.
@@ -332,73 +264,41 @@ function WorkspaceChatPanel({
     }
   }, [logsRequest, agent.id, openPaneOn])
 
-  const chatHistoryPr = useLatestPr(shownChatId)
-  // The polled branch PR carries state and blocked; a `create_pr` result in this
-  // chat's history only knows the number, so it's used when the poll hasn't
-  // seen that PR yet.
-  const displayPr: {
-    url: string
-    number: string
-    state: BranchPrState
-    blocked?: boolean
-  } | null =
-    branchPr &&
-    (!chatHistoryPr || chatHistoryPr.number === String(branchPr.number))
-      ? {
-          url: branchPr.url,
-          number: String(branchPr.number),
-          state: branchPr.state,
-          blocked: branchPr.blocked,
-        }
-      : chatHistoryPr
-        ? { ...chatHistoryPr, state: "open" }
-        : null
+  const hasChanges =
+    !!diffStats && (diffStats.additions > 0 || diffStats.deletions > 0)
+  // The same Create PR Readiness as the Workspace menu's "Create pull
+  // request" item (#1666): both show, disable, explain and run alike.
+  const repo = useRepos().find((r) => r.id === agent.repoId)
+  const prReadiness = usePrReadiness({
+    branch: agent,
+    repo,
+    pr: branchPr,
+    hasChanges,
+    onCreatePr: (branchId) => {
+      if (!agent.sandboxName) return
+      void createPullRequest({
+        roomId,
+        branchId,
+        sandboxName: agent.sandboxName,
+        onCreated: onPrCreated,
+      })
+    },
+  })
+  const existingPr = prReadiness.existingPr
   // The PR button's icon and color mirror the sidebar branch icon so the two
   // stay legible together: open = green, merged = purple, closed = red. An open
   // PR that can't merge (failing checks, a conflict) turns red with the
   // merge-blocked icon.
-  const prBlocked = displayPr?.state === "open" && !!displayPr.blocked
+  const prBlocked = existingPr?.state === "open" && !!existingPr.blocked
   const PrStateIcon = prBlocked
     ? GitDiffIcon
-    : displayPr?.state === "merged"
+    : existingPr?.state === "merged"
       ? GitMergeIcon
       : GitPullRequestIcon
   const prColor = prStateButtonColor(
-    prBlocked ? "closed" : (displayPr?.state ?? "open")
+    prBlocked ? "closed" : (existingPr?.state ?? "open")
   )
   const isAgentBusy = agent.status === "creating" || agent.status === "starting"
-  const allChatIds = useMemo(
-    () => chatSessions.map((c) => c.id),
-    [chatSessions]
-  )
-  const anyChatStreaming = useAnyChatStreaming(allChatIds)
-  const creatingPr = useIsCreatingPr(agent.id)
-  const prAvailability = usePrAvailability(agent.repoId)
-  const hasChanges =
-    !!diffStats && (diffStats.additions > 0 || diffStats.deletions > 0)
-
-  // The same create as the Workspace menu's "Create pull request" item (#355),
-  // no model turn; either one shows it running.
-  const handleCreatePr = () => {
-    if (!agent.sandboxName) return
-    void createPullRequest({
-      roomId,
-      branchId: agent.id,
-      sandboxName: agent.sandboxName,
-      onCreated: onPrCreated,
-    })
-  }
-  // Why Create PR is disabled, shown in its tooltip.
-  const createPrBlocker =
-    prAvailability === "connect"
-      ? CONNECT_GITHUB_FOR_PR_HINT
-      : isAgentBusy
-        ? "The workspace is still starting…"
-        : anyChatStreaming
-          ? "The agent is still working."
-          : !hasChanges
-            ? "No changes to propose yet."
-            : undefined
 
   // First chat for this Workspace — drives auto branch/chat naming.
   const isFirstChat = (chat: ChatSessionData) =>
@@ -442,42 +342,40 @@ function WorkspaceChatPanel({
         <WorkspaceHeaderTitle branch={agent} />
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
           {/* An open PR already carries the diff, so its counts go. */}
-          {diffStats && hasChanges && displayPr?.state !== "open" && (
+          {diffStats && hasChanges && existingPr?.state !== "open" && (
             <span className="flex items-center gap-1 font-mono text-xs">
               <span className="text-success">+{diffStats.additions}</span>
               <span className="text-destructive">-{diffStats.deletions}</span>
             </span>
           )}
-          {displayPr ? (
+          {existingPr ? (
             <HintTooltip hint={prBlocked ? "Merge blocked" : undefined}>
               <Button size="xs" variant="outline" asChild>
                 <a
-                  href={displayPr.url}
+                  href={existingPr.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={cn("group", prColor)}
                 >
-                  <PrStateIcon />#{displayPr.number}
+                  <PrStateIcon />#{existingPr.number}
                   <ArrowUpRightIcon className="opacity-60 group-hover:opacity-100" />
                 </a>
               </Button>
             </HintTooltip>
-          ) : prAvailability !== "none" ? (
+          ) : prReadiness.shown ? (
             // A disabled button fires no pointer events, so its reason hangs
             // off a wrapping span.
-            <HintTooltip hint={creatingPr ? undefined : createPrBlocker}>
+            <HintTooltip hint={prReadiness.blocker?.reason}>
               <span className="flex">
                 <Button
                   size="xs"
                   variant="outline"
-                  onClick={handleCreatePr}
-                  disabled={
-                    !agent.sandboxName || creatingPr || !!createPrBlocker
-                  }
+                  onClick={prReadiness.run}
+                  disabled={prReadiness.running || !!prReadiness.blocker}
                 >
                   {/* The spinner takes the icon's place and the label
                       stays, so the header's title doesn't lose room. */}
-                  {creatingPr ? (
+                  {prReadiness.running ? (
                     <Spinner className="size-3" />
                   ) : (
                     <GitPullRequestIcon />
