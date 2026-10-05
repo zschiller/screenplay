@@ -31,7 +31,9 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { Textarea } from "@workspace/ui/components/textarea"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { SettingsRow, SettingsRowList } from "@/components/home/settings-row"
 import { MEMORY_ENTRY_MAX_LENGTH, memorySource } from "@/lib/memory/entry"
 import type { MemoryData } from "@/lib/types"
@@ -55,6 +57,10 @@ export interface MemoryCopy {
  * With `header` (a Settings section's title row), Add memory sits on the title
  * row once there are entries, as New repository does; without it, under the
  * list. Empty, the Empty state offers it either way, so it shows once.
+ *
+ * A change may return a promise (account memory saves on the server): the
+ * dialog stays open with Save spinning until it settles, and a rejection keeps
+ * it open with an error to try again. Delete asks first.
  */
 export function MemoryEntries({
   memories,
@@ -67,13 +73,15 @@ export function MemoryEntries({
   memories: MemoryData[]
   copy: MemoryCopy
   header?: (action?: React.ReactNode) => React.ReactNode
-  onAddMemory: (text: string) => void
-  onEditMemory: (id: string, text: string) => void
-  onRemoveMemory: (id: string) => void
+  onAddMemory: (text: string) => void | Promise<void>
+  onEditMemory: (id: string, text: string) => void | Promise<void>
+  onRemoveMemory: (id: string) => void | Promise<void>
 }) {
   // `null` closed, `"new"` adding, otherwise the id being edited.
   const [editing, setEditing] = useState<string | null>(null)
   const entry = memories.find((m) => m.id === editing)
+  // The entry whose Delete is being confirmed.
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const addButton = (variant: "default" | "outline") => (
     <Button size="sm" variant={variant} onClick={() => setEditing("new")}>
@@ -137,7 +145,7 @@ export function MemoryEntries({
                       >
                         <DropdownMenuItem
                           variant="destructive"
-                          onSelect={() => onRemoveMemory(memory.id)}
+                          onSelect={() => setDeleting(memory.id)}
                         >
                           <TrashIcon />
                           Delete
@@ -164,10 +172,28 @@ export function MemoryEntries({
         onOpenChange={(open) => {
           if (!open) setEditing(null)
         }}
-        onSave={(text) => {
-          if (editing === "new") onAddMemory(text)
-          else if (editing) onEditMemory(editing, text)
+        onSave={async (text) => {
+          if (editing === "new") await onAddMemory(text)
+          else if (editing) await onEditMemory(editing, text)
           setEditing(null)
+        }}
+      />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null)
+        }}
+        verb="Delete"
+        itemNoun="memory"
+        description="Chats stop reading it."
+        onConfirm={async () => {
+          if (!deleting) return
+          try {
+            await onRemoveMemory(deleting)
+          } catch {
+            throw new Error("Couldn’t delete the memory. Try again.")
+          }
+          setDeleting(null)
         }}
       />
     </>
@@ -190,18 +216,33 @@ function MemoryDialog({
   description: string
   placeholder: string
   onOpenChange: (open: boolean) => void
-  onSave: (text: string) => void
+  onSave: (text: string) => Promise<void>
 }) {
   const [text, setText] = useState(initialText)
-  const canSave = text.trim().length > 0 && text.trim() !== initialText
+  const [saving, setSaving] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const canSave =
+    !saving && text.trim().length > 0 && text.trim() !== initialText
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!saving) onOpenChange(next)
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <form
           className="grid gap-4"
           onSubmit={(event) => {
             event.preventDefault()
-            if (canSave) onSave(text)
+            if (!canSave) return
+            setSaving(true)
+            setFailed(false)
+            // On success the parent closes (and remounts) the dialog.
+            onSave(text).catch(() => {
+              setFailed(true)
+              setSaving(false)
+            })
           }}
         >
           <DialogHeader>
@@ -214,6 +255,7 @@ function MemoryDialog({
             maxLength={MEMORY_ENTRY_MAX_LENGTH}
             placeholder={placeholder}
             className="min-h-24"
+            readOnly={saving}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -223,12 +265,23 @@ function MemoryDialog({
             }}
           />
           <DialogFooter>
+            {/* Beside the buttons rather than above them, so the dialog
+                doesn't grow and shift when a save fails. */}
+            {failed && (
+              <p
+                role="alert"
+                className="text-sm text-destructive sm:mr-auto sm:self-center"
+              >
+                Couldn’t save the memory. Try again.
+              </p>
+            )}
             <DialogClose asChild>
-              <Button type="button" variant="outline">
+              <Button type="button" variant="outline" disabled={saving}>
                 Cancel
               </Button>
             </DialogClose>
             <Button type="submit" disabled={!canSave}>
+              {saving && <Spinner aria-hidden className="size-4" />}
               Save
             </Button>
           </DialogFooter>

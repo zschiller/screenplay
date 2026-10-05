@@ -151,7 +151,7 @@ describe("Settings › Memory (#1513)", () => {
     )
   })
 
-  it("deletes an entry from its menu", async () => {
+  it("deletes an entry from its menu once confirmed", async () => {
     vi.mocked(removeAccountMemoryEntry).mockResolvedValue([ENTRIES[1]!])
     renderPanel(ENTRIES)
 
@@ -160,13 +160,68 @@ describe("Settings › Memory (#1513)", () => {
     })
     fireEvent.pointerDown(more, { button: 0, ctrlKey: false })
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }))
+    expect(removeAccountMemoryEntry).not.toHaveBeenCalled()
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Delete memory?",
+    })
+    expect(within(confirm).getByText("Chats stop reading it.")).not.toBeNull()
+    fireEvent.click(within(confirm).getByRole("button", { name: "Delete" }))
 
-    expect(removeAccountMemoryEntry).toHaveBeenCalledWith("mem-1")
+    await waitFor(() =>
+      expect(removeAccountMemoryEntry).toHaveBeenCalledWith("mem-1")
+    )
     await waitFor(() =>
       expect(
         screen.queryByText("Prefers small fixes over redesigns.")
       ).toBeNull()
     )
+  })
+
+  it("keeps the dialog open and says so when a save fails", async () => {
+    vi.mocked(addAccountMemoryEntry).mockRejectedValue(new Error("kv down"))
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    renderPanel([])
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add memory" }))
+    const form = await screen.findByRole("dialog", { name: "Add memory" })
+    fireEvent.change(within(form).getByLabelText("Memory"), {
+      target: { value: "Use pnpm." },
+    })
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }))
+
+    expect(
+      await within(form).findByText("Couldn’t save the memory. Try again.")
+    ).not.toBeNull()
+    expect(screen.getByRole("dialog", { name: "Add memory" })).toBe(form)
+    expect(
+      (within(form).getByLabelText("Memory") as HTMLTextAreaElement).value
+    ).toBe("Use pnpm.")
+    expect(
+      within(form).getByRole("button", { name: "Save" }).hasAttribute("disabled")
+    ).toBe(false)
+  })
+
+  it("keeps the confirm open and says so when a delete fails", async () => {
+    vi.mocked(removeAccountMemoryEntry).mockRejectedValue(new Error("kv down"))
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    renderPanel(ENTRIES)
+
+    fireEvent.pointerDown(
+      await screen.findByRole("button", {
+        name: "More actions for memory: Prefers small fixes over redesigns.",
+      }),
+      { button: 0, ctrlKey: false }
+    )
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }))
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Delete memory?",
+    })
+    fireEvent.click(within(confirm).getByRole("button", { name: "Delete" }))
+
+    expect(
+      await within(confirm).findByText("Couldn’t delete the memory. Try again.")
+    ).not.toBeNull()
+    expect(screen.getByText("Prefers small fixes over redesigns.")).not.toBeNull()
   })
 
   it("says so when memory can’t be loaded", async () => {

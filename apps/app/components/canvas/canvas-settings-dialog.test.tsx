@@ -887,8 +887,13 @@ describe("CanvasSettingsDialog", () => {
         { button: 0, ctrlKey: false }
       )
       fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }))
+      expect(onRemoveMemory).not.toHaveBeenCalled()
+      const confirm = await screen.findByRole("alertdialog", {
+        name: "Delete memory?",
+      })
+      fireEvent.click(within(confirm).getByRole("button", { name: "Delete" }))
 
-      expect(onRemoveMemory).toHaveBeenCalledWith("mem-1")
+      await waitFor(() => expect(onRemoveMemory).toHaveBeenCalledWith("mem-1"))
     })
   })
 

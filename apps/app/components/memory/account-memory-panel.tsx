@@ -50,10 +50,12 @@ export function AccountMemoryPanel({
     setLoadFailed(false)
   }, [])
 
-  // Each change returns the saved list, which replaces the shown one.
+  // Each change returns the saved list, which replaces the shown one. A
+  // failure rethrows so the dialog it came from stays open and says so.
   const apply = (change: Promise<MemoryData[]>) =>
-    change.then(setMemories).catch((err) => {
+    change.then(setMemories).catch((err: unknown) => {
       console.error("Failed to save memory", err)
+      throw err
     })
 
   if (loading || loadFailed) {
