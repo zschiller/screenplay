@@ -26,6 +26,7 @@ import {
   EmptyTitle,
 } from "@workspace/ui/components/empty"
 import { AgentChat } from "./agent-chat"
+import { ChatDoneProvider } from "./marked-done-card"
 import { ChatPanelHeader } from "./chat-panel-header"
 import { CoordinatorChat } from "./coordinator-chat"
 import { ChatsMenuButton, useChatsMenu } from "./chats-menu"
@@ -304,27 +305,33 @@ function WorkspaceChatPanel({
       key={chat.id}
       className={cn("min-h-0 flex-1 overflow-hidden", !shown && "hidden")}
     >
-      <AgentChat
-        chatId={chat.id}
-        roomId={roomId}
-        target={chatTarget}
-        booting={workspaceBooting(agent)}
-        isFirstChat={isFirstChat(chat)}
-        planMode={chat.planMode}
-        onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
-        model={chat.model}
-        onModelChange={(m) => onModelChange(chat.id, m)}
-        isActive={shown}
-        onOpenWorkspaceChat={
-          ownChatId && chat.id !== ownChatId
-            ? () => onSelectChat(ownChatId)
-            : undefined
-        }
-        done={Boolean(agent.doneAt)}
-        onReopen={
-          chatsMenu ? () => chatsMenu.onReopenBranch(agent.id) : undefined
-        }
-      />
+      <ChatDoneProvider
+        value={{
+          done: Boolean(agent.doneAt),
+          onReopen: chatsMenu
+            ? () => chatsMenu.onReopenBranch(agent.id)
+            : undefined,
+        }}
+      >
+        <AgentChat
+          chatId={chat.id}
+          roomId={roomId}
+          target={chatTarget}
+          booting={workspaceBooting(agent)}
+          isFirstChat={isFirstChat(chat)}
+          planMode={chat.planMode}
+          onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
+          model={chat.model}
+          onModelChange={(m) => onModelChange(chat.id, m)}
+          isActive={shown}
+          onOpenWorkspaceChat={
+            ownChatId && chat.id !== ownChatId
+              ? () => onSelectChat(ownChatId)
+              : undefined
+          }
+          done={Boolean(agent.doneAt)}
+        />
+      </ChatDoneProvider>
     </div>
   )
 
