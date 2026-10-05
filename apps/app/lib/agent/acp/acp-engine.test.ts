@@ -12,6 +12,7 @@ import { inProcessEngine } from "./in-process-engine"
 import type { EngineTurn, EngineUpdate } from "./engine-seam"
 import { supportsUsageReporting } from "./engine-seam"
 import type { AcpSession } from "./session"
+import { collaborationMode, nativePlanMode, replyAsPlan } from "./plan-protocol"
 import type { AcpSessionPorts, OpenSessionOptions } from "./session"
 import type { AcpMessageRecord } from "./record"
 import type { ContentBlock, RequestPermissionRequest } from "./schema"
@@ -108,6 +109,7 @@ describe("ExternalEngine — permission-request routing", () => {
       open: async (ports: AcpSessionPorts) =>
         ({
           id: "sess",
+          plan: nativePlanMode(null),
           prompt: (_blocks: unknown, signal: AbortSignal) =>
             body(ports, signal),
           close: () => {},
@@ -235,7 +237,7 @@ describe("ExternalEngine — Codex plan turn (#1337)", () => {
       open: async (ports: AcpSessionPorts) =>
         ({
           id: "sess",
-          plansByCollaborationMode: true,
+          plan: collaborationMode(null),
           prompt: (_blocks: unknown, signal: AbortSignal) =>
             body(ports, signal),
           close: () => {},
@@ -446,15 +448,13 @@ describe("ExternalEngine — OpenCode plan turn (#1589)", () => {
 
   /** A session on an agent whose plan is its last reply. */
   function opencodeFactory(
-    planMode: boolean,
     body: (ports: AcpSessionPorts, signal: AbortSignal) => Promise<unknown>
   ) {
     return {
       open: async (ports: AcpSessionPorts) =>
         ({
           id: "sess",
-          plansByCollaborationMode: planMode,
-          plansByReply: planMode,
+          plan: replyAsPlan(null),
           prompt: (_blocks: unknown, signal: AbortSignal) =>
             body(ports, signal),
           close: () => {},
@@ -502,7 +502,7 @@ describe("ExternalEngine — OpenCode plan turn (#1589)", () => {
     const updates: EngineUpdate[] = []
     let decision: { approved: boolean } | undefined
     const engine = new ExternalEngine({
-      sessionFactory: opencodeFactory(true, async (ports) => {
+      sessionFactory: opencodeFactory(async (ports) => {
         decision = await ports.requestPlanApproval(externalDirectory())
         return "end_turn"
       }),
@@ -522,7 +522,7 @@ describe("ExternalEngine — OpenCode plan turn (#1589)", () => {
   it("raises the last reply as the plan gate, showing it once", async () => {
     const updates: EngineUpdate[] = []
     const engine = new ExternalEngine({
-      sessionFactory: opencodeFactory(true, async (ports) => {
+      sessionFactory: opencodeFactory(async (ports) => {
         await ports.onUpdate(reply("msg-1", "Let me look around."))
         await ports.onUpdate({
           sessionUpdate: "tool_call",
@@ -563,7 +563,7 @@ describe("ExternalEngine — OpenCode plan turn (#1589)", () => {
   it("ends as usual when the plan turn's last step is a tool call", async () => {
     const updates: EngineUpdate[] = []
     const engine = new ExternalEngine({
-      sessionFactory: opencodeFactory(true, async (ports) => {
+      sessionFactory: opencodeFactory(async (ports) => {
         await ports.onUpdate(reply("msg-1", "Reading."))
         await ports.onUpdate({
           sessionUpdate: "tool_call",
@@ -590,7 +590,7 @@ describe("ExternalEngine — OpenCode plan turn (#1589)", () => {
     const updates: EngineUpdate[] = []
     const stop = new AbortController()
     const engine = new ExternalEngine({
-      sessionFactory: opencodeFactory(true, async (ports) => {
+      sessionFactory: opencodeFactory(async (ports) => {
         await ports.onUpdate(reply("msg-1", "Half a pl"))
         stop.abort()
         return "cancelled"
@@ -608,7 +608,7 @@ describe("ExternalEngine — OpenCode plan turn (#1589)", () => {
   it("streams a build turn's reply as it comes, with no gate", async () => {
     const updates: EngineUpdate[] = []
     const engine = new ExternalEngine({
-      sessionFactory: opencodeFactory(false, async (ports) => {
+      sessionFactory: opencodeFactory(async (ports) => {
         await ports.onUpdate(reply("msg-1", "Done."))
         return "end_turn"
       }),
@@ -669,6 +669,7 @@ describe("ExternalEngine — native session resume", () => {
         }
         return {
           id: options.loadSessionId ?? "new-sess",
+          plan: nativePlanMode(null),
           prompt: (blocks: ContentBlock[]) => {
             prompted = blocks
             return Promise.resolve("end_turn")

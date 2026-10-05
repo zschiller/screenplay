@@ -509,7 +509,12 @@ export function acpSessionFactoryFromDriver(
       void agentConn
       const session = await AcpSession.open(client, ports, {
         ...openOptions,
-        adapter: { promptQueueing: options.promptQueueing ?? false },
+        adapter: {
+          command: "driver",
+          args: [],
+          modelOption: "model",
+          promptQueueing: options.promptQueueing ?? false,
+        },
       })
       session.onClose(exit)
       return session

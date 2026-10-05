@@ -136,7 +136,7 @@ import {
   coordinatorToken,
 } from "@/lib/agent/coordinator-mcp"
 import { buildAgentSystemPrompt } from "@/lib/agent/config"
-import { harnessToolNaming } from "@/lib/agent/tool-name"
+import { harnessToolNaming } from "@/lib/agent/harnesses"
 import { toolsetOn, type ChatTools } from "@/lib/agent/toolset"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
 import { canvasSkills } from "@/lib/skills/canvas"

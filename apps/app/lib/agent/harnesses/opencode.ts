@@ -373,7 +373,9 @@ const opencodeAcpAdapter: AcpAdapter = {
   // It plans through its `mode` option's read-only `plan` agent, which ends
   // the turn with the plan as its answer and never asks to carry it out
   // (opencode's `plan_exit` tool is CLI-only).
-  planAsReply: true,
+  plan: "reply",
+  // It names an MCP tool `<server>_<tool>`.
+  mcpToolName: (server, tool) => `${server}_${tool}`,
   directoriesEnv: opencodeDirectoriesEnv,
 }
 

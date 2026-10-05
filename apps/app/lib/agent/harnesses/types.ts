@@ -35,6 +35,9 @@ export function commitAndPushRuleMarkdown(): string {
   ].join("\n")
 }
 
+/** How an ACP adapter plans (see {@link AcpAdapter.plan}). */
+export type PlanStyle = "mode" | "collaboration" | "reply"
+
 /**
  * A harness's **ACP adapter**: the argv that spawns it as a host subprocess over
  * stdio (the wire the external Engine's `SpawnAcpSessionFactory` speaks to), and
@@ -64,13 +67,29 @@ export interface AcpAdapter {
    */
   promptQueueing: boolean
   /**
-   * Whether a plan turn's last reply is the plan (#1589). The adapter plans
-   * in a read-only mode and ends the turn with the plan as its answer, with
-   * no request to carry it out, so that reply becomes the approval gate.
-   * Absent ⇒ the adapter asks to carry out its plan with a permission
-   * request, as Claude Code's and Codex's do.
+   * How the adapter plans, which picks the session's plan protocol
+   * (`choosePlanProtocol` in `acp/plan-protocol`):
+   *
+   *  - `"mode"`: a native `plan` session mode, gated on its request to leave
+   *    it (Claude Code's ExitPlanMode, spike #408).
+   *  - `"collaboration"`: a `collaboration_mode` config option, gated on the
+   *    request to carry out the plan that holds it in `rawInput.plan` (Codex,
+   *    #1337).
+   *  - `"reply"`: a `mode` config option whose plan agent ends the turn with
+   *    the plan as its answer and never asks to carry it out (opencode, #1589).
+   *
+   * Stated rather than detected, so it wins over what the adapter advertises.
+   * Absent ⇒ read from what it advertises.
    */
-  planAsReply?: boolean
+  plan?: PlanStyle
+  /**
+   * How the agent names a tool it reaches over MCP from `server`, when that
+   * name is fixed: Claude Code's `mcp__<server>__<tool>`, opencode's
+   * `<server>_<tool>`. A prompt then names Screenplay's tools exactly
+   * (#1223). Absent ⇒ the names vary by version (Codex), so a prompt keeps the
+   * bare names and says where they come from.
+   */
+  mcpToolName?(server: string, tool: string): string
   /**
    * The env that lets the adapter read `directories` (the chat's context
    * folder, #1524) without asking, for an adapter that takes them through
