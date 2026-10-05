@@ -14,6 +14,7 @@ import {
   type ChatTargetSpec,
 } from "./chat-target-kinds"
 import { prependTurnMarkers } from "./message-markers"
+import { buildGitHubTools } from "./github-tools"
 import { buildPrTools, buildSandboxTools } from "./tools"
 import { buildDevServerTools } from "./dev-server-tools"
 import { liveDevServerPorts } from "./dev-server-ports"
@@ -211,6 +212,11 @@ export const workspaceChatTarget: ChatTargetSpec<
         }),
         // Opening the branch's PR (#1480).
         ...buildPrTools(sandbox),
+        // The canvas's GitHub issues, pull requests and their comments.
+        ...buildGitHubTools({
+          ...sandbox,
+          senderless: turnSender(target) === null,
+        }),
         // Loading Skills, and saving them to the canvas (#1555).
         ...buildSkillTools({
           skills,
