@@ -20,10 +20,10 @@ import {
 } from "@workspace/ui/components/dialog"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
-  ListScrollHairline,
   PICKER_DIALOG_CLASS,
   PICKER_DIALOG_HEADER_CLASS,
 } from "@/components/picker-dialog"
+import { ScrollHairline } from "@/components/scroll-hairline"
 import { listHarnessModelChoices } from "@/lib/agent/harnesses/setup-actions"
 import type { HarnessModelChoice } from "@/lib/agent/harnesses/types"
 import {
@@ -113,7 +113,7 @@ export function HarnessModelsDialog({
             onValueChange={() => setListScrolled(false)}
           />
           <div className="relative min-h-0 flex-1">
-            <ListScrollHairline shown={listScrolled} />
+            <ScrollHairline shown={listScrolled} />
             <CommandList
               onScroll={(e) => setListScrolled(e.currentTarget.scrollTop > 0)}
             >

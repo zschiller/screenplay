@@ -24,7 +24,7 @@ import {
   resolveRepoFromUrl,
   type GitHubLocalStatus,
 } from "@/lib/github-local/actions"
-import { ListScrollHairline } from "@/components/picker-dialog"
+import { ScrollHairline } from "@/components/scroll-hairline"
 import { looksLikeCloneUrl } from "@/lib/github-local/parse-remote"
 import type { NewRepoSource } from "@/lib/github-local/types"
 
@@ -149,7 +149,7 @@ export function RepoPicker({ onSelect, localSources }: RepoPickerProps) {
           }
         />
         <div className="relative min-h-0 flex-1">
-          <ListScrollHairline shown={listScrolled} />
+          <ScrollHairline shown={listScrolled} />
           <CommandList
             onScroll={(e) => setListScrolled(e.currentTarget.scrollTop > 0)}
           >
