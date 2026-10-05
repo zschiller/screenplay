@@ -46,9 +46,10 @@ import type {
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import { useLayerToolbar } from "@/components/canvas/use-layer-toolbar"
 import type { GroupLabelValue } from "@/components/canvas/group-label"
-import type { FrameWorkspace } from "@/components/canvas/frame-nav"
-import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
-import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
+import {
+  WorkingChatMention,
+  type WorkingChat,
+} from "@/components/canvas/working-chat"
 import { GripSpinner } from "@/components/grip-spinner"
 import {
   Empty,
@@ -61,10 +62,10 @@ import {
 interface MockupLayerProps {
   layer: MockupLayerData
   /**
-   * A chat's Workspace, named after the title. The canvas names none since
-   * any chat changes any layer (#1724): an idle layer shows only its title.
+   * The chat working on it right now (#1726), named after the title with the
+   * 9-dot. Unset while nobody is: an idle layer shows only its title.
    */
-  chatWorkspace?: FrameWorkspace
+  workingChat?: WorkingChat
   zoom: number
   /** The Canvas hides this Layer's label (see `hiddenLayerLabels`). */
   labelHidden?: boolean
@@ -205,7 +206,7 @@ const ignoreLive = () => {}
  */
 export function MockupLayer({
   layer,
-  chatWorkspace,
+  workingChat,
   zoom,
   labelHidden,
   selected,
@@ -431,20 +432,7 @@ export function MockupLayer({
           color={remoteSelectedColor}
           onSelectLayer={api.deferSelect}
           onRename={(next) => onRename(layer.id, next)}
-          trailing={
-            chatWorkspace && (
-              <MaybeWorkspaceHoverCard
-                branchId={chatWorkspace.branchId}
-                side="bottom"
-              >
-                {/* The mention doesn't take the trigger's props; this span
-                  does. Names win: the Workspace gives up its width first. */}
-                <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
-                  <CompactWorkspaceMention workspace={chatWorkspace} />
-                </span>
-              </MaybeWorkspaceHoverCard>
-            )
-          }
+          trailing={workingChat && <WorkingChatMention chat={workingChat} />}
         />
       )}
     >

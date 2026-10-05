@@ -108,9 +108,10 @@ import type { MarkdownLayerData } from "@/lib/types"
 import { isLocalBuild } from "@/lib/local-mode"
 import { cn } from "@workspace/ui/lib/utils"
 import type { GroupLabelValue } from "@/components/canvas/group-label"
-import type { FrameWorkspace } from "@/components/canvas/frame-nav"
-import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
-import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
+import {
+  WorkingChatMention,
+  type WorkingChat,
+} from "@/components/canvas/working-chat"
 
 export interface InlineCommentDraft {
   documentId: string
@@ -349,10 +350,10 @@ interface MarkdownLayerProps {
   /** The group label — only set on the leftmost member of a multi-member group. */
   groupLabel?: GroupLabelValue
   /**
-   * A chat's Workspace, named after the title. The canvas names none since
-   * any chat changes any layer (#1724): an idle layer shows only its title.
+   * The chat working on it right now (#1726), named after the title with the
+   * 9-dot. Unset while nobody is: an idle layer shows only its title.
    */
-  chatWorkspace?: FrameWorkspace
+  workingChat?: WorkingChat
   /** True when the parent group is selected. Drives label color, frame
    *  highlight, and click behavior (clicks are a no-op while the group owns
    *  the selection — same as IframeLayer). */
@@ -399,7 +400,7 @@ export function MarkdownLayer({
   userColor,
   placement,
   groupLabel,
-  chatWorkspace,
+  workingChat,
   groupSelected,
   remoteSelectedColor,
   onSelect,
@@ -1010,20 +1011,9 @@ export function MarkdownLayer({
           onRename={onRename ? (next) => onRename(layer.id, next) : undefined}
           editableRef={titleEditableRef}
           trailing={
-            (chatWorkspace || showMenu) && (
+            (workingChat || showMenu) && (
               <>
-                {chatWorkspace && (
-                  <MaybeWorkspaceHoverCard
-                    branchId={chatWorkspace.branchId}
-                    side="bottom"
-                  >
-                    {/* The mention doesn't take the trigger's props; this span
-                        does. Names win: the Workspace gives up its width first. */}
-                    <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
-                      <CompactWorkspaceMention workspace={chatWorkspace} />
-                    </span>
-                  </MaybeWorkspaceHoverCard>
-                )}
+                {workingChat && <WorkingChatMention chat={workingChat} />}
                 {showMenu && (
                   <LayerMenu
                     placement="label"

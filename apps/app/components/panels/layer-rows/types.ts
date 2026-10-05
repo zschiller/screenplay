@@ -23,6 +23,8 @@ export interface LayerRowProps<T> {
   /** "flat" for single-member groups, "sub" for nested rows under a folder. */
   variant: "flat" | "sub"
   selected: boolean
+  /** A chat is working on it right now (#1726): the row ends in the 9-dot. */
+  working?: boolean
   onSelect: (id: string, shiftKey: boolean) => void
   /** Optional double-click activation (e.g. zoom-to-frame). Suppressed when
    *  the user is double-clicking the name to inline-rename. */

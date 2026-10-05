@@ -59,6 +59,26 @@ export function layerHolder<C extends LayerChatSession>(
 }
 
 /**
+ * {@link layerHolder} of every held layer at once, by layer id (#1726): what
+ * the canvas labels and the sidebar rows show while a chat works on a layer.
+ */
+export function layerHolders<C extends LayerChatSession>(
+  chats: readonly C[]
+): Map<string, C> {
+  const out = new Map<string, C>()
+  const since = new Map<string, number>()
+  for (const chat of chats) {
+    if (!chat.isStreaming || chat.closedAt) continue
+    for (const [layerId, started] of Object.entries(chat.workingLayers ?? {})) {
+      if (started >= (since.get(layerId) ?? Infinity)) continue
+      out.set(layerId, chat)
+      since.set(layerId, started)
+    }
+  }
+  return out
+}
+
+/**
  * Whether `chatId` may change a layer: yes unless another chat holds it.
  * Returns the holder when it may not.
  */

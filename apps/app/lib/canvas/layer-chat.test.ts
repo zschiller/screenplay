@@ -4,6 +4,7 @@ import {
   lastChangedBy,
   layerChat,
   layerHolder,
+  layerHolders,
   layerRoute,
   layerChats,
   layerWorkspaceIds,
@@ -146,6 +147,25 @@ describe("holding a layer (#1725)", () => {
     ],
   ])("is held by %s", (_, list, expected) => {
     expect(layerHolder("m", list)?.id).toBe(expected)
+  })
+
+  it("finds every held layer's holder at once (#1726)", () => {
+    const list = [
+      working("a", { m: 5, d: 1 }),
+      working("b", { m: 2 }),
+      working("c", { n: 1 }, { isStreaming: false }),
+      working("e", { n: 1 }, { closedAt: 9 }),
+    ]
+    const holders = layerHolders(list)
+    expect(new Map([...holders].map(([id, c]) => [id, c.id]))).toEqual(
+      new Map([
+        ["m", "b"],
+        ["d", "a"],
+      ])
+    )
+    for (const id of ["m", "d", "n"]) {
+      expect(holders.get(id)).toBe(layerHolder(id, list))
+    }
   })
 
   it("lets the holder change it and refuses everyone else", () => {

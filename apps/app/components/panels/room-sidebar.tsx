@@ -79,6 +79,8 @@ import { frameWorkspaceOf } from "@/components/canvas/frame-nav"
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 
 import { groupWorkspace } from "@/lib/canvas/group-workspace"
+import { layerHolders } from "@/lib/canvas/layer-chat"
+import { useChatSessions } from "@/lib/yjs/react"
 
 import {
   parseSidebarRowId,
@@ -413,6 +415,13 @@ export function RoomSidebar({
     for (const a of branches) m.set(a.id, a)
     return m
   }, [branches])
+  // The Documents and Mockups a chat is working on right now (#1726): their
+  // rows end in the 9-dot.
+  const chatSessions = useChatSessions()
+  const workingLayerIds = useMemo(
+    () => new Set(layerHolders(chatSessions).keys()),
+    [chatSessions]
+  )
 
   /**
    * Per-kind sidebar row + menu component lookup. Each entry binds a
@@ -448,6 +457,7 @@ export function RoomSidebar({
       import("./layer-rows/types").LayerRowMenuProps<unknown>
     >
     isSelected: (id: string) => boolean
+    isWorking?: (id: string) => boolean
     onSelect: (id: string, shiftKey: boolean) => void
     onActivate?: (id: string) => void
     onRename: (id: string, name: string) => void
@@ -469,6 +479,7 @@ export function RoomSidebar({
       Row: documentRow.Row as AnyRowDispatcher["Row"],
       Menu: documentRow.Menu as AnyRowDispatcher["Menu"],
       isSelected: (id) => selectedDocumentLayerIds.has(id),
+      isWorking: (id) => workingLayerIds.has(id),
       onSelect: onSelectDocument,
       onActivate: onZoomToDocument,
       onRename: onRenameDocument,
@@ -478,6 +489,7 @@ export function RoomSidebar({
       Row: mockupRow.Row as AnyRowDispatcher["Row"],
       Menu: mockupRow.Menu as AnyRowDispatcher["Menu"],
       isSelected: (id) => selectedDocumentLayerIds.has(id),
+      isWorking: (id) => workingLayerIds.has(id),
       // Mockups share the Document selection Set (see `lib/canvas/selection`).
       onSelect: onSelectDocument,
       onActivate: onZoomToMockup,
@@ -918,6 +930,7 @@ function MemberEntry({
           import("./layer-rows/types").LayerRowMenuProps<unknown>
         >
         isSelected: (id: string) => boolean
+        isWorking?: (id: string) => boolean
         onSelect: (id: string, shiftKey: boolean) => void
         onActivate?: (id: string) => void
         onRename: (id: string, name: string) => void
@@ -934,6 +947,7 @@ function MemberEntry({
         item={member.data}
         variant={variant}
         selected={dispatch.isSelected(member.id)}
+        working={dispatch.isWorking?.(member.id)}
         onSelect={dispatch.onSelect}
         onActivate={dispatch.onActivate}
         onRename={dispatch.onRename}
