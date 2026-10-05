@@ -6,6 +6,9 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { draft, onCanvas } from "./chat.ts"
 
+/** A `wide` page's column from 1024px: 1184px, for an answer column beside each item. */
+export const WIDE = "lg:max-w-[1184px]!"
+
 /** Small grey mono label: a page's meta line, a control's name. */
 export function Label({ className, ...props }: React.ComponentProps<"p">) {
   return (
@@ -77,6 +80,7 @@ export function CopyBar({
   outLabel,
   text,
   maxWidth = "832px",
+  wide,
   send,
 }: {
   status: React.ReactNode
@@ -90,6 +94,8 @@ export function CopyBar({
   outLabel: string
   text: () => string
   maxWidth?: string
+  /** As the Shell's `wide` */
+  wide?: boolean
   send?: boolean
 }) {
   const sends = send && onCanvas()
@@ -131,7 +137,10 @@ export function CopyBar({
       id="copy-bar"
       className="fixed inset-x-0 bottom-0 z-[8] border-t bg-background px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] md:px-6"
     >
-      <div className="mx-auto flex flex-col gap-2.5" style={{ maxWidth }}>
+      <div
+        className={cn("mx-auto flex flex-col gap-2.5", wide && WIDE)}
+        style={{ maxWidth }}
+      >
         <Textarea
           ref={noteRef}
           aria-label="Note"

@@ -1,9 +1,10 @@
-// The design-audit decisions page: one column, the findings page's shape.
-// Header, filter tabs (All and one per surface), questions grouped by
-// surface with their options drawn like the chat's question card, then the
-// PRs that run regardless. A bar pinned to the bottom carries the count, a
-// note and Copy decisions (Send to chat on a canvas, where the question the
-// chat asks about with a question card answers that card).
+// The design-audit decisions page, the findings page's shape. Header, filter
+// tabs (All and one per surface), questions grouped by surface with their
+// options drawn like the chat's question card, each starting on the
+// recommendation in grey, then the PRs that run regardless. From 1280px it's
+// list and detail (shared/detail.tsx). A bar pinned to the bottom carries the
+// count, a note and Copy decisions (Send to chat on a canvas, where the
+// question the chat asks about with a question card answers that card).
 
 import * as React from "react"
 
@@ -22,6 +23,15 @@ import {
   useCardQuestion,
 } from "../shared/chat.ts"
 import { AnswerInChat, Choices } from "../shared/choices.tsx"
+import {
+  ABOUT,
+  DEFAULTED,
+  DetailItem,
+  DetailLayout,
+  DetailNav,
+  detailOnly,
+  useDetail,
+} from "../shared/detail.tsx"
 import {
   Intro,
   ItemHead,
@@ -165,7 +175,13 @@ export function Decisions({
     return lines.join("\n").trim()
   }
   const isAnswered = (s: Answer) => !!s.v && !(s.v === "own" && !s.own.trim())
-  const n = all.filter((q) => isAnswered(answers[q.id]!)).length
+  // Every question starts on the recommendation, so the tally counts changes
+  const changed = all.filter(
+    (q) => isAnswered(answers[q.id]!) && answers[q.id]!.v !== "o0"
+  ).length
+  const shown = surfaces.filter((s) => filter === "all" || filter === s.key)
+  const detail = useDetail(shown.flatMap((s) => s.qs.map((q) => q.id)))
+  const about = detail.sel === ABOUT
   const action = onCanvas() ? "Send to chat" : "Copy decisions"
   const back = onCanvas()
     ? "send it from the chat"
@@ -191,11 +207,17 @@ export function Decisions({
       }}
       tabsLabel="Filter"
       theme={theme}
+      wide
       bar={
         <CopyBar
+          wide
           status={
             <>
-              <b>{n}</b> of {all.length} answered
+              <b>{changed}</b> changed
+              <span className="max-sm:hidden">
+                {" "}
+                · {all.length - changed} keep my recommendation
+              </span>
             </>
           }
           note={note}
@@ -210,89 +232,117 @@ export function Decisions({
         />
       }
     >
-      <Intro meta={`${page.label} · ${page.date}`}>
-        <p>
-          {all.length} {all.length === 1 ? "question" : "questions"} from the{" "}
-          {page.plans}. Pick an option, pick{" "}
-          <b className="font-medium text-foreground">None of these</b>, or write
-          your own, and add a note if you like. Anything you leave blank keeps
-          my recommendation. When you’re done, press{" "}
-          <b className="font-medium text-foreground">{action}</b> and {back}.
-        </p>
-        <Links
-          links={[...page.links, ["PRs that need no decision", "#runs"]]}
-        />
-      </Intro>
+      <DetailLayout
+        about="About these decisions"
+        detail={detail}
+        groups={shown.map((s) => ({
+          name: s.name,
+          items: s.qs.map((q) => ({
+            id: q.id,
+            title: q.t,
+            done: isAnswered(answers[q.id]!),
+          })),
+        }))}
+      >
+        <Intro
+          meta={`${page.label} · ${page.date}`}
+          className={detailOnly(about)}
+        >
+          <p>
+            {all.length} {all.length === 1 ? "question" : "questions"} from the{" "}
+            {page.plans}. Each starts on my recommendation, in grey. Pick
+            another option, pick{" "}
+            <b className="font-medium text-foreground">None of these</b>, or
+            write your own, and add a note if you like. When you’re done, press{" "}
+            <b className="font-medium text-foreground">{action}</b> and {back}.
+          </p>
+          <Links
+            links={[...page.links, ["PRs that need no decision", "#runs"]]}
+          />
+        </Intro>
 
-      {surfaces.map((s) => (
+        {surfaces.map((s) => (
+          <section
+            key={s.key}
+            id={s.key}
+            hidden={filter !== "all" && filter !== s.key}
+            className={cn(
+              "flex scroll-mt-16 flex-col",
+              detailOnly(s.qs.some((q) => q.id === detail.sel))
+            )}
+          >
+            <div className="xl:hidden">
+              <SectionHead
+                title={s.name}
+                blurb={
+                  <>
+                    {s.intro}{" "}
+                    <a href={s.plan} className="text-foreground underline">
+                      Open the plan
+                    </a>
+                  </>
+                }
+              />
+            </div>
+            {s.qs.map((q) => (
+              <Question
+                key={q.id}
+                shown={detail.sel === q.id}
+                nav={<DetailNav detail={detail} noun="questions" />}
+                q={q}
+                a={answers[q.id]!}
+                set={(a) => set(q.id, a)}
+                choose={(v) => choose(q, v)}
+                chatOnly={chatOnly === q.id}
+              />
+            ))}
+          </section>
+        ))}
+
         <section
-          key={s.key}
-          id={s.key}
-          hidden={filter !== "all" && filter !== s.key}
-          className="flex scroll-mt-16 flex-col"
+          id="runs"
+          hidden={filter !== "all"}
+          className={cn("flex scroll-mt-16 flex-col gap-4", detailOnly(about))}
         >
           <SectionHead
-            title={s.name}
-            blurb={
-              <>
-                {s.intro}{" "}
-                <a href={s.plan} className="text-foreground underline">
-                  Open the plan
-                </a>
-              </>
-            }
+            title="PRs that need no decision"
+            blurb="These go ahead once you hand the decisions back. A PR marked with a question id waits on that answer."
           />
-          {s.qs.map((q) => (
-            <Question
-              key={q.id}
-              q={q}
-              a={answers[q.id]!}
-              set={(a) => set(q.id, a)}
-              choose={(v) => choose(q, v)}
-              chatOnly={chatOnly === q.id}
-            />
+          {surfaces.map((s) => (
+            <div key={s.key} className="flex flex-col gap-1.5">
+              <Label>{s.name}</Label>
+              <ul className="m-0 list-none border-t p-0">
+                {(runs[s.key] ?? []).map(([num, title, w]) => (
+                  <li
+                    key={num}
+                    className="grid grid-cols-[28px_minmax(0,1fr)] items-baseline gap-x-3 border-b py-2 text-sm sm:grid-cols-[36px_minmax(0,1fr)_auto]"
+                  >
+                    <span className="font-mono text-muted-foreground tabular-nums">
+                      {num}
+                    </span>
+                    <span>{title}</span>
+                    <span
+                      className={cn(
+                        "col-start-2 text-xs sm:col-start-auto sm:text-right",
+                        w.startsWith("waits")
+                          ? "font-medium text-foreground"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {w || "runs regardless"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
         </section>
-      ))}
-
-      <section
-        id="runs"
-        hidden={filter !== "all"}
-        className="flex scroll-mt-16 flex-col gap-4"
-      >
-        <SectionHead
-          title="PRs that need no decision"
-          blurb="These go ahead once you hand the decisions back. A PR marked with a question id waits on that answer."
-        />
-        {surfaces.map((s) => (
-          <div key={s.key} className="flex flex-col gap-1.5">
-            <Label>{s.name}</Label>
-            <ul className="m-0 list-none border-t p-0">
-              {(runs[s.key] ?? []).map(([num, title, w]) => (
-                <li
-                  key={num}
-                  className="grid grid-cols-[28px_minmax(0,1fr)] items-baseline gap-x-3 border-b py-2 text-sm sm:grid-cols-[36px_minmax(0,1fr)_auto]"
-                >
-                  <span className="font-mono text-muted-foreground tabular-nums">
-                    {num}
-                  </span>
-                  <span>{title}</span>
-                  <span
-                    className={cn(
-                      "col-start-2 text-xs sm:col-start-auto sm:text-right",
-                      w.startsWith("waits")
-                        ? "font-medium text-foreground"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    {w || "runs regardless"}
-                  </span>
-                </li>
-              ))}
-            </ul>
+        {about && (
+          <div className="hidden xl:block">
+            <DetailNav detail={detail} noun="questions" />
           </div>
-        ))}
-      </section>
+        )}
+      </DetailLayout>
     </Shell>
   )
 }
@@ -303,6 +353,8 @@ function Question({
   set,
   choose,
   chatOnly,
+  shown,
+  nav,
 }: {
   q: Q
   a: Answer
@@ -310,50 +362,64 @@ function Question({
   choose: (v: string) => void
   /** The chat's open card asks this, and a pick here can't answer it. */
   chatOnly: boolean
+  /** The question list and detail shows */
+  shown: boolean
+  nav: React.ReactNode
 }) {
   const own = React.useRef<HTMLInputElement>(null)
   return (
-    <div
+    <DetailItem
       id={`q-${q.id}`}
-      className="flex min-w-0 scroll-mt-16 flex-col gap-2.5 border-b py-5"
-    >
-      <ItemHead id={q.id} title={q.t} meta={q.where} />
-      <p className="max-w-[72ch] text-sm text-muted-foreground">{q.c}</p>
-      <Shots list={q.img} className={PAIR} />
-      <ItemNote
-        label={`Note on ${q.id}`}
-        note={a.note}
-        setNote={(note) => set({ note })}
-        stacked
-      >
-        <Choices
-          name={`q-${q.id}`}
-          value={a.v}
-          onChange={(v) => {
-            choose(v)
-            if (v === "own") requestAnimationFrame(() => own.current?.focus())
-          }}
-          choices={[
-            ...q.o.map(([label, detail], i) => ({
-              value: `o${i}`,
-              label,
-              detail,
-              rec: i === 0,
-            })),
-            { value: "none", label: "None of these", quiet: true },
-            { value: "own", label: "Write my own", quiet: true },
-          ]}
-        />
-        <Input
-          ref={own}
-          hidden={a.v !== "own"}
-          aria-label={`Your answer for ${q.id}`}
-          placeholder="Your answer"
-          value={a.own}
-          onChange={(e) => set({ own: e.target.value })}
-        />
-        {chatOnly && <AnswerInChat />}
-      </ItemNote>
-    </div>
+      open={!a.v}
+      hidden={false}
+      shown={shown}
+      nav={nav}
+      head={
+        <>
+          <ItemHead id={q.id} title={q.t} meta={q.where} />
+          <p className="max-w-[72ch] text-sm text-muted-foreground">{q.c}</p>
+        </>
+      }
+      shots={q.img?.length ? <Shots list={q.img} className={PAIR} /> : null}
+      answer={
+        <ItemNote
+          label={`Note on ${q.id}`}
+          note={a.note}
+          setNote={(note) => set({ note })}
+          stacked
+        >
+          <div className={cn("contents", !a.v && DEFAULTED)}>
+            <Choices
+              name={`q-${q.id}`}
+              value={a.v || "o0"}
+              onChange={(v) => {
+                choose(v)
+                if (v === "own")
+                  requestAnimationFrame(() => own.current?.focus())
+              }}
+              choices={[
+                ...q.o.map(([label, detail], i) => ({
+                  value: `o${i}`,
+                  label,
+                  detail,
+                  rec: i === 0,
+                })),
+                { value: "none", label: "None of these", quiet: true },
+                { value: "own", label: "Write my own", quiet: true },
+              ]}
+            />
+          </div>
+          <Input
+            ref={own}
+            hidden={a.v !== "own"}
+            aria-label={`Your answer for ${q.id}`}
+            placeholder="Your answer"
+            value={a.own}
+            onChange={(e) => set({ own: e.target.value })}
+          />
+          {chatOnly && <AnswerInChat />}
+        </ItemNote>
+      }
+    />
   )
 }
