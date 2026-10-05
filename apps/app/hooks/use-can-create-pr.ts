@@ -1,17 +1,36 @@
 "use client"
 
-import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
+import { useGitHubTokenProbe } from "@/hooks/use-github-token"
 import { hasGitHubRemote } from "@/lib/repo-identity"
+import type { RepoData } from "@/lib/types"
 import { useRepos } from "@/lib/yjs/react"
 
+/** Create pull request's tooltip when the repo is on GitHub but this person
+ *  hasn't connected it (H3). */
+export const CONNECT_GITHUB_FOR_PR_HINT =
+  "Connect GitHub in Settings to open pull requests."
+
 /**
- * Whether a Repository's Workspaces can open a pull request: it has a GitHub
- * remote and the GitHub API is reachable. False for a local-only repo and on
- * the desktop app with no GitHub connection, where Create pull request is
- * hidden rather than offered to fail. False until the token probe resolves.
+ * Whether a Repository's Workspaces can open a pull request:
+ *  - `ready`: it has a GitHub remote and the GitHub API is reachable.
+ *  - `connect`: it has a GitHub remote but there's no GitHub connection (the
+ *    desktop app before `gh auth login`). Create pull request shows disabled
+ *    with {@link CONNECT_GITHUB_FOR_PR_HINT}, so people learn where to fix it.
+ *  - `none`: no GitHub remote (a local-only repo), or the token probe hasn't
+ *    resolved yet. Create pull request is hidden.
  */
-export function useCanCreatePr(repoId: string | undefined): boolean {
-  const githubTokenAvailable = useGitHubTokenAvailable()
+export type PrAvailability = "ready" | "connect" | "none"
+
+export function prAvailability(
+  repo: RepoData | undefined,
+  githubToken: boolean | undefined
+): PrAvailability {
+  if (!hasGitHubRemote(repo) || githubToken === undefined) return "none"
+  return githubToken ? "ready" : "connect"
+}
+
+export function usePrAvailability(repoId: string | undefined): PrAvailability {
+  const githubToken = useGitHubTokenProbe()
   const repo = useRepos().find((r) => r.id === repoId)
-  return githubTokenAvailable && hasGitHubRemote(repo)
+  return prAvailability(repo, githubToken)
 }

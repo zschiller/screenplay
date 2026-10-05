@@ -19,6 +19,7 @@ import {
   workspaceMenuLead,
 } from "./branch-overflow-menu"
 import type { BranchPrInfo } from "@/lib/github-actions"
+import type { PrAvailability } from "@/hooks/use-can-create-pr"
 import { creatingPrStore } from "@/lib/creating-pr-store"
 
 // `isLocalBuild` is a compile-time constant, but the build-specific item
@@ -88,10 +89,10 @@ function renderMenu(
     onRecreate,
     onMarkDone,
     onReopen,
-    canCreatePr,
+    prAvailability,
   }: {
     isBusy?: boolean
-    canCreatePr?: boolean
+    prAvailability?: PrAvailability
     hasChanges?: boolean
     pr?: BranchPrInfo | null
     onRetry?: () => void
@@ -112,7 +113,7 @@ function renderMenu(
         onRetry={onRetry ?? vi.fn()}
         hasChanges={hasChanges}
         pr={pr}
-        canCreatePr={canCreatePr}
+        prAvailability={prAvailability}
         onRename={vi.fn()}
         onRestartDevServer={onRestartDevServer ?? vi.fn()}
         onRestart={onRestart ?? vi.fn()}
@@ -202,8 +203,9 @@ describe("workspaceMenuLead", () => {
   })
 
   it("doesn't lead with Create pull request when GitHub can't take it", () => {
-    expect(lead({ hasChanges: true, canCreatePr: false })).toBe("play")
-    expect(lead({ pr: { state: "open" }, canCreatePr: false })).toBe(
+    expect(lead({ hasChanges: true, prAvailability: "none" })).toBe("play")
+    expect(lead({ hasChanges: true, prAvailability: "connect" })).toBe("play")
+    expect(lead({ pr: { state: "open" }, prAvailability: "none" })).toBe(
       "create-pr"
     )
   })
@@ -374,17 +376,33 @@ describe("Create pull request", () => {
   })
 
   it("is hidden when the repo can't open a PR, but an open PR still links", () => {
-    renderMenu({}, { hasChanges: true, canCreatePr: false })
+    renderMenu({}, { hasChanges: true, prAvailability: "none" })
     expect(screen.queryByText("Create pull request")).toBeNull()
     cleanup()
     renderMenu(
       {},
       {
-        canCreatePr: false,
+        prAvailability: "none",
         pr: { number: 9, state: "open", url: "https://x" },
       }
     )
     expect(screen.getByText("Open pull request #9")).toBeTruthy()
+  })
+})
+
+describe("Create pull request without a GitHub connection (H3)", () => {
+  it("shows disabled, its tooltip pointing at Settings", async () => {
+    renderMenu({}, { hasChanges: true, prAvailability: "connect" })
+    const item = screen
+      .getByText("Create pull request")
+      .closest('[role="menuitem"]')!
+    expect(item.getAttribute("aria-disabled")).toBe("true")
+    await act(async () => {
+      fireEvent.focus(item.parentElement!)
+    })
+    expect((await screen.findByRole("tooltip")).textContent).toBe(
+      "Connect GitHub in Settings to open pull requests."
+    )
   })
 })
 

@@ -54,9 +54,12 @@ vi.mock("@/hooks/use-preview-failing", () => ({
   usePreviewFailing: () => preview.failing,
 }))
 // Whether the Workspace's repo can open a PR (a GitHub remote + a token).
-const github = vi.hoisted(() => ({ canCreatePr: true }))
-vi.mock("@/hooks/use-can-create-pr", () => ({
-  useCanCreatePr: () => github.canCreatePr,
+const github = vi.hoisted(() => ({
+  pr: "ready" as "ready" | "connect" | "none",
+}))
+vi.mock("@/hooks/use-can-create-pr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-can-create-pr")>()),
+  usePrAvailability: () => github.pr,
 }))
 // The PR create server action, held open per test to see it running.
 const createPrAction = vi.hoisted(() => vi.fn())
@@ -243,12 +246,29 @@ describe("ChatPanel with a Workspace target", () => {
     })
     expect(createPr()?.hasAttribute("disabled")).toBe(false)
     changed.unmount()
-    github.canCreatePr = false
+    github.pr = "none"
     try {
       renderWorkspacePanel({ diffStats: { additions: 3, deletions: 1 } })
       expect(createPr()).toBeNull()
     } finally {
-      github.canCreatePr = true
+      github.pr = "ready"
+    }
+  })
+
+  it("shows Create PR disabled until GitHub is connected (H3)", async () => {
+    github.pr = "connect"
+    try {
+      renderWorkspacePanel({ diffStats: { additions: 3, deletions: 1 } })
+      const button = screen.getByRole("button", { name: /Create PR/ })
+      expect(button.hasAttribute("disabled")).toBe(true)
+      await act(async () => {
+        fireEvent.focus(button.parentElement!)
+      })
+      expect((await screen.findByRole("tooltip")).textContent).toBe(
+        "Connect GitHub in Settings to open pull requests."
+      )
+    } finally {
+      github.pr = "ready"
     }
   })
 

@@ -65,7 +65,7 @@ export function WorkspaceMenuItems({
       onShowRoutes={menu.onShowRoutes}
       onCreatePr={menu.onCreatePr}
       pr={menu.branchPrs.get(branch.id)}
-      canCreatePr={menu.canCreatePr(repo)}
+      prAvailability={menu.prAvailabilityOf(repo)}
       onMarkDone={menu.onMarkBranchDone}
       onReopen={menu.onReopenBranch}
       onDelete={menu.askDelete}
