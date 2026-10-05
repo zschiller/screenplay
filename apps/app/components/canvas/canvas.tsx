@@ -38,11 +38,7 @@ import {
 } from "@/lib/yjs/react"
 
 import { createCanvasOps } from "@/lib/canvas/ops"
-import {
-  documentWorkspaceIds,
-  layerOwners,
-  orphanedLayerIds,
-} from "@/lib/canvas/document-owner"
+import { documentWorkspaceIds, layerOwners } from "@/lib/canvas/document-owner"
 
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 
@@ -52,7 +48,6 @@ import { isLocalBuild } from "@/lib/local-mode"
 
 import { inputStore } from "@/lib/input-store"
 import { chatDraftSourceStore } from "@/lib/chat-draft-source-store"
-import type { MockupQuestion } from "@/lib/agent/question"
 
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 
@@ -115,6 +110,8 @@ import { type PanelLayout, writePanelLayout } from "@/lib/panel-layout"
 import type { IframeLayerGroupData, ViewportData } from "@/lib/types"
 
 import { chatStore } from "@/lib/chat-store"
+import { createMockupChatLink } from "@/lib/canvas/mockup-chat-link"
+import { MockupChatLinkProvider } from "@/components/canvas/mockup-chat-link"
 
 import { useDiffStats } from "@/hooks/use-diff-stats"
 
@@ -1452,105 +1449,62 @@ export function Canvas({
     [openWorkspaceChat]
   )
 
-  // The same for a Mockup's empty Knobs popover, in the chat that can rewrite
-  // the page (#1309): the Sketch Chat that made it, or its Workspace's chat.
-  // A Mockup whose chat was deleted goes to the chat the panel shows, which
-  // claims it by editing it, or to a new chat with no repository when the
-  // panel shows the Coordinator.
-  const mockupOwners = useMemo(
-    () => layerOwners(mockupLayers, chatSessions),
-    [mockupLayers, chatSessions]
-  )
-  const orphanedMockupIds = useMemo(
-    () => orphanedLayerIds(mockupLayers, chatSessions),
-    [mockupLayers, chatSessions]
-  )
-  // A Mockup made by hand offers no Ask.
-  const askableMockupIds = useMemo(
-    () => new Set([...mockupOwners.keys(), ...orphanedMockupIds]),
-    [mockupOwners, orphanedMockupIds]
-  )
-  // Open the chat that can rewrite a Mockup and return its id: its owner, or
-  // for a Mockup without one, the chat the panel shows.
-  const openMockupChat = useCallback(
-    (mockupId: string): string => {
-      const target = mockupOwners.get(mockupId)
-      if (!target) {
-        const shown = chatTarget.target
-        if (shown?.kind === "agent") return openWorkspaceChat(shown.agent.id)
-        let chatId = shown?.kind === "sketch" ? shown.chat.id : null
-        if (!chatId) {
-          chatId = nanoid()
-          addChatSession(chatId, sketchChatSession(chatId, Date.now()))
-        }
-        chatTarget.selectSketchChat(chatId)
-        return chatId
-      }
-      if (target.kind === "sketch") {
-        chatTarget.selectSketchChat(target.chatId)
-      } else {
-        chatTarget.selectAgentChat(target.branchId, target.chatId, {
-          expandPanel: true,
-          remember: true,
-        })
-      }
-      return target.chatId
-    },
-    [mockupOwners, chatTarget, openWorkspaceChat, addChatSession]
-  )
-  const handleAskForMockupKnob = useCallback(
-    (mockupId: string) => {
-      const mockup = mockupLayers.find((m) => m.id === mockupId)
-      if (!mockup || !askableMockupIds.has(mockupId)) return
-      inputStore.prefill(
-        openMockupChat(mockupId),
-        `Add a knob to the mockup "${mockup.title || "Untitled"}" that controls `
-      )
-    },
-    [mockupLayers, askableMockupIds, openMockupChat]
-  )
-  // A Mockup page's `screenplay.draft(text)` (#1645), from the person's tap:
-  // the text goes in the same chat's composer for them to edit and send,
-  // under a From row naming the Mockup.
-  const handleMockupDraft = useCallback(
-    (mockupId: string, text: string) => {
-      const mockup = mockupLayers.find((m) => m.id === mockupId)
-      if (!mockup) return
-      const chatId = openMockupChat(mockupId)
-      chatDraftSourceStore.set(chatId, { mockupId, title: mockup.title })
-      inputStore.prefill(chatId, text)
-    },
-    [mockupLayers, openMockupChat]
-  )
-
-  // A Mockup page answered its chat's question card (#1644): show that chat,
-  // where the card is, and send the option's label as the person's message,
-  // the same send a click on the card makes. Each question is answered once,
-  // even if the page taps again before the message lands.
+  // Each Mockup's link to its chat (#1662): the Knobs Ask, a page's draft,
+  // question and answer. The panel's verbs are read at call time, so the link
+  // changes only with the Mockups and chats.
+  const mockupPanelRef = useRef({
+    chatTarget,
+    openWorkspaceChat,
+    addChatSession,
+  })
+  useEffect(() => {
+    mockupPanelRef.current = { chatTarget, openWorkspaceChat, addChatSession }
+  })
   const answeredFromPages = useRef(new Set<string>())
-  const handleAnswerFromMockup = useCallback(
-    (mockupId: string, found: MockupQuestion, index: number) => {
-      const mockup = mockupLayers.find((m) => m.id === mockupId)
-      const chatId = mockup?.ownerChatId
-      const option = found.question.options[index]
-      if (!chatId || !option || answeredFromPages.current.has(found.toolCallId))
-        return
-      answeredFromPages.current.add(found.toolCallId)
-      const owner = mockupOwners.get(mockupId)
-      if (owner?.kind === "sketch") {
-        chatTarget.selectSketchChat(owner.chatId)
-      } else if (owner?.kind === "workspace") {
-        chatTarget.selectAgentChat(owner.branchId, owner.chatId, {
-          expandPanel: true,
-          remember: true,
-        })
-      } else {
-        // The Coordinator made it.
-        chatTarget.showRoomChat()
-      }
-      inputStore.sendWhenOpen(chatId, option.label)
-    },
-    [mockupLayers, mockupOwners, chatTarget]
+  const mockupChatLink = useMemo(
+    () =>
+      createMockupChatLink({
+        mockups: mockupLayers,
+        chats: chatSessions,
+        transcripts: {
+          messages: (chatId) => chatStore.getSnapshot(chatId).messages,
+          subscribe: (chatId, cb) => chatStore.subscribe(chatId, cb),
+        },
+        panel: {
+          shown: () => {
+            const shown = mockupPanelRef.current.chatTarget.target
+            if (shown?.kind === "agent") {
+              return { kind: "agent", branchId: shown.agent.id }
+            }
+            if (shown?.kind === "sketch") {
+              return { kind: "sketch", chatId: shown.chat.id }
+            }
+            return shown
+          },
+          showSketchChat: (chatId) =>
+            mockupPanelRef.current.chatTarget.selectSketchChat(chatId),
+          showWorkspaceChat: (branchId, chatId) =>
+            mockupPanelRef.current.chatTarget.selectAgentChat(
+              branchId,
+              chatId,
+              { expandPanel: true, remember: true }
+            ),
+          showRoomChat: () => mockupPanelRef.current.chatTarget.showRoomChat(),
+          openWorkspaceChat: (branchId) =>
+            mockupPanelRef.current.openWorkspaceChat(branchId),
+          newSketchChat: () => {
+            const { chatTarget, addChatSession } = mockupPanelRef.current
+            const chatId = nanoid()
+            addChatSession(chatId, sketchChatSession(chatId, Date.now()))
+            chatTarget.selectSketchChat(chatId)
+            return chatId
+          },
+        },
+        input: inputStore,
+        draftSource: chatDraftSourceStore,
+        answered: answeredFromPages.current,
+      }),
+    [mockupLayers, chatSessions]
   )
 
   // Deleting a chat with no repository: the panel goes home if it showed it,
@@ -2304,73 +2258,73 @@ export function Canvas({
                         // scale (see globals.css `.canvas-frame-label`).
                         data-zoom-settling={zoomSettling || undefined}
                       >
-                        <CanvasMemberLayer
-                          iframeLayerGroups={iframeLayerGroups}
-                          iframeLayers={iframeLayers}
-                          markdownLayers={markdownLayers}
-                          documentWorkspaces={documentWorkspaces}
-                          mockupLayers={mockupLayers}
-                          selection={selection}
-                          onIframeWheel={camera.handleIframeWheel}
-                          reference={reference}
-                          gesturePreview={gesturePreview}
-                          gestureLayerHandlers={gestureLayerHandlers}
-                          effectiveIframeLayerLayouts={
-                            effectiveIframeLayerLayouts
-                          }
-                          iframeLayerLayouts={iframeLayerLayouts}
-                          groupZIndex={groupZIndex}
-                          groupDisplayNames={groupDisplayNames}
-                          placeholderRects={placeholderRects}
-                          placeholderTool={
-                            frameMode
-                              ? "frame"
-                              : documentMode
-                                ? "document"
-                                : null
-                          }
-                          onPlaceholderAdd={addAtPlaceholder}
-                          remoteSelectionColors={remoteSelectionColors}
-                          remoteGroupSelectionColors={
-                            remoteGroupSelectionColors
-                          }
-                          agentDomains={agentDomains}
-                          agents={agents}
-                          onRestartWorkspace={branchActions.startWorkspace}
-                          onOpenLogs={openBranchLogs}
-                          onStartChat={drawAsk.startFrameChat}
-                          repos={repos}
-                          zoom={zoom}
-                          spaceHeld={spaceHeld}
-                          commentMode={commentMode}
-                          pickActive={targeting.pickActive}
-                          dimmedIframeLayerIds={targeting.dimmedIds}
-                          selfName={self?.identity.name || "Anonymous"}
-                          selfColor={self?.color || "#888888"}
-                          editingDocumentLayerId={editingDocumentLayerId}
-                          setEditingDocumentLayerId={setEditingDocumentLayerId}
-                          focusedIframeLayerId={focusedIframeLayerId}
-                          setFocusedIframeLayerId={setFocusedIframeLayerId}
-                          frameControl={frameControl}
-                          sharedFrames={sharedFrames}
-                          createFlowIframeLayerId={createFlowIframeLayerId}
-                          setCreateFlowIframeLayerId={
-                            setCreateFlowIframeLayerId
-                          }
-                          removeIframeLayer={removeIframeLayer}
-                          removeMockup={removeMockup}
-                          removeDocument={removeDocument}
-                          handlePlayIframeLayer={handlePlayIframeLayer}
-                          onAskForKnob={handleAskForKnob}
-                          askableMockupIds={askableMockupIds}
-                          onAnswerFromMockup={handleAnswerFromMockup}
-                          onAskForMockupKnob={handleAskForMockupKnob}
-                          onMockupDraft={handleMockupDraft}
-                          handleCaptureReadyChange={handleCaptureReadyChange}
-                          handleCaptureDirty={handleCaptureDirty}
-                          layerMutations={layerMutations}
-                          groupActions={groupActions}
-                        />
+                        <MockupChatLinkProvider value={mockupChatLink}>
+                          <CanvasMemberLayer
+                            iframeLayerGroups={iframeLayerGroups}
+                            iframeLayers={iframeLayers}
+                            markdownLayers={markdownLayers}
+                            documentWorkspaces={documentWorkspaces}
+                            mockupLayers={mockupLayers}
+                            selection={selection}
+                            onIframeWheel={camera.handleIframeWheel}
+                            reference={reference}
+                            gesturePreview={gesturePreview}
+                            gestureLayerHandlers={gestureLayerHandlers}
+                            effectiveIframeLayerLayouts={
+                              effectiveIframeLayerLayouts
+                            }
+                            iframeLayerLayouts={iframeLayerLayouts}
+                            groupZIndex={groupZIndex}
+                            groupDisplayNames={groupDisplayNames}
+                            placeholderRects={placeholderRects}
+                            placeholderTool={
+                              frameMode
+                                ? "frame"
+                                : documentMode
+                                  ? "document"
+                                  : null
+                            }
+                            onPlaceholderAdd={addAtPlaceholder}
+                            remoteSelectionColors={remoteSelectionColors}
+                            remoteGroupSelectionColors={
+                              remoteGroupSelectionColors
+                            }
+                            agentDomains={agentDomains}
+                            agents={agents}
+                            onRestartWorkspace={branchActions.startWorkspace}
+                            onOpenLogs={openBranchLogs}
+                            onStartChat={drawAsk.startFrameChat}
+                            repos={repos}
+                            zoom={zoom}
+                            spaceHeld={spaceHeld}
+                            commentMode={commentMode}
+                            pickActive={targeting.pickActive}
+                            dimmedIframeLayerIds={targeting.dimmedIds}
+                            selfName={self?.identity.name || "Anonymous"}
+                            selfColor={self?.color || "#888888"}
+                            editingDocumentLayerId={editingDocumentLayerId}
+                            setEditingDocumentLayerId={
+                              setEditingDocumentLayerId
+                            }
+                            focusedIframeLayerId={focusedIframeLayerId}
+                            setFocusedIframeLayerId={setFocusedIframeLayerId}
+                            frameControl={frameControl}
+                            sharedFrames={sharedFrames}
+                            createFlowIframeLayerId={createFlowIframeLayerId}
+                            setCreateFlowIframeLayerId={
+                              setCreateFlowIframeLayerId
+                            }
+                            removeIframeLayer={removeIframeLayer}
+                            removeMockup={removeMockup}
+                            removeDocument={removeDocument}
+                            handlePlayIframeLayer={handlePlayIframeLayer}
+                            onAskForKnob={handleAskForKnob}
+                            handleCaptureReadyChange={handleCaptureReadyChange}
+                            handleCaptureDirty={handleCaptureDirty}
+                            layerMutations={layerMutations}
+                            groupActions={groupActions}
+                          />
+                        </MockupChatLinkProvider>
                       </div>
                     </LiveZoomContext.Provider>
                   </TransformComponent>
