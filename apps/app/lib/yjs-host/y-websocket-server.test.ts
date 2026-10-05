@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { WebSocket } from "ws"
 import { WebsocketProvider } from "y-websocket"
 import { docs } from "y-websocket/bin/utils"
@@ -206,8 +206,20 @@ describe("LocalYjsHost", () => {
     })
 
     it("a first client does not report synced until the room's disk state is loaded", async () => {
+      await expectColdRoomLoadedAtSync("cold-room")
+    })
+
+    it("still waits for the disk load once another copy of the host module has run", async () => {
+      // Next gives instrumentation (which starts this server) and the route
+      // bundles their own copy of this module, over one y-websocket registry.
+      vi.resetModules()
+      const routeCopy = await import("@/lib/yjs-host/y-websocket-server")
+      routeCopy.getLocalYjsHost()
+      await expectColdRoomLoadedAtSync("cold-room-2")
+    })
+
+    async function expectColdRoomLoadedAtSync(coldRoom: string) {
       const host = getLocalYjsHost()
-      const coldRoom = "cold-room"
       await host.mutateDoc(coldRoom, (doc) => {
         doc.getMap("meta").set("savedViewport", "on-disk")
       })
@@ -242,6 +254,6 @@ describe("LocalYjsHost", () => {
         provider.destroy()
         clientDoc.destroy()
       }
-    })
+    }
   })
 })

@@ -6,6 +6,7 @@ import { type RawData, WebSocket, WebSocketServer } from "ws"
 import * as Y from "yjs"
 import {
   docs,
+  getPersistence,
   getYDoc,
   setPersistence,
   setupWSConnection,
@@ -49,8 +50,30 @@ export function yjsWebsocketPort(): number {
  * and force a durable flush after a mutation.
  */
 let persistence: FileYjsPersistence | null = null
+
+/** A `FileYjsPersistence`, from any copy of its module (`instanceof` is per copy). */
+function isFilePersistence(value: unknown): value is FileYjsPersistence {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "whenLoaded" in value &&
+    typeof value.whenLoaded === "function"
+  )
+}
+
 function ensureConfigured(): FileYjsPersistence {
   if (persistence) return persistence
+  // Next evaluates this module more than once per process (instrumentation,
+  // which starts the WebSocket server, and the route bundles each get a copy),
+  // but y-websocket's registry is shared by all of them. Adopt the persistence
+  // another copy registered: replacing it would leave the docs it already bound
+  // tracked by an instance whose `whenLoaded` nobody asks, and the WebSocket
+  // gate would answer a room's first peer with an empty doc.
+  const registered = getPersistence()
+  if (isFilePersistence(registered)) {
+    persistence = registered
+    return persistence
+  }
   persistence = new FileYjsPersistence(persistenceDir())
   // The sidecar holds the authoritative doc, so it — not the client — keeps the
   // thumbnail's layout fresh: watch each room's doc and rebuild the manifest's
