@@ -1,8 +1,10 @@
 type Listener = (text: string) => void
+/** A chat taking a sent message; resolves `false` when the send is refused. */
+type SendListener = (text: string) => unknown
 
 class InputStore {
   private listeners = new Map<string, Set<Listener>>()
-  private sendListeners = new Map<string, Set<Listener>>()
+  private sendListeners = new Map<string, Set<SendListener>>()
   private pending = new Map<string, string[]>()
   private pendingSends = new Map<string, string[]>()
 
@@ -39,8 +41,16 @@ class InputStore {
     }
   }
 
-  send(chatId: string, text: string) {
-    this.sendListeners.get(chatId)?.forEach((l) => l(text))
+  /**
+   * Send a message from the chat's composer path. Resolves `false` when no
+   * chat took it or the chat's send was refused (it then holds the text for
+   * Retry), so a caller that closed on the send can open again.
+   */
+  async send(chatId: string, text: string): Promise<boolean> {
+    const listeners = [...(this.sendListeners.get(chatId) ?? [])]
+    if (!listeners.length) return false
+    const results = await Promise.all(listeners.map((l) => l(text)))
+    return results.every((r) => r !== false)
   }
 
   /**
@@ -50,7 +60,7 @@ class InputStore {
    */
   sendWhenOpen(chatId: string, text: string) {
     if (this.sendListeners.get(chatId)?.size) {
-      this.send(chatId, text)
+      void this.send(chatId, text)
       return
     }
     this.pendingSends.set(chatId, [
@@ -59,7 +69,7 @@ class InputStore {
     ])
   }
 
-  subscribeSend(chatId: string, listener: Listener): () => void {
+  subscribeSend(chatId: string, listener: SendListener): () => void {
     if (!this.sendListeners.has(chatId))
       this.sendListeners.set(chatId, new Set())
     this.sendListeners.get(chatId)!.add(listener)

@@ -43,3 +43,15 @@ describe("inputStore.sendWhenOpen (#1644)", () => {
     unsubscribe()
   })
 })
+
+describe("inputStore.send", () => {
+  it("resolves whether a chat took the message", async () => {
+    expect(await inputStore.send("chat-none", "Hi")).toBe(false)
+    const unsubscribe = inputStore.subscribeSend("chat-ok", () => true)
+    expect(await inputStore.send("chat-ok", "Hi")).toBe(true)
+    unsubscribe()
+    const refused = inputStore.subscribeSend("chat-refused", async () => false)
+    expect(await inputStore.send("chat-refused", "Hi")).toBe(false)
+    refused()
+  })
+})
