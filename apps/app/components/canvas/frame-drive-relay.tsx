@@ -13,8 +13,8 @@ import { driveFrames, runFrameDriveRelay } from "@/lib/frame-drive/canvas/relay"
 import {
   FRAME_DRIVE_PATH,
   FRAME_DRIVE_ROOM_PARAM,
-  type PageAsk,
 } from "@/lib/frame-drive/canvas/protocol"
+import { createPageAnswerer } from "@/lib/frame-drive/canvas/page-answerer"
 import { takeFrameInput } from "@/lib/frame-drive/canvas/take-input"
 import {
   docRelaySocket,
@@ -196,35 +196,17 @@ export function useDriveFrame(
     setTakesPointerRef.current = setTakesPointer
   })
   useEffect(() => {
-    // The input a real-input gesture took, until it hands it back. A gesture
-    // that never does (the server went away) hands it back on its own. A
-    // hover's pointer rests in the frame until the person moves theirs, so
-    // it's kept here until the next gesture takes the input or the frame goes.
-    let taken: {
-      release(rest?: boolean): void
-      timer: ReturnType<typeof setTimeout>
-    } | null = null
-    const release = (rest = false) => {
-      if (!taken) return
-      clearTimeout(taken.timer)
-      taken.release(rest)
-      if (!rest) taken = null
-    }
-    const page = async (ask: PageAsk): Promise<unknown> => {
-      if (ask.kind === "release") return release(ask.rest)
-      if (ask.kind !== "take") return dom.drivePage(ask)
-      release()
-      const iframe = iframeRef.current
-      if (!iframe) return null
-      const got = await takeFrameInput(iframe, ask.at, (on) =>
-        setTakesPointerRef.current?.(on)
-      )
-      taken = {
-        release: got.release,
-        timer: setTimeout(release, TAKEN_INPUT_MAX_MS),
-      }
-      return { window: got.window }
-    }
+    const answerer = createPageAnswerer({
+      bridge: (ask) => dom.drivePage(ask),
+      take: async (at) => {
+        const iframe = iframeRef.current
+        if (!iframe) return null
+        return takeFrameInput(iframe, at, (on) =>
+          setTakesPointerRef.current?.(on)
+        )
+      },
+      maxTakenMs: TAKEN_INPUT_MAX_MS,
+    })
     const unregister = driveFrames.register(frameId, {
       drive: (op) => dom.drive(op),
       stop: () => dom.stopDrive(),
@@ -238,10 +220,10 @@ export function useDriveFrame(
         }
       },
       ...(snapshot ? { snapshot: () => dom.pageSnapshot() } : {}),
-      page,
+      page: (ask) => answerer.answer(ask),
     })
     return () => {
-      release()
+      answerer.dispose()
       unregister()
     }
   }, [frameId, dom, iframeRef, snapshot])
