@@ -610,9 +610,13 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
                 <CommandGroup value="Done" className="pt-0">
                   <CollapsibleTrigger className="flex w-full items-center gap-1 px-2 py-1.5 font-mono text-xs tracking-wider text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:text-foreground">
                     Done
+                    {/* The caret's ink sits right of its box's centre (x 88–184
+                        of 256), so turning it about the box centre drops it
+                        below the caps; turn it about the ink's centre. The caps
+                        sit a quarter pixel above the line's middle (measured). */}
                     <CaretRightIcon
                       className={cn(
-                        "size-3 transition-transform",
+                        "size-3 origin-[53.125%_50%] -translate-y-[0.25px] transition-transform",
                         doneOpen && "rotate-90"
                       )}
                     />
