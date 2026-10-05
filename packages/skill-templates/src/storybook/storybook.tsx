@@ -45,8 +45,7 @@ export function Storybook({
   states: State[]
   render?: Render
 }) {
-  const theme = useTheme()
-  const [dark] = theme
+  const dark = useTheme()
   // Every state's full values: a missing key takes the control's default
   const full = React.useCallback(
     (set?: Values): Values =>
@@ -249,7 +248,7 @@ export function Storybook({
       tab={tab}
       setTab={setTab}
       tabsLabel="View"
-      theme={theme}
+      dark={dark}
       bar={
         <CopyBar
           status={status}
@@ -350,7 +349,7 @@ export function Storybook({
             >
               <span
                 className={cn(
-                  "grid aspect-[4/3] place-items-center overflow-hidden border bg-muted p-2 group-focus-visible:ring-3 group-focus-visible:ring-ring/50",
+                  "grid aspect-[4/3] place-items-center overflow-hidden border bg-muted p-2 group-focus-visible:ring-3 group-focus-visible:ring-ring/50 dark:bg-muted/45",
                   s === current && "border-foreground"
                 )}
               >
@@ -406,7 +405,10 @@ function Stage({
   }, [render, vals, dark])
   if (render)
     return (
-      <div ref={stageRef} className="border bg-muted p-2 md:p-4">
+      <div
+        ref={stageRef}
+        className="border bg-muted p-2 md:p-4 dark:bg-muted/45"
+      >
         <div ref={live} className="w-full" />
       </div>
     )
@@ -428,7 +430,7 @@ function Stage({
           }
         />
       ) : (
-        <div className="grid size-full min-h-40 place-items-center border bg-muted p-4 text-sm text-muted-foreground">
+        <div className="grid size-full min-h-40 place-items-center border bg-muted p-4 text-sm text-muted-foreground dark:bg-muted/45">
           No capture for this state
         </div>
       )}

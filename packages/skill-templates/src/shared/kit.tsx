@@ -28,7 +28,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 
 import { Html, Label, WIDE } from "./page.tsx"
-import { ThemeButton, ThemeContext } from "./theme.tsx"
+import { ThemeContext } from "./theme.tsx"
 import { Lightbox } from "./shots.tsx"
 
 /** The column every page reads in, and its bottom bar matches. */
@@ -37,8 +37,8 @@ export const WIDTH = "832px"
 export type Tab = { value: string; label: string; count?: number }
 
 /**
- * The page frame: a bar pinned to the top with the title, the page's tabs
- * and the theme switch, then the column. On a phone the tabs take a second
+ * The page frame: a bar pinned to the top with the title and the page's
+ * tabs, then the column. On a phone the tabs take a second
  * row that scrolls sideways, fading where it hides tabs.
  */
 export function Shell({
@@ -47,7 +47,7 @@ export function Shell({
   tab,
   setTab,
   tabsLabel,
-  theme: [dark, toggleTheme],
+  dark,
   bar,
   wide,
   children,
@@ -60,7 +60,7 @@ export function Shell({
   setTab: (tab: string) => void
   tabsLabel: string
   /** useTheme(), called by the page, whose captures follow it too */
-  theme: readonly [boolean, () => void]
+  dark: boolean
   /** The bottom bar (CopyBar). */
   bar: React.ReactNode
   children: React.ReactNode
@@ -105,9 +105,6 @@ export function Shell({
               >
                 {title}
               </h1>
-              <span className="flex md:order-last">
-                <ThemeButton dark={dark} toggle={toggleTheme} />
-              </span>
               <div
                 ref={fade.ref}
                 onScroll={fade.onScroll}

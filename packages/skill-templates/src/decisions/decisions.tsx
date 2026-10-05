@@ -84,7 +84,7 @@ export function Decisions({
   surfaces: Surface[]
   runs: Runs
 }) {
-  const theme = useTheme()
+  const dark = useTheme()
   const KEY = "decisions-" + page.slug
   const all = surfaces.flatMap((s) => s.qs)
   const [answers, setAnswers] = React.useState<Record<string, Answer>>(() => {
@@ -206,7 +206,7 @@ export function Decisions({
         scrollTo({ top: 0 })
       }}
       tabsLabel="Filter"
-      theme={theme}
+      dark={dark}
       wide
       bar={
         <CopyBar

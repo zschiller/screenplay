@@ -101,7 +101,7 @@ export function Audit({
   findings: Finding[]
   extra: Extra[]
 }) {
-  const theme = useTheme()
+  const dark = useTheme()
   const KEY = "audit-" + page.slug
   const [state, setState] = React.useState<State>(() => {
     const s = load<State>(KEY)
@@ -255,7 +255,7 @@ export function Audit({
         scrollTo({ top: 0 })
       }}
       tabsLabel="Filter"
-      theme={theme}
+      dark={dark}
       wide
       bar={
         <CopyBar

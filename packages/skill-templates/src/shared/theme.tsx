@@ -1,50 +1,33 @@
 import * as React from "react"
 
-import { Button } from "@workspace/ui/components/button"
-
 const mq = () => matchMedia("(prefers-color-scheme: dark)")
 
+type Bridge = { theme?: (onChange: (scheme: "light" | "dark") => void) => void }
+
 /**
- * The page follows the system theme until the viewer flips it, and puts the
- * app's `dark` class on <html>. Captures show the theme the page is in.
+ * The page's theme: the app's on a Screenplay canvas, which tells the page
+ * through `screenplay.theme`, and the system's anywhere else (or until the
+ * canvas says). Puts the app's `dark` class on <html>; captures show the
+ * theme the page is in.
  */
 export function useTheme() {
-  const [override, setOverride] = React.useState<boolean | null>(null)
   const [system, setSystem] = React.useState(() => mq().matches)
+  const [app, setApp] = React.useState<boolean | null>(null)
   React.useEffect(() => {
     const m = mq()
     const on = () => setSystem(m.matches)
     m.addEventListener("change", on)
+    ;(window as { screenplay?: Bridge }).screenplay?.theme?.((scheme) =>
+      setApp(scheme === "dark")
+    )
     return () => m.removeEventListener("change", on)
   }, [])
-  const dark = override ?? system
+  const dark = app ?? system
   React.useLayoutEffect(() => {
     document.documentElement.classList.toggle("dark", dark)
     document.documentElement.style.colorScheme = dark ? "dark" : "light"
   }, [dark])
-  return [dark, () => setOverride(!dark)] as const
+  return dark
 }
 
 export const ThemeContext = React.createContext(false)
-
-/** Light / Dark switch, so the other theme's captures are one tap away. */
-export function ThemeButton({
-  dark,
-  toggle,
-}: {
-  dark: boolean
-  toggle: () => void
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      // Its label lines up with the page edge, not its padding
-      className="-mr-2.5 text-muted-foreground"
-      onClick={toggle}
-    >
-      {dark ? "Light" : "Dark"}
-    </Button>
-  )
-}

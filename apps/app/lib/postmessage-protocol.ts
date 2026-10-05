@@ -75,6 +75,9 @@ export type CanvasToIframeMessage =
   // A Mockup's open question (#1644), or null: the answer to
   // `screenplay:question-request`, then again on every change.
   | { type: "screenplay:question-apply"; question: PageQuestion | null }
+  // The app's theme for a Mockup page (`screenplay.theme()`): the answer to
+  // `screenplay:theme-request`, then again on every change.
+  | { type: "screenplay:theme-apply"; scheme: "light" | "dark" }
 
 /** The question a Mockup page sees (`screenplay.question()`, #1644). */
 export interface PageQuestion {
@@ -147,6 +150,8 @@ export type IframeToCanvasMessage =
   // A Mockup page asks for its open question, and answers it from a tap.
   | { type: "screenplay:question-request" }
   | { type: "screenplay:question-answer"; id: string; index: number }
+  // A Mockup page asks which theme the app is in.
+  | { type: "screenplay:theme-request" }
 
 export function isScreenplayMessage(
   data: unknown
