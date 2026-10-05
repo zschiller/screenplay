@@ -23,6 +23,16 @@ import {
   DropdownMenuSubTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
+import {
+  CONNECT_GITHUB_FOR_PR_HINT,
+  type PrAvailability,
+} from "@/hooks/use-can-create-pr"
 import { useIsCreatingPr } from "@/lib/creating-pr-store"
 import { openExternal } from "@/lib/open-external"
 import { openPreviewInBrowser } from "@/lib/open-preview"
@@ -110,15 +120,15 @@ export interface WorkspaceMenuLeadInput {
   hasChanges: boolean
   /** A chat turn is in flight on this Workspace. */
   isBusy: boolean
-  /** A pull request can be opened: see {@link BranchOverflowMenuContentProps}. */
-  canCreatePr?: boolean
+  /** Whether a pull request can be opened: see {@link BranchOverflowMenuContentProps}. */
+  prAvailability?: PrAvailability
 }
 
 /**
  * The one action that leads the Workspace menu, from its state: Retry when
  * setup failed, Mark as done once its PR has merged and the agent is idle, the
  * open PR when there is one, Create pull request when there are changes to
- * propose and GitHub to propose them to, otherwise the prototype player. A Workspace that's still being set
+ * propose and a GitHub connection to propose them with, otherwise the prototype player. A Workspace that's still being set
  * up (or stopped, until its PR merges) has no lead: nothing in it works yet. A
  * Done one leads with Reopen (#976).
  */
@@ -127,7 +137,7 @@ export function workspaceMenuLead({
   pr,
   hasChanges,
   isBusy,
-  canCreatePr = true,
+  prAvailability = "ready",
 }: WorkspaceMenuLeadInput): BranchMenuItemKey | null {
   if (branch.doneAt) return "reopen"
   if (branch.status === "error" || branch.error) return "retry"
@@ -135,7 +145,7 @@ export function workspaceMenuLead({
   if (pr?.state === "merged" && !isBusy) return "mark-done"
   if (branch.status === "stopped") return null
   if (pr?.state === "open") return "create-pr"
-  if (hasChanges && !isBusy && canCreatePr) return "create-pr"
+  if (hasChanges && !isBusy && prAvailability === "ready") return "create-pr"
   return branch.previewDomain ? "play" : null
 }
 
@@ -175,12 +185,12 @@ export interface BranchOverflowMenuContentProps {
    */
   pr?: BranchPrInfo | null
   /**
-   * Whether a pull request can be opened at all: the Repository has a GitHub
-   * remote and the GitHub API is reachable. Without one (a local-only repo, or
-   * the desktop app with no GitHub connection) Create pull request is hidden
-   * rather than offered to fail. An open PR's link shows either way.
+   * Whether a pull request can be opened ({@link PrAvailability}). A local-only
+   * repo hides Create pull request; a GitHub repo with no GitHub connection
+   * shows it disabled, its tooltip pointing at Settings (H3). An open PR's
+   * link shows either way.
    */
-  canCreatePr?: boolean
+  prAvailability?: PrAvailability
   /** Marks the Workspace Done (#976): stops its sandbox and hides its frames. */
   onMarkDone: (branchId: string) => void
   /** Undoes Mark as done: starts the Workspace and shows its frames again. */
@@ -242,7 +252,7 @@ export function BranchOverflowMenuItems({
   onDelete,
   onOpenInBrowser,
   pr,
-  canCreatePr = true,
+  prAvailability = "ready",
   isBusy = false,
 }: Omit<BranchOverflowMenuContentProps, "onCloseAutoFocus">) {
   // A create already running, from here or the chat header, shows here too.
@@ -364,6 +374,24 @@ export function BranchOverflowMenuItems({
           <GitPullRequestIcon />
           Open pull request #{pr.number}
         </DropdownMenuItem>
+      ) : prAvailability === "connect" ? (
+        // A disabled item takes no pointer events, so the reason hangs off a
+        // wrapper, like the chat header's Create PR.
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <DropdownMenuItem disabled>
+                  <GitPullRequestIcon />
+                  Create pull request
+                </DropdownMenuItem>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {CONNECT_GITHUB_FOR_PR_HINT}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ) : (
         <DropdownMenuItem
           disabled={
@@ -414,11 +442,15 @@ export function BranchOverflowMenuItems({
     pr,
     hasChanges,
     isBusy,
-    canCreatePr,
+    prAvailability,
   })
   const shown = (key: BranchMenuItemKey) => {
     if (key === lead) return false
-    if (key === "create-pr" && pr?.state !== "open" && !canCreatePr)
+    if (
+      key === "create-pr" &&
+      pr?.state !== "open" &&
+      prAvailability === "none"
+    )
       return false
     if (!branch.doneAt) return true
     if (key === "create-pr") return pr?.state === "open"

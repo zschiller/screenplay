@@ -68,7 +68,8 @@ import { NeedsYouDot, WorkspaceMention } from "@/components/workspace-mention"
 
 import type { DiffStats } from "@/hooks/use-diff-stats"
 
-import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
+import { useGitHubTokenProbe } from "@/hooks/use-github-token"
+import { prAvailability, type PrAvailability } from "@/hooks/use-can-create-pr"
 
 import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 
@@ -184,7 +185,7 @@ type ChatsMenuValue = Omit<
    * Whether a Repository's Workspaces can open a pull request: it has a GitHub
    * remote and the GitHub API is reachable.
    */
-  canCreatePr: (repo: RepoData) => boolean
+  prAvailabilityOf: (repo: RepoData) => PrAvailability
   askDeleteSketchChat: (chatId: string) => void
   /**
    * Rename asked for where the title can't be edited (a frame's Workspace
@@ -234,11 +235,11 @@ export function ChatsMenuProvider({
   >(null)
 
   // Whether the GitHub API is reachable at all, for the delete dialog's
-  // remote-branch offer (issue #741) and Create pull request. False until
-  // probed.
-  const githubTokenAvailable = useGitHubTokenAvailable()
-  const canCreatePr = (repo: RepoData) =>
-    githubTokenAvailable && hasGitHubRemote(repo)
+  // remote-branch offer (issue #741) and Create pull request. Unknown (so
+  // unavailable) until probed.
+  const githubToken = useGitHubTokenProbe()
+  const githubTokenAvailable = githubToken === true
+  const prAvailabilityOf = (repo: RepoData) => prAvailability(repo, githubToken)
   // What the delete confirm says is lost (issue #776): the Chat Sessions and
   // frames the Workspace cascades to, and its checkout's unpushed work.
   const chatSessions = useChatSessions()
@@ -370,7 +371,7 @@ export function ChatsMenuProvider({
     pendingBranchIds,
     askDelete,
     askRecreate,
-    canCreatePr,
+    prAvailabilityOf,
     askDeleteSketchChat,
     renameRequest,
     requestRename,
@@ -873,7 +874,7 @@ function WorkspaceMenuRow({
             }}
             onCreatePr={menu.onCreatePr}
             pr={pr}
-            canCreatePr={menu.canCreatePr(repo)}
+            prAvailability={menu.prAvailabilityOf(repo)}
             onMarkDone={menu.onMarkBranchDone}
             onReopen={menu.onReopenBranch}
             onDelete={menu.askDelete}

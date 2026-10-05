@@ -30,6 +30,7 @@ vi.mock("@/hooks/use-unsaved-work", () => ({
 }))
 vi.mock("@/hooks/use-github-token", () => ({
   useGitHubTokenAvailable: () => true,
+  useGitHubTokenProbe: () => true,
 }))
 
 import { ChatsMenuButton, ChatsMenuProvider } from "./chats-menu"

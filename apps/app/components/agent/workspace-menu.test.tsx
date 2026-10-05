@@ -32,6 +32,7 @@ vi.mock("@/hooks/use-unsaved-work", () => ({
 // GitHub is reachable, so the menu offers Create pull request.
 vi.mock("@/hooks/use-github-token", () => ({
   useGitHubTokenAvailable: () => true,
+  useGitHubTokenProbe: () => true,
 }))
 
 import { ChatsMenuProvider, useChatsMenu } from "./chats-menu"

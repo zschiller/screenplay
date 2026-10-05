@@ -47,7 +47,10 @@ import { DEV_SERVER_TERMINAL_ID } from "@/lib/chat/terminal-pane"
 import { useAppSession } from "@/lib/auth-client"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { DiffStats } from "@/hooks/use-diff-stats"
-import { useCanCreatePr } from "@/hooks/use-can-create-pr"
+import {
+  CONNECT_GITHUB_FOR_PR_HINT,
+  usePrAvailability,
+} from "@/hooks/use-can-create-pr"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
 import { prStateButtonColor } from "@/components/pr-state-color"
 import { chatStore } from "@/lib/chat-store"
@@ -370,7 +373,7 @@ function WorkspaceChatPanel({
   )
   const anyChatStreaming = useAnyChatStreaming(allChatIds)
   const creatingPr = useIsCreatingPr(agent.id)
-  const canCreatePr = useCanCreatePr(agent.repoId)
+  const prAvailability = usePrAvailability(agent.repoId)
   const hasChanges =
     !!diffStats && (diffStats.additions > 0 || diffStats.deletions > 0)
 
@@ -386,13 +389,16 @@ function WorkspaceChatPanel({
     })
   }
   // Why Create PR is disabled, shown in its tooltip.
-  const createPrBlocker = isAgentBusy
-    ? "The workspace is still starting…"
-    : anyChatStreaming
-      ? "The agent is still working."
-      : !hasChanges
-        ? "No changes to propose yet."
-        : undefined
+  const createPrBlocker =
+    prAvailability === "connect"
+      ? CONNECT_GITHUB_FOR_PR_HINT
+      : isAgentBusy
+        ? "The workspace is still starting…"
+        : anyChatStreaming
+          ? "The agent is still working."
+          : !hasChanges
+            ? "No changes to propose yet."
+            : undefined
 
   // First chat for this Workspace — drives auto branch/chat naming.
   const isFirstChat = (chat: ChatSessionData) =>
@@ -456,7 +462,7 @@ function WorkspaceChatPanel({
                 </a>
               </Button>
             </HintTooltip>
-          ) : canCreatePr ? (
+          ) : prAvailability !== "none" ? (
             // A disabled button fires no pointer events, so its reason hangs
             // off a wrapping span.
             <HintTooltip hint={creatingPr ? undefined : createPrBlocker}>
@@ -504,9 +510,7 @@ function WorkspaceChatPanel({
                 <ChatCircleIcon />
               </EmptyMedia>
               <EmptyTitle>No chat yet</EmptyTitle>
-              <EmptyDescription>
-                Start this workspace’s chat.
-              </EmptyDescription>
+              <EmptyDescription>Start this workspace’s chat.</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button

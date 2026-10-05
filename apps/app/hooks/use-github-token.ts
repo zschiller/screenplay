@@ -17,7 +17,16 @@ import { hasGitHubToken } from "@/lib/github-actions"
  * floor (ADR 0008), where no token is the ordinary desktop state.
  */
 export function useGitHubTokenAvailable(): boolean {
-  const [available, setAvailable] = useState(false)
+  return useGitHubTokenProbe() === true
+}
+
+/**
+ * The same probe, with `undefined` until it resolves, for a surface that shows
+ * something different once it knows there is no token (Create pull request's
+ * Connect GitHub hint) and must not flash it while asking.
+ */
+export function useGitHubTokenProbe(): boolean | undefined {
+  const [available, setAvailable] = useState<boolean | undefined>(undefined)
 
   useEffect(() => {
     let cancelled = false
@@ -26,7 +35,8 @@ export function useGitHubTokenAvailable(): boolean {
         if (!cancelled) setAvailable(ok)
       })
       .catch(() => {
-        // Leave it false — the caller keeps the API-dark presentation.
+        // No token as far as anyone can tell: the API-dark presentation.
+        if (!cancelled) setAvailable(false)
       })
     return () => {
       cancelled = true
