@@ -57,17 +57,25 @@ vi.mock("@/hooks/use-preview-failing", () => ({
 const github = vi.hoisted(() => ({
   pr: "ready" as "ready" | "connect" | "none",
 }))
-vi.mock("@/hooks/use-can-create-pr", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/use-can-create-pr")>()),
-  usePrAvailability: () => github.pr,
+vi.mock("@/hooks/use-github-token", () => ({
+  useGitHubTokenProbe: () => github.pr !== "connect",
+}))
+vi.mock("@/lib/yjs/react", () => ({
+  useChatSessions: () => [],
+  useRepos: () =>
+    github.pr === "none"
+      ? []
+      : [{ id: "repo-1", repoOwner: "acme", repoName: "storefront" }],
 }))
 // The PR create server action, held open per test to see it running.
 const createPrAction = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/create-pr-action", () => ({
   createPullRequestAction: createPrAction,
 }))
+// Whether any member's agent is working on the Workspace (Workspace State).
+const workspace_ = vi.hoisted(() => ({ agentWorking: false }))
 vi.mock("@/hooks/use-workspace-states", () => ({
-  useWorkspaceStates: () => () => "idle",
+  useWorkspaceStates: () => () => ({ agentWorking: workspace_.agentWorking }),
 }))
 vi.mock("@/components/workspace-hover-card", () => ({
   WorkspaceHoverCard: ({ children }: { children: React.ReactNode }) => children,
@@ -152,7 +160,7 @@ const workspace = {
   id: "ws-1",
   repoId: "repo-1",
   title: "Checkout polish",
-  branch: "checkout-polish",
+  ref: "checkout-polish",
   sandboxName: "sb-1",
   status: "running",
 } as unknown as BranchData
@@ -270,6 +278,40 @@ describe("ChatPanel with a Workspace target", () => {
     } finally {
       github.pr = "ready"
     }
+  })
+
+  it("disables Create PR while another member's agent works, saying why", async () => {
+    workspace_.agentWorking = true
+    try {
+      renderWorkspacePanel({ diffStats: { additions: 3, deletions: 1 } })
+      const button = screen.getByRole("button", { name: /Create PR/ })
+      expect(button.hasAttribute("disabled")).toBe(true)
+      await act(async () => {
+        fireEvent.focus(button.parentElement!)
+      })
+      expect((await screen.findByRole("tooltip")).textContent).toBe(
+        "The agent is still working."
+      )
+    } finally {
+      workspace_.agentWorking = false
+    }
+  })
+
+  it("links a merged PR and offers no new one", () => {
+    renderWorkspacePanel({
+      diffStats: { additions: 3, deletions: 1 },
+      branchPr: { number: 482, url: "https://x", state: "merged" },
+    })
+    expect(screen.getByText(/#482/)).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Create PR/ })).toBeNull()
+  })
+
+  it("offers no Create PR on a Done Workspace", () => {
+    renderWorkspacePanel({
+      diffStats: { additions: 3, deletions: 1 },
+      agent: { doneAt: 1 },
+    })
+    expect(screen.queryByRole("button", { name: /Create PR/ })).toBeNull()
   })
 
   it("shows Create PR running, and won't start a second", async () => {

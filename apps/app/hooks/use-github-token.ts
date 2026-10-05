@@ -20,24 +20,38 @@ export function useGitHubTokenAvailable(): boolean {
   return useGitHubTokenProbe() === true
 }
 
+// One probe at a time, shared by every surface that mounts while it's in
+// flight (each Workspace menu row asks), and the last answer, which a surface
+// mounting later starts from while it asks again.
+let inflight: Promise<boolean> | null = null
+let lastKnown: boolean | undefined
+
+function probe(): Promise<boolean> {
+  inflight ??= hasGitHubToken()
+    .catch(() => false)
+    .then((ok) => {
+      lastKnown = ok
+      return ok
+    })
+    .finally(() => {
+      inflight = null
+    })
+  return inflight
+}
+
 /**
- * The same probe, with `undefined` until it resolves, for a surface that shows
- * something different once it knows there is no token (Create pull request's
- * Connect GitHub hint) and must not flash it while asking.
+ * The same probe, with `undefined` until it first resolves, for a surface that
+ * shows something different once it knows there is no token (Create pull
+ * request's Connect GitHub hint) and must not flash it while asking.
  */
 export function useGitHubTokenProbe(): boolean | undefined {
-  const [available, setAvailable] = useState<boolean | undefined>(undefined)
+  const [available, setAvailable] = useState<boolean | undefined>(lastKnown)
 
   useEffect(() => {
     let cancelled = false
-    hasGitHubToken()
-      .then((ok) => {
-        if (!cancelled) setAvailable(ok)
-      })
-      .catch(() => {
-        // No token as far as anyone can tell: the API-dark presentation.
-        if (!cancelled) setAvailable(false)
-      })
+    void probe().then((ok) => {
+      if (!cancelled) setAvailable(ok)
+    })
     return () => {
       cancelled = true
     }

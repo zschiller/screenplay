@@ -19,6 +19,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { BranchOverflowMenuItems } from "@/components/panels/branch-overflow-menu"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import { WorkspaceMention } from "@/components/workspace-mention"
+import { usePrReadiness } from "@/hooks/use-pr-readiness"
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
@@ -48,8 +49,15 @@ export function WorkspaceMenuItems({
   const menu = useChatsMenu()
   const branch = menu?.branches.find((b) => b.id === branchId)
   const repo = branch ? menu?.reposById.get(branch.repoId) : undefined
+  const stats = branch ? menu?.diffStats.get(branch.id) : undefined
+  const prReadiness = usePrReadiness({
+    branch,
+    repo,
+    pr: branch ? menu?.branchPrs.get(branch.id) : undefined,
+    hasChanges: !!stats && (stats.additions > 0 || stats.deletions > 0),
+    onCreatePr: (id) => menu?.onCreatePr(id),
+  })
   if (!menu || !branch || !repo) return null
-  const stats = menu.diffStats.get(branch.id)
   return (
     <BranchOverflowMenuItems
       branch={branch}
@@ -57,15 +65,12 @@ export function WorkspaceMenuItems({
       onPlay={onPlay ?? menu.onPlayBranch}
       onOpenInBrowser={onOpenInBrowser}
       onRetry={menu.onRetryBranch}
-      hasChanges={!!stats && (stats.additions > 0 || stats.deletions > 0)}
       onRename={onRename}
       onRestartDevServer={menu.onRestartDevServer}
       onRestart={menu.onRefreshBranch}
       onRecreate={menu.askRecreate}
       onShowRoutes={menu.onShowRoutes}
-      onCreatePr={menu.onCreatePr}
-      pr={menu.branchPrs.get(branch.id)}
-      prAvailability={menu.prAvailabilityOf(repo)}
+      prReadiness={prReadiness}
       onMarkDone={menu.onMarkBranchDone}
       onReopen={menu.onReopenBranch}
       onDelete={menu.askDelete}

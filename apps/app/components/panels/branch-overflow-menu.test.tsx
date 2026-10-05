@@ -19,8 +19,12 @@ import {
   workspaceMenuLead,
 } from "./branch-overflow-menu"
 import type { BranchPrInfo } from "@/lib/github-actions"
-import type { PrAvailability } from "@/hooks/use-can-create-pr"
-import { creatingPrStore } from "@/lib/creating-pr-store"
+import {
+  prReadiness,
+  type PrAvailability,
+  type PrReadinessInput,
+} from "@/lib/branch/pr-readiness"
+import { creatingPrStore, useIsCreatingPr } from "@/lib/creating-pr-store"
 
 // `isLocalBuild` is a compile-time constant, but the build-specific item
 // ("Restart sandbox" hidden on local) is read at render through this live
@@ -89,6 +93,7 @@ function renderMenu(
     onRecreate,
     onMarkDone,
     onReopen,
+    onCreatePr,
     prAvailability,
   }: {
     isBusy?: boolean
@@ -101,30 +106,47 @@ function renderMenu(
     onRecreate?: () => void
     onMarkDone?: () => void
     onReopen?: () => void
+    onCreatePr?: () => void
   } = {}
 ) {
-  return render(
-    <DropdownMenu open>
-      <DropdownMenuTrigger>open</DropdownMenuTrigger>
+  const shown = { ...branch, ...overrides }
+  // What `usePrReadiness` feeds the menu, from these fixtures and the
+  // creating-PR store.
+  function Menu() {
+    const running = useIsCreatingPr(shown.id)
+    return (
       <BranchOverflowMenuContent
-        branch={{ ...branch, ...overrides }}
+        branch={shown}
         repo={repo}
         onPlay={vi.fn()}
         onRetry={onRetry ?? vi.fn()}
-        hasChanges={hasChanges}
-        pr={pr}
-        prAvailability={prAvailability}
+        prReadiness={{
+          ...prReadiness({
+            branch: shown,
+            pr,
+            availability: prAvailability ?? "ready",
+            agentWorking: isBusy,
+            hasChanges,
+            running,
+          }),
+          run: onCreatePr ?? vi.fn(),
+        }}
         onRename={vi.fn()}
         onRestartDevServer={onRestartDevServer ?? vi.fn()}
         onRestart={onRestart ?? vi.fn()}
         onRecreate={onRecreate ?? vi.fn()}
         onShowRoutes={vi.fn()}
-        onCreatePr={vi.fn()}
         onMarkDone={onMarkDone ?? vi.fn()}
         onReopen={onReopen ?? vi.fn()}
         onDelete={vi.fn()}
         isBusy={isBusy}
       />
+    )
+  }
+  return render(
+    <DropdownMenu open>
+      <DropdownMenuTrigger>open</DropdownMenuTrigger>
+      <Menu />
     </DropdownMenu>
   )
 }
@@ -153,14 +175,37 @@ describe("BRANCH_MENU_SECTIONS skeleton", () => {
 })
 
 describe("workspaceMenuLead", () => {
-  const ready = { status: "running" as const, previewDomain: "foo.dev" }
-  const lead = (over: Partial<Parameters<typeof workspaceMenuLead>[0]> = {}) =>
+  const ready = {
+    status: "running" as const,
+    previewDomain: "foo.dev",
+    sandboxName: "sb-1",
+    ref: "feature/foo",
+  }
+  const lead = ({
+    branch = ready,
+    pr = null,
+    hasChanges = false,
+    isBusy = false,
+    prAvailability = "ready",
+  }: {
+    branch?: Parameters<typeof workspaceMenuLead>[0]["branch"] &
+      PrReadinessInput["branch"]
+    pr?: Pick<BranchPrInfo, "state"> | null
+    hasChanges?: boolean
+    isBusy?: boolean
+    prAvailability?: PrAvailability
+  } = {}) =>
     workspaceMenuLead({
-      branch: ready,
-      pr: null,
-      hasChanges: false,
-      isBusy: false,
-      ...over,
+      branch,
+      isBusy,
+      prReadiness: prReadiness({
+        branch,
+        pr: pr && { url: "https://x", number: 1, ...pr },
+        availability: prAvailability,
+        agentWorking: isBusy,
+        hasChanges,
+        running: false,
+      }),
     })
 
   it("leads with Retry when setup failed", () => {
@@ -336,12 +381,45 @@ describe("Create pull request", () => {
     expect(createPrDisabled()).toBe(false)
   })
 
-  it("is disabled when the branch is busy", () => {
+  it("is disabled while any member's agent works, saying why", async () => {
     renderMenu(
       { sandboxName: "sb-1", ref: "feature/foo" },
       { isBusy: true, hasChanges: true }
     )
     expect(createPrDisabled()).toBe(true)
+    const item = screen
+      .getByText("Create pull request")
+      .closest('[role="menuitem"]')!
+    await act(async () => {
+      fireEvent.focus(item.parentElement!)
+    })
+    expect((await screen.findByRole("tooltip")).textContent).toBe(
+      "The agent is still working."
+    )
+  })
+
+  it("runs the create when clicked", () => {
+    const onCreatePr = vi.fn()
+    renderMenu({}, { hasChanges: true, onCreatePr })
+    fireEvent.click(screen.getByText("Create pull request"))
+    expect(onCreatePr).toHaveBeenCalledOnce()
+  })
+
+  it("links a merged or closed PR instead of offering another", () => {
+    for (const state of ["merged", "closed"] as const) {
+      renderMenu(
+        {},
+        { hasChanges: true, pr: { number: 5, state, url: "https://x" } }
+      )
+      expect(screen.getByText("Open pull request #5")).toBeTruthy()
+      expect(screen.queryByText("Create pull request")).toBeNull()
+      cleanup()
+    }
+  })
+
+  it("is hidden on a Done Workspace with no PR", () => {
+    renderMenu({ status: "stopped", doneAt: 1 }, { hasChanges: true })
+    expect(screen.queryByText("Create pull request")).toBeNull()
   })
 
   it("is disabled for a branch with no ref to open a PR from", () => {
