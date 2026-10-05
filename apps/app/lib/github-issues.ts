@@ -1,0 +1,297 @@
+/**
+ * GitHub issues and comments over the REST API, for the agent's GitHub tools
+ * (`lib/agent/github-tools.ts`). Every call runs with one person's token, so
+ * what an agent reads and writes is what that person could, and anything it
+ * posts is attributed to them. Pull requests are issues to this API: reading,
+ * commenting on and closing one goes through the same endpoints.
+ */
+
+export interface GitHubRepoRef {
+  owner: string
+  name: string
+}
+
+export interface GitHubIssuesClient {
+  search(input: {
+    repo: GitHubRepoRef
+    query?: string
+    state: "open" | "closed" | "all"
+    kind: "issue" | "pr" | "any"
+  }): Promise<IssueSummary[]>
+  read(repo: GitHubRepoRef, number: number): Promise<IssueThread>
+  create(
+    repo: GitHubRepoRef,
+    input: { title: string; body?: string; labels?: string[] }
+  ): Promise<IssueRef>
+  comment(
+    repo: GitHubRepoRef,
+    number: number,
+    input: { body: string; replyTo?: number }
+  ): Promise<{ url: string }>
+  update(
+    repo: GitHubRepoRef,
+    number: number,
+    input: IssueUpdate
+  ): Promise<IssueRef & { state: string }>
+}
+
+export interface IssueRef {
+  number: number
+  url: string
+}
+
+export interface IssueSummary extends IssueRef {
+  title: string
+  state: string
+  isPullRequest: boolean
+  author: string
+  comments: number
+  labels: string[]
+  updatedAt: string
+}
+
+export interface IssueComment {
+  /** Set on a review comment, the id a reply goes to. */
+  id?: number
+  author: string
+  createdAt: string
+  body: string
+  /** A review comment's `path:line`, or "review" for a review's summary. */
+  on?: string
+}
+
+export interface IssueThread extends IssueSummary {
+  body: string
+  /** "completed", "not_planned", "merged" — why a closed one closed. */
+  stateReason: string | null
+  /** Every comment, review and review comment, oldest first. */
+  timeline: IssueComment[]
+  /** More comments exist than were read. */
+  truncated: boolean
+}
+
+export interface IssueUpdate {
+  state?: "open" | "closed"
+  reason?: "completed" | "not_planned"
+  title?: string
+  body?: string
+  labels?: string[]
+}
+
+const API = "https://api.github.com"
+/** Pages of 100 read per list: the newest past this are left out. */
+const MAX_PAGES = 5
+
+type Fetch = typeof fetch
+
+/** GitHub's error, as the message an agent reads. */
+export class GitHubApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+  }
+}
+
+async function errorOf(res: Response): Promise<GitHubApiError> {
+  let message = `GitHub API error (${res.status})`
+  try {
+    const json = (await res.json()) as {
+      message?: string
+      errors?: Array<{ message?: string; code?: string; field?: string }>
+    }
+    if (json.message) message = `${json.message} (${res.status})`
+    const detail = (json.errors ?? [])
+      .map((e) => e.message ?? (e.field && `${e.field} ${e.code}`))
+      .filter(Boolean)
+      .join("; ")
+    if (detail) message = `${message}: ${detail}`
+  } catch {}
+  return new GitHubApiError(res.status, message)
+}
+
+type RawUser = { login?: string } | null
+type RawIssue = {
+  number: number
+  html_url: string
+  title: string
+  state: string
+  state_reason?: string | null
+  body?: string | null
+  user: RawUser
+  comments: number
+  labels: Array<string | { name?: string }>
+  updated_at: string
+  pull_request?: { merged_at?: string | null }
+}
+type RawComment = {
+  id: number
+  user: RawUser
+  created_at?: string
+  submitted_at?: string
+  body?: string | null
+  path?: string
+  line?: number | null
+  original_line?: number | null
+  state?: string
+}
+
+const login = (u: RawUser) => u?.login ?? "ghost"
+
+function summary(raw: RawIssue): IssueSummary {
+  return {
+    number: raw.number,
+    url: raw.html_url,
+    title: raw.title,
+    state:
+      raw.pull_request?.merged_at && raw.state === "closed"
+        ? "merged"
+        : raw.state,
+    isPullRequest: Boolean(raw.pull_request),
+    author: login(raw.user),
+    comments: raw.comments,
+    labels: raw.labels
+      .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
+      .filter(Boolean),
+    updatedAt: raw.updated_at,
+  }
+}
+
+/** The client, on one token. `fetchImpl` stands in for GitHub in tests. */
+export function gitHubIssuesClient(
+  token: string,
+  fetchImpl: Fetch = fetch
+): GitHubIssuesClient {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  }
+  const path = (repo: GitHubRepoRef, rest: string) =>
+    `${API}/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}${rest}`
+
+  async function call<T>(
+    url: string,
+    init?: { method: string; body: unknown }
+  ): Promise<T> {
+    const res = await fetchImpl(url, {
+      method: init?.method ?? "GET",
+      headers: init
+        ? { ...headers, "Content-Type": "application/json" }
+        : headers,
+      body: init ? JSON.stringify(init.body) : undefined,
+    })
+    if (!res.ok) throw await errorOf(res)
+    return (await res.json()) as T
+  }
+
+  /** Every page of a list, up to {@link MAX_PAGES}; `more` when cut. */
+  async function list<T>(url: string): Promise<{ items: T[]; more: boolean }> {
+    const items: T[] = []
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const batch = await call<T[]>(`${url}?per_page=100&page=${page}`)
+      items.push(...batch)
+      if (batch.length < 100) return { items, more: false }
+    }
+    return { items, more: true }
+  }
+
+  return {
+    async search({ repo, query, state, kind }) {
+      const q = [
+        `repo:${repo.owner}/${repo.name}`,
+        kind === "issue" ? "is:issue" : kind === "pr" ? "is:pr" : "",
+        state === "all" ? "" : `is:${state}`,
+        query?.trim() ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+      const data = await call<{ items: RawIssue[] }>(
+        `${API}/search/issues?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=30`
+      )
+      return data.items.map(summary)
+    },
+
+    async read(repo, number) {
+      const issue = await call<RawIssue>(path(repo, `/issues/${number}`))
+      const comments = await list<RawComment>(
+        path(repo, `/issues/${number}/comments`)
+      )
+      const timeline: IssueComment[] = comments.items.map((c) => ({
+        author: login(c.user),
+        createdAt: c.created_at ?? "",
+        body: c.body ?? "",
+      }))
+      let more = comments.more
+      if (issue.pull_request) {
+        const [reviews, reviewComments] = await Promise.all([
+          list<RawComment>(path(repo, `/pulls/${number}/reviews`)),
+          list<RawComment>(path(repo, `/pulls/${number}/comments`)),
+        ])
+        more ||= reviews.more || reviewComments.more
+        for (const r of reviews.items) {
+          // A review with no summary is only the container of its comments.
+          if (!r.body?.trim() && r.state === "COMMENTED") continue
+          timeline.push({
+            author: login(r.user),
+            createdAt: r.submitted_at ?? "",
+            body: r.body ?? "",
+            on: `review: ${(r.state ?? "").toLowerCase().replace(/_/g, " ")}`,
+          })
+        }
+        for (const c of reviewComments.items) {
+          const line = c.line ?? c.original_line
+          timeline.push({
+            id: c.id,
+            author: login(c.user),
+            createdAt: c.created_at ?? "",
+            body: c.body ?? "",
+            on: line ? `${c.path}:${line}` : c.path,
+          })
+        }
+      }
+      timeline.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      return {
+        ...summary(issue),
+        body: issue.body ?? "",
+        stateReason: issue.state_reason ?? null,
+        timeline,
+        truncated: more,
+      }
+    },
+
+    async create(repo, { title, body, labels }) {
+      const raw = await call<RawIssue>(path(repo, "/issues"), {
+        method: "POST",
+        body: { title, body: body ?? "", ...(labels ? { labels } : {}) },
+      })
+      return { number: raw.number, url: raw.html_url }
+    },
+
+    async comment(repo, number, { body, replyTo }) {
+      const raw = await call<{ html_url: string }>(
+        replyTo
+          ? path(repo, `/pulls/${number}/comments/${replyTo}/replies`)
+          : path(repo, `/issues/${number}/comments`),
+        { method: "POST", body: { body } }
+      )
+      return { url: raw.html_url }
+    },
+
+    async update(repo, number, { state, reason, title, body, labels }) {
+      const raw = await call<RawIssue>(path(repo, `/issues/${number}`), {
+        method: "PATCH",
+        body: {
+          ...(state ? { state } : {}),
+          ...(state === "closed" && reason ? { state_reason: reason } : {}),
+          ...(title !== undefined ? { title } : {}),
+          ...(body !== undefined ? { body } : {}),
+          ...(labels ? { labels } : {}),
+        },
+      })
+      const s = summary(raw)
+      return { number: s.number, url: s.url, state: s.state }
+    },
+  }
+}

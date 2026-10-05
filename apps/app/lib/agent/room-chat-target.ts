@@ -30,6 +30,7 @@ import type { RoomDoc } from "@/lib/room-access"
 import { buildFileTools } from "./file-tools"
 import { chatPageScreenshotTools } from "./page-screenshot-ports"
 import { buildMemoryTools } from "./memory-tools"
+import { buildGitHubTools } from "./github-tools"
 import { canvasFiles } from "@/lib/files"
 import { loadCanvasFiles } from "@/lib/files/canvas-files"
 import type { FileEntryData, MemoryData } from "@/lib/types"
@@ -232,6 +233,12 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
           canvas: canvasSkills(room),
           account: accountSkillsFor(target),
           chatId: target.coordinatorChatId ?? "",
+        }),
+        // The canvas's GitHub issues, pull requests and their comments.
+        ...buildGitHubTools({
+          room,
+          userId: target.userId,
+          senderless: turnSender(target) === null,
         }),
       },
     }

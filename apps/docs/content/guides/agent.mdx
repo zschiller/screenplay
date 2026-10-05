@@ -290,36 +290,39 @@ Agent replies stream in as they’re written. Each tool call is a compact row
 that says what the agent did and what it acted on, in the same words whichever
 agent the chat runs on. Paths are relative to the repository.
 
-| Row                                      | Meaning                                                                                                                           |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Read** _n_ lines _path_                | Read a file                                                                                                                       |
-| **Edit** / **Write** _path_              | Changed a file (expand to see the diff)                                                                                           |
-| **Run command** _command_                | Ran a shell command in the sandbox                                                                                                |
-| **Search** _pattern_                     | Searched the code                                                                                                                 |
-| **Find files** _pattern_, **List files** | Looked for files                                                                                                                  |
-| **Search the web**, **Fetch** _site_     | Looked something up online                                                                                                        |
-| **Read skill** _name_                    | Loaded a skill’s instructions                                                                                                     |
-| **Save skill** _name_                    | Offered a skill: a card to save it to your account or the canvas ([skills](/guides/building/skills#saving-a-skill-to-the-canvas)) |
-| **Read dev server logs**                 | Read the dev server’s recent output                                                                                               |
-| **Restart dev server**                   | Restarted the workspace’s dev server                                                                                              |
-| **Stop dev server**                      | Stopped the workspace’s dev server                                                                                                |
-| **Start dev server**                     | Started a stopped dev server again                                                                                                |
-| **View frame**                           | Looked at a frame’s preview, or its last capture                                                                                  |
-| **Read frame HTML**                      | Read the page in a frame as HTML                                                                                                  |
-| **Screenshot page** _page_               | Took a screenshot of a page in the background                                                                                     |
-| **Open frame** _route_                   | Opened a frame to use                                                                                                             |
-| **Used** _page_, _n_ steps               | Used a frame or mockup (expand for each step)                                                                                     |
-| **Read document**                        | Read a document on the canvas                                                                                                     |
-| **Create document** _title_              | Wrote a [document](/guides/documents#documents-a-chat-writes)                                                                     |
-| **Rewrite document**, **Set title**      | Changed a document it wrote                                                                                                       |
-| **Create mockup** _title_                | Drew a [mockup](/guides/mockups)                                                                                                  |
-| **Update mockup** _title_                | Rewrote a mockup’s page                                                                                                           |
-| **Read mockup**                          | Read a mockup’s page                                                                                                              |
-| **Save to account memory**               | Saved a [memory](/guides/memory) entry (or to canvas memory)                                                                      |
-| **Save file**, **Open saved file**       | Saved or opened one of the [saved files](/guides/files)                                                                           |
-| **Create pull request**                  | Opened a pull request (shown as a link card)                                                                                      |
-| **Submit plan**                          | Presented a plan for approval                                                                                                     |
-| A question with options                  | Asked you to pick an option                                                                                                       |
+| Row                                       | Meaning                                                                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Read** _n_ lines _path_                 | Read a file                                                                                                                       |
+| **Edit** / **Write** _path_               | Changed a file (expand to see the diff)                                                                                           |
+| **Run command** _command_                 | Ran a shell command in the sandbox                                                                                                |
+| **Search** _pattern_                      | Searched the code                                                                                                                 |
+| **Find files** _pattern_, **List files**  | Looked for files                                                                                                                  |
+| **Search the web**, **Fetch** _site_      | Looked something up online                                                                                                        |
+| **Read skill** _name_                     | Loaded a skill’s instructions                                                                                                     |
+| **Save skill** _name_                     | Offered a skill: a card to save it to your account or the canvas ([skills](/guides/building/skills#saving-a-skill-to-the-canvas)) |
+| **Read dev server logs**                  | Read the dev server’s recent output                                                                                               |
+| **Restart dev server**                    | Restarted the workspace’s dev server                                                                                              |
+| **Stop dev server**                       | Stopped the workspace’s dev server                                                                                                |
+| **Start dev server**                      | Started a stopped dev server again                                                                                                |
+| **View frame**                            | Looked at a frame’s preview, or its last capture                                                                                  |
+| **Read frame HTML**                       | Read the page in a frame as HTML                                                                                                  |
+| **Screenshot page** _page_                | Took a screenshot of a page in the background                                                                                     |
+| **Open frame** _route_                    | Opened a frame to use                                                                                                             |
+| **Used** _page_, _n_ steps                | Used a frame or mockup (expand for each step)                                                                                     |
+| **Read document**                         | Read a document on the canvas                                                                                                     |
+| **Create document** _title_               | Wrote a [document](/guides/documents#documents-a-chat-writes)                                                                     |
+| **Rewrite document**, **Set title**       | Changed a document it wrote                                                                                                       |
+| **Create mockup** _title_                 | Drew a [mockup](/guides/mockups)                                                                                                  |
+| **Update mockup** _title_                 | Rewrote a mockup’s page                                                                                                           |
+| **Read mockup**                           | Read a mockup’s page                                                                                                              |
+| **Save to account memory**                | Saved a [memory](/guides/memory) entry (or to canvas memory)                                                                      |
+| **Save file**, **Open saved file**        | Saved or opened one of the [saved files](/guides/files)                                                                           |
+| **Create pull request**                   | Opened a pull request (shown as a link card)                                                                                      |
+| **Search issues** _query_, **Read** _#12_ | Searched or read the repository’s [GitHub issues and pull requests](#github-issues-and-comments)                                  |
+| **Create issue**, **Comment on** _#12_    | Opened an issue, or commented on an issue or pull request, as you                                                                 |
+| **Close**, **Reopen**, **Update** _#12_   | Closed, reopened or relabelled an issue or pull request, as you                                                                   |
+| **Submit plan**                           | Presented a plan for approval                                                                                                     |
+| A question with options                   | Asked you to pick an option                                                                                                       |
 
 Expand a row to see what came back: code with syntax colours, diffs with the
 changed lines tinted, command output and logs in their own colours, skills and
@@ -370,6 +373,18 @@ A few defaults are worth knowing:
   too.
 - **Chats are shared.** On a shared canvas everyone sees every chat live,
   including history from before they joined.
+
+## GitHub issues and comments
+
+An agent can search and read the repository’s GitHub issues and pull requests
+with all their comments, including a pull request’s reviews and its comments on
+code lines. Ask it to “fix #12” and it reads the issue first.
+
+When you ask, it can also open an issue, comment on an issue or pull request,
+reply to a review comment, and close, reopen, retitle or relabel one. These
+post with your GitHub account, the same one that pushes the workspace’s
+commits, so they show as yours on GitHub. It only reaches the canvas’s
+repositories.
 
 ## Chat naming
 
