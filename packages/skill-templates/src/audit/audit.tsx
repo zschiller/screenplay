@@ -242,7 +242,12 @@ export function Audit({
   ]
   const shows = (f: Finding) =>
     filter === "all" || (filter === "calls" ? !!f.call : f.id[0] === filter)
-  const detail = useDetail(findings.filter(shows).map((f) => f.id))
+  const detail = useDetail(
+    findings.filter(shows).map((f) => f.id),
+    {
+      asked: card?.answer ? null : asked,
+    }
+  )
   const about = detail.sel === ABOUT
 
   return (
