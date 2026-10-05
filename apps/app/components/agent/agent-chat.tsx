@@ -442,7 +442,7 @@ export function AgentChat({
     <div className="flex h-full flex-col bg-background">
       {/* Messages */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-        <div ref={scrollContentRef} className="flex min-h-full flex-col p-3">
+        <div ref={scrollContentRef} className="flex min-h-full flex-col p-4">
           {isLoadingHistory ? (
             <div className="m-auto flex items-center gap-1.5 text-xs text-muted-foreground">
               <Spinner className="size-3" />
@@ -457,7 +457,7 @@ export function AgentChat({
               onPickStarter={(text) => composerRef.current?.insertText(text)}
             />
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {stackTaskRows(
                 foldFinishedTurns(
                   foldFrameDrives(
@@ -541,7 +541,7 @@ export function AgentChat({
       {/* Input. An earlier chat is read-only (#1315): only the Workspace's
           own chat sends. */}
       {onOpenWorkspaceChat ? (
-        <div className="flex items-center gap-3 border-t border-border p-3 text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 border-t border-border p-4 text-sm text-muted-foreground">
           <p className="min-w-0 flex-1 text-balance">
             An earlier chat, kept to read. Work continues in the newest chat.
           </p>

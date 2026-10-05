@@ -25,7 +25,7 @@ export function ChatPanelHeader({
   return (
     <div
       className={cn(
-        "flex h-12 shrink-0 items-center bg-background px-3",
+        "flex h-12 shrink-0 items-center bg-background px-4",
         className
       )}
     >
