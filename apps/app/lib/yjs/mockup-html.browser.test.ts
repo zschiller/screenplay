@@ -406,9 +406,9 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
       document.body.append(frame)
     }, doc)
     const frame = page.frameLocator("iframe")
-    await frame.getByRole("radio", { name: /^B/ }).first().click()
-    await frame.getByRole("button", { name: "Pick B" }).click()
-    await frame.getByRole("button", { name: "Picked B" }).waitFor()
+    const b = frame.getByRole("radio", { name: /^B · / }).first()
+    await b.click()
+    await expect.poll(() => b.isChecked()).toBe(true)
     await frame
       .getByText("Answer in the chat")
       .filter({ visible: true })
