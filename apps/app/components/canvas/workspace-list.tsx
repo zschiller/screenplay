@@ -117,6 +117,18 @@ export function WorkspaceCommandList({
   }
 }) {
   const stateOf = useWorkspaceStates()
+  const workspaces = pickableWorkspaces(branches)
+  // The check column is there only when a row can carry the check: an
+  // unassigned frame's "Choose a workspace" has none, so its rows run to the
+  // edge instead of leaving an empty column.
+  const checkable =
+    newChat !== undefined ||
+    sketch !== undefined ||
+    workspaces.some((a) => a.id === currentBranchId)
+  const check = (checked: boolean) =>
+    checkable && (
+      <CheckIcon className={cn("size-3.5", !checked && "invisible")} />
+    )
   return (
     <Command>
       <CommandInput placeholder={placeholder} />
@@ -127,9 +139,7 @@ export function WorkspaceCommandList({
             <CommandItem value="New chat" onSelect={newChat.onPick}>
               <PlusIcon className="text-muted-foreground" />
               <span className="flex-1">New chat</span>
-              <CheckIcon
-                className={cn("size-3.5", !newChat.current && "invisible")}
-              />
+              {check(newChat.current)}
             </CommandItem>
           )}
           {sketch && (
@@ -139,12 +149,7 @@ export function WorkspaceCommandList({
             >
               <PlusIcon className="text-muted-foreground" />
               <span className="flex-1">New chat, no repository</span>
-              <CheckIcon
-                className={cn(
-                  "size-3.5",
-                  sketch.current !== "new" && "invisible"
-                )}
-              />
+              {check(sketch.current === "new")}
             </CommandItem>
           )}
           {sketch?.chats.map((chat) => (
@@ -155,15 +160,10 @@ export function WorkspaceCommandList({
             >
               <ChatCircleIcon className="text-muted-foreground" />
               <span className="flex-1 truncate">{chat.label}</span>
-              <CheckIcon
-                className={cn(
-                  "size-3.5",
-                  sketch.current !== chat.id && "invisible"
-                )}
-              />
+              {check(sketch.current === chat.id)}
             </CommandItem>
           ))}
-          {pickableWorkspaces(branches).map((a) => {
+          {workspaces.map((a) => {
             const hasDiff =
               a.status === "running" &&
               ((a.diffAdditions ?? 0) > 0 || (a.diffDeletions ?? 0) > 0)
@@ -188,12 +188,7 @@ export function WorkspaceCommandList({
                     ) : null
                   }
                 />
-                <CheckIcon
-                  className={cn(
-                    "size-3.5",
-                    a.id !== currentBranchId && "invisible"
-                  )}
-                />
+                {check(a.id === currentBranchId)}
               </CommandItem>
             )
           })}
