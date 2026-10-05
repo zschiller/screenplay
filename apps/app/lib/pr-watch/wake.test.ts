@@ -57,6 +57,7 @@ function fakeChat() {
     broadcastUpdate: async () => {},
     broadcastControl: async () => {},
     renameBranch: async () => {},
+    moveMergedBranch: async () => "",
     queueCommentRequest: async () => {},
     startCommentRequest: async () => {},
     settleCommentRequest: async () => {},
