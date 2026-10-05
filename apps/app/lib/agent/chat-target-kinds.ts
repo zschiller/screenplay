@@ -179,7 +179,7 @@ export function accountFilesFor(target: {
 }
 
 /**
- * The Skills `save_skill` and `delete_skill` keep for the `account` scope
+ * The Skills `save_skill` offers for the `account` scope
  * (#1558): the turn sender's, or `null` on a turn nobody sent, which refuses
  * the scope.
  */

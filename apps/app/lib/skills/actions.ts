@@ -80,31 +80,44 @@ const withAppSkill = (offered: OfferedSkill): OfferedSkill => ({
 /**
  * What a chat's skill card shows (#1633): whether the offered Skill is valid,
  * where it's already saved as it is now (so the card reads Saved after a
- * reload and for other members), and whether it would take the place of a
- * Built in Skill.
+ * reload and for other members), which scopes hold a different Skill of that
+ * name that a save there would replace, and whether it would take the place
+ * of a Built in Skill.
  */
 export async function offeredSkillState(
   roomId: string,
   offered: OfferedSkill
 ): Promise<
   | { ok: false; error: string }
-  | { ok: true; savedTo: SkillSaveScope | null; replacesBuiltIn: boolean }
+  | {
+      ok: true
+      savedTo: SkillSaveScope | null
+      replaces: SkillSaveScope[]
+      replacesBuiltIn: boolean
+    }
 > {
   const prepared = prepareSkill(withAppSkill(offered))
   if (!prepared.ok) return prepared
   const room = await openRoom(roomId)
-  const same = async (scope: SavedSkills) => {
+  // What each scope holds under the name: nothing, this Skill, or another.
+  const held = async (scope: SavedSkills) => {
     const read = await scope.read(offered.name).catch(() => null)
-    return !!read?.ok && read.value.content === prepared.value.content
+    if (!read?.ok) return "none"
+    return read.value.content === prepared.value.content ? "same" : "other"
   }
-  const savedTo = (await same(accountSkills(room.userId)))
-    ? "account"
-    : (await same(canvasSkills(room)))
-      ? "canvas"
-      : null
+  const [account, canvas] = await Promise.all([
+    held(accountSkills(room.userId)),
+    held(canvasSkills(room)),
+  ])
+  const savedTo =
+    account === "same" ? "account" : canvas === "same" ? "canvas" : null
+  const replaces: SkillSaveScope[] = [
+    ...(canvas === "other" ? (["canvas"] as const) : []),
+    ...(account === "other" ? (["account"] as const) : []),
+  ]
   const replacesBuiltIn =
     hasSkill(offered.name) || hasSkill(offered.name, "coordinator")
-  return { ok: true, savedTo, replacesBuiltIn }
+  return { ok: true, savedTo, replaces, replacesBuiltIn }
 }
 
 /**

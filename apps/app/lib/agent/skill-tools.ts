@@ -14,10 +14,11 @@ import {
 /**
  * A chat's Skill tools (#1555): `read_skill` loads a Skill from the chat's
  * Skill Sources (`lib/skills/sources.ts`, built by its Chat Target), and
- * `save_skill` and `delete_skill` keep the saved Skills. Every chat kind gets
- * all three. Each write takes a `scope`: `canvas` (the canvas's, shared with
- * its members) or `account` (the turn sender's own, on every canvas, #1558),
- * which a turn nobody sent refuses.
+ * `save_skill` offers one as a card that saves only when a person presses
+ * (#1633). Chats can't delete Skills; people do, in Settings and Canvas
+ * settings. Every chat kind gets both. A save suggests a `scope`: `canvas`
+ * (the canvas's, shared with its members) or `account` (the own Skills of
+ * whoever presses Save, on every canvas, #1558).
  */
 export interface SkillToolContext {
   /** Every Skill the chat sees, in precedence. */
@@ -26,8 +27,8 @@ export interface SkillToolContext {
   canvas: SavedSkills
   /**
    * The Account Skills of the person who sent the turn, or `null` on a turn
-   * nobody sent (a Coordinator wake and the turns it delegates), which
-   * refuses the `account` scope. Absent is the same as `null`.
+   * nobody sent (a Coordinator wake and the turns it delegates), which reads
+   * none. Absent is the same as `null`.
    */
   account?: SavedSkills | null
   /** The chat the tools act for: what its saves record as their author. */
@@ -48,14 +49,7 @@ const scopeProperty: JSONSchema7 = {
 
 type Scope = { scope?: "canvas" | "account" }
 
-/** What a write says when a turn nobody sent asks for account skills. */
-const NO_ACCOUNT =
-  "Error: nobody sent this turn, so it has no account skills. Use the `canvas` scope instead."
-
 export function buildSkillTools(ctx: SkillToolContext) {
-  /** The scope's Skills, or `null` for account Skills on a turn nobody sent. */
-  const saved = (scope: Scope["scope"]): SavedSkills | null =>
-    scope === "account" ? (ctx.account ?? null) : ctx.canvas
   const appListing = formatSkillListing(ctx.skills.appIndex())
 
   const tools = {
@@ -147,33 +141,13 @@ export function buildSkillTools(ctx: SkillToolContext) {
         ].join(" ")
       },
     }),
-
-    delete_skill: tool({
-      description:
-        "Delete a saved skill, so no chat follows it any more. Delete one when the user asks, or one you saved that turned out wrong. It can’t be undone.",
-      inputSchema: jsonSchema<Scope & { name: string }>({
-        type: "object",
-        properties: {
-          scope: scopeProperty,
-          name: { type: "string" },
-        },
-        required: ["name"],
-      }),
-      execute: async ({ scope, name }) => {
-        const scoped = saved(scope)
-        if (!scoped) return NO_ACCOUNT
-        const removed = await scoped.remove(name)
-        if (!removed.ok) return `Error: ${removed.error}`
-        return `Deleted the ${scope === "account" ? "account" : "canvas"} skill "${name}".`
-      },
-    }),
   }
-  // Skills sit outside the repository: reading one changes nothing, and a
-  // save is undone by saving again; a delete can't be.
+  // Skills sit outside the repository: reading one changes nothing, and
+  // saving one only shows a card that waits for a person. Chats can't delete
+  // skills; people do that in Settings and Canvas settings.
   return annotateTools(tools, {
     read_skill: { readOnlyHint: true, openWorldHint: false },
     save_skill: { destructiveHint: false, openWorldHint: false },
-    delete_skill: { destructiveHint: true, openWorldHint: false },
   })
 }
 

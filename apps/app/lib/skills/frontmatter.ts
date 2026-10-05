@@ -30,6 +30,32 @@ export interface SkillMetadata {
  */
 export type SkillAudience = "workspace" | "coordinator"
 
+/** YAML's double-quoted escapes this parser reads; any other stays as written. */
+const ESCAPES: Record<string, string> = {
+  '"': '"',
+  "\\": "\\",
+  "/": "/",
+  n: "\n",
+  t: "\t",
+}
+
+/**
+ * A scalar's value without its YAML quotes: a single-quoted one with `''`
+ * read as `'`, a double-quoted one with its escapes read.
+ */
+function unquote(value: string): string {
+  const single = value.match(/^'(.*)'$/)
+  if (single) return (single[1] ?? "").replaceAll("''", "'")
+  const double = value.match(/^"(.*)"$/)
+  if (double) {
+    return (double[1] ?? "").replace(
+      /\\(.)/g,
+      (escape, c: string) => ESCAPES[c] ?? escape
+    )
+  }
+  return value
+}
+
 /**
  * Parse a SKILL.md's raw text into `{ metadata, body }`. Throws when the
  * frontmatter block is missing or doesn't declare both `name` and
@@ -51,7 +77,7 @@ export function parseFrontmatter(
     const m = line.match(/^([a-zA-Z_][\w-]*)\s*:\s*(.*)$/)
     if (!m) continue
     const [, key = "", value = ""] = m
-    fields[key] = value.trim().replace(/^"(.*)"$/, "$1")
+    fields[key] = unquote(value.trim())
   }
   if (!fields.name || !fields.description) {
     throw new Error(
