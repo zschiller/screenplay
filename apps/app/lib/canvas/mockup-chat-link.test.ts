@@ -275,12 +275,9 @@ describe("what a tap on the page says for this viewer (#1662)", () => {
     expect(pageVoice({ ...own, focused: true, driver: agent })).toEqual(neither)
   })
 
-  it("drafts on a live page only while they have control, and never answers there", () => {
+  it("drafts and answers on a live page only while they have control", () => {
     const live = { live: true, focused: true, driver: none }
-    expect(pageVoice({ ...live, liveDriver: you })).toEqual({
-      draft: true,
-      answer: false,
-    })
+    expect(pageVoice({ ...live, liveDriver: you })).toEqual(both)
     expect(pageVoice({ ...live, liveDriver: none })).toEqual(neither)
     expect(pageVoice({ ...live, liveDriver: agent })).toEqual(neither)
     expect(
@@ -305,9 +302,18 @@ describe("whether a tap on the page can answer at all", () => {
     expect(pageAnswers({ ...own, focused: true, driver: agent })).toBe(false)
   })
 
-  it("never can on a live page, for any viewer", () => {
+  it("can on a live page while a person has control, the same for every viewer", () => {
     const live = { live: true, driver: none, focused: false }
-    for (const liveDriver of [you, sam, none, agent])
-      expect(pageAnswers({ ...live, liveDriver })).toBe(false)
+    expect(pageAnswers({ ...live, liveDriver: you })).toBe(true)
+    expect(pageAnswers({ ...live, liveDriver: sam })).toBe(true)
+    expect(pageAnswers({ ...live, liveDriver: none })).toBe(false)
+    expect(pageAnswers({ ...live, liveDriver: agent })).toBe(false)
+  })
+
+  it("on a live page, reads only who has control, not this viewer's own copy", () => {
+    const live = { live: true, liveDriver: sam }
+    for (const focused of [true, false])
+      for (const driver of [you, none, agent] as const)
+        expect(pageAnswers({ ...live, focused, driver })).toBe(true)
   })
 })

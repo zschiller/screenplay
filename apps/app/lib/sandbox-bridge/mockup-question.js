@@ -12,8 +12,8 @@
   // click on the card would, and only from a person's tap or key press: a
   // page can't speak for anyone on its own. It returns whether the answer
   // went to the canvas. `answerable` is false while it can't go (the page is
-  // live, or the agent is driving it), so the page can say to answer in the
-  // chat instead of showing a pick as sent.
+  // live and nobody has control, or the agent is driving it), so the page can
+  // say to answer in the chat instead of showing a pick as sent.
   if (window.screenplay && window.screenplay.question) return
 
   const listeners = new Set()
