@@ -17,7 +17,7 @@ const contextItems = [
   },
   {
     title: "Skills",
-    body: "Type / to use a skill from the repository, the canvas, your account or Screenplay. Chats save new ones when they learn a workflow.",
+    body: "Type / to use a skill from the repository, the canvas, your account or Screenplay. Chats offer to save new ones when they learn a workflow.",
   },
   {
     title: "Attachments",

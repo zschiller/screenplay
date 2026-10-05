@@ -36,27 +36,22 @@ const perks = {
   },
 }
 
-function TeamsHead({ figure }: { figure?: React.ReactNode }) {
+/** The heading and pitch, as the other story sections set theirs, then the
+ *  guide. One column, since every perk below brings its own picture. */
+function TeamsHead() {
   return (
     <>
-      <SectionHeading slug="For teams" title="Host it and build together." />
-      <div className="mt-12 grid items-start gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <div className="flex flex-col items-start gap-8">
-          <p className="max-w-[44ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
-            Deploy the web app and your team shares one canvas from any
-            browser, with everyone’s cursors on it. Every chat runs in its
-            own cloud sandbox, so nobody installs anything. The software is free
-            and MIT licensed; you pay for hosting and model usage.
-          </p>
-          <a
-            href={`${docsUrl}/self-hosting`}
-            className={buttonClass("outline", "lg")}
-          >
-            Self-hosting guide
-          </a>
-        </div>
-        {figure}
-      </div>
+      <SectionHeading
+        slug="For teams"
+        title="Host it and build together."
+        body="Deploy the web app and your team shares one canvas from any browser, with everyone’s cursors on it. Every chat runs in its own cloud sandbox, so nobody installs anything. The software is free and MIT licensed; you pay for hosting and model usage."
+      />
+      <a
+        href={`${docsUrl}/self-hosting`}
+        className={cn(buttonClass("outline", "lg"), "mt-8")}
+      >
+        Self-hosting guide
+      </a>
     </>
   )
 }
@@ -72,7 +67,7 @@ export function SelfHosting() {
   return (
     <section id="self-hosting" className={cn(measure, sectionTop)}>
       <TeamsHead />
-      <ul className="mt-4 grid gap-x-12 border-t border-foreground md:grid-cols-2">
+      <ul className="mt-12 grid gap-x-12 border-t border-foreground md:grid-cols-2">
         {pictured.map(([p, Pic]) => (
           <li
             key={p.title}

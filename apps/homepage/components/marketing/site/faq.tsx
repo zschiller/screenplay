@@ -44,7 +44,7 @@ const faqs = [
 
 export function Faq() {
   return (
-    <section className={cn(measure, sectionTop)}>
+    <section id="faq" className={cn(measure, sectionTop)}>
       <SectionHeading slug="FAQ" title="Before you start." tier="reference" />
       <div className="mt-12 border-t border-foreground">
         {faqs.map((f) => (

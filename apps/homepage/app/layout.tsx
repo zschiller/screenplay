@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
   title: "Screenplay — from idea to code, on one canvas",
   description:
-    "Coding agents plan, mock up and build from your own repo, with every version live side by side. Free and open source, for Mac.",
+    "Coding agents plan, mock up and build from your own repo, with every version live side by side. Free and open source: a Mac app, or host it for your team.",
 }
 
 export default function RootLayout({

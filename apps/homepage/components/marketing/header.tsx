@@ -65,7 +65,16 @@ export function Header() {
           >
             GitHub
           </a>
-          <a href={downloadUrl} className={buttonClass("solid")}>
+          {/* A phone can't open the .dmg, so below sm Download scrolls to the
+              hero's buttons, where the Apple Silicon note and Host it for
+              your team sit with it. */}
+          <a href="#download" className={cn(buttonClass("solid"), "sm:hidden")}>
+            Download
+          </a>
+          <a
+            href={downloadUrl}
+            className={cn(buttonClass("solid"), "max-sm:hidden")}
+          >
             Download
           </a>
         </div>
