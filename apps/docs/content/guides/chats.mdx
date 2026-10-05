@@ -253,6 +253,23 @@ A toast says how many frames were hidden. Its **Undo** reopens the chat
 straight away. Later, open **Done** and choose **… → Reopen**. The chat
 starts again and its frames return where they were.
 
+### The agent marks its chat done
+
+The agent can put its own chat away too, the same way. Once its pull request
+has merged or closed and nothing is left for you, it marks the chat done at
+the end of its turn. The chat shows a **Marked done** card with the agent’s
+reason and a **Reopen** button, and its preview stops when the turn ends.
+
+The agent never marks a chat done while a pull request is still open, while
+its last message asks you something, or when you wrote to it during the turn.
+
+### Writing reopens a done chat
+
+A done chat’s message box stays open and reads **Write to reopen…**. Send a
+message and the chat reopens, as **Reopen** does, then the agent gets your
+message. After a merge it starts on the latest code, ready for the next pull
+request.
+
 ## Pull requests
 
 There are three ways to open a PR:

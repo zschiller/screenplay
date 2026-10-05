@@ -67,6 +67,7 @@ function fakeChat() {
       active = null
     },
     loadRunStatus: async () => "completed",
+    settleDone: async () => {},
     wakeCoordinator: async () => {},
     runAfterResponse(task) {
       pending.push(task)

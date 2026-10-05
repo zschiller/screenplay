@@ -18,6 +18,8 @@ import { buildGitHubTools } from "./github-tools"
 import { buildPrTools, buildSandboxTools } from "./tools"
 import { buildDevServerTools } from "./dev-server-tools"
 import { liveDevServerPorts } from "./dev-server-ports"
+import { buildDoneTools } from "./done-tools"
+import { liveDonePorts } from "./done-ports"
 import { chatFrameReadTools } from "./frame-read-ports"
 import { chatPageScreenshotTools } from "./page-screenshot-ports"
 import { buildDocumentTools } from "./document-tools"
@@ -222,6 +224,8 @@ export const workspaceChatTarget: ChatTargetSpec<
           ...sandbox,
           senderless: turnSender(target) === null,
         }),
+        // Marking this chat done once its PR merged or closed (#1705).
+        ...buildDoneTools(liveDonePorts({ sandboxName, chatId, room })),
         // Loading Skills, and saving them to the canvas (#1555).
         ...buildSkillTools({
           skills,

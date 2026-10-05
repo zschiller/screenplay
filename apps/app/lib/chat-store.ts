@@ -700,6 +700,11 @@ class ChatStore {
           .json()
           .catch(() => null)
         if (body?.error === "not_steerable") return { kind: "not-steerable" }
+        // Writing in a Done chat reopens it first (#1705); its sandbox
+        // didn't start, so the message waits to be sent again.
+        if (body?.error === "reopen_failed") {
+          throw new Error("Couldn’t reopen this chat. Try again.")
+        }
         if (body?.error === "session_terminated") {
           throw new Error(
             "This chat can’t continue. Start a new chat to keep going."

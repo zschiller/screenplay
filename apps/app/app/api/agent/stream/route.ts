@@ -2,6 +2,7 @@ import { openRoomForRoute, type RoomDoc } from "@/lib/room-access"
 import { isEarlierChat } from "@/lib/chat/workspace-chat"
 import { isRoomChatId, roomChatId } from "@/lib/chat/room-chat"
 import { launchTurn } from "@/lib/agent/turn-launch"
+import { reopenDoneBranch } from "@/lib/branch/reopen-live"
 import {
   liveTurnLaunchDeps,
   roomTurn,
@@ -66,6 +67,18 @@ export async function POST(req: Request) {
     (await isEarlierChatInRoom(room, chatId))
   ) {
     return Response.json({ error: "earlier_chat" }, { status: 409 })
+  }
+
+  // Write to reopen (#1705): a message to a Done Workspace Chat reopens it,
+  // then goes out once its sandbox runs again.
+  if (!isRoomTarget && !isSketchTarget) {
+    const reopened = await reopenDoneBranch(room, sandboxName!)
+    if (reopened.error) {
+      return Response.json(
+        { error: "reopen_failed", message: reopened.error },
+        { status: 409 }
+      )
+    }
   }
 
   // Turn Launch owns the ordering (engine first, persist, start, broadcast,

@@ -48,6 +48,7 @@ import {
 } from "@/lib/chat/chat-capabilities"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceTasks } from "./workspace-task-row"
+import { ChatDoneProvider } from "./marked-done-card"
 import { isHarnessPlumbing } from "@/lib/agent/tool-name"
 import {
   Composer,
@@ -76,6 +77,9 @@ import { removeAttachment, uploadAttachment } from "@/lib/chat-attachments"
 
 // Stable subscribe reference for `useSyncExternalStore` — a fresh closure each
 // render would make React re-subscribe every render.
+/** A Done chat's composer (#1705): writing reopens it. */
+export const WRITE_TO_REOPEN = "Write to reopen…"
+
 const subscribeTargetEligibility = (onChange: () => void) =>
   targetingStore.subscribeEligibility(onChange)
 
@@ -104,6 +108,12 @@ interface AgentChatProps {
    * points to the Workspace's chat, which this opens.
    */
   onOpenWorkspaceChat?: () => void
+  /**
+   * The Workspace is Done (#1705): the composer reads “Write to reopen…”, and
+   * sending reopens it. Its Marked done card offers `onReopen`.
+   */
+  done?: boolean
+  onReopen?: () => void
 }
 
 export function AgentChat({
@@ -119,6 +129,8 @@ export function AgentChat({
   onModelChange,
   isActive = true,
   onOpenWorkspaceChat,
+  done = false,
+  onReopen,
 }: AgentChatProps) {
   const {
     messages,
@@ -393,6 +405,7 @@ export function AgentChat({
   }
 
   const lastRole = messages[messages.length - 1]?.role
+  const chatDone = { done, onReopen }
   // A Coordinator turn answering a wake (#897) works out of sight, so its cue
   // names the Workspace it's catching up on instead of "Thinking…".
   const wakeFrom = isStreaming ? runningWakeFrom(messages) : undefined
@@ -439,192 +452,194 @@ export function AgentChat({
     )
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-        <div ref={scrollContentRef} className="flex min-h-full flex-col p-4">
-          {isLoadingHistory ? (
-            <div className="m-auto flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Spinner className="size-3" />
-              Loading chat…
-            </div>
-          ) : historyFailed && messages.length === 0 && !failedSend ? (
-            <ChatLoadError onRetry={retryHistory} />
-          ) : messages.length === 0 && !failedSend ? (
-            <ChatEmptyState
-              capabilities={capabilities}
-              roomStart={roomStart}
-              onPickStarter={(text) => composerRef.current?.insertText(text)}
-            />
-          ) : (
-            <div className="space-y-5">
-              {stackTaskRows(
-                foldFinishedTurns(
-                  foldFrameDrives(
-                    groupToolCalls(
-                      // Every chat leaves out a harness's own plumbing.
-                      messages.filter((m) => !isHarnessPlumbing(m))
-                    )
+    <ChatDoneProvider value={chatDone}>
+      <div className="flex h-full flex-col bg-background">
+        {/* Messages */}
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+          <div ref={scrollContentRef} className="flex min-h-full flex-col p-4">
+            {isLoadingHistory ? (
+              <div className="m-auto flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Spinner className="size-3" />
+                Loading chat…
+              </div>
+            ) : historyFailed && messages.length === 0 && !failedSend ? (
+              <ChatLoadError onRetry={retryHistory} />
+            ) : messages.length === 0 && !failedSend ? (
+              <ChatEmptyState
+                capabilities={capabilities}
+                roomStart={roomStart}
+                onPickStarter={(text) => composerRef.current?.insertText(text)}
+              />
+            ) : (
+              <div className="space-y-5">
+                {stackTaskRows(
+                  foldFinishedTurns(
+                    foldFrameDrives(
+                      groupToolCalls(
+                        // Every chat leaves out a harness's own plumbing.
+                        messages.filter((m) => !isHarnessPlumbing(m))
+                      )
+                    ),
+                    {
+                      streaming: isStreaming,
+                      liveFrom: runStart,
+                    }
                   ),
-                  {
-                    streaming: isStreaming,
-                    liveFrom: runStart,
-                  }
-                ),
-                workspaceTasks != null
-              ).map((item) =>
-                item.kind === "turn-summary" ? (
-                  <TurnSummaryRow
-                    key={`summary-${item.index}`}
-                    summary={item.summary}
-                  >
-                    {item.steps.map((entry) => renderEntry(entry))}
-                  </TurnSummaryRow>
-                ) : item.kind === "task-rows" ? (
-                  <div
-                    key={`tasks-${item.entries[0].index}`}
-                    className="flex flex-col gap-1"
-                  >
-                    {item.entries.map((entry) => renderEntry(entry))}
-                  </div>
-                ) : (
-                  renderEntry(item.entry)
-                )
-              )}
-              {/* The run's in-progress cue, held until the run settles. Before
+                  workspaceTasks != null
+                ).map((item) =>
+                  item.kind === "turn-summary" ? (
+                    <TurnSummaryRow
+                      key={`summary-${item.index}`}
+                      summary={item.summary}
+                    >
+                      {item.steps.map((entry) => renderEntry(entry))}
+                    </TurnSummaryRow>
+                  ) : item.kind === "task-rows" ? (
+                    <div
+                      key={`tasks-${item.entries[0].index}`}
+                      className="flex flex-col gap-1"
+                    >
+                      {item.entries.map((entry) => renderEntry(entry))}
+                    </div>
+                  ) : (
+                    renderEntry(item.entry)
+                  )
+                )}
+                {/* The run's in-progress cue, held until the run settles. Before
                   any text streams (and between tool calls) it says "Thinking…";
                   once the assistant is writing, the grid alone trails the
                   message, so the reply never looks finished while it grows. */}
-              {isStreaming && (
-                <div
-                  role="status"
-                  data-testid="run-in-progress"
-                  className="flex items-center gap-1.5 text-sm text-muted-foreground"
-                >
-                  <GripSpinner className="size-4" />
-                  {lastRole === "assistant" ? (
-                    <span className="sr-only">Responding…</span>
-                  ) : wakeFrom ? (
-                    wakeBranch ? (
-                      `Catching up on ${workspaceLabel(wakeBranch)}…`
+                {isStreaming && (
+                  <div
+                    role="status"
+                    data-testid="run-in-progress"
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground"
+                  >
+                    <GripSpinner className="size-4" />
+                    {lastRole === "assistant" ? (
+                      <span className="sr-only">Responding…</span>
+                    ) : wakeFrom ? (
+                      wakeBranch ? (
+                        `Catching up on ${workspaceLabel(wakeBranch)}…`
+                      ) : (
+                        "Catching up…"
+                      )
                     ) : (
-                      "Catching up…"
-                    )
-                  ) : (
-                    "Thinking…"
-                  )}
-                </div>
-              )}
-              {pendingSteers.map((steer) => (
-                <PendingSteerNotice
-                  key={steer.key}
-                  turn={steer.turn}
-                  roomId={roomId}
-                  chatId={chatId}
-                />
-              ))}
-              {failedSend && (
-                <FailedSendNotice
-                  turn={sentTurn(failedSend.options)}
-                  error={failedSend.error}
-                  roomId={roomId}
-                  chatId={chatId}
-                  onRetry={() => void retryFailedSend()}
-                  onEdit={() => restoreToComposer(takeFailedSend())}
-                />
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Input. An earlier chat is read-only (#1315): only the Workspace's
-          own chat sends. */}
-      {onOpenWorkspaceChat ? (
-        <div className="flex items-center gap-3 border-t border-border p-4 text-sm text-muted-foreground">
-          <p className="min-w-0 flex-1 text-balance">
-            An earlier chat, kept to read. Work continues in the newest chat.
-          </p>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={onOpenWorkspaceChat}
-          >
-            Open chat
-          </Button>
-        </div>
-      ) : (
-        <Composer
-          ref={composerRef}
-          markdownLayers={markdownLayers}
-          attach={attach}
-          // The `/` menu lists the Skills this chat reads: a Workspace's
-          // Repo Skills, the canvas's and the App Skills its kind sees,
-          // fetched when the chat opens (so reopening after a Skill changes
-          // refreshes it).
-          skillSource={
-            capabilities.skills
-              ? {
-                  sandboxName: capabilities.skillSandboxName,
-                  roomId,
-                  chat: capabilities.skillChat,
-                  // The desktop agent's own Skills (#1560) follow the model.
-                  ...(isLocalBuild ? { model: effectiveModel } : {}),
-                }
-              : undefined
-          }
-          model={model}
-          onModelChange={handleModelChange}
-          planMode={planMode}
-          onPlanModeChange={
-            capabilities.planMode ? onPlanModeChange : undefined
-          }
-          onSubmit={handleSubmit}
-          isStreaming={isStreaming}
-          onStop={stopMessage}
-          queueWhileStreaming
-          steersWhileStreaming={steerable}
-          draftKey={chatId}
-          placeholder={capabilities.placeholder}
-          aboveInput={
-            queued.length > 0 ? (
-              <ul aria-label="Queued messages" className="mb-2 space-y-1">
-                {queued.map((q) => (
-                  <QueuedRow
-                    key={q.id}
-                    message={q.message}
-                    onEdit={() => restoreToComposer(takeQueued(q.id))}
-                    onRemove={() => takeQueued(q.id)}
+                      "Thinking…"
+                    )}
+                  </div>
+                )}
+                {pendingSteers.map((steer) => (
+                  <PendingSteerNotice
+                    key={steer.key}
+                    turn={steer.turn}
+                    roomId={roomId}
+                    chatId={chatId}
                   />
                 ))}
-              </ul>
-            ) : undefined
-          }
-          inputHeader={
-            quote || draftSource ? (
-              <>
-                {draftSource && (
-                  <DraftSourceRow
-                    source={draftSource}
-                    onRemove={() => chatDraftSourceStore.remove(chatId)}
+                {failedSend && (
+                  <FailedSendNotice
+                    turn={sentTurn(failedSend.options)}
+                    error={failedSend.error}
+                    roomId={roomId}
+                    chatId={chatId}
+                    onRetry={() => void retryFailedSend()}
+                    onEdit={() => restoreToComposer(takeFailedSend())}
                   />
                 )}
-                {quote && (
-                  <QuoteRow
-                    quote={quote}
-                    onRemove={() => chatQuoteStore.remove(chatId)}
-                  />
-                )}
-              </>
-            ) : undefined
-          }
-          onPickElement={pickBranchId ? handlePickElement : undefined}
-          targetEligible={targetEligible}
-          focusKey={quote?.key}
-        />
-      )}
-    </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Input. An earlier chat is read-only (#1315): only the Workspace's
+          own chat sends. */}
+        {onOpenWorkspaceChat ? (
+          <div className="flex items-center gap-3 border-t border-border p-4 text-sm text-muted-foreground">
+            <p className="min-w-0 flex-1 text-balance">
+              An earlier chat, kept to read. Work continues in the newest chat.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onOpenWorkspaceChat}
+            >
+              Open chat
+            </Button>
+          </div>
+        ) : (
+          <Composer
+            ref={composerRef}
+            markdownLayers={markdownLayers}
+            attach={attach}
+            // The `/` menu lists the Skills this chat reads: a Workspace's
+            // Repo Skills, the canvas's and the App Skills its kind sees,
+            // fetched when the chat opens (so reopening after a Skill changes
+            // refreshes it).
+            skillSource={
+              capabilities.skills
+                ? {
+                    sandboxName: capabilities.skillSandboxName,
+                    roomId,
+                    chat: capabilities.skillChat,
+                    // The desktop agent's own Skills (#1560) follow the model.
+                    ...(isLocalBuild ? { model: effectiveModel } : {}),
+                  }
+                : undefined
+            }
+            model={model}
+            onModelChange={handleModelChange}
+            planMode={planMode}
+            onPlanModeChange={
+              capabilities.planMode ? onPlanModeChange : undefined
+            }
+            onSubmit={handleSubmit}
+            isStreaming={isStreaming}
+            onStop={stopMessage}
+            queueWhileStreaming
+            steersWhileStreaming={steerable}
+            draftKey={chatId}
+            placeholder={done ? WRITE_TO_REOPEN : capabilities.placeholder}
+            aboveInput={
+              queued.length > 0 ? (
+                <ul aria-label="Queued messages" className="mb-2 space-y-1">
+                  {queued.map((q) => (
+                    <QueuedRow
+                      key={q.id}
+                      message={q.message}
+                      onEdit={() => restoreToComposer(takeQueued(q.id))}
+                      onRemove={() => takeQueued(q.id)}
+                    />
+                  ))}
+                </ul>
+              ) : undefined
+            }
+            inputHeader={
+              quote || draftSource ? (
+                <>
+                  {draftSource && (
+                    <DraftSourceRow
+                      source={draftSource}
+                      onRemove={() => chatDraftSourceStore.remove(chatId)}
+                    />
+                  )}
+                  {quote && (
+                    <QuoteRow
+                      quote={quote}
+                      onRemove={() => chatQuoteStore.remove(chatId)}
+                    />
+                  )}
+                </>
+              ) : undefined
+            }
+            onPickElement={pickBranchId ? handlePickElement : undefined}
+            targetEligible={targetEligible}
+            focusKey={quote?.key}
+          />
+        )}
+      </div>
+    </ChatDoneProvider>
   )
 }
 

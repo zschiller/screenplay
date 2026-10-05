@@ -126,6 +126,9 @@ function recordingDeps(
     async loadRunStatus() {
       return opts.runStatus ?? "completed"
     },
+    async settleDone({ sandboxName, continuing }) {
+      log.push(`settle done ${sandboxName}${continuing ? " continuing" : ""}`)
+    },
     async wakeCoordinator({ runId, status }) {
       log.push(`wake coordinator ${runId} ${status}`)
     },
@@ -724,6 +727,45 @@ describe("Turn Launch — steering (#1190)", () => {
       ])
       expect(log.some((l) => l.startsWith("follow up"))).toBe(false)
     })
+  })
+})
+
+describe("Turn Launch — a chat that marked itself done (#1705)", () => {
+  const workspaceTurn = { ...request, sandboxName: "sb_1" }
+  const workspaceTarget = (log: string[]) =>
+    target(log, { wakesCoordinator: true })
+
+  it("settles Done once the turn is over, before waking the Coordinator", async () => {
+    const { deps, log, flush } = recordingDeps()
+    await launchTurn(deps, workspaceTurn, workspaceTarget(log))
+    await flush()
+    const settle = log.indexOf("settle done sb_1")
+    expect(settle).toBeGreaterThan(log.indexOf("drive run_1 planMode=false"))
+    expect(settle).toBeLessThan(log.indexOf("wake coordinator run_1 completed"))
+  })
+
+  it("reopens instead when a person's leftover message carries the chat on", async () => {
+    const { deps, log, flush } = recordingDeps({
+      leftovers: [{ id: "s1", message: "one more thing", userId: "u_1" }],
+    })
+    await launchTurn(deps, workspaceTurn, {
+      ...workspaceTarget(log),
+      followUp: () => workspaceTarget(log),
+    })
+    await flush()
+    const settle = log.indexOf("settle done sb_1 continuing")
+    expect(settle).toBeGreaterThan(-1)
+    // The next turn's Engine runs on the reopened chat.
+    expect(log.lastIndexOf("drive run_1 planMode=false")).toBeGreaterThan(
+      settle
+    )
+  })
+
+  it("leaves chats with no sandbox alone", async () => {
+    const { deps, log, flush } = recordingDeps()
+    await launchTurn(deps, request, target(log))
+    await flush()
+    expect(log.some((l) => l.startsWith("settle done"))).toBe(false)
   })
 })
 

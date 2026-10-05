@@ -28,7 +28,7 @@ import {
 import { AgentChat } from "./agent-chat"
 import { ChatPanelHeader } from "./chat-panel-header"
 import { CoordinatorChat } from "./coordinator-chat"
-import { ChatsMenuButton } from "./chats-menu"
+import { ChatsMenuButton, useChatsMenu } from "./chats-menu"
 import { TerminalPane, type DevServerControls } from "./terminal-pane"
 import { useTerminalPaneController } from "./use-terminal-pane-controller"
 import { WorkspaceHeaderTitle } from "./workspace-menu"
@@ -292,6 +292,8 @@ function WorkspaceChatPanel({
   const prBlocked = existingPr?.state === "open" && !!existingPr.blocked
   const prColor = prStateButtonColor(existingPr?.state ?? "open", prBlocked)
   const isAgentBusy = workspaceBooting(agent)
+  // Reopen from a Marked done card (#1705), as the Chats menu's Reopen.
+  const chatsMenu = useChatsMenu()
 
   // First chat for this Workspace — drives auto branch/chat naming.
   const isFirstChat = (chat: ChatSessionData) =>
@@ -317,6 +319,10 @@ function WorkspaceChatPanel({
           ownChatId && chat.id !== ownChatId
             ? () => onSelectChat(ownChatId)
             : undefined
+        }
+        done={Boolean(agent.doneAt)}
+        onReopen={
+          chatsMenu ? () => chatsMenu.onReopenBranch(agent.id) : undefined
         }
       />
     </div>
