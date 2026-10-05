@@ -81,8 +81,9 @@ The **Chats** button sits at the far right of the
 level. In a chat, click **Coordinator** in the header to get back to it.
 An orange dot on the **Chats** button means a chat needs you: its setup
 failed, its plan waits for your approval, its agent
-[asked you a question](/guides/agent#questions), or its pull request can’t
-merge. An open pull request waiting on review doesn’t count. A
+[asked you a question](/guides/agent#questions), its
+[pull request needs you](#the-agent-acts-on-its-own), or its pull request
+can’t merge. An open pull request waiting on review doesn’t count. A
 [chat with no repository](/guides/agent#chats-with-no-repository) counts too
 while its question waits.
 Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
@@ -109,8 +110,8 @@ Each chat row shows:
 
 - a **status icon** for what the chat is doing: a spinner while it
   starts, an activity spinner while the agent works, an orange dot when it
-  needs you (a plan to approve, a question to answer, or a pull request that
-  can’t merge), a small
+  needs you (a plan to approve, a question to answer, a pull request the
+  agent stopped working on, or a pull request that can’t merge), a small
   circle when it’s ready, a dashed circle when it’s stopped, a check circle
   when it’s [done](#marking-a-chat-done), or a warning when setup failed.
   Click the warning for the error, with **Retry**, **Recreate** and
@@ -138,7 +139,8 @@ request button instead).
 
 The list is grouped by state: **Working** (the agent is working or setup is
 running), **Needs you** (setup failed, a plan waits for your approval, a
-question waits for your answer, or its pull request can’t merge) and **Idle**
+question waits for your answer, the agent stopped working on its pull request,
+or its pull request can’t merge) and **Idle**
 (ready or stopped, including a pull request waiting on review). Each section
 gets its own heading, and empty sections are hidden.
 
@@ -288,6 +290,24 @@ Failing checks and conflicts are red with the merge-conflict icon, closed PRs
 red with the closed icon, passing checks green and merges purple, like the PR
 badge. With the canvas closed, Screenplay checks
 the PR with the GitHub account of the person who started the chat.
+
+### The agent acts on its own
+
+Failing checks, a conflict, a merge and a close also start a turn for the
+chat’s agent, right after the line, so you don’t have to come back and ask.
+It reads the failing checks or brings the base branch in, fixes the cause and
+pushes, or replies saying why it can’t. After a merge or a close it replies
+in one line. Checks passing again is only a line.
+
+The agent acts for the person who started the chat, with their GitHub
+account, and this works with the canvas closed. It never interrupts a turn
+that’s already running: the update waits until that turn ends, then starts
+its own.
+
+After three of these turns in a row on the same PR with no message from a
+person, the next update only shows as its line. The chat stops waking its
+agent and turns **PR needs you**, with an orange dot, until someone writes in
+it.
 
 ### The next pull request
 

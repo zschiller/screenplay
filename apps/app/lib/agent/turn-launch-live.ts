@@ -3,6 +3,8 @@ import "server-only"
 import { after } from "next/server"
 import { toolsetOn } from "./toolset"
 import type { RoomDoc } from "@/lib/room-access"
+import type { RoomCollections } from "@/lib/yjs/schema"
+import type { BranchData } from "@/lib/types"
 import { accountFilesFor, prepareChatTarget } from "./chat-target-kinds"
 import { workspaceChatTarget } from "./workspace-chat-target"
 import { roomChatTarget, type RoomTarget } from "./room-chat-target"
@@ -507,6 +509,63 @@ async function launchDelegatedSketchTurn(
   }
 }
 
+/**
+ * A PR event's wake (#1703): a turn in the Branch's Workspace Chat whose
+ * message is the event's line, acting for `room`'s member (the Branch's
+ * owner). Through the same Turn Launch a typed message takes, except that it
+ * never joins or ends a turn in flight: an unfinished run makes it `busy`.
+ * `unavailable` when the Workspace can't take a turn (Done, stopped or still
+ * setting up). The started turn's Engine work goes to `runAfter`.
+ */
+export async function launchPrWakeTurn(
+  room: RoomAccess,
+  request: { branchId: string; chatId: string; message: string },
+  runAfter: (task: () => Promise<void>) => void
+): Promise<"started" | "busy" | "unavailable"> {
+  const { chatId, message } = request
+  const branch = await room.readDoc(({ branches }) =>
+    branches.get(request.branchId)
+  )
+  if (!branch?.sandboxName || branch.doneAt || !agentCanStart(branch)) {
+    return "unavailable"
+  }
+  const { sandboxName } = branch
+  const model = (await getChatModel(chatId)) ?? undefined
+  let drive: (() => Promise<void>) | undefined
+  const result = await launchTurn(
+    {
+      ...liveTurnLaunchDeps(room),
+      runAfterResponse: (task) => {
+        drive = task
+      },
+    },
+    {
+      roomId: room.roomId,
+      chatId,
+      message,
+      sandboxName,
+      model,
+      userId: room.userId,
+      // Nobody typed it: it shows as the event's line, not as the owner's.
+      sentBy: null,
+      queueBehindRun: true,
+    },
+    sandboxTurn({
+      room,
+      chatId,
+      sandboxName,
+      userId: room.userId,
+      message,
+      model,
+      prWake: true,
+    })
+  )
+  if (result.kind === "busy") return "busy"
+  if (result.kind !== "started") return "unavailable"
+  if (drive) runAfter(drive)
+  return "started"
+}
+
 /** A chat on a Branch's sandbox. */
 export function sandboxTurn(input: {
   room: RoomDoc
@@ -522,8 +581,12 @@ export function sandboxTurn(input: {
   delegatedFrom?: string
   /** Delegated by a wake nobody sent: no account memory (#1513). */
   senderless?: boolean
+  /** A PR event's wake (#1703), not a message a person sent. */
+  prWake?: boolean
 }): TurnTarget {
   const { room, chatId, sandboxName, userId, message, planMode } = input
+  // A person writing in the chat restarts the PR wake count (#1703).
+  const fromPerson = !input.prWake && !input.delegatedFrom && !input.senderless
   const { roomId } = room
   const target = {
     sandboxName,
@@ -558,6 +621,7 @@ export function sandboxTurn(input: {
       if (!prepared) return null
       const { systemPrompt, context } = prepared
       const branchState = context.branch
+      if (fromPerson) await resumePrWakes(room, sandboxName)
 
       await upsertChat({ chatId, roomId, sandboxName, model, systemPrompt })
 
@@ -636,8 +700,28 @@ export function sandboxTurn(input: {
         isFirstChat: false,
         commentThreadIds: undefined,
         delegatedFrom: undefined,
+        prWake: undefined,
       }),
   }
+}
+
+/** Let the sandbox's Branch's PR events wake its agent again (#1703). */
+async function resumePrWakes(
+  room: RoomDoc,
+  sandboxName: string
+): Promise<void> {
+  const pausedId = (b: BranchData | undefined) =>
+    b?.prWakesPaused !== undefined ? b.id : undefined
+  const find = ({ branches }: RoomCollections) =>
+    pausedId(branches.toArray().find((b) => b.sandboxName === sandboxName))
+  // Read first: almost every turn has nothing to clear.
+  if (!(await room.readDoc(find))) return
+  await room.mutateDoc((collections) => {
+    const id = find(collections)
+    if (id && pausedId(collections.branches.get(id))) {
+      collections.branches.update(id, { prWakesPaused: undefined })
+    }
+  })
 }
 
 /**

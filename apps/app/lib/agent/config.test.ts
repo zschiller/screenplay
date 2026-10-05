@@ -237,6 +237,20 @@ describe("buildAgentSystemPrompt — one chat per Workspace (#1315)", () => {
   })
 })
 
+describe("buildAgentSystemPrompt — PR events (#1703)", () => {
+  it("says to fix and push, or reply saying why not", () => {
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: EMPTY_DIRECTORY,
+      skills: APP_SKILLS,
+      toolNaming: harnessToolNaming("claude-code", "screenplay"),
+    })
+    expect(prompt).toContain("[pr event: …]")
+    expect(prompt).toContain("mcp__screenplay__read_pr_checks")
+    expect(prompt).toContain("commit and push")
+    expect(prompt).toContain("reply in a sentence or two saying why")
+  })
+})
+
 describe("the Canvas view footer", () => {
   it('tells both chat kinds what "this" means', () => {
     for (const prompt of [

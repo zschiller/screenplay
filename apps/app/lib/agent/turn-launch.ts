@@ -115,6 +115,13 @@ export interface TurnRequest {
    * and echoing it again. Honoured only while the chat's latest run failed.
    */
   retry?: boolean
+  /**
+   * A PR event's wake (#1703): it never joins or ends a turn in flight. While
+   * the chat has a run that hasn't finished, running or paused on a plan, the
+   * launch does nothing and reports `busy`, so the caller holds the wake for
+   * later rather than steering the run or rejecting its plan.
+   */
+  queueBehindRun?: boolean
 }
 
 export interface PlanDecision extends PlanResolution {
@@ -251,6 +258,8 @@ export type TurnLaunchResult =
    * whether it does. The sender queues the message.
    */
   | { kind: "not-steerable" }
+  /** A {@link TurnRequest.queueBehindRun} launch found a run unfinished. */
+  | { kind: "busy" }
   | { kind: "target-not-found" }
   /** The plan decision arrived after the plan was already resolved. */
   | { kind: "plan-already-resolved" }
@@ -266,7 +275,8 @@ export type TurnLaunchResult =
  *    takes Steers, and is refused as "not steerable" when it doesn't or its
  *    Engine hasn't said yet (#1250), so the sender queues it. Nothing else
  *    happens for a Steer: the Engine settles it into the transcript when it
- *    takes it.
+ *    takes it. A PR event's wake (#1703) neither steers nor answers a plan:
+ *    any unfinished run makes it `busy`, before any write.
  * 3. Let the target prepare (its own writes).
  * 4. Resolve the chat's plan, the one way a plan is ever resolved: the human's
  *    explicit decision when resuming, otherwise an implicit rejection of any
@@ -315,6 +325,10 @@ export async function launchTurn(
   // new, like any message.
   const retry =
     request.retry === true && (await deps.latestRunStatus(chatId)) === "failed"
+
+  if (request.queueBehindRun && (await deps.findActiveRun(chatId))) {
+    return { kind: "busy" }
+  }
 
   if (!request.planDecision && !retry) {
     const steered = await steerRunningTurn(deps, request)
