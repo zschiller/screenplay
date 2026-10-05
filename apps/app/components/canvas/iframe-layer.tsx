@@ -26,7 +26,7 @@ import {
 import { installBridge, getBridgeVersion } from "@/lib/sandbox/provision"
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
-import type { GroupWorkspace } from "./group-label"
+import type { GroupLabelValue } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import {
   LayerMenu,
@@ -45,7 +45,11 @@ import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
 import { recordsLiveRoute } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
-import { LayerShell, LAYER_SURFACE_CLASS } from "./layer-shell"
+import {
+  LayerShell,
+  LAYER_SURFACE_CLASS,
+  type LayerPlacement,
+} from "./layer-shell"
 import type { BranchData } from "@/lib/types"
 import type {
   DomRect,
@@ -152,35 +156,6 @@ interface IframeLayerProps {
   onFocus: (id: string | null) => void
   onToggleCreateFlow: (id: string | null) => void
   onSelect: (id: string, shiftKey: boolean) => void
-  /** Drag any iframeLayer moves the parent group. */
-  onMoveGroup: (
-    dx: number,
-    dy: number,
-    totalDx: number,
-    totalDy: number,
-    metaKey: boolean
-  ) => void
-  onMoveSelected: (
-    dx: number,
-    dy: number,
-    totalDx: number,
-    totalDy: number,
-    metaKey: boolean
-  ) => void
-  /** Fires once when a group-move drag actually begins (after the move threshold). */
-  onGroupDragStart?: () => void
-  /** Fires once when a group-move drag ends. metaKey is the cmd state at release. */
-  onGroupDragEnd?: (metaKey: boolean) => void
-  /**
-   * Attempt to start a reorder drag from a layer-owned element (e.g. the
-   * name label). Returns `true` if the reorder took over the pointer (in
-   * which case the caller skips its own drag), `false` for single-member
-   * groups where reorder doesn't apply.
-   */
-  onRequestReorderDrag?: (
-    iframeLayerId: string,
-    e: React.PointerEvent
-  ) => boolean
   /**
    * Resize delta. Top/left edges shift the group by (dx, dy); bottom/right
    * edges leave the group anchor in place. The iframeLayer's own width/height
@@ -292,10 +267,9 @@ interface IframeLayerProps {
     route: string,
     replace?: boolean
   ) => void
-  /** Group label shown above the branch — only on the leftmost iframeLayer of a multi-iframeLayer group. */
-  groupLabel?: string
-  /** The Group's Workspace, named after the group label (#868). */
-  groupWorkspace?: GroupWorkspace
+  /** The group label shown above the branch — only on the leftmost
+   *  iframeLayer of a multi-iframeLayer group. */
+  groupLabel?: GroupLabelValue
   /** The frame names its own Workspace on its label: its Group's frames
    *  differ, or it is a Group of one with no group label (#1276). */
   showWorkspace?: boolean
@@ -304,40 +278,13 @@ interface IframeLayerProps {
   /** Color of a remote user who has this frame selected — tints the name to
    *  match their selection rect. Ignored while locally selected. */
   remoteSelectedColor?: string
-  /** Color of a remote user who has this frame's group selected — tints the
-   *  group label. Only meaningful on the leftmost member. */
-  remoteGroupSelectedColor?: string
-  /** Click handler for the group label (only meaningful when `groupLabel` is set). */
-  onSelectGroup?: (shiftKey: boolean) => void
-  /** Inline rename for the group label (only meaningful when `groupLabel` is set). */
-  onRenameGroup?: (next: string) => void
-  /** The Group's menu, on its label while it alone is selected (I7). */
-  groupMenu?: LayerMenuActions
   /**
-   * Absolute world-space position of this layer's top-left. Layers render as
+   * Where the frame sits and how dragging it moves things. Layers render as
    * flat, absolutely-positioned siblings (not nested in a per-group flex row),
    * so moving one between groups never reparents its React subtree — the
-   * iframe DOM survives and there's no reload. The position comes from
-   * `effectiveIframeLayerLayouts` and already bakes in the pop-out offset.
+   * iframe DOM survives and there's no reload.
    */
-  worldX: number
-  worldY: number
-  /** Paint order, projected from the group's sidebar position (higher = on top). */
-  zIndex?: number
-  /**
-   * In-flow reorder translate (world px), layered on top of `worldX/worldY`
-   * so the lifted frame tracks the cursor while its siblings reflow to their
-   * new slots. Popped drags don't use this — their float position is already
-   * baked into `worldX/worldY`.
-   */
-  dragTranslateX?: number
-  dragTranslateY?: number
-  /**
-   * True while this frame is the one being "popped" out at the cursor (reorder
-   * drag with meta held). Drives z-elevation, pointer-events pass-through, and
-   * the group label's anchor behavior. Its float position lives in `worldX/Y`.
-   */
-  dragPopped?: boolean
+  placement: LayerPlacement
 }
 
 export function IframeLayer({
@@ -361,11 +308,6 @@ export function IframeLayer({
   onFocus,
   onToggleCreateFlow,
   onSelect,
-  onMoveGroup,
-  onMoveSelected,
-  onGroupDragStart,
-  onGroupDragEnd,
-  onRequestReorderDrag,
   onResize,
   onResizeStart,
   onResizeEnd,
@@ -401,20 +343,10 @@ export function IframeLayer({
   discoveredRoutes,
   onSelectRoute,
   groupLabel,
-  groupWorkspace,
   showWorkspace,
   groupSelected,
   remoteSelectedColor,
-  remoteGroupSelectedColor,
-  onSelectGroup,
-  onRenameGroup,
-  groupMenu,
-  worldX,
-  worldY,
-  zIndex,
-  dragTranslateX,
-  dragTranslateY,
-  dragPopped,
+  placement,
 }: IframeLayerProps) {
   // Track the path last reported by the iframe itself. When iframeLayer.route
   // changes to match this path, we know the change was the echo of in-iframe
@@ -913,12 +845,7 @@ export function IframeLayer({
       layerId={iframeLayer.id}
       width={iframeLayer.width}
       height={iframeLayer.height}
-      worldX={worldX}
-      worldY={worldY}
-      zIndex={zIndex}
-      dragTranslateX={dragTranslateX}
-      dragTranslateY={dragTranslateY}
-      dragPopped={dragPopped}
+      placement={placement}
       containerId={`iframe-layer-${iframeLayer.id}`}
       containerClassName="absolute"
       containerRef={frameRef}
@@ -930,11 +857,6 @@ export function IframeLayer({
       multiSelected={multiSelected}
       spaceHeld={spaceHeld}
       onSelect={onSelect}
-      onMoveGroup={onMoveGroup}
-      onMoveSelected={onMoveSelected}
-      onGroupDragStart={onGroupDragStart}
-      onGroupDragEnd={onGroupDragEnd}
-      onRequestReorderDrag={onRequestReorderDrag}
       // Interactive (focus / Create Flow) frames forward pointers to the iframe,
       // so the title bar's drag is detached just like the body overlay is hidden.
       titleDragDisabled={interactive}
@@ -944,11 +866,6 @@ export function IframeLayer({
       onResizeStart={onResizeStart}
       onResizeEnd={onResizeEnd}
       groupLabel={groupLabel}
-      groupWorkspace={groupWorkspace}
-      remoteGroupSelectedColor={remoteGroupSelectedColor}
-      onSelectGroup={onSelectGroup}
-      onRenameGroup={onRenameGroup}
-      groupMenu={groupMenu}
       renderTitle={(api) => (
         <IframeLayerLabel
           label={iframeLayer.label}

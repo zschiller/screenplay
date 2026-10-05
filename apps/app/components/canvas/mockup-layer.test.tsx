@@ -81,11 +81,13 @@ function renderMockup(
         selected
         multiSelected={false}
         spaceHeld={false}
-        worldX={0}
-        worldY={0}
+        placement={{
+          worldX: 0,
+          worldY: 0,
+          onMoveGroup: noop,
+          onMoveSelected: noop,
+        }}
         onSelect={noop}
-        onMoveGroup={noop}
-        onMoveSelected={noop}
         onResize={noop}
         onRename={noop}
         {...p}

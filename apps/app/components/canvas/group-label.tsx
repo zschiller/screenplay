@@ -57,6 +57,25 @@ interface MixedGroupWorkspace {
 export type GroupWorkspace =
   AssignedGroupWorkspace | UnassignedGroupWorkspace | MixedGroupWorkspace
 
+/**
+ * Everything a Group's label shows and does, computed once by the canvas
+ * member layer for the Group's leftmost Member. Frames, Documents and Mockups
+ * pass it through untouched; only the Layer Shell reads it, so a new group
+ * label feature changes the member layer and the label, not every Layer kind.
+ */
+export interface GroupLabelValue {
+  label: string
+  /** The Workspace every member shows (#1276); unset when they differ. */
+  workspace?: GroupWorkspace
+  /** A remote user's selection colour for the Group. */
+  remoteSelectedColor?: string
+  /** Select the Group from its label. */
+  onSelect: (shiftKey: boolean) => void
+  onRename: (next: string) => void
+  /** The Group's menu (I7), set while it alone is selected. */
+  menu?: LayerMenuActions
+}
+
 interface GroupLabelProps {
   label: string
   /** The Workspace every frame in the Group shows, named once after its
