@@ -6,6 +6,7 @@ import { liveAcpConsumerPorts } from "./acp/consumer-live"
 import { driveEngineTurn } from "./acp/live-turn"
 import type { Engine } from "./acp/engine-seam"
 import { loadAcpHistoryForModel } from "./persistence"
+import { withPromptLast } from "./user-turn"
 import { isRunActive, transition } from "./run-state"
 import { steerInbox } from "./steer-inbox"
 import { wireToContentBlocks } from "./acp/markers"
@@ -77,7 +78,7 @@ export async function launchEngineTurn(params: {
       : params.tools
   try {
     const history = await withImagesOnLastUserTurn(
-      await loadAcpHistoryForModel(chatId),
+      withPromptLast(await loadAcpHistoryForModel(chatId)),
       withAttachedImages
     )
     await driveEngineTurn(

@@ -4,8 +4,16 @@ import { isLocalBuild } from "@/lib/local-mode"
 
 // Routes reachable without a session. Everything else bounces to /sign-in.
 // `/icon` is the favicon (app/icon.ts): the sign-in page and Vercel's
-// dashboard ask for it signed out.
-const PUBLIC_PATHS = ["/", "/sign-in", "/icon", "/api/auth", "/api/yjs/auth"]
+// dashboard ask for it signed out. `/api/pr-watch/tick` is Vercel Cron's,
+// which checks its own secret.
+const PUBLIC_PATHS = [
+  "/",
+  "/sign-in",
+  "/icon",
+  "/api/auth",
+  "/api/yjs/auth",
+  "/api/pr-watch/tick",
+]
 
 function isPublic(pathname: string): boolean {
   if (

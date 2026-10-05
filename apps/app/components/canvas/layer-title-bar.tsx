@@ -9,8 +9,7 @@ import {
 } from "@workspace/ui/components/editable-text"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import { showsLayerDetail } from "@/lib/canvas/camera"
-import { GroupLabel, type GroupWorkspace } from "./group-label"
-import type { LayerMenuActions } from "./layer-menu"
+import { GroupLabel, type GroupLabelValue } from "./group-label"
 
 interface LayerTitleBarProps {
   /** Identifies which layer to lift when the user starts a reorder gesture
@@ -30,21 +29,10 @@ interface LayerTitleBarProps {
    *  for multi-member groups (canvas owns the gesture); single-member groups
    *  return `false` and fall through to the base move drag. */
   onRequestReorderDrag?: (layerId: string, e: React.PointerEvent) => boolean
-  /** Group display name — only set on the leftmost member of a multi-member
+  /** The Group's label — only set on the leftmost member of a multi-member
    *  group (rendered above the layer-specific row). */
-  groupLabel?: string
-  /** The Group's Workspace, named after the group label (#868). */
-  groupWorkspace?: GroupWorkspace
+  groupLabel?: GroupLabelValue
   groupSelected?: boolean
-  /** Color for the group label when it's selected by a *remote* user. When
-   *  set (and not locally `groupSelected`), the label is tinted to this
-   *  color to match that user's selection rect. */
-  groupSelectedColor?: string
-  onSelectGroup?: (shiftKey: boolean) => void
-  /** Optional inline rename for the group label. */
-  onRenameGroup?: (next: string) => void
-  /** The Group's menu, shown as … on its label while it alone is selected. */
-  groupMenu?: LayerMenuActions
   /** Drag handlers for the GroupLabel button — translate the whole group
    *  rather than reordering a single member. */
   groupLabelDragHandlers?: LayerDragHandlers
@@ -91,12 +79,7 @@ export function LayerTitleBar({
   dragHandlers,
   onRequestReorderDrag,
   groupLabel,
-  groupWorkspace,
   groupSelected,
-  groupSelectedColor,
-  onSelectGroup,
-  onRenameGroup,
-  groupMenu,
   groupLabelDragHandlers,
   reorderDragTranslateX,
   reorderDragTranslateY,
@@ -172,14 +155,14 @@ export function LayerTitleBar({
           }
         >
           <GroupLabel
-            label={groupLabel}
+            label={groupLabel.label}
             // Far out a group label is just the Group's name, like a Layer's.
-            workspace={compact ? undefined : groupWorkspace}
+            workspace={compact ? undefined : groupLabel.workspace}
             groupSelected={groupSelected}
-            color={groupSelectedColor}
-            onSelectGroup={onSelectGroup}
-            onRename={onRenameGroup}
-            menu={compact ? undefined : groupMenu}
+            color={groupLabel.remoteSelectedColor}
+            onSelectGroup={groupLabel.onSelect}
+            onRename={groupLabel.onRename}
+            menu={compact ? undefined : groupLabel.menu}
             dragHandlers={groupLabelDragHandlers}
           />
         </div>

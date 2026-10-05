@@ -9,7 +9,7 @@ import {
 } from "vitest"
 import * as Y from "yjs"
 
-import { baseBranch } from "@/test/canvas/harness"
+import { baseBranch, baseRepo } from "@/test/canvas/harness"
 import {
   HOSTED_MIGRATIONS,
   setupSharedPgliteDb,
@@ -73,11 +73,14 @@ const diffQuery = {
   base: "main",
   head: "feat",
 }
-const prQuery = { id: "b1", owner: "o", repo: "r", branch: "feat" }
-
 function seedBranchDoc() {
   const doc = new Y.Doc()
-  getRoomCollections(doc).branches.set("b1", baseBranch("b1", { ref: "feat" }))
+  const collections = getRoomCollections(doc)
+  collections.repos.set(
+    "repo-1",
+    baseRepo("repo-1", { repoOwner: "o", repoName: "r" })
+  )
+  collections.branches.set("b1", baseBranch("b1", { ref: "feat" }))
   docs.set(ROOM, doc)
   return doc
 }
@@ -154,7 +157,7 @@ describe("Room Access — hosted build", () => {
     const { compareBranches, listBranchPrs } = await import("./github-actions")
 
     await compareBranches(ROOM, [diffQuery])
-    await listBranchPrs(ROOM, [prQuery])
+    await listBranchPrs(ROOM)
 
     expect(getRoomCollections(doc).branches.get("b1")).toMatchObject({
       diffAdditions: 7,
@@ -174,9 +177,7 @@ describe("Room Access — hosted build", () => {
     await expect(compareBranches(ROOM, [diffQuery])).rejects.toThrow(
       "don’t have access"
     )
-    await expect(listBranchPrs(ROOM, [prQuery])).rejects.toThrow(
-      "don’t have access"
-    )
+    await expect(listBranchPrs(ROOM)).rejects.toThrow("don’t have access")
 
     expect(snapshot(doc)).toEqual(before)
     // Rejected before spending the caller's GitHub token on the room.
@@ -210,7 +211,7 @@ describe("Room Access — local build", () => {
     const { compareBranches, listBranchPrs } = await import("./github-actions")
 
     await compareBranches(ROOM, [diffQuery])
-    await listBranchPrs(ROOM, [prQuery])
+    await listBranchPrs(ROOM)
 
     expect(getRoomCollections(doc).branches.get("b1")).toMatchObject({
       diffAdditions: 7,

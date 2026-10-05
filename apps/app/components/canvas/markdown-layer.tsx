@@ -95,6 +95,7 @@ import {
 import {
   LayerShell,
   LAYER_SURFACE_CLASS,
+  type LayerPlacement,
 } from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
 import {
@@ -106,7 +107,7 @@ import type { ChatQuote } from "@/lib/chat-quote-store"
 import type { MarkdownLayerData } from "@/lib/types"
 import { isLocalBuild } from "@/lib/local-mode"
 import { cn } from "@workspace/ui/lib/utils"
-import type { GroupWorkspace } from "@/components/canvas/group-label"
+import type { GroupLabelValue } from "@/components/canvas/group-label"
 import type { FrameWorkspace } from "@/components/canvas/frame-nav"
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
@@ -339,26 +340,14 @@ interface MarkdownLayerProps {
   /** User clicked Reply in chat on a non-empty selection (#1243). */
   onReplyInChat?: (quote: ChatQuote) => void
   /**
-   * Absolute world-space position of this layer's top-left. Layers render as
+   * Where the doc sits and how dragging it moves things. Layers render as
    * flat, absolutely-positioned siblings (not nested in a per-group flex row),
    * so moving one between groups never reparents its React subtree — the
-   * TipTap editor isn't remounted. Position comes from
-   * `effectiveIframeLayerLayouts` and already bakes in the pop-out offset.
+   * TipTap editor isn't remounted.
    */
-  worldX: number
-  worldY: number
-  /** Paint order, projected from the group's sidebar position (higher = on top). */
-  zIndex?: number
-  /** In-flow reorder translate, applied when this doc is being dragged in-flow. */
-  dragTranslateX?: number
-  dragTranslateY?: number
-  /** True while this doc is the one being "popped" out at the cursor; its
-   *  float position is baked into `worldX/worldY`. */
-  dragPopped?: boolean
-  /** Group display name — only set on the leftmost member of a multi-member group. */
-  groupLabel?: string
-  /** The Group's Workspace, named after the group label (#868). */
-  groupWorkspace?: GroupWorkspace
+  placement: LayerPlacement
+  /** The group label — only set on the leftmost member of a multi-member group. */
+  groupLabel?: GroupLabelValue
   /**
    * The Workspace of the chat that made this Document (#1314), named after its
    * title unless the group label names it. Unset for a hand-made Document.
@@ -371,39 +360,7 @@ interface MarkdownLayerProps {
   /** Color of a remote user who has this doc selected — tints the name to
    *  match their selection rect. Ignored while locally selected. */
   remoteSelectedColor?: string
-  /** Color of a remote user who has this doc's group selected — tints the
-   *  group label. Only meaningful on the leftmost member. */
-  remoteGroupSelectedColor?: string
-  /** Click handler for the group label. */
-  onSelectGroup?: (shiftKey: boolean) => void
-  /** Inline rename for the group label. */
-  onRenameGroup?: (next: string) => void
-  /**
-   * Ask the canvas to start a reorder drag from this doc's title bar. Returns
-   * `true` for multi-member groups (canvas owns the gesture), `false` for
-   * single-member groups so the caller falls back to a regular group-move drag.
-   */
-  onRequestReorderDrag?: (layerId: string, e: React.PointerEvent) => boolean
   onSelect: (id: string, shiftKey: boolean) => void
-  /** Move the parent group by (dx, dy) — same contract as IframeLayer.onMoveGroup. */
-  onMoveGroup: (
-    dx: number,
-    dy: number,
-    totalDx: number,
-    totalDy: number,
-    metaKey: boolean
-  ) => void
-  onMoveSelected: (
-    dx: number,
-    dy: number,
-    totalDx: number,
-    totalDy: number,
-    metaKey: boolean
-  ) => void
-  /** Fires once when a group-move drag begins (after the move threshold). */
-  onGroupDragStart?: () => void
-  /** Fires once when a group-move drag ends. metaKey is the cmd state at release. */
-  onGroupDragEnd?: (metaKey: boolean) => void
   /** Adjust this doc's own width/height; the group anchor (x/y) shifts in the
    *  parent when the drag came from the left/top edge. */
   onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
@@ -414,8 +371,6 @@ interface MarkdownLayerProps {
   onRename?: (id: string, title: string) => void
   /** The menu's Delete, the same removal as the Delete key (⌘Z undoes it). */
   onRemove?: (id: string) => void
-  /** The Group's menu, on its label while it alone is selected (I7). */
-  groupMenu?: LayerMenuActions
   onStartEdit: (id: string) => void
   onStopEdit: () => void
 }
@@ -442,31 +397,16 @@ export function MarkdownLayer({
   spaceHeld,
   userName,
   userColor,
-  worldX,
-  worldY,
-  zIndex,
-  dragTranslateX,
-  dragTranslateY,
-  dragPopped,
+  placement,
   groupLabel,
-  groupWorkspace,
   ownerWorkspace,
   groupSelected,
   remoteSelectedColor,
-  remoteGroupSelectedColor,
-  onSelectGroup,
-  onRenameGroup,
-  onRequestReorderDrag,
   onSelect,
-  onMoveGroup,
-  onMoveSelected,
-  onGroupDragStart,
-  onGroupDragEnd,
   onResize,
   onTitleChange,
   onRename,
   onRemove,
-  groupMenu,
   onStartEdit,
   onStopEdit,
   onEditorReady,
@@ -1024,12 +964,7 @@ export function MarkdownLayer({
       layerId={layer.id}
       width={layer.width}
       height={layer.height}
-      worldX={worldX}
-      worldY={worldY}
-      zIndex={zIndex}
-      dragTranslateX={dragTranslateX}
-      dragTranslateY={dragTranslateY}
-      dragPopped={dragPopped}
+      placement={placement}
       containerId={`markdown-layer-${layer.id}`}
       // No overflow-hidden on the root — the group label sits above the tile
       // via `bottom-full` and would be clipped. The outer root stays open and
@@ -1054,11 +989,6 @@ export function MarkdownLayer({
       multiSelected={multiSelected}
       spaceHeld={spaceHeld}
       onSelect={onSelect}
-      onMoveGroup={onMoveGroup}
-      onMoveSelected={onMoveSelected}
-      onGroupDragStart={onGroupDragStart}
-      onGroupDragEnd={onGroupDragEnd}
-      onRequestReorderDrag={onRequestReorderDrag}
       // Detach the title bar's drag while the user holds space to pan (the body
       // overlay's own drag is gated on `spaceHeld` by the Shell).
       titleDragDisabled={spaceHeld}
@@ -1067,11 +997,6 @@ export function MarkdownLayer({
       // caret / selection at the doc's edges.
       resizable={!editing}
       groupLabel={groupLabel}
-      groupWorkspace={groupWorkspace}
-      remoteGroupSelectedColor={remoteGroupSelectedColor}
-      onSelectGroup={onSelectGroup}
-      onRenameGroup={onRenameGroup}
-      groupMenu={groupMenu}
       renderTitle={(api) => (
         // The explicit max-width gives the name's `truncate` something to
         // clip against inside the title bar's `items-start` column.

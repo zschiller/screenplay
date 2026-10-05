@@ -8,10 +8,9 @@ import {
   shouldSelectOnPointerDown,
 } from "@/lib/canvas/layer-shell"
 import { showsResizeHandles } from "@/lib/canvas/camera"
-import type { LayerMenuActions } from "./layer-menu"
 import { LayerTitleBar } from "./layer-title-bar"
 import { ResizeHandles } from "./resize-handles"
-import type { GroupWorkspace } from "./group-label"
+import type { GroupLabelValue } from "./group-label"
 
 /**
  * The resting edge every Layer's surface wears: one radius and one hairline, so
@@ -28,6 +27,35 @@ type Mover = (
   totalDy: number,
   metaKey: boolean
 ) => void
+
+/**
+ * Where a Group Member sits on the canvas and how dragging it moves things,
+ * computed once per Member by the canvas member layer. Layer kinds pass it
+ * through untouched; only the Layer Shell reads it.
+ */
+export interface LayerPlacement {
+  /** Absolute world-space position of the layer's top-left. */
+  worldX: number
+  worldY: number
+  /** Paint order, projected from the group's sidebar position. */
+  zIndex?: number
+  /** In-flow reorder translate (world px), layered on top of `worldX/worldY`.
+   *  Unset when not reordering; a popped layer's float position is baked
+   *  into `worldX/worldY`. */
+  dragTranslateX?: number
+  dragTranslateY?: number
+  /** True while this layer is the one being "popped" out at the cursor. */
+  dragPopped?: boolean
+  /** Move the parent Group (a plain drag). */
+  onMoveGroup: Mover
+  /** Move the whole selection (a drag on a selected layer or Group). */
+  onMoveSelected: Mover
+  onGroupDragStart?: () => void
+  onGroupDragEnd?: (metaKey: boolean) => void
+  /** Ask the canvas to lift this layer into a reorder drag; `true` when the
+   *  canvas took the gesture (multi-member Groups). */
+  onRequestReorderDrag?: (layerId: string, e: React.PointerEvent) => boolean
+}
 
 /**
  * Gesture wiring the Shell hands to its content adapter so the adapter's body
@@ -62,16 +90,8 @@ interface LayerShellProps {
   layerId: string
   width: number
   height: number
-  /** Absolute world-space position of the layer's top-left. */
-  worldX: number
-  worldY: number
-  /** Paint order, projected from the group's sidebar position. */
-  zIndex?: number
-  /** In-flow reorder translate (world px), layered on top of `worldX/worldY`. */
-  dragTranslateX?: number
-  dragTranslateY?: number
-  /** True while this layer is the one being "popped" out at the cursor. */
-  dragPopped?: boolean
+  /** Where it sits and how dragging it moves things. */
+  placement: LayerPlacement
   /** DOM id for the container (e.g. `iframe-layer-${id}`). */
   containerId: string
   /** Container className — the adapter owns the visual frame (bg, rounding). */
@@ -94,11 +114,6 @@ interface LayerShellProps {
   onSelect: (id: string, shiftKey: boolean) => void
 
   // ── Drag routing ───────────────────────────────────────────────────────────
-  onMoveGroup: Mover
-  onMoveSelected: Mover
-  onGroupDragStart?: () => void
-  onGroupDragEnd?: (metaKey: boolean) => void
-  onRequestReorderDrag?: (layerId: string, e: React.PointerEvent) => boolean
   /**
    * Detach drag handlers from the title bar. The body overlay's own presence is
    * the adapter's call (it hides the overlay entirely in interactive/edit
@@ -122,15 +137,9 @@ interface LayerShellProps {
   resizable?: boolean
 
   // ── Title bar ──────────────────────────────────────────────────────────────
-  groupLabel?: string
-  /** The Group's Workspace, named after the group label (#868). */
-  groupWorkspace?: GroupWorkspace
-  /** Remote selector's color for the group label. */
-  remoteGroupSelectedColor?: string
-  onSelectGroup?: (shiftKey: boolean) => void
-  onRenameGroup?: (next: string) => void
-  /** The Group's menu, forwarded to its label (I7). */
-  groupMenu?: LayerMenuActions
+  /** The Group's label, set only on the leftmost member of a multi-member
+   *  Group. */
+  groupLabel?: GroupLabelValue
   /** Layer-specific title row rendered inside the shared `LayerTitleBar`. */
   renderTitle: (api: LayerShellApi) => React.ReactNode
   /** Right-aligned to the layer on its title row: who drives a frame (#1387). */
@@ -157,12 +166,7 @@ export function LayerShell({
   layerId,
   width,
   height,
-  worldX,
-  worldY,
-  zIndex,
-  dragTranslateX,
-  dragTranslateY,
-  dragPopped,
+  placement,
   containerId,
   containerClassName,
   containerRef,
@@ -174,26 +178,29 @@ export function LayerShell({
   multiSelected,
   spaceHeld,
   onSelect,
-  onMoveGroup,
-  onMoveSelected,
-  onGroupDragStart,
-  onGroupDragEnd,
-  onRequestReorderDrag,
   titleDragDisabled,
   onResize,
   onResizeStart,
   onResizeEnd,
   resizable = true,
   groupLabel,
-  groupWorkspace,
-  remoteGroupSelectedColor,
-  onSelectGroup,
-  onRenameGroup,
-  groupMenu,
   renderTitle,
   titleTag,
   children,
 }: LayerShellProps) {
+  const {
+    worldX,
+    worldY,
+    zIndex,
+    dragTranslateX,
+    dragTranslateY,
+    dragPopped,
+    onMoveGroup,
+    onMoveSelected,
+    onGroupDragStart,
+    onGroupDragEnd,
+    onRequestReorderDrag,
+  } = placement
   // `groupSelected` routes through the selection mover too, so grabbing a
   // selected group (its label or any member) drags the whole selection —
   // including other selected groups and loose layers — not just this group.
@@ -301,13 +308,17 @@ export function LayerShell({
 
   // Group-label click applies the group selection on pointerdown; mark the
   // pending click consumed so a release-without-movement doesn't fall through.
-  const handleSelectGroup = useMemo(() => {
-    if (!onSelectGroup) return undefined
-    return (shiftKey: boolean) => {
-      selectedOnPointerDown.current = true
-      onSelectGroup(shiftKey)
-    }
-  }, [onSelectGroup])
+  const titleGroupLabel = useMemo<GroupLabelValue | undefined>(
+    () =>
+      groupLabel && {
+        ...groupLabel,
+        onSelect: (shiftKey: boolean) => {
+          selectedOnPointerDown.current = true
+          groupLabel.onSelect(shiftKey)
+        },
+      },
+    [groupLabel]
+  )
 
   return (
     <div
@@ -349,13 +360,8 @@ export function LayerShell({
         hidden={labelHidden}
         dragHandlers={titleDragDisabled ? undefined : dragHandlers}
         onRequestReorderDrag={onRequestReorderDrag}
-        groupLabel={groupLabel}
-        groupWorkspace={groupWorkspace}
+        groupLabel={titleGroupLabel}
         groupSelected={groupSelected}
-        groupSelectedColor={remoteGroupSelectedColor}
-        onSelectGroup={handleSelectGroup}
-        onRenameGroup={onRenameGroup}
-        groupMenu={groupMenu}
         groupLabelDragHandlers={
           titleDragDisabled ? undefined : groupLabelDragHandlers
         }

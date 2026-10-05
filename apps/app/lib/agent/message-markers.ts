@@ -9,6 +9,9 @@
  *
  * This slice owns the four *server-prepended* turn prefixes:
  *
+ *   - `[pr event: <number> <kind>[ <detail>]]` — marks a PR event (#1702):
+ *     PR Watch's report that the chat's PR changed (checks failed, merged…).
+ *     Shown as a quiet line, never as a bubble.
  *   - `[workspace update: <workspaceId>]` — marks a Coordinator wake: the
  *     server's report that a Workspace's turn ended. Never shown.
  *   - `[from coordinator: <chatId>]` — marks a Delegated Message: a turn the
@@ -70,6 +73,36 @@ export const WAKE_MARKER_LABEL = "workspace update"
 /** Renders the Coordinator wake prefix for the Workspace whose turn ended. */
 function wakeMarker(workspaceId: string): string {
   return `[${WAKE_MARKER_LABEL}: ${workspaceId}]`
+}
+
+/** Label used by the PR event prefix: `[pr event: <number> <kind>]`. */
+export const PR_EVENT_MARKER_LABEL = "pr event"
+
+/** What happened to a chat's PR, as PR Watch reports it (#1702). */
+export type PrEventKind =
+  "checks_failed" | "checks_passed" | "conflict" | "merged" | "closed"
+
+const PR_EVENT_KINDS: ReadonlySet<string> = new Set<PrEventKind>([
+  "checks_failed",
+  "checks_passed",
+  "conflict",
+  "merged",
+  "closed",
+])
+
+/** A PR event as its marker carries it: the PR, what happened, and a short
+ *  detail (the failing checks' names). */
+export interface PrEventMark {
+  number: number
+  kind: PrEventKind
+  detail?: string
+}
+
+/** Renders the PR event prefix. The detail is URI-encoded, so it holds no
+ *  space or `]` and the prefix parses back exactly. */
+function prEventMarker({ number, kind, detail }: PrEventMark): string {
+  const tail = detail ? ` ${encodeURIComponent(detail)}` : ""
+  return `[${PR_EVENT_MARKER_LABEL}: ${number} ${kind}${tail}]`
 }
 
 /** Label used by the inline skill marker: `[skill: <name>]`. */
@@ -463,8 +496,8 @@ export function buildDraftedOnFooter(
 }
 
 /**
- * Prepend the server turn prefixes to a user message body: wake, delegation,
- * then plan, then branch. Each prefix is emitted only when its input is
+ * Prepend the server turn prefixes to a user message body: PR event, wake,
+ * delegation, then plan, then branch. Each prefix is emitted only when its input is
  * present, so a turn with no marker returns `body` unchanged.
  */
 export function prependTurnMarkers(
@@ -474,18 +507,22 @@ export function prependTurnMarkers(
     branch?: string
     delegatedFrom?: string
     wakeFrom?: string
+    prEvent?: PrEventMark
   }
 ): string {
+  const prEventPrefix = opts.prEvent ? `${prEventMarker(opts.prEvent)} ` : ""
   const wakePrefix = opts.wakeFrom ? `${wakeMarker(opts.wakeFrom)} ` : ""
   const delegatedPrefix = opts.delegatedFrom
     ? `${delegatedMarker(opts.delegatedFrom)} `
     : ""
   const planPrefix = opts.planMode ? `${PLAN_MODE_MARKER} ` : ""
   const branchPrefix = opts.branch ? `${branchMarker(opts.branch)} ` : ""
-  return `${wakePrefix}${delegatedPrefix}${planPrefix}${branchPrefix}${body}`
+  return `${prEventPrefix}${wakePrefix}${delegatedPrefix}${planPrefix}${branchPrefix}${body}`
 }
 
 export interface ParsedUserMessage {
+  /** The PR event this message reports (the `[pr event: …]` prefix). */
+  prEvent?: PrEventMark
   /**
    * The Workspace whose turn ended when this is a Coordinator wake (the
    * `[workspace update: <id>]` prefix was present).
@@ -526,6 +563,7 @@ export interface ParsedUserMessage {
 // contain spaces and brackets while still parsing back exactly.
 // A Coordinator chat id holds no `]`, so the first one ends the prefix.
 // A Workspace id holds no `]` either.
+const PR_EVENT_PREFIX_RE = /^\[pr event: (\d+) ([a-z_]+)(?: ([^\] ]+))?\] /
 const WAKE_PREFIX_RE = /^\[workspace update: ([^\]]+)\] /
 const DELEGATED_PREFIX_RE = /^\[from coordinator: ([^\]]+)\] /
 const PLAN_PREFIX_RE = /^\[plan mode: enabled\] /
@@ -582,6 +620,17 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   let planMode = false
   let branch: string | undefined
 
+  let prEvent: PrEventMark | undefined
+  const prEventMatch = body.match(PR_EVENT_PREFIX_RE)
+  if (prEventMatch && PR_EVENT_KINDS.has(prEventMatch[2]!)) {
+    prEvent = {
+      number: Number(prEventMatch[1]),
+      kind: prEventMatch[2] as PrEventKind,
+      ...(prEventMatch[3] ? { detail: safeDecode(prEventMatch[3]) } : {}),
+    }
+    body = body.slice(prEventMatch[0].length)
+  }
+
   const wakeMatch = body.match(WAKE_PREFIX_RE)
   const wakeFrom = wakeMatch?.[1]
   if (wakeMatch) body = body.slice(wakeMatch[0].length)
@@ -619,6 +668,7 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   }
 
   return {
+    ...(prEvent ? { prEvent } : {}),
     ...(wakeFrom ? { wakeFrom } : {}),
     ...(delegatedFrom ? { delegatedFrom } : {}),
     planMode,
@@ -626,6 +676,15 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
     body,
     hadReferencedDocs,
     hadTargetedElements,
+  }
+}
+
+/** `decodeURIComponent`, keeping the raw text when it isn't valid encoding. */
+function safeDecode(text: string): string {
+  try {
+    return decodeURIComponent(text)
+  } catch {
+    return text
   }
 }
 
