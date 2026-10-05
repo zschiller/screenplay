@@ -251,6 +251,13 @@ export type ChatSessionData = {
   label: string
   createdAt: number
   isStreaming?: boolean
+  /**
+   * The Mockups and Documents the running turn is changing, by layer id, with
+   * when it started on each (#1725): while it runs, the chat holds them and
+   * no other chat may change them (`lib/canvas/layer-chat`). Cleared with
+   * `isStreaming`.
+   */
+  workingLayers?: Record<string, number>
   closedAt?: number
   planMode?: boolean
   model?: string

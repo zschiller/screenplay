@@ -118,9 +118,12 @@ yourself. It can rewrite the body, append to
 it and change the title, and its edits merge live into the shared document, so
 it never overwrites what you’re typing. A chat reads a document’s formatting,
 images and mentions, each mention by its current name, and appending keeps
-them all. Every document remembers the chat that changed it last. The agent’s tool calls show as **Create document**, **Rewrite
+them all. While a chat is changing a document, it holds it until it finishes: another
+chat that tries to change it tells you who has it and carries on. Every
+document remembers the chat that changed it last. The agent’s tool calls show as **Create document**, **Rewrite
 document**, **Append to document**, **Set title** and **Read document** rows.
 
 Comments go to the same place. **Send to agent** on a thread on a chat’s
-document sends it to the chat that changed it last. On a document no chat has
+document sends it to the chat changing it right now, or else the chat that
+changed it last. On a document no chat has
 changed, it goes to the chat the agent panel is showing.

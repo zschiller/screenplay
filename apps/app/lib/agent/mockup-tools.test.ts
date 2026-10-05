@@ -289,3 +289,101 @@ describe("read_mockup", () => {
     )
   })
 })
+
+describe("holding a Mockup (#1725)", () => {
+  /** chat-2's running turn is changing `mockupId`. */
+  function heldByOther(
+    collections: ReturnType<typeof chatTools>["collections"],
+    mockupId: string
+  ) {
+    collections.chatSessions.update("chat-2", {
+      isStreaming: true,
+      workingLayers: { [mockupId]: 1 },
+    })
+  }
+
+  it("refuses another chat’s change with the holder’s name", async () => {
+    const { run, doc, ops, collections } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>theirs</p>",
+      title: "Theirs",
+      width: 400,
+      height: 300,
+      lastChangedByChatId: "chat-2",
+    })!
+    heldByOther(collections, mockupId)
+
+    const out = await run("update_mockup", {
+      mockup_id: mockupId,
+      html: "<p>mine</p>",
+    })
+
+    expect(out).toBe(
+      "Other is changing this right now; tell the person and try again later."
+    )
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>theirs</p>")
+    expect(collections.mockupLayers.get(mockupId)?.lastChangedByChatId).toBe(
+      "chat-2"
+    )
+    expect(collections.chatSessions.get("chat-1")?.workingLayers).toBe(
+      undefined
+    )
+  })
+
+  it("lets any chat change it once the holder’s turn ends", async () => {
+    const { run, doc, ops, collections } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>theirs</p>",
+      title: "Theirs",
+      width: 400,
+      height: 300,
+    })!
+    heldByOther(collections, mockupId)
+    collections.chatSessions.update("chat-2", { isStreaming: false })
+
+    await run("update_mockup", { mockup_id: mockupId, html: "<p>mine</p>" })
+
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>mine</p>")
+  })
+
+  it("holds what this chat creates and changes, and keeps changing it", async () => {
+    const { run, doc, collections } = chatTools()
+    collections.chatSessions.update("chat-1", { isStreaming: true })
+    const mockupId = idIn(
+      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+    )
+    const started =
+      collections.chatSessions.get("chat-1")?.workingLayers?.[mockupId]
+    expect(started).toEqual(expect.any(Number))
+
+    await run("update_mockup", { mockup_id: mockupId, html: "<p>A2</p>" })
+
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>A2</p>")
+    expect(collections.chatSessions.get("chat-1")?.workingLayers).toEqual({
+      [mockupId]: started,
+    })
+  })
+
+  it("leaves the earliest holder in charge when two chats list it", async () => {
+    const { run, doc, ops, collections } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>theirs</p>",
+      title: "Theirs",
+      width: 400,
+      height: 300,
+    })!
+    heldByOther(collections, mockupId)
+    collections.chatSessions.update("chat-1", {
+      isStreaming: true,
+      workingLayers: { [mockupId]: 2 },
+    })
+
+    const out = await run("update_mockup", {
+      mockup_id: mockupId,
+      html: "<p>mine</p>",
+    })
+
+    expect(out).toContain("Other is changing this right now")
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>theirs</p>")
+  })
+})

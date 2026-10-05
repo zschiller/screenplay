@@ -5,12 +5,14 @@ import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
 /**
  * Which chat a Document or Mockup goes to (#1724, spec #1723). Any chat may
  * change any of them with its tools, and each agent create or update records
- * the chat as the layer's `lastChangedByChatId`. Reply in chat, Send to agent,
- * the Knobs Ask, Draw-and-ask, a live Mockup's borrowed Workspace and the
- * Workspace grouping all go to that chat. A layer from before then reads the
- * chat that made it (`ownerChatId`). A layer someone made by hand, or whose
- * chat was deleted, goes to none, and the caller falls back to the chat the
- * panel shows. React-free, tested against plain values.
+ * the chat as the layer's `lastChangedByChatId`. While a chat's turn is
+ * changing a layer, that chat holds it (#1725): no other chat may change it
+ * until the turn ends. Reply in chat, Send to agent, the Knobs Ask,
+ * Draw-and-ask, a live Mockup's borrowed Workspace and the Workspace grouping
+ * all go to the holder, else the last changer. A layer from before then reads
+ * the chat that made it (`ownerChatId`). A layer someone made by hand, or
+ * whose chat was deleted, goes to none, and the caller falls back to the chat
+ * the panel shows. React-free, tested against plain values.
  */
 
 type Layer = Pick<
@@ -26,9 +28,58 @@ export function lastChangedBy(
 }
 
 /** A chat on the canvas, as far as the rule reads it. */
-type LayerChatSession = Pick<ChatSessionData, "id" | "branchId" | "target"> & {
-  /** Picks the Workspace chat among several; a chat without it reads oldest. */
-  createdAt?: number
+type LayerChatSession = Pick<ChatSessionData, "id" | "branchId" | "target"> &
+  Partial<
+    Pick<ChatSessionData, "isStreaming" | "closedAt" | "workingLayers">
+  > & {
+    /** Picks the Workspace chat among several; a chat without it reads oldest. */
+    createdAt?: number
+  }
+
+/**
+ * The chat holding a layer (#1725): of the chats whose running turn is
+ * changing it, the one that started on it first. A chat that isn't running
+ * (its turn ended, or died and was healed) or was closed holds nothing,
+ * whatever its list still says.
+ */
+export function layerHolder<C extends LayerChatSession>(
+  layerId: string,
+  chats: readonly C[]
+): C | undefined {
+  let holder: C | undefined
+  let since = Infinity
+  for (const chat of chats) {
+    if (!chat.isStreaming || chat.closedAt) continue
+    const started = chat.workingLayers?.[layerId]
+    if (started === undefined || started >= since) continue
+    holder = chat
+    since = started
+  }
+  return holder
+}
+
+/**
+ * Whether `chatId` may change a layer: yes unless another chat holds it.
+ * Returns the holder when it may not.
+ */
+export function heldByOther<C extends LayerChatSession>(
+  layerId: string,
+  chatId: string,
+  chats: readonly C[]
+): C | undefined {
+  const holder = layerHolder(layerId, chats)
+  return holder && holder.id !== chatId ? holder : undefined
+}
+
+/**
+ * The chat messages from a layer go to, before the Workspace step of
+ * {@link layerChat}: its holder, else the chat that last changed it.
+ */
+export function layerRoute(
+  layer: Layer,
+  chats: readonly LayerChatSession[]
+): string | undefined {
+  return layerHolder(layer.id, chats)?.id ?? lastChangedBy(layer)
 }
 
 /**
@@ -60,7 +111,7 @@ export function layerChat(
   return { kind: "workspace", chatId: workspaceChat, branchId: chat.branchId }
 }
 
-/** {@link layerChat} for each layer that has one, by layer id. */
+/** {@link layerChat} of each layer's {@link layerRoute}, by layer id. */
 export function layerChats(
   layers: readonly Layer[],
   chats: readonly LayerChatSession[]
@@ -68,7 +119,7 @@ export function layerChats(
   const byChat = new Map<string, LayerChat | null>()
   const out = new Map<string, LayerChat>()
   for (const l of layers) {
-    const chatId = lastChangedBy(l)
+    const chatId = layerRoute(l, chats)
     if (!chatId) continue
     if (!byChat.has(chatId)) byChat.set(chatId, layerChat(chatId, chats))
     const found = byChat.get(chatId)
@@ -78,8 +129,8 @@ export function layerChats(
 }
 
 /**
- * The Workspace of each Document or Mockup a Workspace's chat last changed,
- * by layer id: what the Group label names and where a live Mockup runs. A
+ * The Workspace of each Document or Mockup a Workspace's chat holds or last
+ * changed, by layer id: what the Group label names and where a live Mockup runs. A
  * layer no chat changed, a Sketch Chat's, or one whose chat is gone has none.
  */
 export function layerWorkspaceIds(

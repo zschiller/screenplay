@@ -8,6 +8,7 @@ import { getGroupMembers, placeNewGroupBeside } from "@/lib/canvas/layout"
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
+import { holdLayer } from "@/lib/agent/layer-hold"
 import { documentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 import { mentionMarkdownNames } from "@/lib/mention-kinds"
 import {
@@ -19,7 +20,9 @@ import {
  * A chat's Document tools (#1314): it creates Documents, and edits any
  * Document on the canvas, whoever made it (#1724). Each create or edit records
  * the chat as the Document's `lastChangedByChatId`, which its Send to agent
- * and Reply in chat go to (`lib/canvas/layer-chat`). Reading any Document is
+ * and Reply in chat go to (`lib/canvas/layer-chat`), and holds the Document
+ * for the rest of the turn: another chat's edit is refused meanwhile (#1725,
+ * `layer-hold.ts`). Reading any Document is
  * the shared `read_document` (`layer-read-tools.ts`), which every chat has.
  *
  * Every mutation goes through the turn's `room.mutateDoc` so concurrent edits
@@ -39,7 +42,8 @@ const DOCUMENT_SIZE = { width: 480, height: 640 }
 
 export function buildDocumentTools(ctx: DocumentToolContext) {
   /**
-   * One edit of a Document, recording this chat as its last changer. Reads
+   * One edit of a Document, recording this chat as its last changer, or the
+   * refusal when another chat holds it (#1725). Reads
    * through a fresh collection view: nothing observes a server doc, so a
    * cached one can read stale.
    */
@@ -51,6 +55,8 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
       const c = createRoomCollections(doc)
       const layer = c.markdownLayers.get(documentId)
       if (!layer) return `Error: no document ${documentId}.`
+      const refused = holdLayer(c, ctx.chatId, documentId)
+      if (refused) return refused
       let result = ""
       createCanvasOps(c).batch(() => {
         c.markdownLayers.update(documentId, { lastChangedByChatId: ctx.chatId })
@@ -62,7 +68,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
   const tools = {
     create_document: tool({
       description:
-        "Create a Document on the canvas, beside this chat’s other frames and Documents. Any chat can change it later, as you can change any Document on the canvas. `content` is its body as CommonMark markdown (don’t repeat the title as a `#` heading). Returns its id.",
+        "Create a Document on the canvas, beside this chat’s other frames and Documents. Any chat can change it later, as you can change any Document on the canvas that no other chat is changing right now. `content` is its body as CommonMark markdown (don’t repeat the title as a `#` heading). Returns its id.",
       inputSchema: jsonSchema<{ title?: string; content?: string }>({
         type: "object",
         properties: {
@@ -87,6 +93,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
             docId = ops.createDocument(anchor, DOCUMENT_SIZE, {
               lastChangedByChatId: ctx.chatId,
             }).docId
+            holdLayer(c, ctx.chatId, docId)
             if (title) ops.renameDocument(docId, title)
             if (content) {
               writeDocumentMarkdown(documentFragment(doc, docId), content, {
@@ -99,7 +106,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
     }),
 
     replace_document_body: tool({
-      description: `Replace the body of any Document on the canvas, whichever chat or person made it, below its title. The \`content\` is parsed as CommonMark markdown — headings (\`##\`, \`###\`), bullet/ordered lists, blockquotes, code blocks, inline marks (\`**bold**\`, \`*italic*\`, \`\` \`code\` \`\`, \`[link](url)\`), images and mentions all work. A mention is \`[@<name>](mention:<kind>:<id>)\`, as \`read_document\` shows them, where kind is ${mentionMarkdownNames()}. An image is \`![alt](path)\` on its own line, where \`path\` is an image in the canvas’s saved files (\`uploads/sketch.png\`; wrap a path with spaces in \`<…>\`), and the Document shows it. The title is set separately; don’t repeat it as a top-level \`#\` heading. Use this when you’ve redrafted the Document; for incremental edits prefer \`append_to_document_body\`.`,
+      description: `Replace the body of any Document on the canvas, whichever chat or person made it, below its title. Another chat that’s changing it right now holds it until its turn ends: the edit is refused, so tell the person and carry on. The \`content\` is parsed as CommonMark markdown — headings (\`##\`, \`###\`), bullet/ordered lists, blockquotes, code blocks, inline marks (\`**bold**\`, \`*italic*\`, \`\` \`code\` \`\`, \`[link](url)\`), images and mentions all work. A mention is \`[@<name>](mention:<kind>:<id>)\`, as \`read_document\` shows them, where kind is ${mentionMarkdownNames()}. An image is \`![alt](path)\` on its own line, where \`path\` is an image in the canvas’s saved files (\`uploads/sketch.png\`; wrap a path with spaces in \`<…>\`), and the Document shows it. The title is set separately; don’t repeat it as a top-level \`#\` heading. Use this when you’ve redrafted the Document; for incremental edits prefer \`append_to_document_body\`.`,
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {

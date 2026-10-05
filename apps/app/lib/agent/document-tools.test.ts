@@ -171,3 +171,56 @@ describe("read_document", () => {
     ).toEqual(body.split("\n"))
   })
 })
+
+describe("holding a Document (#1725)", () => {
+  it("refuses another chat’s edit with the holder’s name, then allows it", async () => {
+    const { run, collections } = setup()
+    collections.chatSessions.set(
+      "chat-2",
+      baseChat("chat-2", {
+        label: "Checkout polish",
+        isStreaming: true,
+        workingLayers: { "doc-2": 1 },
+      })
+    )
+
+    const refused = await run("set_document_title", {
+      document_id: "doc-2",
+      title: "Mine",
+    })
+
+    expect(refused).toBe(
+      "Checkout polish is changing this right now; tell the person and try again later."
+    )
+    expect(collections.markdownLayers.get("doc-2")).toMatchObject({
+      title: "Notes",
+    })
+    expect(collections.markdownLayers.get("doc-2")?.lastChangedByChatId).toBe(
+      undefined
+    )
+
+    collections.chatSessions.update("chat-2", { isStreaming: false })
+    await run("set_document_title", { document_id: "doc-2", title: "Mine" })
+
+    expect(collections.markdownLayers.get("doc-2")).toMatchObject({
+      title: "Mine",
+      lastChangedByChatId: "chat-1",
+    })
+  })
+
+  it("holds the Documents this chat creates and edits", async () => {
+    const { run, collections } = setup()
+    collections.chatSessions.update("chat-1", { isStreaming: true })
+
+    const out = await run("create_document", { title: "Spec" })
+    const docId = /id ([^)]+)\)/.exec(out)?.[1] ?? ""
+    await run("append_to_document_body", {
+      document_id: "doc-1",
+      content: "More.",
+    })
+
+    expect(
+      Object.keys(collections.chatSessions.get("chat-1")?.workingLayers ?? {})
+    ).toEqual([docId, "doc-1"])
+  })
+})

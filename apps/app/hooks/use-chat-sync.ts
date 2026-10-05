@@ -25,7 +25,9 @@ import type { ChatSessionData } from "@/lib/types"
  *     lifecycle, so it homes here with its siblings.
  *  3. **Broadcast handling** — feed server-broadcast chat events (from the room
  *     Y.Doc, via `useChatStreamEvents`) into the chat-store, and mirror the
- *     streaming / rename signals into the Chat Session so late joiners see them.
+ *     streaming signals and the layers a turn is changing (#1725) into the
+ *     Chat Session so late joiners see them and other chats' tools respect
+ *     the hold.
  *
  * It is the **React effects, not a new write path**: storage writes go through
  * the injected `updateChatSession` (a thin Canvas Operation wrapper, ADR 0001),
@@ -75,6 +77,12 @@ export function useChatSync({
     }
   }, [chatSessions, roomId])
 
+  // The sessions as the latest render saw them, for the broadcast handler.
+  const sessionsRef = useRef(chatSessions)
+  useEffect(() => {
+    sessionsRef.current = chatSessions
+  }, [chatSessions])
+
   // Receive server-broadcast chat events via the room Y.Doc and feed into the
   // chat store.
   useChatStreamEvents((e) => {
@@ -83,7 +91,20 @@ export function useChatSync({
     if (e.type === "chat-stream-start") {
       updateChatSession(e.chatId, { isStreaming: true })
     } else if (e.type === "chat-stream-end") {
-      updateChatSession(e.chatId, { isStreaming: false })
+      updateChatSession(e.chatId, {
+        isStreaming: false,
+        workingLayers: undefined,
+      })
+    } else if (e.type === "chat-acp-update") {
+      // Add the layers the turn started changing, keeping when the session
+      // (the server's tool, or another client) first recorded each.
+      const session = sessionsRef.current.find((c) => c.id === e.chatId)
+      const recorded = session?.workingLayers ?? {}
+      const seen = chatStore.getSnapshot(e.chatId).workingLayers
+      const added = Object.keys(seen).filter((id) => !(id in recorded))
+      if (session && added.length > 0) {
+        updateChatSession(e.chatId, { workingLayers: { ...seen, ...recorded } })
+      }
     }
   })
 }
