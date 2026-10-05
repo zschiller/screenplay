@@ -11,6 +11,7 @@ import {
 } from "react"
 
 import {
+  CaretRightIcon,
   ChatCircleIcon,
   ChatsIcon,
   PencilSimpleIcon,
@@ -19,6 +20,10 @@ import {
 } from "@workspace/ui/components/icons"
 
 import { Button } from "@workspace/ui/components/button"
+import {
+  Collapsible,
+  CollapsibleTrigger,
+} from "@workspace/ui/components/collapsible"
 
 import {
   Command,
@@ -527,6 +532,7 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
   } = menu
   const [search, setSearch] = useState("")
   const searching = search.trim() !== ""
+  const [doneOpen, setDoneOpen] = useState(false)
   const sections = useMemo(
     () => groupWorkspaces(activeBranches, (b) => stateOf(b).section),
     [activeBranches, stateOf]
@@ -598,9 +604,22 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
               </CommandGroup>
             )}
             {doneBranches.length > 0 && (
-              <CommandGroup heading="Done" className="pt-0">
-                {rows(doneBranches)}
-              </CommandGroup>
+              // cmdk groups don't collapse, and their heading is aria-hidden,
+              // so Done's heading is a Collapsible trigger styled like one.
+              <Collapsible open={doneOpen} onOpenChange={setDoneOpen} asChild>
+                <CommandGroup value="Done" className="pt-0">
+                  <CollapsibleTrigger className="flex w-full items-center gap-1 px-2 py-1.5 font-mono text-xs tracking-wider text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:text-foreground">
+                    Done
+                    <CaretRightIcon
+                      className={cn(
+                        "size-3 transition-transform",
+                        doneOpen && "rotate-90"
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                  {doneOpen && rows(doneBranches)}
+                </CommandGroup>
+              </Collapsible>
             )}
           </>
         )}
