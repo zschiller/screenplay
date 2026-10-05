@@ -21,12 +21,16 @@ import { workspaceLabel } from "@/lib/workspace-label"
 import type { FrameWorkspace } from "./frame-nav"
 
 /**
- * Workspaces a frame can be switched to: ones with a ref that haven't failed
- * or stopped. Busy ones (creating, starting) stay pickable with a spinner.
+ * Workspaces a frame can be switched to: ones with a ref that haven't failed,
+ * stopped or been marked done. Busy ones (creating, starting) stay pickable
+ * with a spinner. A Done Workspace hides its frames (#976), so it stays out
+ * even when a start that finished after Mark as done left it running.
  */
-export function pickableWorkspaces(branches: BranchData[]): BranchData[] {
+export function pickableWorkspaces(
+  branches: readonly BranchData[]
+): BranchData[] {
   return branches.filter(
-    (a) => a.ref && a.status !== "error" && a.status !== "stopped"
+    (a) => a.ref && !a.doneAt && a.status !== "error" && a.status !== "stopped"
   )
 }
 
