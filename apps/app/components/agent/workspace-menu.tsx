@@ -16,7 +16,10 @@ import {
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { BranchOverflowMenuItems } from "@/components/panels/branch-overflow-menu"
+import {
+  BranchOverflowMenuItems,
+  type BranchMenuPart,
+} from "@/components/panels/branch-overflow-menu"
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import { WorkspaceMention } from "@/components/workspace-mention"
 import { usePrReadiness } from "@/hooks/use-pr-readiness"
@@ -28,7 +31,8 @@ import { useChatsMenu } from "./chats-menu"
 
 /**
  * One Workspace's menu items, the same ones as its Chats row's … (H4): the
- * chat header's … and a frame's Workspace submenu render these. Wired to the
+ * chat header's … renders them all, and a frame's Preview and Chat submenus
+ * each render their half. Wired to the
  * Chats menu's provider, which owns the dialogs they open; renders nothing
  * outside it (the prototype player's chat).
  */
@@ -37,14 +41,23 @@ export function WorkspaceMenuItems({
   onRename,
   onPlay,
   onOpenInBrowser,
+  part,
+  onOpenLogs,
 }: {
   branchId: string
   /** Starts the inline rename. */
   onRename: () => void
-  /** Replaces Open prototype player's target (a frame opens on itself). */
+  /** Replaces Open in prototype player's target (a frame opens on itself). */
   onPlay?: () => void
   /** Replaces Open in browser's target (a frame deep-links its route). */
   onOpenInBrowser?: () => void
+  /**
+   * One half of the menu, for a frame's Preview or Chat submenu. The Chat
+   * half leads with Open chat.
+   */
+  part?: BranchMenuPart
+  /** Open logs, in a frame's Preview submenu. */
+  onOpenLogs?: () => void
 }) {
   const menu = useChatsMenu()
   const branch = menu?.branches.find((b) => b.id === branchId)
@@ -67,7 +80,6 @@ export function WorkspaceMenuItems({
       onRetry={menu.onRetryBranch}
       onRename={onRename}
       onRestartDevServer={menu.onRestartDevServer}
-      onRestart={menu.onRefreshBranch}
       onRecreate={menu.askRecreate}
       onShowRoutes={menu.onShowRoutes}
       prReadiness={prReadiness}
@@ -75,6 +87,11 @@ export function WorkspaceMenuItems({
       onReopen={menu.onReopenBranch}
       onDelete={menu.askDelete}
       isBusy={menu.stateOf(branch).agentWorking}
+      part={part}
+      onOpenLogs={onOpenLogs}
+      onOpenChat={
+        part === "chat" ? () => menu.onSelectWorkspace(branch.id) : undefined
+      }
     />
   )
 }
@@ -98,7 +115,7 @@ export function WorkspaceHeaderTitle({ branch }: { branch: BranchData }) {
   const pendingEditRef = useRef(false)
   const [renaming, setRenaming] = useState(false)
 
-  // Rename picked from a frame's Workspace submenu opens this chat; the
+  // Rename picked from a frame's Chat submenu opens this chat; the
   // title takes the request once it's showing.
   const renameRequest = menu?.renameRequest
   const clearRenameRequest = menu?.clearRenameRequest

@@ -227,7 +227,7 @@ export async function provisionSandbox(
   if (!setup.success) return setup
 
   // Step 5: dev server + bridge proxy.
-  await report("Starting dev server…")
+  await report("Starting preview…")
   const server = await startDevServer(
     name,
     repo.devServerPort,

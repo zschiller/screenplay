@@ -1,16 +1,16 @@
 ---
-title: Dev server & ports
-description: How Screenplay tells your dev server which port to use, and how to make any framework or monorepo work.
+title: Preview & ports
+description: How Screenplay tells your app which port to use, and how to make any framework or monorepo work.
 ---
 
 import { Tabs } from "nextra/components"
 
-# Dev server & ports
+# Preview & ports
 
 Every chat runs its repository’s **run script** (set in the
 [repository settings](/guides/repositories#repository-settings), never in your repository) and
 previews whatever it serves. Screenplay picks the port for each chat. The
-one requirement on your app: **the dev server must listen on the port it’s
+one requirement on your app: **the app must listen on the port it’s
 given**.
 
 Most frameworks do this out of the box, because Screenplay passes the port in
@@ -19,7 +19,7 @@ the standard `PORT` environment variable.
 <Tabs items={["Desktop", "Hosted"]}>
 <Tabs.Tab>
 
-Every chat’s dev server runs on your machine, so each one needs its own port. The
+Every chat’s preview runs on your machine, so each one needs its own port. The
 run script is started under [portless](https://portless.sh), which sets
 **`PORT`** to the port allocated to that chat:
 
@@ -36,7 +36,7 @@ node server.js --port $PORT
 
 portless ships with the app, and Screenplay starts its proxy for you. It also
 gives each chat a **stable URL** like
-`http://my-branch.my-app.localhost:1355` that survives dev server restarts.
+`http://my-branch.my-app.localhost:1355` that survives preview restarts.
 **Open in browser** on a chat opens it.
 
 If you run `npx portless proxy start` yourself (it asks for `sudo` to use
@@ -49,7 +49,7 @@ same and starts that proxy whenever your Mac starts.
 <Tabs.Tab>
 
 Every chat runs in its own VM, so ports can’t collide. Screenplay sets both
-**`SCREENPLAY_PORT`** and **`PORT`** to the repository’s **Dev server port**:
+**`SCREENPLAY_PORT`** and **`PORT`** to the repository’s **Preview port**:
 
 ```bash
 next dev --port $SCREENPLAY_PORT
@@ -66,16 +66,16 @@ A script that honors `$PORT` works on both.
 
 ## When the preview never loads
 
-On desktop, a dev server that never listens on its assigned port fails with
+On desktop, a preview that never listens on its assigned port fails with
 a clear error (`DevServerPortIgnoredError`) instead of leaving a blank frame.
 The usual cause is a script that ignores `$PORT`:
 
 1. Fix the **Run script** in the repository settings (for example add
    `--port $PORT`).
-2. Use **Restart → Restart dev server** on the chat.
-3. Still stuck? The chat’s **Dev server** terminal (under its composer)
-   shows the dev server’s and portless’s output. The chat’s agent can read the same output and
-   restart the dev server, so you can also ask it to debug the preview.
+2. Use **… → Restart preview** on the chat.
+3. Still stuck? The chat’s **Preview** terminal (under its composer)
+   shows the preview’s and portless’s output. The chat’s agent can read the same output and
+   restart the preview, so you can also ask it to debug the preview.
 
 [Troubleshooting](/guides/troubleshooting#previews) lists the other ways a
 preview can fail.
@@ -96,10 +96,10 @@ pnpm --filter web dev -- --port $PORT
 <Callout type="warning">
   With Turborepo, pass the port as a flag, as above, instead of relying on the
   `PORT` variable reaching the task. Turborepo 2’s strict env mode strips
-  undeclared variables, so `$PORT` is empty *inside* the task. Package
-  scripts that hardcode `--port 3001` also win over the variable. The
-  appended flag handles both, because for Next.js and Vite the last `--port`
-  wins. Alternatively, add `"passThroughEnv": ["PORT"]` to the `dev` task in
+  undeclared variables, so `$PORT` is empty *inside* the task. Package scripts
+  that hardcode `--port 3001` also win over the variable. The appended flag
+  handles both, because for Next.js and Vite the last `--port` wins.
+  Alternatively, add `"passThroughEnv": ["PORT"]` to the `dev` task in
   `turbo.json`.
 </Callout>
 

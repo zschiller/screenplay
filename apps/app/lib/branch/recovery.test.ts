@@ -111,14 +111,14 @@ describe("restartSandbox (Sandbox Restart)", () => {
       "starting",
       "running",
     ])
-    expect(deps.patches[0].patch.statusMessage).toBe("Restarting sandbox…")
+    expect(deps.patches[0].patch.statusMessage).toBe("Starting preview…")
     expect(deps.patches[1].patch).toMatchObject({
       sandboxName: "sandbox-2",
       previewDomain: "https://new.preview",
       status: "running",
     })
     expect(deps.toasts).toEqual([
-      { kind: "success", message: "Sandbox restarted" },
+      { kind: "success", message: "Preview started" },
     ])
   })
 
@@ -152,7 +152,7 @@ describe("restartSandbox (Sandbox Restart)", () => {
     expect(deps.toasts).toEqual([
       {
         kind: "error",
-        message: "Couldn’t restart sandbox",
+        message: "Couldn’t start preview",
         description: "snapshot miss",
       },
     ])
@@ -186,13 +186,15 @@ describe("recreate (Recreate)", () => {
       "branch-1"
     )
     expect(lifecycle.restartSandbox).not.toHaveBeenCalled()
-    expect(deps.patches[0].patch.statusMessage).toBe("Recreating from scratch…")
+    expect(deps.patches[0].patch.statusMessage).toBe(
+      "Setting up the code again…"
+    )
     expect(deps.patches.map((p) => p.patch.status)).toEqual([
       "starting",
       "running",
     ])
     expect(deps.toasts).toEqual([
-      { kind: "success", message: "Recreated from scratch" },
+      { kind: "success", message: "Code set up again" },
     ])
   })
 
@@ -215,7 +217,7 @@ describe("recreate (Recreate)", () => {
     ])
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
-      message: "Couldn’t recreate from scratch",
+      message: "Couldn’t set up the code again",
       description: "clone failed",
     })
   })
@@ -256,7 +258,7 @@ describe("restartDevServer (Dev Server Restart, thin path)", () => {
     ])
     expect(deps.patches.some((p) => "status" in p.patch)).toBe(false)
     expect(deps.toasts).toEqual([
-      { kind: "success", message: "Dev server restarted" },
+      { kind: "success", message: "Preview restarted" },
     ])
   })
 
@@ -272,7 +274,7 @@ describe("restartDevServer (Dev Server Restart, thin path)", () => {
     expect(deps.patches.some((p) => "status" in p.patch)).toBe(false)
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
-      message: "Couldn’t restart dev server",
+      message: "Couldn’t restart preview",
       description: "not running",
     })
   })
@@ -308,7 +310,7 @@ describe("stopDevServer (Dev Server Stop, #1342)", () => {
     expect(deps.toasts).toEqual([
       {
         kind: "error",
-        message: "Couldn’t stop dev server",
+        message: "Couldn’t stop preview",
         description: "boom",
       },
     ])
@@ -350,7 +352,7 @@ describe("runDevServer (Dev Server Run, #1342)", () => {
     expect(deps.toasts).toEqual([
       {
         kind: "error",
-        message: "Couldn’t run dev server",
+        message: "Couldn’t run preview",
         description: "Sandbox is not running",
       },
     ])
@@ -385,7 +387,7 @@ describe("guards", () => {
     ])
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
-      message: "Couldn’t restart sandbox",
+      message: "Couldn’t start preview",
       description: "Repository not found",
     })
     expect(lifecycle.restartSandbox).not.toHaveBeenCalled()
@@ -399,7 +401,7 @@ describe("guards", () => {
     expect(deps.patches).toEqual([])
     expect(deps.toasts[0]).toMatchObject({
       kind: "error",
-      message: "Couldn’t restart dev server",
+      message: "Couldn’t restart preview",
       description: "Repository not found",
     })
     expect(lifecycle.restartDevServer).not.toHaveBeenCalled()
@@ -454,7 +456,7 @@ describe("startWorkspace", () => {
     })
     expect(deps.toasts.at(-1)).toMatchObject({
       kind: "error",
-      message: "Couldn’t restart dev server",
+      message: "Couldn’t start preview",
     })
   })
 })

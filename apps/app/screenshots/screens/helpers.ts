@@ -90,7 +90,7 @@ export function isHomePath(url: string): boolean {
 
 /**
  * Open a menu from its trigger and pick an item, walking into submenus: pass
- * `["Restart", "Recreate from scratch"]` to hover the first and click the last.
+ * `["Chat", "Rename"]` to hover the first and click the last.
  */
 /**
  * Run a saved Project preset row's action: from its … menu (#784), or from a
@@ -614,7 +614,7 @@ export async function openTerminalTab(page: Page): Promise<void> {
  */
 export async function openTerminalPane(
   page: Page,
-  name = "Dev server",
+  name = "Preview",
   workspace = CHAT_WORKSPACE
 ): Promise<void> {
   await selectWorkspace(page, workspace)

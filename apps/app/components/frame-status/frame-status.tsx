@@ -56,10 +56,10 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
   },
   booting: {
     title: "Setting up the code",
-    description: "The preview appears once its dev server starts.",
+    description: "The preview appears once it starts.",
   },
   starting: {
-    title: "Starting dev server",
+    title: "Starting preview",
     description: "The preview appears as soon as it answers.",
   },
   "workspace-failed": {
@@ -67,7 +67,7 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
     description: "Something went wrong setting it up.",
   },
   "preview-failed": {
-    title: "Dev server not responding",
+    title: "Preview not responding",
     description: "The preview couldn’t be reached. It may still be starting.",
   },
   stopped: {

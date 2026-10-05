@@ -199,7 +199,7 @@ export function RepoSettingsFields({
               className="font-mono"
             />
             <FieldDescription>
-              Starts the dev server your frames preview.
+              Starts the app your frames preview.
             </FieldDescription>
           </Field>
 
@@ -209,9 +209,7 @@ export function RepoSettingsFields({
           dev server must bind this exact port. */}
           {!isLocalBuild && (
             <Field>
-              <FieldLabel htmlFor={`${idPrefix}-port`}>
-                Dev server port
-              </FieldLabel>
+              <FieldLabel htmlFor={`${idPrefix}-port`}>Preview port</FieldLabel>
               <Input
                 id={`${idPrefix}-port`}
                 type="number"
@@ -223,7 +221,7 @@ export function RepoSettingsFields({
                 className="font-mono"
               />
               <FieldDescription>
-                The port your dev server listens on.
+                The port your preview listens on.
               </FieldDescription>
             </Field>
           )}

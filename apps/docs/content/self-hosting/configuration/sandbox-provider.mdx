@@ -10,10 +10,10 @@ out, the setup and run scripts execute, the agent’s commands run, and terminal
 tabs connect. Sandboxes sit behind the `SandboxProvider` interface in
 `apps/app/lib/sandbox/`, and `SANDBOX_BACKEND` selects the implementation:
 
-| `SANDBOX_BACKEND` | Provider | Used by |
-| --- | --- | --- |
-| unset / `vercel` | [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox): one Linux VM per chat | Hosted |
-| `local` | A git worktree per chat on the host machine | Desktop |
+| `SANDBOX_BACKEND` | Provider                                                                        | Used by |
+| ----------------- | ------------------------------------------------------------------------------- | ------- |
+| unset / `vercel`  | [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox): one Linux VM per chat | Hosted  |
+| `local`           | A git worktree per chat on the host machine                                     | Desktop |
 
 Any other value fails at startup.
 
@@ -98,9 +98,9 @@ TAGS=vcr.vercel.com/<team>/<project>/screenplay-workspace:latest PUSH=true \
 ```
 
 Sandbox VMs **hibernate**. Idle sandboxes are snapshotted and reclaimed, and
-reopening a canvas restores them with the working tree intact. **Restart
-sandbox** uses the same snapshot. Once a snapshot has fully expired, the only
-way back is **Recreate from scratch**, which discards uncommitted work. That’s
+reopening a canvas restores them with the working tree intact. Once a snapshot has
+fully expired, the only way back is **Set up again…**, which discards changes
+that weren’t pushed. That’s
 why the agent commits and pushes after every change.
 
 ## Local worktrees
@@ -111,11 +111,12 @@ Each project resolves to one local clone: either your folder, or a managed
 clone of the URL you added. Each chat’s code is a git worktree of that clone,
 so there’s one object store per repository and one checkout per branch.
 Worktrees survive restarts, including uncommitted changes. Local sandboxes
-can’t hibernate, so **Restart sandbox** isn’t offered; **Restart dev server**
-and **Recreate from scratch** are.
+can’t hibernate. The chat menu offers no sandbox restart on any build, only
+**Restart preview** and **Set up again…**; a frame’s **Start** restarts a
+stopped preview.
 
 Dev servers run under portless on a per-chat port. See
-[Dev server & ports](/guides/building/dev-server).
+[Preview & ports](/guides/building/dev-server).
 
 ## Adding a provider
 
@@ -130,8 +131,12 @@ daemon.
    import type { SandboxProvider } from "./types"
 
    class E2BSandboxProvider implements SandboxProvider {
-     async create(opts) { /* provision, return a SandboxInstance */ }
-     async get(opts)    { /* reconnect, return a SandboxInstance */ }
+     async create(opts) {
+       /* provision, return a SandboxInstance */
+     }
+     async get(opts) {
+       /* reconnect, return a SandboxInstance */
+     }
    }
 
    export function getE2BSandboxProvider(): SandboxProvider {
@@ -152,6 +157,7 @@ interface.
 <Callout type="info">
   Capabilities not every backend has are kept off the core interface.
   **Hibernation** (`snapshot()`, `extendTimeout()`) is an optional extension,
-  detected with `supportsHibernation()`. A provider without it simply doesn’t
-  offer Restart sandbox. See `apps/app/docs/adr/0003-honest-sandbox-provider-seam.md`.
+  detected with `supportsHibernation()`. A provider without it simply can’t
+  restore a sandbox from a snapshot. See
+  `apps/app/docs/adr/0003-honest-sandbox-provider-seam.md`.
 </Callout>

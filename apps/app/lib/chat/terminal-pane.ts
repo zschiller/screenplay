@@ -14,7 +14,7 @@ import type { TerminalTabData } from "@/lib/types"
 export const DEV_SERVER_TERMINAL_ID = "dev-server"
 
 /** What the pane calls the dev server's output. */
-export const DEV_SERVER_LABEL = "Dev server"
+export const DEV_SERVER_LABEL = "Preview"
 
 /** One terminal in the pane: Dev server, or one of the person's shells. */
 export type PaneTerminal =

@@ -16,6 +16,7 @@ import type { BranchData, RepoData } from "@/lib/types"
 import {
   BRANCH_MENU_SECTIONS,
   BranchOverflowMenuContent,
+  type BranchMenuPart,
   workspaceMenuLead,
 } from "./branch-overflow-menu"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -26,19 +27,8 @@ import {
 } from "@/lib/branch/pr-readiness"
 import { creatingPrStore, useIsCreatingPr } from "@/lib/creating-pr-store"
 
-// `isLocalBuild` is a compile-time constant, but the build-specific item
-// ("Restart sandbox" hidden on local) is read at render through this live
-// binding — a getter lets each test pick the build without re-importing the
-// module. Defaults to the hosted build; the local-build describe flips it and
-// afterEach resets it.
-const buildFlag = vi.hoisted(() => ({ local: false }))
 const openExternal = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/open-external", () => ({ openExternal }))
-vi.mock("@/lib/local-mode", () => ({
-  get isLocalBuild() {
-    return buildFlag.local
-  },
-}))
 
 // Radix's dropdown content positions itself with floating-ui, which needs a
 // ResizeObserver, and uses pointer-capture APIs jsdom doesn't implement.
@@ -91,8 +81,10 @@ function renderMenu(
     pr,
     onRetry,
     onRestartDevServer,
-    onRestart,
     onRecreate,
+    part,
+    onOpenLogs,
+    onOpenChat,
     onMarkDone,
     onReopen,
     onCreatePr,
@@ -104,8 +96,10 @@ function renderMenu(
     pr?: BranchPrInfo | null
     onRetry?: () => void
     onRestartDevServer?: () => void
-    onRestart?: () => void
     onRecreate?: () => void
+    part?: BranchMenuPart
+    onOpenLogs?: () => void
+    onOpenChat?: () => void
     onMarkDone?: () => void
     onReopen?: () => void
     onCreatePr?: () => void
@@ -135,13 +129,15 @@ function renderMenu(
         }}
         onRename={vi.fn()}
         onRestartDevServer={onRestartDevServer ?? vi.fn()}
-        onRestart={onRestart ?? vi.fn()}
         onRecreate={onRecreate ?? vi.fn()}
         onShowRoutes={vi.fn()}
         onMarkDone={onMarkDone ?? vi.fn()}
         onReopen={onReopen ?? vi.fn()}
         onDelete={vi.fn()}
         isBusy={isBusy}
+        part={part}
+        onOpenLogs={onOpenLogs}
+        onOpenChat={onOpenChat}
       />
     )
   }
@@ -155,7 +151,6 @@ function renderMenu(
 
 afterEach(() => {
   cleanup()
-  buildFlag.local = false
 })
 
 function menuLabels() {
@@ -166,12 +161,14 @@ function menuLabels() {
 }
 
 describe("BRANCH_MENU_SECTIONS skeleton", () => {
-  it("declares View, Git, Pull requests, Manage, then Delete", () => {
+  it("declares Open, View, Recover, Git, Pull requests, Manage, then Delete", () => {
     expect(BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])).toEqual([
-      ["view", ["play", "open-in-browser", "routes"]],
+      ["open", ["open-chat"]],
+      ["view", ["play", "open-in-browser", "routes", "logs"]],
+      ["recover", ["restart-preview", "set-up-again"]],
       ["git", ["create-pr"]],
       ["pull-requests", ["pull-requests"]],
-      ["manage", ["rename", "restart", "mark-done"]],
+      ["manage", ["rename", "mark-done"]],
       ["danger", ["delete"]],
     ])
   })
@@ -284,12 +281,13 @@ describe("BranchOverflowMenuContent rendering", () => {
   it("groups a ready Workspace with the player first", () => {
     renderMenu()
     expect(menuLabels()).toEqual([
-      "Open prototype player",
+      "Open in prototype player",
       "Open in browser",
       "Show all routes",
+      "Restart preview",
+      "Set up again…",
       "Create pull request",
       "Rename",
-      "Restart",
       "Mark as done",
       "Delete",
     ])
@@ -331,7 +329,7 @@ describe("BranchOverflowMenuContent rendering", () => {
     const labels = menuLabels()
     expect(labels[0]).toBe("Create pull request")
     expect(labels.filter((l) => l === "Create pull request")).toHaveLength(1)
-    expect(labels[1]).toBe("Open prototype player")
+    expect(labels[1]).toBe("Open in prototype player")
   })
 
   it("lists the open PR under Pull requests and doesn't offer to create another", () => {
@@ -348,11 +346,13 @@ describe("BranchOverflowMenuContent rendering", () => {
     expect(screen.getByText("Pull requests")).toBeTruthy()
   })
 
-  it("leads a failed Workspace with Retry setup, not Rename", () => {
+  it("leads a failed Workspace with Set up again, standing in for the confirming one", () => {
     const onRetry = vi.fn()
     renderMenu({ status: "error", error: "npm ERR!" }, { onRetry })
-    expect(menuLabels()[0]).toBe("Retry setup")
-    fireEvent.click(screen.getByText("Retry setup"))
+    const labels = menuLabels()
+    expect(labels[0]).toBe("Set up again")
+    expect(labels).not.toContain("Set up again…")
+    fireEvent.click(screen.getByText("Set up again"))
     expect(onRetry).toHaveBeenCalledWith("branch-1")
   })
 
@@ -556,113 +556,81 @@ if (!Range.prototype.getClientRects) {
   Range.prototype.getBoundingClientRect = () => ({}) as DOMRect
 }
 
-describe("Restart submenu", () => {
-  it("renders Restart as a submenu trigger, not a flat action", () => {
-    renderMenu()
-    // A submenu trigger advertises a nested menu via aria-haspopup; a plain
-    // DropdownMenuItem does not. That's the structural tell that "Restart" was
-    // converted from one button into a submenu.
-    const restart = screen.getByText("Restart").closest("[role='menuitem']")
-    expect(restart).not.toBeNull()
-    expect(restart?.getAttribute("aria-haspopup")).toBe("menu")
-  })
-
-  it("lists Restart dev server first and keeps it enabled", () => {
-    renderMenu()
-    // Open the submenu by activating its trigger from the keyboard — Radix opens
-    // a sub-content on ArrowRight, which jsdom can drive without real hover.
-    const trigger = screen.getByText("Restart").closest("[role='menuitem']")!
-    fireEvent.keyDown(trigger, { key: "ArrowRight" })
-
-    const items = screen
-      .getAllByRole("menuitem")
-      .map((el) => el.textContent?.trim())
-    const devIdx = items.indexOf("Restart dev server")
-    const sandboxIdx = items.indexOf("Restart sandbox")
-    expect(devIdx).toBeGreaterThanOrEqual(0)
-    // Dev server is the submenu's first item, ahead of Restart sandbox.
-    expect(sandboxIdx).toBeGreaterThan(devIdx)
-
-    // It stays enabled (no data-disabled / aria-disabled) so a wedged preview
-    // can be fixed even while the agent is working.
-    const devItem = screen
-      .getAllByRole("menuitem")
-      .find((el) => el.textContent?.trim() === "Restart dev server")!
-    expect(devItem.getAttribute("data-disabled")).toBeNull()
-    expect(devItem.getAttribute("aria-disabled")).not.toBe("true")
-  })
-
-  it("invokes the dev-server restart handler with the branch id", () => {
-    const onRestartDevServer = vi.fn()
-    renderMenu({}, { onRestartDevServer })
-    const trigger = screen.getByText("Restart").closest("[role='menuitem']")!
-    fireEvent.keyDown(trigger, { key: "ArrowRight" })
-    const devItem = screen
-      .getAllByRole("menuitem")
-      .find((el) => el.textContent?.trim() === "Restart dev server")!
-    fireEvent.click(devItem)
-    expect(onRestartDevServer).toHaveBeenCalledWith("branch-1")
-  })
-
-  function openSubmenu() {
-    const trigger = screen.getByText("Restart").closest("[role='menuitem']")!
-    fireEvent.keyDown(trigger, { key: "ArrowRight" })
-  }
-
-  function submenuItem(label: string) {
+describe("Recover items", () => {
+  function item(label: string) {
     return screen
       .getAllByRole("menuitem")
       .find((el) => el.textContent?.trim() === label)
   }
 
-  it("lists Recreate from scratch last, after Restart sandbox", () => {
+  it("offers Restart preview and Set up again… flat, with no Restart sandbox", () => {
     renderMenu()
-    openSubmenu()
-    const items = screen
-      .getAllByRole("menuitem")
-      .map((el) => el.textContent?.trim())
-    const sandboxIdx = items.indexOf("Restart sandbox")
-    const recreateIdx = items.indexOf("Recreate from scratch")
-    expect(recreateIdx).toBeGreaterThan(sandboxIdx)
+    const labels = menuLabels()
+    expect(labels.indexOf("Set up again…")).toBe(
+      labels.indexOf("Restart preview") + 1
+    )
+    expect(labels).not.toContain("Restart")
+    expect(labels).not.toContain("Restart sandbox")
   })
 
-  it("invokes the recreate handler with the branch id", () => {
-    const onRecreate = vi.fn()
-    renderMenu({}, { onRecreate })
-    openSubmenu()
-    fireEvent.click(submenuItem("Recreate from scratch")!)
-    expect(onRecreate).toHaveBeenCalledWith("branch-1")
-  })
-
-  it("disables Restart sandbox and Recreate while busy, but not Restart dev server", () => {
-    renderMenu({}, { isBusy: true })
-    openSubmenu()
-    // Dev server stays enabled mid-turn — the one restart that can fix a wedged
-    // preview without cycling the VM.
-    expect(
-      submenuItem("Restart dev server")?.getAttribute("aria-disabled")
-    ).not.toBe("true")
-    // The two VM-cycling actions are gated while the agent works.
-    expect(submenuItem("Restart sandbox")?.getAttribute("aria-disabled")).toBe(
+  it("restarts the preview with the branch id, even while the agent works", () => {
+    const onRestartDevServer = vi.fn()
+    renderMenu({}, { onRestartDevServer, isBusy: true })
+    expect(item("Restart preview")?.getAttribute("aria-disabled")).not.toBe(
       "true"
     )
-    expect(
-      submenuItem("Recreate from scratch")?.getAttribute("aria-disabled")
-    ).toBe("true")
+    fireEvent.click(item("Restart preview")!)
+    expect(onRestartDevServer).toHaveBeenCalledWith("branch-1")
   })
 
-  // On the local (desktop) build the backend runs worktrees on the host, not
-  // VMs, so there's nothing to snapshot-restore — "Restart sandbox" would only
-  // ever fail loud. The two honest local tiers are "Restart dev server" and
-  // "Recreate from scratch", so the VM-cycle item is omitted there.
-  describe("local build", () => {
-    it("omits Restart sandbox but keeps dev-server restart and recreate", () => {
-      buildFlag.local = true
-      renderMenu()
-      openSubmenu()
-      expect(submenuItem("Restart sandbox")).toBeUndefined()
-      expect(submenuItem("Restart dev server")).toBeDefined()
-      expect(submenuItem("Recreate from scratch")).toBeDefined()
-    })
+  it("sets up again through the recreate confirm, but not while busy", () => {
+    const onRecreate = vi.fn()
+    renderMenu({}, { onRecreate })
+    fireEvent.click(item("Set up again…")!)
+    expect(onRecreate).toHaveBeenCalledWith("branch-1")
+    cleanup()
+    renderMenu({}, { isBusy: true })
+    expect(item("Set up again…")?.getAttribute("aria-disabled")).toBe("true")
+  })
+})
+
+describe("A frame's halves", () => {
+  it("Preview: the running app's items, Open logs, and recovery", () => {
+    const onOpenLogs = vi.fn()
+    renderMenu({}, { part: "preview", onOpenLogs, hasChanges: true })
+    expect(menuLabels()).toEqual([
+      "Open in prototype player",
+      "Open in browser",
+      "Add frames for all routes",
+      "Open logs",
+      "Restart preview",
+      "Set up again…",
+    ])
+    fireEvent.click(screen.getByText("Open logs"))
+    expect(onOpenLogs).toHaveBeenCalled()
+  })
+
+  it("Preview leads a failed setup with Set up again", () => {
+    renderMenu({ status: "error", error: "npm ERR!" }, { part: "preview" })
+    expect(menuLabels()[0]).toBe("Set up again")
+  })
+
+  it("Chat: Open chat first, then the chat's own items, Delete chat last", () => {
+    const onOpenChat = vi.fn()
+    renderMenu({}, { part: "chat", onOpenChat, hasChanges: true })
+    expect(menuLabels()).toEqual([
+      "Open chat",
+      "Create pull request",
+      "Rename",
+      "Mark as done",
+      "Delete chat",
+    ])
+    fireEvent.click(screen.getByText("Open chat"))
+    expect(onOpenChat).toHaveBeenCalled()
+  })
+
+  it("Chat never offers Reopen: a Done chat's frames are hidden", () => {
+    renderMenu({ status: "stopped", doneAt: 1 }, { part: "chat" })
+    expect(menuLabels()).not.toContain("Reopen")
   })
 })

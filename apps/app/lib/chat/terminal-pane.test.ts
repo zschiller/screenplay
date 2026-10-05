@@ -31,7 +31,7 @@ describe("paneTerminals", () => {
       ["shell", "s1"],
       ["shell", "s2"],
     ])
-    expect(terminals[0]!.label).toBe("Dev server")
+    expect(terminals[0]!.label).toBe("Preview")
   })
 
   it("is just Dev server when there are no shells", () => {

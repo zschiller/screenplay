@@ -30,17 +30,17 @@ const isolate = {
  * glyph (#974); its PR sits at the row's end. The state in words ("Installing
  * dependencies · 40s", "Agent working", "Ready") is in the row's Workspace
  * hover card (#882). A failure is the red triangle; clicking it opens a card titled
- * by the step that failed, with the error and Retry, Recreate and Copy error.
+ * by the step that failed, with the error, Set up again and Copy error. Like
+ * the chat menu, a failed setup offers no confirming Set up again…: there's
+ * nothing to lose.
  */
 export function WorkspaceStatusIcon({
   line,
   onRetry,
-  onRecreate,
 }: {
   /** The Workspace's status line, from its Workspace State. */
   line: WorkspaceStatusLine
   onRetry: () => void
-  onRecreate: () => void
 }) {
   const [open, setOpen] = useState(false)
   const closeHoverCard = useCloseWorkspaceHoverCard()
@@ -103,17 +103,7 @@ export function WorkspaceStatusIcon({
               onRetry()
             }}
           >
-            Retry
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setOpen(false)
-              onRecreate()
-            }}
-          >
-            Recreate
+            Set up again
           </Button>
           <Button
             size="sm"

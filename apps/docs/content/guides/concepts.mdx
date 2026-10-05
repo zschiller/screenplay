@@ -41,7 +41,7 @@ chat’s pull request and remove a chat, right away.
 
 A **repository** on a canvas is the code its chats run, together with the
 settings Screenplay needs to run it: a setup script (for example
-`npm install`), a run script that starts the dev server, and a few optional
+`npm install`), a run script that starts the app, and a few optional
 extras. You add and edit them in Canvas settings. One canvas can hold several
 repositories, for example a web app and its API. The same repository can also
 appear twice with different settings, which suits monorepos. Your repositories
@@ -54,12 +54,12 @@ A **chat** is one git branch of a repository, running in its own isolated
 **sandbox**:
 
 - On the **desktop app**, a sandbox is a git worktree on your machine, and the
-  dev server runs locally on a port assigned to that chat.
+  preview runs locally on a port assigned to that chat.
 - On the **hosted app**, a sandbox is a cloud VM with its own clone of the
   repository.
 
 Each chat has a title (the agent writes it from your first message), its
-own dev server, and its own agent and terminals. The **Chats**
+own preview, and its own agent and terminals. The **Chats**
 button at the top right of the agent panel lists every chat, like threads in
 a project: each by its title, grouped by what it’s doing. On a canvas with several repositories each row ends with its
 repository’s name.
@@ -70,7 +70,7 @@ them side by side.
 ## Frame
 
 A **frame** is a live preview on the canvas. It shows one route of one
-chat’s dev server at a chosen device size. Frames are real browsers:
+chat’s app at a chosen device size. Frames are real browsers:
 switch into **Interact** mode and you can click through the app.
 → [Frames](/guides/frames)
 
@@ -84,7 +84,7 @@ write one for you and keep editing it.
 ## Mockup
 
 A **mockup** is a self-contained page a chat draws on the canvas to show a
-design option. It needs no dev server, so it shows up at once, beside its
+design option. It doesn’t wait for a preview, so it shows up at once, beside its
 chat’s frames or in a group of its own, and you can click through it.
 Any chat can change any mockup unless another chat is changing it right now,
 and what you send from one goes to the chat changing it, or else the chat that

@@ -235,7 +235,7 @@ describe("provisionSandbox on the local backend", () => {
       "Configuring git…",
       `code ready: ${sandboxName}`,
       "Installing dependencies…",
-      "Starting dev server…",
+      "Starting preview…",
     ])
   })
 
@@ -366,7 +366,7 @@ describe("provisionSandbox on the local backend", () => {
       "Cloning repository…",
       "Configuring git…",
       "Installing dependencies…",
-      "Starting dev server…",
+      "Starting preview…",
     ])
   })
 

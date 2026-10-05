@@ -301,7 +301,7 @@ export function useScreenplayDom(
             ? {
                 status: "unavailable" as const,
                 reason:
-                  "The page didn’t answer. It may still be loading, or its frame’s dev server isn’t running.",
+                  "The page didn’t answer. It may still be loading, or its frame’s preview isn’t running.",
               }
             : { status: "failed" as const, reason: message }
         }),

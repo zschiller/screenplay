@@ -79,7 +79,7 @@ export const LOGS_STOPPED_SAMPLE =
     `${sgr("90", "12:04:32")} ${sgr("36", "[dev]")} ${sgr("32", "✓")} Ready in ${sgr("33", "1.8s")}`,
     `${sgr("90", "12:04:40")} ${sgr("36", "[dev]")} ${sgr("32", "GET")} /alerts ${sgr("32", "200")} ${sgr("90", "in 188ms")}`,
     "",
-    "[Dev server stopped]",
+    "[Preview stopped]",
   ].join("\n") + "\n"
 
 /** A dev server crashing on start, over and over (#1342). */

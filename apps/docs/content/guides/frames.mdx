@@ -5,7 +5,7 @@ description: Live previews of your app at any route and device size.
 
 # Frames
 
-A frame is a live preview of a chat’s dev server. It’s a real browser
+A frame is a live preview of a chat’s app. It’s a real browser
 view, so hot reload, client-side routing, and app state all work as normal.
 
 <Screenshot
@@ -15,7 +15,7 @@ view, so hot reload, client-side routing, and app state all work as normal.
 
 ## Adding frames
 
-- A new chat gets a frame automatically once its dev server is up.
+- A new chat gets a frame automatically once its preview is up.
 - The **Frame** tool (<kbd>F</kbd>) drops a 1280×800 frame where you click,
   or draws one where you drag. As you let go, the frame asks what it should
   show. Type what to build and press <kbd>Enter</kbd> (<kbd>Shift</kbd>
@@ -53,7 +53,8 @@ view, so hot reload, client-side routing, and app state all work as normal.
     />
   </ScreenshotRow>
 
-- **Show all routes** in the chat menu adds a group with a frame for
+- **Show all routes** in the chat menu (a frame’s **Preview → Add frames for
+  all routes**) adds a group with a frame for
   every route the chat’s preview has visited.
 
 ## The title bar
@@ -113,7 +114,7 @@ instead. From left to right:
 | **Interact**          | Lets the frame take your clicks and scrolls, so you can use the app. The canvas stops panning over it, though <kbd>Space</kbd>-drag outside it still pans. Double-clicking a frame does the same. The button and the frame’s outline turn pink, and <kbd>Esc</kbd> (even from inside the preview) or a click outside the frame returns to the canvas. |
 | **Go live**           | <Only hosted /> Switches the frame from everyone’s own copy to one live browser everyone on the canvas watches, and back. See [Live frames](#live-frames).                                                                                                                                                                                            |
 | **Knobs**             | Live controls your app declares. See [Knobs](#knobs).                                                                                                                                                                                                                                                                                                 |
-| **Frame options**     | The [frame menu](/guides/canvas#layer-menus): **Rename**, **Duplicate**, **Device size**, **Fit to content**, a **Chat** submenu with the [chat menu](/guides/chats#chat-actions), and **Delete**. Its row in the layers list opens the same menu.                                                                                                    |
+| **Frame options**     | The [frame menu](/guides/canvas#layer-menus): **Rename**, **Duplicate**, **Device size**, **Fit to content**, **Preview** and **Chat** submenus with the [chat menu](/guides/chats#chat-actions), and **Delete**. Its row in the layers list opens the same menu.                                                                                     |
 
 <Screenshot
   name="frame-tooltip-interact"
@@ -128,9 +129,9 @@ else.
 While the preview is up, the address shows no dot. When it’s down, a dot at
 the start of the address says why; hover it to read the reason:
 
-- **Yellow**: **Dev server disconnected**. The page is still there, but its
-  dev server stopped answering, so edits won’t show until it’s back.
-- **Red**: **Preview failed**. The chat’s code or its dev server didn’t start.
+- **Yellow**: **Preview disconnected**. The page is still there, but its
+  preview stopped answering, so edits won’t show until it’s back.
+- **Red**: **Preview failed**. The chat’s code or its preview didn’t start.
 - **Grey**: **Preview stopped**. Its sandbox is stopped.
 
 The frame itself shows the detail and what to do; see
@@ -193,7 +194,7 @@ Until the live page’s first picture arrives, a spinner takes the broadcast
 icon’s place, and clicking again does nothing. If the frame can’t go live, it
 goes back to everyone’s own copy and a message says why:
 
-- The chat’s code isn’t running, or its dev server is stopped. Start it, then
+- The chat’s code isn’t running, or its preview is stopped. Start it, then
   click **Go live** again.
 - The chat’s code didn’t answer, for example while its sandbox wakes up from
   sleep and doesn’t come back.
@@ -265,7 +266,19 @@ on your Mac.
 
 <Screenshot
   name="frame-more-menu"
-  alt="The frame menu: Rename, Duplicate, Device size, Fit to content, Chat, Delete"
+  alt="The frame menu: Rename, Duplicate, Device size, Fit to content, Preview, Chat, Delete"
+/>
+
+**Preview** holds what acts on the app the frame shows: open it in the
+[prototype player](/guides/play-mode) or your browser, add frames for all its
+routes, open its logs, and [restart it or set it up
+again](/guides/chats#restarting). **Chat** holds what acts on the chat: open
+it, its pull requests, rename it, mark it done, or delete it with all its
+frames.
+
+<Screenshot
+  name="frame-preview-menu"
+  alt="The frame menu’s Preview submenu: Open in prototype player, Open in browser, Add frames for all routes, Open logs, Restart preview, Set up again…"
 />
 
 ## The agent driving a frame
@@ -417,14 +430,13 @@ frame and synced to everyone.
 While there’s no live page, a frame shows where its chat’s code is:
 
 - **No chat** until you pick one for the frame.
-- **Setting up the code**, then **Starting dev server**, while the chat’s code starts.
-- **Setup failed** when setup fails, and **Dev server not
-  responding** if the server doesn’t answer in time. Both offer **Retry** and
+- **Setting up the code**, then **Starting preview**, while the chat’s code starts.
+- **Setup failed** when setup fails, and **Preview not
+  responding** if the preview doesn’t answer in time. Both offer **Retry** and
   **Open logs**.
 - **Preview stopped** when its sandbox is stopped. Click **Start**.
 
 <Callout type="info">
-  A preview that never loads usually means the dev server isn’t listening on the
-  port Screenplay assigned. See
-  [Troubleshooting](/guides/troubleshooting#previews).
+  A preview that never loads usually means the app isn’t listening on the port
+  Screenplay assigned. See [Troubleshooting](/guides/troubleshooting#previews).
 </Callout>

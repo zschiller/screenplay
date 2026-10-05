@@ -2061,7 +2061,6 @@ export function Canvas({
           onDeleteSketchChat={deleteSketchChat}
           onRestartDevServer={branchActions.restartDevServer}
           onCreatePr={branchActions.createPullRequest}
-          onRefreshBranch={branchActions.restartSandbox}
           onRecreateBranch={branchActions.recreate}
           onRetryBranch={retryBranch}
           onMarkBranchDone={branchActions.markDone}

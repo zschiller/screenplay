@@ -157,7 +157,6 @@ export interface ChatsMenuProviderProps {
   onDeleteSketchChat: (chatId: string) => void
   onRestartDevServer: (id: string) => void
   onCreatePr: (branchId: string) => void
-  onRefreshBranch: (id: string) => void
   onRecreateBranch: (id: string) => void | Promise<void>
   onRetryBranch: (id: string) => void
   onMarkBranchDone: (id: string) => void
@@ -822,7 +821,6 @@ function WorkspaceMenuRow({
           <WorkspaceStatusIcon
             line={state.line}
             onRetry={() => menu.onRetryBranch(branch.id)}
-            onRecreate={() => menu.askRecreate(branch.id)}
           />
         }
         name={
@@ -899,7 +897,6 @@ function WorkspaceMenuRow({
               pendingEditRef.current = true
             }}
             onRestartDevServer={menu.onRestartDevServer}
-            onRestart={menu.onRefreshBranch}
             onRecreate={menu.askRecreate}
             onShowRoutes={(id) => {
               menu.setOpen(false)

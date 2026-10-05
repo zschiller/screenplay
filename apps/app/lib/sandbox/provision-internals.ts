@@ -115,9 +115,9 @@ const LOG_ENV = [
 export class DevServerPortIgnoredError extends Error {
   constructor() {
     super(
-      "The dev server didn’t start on the port Screenplay gave it. Make " +
+      "The preview didn’t start on the port Screenplay gave it. Make " +
         "the run script use $PORT (for example vite --port $PORT " +
-        "--strictPort) in Canvas settings, then restart the dev server. " +
+        "--strictPort) in Canvas settings, then restart the preview. " +
         "Open logs to see why."
     )
     this.name = "DevServerPortIgnoredError"

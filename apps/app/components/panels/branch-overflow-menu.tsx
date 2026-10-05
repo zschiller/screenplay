@@ -3,10 +3,10 @@
 import { Fragment, type ReactNode } from "react"
 import {
   ArrowClockwiseIcon,
-  ArrowCounterClockwiseIcon,
   ArrowUUpLeftIcon,
   ArrowUpRightIcon,
   ArrowsClockwiseIcon,
+  ChatCircleIcon,
   CheckCircleIcon,
   GitMergeIcon,
   GitPullRequestIcon,
@@ -14,6 +14,7 @@ import {
   PencilSimpleIcon,
   PlayIcon,
   RecycleIcon,
+  TerminalWindowIcon,
   TrashIcon,
 } from "@workspace/ui/components/icons"
 import {
@@ -21,9 +22,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
@@ -37,7 +35,6 @@ import type { PrReadinessState } from "@/lib/branch/pr-readiness"
 import { cn } from "@workspace/ui/lib/utils"
 import { openExternal } from "@/lib/open-external"
 import { openPreviewInBrowser } from "@/lib/open-preview"
-import { isLocalBuild } from "@/lib/local-mode"
 import { OpenInBrowserItem } from "@/components/open-in-browser-item"
 import type { BranchData, RepoData } from "@/lib/types"
 
@@ -48,12 +45,15 @@ import type { BranchData, RepoData } from "@/lib/types"
  * its node, rather than threading it into the middle of a giant JSX block.
  */
 export type BranchMenuItemKey =
+  | "open-chat"
   | "retry"
   | "rename"
   | "play"
   | "open-in-browser"
   | "routes"
-  | "restart"
+  | "logs"
+  | "restart-preview"
+  | "set-up-again"
   | "create-pr"
   | "pull-requests"
   | "mark-done"
@@ -61,7 +61,7 @@ export type BranchMenuItemKey =
   | "delete"
 
 export type BranchMenuSectionId =
-  "view" | "git" | "pull-requests" | "manage" | "danger"
+  "open" | "view" | "recover" | "git" | "pull-requests" | "manage" | "danger"
 
 export interface BranchMenuSection {
   id: BranchMenuSectionId
@@ -71,11 +71,12 @@ export interface BranchMenuSection {
 }
 
 /**
- * The Workspace overflow ("…") menu skeleton (#792): View, Git, Manage, then
- * Delete on its own. The Workspace's state picks one lead action (see
- * {@link workspaceMenuLead}) that renders first, above these sections, and is
- * dropped from the section it would otherwise sit in, so no action (the PR
- * one in particular) shows twice.
+ * The Workspace overflow ("…") menu skeleton (#792): View, Recover, Git,
+ * Manage, then Delete on its own (Open, a frame's Open chat, comes first).
+ * The Workspace's state picks one lead action (see {@link workspaceMenuLead})
+ * that renders first, above these sections, and is dropped from the section
+ * it would otherwise sit in, so no action (the PR one in particular) shows
+ * twice.
  *
  * `fetch`/`pull`/`push`/`sync` are deliberately absent: the always-commit-and-
  * push Engine loop makes them redundant. So are rebasing, renaming the branch
@@ -83,10 +84,16 @@ export interface BranchMenuSection {
  * sight, and its pull request is the GitHub page worth opening.
  */
 export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
+  { id: "open", label: "Open", itemKeys: ["open-chat"] },
   {
     id: "view",
     label: "View",
-    itemKeys: ["play", "open-in-browser", "routes"],
+    itemKeys: ["play", "open-in-browser", "routes", "logs"],
+  },
+  {
+    id: "recover",
+    label: "Recover",
+    itemKeys: ["restart-preview", "set-up-again"],
   },
   {
     id: "git",
@@ -101,7 +108,7 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
   {
     id: "manage",
     label: "Manage",
-    itemKeys: ["rename", "restart", "mark-done"],
+    itemKeys: ["rename", "mark-done"],
   },
   { id: "danger", label: "Danger", itemKeys: ["delete"] },
 ]
@@ -115,9 +122,29 @@ const HIDDEN_WHILE_DONE: ReadonlySet<BranchMenuItemKey> = new Set([
   "play",
   "open-in-browser",
   "routes",
-  "restart",
+  "logs",
+  "restart-preview",
+  "set-up-again",
   "mark-done",
 ])
+
+/**
+ * A frame's menu splits this one in two (its Preview and Chat submenus): what
+ * acts on the running app the frame shows, and what acts on the chat. Every
+ * key not listed here is the chat's.
+ */
+const PREVIEW_ITEMS: ReadonlySet<BranchMenuItemKey> = new Set([
+  "retry",
+  "play",
+  "open-in-browser",
+  "routes",
+  "logs",
+  "restart-preview",
+  "set-up-again",
+])
+
+/** Which half of the menu a frame's submenu shows (see {@link PREVIEW_ITEMS}). */
+export type BranchMenuPart = "preview" | "chat"
 
 /** What the lead action reads. {@link BranchData} satisfies the branch half. */
 export interface WorkspaceMenuLeadInput {
@@ -129,8 +156,8 @@ export interface WorkspaceMenuLeadInput {
 }
 
 /**
- * The one action that leads the Workspace menu, from its state: Retry when
- * setup failed, Mark as done once its PR has merged and the agent is idle,
+ * The one action that leads the Workspace menu, from its state: Retry (Set
+ * up again) when setup failed, Mark as done once its PR has merged and the agent is idle,
  * Create pull request when nothing blocks it (it keeps the lead while it
  * runs), otherwise the prototype player. Its PRs have their own group. A
  * Workspace that's still being set up (or stopped, until its PR merges) has no
@@ -155,21 +182,21 @@ export interface BranchOverflowMenuContentProps {
   branch: BranchData
   repo: RepoData
   onPlay: (branchId: string) => void
-  /** Re-runs a failed setup (the status icon's Retry). Leads the menu on error. */
+  /**
+   * Re-runs a failed setup (the status icon's Retry). Leads the menu on error
+   * as Set up again, standing in for the recreate: there's nothing to lose.
+   */
   onRetry: (branchId: string) => void
   /** Opens the inline title editor — already bound to this Workspace. */
   onRename: () => void
-  /** Bounce the dev server in place — no VM cycle. Stays enabled while working. */
+  /**
+   * Restart preview: bounce the dev server in place, no VM cycle. Stays
+   * enabled while working.
+   */
   onRestartDevServer: (branchId: string) => void
   /**
-   * Snapshot-restore the sandbox onto a fresh VM, preserving the working tree.
-   * Hosted-only — the local backend has no VM to cycle, so the item is hidden
-   * there (see {@link isLocalBuild} gate in the restart submenu).
-   */
-  onRestart: (branchId: string) => void
-  /**
-   * Destructive reclone from git — discards the working tree. The handler opens
-   * the AlertDialog confirm; the actual recreate runs only on confirm.
+   * Set up again…: the destructive reclone from git, discarding the working
+   * tree. The handler opens the confirm; the recreate runs only on confirm.
    */
   onRecreate: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
@@ -193,11 +220,21 @@ export interface BranchOverflowMenuContentProps {
   onOpenInBrowser?: () => void
   /**
    * Whether this Branch's agent is currently working (Workspace State's
-   * `agentWorking`). Gates the "disable while working" items, like Restart
-   * sandbox and Mark as done; Create pull request reads it through
+   * `agentWorking`). Gates the "disable while working" items, like Set up
+   * again and Mark as done; Create pull request reads it through
    * `prReadiness`.
    */
   isBusy?: boolean
+  /**
+   * Only one half of the menu, for a frame's Preview or Chat submenu. Those
+   * say what an item acts on where the frame's own items sit beside them:
+   * Delete chat, and Add frames for all routes.
+   */
+  part?: BranchMenuPart
+  /** Open logs: the chat's Preview terminal. A frame's Preview submenu. */
+  onOpenLogs?: () => void
+  /** Open chat, leading a frame's Chat submenu. */
+  onOpenChat?: () => void
 }
 
 /**
@@ -231,7 +268,6 @@ export function BranchOverflowMenuItems({
   onRetry,
   onRename,
   onRestartDevServer,
-  onRestart,
   onRecreate,
   onShowRoutes,
   onMarkDone,
@@ -240,13 +276,22 @@ export function BranchOverflowMenuItems({
   onOpenInBrowser,
   prReadiness,
   isBusy = false,
+  part,
+  onOpenLogs,
+  onOpenChat,
 }: Omit<BranchOverflowMenuContentProps, "onCloseAutoFocus">) {
   const prs = branchPrList(branch, prReadiness.existingPr)
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
+    "open-chat": (
+      <DropdownMenuItem onClick={onOpenChat}>
+        <ChatCircleIcon />
+        Open chat
+      </DropdownMenuItem>
+    ),
     retry: (
       <DropdownMenuItem onClick={() => onRetry(branch.id)}>
         <ArrowClockwiseIcon />
-        Retry setup
+        Set up again
       </DropdownMenuItem>
     ),
     rename: (
@@ -261,7 +306,7 @@ export function BranchOverflowMenuItems({
         onClick={() => onPlay(branch.id)}
       >
         <PlayIcon />
-        Open prototype player
+        Open in prototype player
       </DropdownMenuItem>
     ),
     // Pop the branch's live preview into a real browser tab, outside the
@@ -289,65 +334,40 @@ export function BranchOverflowMenuItems({
         onClick={() => onShowRoutes(branch.id)}
       >
         <PathIcon />
-        Show all routes
+        {part ? "Add frames for all routes" : "Show all routes"}
       </DropdownMenuItem>
     ),
-    restart: (
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <ArrowsClockwiseIcon />
-          Restart
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent>
-          {/*
-            Restart dev server bounces the dev process inside the existing
-            Sandbox — no VM cycle, working tree untouched — so it stays enabled
-            even while the agent is working, the one restart that can fix a
-            wedged preview mid-turn.
-          */}
-          <DropdownMenuItem
-            disabled={!branch.sandboxName}
-            onClick={() => onRestartDevServer(branch.id)}
-          >
-            <ArrowsClockwiseIcon />
-            Restart dev server
-          </DropdownMenuItem>
-          {/*
-            Restart sandbox snapshot-restores onto a fresh VM, preserving the
-            working tree. It cycles the VM, so — like Recreate — it's disabled
-            while the agent is working.
-
-            Hosted-only: the local backend runs worktrees on the host, not VMs,
-            so there's nothing to snapshot-restore — its two honest restart tiers
-            are "Restart dev server" (bounce the process, keep the working tree)
-            and "Recreate from scratch" (reclone from git, discard it). A VM
-            cycle would only ever fail loud there, so the local build omits it.
-          */}
-          {!isLocalBuild ? (
-            <DropdownMenuItem
-              disabled={!branch.sandboxName || isBusy}
-              onClick={() => onRestart(branch.id)}
-            >
-              <ArrowCounterClockwiseIcon />
-              Restart sandbox
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuSeparator />
-          {/*
-            Recreate from scratch is the destructive reclone from git — it
-            discards uncommitted work — so it's fenced off behind a separator and
-            gated behind an AlertDialog confirm (opened by the handler).
-          */}
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={!branch.sandboxName || isBusy}
-            onClick={() => onRecreate(branch.id)}
-          >
-            <RecycleIcon />
-            Recreate from scratch
-          </DropdownMenuItem>
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
+    logs: (
+      <DropdownMenuItem onClick={onOpenLogs}>
+        <TerminalWindowIcon />
+        Open logs
+      </DropdownMenuItem>
+    ),
+    // Restart preview bounces the dev process inside the existing Sandbox:
+    // no VM cycle, working tree untouched, so it stays enabled while the
+    // agent works, the one recovery that can fix a wedged preview mid-turn.
+    "restart-preview": (
+      <DropdownMenuItem
+        disabled={!branch.sandboxName}
+        onClick={() => onRestartDevServer(branch.id)}
+      >
+        <ArrowsClockwiseIcon />
+        Restart preview
+      </DropdownMenuItem>
+    ),
+    // Set up again… is the destructive reclone from git: it discards
+    // unpushed work, so it's red and confirms first (the handler opens it).
+    // The VM-cycling Restart sandbox is gone from the menu: the agent pushes
+    // every turn, so it rarely kept anything this doesn't.
+    "set-up-again": (
+      <DropdownMenuItem
+        variant="destructive"
+        disabled={!branch.sandboxName || isBusy}
+        onClick={() => onRecreate(branch.id)}
+      >
+        <RecycleIcon />
+        Set up again…
+      </DropdownMenuItem>
     ),
     // A blocked create says why in a tooltip, like the chat header's Create
     // PR. A Workspace with a PR to link shows none (Create PR Readiness).
@@ -413,25 +433,45 @@ export function BranchOverflowMenuItems({
         onClick={() => onDelete(branch.id)}
       >
         <TrashIcon />
-        Delete
+        {part === "chat" ? "Delete chat" : "Delete"}
       </DropdownMenuItem>
     ),
   }
 
-  const lead = workspaceMenuLead({ branch, isBusy, prReadiness })
+  const inPart = (key: BranchMenuItemKey) =>
+    !part || (part === "preview") === PREVIEW_ITEMS.has(key)
+  const naturalLead = workspaceMenuLead({ branch, isBusy, prReadiness })
+  // A frame's Preview submenu leads only with Set up again on a failed setup;
+  // the player stays in its place among the view items.
+  const lead =
+    naturalLead &&
+    inPart(naturalLead) &&
+    (part !== "preview" || naturalLead === "retry") &&
+    !(part && naturalLead === "reopen")
+      ? naturalLead
+      : null
   const shown = (key: BranchMenuItemKey) => {
-    if (key === lead) return false
+    if (key === lead || !inPart(key)) return false
+    if (key === "open-chat") return !!onOpenChat
+    if (key === "logs") return !!onOpenLogs
+    // A failed setup's Set up again stands in for the confirming one.
+    if (key === "set-up-again" && naturalLead === "retry") return false
+    // A Done chat's frames are hidden, so a frame never offers Reopen.
+    if (key === "reopen" && part) return false
     if (key === "create-pr") return prReadiness.shown
     if (key === "pull-requests") return prs.length > 0
     if (!branch.doneAt) return true
     return !HIDDEN_WHILE_DONE.has(key)
   }
+  const sections = BRANCH_MENU_SECTIONS.map((section) => ({
+    id: section.id,
+    itemKeys: section.itemKeys.filter(shown),
+  }))
+  // Open chat comes before even the lead: it's where the rest lead to.
   const groups = [
+    ...sections.filter((section) => section.id === "open"),
     ...(lead ? [{ id: "lead", itemKeys: [lead] }] : []),
-    ...BRANCH_MENU_SECTIONS.map((section) => ({
-      id: section.id,
-      itemKeys: section.itemKeys.filter(shown),
-    })),
+    ...sections.filter((section) => section.id !== "open"),
   ].filter((group) => group.itemKeys.length > 0)
 
   return groups.map((group, i) => (
