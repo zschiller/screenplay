@@ -13,6 +13,10 @@ import {
 } from "@workspace/ui/components/collapsible"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
+  RepoDialogBody,
+  RepoDialogFooter,
+} from "@/components/repo-dialog-layout"
+import {
   RepoSettingsFields,
   runSettingsFieldProps,
 } from "@/components/repo-settings-fields"
@@ -48,7 +52,9 @@ type DetectionStatus = "idle" | "detecting" | "done" | "failed"
 
 /**
  * The confirm-and-configure add-modal body (PRD #673), rendered inside the
- * picker dialog's `settings` stage — same dialog shell, no second dialog.
+ * picker dialog's `settings` stage — same dialog shell, no second dialog. Its
+ * fields scroll between the same hairlines as the edit dialogs
+ * (`repo-dialog-layout`), with the buttons pinned under the lower one.
  *
  * It shows the *essential* run settings (setup script, run script, and — on
  * hosted — dev server port) always, plus an **Advanced** expander (#681) that
@@ -211,9 +217,9 @@ export function RepoAddSettings({
   }, [settings, envVars, presetName, onConfirm])
 
   return (
-    <div className="flex flex-col gap-4 px-5 pt-2 pb-5">
+    <>
       {status !== "idle" && status !== "done" && (
-        <div className="flex min-h-5 items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex min-h-5 items-center gap-2 px-5 pb-3 text-xs text-muted-foreground">
           {status === "detecting" ? (
             <>
               <Spinner className="size-3.5" />
@@ -235,7 +241,7 @@ export function RepoAddSettings({
           )}
         </div>
       )}
-      <div className="-mx-5 flex max-h-[60vh] flex-col gap-4 overflow-y-auto px-5">
+      <RepoDialogBody>
         <RepoSettingsFields
           idPrefix="repo-add"
           section="essential"
@@ -250,7 +256,7 @@ export function RepoAddSettings({
         <Collapsible
           open={advancedOpen}
           onOpenChange={setAdvancedOpen}
-          className="group/advanced flex flex-col gap-4"
+          className="group/advanced flex flex-col gap-5"
         >
           <CollapsibleTrigger className="flex items-center gap-1 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
             <CaretRightIcon className="size-4 transition-transform group-data-[state=open]/advanced:rotate-90" />
@@ -268,16 +274,16 @@ export function RepoAddSettings({
             />
           </CollapsibleContent>
         </Collapsible>
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel}>
+      </RepoDialogBody>
+      <RepoDialogFooter>
+        <Button variant="ghost" onClick={onCancel}>
           {cancelLabel}
         </Button>
-        <Button size="sm" onClick={handleConfirm} disabled={!settings}>
+        <Button onClick={handleConfirm} disabled={!settings}>
           Add repository
         </Button>
-      </div>
-    </div>
+      </RepoDialogFooter>
+    </>
   )
 }
 

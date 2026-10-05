@@ -8,6 +8,7 @@ import {
   useEffect,
   useState,
 } from "react"
+import { cn } from "@workspace/ui/lib/utils"
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
 import {
@@ -344,7 +345,14 @@ export function AddRepositoryDialog({
         }}
         className={PICKER_DIALOG_CLASS}
       >
-        <DialogHeader className={PICKER_DIALOG_HEADER_CLASS}>
+        <DialogHeader
+          className={cn(
+            PICKER_DIALOG_HEADER_CLASS,
+            // Configure's fields scroll under a hairline: give it the edit
+            // dialogs' 12px above the line.
+            pickerView === "settings" && "pb-3"
+          )}
+        >
           <DialogTitle>
             {pickerView === "settings"
               ? "Configure repository"
