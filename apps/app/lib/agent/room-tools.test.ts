@@ -16,6 +16,7 @@ import {
   type TargetedElement,
 } from "@/lib/agent/message-markers"
 import type { RoomCollections } from "@/lib/yjs/schema"
+import { PROPOSE_PLAN_TOOL } from "@/lib/agent/coordinator-plan"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import {
@@ -72,7 +73,11 @@ describe("the Coordinator’s tools", () => {
   it("have no way to approve or reject a Workspace’s plan (#897)", () => {
     const { collections } = makeHarness()
     const names = Object.keys(buildRoomTools("room-1", portsOver(collections)))
-    expect(names.filter((n) => /plan|approve|reject/.test(n))).toEqual([])
+    expect(
+      names.filter(
+        (n) => n !== PROPOSE_PLAN_TOOL && /plan|approve|reject/.test(n)
+      )
+    ).toEqual([])
   })
 })
 
@@ -331,6 +336,55 @@ describe("chats with no repository", () => {
     await expect(
       run("send_to_chat", { chat_id: "s-1", message: "Again" })
     ).rejects.toThrow(/is working on a turn/)
+    expect(launched).toHaveLength(1)
+  })
+})
+
+describe("plan mode", () => {
+  function planHarness(planTurn: boolean) {
+    const { collections } = makeHarness()
+    collections.chatSessions.set(
+      "room-chat-1",
+      baseChat("room-chat-1", { target: "room", branchId: undefined, planTurn })
+    )
+    collections.branches.set("ws-1", baseBranch("ws-1"))
+    collections.chatSessions.set("chat", baseChat("chat", { branchId: "ws-1" }))
+    const launched: WorkspaceTurnRequest[] = []
+    const ports: RoomToolPorts = {
+      ...portsOver(collections),
+      launchWorkspaceTurn: async (request) => {
+        launched.push(request)
+      },
+    }
+    const run = (name: string, input: unknown) =>
+      buildRoomTools("room-1", ports)[name]!.execute!(input, {
+        toolCallId: "t1",
+        messages: [],
+        context: {},
+      })
+    return { launched, run }
+  }
+
+  it("refuses to send, start or arrange while the turn plans", async () => {
+    const { launched, run } = planHarness(true)
+    await expect(
+      run("send_to_workspace", { workspace_id: "ws-1", message: "Go" })
+    ).rejects.toThrow(/Plan mode is on.*propose_plan/)
+    await expect(run("arrange_groups", {})).rejects.toThrow(/Plan mode is on/)
+    expect(launched).toEqual([])
+  })
+
+  it("still reads the canvas and proposes while the turn plans", async () => {
+    const { run } = planHarness(true)
+    expect(await run("read_canvas", {})).toContain("ws-1")
+    expect(
+      await run(PROPOSE_PLAN_TOOL, { plan: "- Send “Go” to Checkout" })
+    ).toMatch(/^Showed the plan/)
+  })
+
+  it("acts once the turn doesn’t plan, as on an approved plan", async () => {
+    const { launched, run } = planHarness(false)
+    await run("send_to_workspace", { workspace_id: "ws-1", message: "Go" })
     expect(launched).toHaveLength(1)
   })
 })

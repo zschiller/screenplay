@@ -265,7 +265,14 @@ export type ChatSessionData = {
    */
   workingLayers?: Record<string, number>
   closedAt?: number
+  /** The Plan toggle in the chat's composer. */
   planMode?: boolean
+  /**
+   * The Coordinator's running turn plans rather than acts: its tools that
+   * start, message, stop or arrange refuse, and it proposes instead. Set as
+   * each Coordinator turn starts, so its tools read it on either engine.
+   */
+  planTurn?: boolean
   model?: string
 }
 

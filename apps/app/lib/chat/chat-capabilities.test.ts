@@ -6,13 +6,13 @@ import {
 } from "@/lib/chat/chat-capabilities"
 
 describe("CHAT_CAPABILITIES", () => {
-  it("turns on Plan for an agent chat only, targeting for it and the Coordinator, and `/` everywhere", () => {
+  it("turns on Plan and targeting for an agent chat and the Coordinator, and `/` everywhere", () => {
     const on = (k: "skills" | "planMode" | "elementPicking") =>
       Object.entries(CHAT_CAPABILITIES)
         .filter(([, row]) => row[k])
         .map(([kind]) => kind)
     expect(on("skills")).toEqual(["agent", "room", "sketch"])
-    expect(on("planMode")).toEqual(["agent"])
+    expect(on("planMode")).toEqual(["agent", "room"])
     expect(on("elementPicking")).toEqual(["agent", "room"])
   })
 

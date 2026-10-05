@@ -139,6 +139,7 @@ export function ChatPanel(props: ChatPanelProps) {
           roomId={props.roomId}
           chatSession={props.chatSessions.find((c) => c.id === chatId)}
           onModelChange={props.onModelChange}
+          onPlanModeChange={props.onPlanModeChange}
           onOpenWorkspace={props.onOpenWorkspace ?? (() => {})}
         />
       </div>

@@ -120,6 +120,11 @@ import { useElementHighlight } from "./use-element-highlight"
 import { ChatDisclosure } from "./chat-disclosure"
 import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
 import { QuestionCard } from "./question-card"
+import {
+  isPlanProposal,
+  parseProposedPlan,
+  PLAN_APPROVAL,
+} from "@/lib/agent/coordinator-plan"
 import { isSaveSkillCall, SkillSaveCard } from "./skill-save-card"
 import { isMergePrCall, MergePrCard } from "./merge-pr-card"
 import { isMarkedDoneCall, MarkedDoneCard } from "./marked-done-card"
@@ -872,17 +877,80 @@ function PlanMessage({
   chatId: string
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  return (
+    <PlanCard
+      content={message.content}
+      status={message.status}
+      feedback={message.feedback}
+      busy={isSubmitting}
+      onApprove={async () => {
+        setIsSubmitting(true)
+        await chatStore.approvePlan(roomId, chatId, message.planId)
+        setIsSubmitting(false)
+      }}
+      onRequestChanges={() =>
+        inputStore.append(chatId, quotePlan(message.content))
+      }
+    />
+  )
+}
 
-  const handleApprove = async () => {
-    setIsSubmitting(true)
-    await chatStore.approvePlan(roomId, chatId, message.planId)
-    setIsSubmitting(false)
-  }
+/**
+ * The Coordinator's plan (`propose_plan`), on the same card as a Workspace's.
+ * Approve sends {@link PLAN_APPROVAL} outside plan mode, so the turn it starts
+ * carries the plan out; any other message settles it as changes requested.
+ */
+function ProposedPlanCard({
+  plan,
+  chatId,
+  outcome,
+}: {
+  plan: string
+  chatId?: string
+  outcome?: "approved" | "replaced"
+}) {
+  const [sending, setSending] = useState(false)
+  return (
+    <PlanCard
+      content={plan}
+      status={
+        outcome === "approved"
+          ? "approved"
+          : outcome === "replaced"
+            ? "rejected"
+            : "pending"
+      }
+      busy={sending}
+      onApprove={async () => {
+        if (!chatId) return
+        setSending(true)
+        const sent = await inputStore.send(chatId, PLAN_APPROVAL, {
+          planMode: false,
+        })
+        if (!sent) setSending(false)
+      }}
+      onRequestChanges={() => {
+        if (chatId) inputStore.append(chatId, quotePlan(plan))
+      }}
+    />
+  )
+}
 
-  const handleRequestChanges = () => {
-    inputStore.append(chatId, quotePlan(message.content))
-  }
-
+function PlanCard({
+  content,
+  status,
+  feedback,
+  busy,
+  onApprove,
+  onRequestChanges,
+}: {
+  content: string
+  status: "pending" | "approved" | "rejected"
+  feedback?: string
+  busy: boolean
+  onApprove: () => void
+  onRequestChanges: () => void
+}) {
   const statusBadge = {
     pending: null,
     approved: (
@@ -898,9 +966,9 @@ function PlanMessage({
         <XCircleIcon className="size-3" /> Changes requested
       </Badge>
     ),
-  }[message.status]
+  }[status]
 
-  const isRejected = message.status === "rejected"
+  const isRejected = status === "rejected"
   const [expanded, setExpanded] = useState(!isRejected)
 
   return (
@@ -921,35 +989,35 @@ function PlanMessage({
         {/* The reply's type scale: a plan's headings are body-sized and
             semibold, so its title doesn't outshout the reply around it. */}
         <ChatMarkdown className="prose-headings:text-sm prose-headings:font-semibold">
-          {message.content}
+          {content}
         </ChatMarkdown>
-        {message.status === "pending" && (
+        {status === "pending" && (
           <div className="mt-3 flex items-center gap-2">
             <Button
               size="sm"
               variant="default"
-              onClick={handleApprove}
-              disabled={isSubmitting}
+              onClick={onApprove}
+              disabled={busy}
             >
               Approve
             </Button>
             <Button
               size="sm"
               variant="outline"
-              onClick={handleRequestChanges}
-              disabled={isSubmitting}
+              onClick={onRequestChanges}
+              disabled={busy}
             >
               Request changes
             </Button>
           </div>
         )}
-        {isRejected && message.feedback && (
+        {isRejected && feedback && (
           <div className="mt-3 rounded-md border border-border bg-background/60 p-2">
             <div className="mb-1 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
               <XCircleIcon className="size-3" /> Your feedback
             </div>
             <ChatMarkdown tone="muted" size="xs">
-              {message.feedback}
+              {feedback}
             </ChatMarkdown>
           </div>
         )}
@@ -1368,15 +1436,25 @@ function ToolCallItem({
   roomId,
   chatId,
   questionAnswer,
+  planOutcome,
   senders,
 }: {
   message: AgentMessage & { role: "tool_call" }
   roomId?: string
   chatId?: string
   questionAnswer?: QuestionAnswer
+  planOutcome?: "approved" | "replaced"
   senders?: Map<string, ChatSender> | null
 }) {
   const tasks = useWorkspaceTasks()
+  const proposed = isPlanProposal(message)
+    ? parseProposedPlan(message.rawInput)
+    : null
+  if (proposed) {
+    return (
+      <ProposedPlanCard plan={proposed} chatId={chatId} outcome={planOutcome} />
+    )
+  }
   if (isQuestionCall(message) && parseQuestion(message.rawInput)) {
     const by = questionAnswer?.by ? senders?.get(questionAnswer.by) : undefined
     return (
@@ -1439,6 +1517,7 @@ export function AgentMessageItem({
   chatId,
   onRetry,
   questionAnswer,
+  planOutcome,
   senders,
 }: {
   message: AgentMessage
@@ -1448,6 +1527,8 @@ export function AgentMessageItem({
   onRetry?: () => Promise<unknown>
   /** How a question card was answered, once a user message follows it. */
   questionAnswer?: QuestionAnswer
+  /** What became of a Coordinator plan, once a user message follows it. */
+  planOutcome?: "approved" | "replaced"
   /**
    * Who sent the chat's messages, by user id: present in the hosted build on
    * a shared Canvas, where messages and question answers name their sender.
@@ -1477,6 +1558,7 @@ export function AgentMessageItem({
           roomId={roomId}
           chatId={chatId}
           questionAnswer={questionAnswer}
+          planOutcome={planOutcome}
           senders={senders}
         />
       )

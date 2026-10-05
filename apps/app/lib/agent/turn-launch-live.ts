@@ -290,6 +290,11 @@ export function roomTurn(input: {
   requesterId?: string
   /** A wake nobody sent: no account memory (#1513). */
   senderless?: boolean
+  /**
+   * Sent with Plan on. Absent (a wake), the turn plans when the chat's Plan
+   * toggle is on; `false` (an approved plan) acts whatever the toggle says.
+   */
+  planMode?: boolean
 }): TurnTarget {
   const { room, chatId } = input
   const target = coordinatorTarget(room, chatId, {
@@ -311,6 +316,17 @@ export function roomTurn(input: {
       )
       if (!prepared) return null
 
+      // The tools read whether this turn plans from the chat record, on
+      // either engine, so it's written before the turn runs.
+      const planTurn = await room.mutateDoc(({ chatSessions }) => {
+        const chat = chatSessions.get(chatId)
+        const planning = input.planMode ?? chat?.planMode === true
+        if (chat && chat.planTurn !== planning) {
+          chatSessions.update(chatId, { planTurn: planning })
+        }
+        return planning
+      })
+
       const model = input.model || DEFAULT_MODEL
       await upsertChat({
         chatId,
@@ -325,8 +341,11 @@ export function roomTurn(input: {
         skillsNote: prepared.skillsNote,
         model,
         tools: prepared.tools,
+        // The plan marker goes on a message a person sent with Plan on; a
+        // wake already carries its own marker, and its gated tools say why.
         userText: prepared.decorateUserMessage(input.message, {
           isFirstMessage: false,
+          planMode: planTurn && input.planMode === true,
         }),
       }
     },

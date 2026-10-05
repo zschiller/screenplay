@@ -19,6 +19,10 @@ import {
 } from "@/lib/agent/room-read-tools"
 import { annotateTools } from "@/lib/mcp/tool-server"
 import {
+  parseProposedPlan,
+  PROPOSE_PLAN_TOOL,
+} from "@/lib/agent/coordinator-plan"
+import {
   buildTargetedElementsFooter,
   elementMarkerRefs,
   TARGETED_ELEMENTS_FOOTER_TOKEN,
@@ -312,6 +316,25 @@ export function buildRoomTools(
       execute: async ({ title, prompt }) =>
         startChat(ports, title, await withTargetedElements(ports, prompt)),
     }),
+    [PROPOSE_PLAN_TOOL]: tool({
+      description:
+        "Propose what you’ll do, for the user to approve. Use it only on a turn in plan mode, in place of starting, messaging, stopping or arranging anything. The chat shows it as a Plan card with Approve; nothing happens until they approve it, and their approval arrives as their next message. After calling this, end your turn.",
+      inputSchema: jsonSchema<{ plan: string }>({
+        type: "object",
+        properties: {
+          plan: {
+            type: "string",
+            description:
+              "The plan in short markdown: each chat you’ll start (title, repository, and its first message in a line) or message (which chat, and what you’ll send), anything you’ll stop, open or remove, and any canvas changes.",
+          },
+        },
+        required: ["plan"],
+      }),
+      execute: async (input) =>
+        parseProposedPlan(input)
+          ? "Showed the plan. End your turn now: nothing starts until the user approves it, and their answer arrives as their next message."
+          : "Not shown: the plan is empty.",
+    }),
     send_to_chat: tool({
       description:
         "Send a message into a chat with no repository, as a new turn. Use it for a follow-up on a Document or Mockup that chat made. It returns as soon as the message is queued; you hear back when the turn ends. It refuses a chat that is working.",
@@ -334,7 +357,7 @@ export function buildRoomTools(
         sendToChat(ports, chat_id, await withTargetedElements(ports, message)),
     }),
   }
-  return {
+  return gatePlanTurn(ports, {
     ...buildArrangeTools(ports.mutateDoc, turnId),
     ...buildViewTools(ports.readDoc),
     ...buildWorkspaceReadTools(ports),
@@ -365,8 +388,66 @@ export function buildRoomTools(
       // (#901).
       [OPEN_PULL_REQUEST_TOOL]: { destructiveHint: false, openWorldHint: true },
       [REMOVE_WORKSPACE_TOOL]: { destructiveHint: true, openWorldHint: false },
+      // Shows a card; changes nothing.
+      [PROPOSE_PLAN_TOOL]: { readOnlyHint: true, openWorldHint: false },
     }),
+  })
+}
+
+/**
+ * The Coordinator tools that start, message, stop or arrange something. On a
+ * turn in plan mode they refuse, so the Coordinator proposes them with
+ * `propose_plan` first; reading, viewing and showing stay open.
+ */
+export const PLAN_GATED_TOOLS: readonly string[] = [
+  "send_to_workspace",
+  CREATE_WORKSPACES_TOOL,
+  OPEN_PULL_REQUEST_TOOL,
+  REMOVE_WORKSPACE_TOOL,
+  "stop_workspace",
+  "start_chat",
+  "send_to_chat",
+  "create_frames",
+  "move_group",
+  "arrange_groups",
+  "move_to_group",
+  "merge_groups",
+  "rename",
+  "remove",
+  "undo_changes",
+]
+
+/**
+ * Make each of {@link PLAN_GATED_TOOLS} refuse while the Coordinator chat's
+ * running turn plans (`ChatSessionData.planTurn`). Read when the tool runs,
+ * so the in-process turn and a desktop harness over MCP gate alike.
+ */
+function gatePlanTurn(ports: RoomToolPorts, tools: ToolSet): ToolSet {
+  const planning = () =>
+    ports
+      .readDoc(
+        ({ chatSessions }) =>
+          chatSessions.get(ports.coordinatorChatId)?.planTurn === true
+      )
+      .catch(() => false)
+  const gated: ToolSet = { ...tools }
+  for (const name of PLAN_GATED_TOOLS) {
+    const t = tools[name]
+    if (!t?.execute) continue
+    const execute = t.execute
+    gated[name] = {
+      ...t,
+      execute: async (input, options) => {
+        if (await planning()) {
+          throw new Error(
+            `Plan mode is on, so ${name} waits for the user’s approval. Call ${PROPOSE_PLAN_TOOL} with everything you’d do, then end your turn.`
+          )
+        }
+        return execute(input, options)
+      },
+    }
   }
+  return gated
 }
 
 /** One Workspace in a `create_workspaces` call, as the model writes it. */

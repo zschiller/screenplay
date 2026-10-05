@@ -7,6 +7,7 @@ import {
   type Tool,
 } from "ai"
 import { ASK_QUESTION_TOOL } from "@/lib/agent/question"
+import { PROPOSE_PLAN_TOOL } from "@/lib/agent/coordinator-plan"
 import { resolveLanguageModel } from "../providers"
 import { thinkingProviderOptions } from "../providers/thinking"
 import {
@@ -181,8 +182,13 @@ export class InProcessEngine implements UsageReportingEngine {
       instructions: cachedSystem(turn.systemPrompt),
       messages,
       tools: turn.tools,
-      // A question (#1312) ends the turn: the answer is the user's next message.
-      stopWhen: [isStepCount(maxSteps), hasToolCall(ASK_QUESTION_TOOL)],
+      // A question (#1312) or a Coordinator plan ends the turn: the answer is
+      // the user's next message.
+      stopWhen: [
+        isStepCount(maxSteps),
+        hasToolCall(ASK_QUESTION_TOOL),
+        hasToolCall(PROPOSE_PLAN_TOOL),
+      ],
       abortSignal: signal,
 
       prepareStep: async ({ initialMessages, responseMessages }) => {

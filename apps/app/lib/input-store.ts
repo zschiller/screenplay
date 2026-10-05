@@ -1,6 +1,12 @@
 type Listener = (text: string) => void
 /** A chat taking a sent message; resolves `false` when the send is refused. */
-type SendListener = (text: string) => unknown
+/** How a send runs, when not as the chat's composer would send it. */
+export interface SendOverrides {
+  /** Send outside plan mode whatever the Plan toggle says (an approved plan). */
+  planMode?: false
+}
+
+type SendListener = (text: string, overrides?: SendOverrides) => unknown
 
 class InputStore {
   private listeners = new Map<string, Set<Listener>>()
@@ -46,10 +52,14 @@ class InputStore {
    * chat took it or the chat's send was refused (it then holds the text for
    * Retry), so a caller that closed on the send can open again.
    */
-  async send(chatId: string, text: string): Promise<boolean> {
+  async send(
+    chatId: string,
+    text: string,
+    overrides?: SendOverrides
+  ): Promise<boolean> {
     const listeners = [...(this.sendListeners.get(chatId) ?? [])]
     if (!listeners.length) return false
-    const results = await Promise.all(listeners.map((l) => l(text)))
+    const results = await Promise.all(listeners.map((l) => l(text, overrides)))
     return results.every((r) => r !== false)
   }
 

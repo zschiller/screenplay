@@ -1,6 +1,7 @@
 import "server-only"
 
 import { buildRoomSystemPrompt } from "./config"
+import { prependTurnMarkers } from "./message-markers"
 import {
   accountFilesFor,
   accountSkillsFor,
@@ -243,9 +244,9 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       },
     }
   },
-  // No turn markers: there is no branch, and plan mode belongs to Workspace
-  // chats (#743), so a stale `planMode: true` never reaches the model.
-  decorateUserMessage(message) {
-    return message
+  // No branch marker; the plan marker tells the model to propose with
+  // `propose_plan` rather than act (the gated tools refuse either way).
+  decorateUserMessage(message, { planMode }) {
+    return prependTurnMarkers(message, { planMode })
   },
 }

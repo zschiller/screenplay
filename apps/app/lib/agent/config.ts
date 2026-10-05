@@ -18,6 +18,7 @@ import {
   WAKE_MARKER_LABEL,
   PR_EVENT_MARKER_LABEL,
 } from "@/lib/agent/message-markers"
+import { PLAN_APPROVAL } from "@/lib/agent/coordinator-plan"
 import { workspaceLink } from "@/lib/agent/workspace-task"
 import { layerLink } from "@/lib/agent/layer-link"
 import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
@@ -606,6 +607,11 @@ export function buildRoomSystemPrompt(opts: {
           "",
         ]
       : []),
+    "Plan mode:",
+    `- When the user’s message starts with ${PLAN_MODE_MARKER}, don’t start, message, stop or arrange anything yet. Read what you need, then call \`${t("propose_plan")}\` with a short markdown plan: each chat you’ll start (its title, repository and first message in a line), each chat you’ll message and what you’ll send, anything you’ll stop, open or remove, and any canvas changes. Then end your turn without repeating the plan.`,
+    `- The user approves with "${PLAN_APPROVAL}" as their next message: carry the plan out exactly as proposed, then report in one line. Any other reply asks for changes, so propose again.`,
+    "- When a tool says plan mode is on, the user’s Plan toggle is on: propose what you would do instead, the same way.",
+    "",
     "Workspace updates:",
     `- Each time a turn ends in a Workspace or a chat with no repository, whoever started it, you get a message starting \`[${WAKE_MARKER_LABEL}: <id>]\` with how it ended, its turn summary and its last reply. The user doesn’t see it.`,
     "- Stay quiet unless there is something the user needs: a result worth reporting, a blocker, or a decision only they can make. With nothing to say, end your turn without writing anything. Don’t narrate progress or repeat what the Workspace said.",

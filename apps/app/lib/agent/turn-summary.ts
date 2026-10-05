@@ -7,6 +7,7 @@ import {
 } from "@/lib/agent/tool-description"
 import { isNoReply } from "@/lib/agent/coordinator-wake"
 import { isQuestionCall } from "@/lib/agent/question"
+import { PROPOSE_PLAN_TOOL } from "@/lib/agent/coordinator-plan"
 import { bareToolName } from "@/lib/agent/tool-name"
 
 type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
@@ -40,15 +41,16 @@ const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
  * Coordinator call that names a Workspace, whose task row is the point of the
  * turn (#896), a question card (#1312), which shows what was asked and
  * answered, a skill card (#1633), which waits for someone to save it, or a
- * merge card, which waits for someone to press Merge, or a Marked done card
- * (#1705), which says why the chat closed.
+ * merge card, which waits for someone to press Merge, a Marked done card
+ * (#1705), which says why the chat closed, or the Coordinator's Plan card,
+ * which waits for Approve.
  */
 function isPinned(message: AgentMessage): boolean {
   if (PINNED_ROLES.has(message.role)) return true
   if (isQuestionCall(message)) return true
   if (
     message.role === "tool_call" &&
-    ["save_skill", "merge_pr", "mark_done"].includes(
+    ["save_skill", "merge_pr", "mark_done", PROPOSE_PLAN_TOOL].includes(
       bareToolName(message.title)
     )
   )

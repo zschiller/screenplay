@@ -12,8 +12,9 @@ export interface ChatCapabilities {
    *  A Workspace chat's include its Branch's; the others list the canvas's
    *  and their own App Skills. Off, `/` stays a literal slash. */
   skills: boolean
-  /** The Plan toggle. Only the sandbox toolset has the `submit_plan` gate, so a
-   *  plan-mode turn anywhere else would change nothing (#743). */
+  /** The Plan toggle: a Workspace chat plans its change (`submit_plan`), the
+   *  Coordinator what it would start and send (`propose_plan`). A chat with
+   *  no repository has neither (#743). */
   planMode: boolean
   /** Picking an element from a frame or Mockup: the Branch's own, or for the
    *  Coordinator any on the canvas, which it passes on to the owning chat. */
@@ -49,7 +50,7 @@ export const CHAT_CAPABILITIES: Record<ChatTarget["kind"], ChatCapabilities> = {
   // Mockup and hands the element to the chat that owns it.
   room: {
     skills: true,
-    planMode: false,
+    planMode: true,
     elementPicking: true,
     pickHint: "Add a frame or mockup first.",
     placeholder: "Ask the Coordinator… (@ document, / skill)",
