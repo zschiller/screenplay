@@ -62,8 +62,8 @@ Adding a repository only adds it. Until a workspace has been asked
 something, the Coordinator’s empty chat asks what should change in the
 repository, and your first ask starts a workspace for it. A workspace that
 hasn’t been asked anything yet takes the next ask that fits its repository
-instead of a new one being planned; if its app is still starting, the ask runs
-as soon as it’s up.
+instead of a new one being planned; if it’s still starting, the ask runs as
+soon as its code is checked out.
 
 ## Messages to workspaces
 
@@ -104,7 +104,8 @@ workspaces right away, without asking first, and names them in its reply. If
 it started one you didn’t want, ask it to remove it.
 
 Each workspace starts its sandbox, and its agent begins on the Coordinator’s
-first message as soon as the sandbox is running. The new workspaces show up as
+first message as soon as its code is checked out, while the setup script and
+dev server finish. The new workspaces show up as
 cards in the Coordinator’s reply, **Starting** at first, each with the first
 message it was given.
 They belong to whoever asked for them. If one fails to start, the others carry

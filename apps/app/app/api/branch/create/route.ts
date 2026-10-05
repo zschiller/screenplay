@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     runAfter: after,
     // A Workspace the Coordinator created sends its seed message once it runs,
     // whether this is its first attempt or a Retry.
-    onRunning: (id) => sendPendingSeed(room, id),
+    onCodeReady: (id) => sendPendingSeed(room, id),
   })
 
   return NextResponse.json({ ok: true })

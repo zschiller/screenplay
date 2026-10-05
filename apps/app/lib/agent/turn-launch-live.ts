@@ -86,6 +86,7 @@ import { renderLastTurn } from "./room-read-tools"
 import { roomChatId } from "@/lib/chat/room-chat"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { sandboxSecrets } from "@/lib/env-store"
+import { agentCanStart } from "@/lib/branch/workspace-state"
 import { canvasFiles } from "@/lib/files"
 import { withAttachedImages } from "@/lib/files/attach"
 import { savedFileSections } from "@/lib/files/context-folder"
@@ -367,7 +368,7 @@ export function coordinatorTarget(
       await startBranchProvisioning(room, request, {
         ghToken,
         runAfter: after,
-        onRunning: (id) => sendPendingSeed(room, id),
+        onCodeReady: (id) => sendPendingSeed(room, id),
       })
     },
     stopWorkspaceTurn: (chatId) =>
@@ -380,7 +381,7 @@ export function coordinatorTarget(
 }
 
 /**
- * Send a Workspace's pending seed message (#898) once its sandbox runs: the
+ * Send a Workspace's pending seed message (#898) once its code is checked out: the
  * first turn of a Workspace the Coordinator created, as a Delegated Message
  * from that Coordinator chat, acting as the Workspace's owner. The seed is
  * claimed before it's sent, so a second call (a Retry racing a reload) sends
@@ -392,7 +393,7 @@ export async function sendPendingSeed(
 ): Promise<void> {
   const claimed = await room.mutateDoc(({ branches }) => {
     const branch = branches.get(branchId)
-    if (!branch?.pendingSeed || branch.status !== "running") return null
+    if (!branch?.pendingSeed || !agentCanStart(branch)) return null
     branches.update(branchId, { pendingSeed: undefined })
     return { branch, seed: branch.pendingSeed }
   })

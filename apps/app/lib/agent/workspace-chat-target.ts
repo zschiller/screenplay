@@ -59,6 +59,8 @@ export interface WorkspaceContext {
   /** The Branch, read fresh; missing when the sandbox has none. */
   branch?: { ref: string; autoNamed: boolean }
   repoSystemPrompt: string | undefined
+  /** The Workspace is still installing and starting its dev server. */
+  settingUp: boolean
   layerDirectory: LayerDirectory
   /**
    * The merged Skill index (Repo, Canvas, Account, the agent's own, App),
@@ -124,6 +126,7 @@ export const workspaceChatTarget: ChatTargetSpec<
             ref: branch.ref,
             autoNamed: branch.autoNamedBranch !== false,
             systemPrompt: repos.get(branch.repoId)?.systemPrompt,
+            settingUp: branch.status === "creating",
           }
         })
         .catch(() => undefined),
@@ -138,6 +141,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       chatId,
       branch: branch && { ref: branch.ref, autoNamed: branch.autoNamed },
       repoSystemPrompt: branch?.systemPrompt ?? undefined,
+      settingUp: branch?.settingUp ?? false,
       layerDirectory,
       skills: skillIndex,
       memory,
@@ -151,6 +155,7 @@ export const workspaceChatTarget: ChatTargetSpec<
   buildSystemPrompt(ctx, naming) {
     return buildAgentSystemPrompt({
       repoSystemPrompt: ctx.repoSystemPrompt,
+      settingUp: ctx.settingUp,
       layerDirectory: ctx.layerDirectory,
       chatId: ctx.chatId,
       skills: ctx.skills,

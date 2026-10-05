@@ -1510,6 +1510,7 @@ describe("every kind’s prompt names only tools its turn has", () => {
           {
             chatId: "chat-1",
             repoSystemPrompt: "A Next.js app.",
+            settingUp: false,
             layerDirectory,
             skills: [
               { name: "screenplay-add-knob", description: "x", origin: "app" },

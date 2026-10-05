@@ -10,6 +10,7 @@ import {
   groupContentWidth,
 } from "@/lib/canvas/layout"
 import { COLLECTION_KEYS, type RoomCollections } from "@/lib/yjs/schema"
+import { agentCanStart, workspaceBooting } from "@/lib/branch/workspace-state"
 import { isFreshWorkspace } from "@/lib/fresh-workspace"
 import { workspaceLabel } from "@/lib/workspace-label"
 import {
@@ -704,16 +705,16 @@ async function sendToWorkspace(
       )
     }
     const title = workspaceLabel(branch)
-    // A fresh Workspace still starting (#1182) takes the message as its seed, sent once its sandbox runs.
-    const starting =
-      branch.status === "creating" || branch.status === "starting"
+    // A fresh Workspace still starting (#1182) takes the message as its seed,
+    // sent once its code is checked out; from then on it takes it directly.
+    const starting = workspaceBooting(branch)
     if (starting && branch.pendingSeed) {
       throw new Error(
         `"${title}" is still starting and already has a message waiting. Wait until it runs, then send the next one.`
       )
     }
     const queue = starting && isFreshWorkspace(branch)
-    if (branch.status !== "running" && !queue) {
+    if (!agentCanStart(branch) && !queue) {
       throw new Error(
         `"${title}" isn’t running (its sandbox is ${branch.status}), so it can’t take a message.`
       )
@@ -758,7 +759,7 @@ async function sendToWorkspace(
       target = { chatId: chat.id, model: undefined, isFirstChat: true }
     }
     if (queue) {
-      // Provisioning sends it the moment the sandbox runs (`sendPendingSeed`),
+      // Provisioning sends it the moment the code is checked out (`sendPendingSeed`),
       // as the first turn, which names the Workspace.
       collections.branches.update(branchId, {
         pendingSeed: {

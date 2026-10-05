@@ -55,7 +55,6 @@ import {
   type ComposerAttachmentPort,
   type ComposerSubmitPayload,
 } from "./composer"
-import type { SandboxStatus } from "@/lib/types"
 import { inputStore } from "@/lib/input-store"
 import { canvasViewSource } from "@/lib/canvas/canvas-view"
 import { questionAnswers } from "@/lib/agent/question"
@@ -85,10 +84,10 @@ interface AgentChatProps {
   roomId: string
   /** What this chat talks to: a Branch's sandbox, a document or the Room. */
   target: ChatTarget
-  /** The branch's sandbox lifecycle status. While it's creating/starting the
-   *  chat can't reach the agent yet, so we show the same provisioning spinner
+  /** The branch's sandbox is still setting up with nothing for the agent yet
+   *  (`workspaceBooting`), so the chat shows the same provisioning spinner
    *  the terminal does rather than a live input that would error on send. */
-  sandboxStatus?: SandboxStatus
+  booting?: boolean
   /** How the Coordinator's empty chat reads (#1182): a fresh canvas or not. */
   roomStart?: CoordinatorStart
   isFirstChat?: boolean
@@ -111,7 +110,7 @@ export function AgentChat({
   chatId,
   roomId,
   target,
-  sandboxStatus,
+  booting,
   roomStart,
   isFirstChat,
   planMode,
@@ -383,7 +382,7 @@ export function AgentChat({
   // the same provisioning spinner the terminal does (terminal-tab.tsx) instead
   // of a live composer whose first send would just error. Mirrors the copy and
   // Spinner so a freshly-seeded chat tab and terminal tab read identically.
-  if (sandboxStatus === "creating" || sandboxStatus === "starting") {
+  if (booting) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center text-sm text-balance text-muted-foreground">
         <span className="flex items-center gap-2">

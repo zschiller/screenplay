@@ -43,8 +43,11 @@ export interface BranchProvisionOptions {
   ghToken: string | undefined
   /** Runs the provisioning after the caller returns (`after()` in routes). */
   runAfter(task: () => Promise<void>): void
-  /** Called once the Branch is running, e.g. to send its seed message. */
-  onRunning?(branchId: string): Promise<void>
+  /**
+   * Called once the Branch's code is checked out, e.g. to send its seed
+   * message: the agent starts while the install and dev server finish.
+   */
+  onCodeReady?(branchId: string): Promise<void>
 }
 
 const MODES: Record<BranchProvisionRequest["flow"], ProvisionMode> = {
@@ -74,6 +77,8 @@ export async function startBranchProvisioning(
         await markBranchError(room, req.branchId, "Repository not found")
         return
       }
+      // A Retry provisions a fresh checkout: the last attempt's doesn't count.
+      await updateBranch(room, req.branchId, { codeReady: undefined })
       const result = await provisionSandbox({
         mode: MODES[req.flow],
         repo,
@@ -91,6 +96,12 @@ export async function startBranchProvisioning(
         ),
         onStatus: (statusMessage) =>
           updateBranch(room, req.branchId, { statusMessage }),
+        onCodeReady: async () => {
+          await updateBranch(room, req.branchId, { codeReady: true })
+          if (req.seedChat !== false)
+            await ensureChatForBranch(room, req.branchId)
+          await opts.onCodeReady?.(req.branchId)
+        },
       })
       if (!result.success) {
         await markBranchError(room, req.branchId, result.error)
@@ -103,9 +114,8 @@ export async function startBranchProvisioning(
         status: "running",
         statusMessage: undefined,
         error: undefined,
+        codeReady: undefined,
       })
-      if (req.seedChat !== false) await ensureChatForBranch(room, req.branchId)
-      await opts.onRunning?.(req.branchId)
 
       // Best-effort: crawl routes so the iframeLayer route picker has options
       // without the user (or model) needing to trigger discovery.

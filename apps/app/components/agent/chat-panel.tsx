@@ -46,6 +46,7 @@ import { prStateButtonColor } from "@/components/pr-state-color"
 import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
 import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
+import { workspaceBooting } from "@/lib/branch/workspace-state"
 
 /** A Workspace target: its chat over the Terminal Pane. */
 type WorkspaceTarget = Extract<ChatPanelTarget, { kind: "agent" }>
@@ -298,7 +299,7 @@ function WorkspaceChatPanel({
   const prColor = prStateButtonColor(
     prBlocked ? "closed" : (existingPr?.state ?? "open")
   )
-  const isAgentBusy = agent.status === "creating" || agent.status === "starting"
+  const isAgentBusy = workspaceBooting(agent)
 
   // First chat for this Workspace — drives auto branch/chat naming.
   const isFirstChat = (chat: ChatSessionData) =>
@@ -313,7 +314,7 @@ function WorkspaceChatPanel({
         chatId={chat.id}
         roomId={roomId}
         target={chatTarget}
-        sandboxStatus={agent.status}
+        booting={workspaceBooting(agent)}
         isFirstChat={isFirstChat(chat)}
         planMode={chat.planMode}
         onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}

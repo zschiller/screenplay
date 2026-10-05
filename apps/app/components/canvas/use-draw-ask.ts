@@ -259,17 +259,19 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
         })
         return
       }
-      // The new Workspace's frame lands beside the other Groups without
-      // moving the camera: the Mockup is the one to watch.
+      // The Mockup stays on the canvas, sketching, from the moment the ask is
+      // sent: the new chat's id is minted here so it can own the Mockup
+      // before the Workspace lands (which first waits on naming it). The new
+      // Workspace's frame lands beside the other Groups without moving the
+      // camera: the Mockup is the one to watch.
       const repo = repos.find((r) => r.id === newChatRepoId)
       if (!repo) return
+      const chatId = nanoid()
+      place(chatId)
       void createBranch(
         repo.id,
         [{ baseBranch: repo.defaultBranch, model: payload.model, prompt }],
-        {
-          afterCreate: ({ chatId }) => chatId && place(chatId),
-          keepView: true,
-        }
+        { chatId, keepView: true }
       )
     },
     [

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  agentCanStart,
   anyWorkspaceNeedsYou,
   formatElapsed,
   roomWorkspaceFacts,
   sketchChatStatusLine,
+  workspaceBooting,
   workspaceSettingUp,
   workspaceState,
   type WorkspaceState,
@@ -427,6 +429,35 @@ describe("workspaceSettingUp", () => {
     expect(
       workspaceSettingUp(ws({ status: "creating", doneAt: Date.now() }))
     ).toBe(false)
+  })
+})
+
+describe("agentCanStart and workspaceBooting", () => {
+  it("lets the agent start once the code is checked out, before setup ends", () => {
+    const ready = { ...ws({ status: "creating" }), codeReady: true }
+    expect(agentCanStart(ready)).toBe(true)
+    expect(workspaceBooting(ready)).toBe(false)
+    // Its status line still names the setup step.
+    expect(workspaceSettingUp(ready)).toBe(true)
+  })
+
+  it("holds the agent while the code isn’t there yet or the sandbox is starting", () => {
+    for (const branch of [
+      ws({ status: "creating" }),
+      ws({ status: "starting" }),
+      { ...ws({ status: "starting" }), codeReady: true },
+    ]) {
+      expect(agentCanStart(branch)).toBe(false)
+      expect(workspaceBooting(branch)).toBe(true)
+    }
+  })
+
+  it("lets a running Workspace start, and isn’t booting once stopped or failed", () => {
+    expect(agentCanStart(ws())).toBe(true)
+    for (const status of ["stopped", "error"] as const) {
+      expect(agentCanStart(ws({ status }))).toBe(false)
+      expect(workspaceBooting(ws({ status }))).toBe(false)
+    }
   })
 })
 

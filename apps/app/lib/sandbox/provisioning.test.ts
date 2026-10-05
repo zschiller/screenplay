@@ -199,6 +199,14 @@ describe("provisionSandbox on the local backend", () => {
       onStatus: (m) => {
         statuses.push(m)
       },
+      onCodeReady: async (name) => {
+        statuses.push(`code ready: ${name}`)
+        // The checkout is on its branch before the agent is let in.
+        const ready = await sandboxProvider.get({ name })
+        expect(
+          await git(ready.worktreePath, ["rev-parse", "--abbrev-ref", "HEAD"])
+        ).toBe("agent/new-thing")
+      },
     })
 
     expect(result).toEqual({
@@ -221,11 +229,13 @@ describe("provisionSandbox on the local backend", () => {
     )
     // The host owns git, so the GitHub API is never asked for the branch.
     expect(createBranch).not.toHaveBeenCalled()
+    // The agent can start once git is configured, before the slow steps.
     expect(statuses).toEqual([
       "Cloning repository…",
+      "Configuring git…",
+      `code ready: ${sandboxName}`,
       "Installing dependencies…",
       "Starting dev server…",
-      "Configuring git…",
     ])
   })
 
@@ -354,9 +364,9 @@ describe("provisionSandbox on the local backend", () => {
     // And it reports the same steps a create does.
     expect(statuses).toEqual([
       "Cloning repository…",
+      "Configuring git…",
       "Installing dependencies…",
       "Starting dev server…",
-      "Configuring git…",
     ])
   })
 

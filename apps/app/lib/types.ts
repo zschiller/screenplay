@@ -89,6 +89,13 @@ export type BranchData = {
   status: SandboxStatus
   statusMessage?: string
   error?: string
+  /**
+   * Set while the Workspace is still `creating` once its code is checked out
+   * and git is configured: the agent can start working while the dependency
+   * install and the dev server finish behind it. Read it through
+   * `agentCanStart`; a new provisioning attempt clears it.
+   */
+  codeReady?: boolean
   createdAt: number
   /**
    * When a member marked the Workspace Done (#976). A Done Workspace's sandbox
@@ -130,9 +137,10 @@ export type BranchData = {
    */
   createdBy?: string
   /**
-   * A seed message waiting for the sandbox to run (#898): a Workspace the
-   * Coordinator created gets its first turn once provisioning finishes, on the
-   * first attempt or a Retry. Cleared when the turn is sent.
+   * A seed message waiting for the Workspace's code (#898): a Workspace the
+   * Coordinator created gets its first turn once its code is checked out
+   * (`codeReady`), on the first attempt or a Retry. Cleared when the turn is
+   * sent.
    */
   pendingSeed?: {
     chatId: string
