@@ -2,16 +2,8 @@
 
 import { useCallback, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import {
-  FloatingToolbar,
-  FloatingToolbarButton,
-} from "@workspace/ui/components/floating-toolbar"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
+import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
-import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRefs } from "@/hooks/use-mockup-refs"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
@@ -27,7 +19,7 @@ import { useMockupHtml } from "@/lib/yjs/react"
 import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
-  LayerMenuContent,
+  LayerMenu,
   useRegisterLayerMenu,
   type LayerMenuActions,
 } from "@/components/canvas/layer-menu"
@@ -411,7 +403,7 @@ export function MockupLayer({
         }
       : undefined,
     onFitToContent: onSetSize && hasPage ? handleFitToContent : undefined,
-    onDelete: () => onRemove?.(layer.id),
+    onDelete: onRemove ? () => onRemove(layer.id) : undefined,
   }
   useRegisterLayerMenu(layer.id, menuActions)
 
@@ -523,20 +515,11 @@ export function MockupLayer({
                 />
                 {/* Trailing ⋯, as on the frame bar (H2): the menu is the
                   only home for these, no right-click menu. */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <FloatingToolbarButton label="More">
-                      <DotsThreeIcon className="text-muted-foreground" />
-                    </FloatingToolbarButton>
-                  </DropdownMenuTrigger>
-                  <LayerMenuContent
-                    actions={menuActions}
-                    onRename={() => titleEditableRef.current?.startEditing()}
-                    side="bottom"
-                    align="end"
-                    sideOffset={8}
-                  />
-                </DropdownMenu>
+                <LayerMenu
+                  placement="toolbar"
+                  actions={menuActions}
+                  onRename={() => titleEditableRef.current?.startEditing()}
+                />
               </FloatingToolbar>,
               toolbarTarget
             )}

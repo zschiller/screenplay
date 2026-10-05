@@ -39,7 +39,11 @@ import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
 import { useGoLive } from "./use-go-live"
-import type { LayerMenuActions } from "./layer-menu"
+import {
+  PublishLayerMenu,
+  groupLayerMenu,
+  type LayerMenuActions,
+} from "./layer-menu"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -281,8 +285,19 @@ function CanvasMemberLayerImpl({
     onFailed: useCallback((message: string) => toast.error(message), []),
   })
 
+  const groupMenuOf = (groupId: string) =>
+    groupLayerMenu(() => groupActions.removeIframeLayerGroup(groupId))
+
   return (
     <>
+      {/* Each Group's menu (I7), for its sidebar row while the canvas is up. */}
+      {iframeLayerGroups.map((group) => (
+        <PublishLayerMenu
+          key={`menu-${group.id}`}
+          id={group.id}
+          actions={groupMenuOf(group.id)}
+        />
+      ))}
       {(() => {
         // Flatten to [member, group] pairs, then sort by member id so
         // React never reparents or re-orders a member node (either of
@@ -367,10 +382,7 @@ function CanvasMemberLayerImpl({
           // selected.
           const groupMenu: LayerMenuActions | undefined =
             index === 0 && showGroupLabel && groupSelected && !multiSelected
-              ? {
-                  noun: "group",
-                  onDelete: () => groupActions.removeIframeLayerGroup(group.id),
-                }
+              ? groupMenuOf(group.id)
               : undefined
           // Tint this member's name (and, on the leftmost member,
           // the group label) to match a remote user's selection

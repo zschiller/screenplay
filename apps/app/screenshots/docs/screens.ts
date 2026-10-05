@@ -1380,7 +1380,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
-      await clickFrameToolbar(page, "More")
+      await clickFrameToolbar(page, "Frame options")
     },
   }),
   screen({
@@ -1398,7 +1398,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.frameCloseUp)
       await selectLayer(page, "Home")
-      await clickFrameToolbar(page, "More")
+      await clickFrameToolbar(page, "Frame options")
       await hoverMenuItem(page, "Device size")
     },
   }),

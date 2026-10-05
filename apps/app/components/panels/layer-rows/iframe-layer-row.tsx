@@ -1,23 +1,16 @@
 "use client"
 
-import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import {
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuSubButton,
 } from "@workspace/ui/components/sidebar"
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
-import {
   EditableText,
   editableTextFieldClass,
 } from "@workspace/ui/components/editable-text"
-import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 import { frameWorkspaceOf } from "@/components/canvas/frame-nav"
-import { LayerMenuContent } from "@/components/canvas/layer-menu"
+import { LayerMenu } from "@/components/canvas/layer-menu"
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 import { iframeLayerKind } from "@/lib/layer-kinds/iframe-layer"
 import type { BranchData, IframeLayerData } from "@/lib/types"
@@ -28,7 +21,6 @@ import {
 import { renameOnF2 } from "./rename-key"
 import { frameRowActionClass, frameRowButtonClass } from "./row-action"
 import type { LayerRowMenuProps, LayerRowProps } from "./types"
-import { useFocusNeighbourOnDelete } from "./row-focus"
 
 /** Per-row props the iframeLayer renderer needs that the generic
  *  contract doesn't carry — used to look up the Branch for the branch
@@ -160,30 +152,13 @@ export function IframeLayerRowMenu({
 }: LayerRowMenuProps<IframeLayerData>) {
   // The frame's one menu (I7), the same as its toolbar's …: the canvas frame
   // publishes it; Rename and Delete stand in until it has.
-  const { triggerRef, onOpenChange, onCloseAutoFocus } =
-    useFocusNeighbourOnDelete()
   return (
-    <DropdownMenu onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger ref={triggerRef} asChild>
-        <IconButton label="Frame options" tooltipSide="right" asChild>
-          <SidebarMenuAction
-            className={cn(
-              frameRowActionClass,
-              isSub && "!top-1/2 -translate-y-1/2"
-            )}
-          >
-            <DotsThreeIcon />
-          </SidebarMenuAction>
-        </IconButton>
-      </DropdownMenuTrigger>
-      <LayerMenuContent
-        layerId={item.id}
-        actions={{ noun: "frame", onDelete: () => onRemove(item.id) }}
-        onRename={() => editableRef?.current?.startEditing()}
-        onCloseAutoFocus={onCloseAutoFocus}
-        side="right"
-        align="start"
-      />
-    </DropdownMenu>
+    <LayerMenu
+      placement="row"
+      layerId={item.id}
+      actions={{ noun: "frame", onDelete: () => onRemove(item.id) }}
+      onRename={() => editableRef?.current?.startEditing()}
+      className={cn(frameRowActionClass, isSub && "!top-1/2 -translate-y-1/2")}
+    />
   )
 }

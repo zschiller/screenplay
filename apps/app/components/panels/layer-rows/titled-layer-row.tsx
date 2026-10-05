@@ -1,25 +1,15 @@
 "use client"
 
-import { DotsThreeIcon } from "@workspace/ui/components/icons"
 import {
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuSubButton,
 } from "@workspace/ui/components/sidebar"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
 import {
   EditableText,
   editableTextFieldClass,
 } from "@workspace/ui/components/editable-text"
 import { cn } from "@workspace/ui/lib/utils"
-import { IconButton } from "@workspace/ui/components/icon-button"
-import {
-  LayerMenuContent,
-  layerMenuLabel,
-} from "@/components/canvas/layer-menu"
+import { LayerMenu } from "@/components/canvas/layer-menu"
 import { markdownLayerKind } from "@/lib/layer-kinds/markdown-layer"
 import { mockupLayerKind } from "@/lib/layer-kinds/mockup-layer"
 import type { LayerKindDescriptor } from "@/lib/layer-kinds/types"
@@ -30,7 +20,6 @@ import type {
   LayerRowMenuProps,
   LayerRowProps,
 } from "./types"
-import { useFocusNeighbourOnDelete } from "./row-focus"
 
 /** The record shape a titled row reads: an id and a title. */
 type TitledLayer = { id: string; title: string }
@@ -140,32 +129,15 @@ function TitledLayerRowMenu<T extends TitledLayer>({
   editableRef,
 }: LayerRowMenuProps<T> & { descriptor: LayerKindDescriptor<T> }) {
   const noun = descriptor.singularLabel as "document" | "mockup"
-  // The Layer's one menu (I7), the same as its canvas …: a Mockup publishes
-  // its own (with Duplicate); a document's is Rename and Delete.
-  const { triggerRef, onOpenChange, onCloseAutoFocus } =
-    useFocusNeighbourOnDelete()
+  // The Layer's one menu (I7), the same as its canvas …: each publishes its
+  // own (a Mockup's has Duplicate); Rename and Delete stand in until it has.
   return (
-    <DropdownMenu onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger ref={triggerRef} asChild>
-        <IconButton label={layerMenuLabel(noun)} tooltipSide="right" asChild>
-          <SidebarMenuAction
-            className={cn(
-              frameRowActionClass,
-              isSub && "!top-1/2 -translate-y-1/2"
-            )}
-          >
-            <DotsThreeIcon />
-          </SidebarMenuAction>
-        </IconButton>
-      </DropdownMenuTrigger>
-      <LayerMenuContent
-        layerId={item.id}
-        actions={{ noun, onDelete: () => onRemove(item.id) }}
-        onRename={() => editableRef?.current?.startEditing()}
-        onCloseAutoFocus={onCloseAutoFocus}
-        side="right"
-        align="start"
-      />
-    </DropdownMenu>
+    <LayerMenu
+      placement="row"
+      layerId={item.id}
+      actions={{ noun, onDelete: () => onRemove(item.id) }}
+      onRename={() => editableRef?.current?.startEditing()}
+      className={cn(frameRowActionClass, isSub && "!top-1/2 -translate-y-1/2")}
+    />
   )
 }

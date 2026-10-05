@@ -23,7 +23,7 @@ import type { JsonObject } from "@/lib/postmessage-protocol"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { frameWorkspaceOf, type FrameWorkspace } from "./frame-nav"
 import { WorkspaceChooser } from "./group-label"
-import { LayerLabelMenu, type LayerMenuActions } from "./layer-menu"
+import { LayerMenu, type LayerMenuActions } from "./layer-menu"
 import { LayerLabelRow } from "./layer-title-bar"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
@@ -138,7 +138,8 @@ export function IframeLayerLabel({
         menu ? (
           <>
             {trailing}
-            <LayerLabelMenu
+            <LayerMenu
+              placement="label"
               actions={menu}
               onRename={
                 onRename

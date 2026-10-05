@@ -2,15 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  DotsThreeIcon,
-} from "@workspace/ui/components/icons"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
+import { ArrowLeftIcon, ArrowRightIcon } from "@workspace/ui/components/icons"
 import {
   FloatingToolbar,
   FloatingToolbarButton,
@@ -37,7 +29,7 @@ import { FrameAddressBar, type FramePreviewStatus } from "./frame-nav"
 import type { GroupWorkspace } from "./group-label"
 import { IframeLayerLabel } from "./iframe-layer-label"
 import {
-  LayerMenuContent,
+  LayerMenu,
   useRegisterLayerMenu,
   type LayerMenuActions,
 } from "./layer-menu"
@@ -1059,20 +1051,11 @@ export function IframeLayer({
                       : undefined
                   }
                 />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <FloatingToolbarButton label="More">
-                      <DotsThreeIcon className="text-muted-foreground" />
-                    </FloatingToolbarButton>
-                  </DropdownMenuTrigger>
-                  <LayerMenuContent
-                    actions={menuActions}
-                    onRename={startRename}
-                    side="bottom"
-                    align="end"
-                    sideOffset={8}
-                  />
-                </DropdownMenu>
+                <LayerMenu
+                  placement="toolbar"
+                  actions={menuActions}
+                  onRename={startRename}
+                />
               </FloatingToolbar>,
               toolbarPortalTarget
             )}
