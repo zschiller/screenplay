@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { ModelProvider } from "@/lib/agent/providers"
+import type { ToolNaming } from "@/lib/agent/tool-name"
 import { claudeCodeHarness } from "./claude-code"
 import { codexHarness } from "./codex"
 import { opencodeCompatHarness, opencodeGatewayHarness } from "./opencode"
@@ -61,6 +62,27 @@ export function harnessAcpAdapter(
 ): AcpAdapter | null {
   if (!key) return null
   return HARNESSES_BY_KEY.get(key)?.acpAdapter ?? null
+}
+
+/**
+ * How a system prompt names Screenplay's tools for harness `key`, which
+ * reaches them as the MCP server `server` (#1223). A harness whose descriptor
+ * states its MCP tool names ({@link AcpAdapter.mcpToolName}: Claude Code's
+ * `mcp__<server>__<tool>`, OpenCode's `<server>_<tool>`) gets them exactly.
+ * Any other namespaces MCP tools in ways that vary by version (Codex's
+ * `screenplay/<tool>` titles aren't what its model calls), so its prompt
+ * keeps the bare names and says where they come from.
+ */
+export function harnessToolNaming(key: string, server: string): ToolNaming {
+  const mcpToolName = harnessAcpAdapter(key)?.mcpToolName
+  if (mcpToolName) {
+    return { name: (tool) => mcpToolName(server, tool), harness: true }
+  }
+  return {
+    name: (tool) => tool,
+    harness: true,
+    note: `Screenplay’s own tools named in these instructions come from the MCP server \`${server}\`, so they may be listed under that server’s namespace rather than by the bare names below.`,
+  }
 }
 
 /**

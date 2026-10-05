@@ -73,11 +73,8 @@ import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
 import { roomChatTarget } from "@/lib/agent/room-chat-target"
 import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
 import { toolsetOn, turnToolset, type ChatTools } from "@/lib/agent/toolset"
-import {
-  BARE_TOOL_NAMING,
-  harnessToolNaming,
-  type ToolNaming,
-} from "@/lib/agent/tool-name"
+import { harnessToolNaming } from "@/lib/agent/harnesses"
+import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
 import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
 import { addMemory, readMemory } from "@/lib/memory/canvas"
 import { addAccountMemory, readAccountMemory } from "@/lib/memory/account"

@@ -7,7 +7,7 @@ import {
 } from "@/lib/agent/config"
 import { MEMORY_PROMPT_LIMIT } from "@/lib/memory/entry"
 import { CANVAS_VIEW_FOOTER_TOKEN } from "@/lib/agent/message-markers"
-import { harnessToolNaming } from "@/lib/agent/tool-name"
+import { harnessToolNaming } from "@/lib/agent/harnesses"
 import type { OriginTaggedSkill } from "@/lib/skills/sources"
 
 const EMPTY_DIRECTORY = { documents: [] }

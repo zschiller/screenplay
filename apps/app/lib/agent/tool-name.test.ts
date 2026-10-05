@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  BARE_TOOL_NAMING,
-  bareToolName,
-  harnessToolNaming,
-  isHarnessPlumbing,
-} from "./tool-name"
+import { harnessToolNaming } from "./harnesses"
+import { BARE_TOOL_NAMING, bareToolName, isHarnessPlumbing } from "./tool-name"
 
 describe("bareToolName", () => {
   it("strips a harness's MCP namespace", () => {

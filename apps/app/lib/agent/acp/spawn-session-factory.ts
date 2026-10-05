@@ -91,11 +91,7 @@ export class SpawnAcpSessionFactory implements AcpSessionFactory {
       const transport = childTransport(child)
       const session = await AcpSession.open(transport, ports, {
         ...options,
-        adapter: {
-          modelOption: launch.modelOption,
-          promptQueueing: launch.promptQueueing,
-          planAsReply: launch.planAsReply,
-        },
+        adapter: launch,
       })
       session.onClose(() => {
         child.kill()

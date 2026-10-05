@@ -24,6 +24,7 @@ import {
 import { InProcessEngine, type StreamDriver } from "./in-process-engine"
 import { ExternalEngine, type AcpSessionFactory } from "./acp-engine"
 import type { AcpSession, AcpSessionPorts, SteerOutcome } from "./session"
+import { nativePlanMode } from "./plan-protocol"
 import {
   acpSessionFactoryFromDriver,
   contractFor,
@@ -345,6 +346,7 @@ describe("ExternalEngine — Codex steering request (#1192)", () => {
       async open(ports) {
         return {
           id: "codex_1",
+          plan: nativePlanMode(null),
           promptQueueing: false,
           steering: true,
           onClose() {},

@@ -19,6 +19,8 @@ describe("resolveAcpLaunch", () => {
       args: ["-y", "@agentclientprotocol/claude-agent-acp@0.54.1"],
       modelOption: "model",
       promptQueueing: true,
+      plan: "mode",
+      mcpToolName: expect.any(Function),
       cwd: "/work/tree",
       env: {},
     })
@@ -61,7 +63,7 @@ describe("resolveAcpLaunch", () => {
         args: ["acp"],
         modelOption: "model",
         promptQueueing: false,
-        planAsReply: true,
+        plan: "reply",
         cwd: "/w",
       })
     }

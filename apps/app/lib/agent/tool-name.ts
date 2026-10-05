@@ -68,33 +68,6 @@ export function namingWithin(
 }
 
 /**
- * The naming for a harness that reaches our tools as the MCP server `server`.
- * Claude Code's names are fixed (`mcp__<server>__<tool>`, the form
- * {@link bareToolName} strips), and so are OpenCode's (`<server>_<tool>`),
- * so their prompts name them exactly. Other
- * harnesses namespace MCP tools in ways that vary by version (Codex's
- * `screenplay/<tool>` titles aren't what its model calls), so their prompt
- * keeps the bare names and says where they come from.
- */
-export function harnessToolNaming(
-  harnessKey: string,
-  server: string
-): ToolNaming {
-  if (harnessKey === "claude-code") {
-    return { name: (tool) => `mcp__${server}__${tool}`, harness: true }
-  }
-  // OpenCode names an MCP tool `<server>_<tool>` (#1589).
-  if (harnessKey === "opencode-gateway" || harnessKey === "opencode-compat") {
-    return { name: (tool) => `${server}_${tool}`, harness: true }
-  }
-  return {
-    name: (tool) => tool,
-    harness: true,
-    note: `Screenplay’s own tools named in these instructions come from the MCP server \`${server}\`, so they may be listed under that server’s namespace rather than by the bare names below.`,
-  }
-}
-
-/**
  * A harness's housekeeping steps, which say nothing about the work: Claude
  * Code loading deferred tools (`ToolSearch`) and asking to leave plan mode
  * (`Ready to code?`), and Codex compacting its context.
