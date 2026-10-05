@@ -598,7 +598,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       hideSend = false,
       modelSlot,
       placeholder = "Ask the agent…",
-      className = "relative border-t border-border p-4",
+      className = "relative border-t border-border p-2",
       onPickElement,
       targetEligible = true,
       focusKey,
