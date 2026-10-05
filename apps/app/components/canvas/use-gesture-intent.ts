@@ -5,6 +5,7 @@ import { useCallback } from "react"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import type { GestureIntent } from "@/lib/canvas/gesture"
 import type { CanvasOps } from "@/lib/canvas/ops"
+import type { ResizeEdge } from "@/lib/canvas/snap"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import type { CanvasSelection } from "./use-canvas-selection"
 
@@ -58,10 +59,13 @@ export function useGestureIntent({
   // gesture's snapped size and shifts the parent group so the un-dragged edge
   // stays pinned (the shift is non-zero only for left/top edge drags). Applied
   // from the Canvas Gesture's `resizeLayer` intent on every resize move — the
-  // frame resizes live, as it did before the FSM port.
+  // frame resizes live, as it did before the FSM port. With Fit to content
+  // on, a side edge sets the width alone (the page keeps the height), and
+  // any other edge sets the height by hand, which turns Fit to content off.
   const resizeLayer = useCallback(
     (
       iframeLayerId: string,
+      edge: ResizeEdge,
       width: number,
       height: number,
       shiftX: number,
@@ -80,10 +84,16 @@ export function useGestureIntent({
           }
         }
         // A Mockup resizes through the same device snap as a frame.
-        const key = collections.mockupLayers.get(iframeLayerId)
-          ? "mockupLayers"
-          : "iframeLayers"
-        ops.patch(key, iframeLayerId, { width, height })
+        const mockup = collections.mockupLayers.get(iframeLayerId)
+        const key = mockup ? "mockupLayers" : "iframeLayers"
+        const layer = mockup ?? collections.iframeLayers.get(iframeLayerId)
+        if (!layer?.fitHeight) {
+          ops.patch(key, iframeLayerId, { width, height })
+        } else if (edge === "e" || edge === "w") {
+          ops.patch(key, iframeLayerId, { width })
+        } else {
+          ops.patch(key, iframeLayerId, { width, height, fitHeight: false })
+        }
       })
     },
     [collections, ops]
@@ -158,6 +168,7 @@ export function useGestureIntent({
         case "resizeLayer":
           resizeLayer(
             intent.iframeLayerId,
+            intent.edge,
             intent.width,
             intent.height,
             intent.shiftX,

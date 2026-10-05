@@ -206,3 +206,28 @@ describe("a delete", () => {
     expect(collections.memories.has(entry!.id)).toBe(false)
   })
 })
+
+describe("Fit to content", () => {
+  it("undoes turning it on, back to the height before", () => {
+    const { ops, collections, undo } = canvas()
+    ops.patch("iframeLayers", "frame-1", { fitHeight: true, height: 900 })
+    // The page reports the height it was just fitted to.
+    ops.followContentHeight("frame-1", 900)
+
+    undo.undo()
+    expect(collections.iframeLayers.get("frame-1")?.height).toBe(300)
+    expect(collections.iframeLayers.get("frame-1")?.fitHeight).toBeUndefined()
+  })
+
+  it("never steps through a height the page made", () => {
+    const { doc, ops, collections, undo } = canvas()
+    // Turned on by someone else, so there's nothing of this member's to undo.
+    doc.transact(() => {
+      collections.iframeLayers.update("frame-1", { fitHeight: true })
+    }, "sync")
+    ops.followContentHeight("frame-1", 1200)
+
+    undo.undo()
+    expect(collections.iframeLayers.get("frame-1")?.height).toBe(1200)
+  })
+})

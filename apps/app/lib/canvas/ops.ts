@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid"
 import {
+  FIT_CONTENT_MAX_HEIGHT,
   IFRAME_LAYER_GROUP_GAP,
   MIN_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
@@ -62,6 +63,13 @@ import type {
  * exactly the canvas's own edits (and nothing from sync) for Undo/Redo.
  */
 export const CANVAS_OPS_ORIGIN = Symbol("canvas-ops")
+
+/**
+ * The origin of a height Fit to content follows from the page. Not
+ * {@link CANVAS_OPS_ORIGIN}, so Undo never steps through it: the page made
+ * the change, nobody edited anything.
+ */
+export const CONTENT_HEIGHT_ORIGIN = Symbol("content-height")
 
 /** The keyed collections `patch` can write, mapped to their record type. */
 type RecordByKey = {
@@ -339,6 +347,12 @@ export type CanvasOps = {
    * Duplicate. Returns the copy's id, or `undefined` when the mockup is gone.
    */
   duplicateMockup(id: string): string | undefined
+  /**
+   * Set a frame's or Mockup's height to its page's content height, while its
+   * Fit to content is on. Committed under {@link CONTENT_HEIGHT_ORIGIN}.
+   * Returns whether the height changed.
+   */
+  followContentHeight(id: string, height: number): boolean
   /**
    * Copy an Iframe Layer (size, label, Workspace and route) to the end of its
    * Group's row, named "<label> copy" — the frame menu's Duplicate. Returns
@@ -1078,6 +1092,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         ownerChatId: source.ownerChatId,
         groupId: group.id,
       })
+      if (source.fitHeight) {
+        collections.mockupLayers.update(copyId, { fitHeight: true })
+      }
       // The page re-declares its knobs on load; carry them so the Knobs
       // button and the values match the original from the first paint.
       if (source.knobs || source.knobValues) {
@@ -1098,13 +1115,38 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         getGroupMembers(g).some((m) => m.kind === "iframe-layer" && m.id === id)
       )
     if (!source || !group) return
-    return addFrameToGroup(group.id, {
-      width: source.width,
-      height: source.height,
-      label: source.label ? `${source.label} copy` : "Frame",
-      ...(source.branchId ? { branchId: source.branchId } : {}),
-      ...(source.route ? { route: source.route } : {}),
+    let copyId: string | undefined
+    batch(() => {
+      copyId = addFrameToGroup(group.id, {
+        width: source.width,
+        height: source.height,
+        label: source.label ? `${source.label} copy` : "Frame",
+        ...(source.branchId ? { branchId: source.branchId } : {}),
+        ...(source.route ? { route: source.route } : {}),
+      })
+      if (copyId && source.fitHeight) {
+        collections.iframeLayers.update(copyId, { fitHeight: true })
+      }
     })
+    return copyId
+  }
+
+  function followContentHeight(id: string, height: number): boolean {
+    const frame = collections.iframeLayers.get(id)
+    const mockup = frame ? undefined : collections.mockupLayers.get(id)
+    const layer = frame ?? mockup
+    if (!layer?.fitHeight) return false
+    const min = frame ? MIN_IFRAME_LAYER_HEIGHT : MOCKUP_MIN_HEIGHT
+    const next = Math.min(
+      FIT_CONTENT_MAX_HEIGHT,
+      Math.max(min, Math.ceil(height))
+    )
+    if (next === layer.height) return false
+    doc.transact(() => {
+      if (frame) collections.iframeLayers.update(id, { height: next })
+      else collections.mockupLayers.update(id, { height: next })
+    }, CONTENT_HEIGHT_ORIGIN)
+    return true
   }
 
   function removeMockups(ids: string[]): { removedChatIds: string[] } {
@@ -1370,6 +1412,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     updateMockup,
     duplicateMockup,
     duplicateIframeLayer,
+    followContentHeight,
     removeMockups,
     removeBranch,
     removeRepo,

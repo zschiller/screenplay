@@ -63,6 +63,8 @@ export type CanvasToIframeMessage =
   | { type: "screenplay:drive-state"; id: string; selector?: string }
   | { type: "screenplay:knob-values"; values: JsonObject }
   | { type: "screenplay:cursor-mode"; mode: CursorMode }
+  // Fit to content is on: report `screenplay:content-size` as it changes.
+  | { type: "screenplay:watch-content-size"; on: boolean }
   // `initial` marks the answer to `screenplay:shared-state-request`: the
   // room's whole state, which the frame waits for before it publishes.
   | {
@@ -131,6 +133,8 @@ export type IframeToCanvasMessage =
   | { type: "screenplay:escape" }
   | { type: "screenplay:navigation"; path: string; replace?: boolean }
   | { type: "screenplay:scroll"; scrollX: number; scrollY: number }
+  // The content's extent, while the canvas watches it (Fit to content).
+  | { type: "screenplay:content-size"; width: number; height: number }
   | { type: "screenplay:hmr-status"; status: HmrStatus }
   | { type: "screenplay:knobs-declared"; knobs: JsonValue[] }
   | { type: "screenplay:shared-state"; state: JsonObject }

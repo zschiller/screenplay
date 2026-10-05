@@ -44,7 +44,7 @@ const frame = (
   noun: "frame",
   onDuplicate: vi.fn(),
   size: { width: 390, height: 844, onSelect: vi.fn() },
-  onFitToContent: vi.fn(),
+  fitToContent: { checked: false, onCheckedChange: vi.fn() },
   chat: { branchId: "branch-1", onPlay: vi.fn() },
   onDelete: vi.fn(),
   ...overrides,
@@ -52,9 +52,9 @@ const frame = (
 
 /** The open menu's items, in order, as their visible text. */
 function items() {
-  return screen
-    .getAllByRole("menuitem")
-    .map((item) => item.textContent?.replace(/⌘D$/, " ⌘D"))
+  return [
+    ...document.querySelectorAll('[role="menuitem"],[role="menuitemcheckbox"]'),
+  ].map((item) => item.textContent?.replace(/⌘D$/, " ⌘D"))
 }
 
 function openMenu(
@@ -79,6 +79,19 @@ describe("LayerMenuContent", () => {
       "Chat",
       "Delete",
     ])
+  })
+
+  it("shows Fit to content as a toggle", () => {
+    const onCheckedChange = vi.fn()
+    openMenu({
+      actions: frame({ fitToContent: { checked: true, onCheckedChange } }),
+    })
+    const item = screen.getByRole("menuitemcheckbox", {
+      name: "Fit to content",
+    })
+    expect(item.getAttribute("aria-checked")).toBe("true")
+    fireEvent.click(item)
+    expect(onCheckedChange).toHaveBeenCalledWith(false)
   })
 
   it("gives a document and a Group Rename and Delete", () => {

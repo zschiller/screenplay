@@ -93,9 +93,12 @@ interface MockupLayerProps {
   onResizeStart?: (id: string, edge: ResizeEdge) => void
   /** The resize gesture ended, so the canvas can clear them. */
   onResizeEnd?: (id: string) => void
-  /** Set the mockup's size outright: the menu's Device size and Fit to
-   *  content, as on a frame. */
+  /** Set the mockup's size outright: the menu's Device size, as on a frame. */
   onSetSize?: (id: string, width: number, height: number) => void
+  /** Turn Fit to content on (at the page's content height) or off. */
+  onSetFitToContent?: (id: string, on: boolean, height?: number) => void
+  /** The page's content height, while Fit to content is on. */
+  onFollowContentHeight?: (id: string, height: number) => void
   onRename: (id: string, title: string) => void
   /** The bar's ⋯ Duplicate: a copy at the end of the mockup's Group. */
   onDuplicate?: (id: string) => void
@@ -215,6 +218,8 @@ export function MockupLayer({
   onResizeStart,
   onResizeEnd,
   onSetSize,
+  onSetFitToContent,
+  onFollowContentHeight,
   onRename,
   onDuplicate,
   onRemove,
@@ -269,6 +274,8 @@ export function MockupLayer({
   if (settled && shownDoc !== builtDoc) setShownDoc(builtDoc)
   const srcDoc = settled ? builtDoc : shownDoc
   const shared = !!sharedStream
+  const showFit = !!onSetFitToContent && hasPage
+  const fitHeight = showFit && !!layer.fitHeight
   const page = useLivePage({
     id: layer.id,
     // This viewer's own iframe, or the live page's stream.
@@ -304,6 +311,7 @@ export function MockupLayer({
     // No browser can photograph a mockup in someone's canvas on hosted, so a
     // screenshot there is rendered from a read of the page.
     snapshot: true,
+    onContentHeight: fitHeight ? onFollowContentHeight : undefined,
   })
   // The page's link to its chat (#1662): the question any chat asked about
   // it (#1644), and a draft (#1645) or answer from a tap that speaks for this
@@ -341,18 +349,23 @@ export function MockupLayer({
   })
 
   const { dom } = page
-  const handleFitToContent = useCallback(async () => {
-    try {
-      const size = await dom.getDocumentSize()
-      if (!size) return
-      onSetSize?.(layer.id, size.width, size.height)
-    } catch {
-      // Bridge timeout / page not ready — ignore.
-    }
-  }, [dom, layer.id, onSetSize])
+  // Fit to content, as on a frame: the height follows the page.
+  const handleFitToContent = useCallback(
+    async (on: boolean) => {
+      if (!on) return onSetFitToContent?.(layer.id, false)
+      let height: number | undefined
+      try {
+        height = (await dom.getDocumentSize())?.height
+      } catch {
+        // Bridge timeout / page not ready: the page reports it once ready.
+      }
+      onSetFitToContent?.(layer.id, true, height)
+    },
+    [dom, layer.id, onSetFitToContent]
+  )
 
   // The mockup's one menu (I7), in the bar's … and its sidebar row's …. Its
-  // sizes are a frame's: Device size and Fit to content.
+  // sizes are a frame's: Device size and the Fit to content toggle.
   const titleEditableRef = useRef<EditableTextHandle>(null)
   const menuActions: LayerMenuActions = {
     noun: "mockup",
@@ -364,7 +377,9 @@ export function MockupLayer({
           onSelect: (w, h) => onSetSize(layer.id, w, h),
         }
       : undefined,
-    onFitToContent: onSetSize && hasPage ? handleFitToContent : undefined,
+    fitToContent: showFit
+      ? { checked: fitHeight, onCheckedChange: handleFitToContent }
+      : undefined,
     onDelete: onRemove ? () => onRemove(layer.id) : undefined,
   }
   useRegisterLayerMenu(layer.id, menuActions)

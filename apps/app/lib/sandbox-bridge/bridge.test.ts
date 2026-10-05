@@ -466,3 +466,97 @@ describe("bridge Space with the pointer outside the page", () => {
     expect(posted).toEqual([])
   })
 })
+
+// Fit to content left on: the bridge reports the content's height as it
+// changes, but not a change only the viewport's height made.
+describe("bridge content size", () => {
+  const heights: number[] = []
+  const onMessage = (e: MessageEvent) => {
+    if (e.data?.type === "screenplay:content-size") heights.push(e.data.height)
+  }
+  const watch = (on: boolean) =>
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "screenplay:watch-content-size", on },
+        source: window,
+      })
+    )
+  const settle = () => new Promise((r) => setTimeout(r, 150))
+  const viewport = (width: number, height: number) => {
+    Object.defineProperty(window, "innerWidth", {
+      value: width,
+      configurable: true,
+    })
+    Object.defineProperty(window, "innerHeight", {
+      value: height,
+      configurable: true,
+    })
+    window.dispatchEvent(new Event("resize"))
+  }
+  // jsdom lays nothing out: each element is as tall as its data-h says.
+  let content = 0
+  const realRect = Element.prototype.getBoundingClientRect
+
+  beforeEach(() => {
+    heights.length = 0
+    content = 500
+    Element.prototype.getBoundingClientRect = function () {
+      const h = this.id === "page" ? content : 0
+      return {
+        top: 0,
+        left: 0,
+        right: h ? 800 : 0,
+        bottom: h,
+        width: h ? 800 : 0,
+        height: h,
+        x: 0,
+        y: 0,
+        toJSON() {},
+      } as DOMRect
+    }
+    document.body.innerHTML = `<div id="page"></div>`
+    viewport(800, 600)
+    window.addEventListener("message", onMessage)
+    return () => {
+      watch(false)
+      window.removeEventListener("message", onMessage)
+      Element.prototype.getBoundingClientRect = realRect
+    }
+  })
+
+  it("reports the height once watched, then as the content changes", async () => {
+    watch(true)
+    await settle()
+    expect(heights).toEqual([500])
+
+    content = 900
+    document.getElementById("page")!.textContent = "more"
+    await settle()
+    expect(heights).toEqual([500, 900])
+  })
+
+  it("skips a change only the viewport's height made", async () => {
+    watch(true)
+    await settle()
+    // Content sized in vh grows with the frame it was just fitted to.
+    content = 1200
+    viewport(800, 900)
+    await settle()
+    expect(heights).toEqual([500])
+
+    // A new width reflows the content, so it's measured again.
+    viewport(400, 900)
+    await settle()
+    expect(heights).toEqual([500, 1200])
+  })
+
+  it("stops reporting once unwatched", async () => {
+    watch(true)
+    await settle()
+    watch(false)
+    content = 900
+    document.getElementById("page")!.textContent = "more"
+    await settle()
+    expect(heights).toEqual([500])
+  })
+})

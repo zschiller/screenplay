@@ -1031,6 +1031,7 @@ describe("reduceGesture — device-resize", () => {
     expect(result.intent).toEqual({
       type: "resizeLayer",
       iframeLayerId: "f1",
+      edge: "se",
       width: 1280,
       height: 800,
       shiftX: 0,
@@ -1075,6 +1076,7 @@ describe("reduceGesture — device-resize", () => {
     expect(result.intent).toEqual({
       type: "resizeLayer",
       iframeLayerId: "f1",
+      edge: "se",
       width: 1270,
       height: 790,
       shiftX: 0,
@@ -1109,6 +1111,7 @@ describe("reduceGesture — device-resize", () => {
     expect(result.intent).toEqual({
       type: "resizeLayer",
       iframeLayerId: "f1",
+      edge: "nw",
       width: 1280,
       height: 800,
       shiftX: 10,
@@ -1138,6 +1141,7 @@ describe("reduceGesture — device-resize", () => {
     expect(result.intent).toEqual({
       type: "resizeLayer",
       iframeLayerId: "f1",
+      edge: "se",
       width: 1050,
       height: 730,
       shiftX: 0,
@@ -1168,6 +1172,7 @@ describe("reduceGesture — device-resize", () => {
     expect(result.intent).toEqual({
       type: "resizeLayer",
       iframeLayerId: "f1",
+      edge: "e",
       width: 1290,
       height: 800,
       shiftX: 0,
@@ -1198,6 +1203,7 @@ describe("reduceGesture — device-resize", () => {
     expect(result.intent).toEqual({
       type: "resizeLayer",
       iframeLayerId: "f1",
+      edge: "se",
       width: 100,
       height: 100,
       shiftX: 0,
@@ -1236,6 +1242,7 @@ describe("reduceGesture — device-resize", () => {
     expect(second!.intent).toEqual({
       type: "resizeLayer",
       iframeLayerId: "f1",
+      edge: "se",
       width: 1290,
       height: 810,
       shiftX: 0,

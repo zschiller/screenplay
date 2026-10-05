@@ -140,6 +140,8 @@ export interface LivePageOptions {
    * no browser can photograph someone's canvas).
    */
   snapshot?: boolean
+  /** Fit to content is on: the content's height, each time it changes. */
+  onContentHeight?: (id: string, height: number) => void
 }
 
 export interface LivePage {
@@ -185,6 +187,7 @@ export function useLivePage({
   iframeRef,
   bodyRef,
   snapshot = false,
+  onContentHeight,
 }: LivePageOptions): LivePage {
   // The iframe's bridge, or the shared page's over its stream (#1394), so
   // pins, Knobs, the picker and Fit to content work on both alike.
@@ -211,6 +214,8 @@ export function useLivePage({
     onKnobsDeclared: writes?.knobsDeclared,
     onSharedStateChanged: writes?.sharedState,
   })
+
+  useContentHeight(port, id, onContentHeight)
 
   const dom = useScreenplayDom(port, {
     onWheel: (wheel) => onWheel?.(id, wheel),
@@ -304,6 +309,36 @@ export function useLivePage({
     dom,
     elementAt,
   }
+}
+
+/**
+ * While Fit to content is on, the bridge reports the content's height as it
+ * changes. Asked again on each `ready`, since a page that reloads forgets.
+ */
+function useContentHeight(
+  port: BridgePort,
+  id: string,
+  onContentHeight: ((id: string, height: number) => void) | undefined
+) {
+  const on = !!onContentHeight
+  const onContentHeightRef = useRef(onContentHeight)
+  useEffect(() => {
+    onContentHeightRef.current = onContentHeight
+  })
+  useEffect(() => {
+    if (!on) return
+    const watch = () => port.post({ type: "screenplay:watch-content-size", on })
+    watch()
+    const unsubscribe = port.subscribe((data) => {
+      if (data.type === "screenplay:ready") watch()
+      else if (data.type === "screenplay:content-size")
+        onContentHeightRef.current?.(id, data.height)
+    })
+    return () => {
+      unsubscribe()
+      port.post({ type: "screenplay:watch-content-size", on: false })
+    }
+  }, [port, id, on])
 }
 
 /** The page itself: an iframe, or the shared browser's picture. */
