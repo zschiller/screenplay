@@ -484,12 +484,12 @@ function SortableHead({
         <span className="[text-box:trim-both_cap_alphabetic]">{label}</span>
         {active ? (
           order === "asc" ? (
-            <ArrowUpIcon />
+            <ArrowUpIcon className="size-3" />
           ) : (
-            <ArrowDownIcon />
+            <ArrowDownIcon className="size-3" />
           )
         ) : (
-          <CaretUpDownIcon className="opacity-50" />
+          <CaretUpDownIcon className="size-3 opacity-50" />
         )}
       </Button>
     </TableHead>
