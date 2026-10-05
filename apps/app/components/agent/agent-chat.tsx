@@ -657,7 +657,7 @@ function ChatEmptyState({
   return (
     <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
       <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">
+        <p className="font-heading text-title-sm text-foreground">
           {fresh
             ? roomStart.repoName
               ? `What should change in ${roomStart.repoName}?`
@@ -705,7 +705,7 @@ function ChatLoadError({ onRetry }: { onRetry: () => Promise<unknown> }) {
       className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance"
     >
       <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">
+        <p className="font-heading text-title-sm text-foreground">
           Couldn’t load this chat
         </p>
         <p className="text-xs text-muted-foreground">

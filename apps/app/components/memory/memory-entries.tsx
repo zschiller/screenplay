@@ -150,7 +150,7 @@ export function MemoryEntries({
             ))}
           </SettingsRowList>
           {!header && (
-            <div className="flex justify-end">{addButton("default")}</div>
+            <div className="flex justify-end">{addButton("outline")}</div>
           )}
         </>
       )}
