@@ -32,6 +32,8 @@ import { creatingPrStore, useIsCreatingPr } from "@/lib/creating-pr-store"
 // module. Defaults to the hosted build; the local-build describe flips it and
 // afterEach resets it.
 const buildFlag = vi.hoisted(() => ({ local: false }))
+const openExternal = vi.hoisted(() => vi.fn())
+vi.mock("@/lib/open-external", () => ({ openExternal }))
 vi.mock("@/lib/local-mode", () => ({
   get isLocalBuild() {
     return buildFlag.local
@@ -156,11 +158,19 @@ afterEach(() => {
   buildFlag.local = false
 })
 
+function menuLabels() {
+  // Every item and submenu trigger, top to bottom.
+  return within(screen.getByRole("menu"))
+    .getAllByRole("menuitem")
+    .map((el) => el.textContent?.trim())
+}
+
 describe("BRANCH_MENU_SECTIONS skeleton", () => {
-  it("declares View, Git, Manage, then Delete", () => {
+  it("declares View, Git, Pull requests, Manage, then Delete", () => {
     expect(BRANCH_MENU_SECTIONS.map((s) => [s.id, s.itemKeys])).toEqual([
       ["view", ["play", "open-in-browser", "routes"]],
       ["git", ["create-pr"]],
+      ["pull-requests", ["pull-requests"]],
       ["manage", ["rename", "restart", "mark-done"]],
       ["danger", ["delete"]],
     ])
@@ -242,17 +252,17 @@ describe("workspaceMenuLead", () => {
     expect(lead({ pr: { state: "merged" }, isBusy: true })).toBe("play")
   })
 
-  it("leads with the PR when one is open, or when there are changes", () => {
-    expect(lead({ pr: { state: "open" } })).toBe("create-pr")
+  it("leads with Create pull request when there are changes", () => {
     expect(lead({ hasChanges: true })).toBe("create-pr")
+  })
+
+  it("doesn't lead with an open PR: its own group lists it (#1701)", () => {
+    expect(lead({ pr: { state: "open" } })).toBe("play")
   })
 
   it("doesn't lead with Create pull request when GitHub can't take it", () => {
     expect(lead({ hasChanges: true, prAvailability: "none" })).toBe("play")
     expect(lead({ hasChanges: true, prAvailability: "connect" })).toBe("play")
-    expect(lead({ pr: { state: "open" }, prAvailability: "none" })).toBe(
-      "create-pr"
-    )
   })
 
   it("leads with the player when there's nothing to propose", () => {
@@ -270,13 +280,6 @@ describe("BranchOverflowMenuContent rendering", () => {
     // labels themselves are no longer surfaced in the menu.
     expect(screen.queryByText(/^(View|Git|Manage|Danger)$/)).toBeNull()
   })
-
-  function menuLabels() {
-    // Every item and submenu trigger, top to bottom.
-    return within(screen.getByRole("menu"))
-      .getAllByRole("menuitem")
-      .map((el) => el.textContent?.trim())
-  }
 
   it("groups a ready Workspace with the player first", () => {
     renderMenu()
@@ -315,7 +318,7 @@ describe("BranchOverflowMenuContent rendering", () => {
     )
     expect(menuLabels()).toEqual([
       "Reopen",
-      "Open pull request #7",
+      "Pull request #7, open",
       "Rename",
       "Delete",
     ])
@@ -331,7 +334,7 @@ describe("BranchOverflowMenuContent rendering", () => {
     expect(labels[1]).toBe("Open prototype player")
   })
 
-  it("leads with the open PR and doesn't offer to create another", () => {
+  it("lists the open PR under Pull requests and doesn't offer to create another", () => {
     renderMenu(
       {},
       {
@@ -340,8 +343,9 @@ describe("BranchOverflowMenuContent rendering", () => {
       }
     )
     const labels = menuLabels()
-    expect(labels[0]).toBe("Open pull request #42")
+    expect(labels).toContain("Pull request #42, open")
     expect(labels).not.toContain("Create pull request")
+    expect(screen.getByText("Pull requests")).toBeTruthy()
   })
 
   it("leads a failed Workspace with Retry setup, not Rename", () => {
@@ -405,16 +409,30 @@ describe("Create pull request", () => {
     expect(onCreatePr).toHaveBeenCalledOnce()
   })
 
-  it("links a merged or closed PR instead of offering another", () => {
-    for (const state of ["merged", "closed"] as const) {
-      renderMenu(
-        {},
-        { hasChanges: true, pr: { number: 5, state, url: "https://x" } }
-      )
-      expect(screen.getByText("Open pull request #5")).toBeTruthy()
-      expect(screen.queryByText("Create pull request")).toBeNull()
-      cleanup()
+  it("lists a merged PR instead of offering another, until the Branch moves past it", () => {
+    const merged = {
+      prNumber: 5,
+      prState: "merged" as const,
+      prUrl: "https://x",
     }
+    const pr = { number: 5, state: "merged" as const, url: "https://x" }
+    renderMenu(merged, { hasChanges: true, pr })
+    expect(menuLabels()).toContain("Pull request #5, merged")
+    expect(screen.queryByText("Create pull request")).toBeNull()
+    cleanup()
+    // The next turn after the merge moved it onto the latest code (#1701).
+    renderMenu({ ...merged, prMovedPast: 5 }, { hasChanges: true, pr })
+    expect(menuLabels()).toContain("Pull request #5, merged")
+    expect(screen.getByText("Create pull request")).toBeTruthy()
+  })
+
+  it("offers the next PR after a closed one, still listing it", () => {
+    renderMenu(
+      { prNumber: 5, prState: "closed", prUrl: "https://x" },
+      { hasChanges: true, pr: { number: 5, state: "closed", url: "https://x" } }
+    )
+    expect(menuLabels()).toContain("Pull request #5, closed")
+    expect(screen.getByText("Create pull request")).toBeTruthy()
   })
 
   it("is hidden on a Done Workspace with no PR", () => {
@@ -464,7 +482,49 @@ describe("Create pull request", () => {
         pr: { number: 9, state: "open", url: "https://x" },
       }
     )
-    expect(screen.getByText("Open pull request #9")).toBeTruthy()
+    expect(menuLabels()).toContain("Pull request #9, open")
+  })
+})
+
+describe("Pull requests group (#1701)", () => {
+  it("lists every PR the Workspace opened, newest first, each opening on GitHub", () => {
+    renderMenu(
+      {
+        prNumber: 497,
+        prState: "open",
+        prUrl: "https://github.com/acme/widgets/pull/497",
+        prTitle: "Apple Pay",
+        pastPrs: [
+          {
+            number: 482,
+            url: "https://github.com/acme/widgets/pull/482",
+            title: "One-scroll checkout",
+            state: "merged",
+          },
+        ],
+      },
+      {
+        pr: {
+          number: 497,
+          state: "open",
+          url: "https://github.com/acme/widgets/pull/497",
+        },
+      }
+    )
+    const rows = menuLabels().filter((l) => l?.startsWith("Pull request"))
+    expect(rows).toEqual([
+      "Pull request #497, openApple Pay",
+      "Pull request #482, mergedOne-scroll checkout",
+    ])
+    fireEvent.click(screen.getByText("One-scroll checkout"))
+    expect(openExternal).toHaveBeenCalledWith(
+      "https://github.com/acme/widgets/pull/482"
+    )
+  })
+
+  it("is left out for a Workspace with no PR", () => {
+    renderMenu()
+    expect(screen.queryByText("Pull requests")).toBeNull()
   })
 })
 

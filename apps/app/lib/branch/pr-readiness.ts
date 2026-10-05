@@ -71,7 +71,7 @@ export interface PrBlocker {
 export interface PrReadinessInput {
   branch: Pick<
     BranchData,
-    "sandboxName" | "ref" | "status" | "error" | "doneAt"
+    "sandboxName" | "ref" | "status" | "error" | "doneAt" | "prMovedPast"
   >
   /** The polled PR for the Workspace's branch. */
   pr?: Pick<BranchPrInfo, "url" | "number" | "state" | "blocked"> | null
@@ -105,22 +105,35 @@ export interface PrReadiness extends PrReadinessState {
 }
 
 /**
- * The PR to link: the polled one, unless a chat created a newer one the poll
- * hasn't seen yet, which counts as open.
+ * Whether the polled PR is finished with (#1701): closed, or merged and the
+ * Branch has moved past it onto the latest code. The Branch's next PR is a new
+ * one, so Create pull request comes back in its place.
  */
-function existingPrOf(
-  pr: PrReadinessInput["pr"],
-  chatPr: ChatPr | null | undefined
-): ExistingPr | null {
-  if (pr && (!chatPr || chatPr.number === pr.number)) {
-    return {
-      url: pr.url,
-      number: pr.number,
-      state: pr.state,
-      blocked: pr.blocked,
-    }
+function finished(
+  pr: NonNullable<PrReadinessInput["pr"]>,
+  branch: PrReadinessInput["branch"]
+): boolean {
+  if (pr.state === "closed") return true
+  return pr.state === "merged" && branch.prMovedPast === pr.number
+}
+
+/**
+ * The PR to link: the polled one, unless a chat created a newer one the poll
+ * hasn't seen yet, which counts as open. None once the polled one is
+ * finished with.
+ */
+function existingPrOf(input: PrReadinessInput): ExistingPr | null {
+  const { pr, chatPr } = input
+  if (chatPr && (!pr || chatPr.number > pr.number)) {
+    return { ...chatPr, state: "open" }
   }
-  return chatPr ? { ...chatPr, state: "open" } : null
+  if (!pr || finished(pr, input.branch)) return null
+  return {
+    url: pr.url,
+    number: pr.number,
+    state: pr.state,
+    blocked: pr.blocked,
+  }
 }
 
 function blockerOf(input: PrReadinessInput): PrBlocker | null {
@@ -141,11 +154,12 @@ function blockerOf(input: PrReadinessInput): PrBlocker | null {
 }
 
 /**
- * A Workspace's Create PR Readiness. A merged or closed PR still counts as
- * existing, so neither place offers a second PR from a finished Workspace.
+ * A Workspace's Create PR Readiness. A merged PR still counts as existing
+ * until the Branch moves past it, on the next turn after the merge (#1701);
+ * a closed one doesn't. Either way the next PR is a new one.
  */
 export function prReadiness(input: PrReadinessInput): PrReadinessState {
-  const existingPr = existingPrOf(input.pr, input.chatPr)
+  const existingPr = existingPrOf(input)
   const shown =
     !existingPr && input.availability !== "none" && !input.branch.doneAt
   return {

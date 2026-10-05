@@ -71,6 +71,15 @@ export type RepoData = {
   addedBy?: string
 }
 
+/** A PR a Branch opened before its current one (#1701). */
+export type PastPr = {
+  number: number
+  url: string
+  title?: string
+  /** Its last known state; usually merged or closed. */
+  state: "open" | "closed" | "merged"
+}
+
 export type BranchData = {
   id: string
   repoId: string
@@ -173,6 +182,21 @@ export type BranchData = {
   /** True when an open PR can't merge (failing checks, a conflict, or a
    *  missing required review or check). Absent otherwise. */
   prBlocked?: boolean
+  /** The current PR's title, for the chat menu's Pull requests group. */
+  prTitle?: string
+  /**
+   * The PRs the Branch opened before its current one, newest first (#1701).
+   * A Branch ships PRs one after another from one ref: when a new PR opens,
+   * the current one moves here (`lib/branch/pr-history.ts`).
+   */
+  pastPrs?: PastPr[]
+  /**
+   * The merged PR the Branch has moved past (#1701): the first turn after a
+   * merge resets the ref to the default branch's tip, or hands that step to
+   * the agent, and records the PR here so it happens once. Create PR shows
+   * again once the current PR is this one.
+   */
+  prMovedPast?: number
   /**
    * The open PR's rolled-up checks and whether it conflicts with its base, as
    * PR Watch last saw them (`lib/pr-watch`). Kept so the next look can tell

@@ -52,6 +52,9 @@ export async function launchEngineTurn(params: {
    * takes it.
    */
   withAttachedImages?: (blocks: ContentBlock[]) => Promise<ContentBlock[]>
+  /** A note for the agent on this turn only, leading the new message
+   *  (#1701). The stored turn never holds it. */
+  turnNote?: string
 }): Promise<void> {
   const {
     engine,
@@ -65,8 +68,18 @@ export async function launchEngineTurn(params: {
     wake,
     reportSteering,
     secrets = [],
-    withAttachedImages = async (blocks: ContentBlock[]) => blocks,
+    turnNote,
   } = params
+  const attach =
+    params.withAttachedImages ?? (async (blocks: ContentBlock[]) => blocks)
+  // The note leads the new message only, after its images are added; Steers
+  // the Engine takes later get their images alone.
+  const forNewMessage = async (blocks: ContentBlock[]) => {
+    const content = await attach(blocks)
+    return turnNote
+      ? [{ type: "text" as const, text: turnNote }, ...content]
+      : content
+  }
   const consumer = new AcpUpdateConsumer(
     liveAcpConsumerPorts(roomId, chatId, runId),
     { wake, secrets }
@@ -79,7 +92,7 @@ export async function launchEngineTurn(params: {
   try {
     const history = await withImagesOnLastUserTurn(
       withPromptLast(await loadAcpHistoryForModel(chatId)),
-      withAttachedImages
+      forNewMessage
     )
     await driveEngineTurn(
       engine,
@@ -101,9 +114,7 @@ export async function launchEngineTurn(params: {
           Promise.all(
             (await steerInbox.take(id)).map(async (steer) => ({
               id: steer.id,
-              content: await withAttachedImages(
-                wireToContentBlocks(steer.message)
-              ),
+              content: await attach(wireToContentBlocks(steer.message)),
               ...(steer.userId ? { sentBy: steer.userId } : {}),
             }))
           ),

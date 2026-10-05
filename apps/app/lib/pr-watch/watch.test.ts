@@ -295,3 +295,67 @@ describe("PR event messages", () => {
     expect(prEventState("closed")).toBe("closed")
   })
 })
+
+describe("watchRoomPrs keeps the Branch's PR history (#1701)", () => {
+  const url = (n: number) => `https://github.com/owner/repo/pull/${n}`
+
+  it("moves the merged PR into the past PRs when the next one opens", async () => {
+    const { room, collections } = seed({
+      prNumber: 7,
+      prUrl: url(7),
+      prState: "merged",
+      prTitle: "One-scroll checkout",
+    })
+    const { events } = await watchRoomPrs(
+      room,
+      fakeGitHub({
+        number: 9,
+        url: url(9),
+        state: "open",
+        title: "Apple Pay",
+        earlier: [
+          {
+            number: 7,
+            url: url(7),
+            title: "One-scroll checkout",
+            state: "merged",
+          },
+        ],
+      }).read
+    )
+    // A new PR is the baseline: nothing to report yet.
+    expect(events).toEqual([])
+    expect(collections.branches.get("b1")).toMatchObject({
+      prNumber: 9,
+      prState: "open",
+      prTitle: "Apple Pay",
+      pastPrs: [
+        {
+          number: 7,
+          url: url(7),
+          title: "One-scroll checkout",
+          state: "merged",
+        },
+      ],
+    })
+  })
+
+  it("never lets a lagging list's older PR replace the current one", async () => {
+    const { room, collections } = seed({
+      prNumber: 9,
+      prUrl: url(9),
+      prState: "open",
+      pastPrs: [{ number: 7, url: url(7), state: "open" }],
+    })
+    const { events } = await watchRoomPrs(
+      room,
+      fakeGitHub({ number: 7, url: url(7), state: "merged" }).read
+    )
+    expect(events).toEqual([])
+    expect(collections.branches.get("b1")).toMatchObject({
+      prNumber: 9,
+      prState: "open",
+      pastPrs: [{ number: 7, url: url(7), state: "merged" }],
+    })
+  })
+})

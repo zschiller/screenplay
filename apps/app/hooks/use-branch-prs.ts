@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { listBranchPrs, type BranchPrInfo } from "@/lib/github-actions"
+import { prCacheUpdate } from "@/lib/branch/pr-history"
 import { useRoomId } from "@/lib/yjs/context"
 import { useRoomCollections } from "@/lib/yjs/react"
 
@@ -44,6 +45,7 @@ export function useBranchPrs(
     prUrl?: string
     prState?: BranchPrInfo["state"]
     prBlocked?: BranchPrInfo["blocked"]
+    prTitle?: string
   }>,
   repos: Array<{
     id: string
@@ -72,6 +74,7 @@ export function useBranchPrs(
           url: a.prUrl,
           state: a.prState,
           blocked: a.prBlocked,
+          title: a.prTitle,
         })
       }
     }
@@ -89,14 +92,14 @@ export function useBranchPrs(
     await listBranchPrs(roomId)
   }, [roomId])
 
+  // Through the Branch's PR history, so a new PR moves the merged one before
+  // it into the past PRs (#1701).
   const setBranchPr = useCallback(
     (branchId: string, pr: BranchPrInfo) => {
-      collections.branches.update(branchId, {
-        prNumber: pr.number,
-        prUrl: pr.url,
-        prState: pr.state,
-        prBlocked: pr.blocked,
-      })
+      const cur = collections.branches.get(branchId)
+      if (!cur) return
+      const patch = prCacheUpdate(cur, pr)
+      if (patch) collections.branches.update(branchId, patch)
     },
     [collections]
   )

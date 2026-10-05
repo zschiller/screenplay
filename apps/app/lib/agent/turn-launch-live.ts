@@ -73,6 +73,8 @@ import {
   type WorkspaceTurnRequest,
 } from "./room-tools"
 import { startBranchProvisioning } from "@/lib/branch/provisioning-live"
+import { claimMergedPrMove } from "@/lib/branch/next-pr"
+import { moveMergedBranch } from "@/lib/branch/next-pr-live"
 import { isLocalBuild } from "@/lib/local-mode"
 import { createGitHubPr } from "@/lib/github-pr"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
@@ -143,6 +145,7 @@ export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
       },
       claim
     ),
+  moveMergedBranch,
   queueCommentRequest: (input) => queueCommentRequest({ ...input, room }),
   startCommentRequest: (_roomId, chatId) => startCommentRequest(room, chatId),
   settleCommentRequest: (input) => settleCommentRequest({ ...input, room }),
@@ -537,7 +540,7 @@ export function sandboxTurn(input: {
       // than the client-supplied `isFirstChat`.
       const isNewChat = (await loadAcpHistory(chatId)).length === 0
       const model = input.model || DEFAULT_MODEL
-      const [prepared, , secrets] = await Promise.all([
+      const [prepared, , secrets, mergedPrMove] = await Promise.all([
         prepareChatTarget(
           room,
           workspaceChatTarget,
@@ -548,6 +551,9 @@ export function sandboxTurn(input: {
         // Recent activity (#885): this Workspace just saw a turn start.
         stampWorkspaceActivity(room, sandboxName, Date.now()).catch(() => {}),
         sandboxSecrets(sandboxName),
+        // The first turn after the Branch's PR merged moves it onto the
+        // latest code (#1701), whoever or whatever sends it.
+        claimMergedPrMove(room, { sandboxName, userId }).catch(() => null),
       ])
       if (!prepared) return null
       const { systemPrompt, context } = prepared
@@ -609,6 +615,7 @@ export function sandboxTurn(input: {
         }),
         planMode,
         branchRename,
+        ...(mergedPrMove ? { mergedPrMove } : {}),
         commentRequest: {
           sandboxName,
           userId,

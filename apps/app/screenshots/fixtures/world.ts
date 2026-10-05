@@ -640,6 +640,23 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       prNumber: 482,
       prUrl: "https://github.com/acme/storefront/pull/482",
       prState: "open",
+      prTitle: "One-scroll checkout",
+      // The PRs it shipped before this one (#1701), for the chat menu's Pull
+      // requests group.
+      pastPrs: [
+        {
+          number: 471,
+          url: "https://github.com/acme/storefront/pull/471",
+          title: "Cart totals",
+          state: "merged",
+        },
+        {
+          number: 465,
+          url: "https://github.com/acme/storefront/pull/465",
+          title: "Saved cards",
+          state: "closed",
+        },
+      ],
       diffAdditions: 214,
       diffDeletions: 37,
     },
@@ -1141,6 +1158,10 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
     prNumber: 470,
     prUrl: "https://github.com/acme/storefront/pull/470",
     prState: "merged",
+    prTitle: "Pricing tiers",
+    // Its next turn after the merge moved it onto the latest code (#1701), so
+    // its header offers the next PR.
+    prMovedPast: 470,
     diffAdditions: 88,
     diffDeletions: 120,
   }
