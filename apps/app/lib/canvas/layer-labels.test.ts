@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { hiddenLayerLabels } from "./layer-labels"
+import { hiddenGroupLabels, hiddenLayerLabels } from "./layer-labels"
 
 const frame = (
   id: string,
@@ -39,5 +39,27 @@ describe("hiddenLayerLabels", () => {
   it("keeps names beside each other in a row", () => {
     const layouts = [frame("a", 0, 0), frame("b", 1340, 0, 390, 844)]
     expect(hiddenLayerLabels(layouts, 0.2).size).toBe(0)
+  })
+})
+
+describe("hiddenGroupLabels", () => {
+  const leaders = new Map([["g", "a"]])
+
+  it("keeps a group label far out while its frame has room", () => {
+    expect(hiddenGroupLabels([frame("a", 0, 0)], leaders, 0.1).size).toBe(0)
+  })
+
+  it("hides it with its frame's name when the frame is too narrow", () => {
+    const phone = frame("a", 0, 0, 390, 844)
+    expect(hiddenGroupLabels([phone], leaders, 0.1)).toEqual(new Set(["g"]))
+  })
+
+  it("hides it far out where it would sit on the frame above", () => {
+    // Name and group label take 36px: 360 world units at 10%. The name alone
+    // (180) clears the 300 gap; with the group label it doesn't.
+    const layouts = [frame("top", 0, 0), frame("a", 0, 1100)]
+    expect(hiddenGroupLabels(layouts, leaders, 0.1)).toEqual(new Set(["g"]))
+    expect(hiddenLayerLabels(layouts, 0.1).size).toBe(0)
+    expect(hiddenGroupLabels(layouts, leaders, 0.5).size).toBe(0)
   })
 })
