@@ -19,6 +19,8 @@ export const CANVAS_COLOR = {
   groupMerge: "--canvas-group-merge",
   /** Comment pins and the outline on the element an open thread is about. */
   comment: "--canvas-comment",
+  /** A frame's empty body, for a drawn box that stands in for one. */
+  frameBody: "--canvas-frame-body",
 } as const
 
 export type CanvasColorToken = (typeof CANVAS_COLOR)[keyof typeof CANVAS_COLOR]

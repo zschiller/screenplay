@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTheme } from "next-themes"
 import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
+import { cn } from "@workspace/ui/lib/utils"
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import { useMockupRefs } from "@/hooks/use-mockup-refs"
@@ -20,6 +21,11 @@ import type { DomRect } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
 import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
+import {
+  STATUS_BLOCK,
+  STATUS_HIDE,
+  useStatusFit,
+} from "@/components/frame-status/status-fit"
 import {
   LayerMenu,
   useRegisterLayerMenu,
@@ -517,20 +523,11 @@ export function MockupLayer({
             <LivePageContent page={page} iframeRef={iframeRef} />
           )}
           {!hasPage && (
-            <Empty
-              data-mockup-sketching=""
-              className="pointer-events-none absolute inset-0 gap-3 rounded-none bg-white dark:bg-neutral-900"
-            >
-              <EmptyHeader>
-                <EmptyMedia variant="icon" className="mb-1">
-                  <GripSpinner className="text-muted-foreground" />
-                </EmptyMedia>
-                <EmptyTitle>Sketching</EmptyTitle>
-                <EmptyDescription>
-                  The chat is drawing this page.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <MockupSketching
+              zoom={zoom}
+              width={layer.width}
+              height={layer.height}
+            />
           )}
           <LivePageOverlay
             page={page}
@@ -547,5 +544,43 @@ export function MockupLayer({
         </div>
       )}
     </LayerShell>
+  )
+}
+
+/**
+ * An empty Mockup's status: the chat is drawing it. Like a frame's status
+ * screen it stays at UI size at every zoom and drops what doesn't fit.
+ */
+function MockupSketching({
+  zoom,
+  width,
+  height,
+}: {
+  zoom: number
+  width: number
+  height: number
+}) {
+  const blockRef = useRef<HTMLDivElement>(null)
+  useStatusFit(blockRef, { zoom, width, height, contentKey: "sketching" })
+  return (
+    <Empty
+      data-mockup-sketching=""
+      className="pointer-events-none absolute inset-0 overflow-hidden rounded-none bg-white dark:bg-neutral-900"
+    >
+      <div
+        ref={blockRef}
+        className={cn("flex flex-col items-center gap-3", STATUS_BLOCK)}
+      >
+        <EmptyHeader>
+          <EmptyMedia variant="icon" className="mb-1">
+            <GripSpinner className="text-muted-foreground" />
+          </EmptyMedia>
+          <EmptyTitle className={STATUS_HIDE.title}>Sketching</EmptyTitle>
+          <EmptyDescription className={STATUS_HIDE.description}>
+            The chat is drawing this page.
+          </EmptyDescription>
+        </EmptyHeader>
+      </div>
+    </Empty>
   )
 }

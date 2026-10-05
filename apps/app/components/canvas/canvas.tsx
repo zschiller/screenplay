@@ -2308,6 +2308,7 @@ export function Canvas({
                             onRestartWorkspace={branchActions.startWorkspace}
                             onOpenLogs={openBranchLogs}
                             onStartChat={drawAsk.startFrameChat}
+                            askingIframeLayerId={askFrameId}
                             repos={repos}
                             zoom={zoom}
                             spaceHeld={spaceHeld}
@@ -2466,6 +2467,7 @@ export function Canvas({
                       startY: askMockupBox.y,
                       currentX: askMockupBox.x + askMockupBox.width,
                       currentY: askMockupBox.y + askMockupBox.height,
+                      pending: true,
                     })
                   }
                   documentDraft={documentDraft}

@@ -46,6 +46,8 @@ interface SelectionOverlayProps {
     startY: number
     currentX: number
     currentY: number
+    /** A drawn Mockup box whose prompt is open: drawn like a new frame. */
+    pending?: boolean
   } | null
   documentDraft: {
     startX: number
@@ -165,6 +167,42 @@ export function SelectionOverlay({
     const selectionColor = isResizeSnapped ? snapColor : primaryColor
     const bgColor = resolveCanvasColor(canvas, "--background")
     const HANDLE_SIZE = 8
+
+    // A frame's eight resize handles on its screen edges.
+    const drawHandles = (
+      l: number,
+      t: number,
+      r: number,
+      b: number,
+      color: string
+    ) => {
+      const mx = snap((l + r) / 2)
+      const my = snap((t + b) / 2)
+      const hs = HANDLE_SIZE
+      const hh = hs / 2
+      const handles = [
+        [l, t],
+        [r, t],
+        [l, b],
+        [r, b],
+        [mx, t],
+        [mx, b],
+        [l, my],
+        [r, my],
+      ]
+      for (const [hx, hy] of handles) {
+        ctx.fillStyle = bgColor
+        ctx.fillRect(hx - hh, hy - hh, hs, hs)
+        ctx.strokeStyle = color
+        ctx.lineWidth = 1
+        ctx.strokeRect(
+          hx - hh + HALF,
+          hy - hh + HALF,
+          hs - 2 * HALF,
+          hs - 2 * HALF
+        )
+      }
+    }
 
     const toScreen = (x: number, y: number) => ({
       x: x * zoom + viewportPos.x,
@@ -343,33 +381,7 @@ export function SelectionOverlay({
         showsResizeHandles(layout.width, layout.height, zoom)
       ) {
         const { l, t, r, b } = edges
-        const mx = snap((l + r) / 2)
-        const my = snap((t + b) / 2)
-        const hs = HANDLE_SIZE
-        const hh = hs / 2
-
-        const handles = [
-          [l, t],
-          [r, t],
-          [l, b],
-          [r, b],
-          [mx, t],
-          [mx, b],
-          [l, my],
-          [r, my],
-        ]
-        for (const [hx, hy] of handles) {
-          ctx.fillStyle = bgColor
-          ctx.fillRect(hx - hh, hy - hh, hs, hs)
-          ctx.strokeStyle = selectionColor
-          ctx.lineWidth = 1
-          ctx.strokeRect(
-            hx - hh + HALF,
-            hy - hh + HALF,
-            hs - 2 * HALF,
-            hs - 2 * HALF
-          )
-        }
+        drawHandles(l, t, r, b, selectionColor)
       }
     }
 
@@ -530,11 +542,27 @@ export function SelectionOverlay({
       const bo = snap(Math.max(a.y, b.y))
 
       ctx.globalAlpha = 1
-      ctx.setLineDash([4, 4])
-      ctx.strokeStyle = primaryColor
-      ctx.lineWidth = 1
-      ctx.strokeRect(l + HALF, t + HALF, r - l, bo - t)
-      ctx.setLineDash([])
+      if (frameDraft.pending) {
+        // A drawn Mockup box waiting on its prompt looks like a frame just
+        // drawn: the frame's body and surface ring, selected, with handles.
+        const radius = 6 * zoom
+        ctx.fillStyle = resolveCanvasColor(canvas, CANVAS_COLOR.frameBody)
+        ctx.beginPath()
+        ctx.roundRect(l, t, r - l, bo - t, radius)
+        ctx.fill()
+        strokeWorldRect(l, t, r, bo)
+        const w = Math.abs(frameDraft.currentX - frameDraft.startX)
+        const h = Math.abs(frameDraft.currentY - frameDraft.startY)
+        if (showsResizeHandles(w, h, zoom)) {
+          drawHandles(l, t, r, bo, primaryColor)
+        }
+      } else {
+        ctx.setLineDash([4, 4])
+        ctx.strokeStyle = primaryColor
+        ctx.lineWidth = 1
+        ctx.strokeRect(l + HALF, t + HALF, r - l, bo - t)
+        ctx.setLineDash([])
+      }
     }
 
     // Draw document-draft rectangle (while dragging with the document tool)

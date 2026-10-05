@@ -258,6 +258,9 @@ interface IframeLayerProps {
   /** Start a chat on the frame while it has no Workspace: select it and
    *  reopen its ask card (#1358). Unset when there's no Repo to start in. */
   onStartChat?: (iframeLayerId: string) => void
+  /** The chat prompt is open on this frame: a scrim dims and blurs the frame
+   *  behind it, like a dialog's overlay. */
+  asking?: boolean
   /** Running agents the user can assign to an empty (unassigned) frame. */
   assignableBranches?: BranchData[]
   onAssignBranch?: (iframeLayerId: string, branchId: string) => void
@@ -342,6 +345,7 @@ export function IframeLayer({
   onRestartWorkspace,
   onOpenLogs,
   onStartChat,
+  asking,
   assignableBranches,
   onAssignBranch,
   discoveredRoutes,
@@ -1069,6 +1073,18 @@ export function IframeLayer({
                 onStartChat={
                   onStartChat ? () => onStartChat(iframeLayer.id) : undefined
                 }
+              />
+            )}
+
+            {/* The chat prompt is open on this frame: the dialog overlay's
+            tint and blur over the whole frame, so the card reads on its own.
+            The blur is counter-scaled to stay 4px on screen. */}
+            {asking && (
+              <div
+                aria-hidden
+                data-slot="ask-scrim"
+                className="pointer-events-none absolute inset-0 bg-black/10"
+                style={{ backdropFilter: `blur(${4 / (zoom || 1)}px)` }}
               />
             )}
           </div>

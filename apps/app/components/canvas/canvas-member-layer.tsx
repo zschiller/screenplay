@@ -99,6 +99,7 @@ function CanvasMemberLayerImpl({
   onRestartWorkspace,
   onOpenLogs,
   onStartChat,
+  askingIframeLayerId,
   repos,
   zoom,
   spaceHeld,
@@ -164,6 +165,8 @@ function CanvasMemberLayerImpl({
   onOpenLogs: (branchId: string) => void
   /** An unanswered frame's Start a chat (#1358); unset when there's no Repo. */
   onStartChat?: (iframeLayerId: string) => void
+  /** The frame the chat prompt is open on, if any. */
+  askingIframeLayerId?: string | null
   repos: RepoData[]
   zoom: number
   spaceHeld: boolean
@@ -689,6 +692,7 @@ function CanvasMemberLayerImpl({
               onRestartWorkspace={onRestartWorkspace}
               onOpenLogs={onOpenLogs}
               onStartChat={iframeLayer.branchId ? undefined : onStartChat}
+              asking={askingIframeLayerId === iframeLayer.id}
               assignableBranches={agents}
               onAssignBranch={layerMutations.assignAgent}
               discoveredRoutes={agentInfo?.discoveredRoutes}
