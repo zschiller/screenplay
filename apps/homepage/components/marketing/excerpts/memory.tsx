@@ -5,10 +5,11 @@ import {
   CrosshairIcon,
   FilePdfIcon,
   NotepadIcon,
+  PaperclipIcon,
 } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { Frame, UserBubble, versions } from "./canvas"
+import { Frame, Tool, UserBubble, versions } from "./canvas"
 import { Fit } from "./fit"
 import { ChatHeader, Send, ToolRow } from "./make"
 import { Northwind } from "./northwind"
@@ -50,9 +51,10 @@ export function MemoryExcerpt() {
         width={400}
         height={520}
         initialScale={0.87}
+        fill
         role="img"
         aria-label={`The Dark hero chat: ${label}`}
-        className="border border-border sm:hidden"
+        className="sm:hidden"
       >
         <div className="flex size-full text-foreground">
           <MemoryChat />
@@ -62,9 +64,10 @@ export function MemoryExcerpt() {
         width={640}
         height={520}
         initialScale={0.9}
+        fill
         role="img"
         aria-label={`A chat beside the Dark hero frame: ${label}`}
-        className="border border-border max-sm:hidden"
+        className="max-sm:hidden"
       >
         <div className="flex size-full text-foreground">
           <div className="bg-plane relative w-[200px] shrink-0 overflow-hidden border-r border-border">
@@ -154,7 +157,12 @@ function MemoryChat() {
             Plan
           </span>
           <CrosshairIcon className="size-3.5 text-muted-foreground" />
-          <Send className="ml-auto" />
+          <span className="ml-auto flex gap-0.5">
+            <Tool>
+              <PaperclipIcon className="text-muted-foreground" />
+            </Tool>
+            <Send />
+          </span>
         </div>
       </div>
     </div>

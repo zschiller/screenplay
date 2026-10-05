@@ -75,9 +75,10 @@ export function PrHeaderExcerpt() {
     <Fit
       width={320}
       height={256}
+      fill
       role="img"
       aria-label="The Dark hero chat, with Create PR in its header."
-      className="border border-border bg-background text-foreground"
+      className="bg-background text-foreground"
     >
       <div className="flex size-full flex-col">
         <ChatHeader title={dark.title} crumb={false} />
@@ -170,11 +171,11 @@ export function SketchExcerpt() {
 export function BuildExcerpt() {
   return (
     <Card label="The dark hero built and running live in its own frame, with its page bar, between the other versions’ frames.">
-      {/* The neighbours, cut off at the card’s edges. */}
-      <Frame label="Home" style={{ left: -230, top: 46, width: 256 }}>
+      {/* The neighbours, cut off at the card’s edges, 12px either side. */}
+      <Frame label="Home" style={{ left: -232, top: 46, width: 256 }}>
         <Northwind version={gradient.version} />
       </Frame>
-      <Frame label="Home" style={{ left: 302, top: 46, width: 256 }}>
+      <Frame label="Home" style={{ left: 296, top: 46, width: 256 }}>
         <Northwind version={split.version} />
       </Frame>
       <Frame
@@ -182,11 +183,11 @@ export function BuildExcerpt() {
         workspace={dark.title}
         working
         selected
-        style={{ left: 32, top: 46, width: 256 }}
+        bar={<FrameBar />}
+        style={{ left: 36, top: 46, width: 248 }}
       >
         <Northwind version={dark.version} />
       </Frame>
-      <FrameBar style={{ left: 32, top: 210, width: 256 }} />
     </Card>
   )
 }

@@ -114,7 +114,7 @@ html.dark .nextra-sidebar :is(a, button):hover,
 html.dark .nextra-mobile-nav :is(a, button):hover,
 html.dark .nextra-sidebar a.x\:bg-primary-100,
 html.dark .nextra-mobile-nav :is(a, button).x\:bg-primary-100 {
-  background: oklch(0.18 0 0);
+  background: oklch(0.25 0 0);
   color: oklch(1 0 0);
 }
 .nextra-sidebar a.x\:bg-primary-100,
@@ -173,7 +173,7 @@ html.dark .nextra-card {
   border-color: rgb(255 255 255 / 0.14);
 }
 html.dark .nextra-card:hover {
-  background: oklch(0.18 0 0);
+  background: oklch(0.25 0 0);
 }
 .nextra-card > span {
   padding: 0;
@@ -209,9 +209,9 @@ html.dark article .nextra-card > p {
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
 }
 html.dark .nextra-search-results {
-  --sp-popover: oklch(0.1 0 0);
+  --sp-popover: oklch(0.175 0 0);
   --sp-border: oklch(1 0 0 / 16%);
-  --sp-accent: oklch(0.18 0 0);
+  --sp-accent: oklch(0.25 0 0);
   --sp-fg: oklch(1 0 0);
   --sp-muted-fg: oklch(0.708 0 0);
   --sp-info: oklch(0.667 0.295 322.15);
@@ -257,10 +257,10 @@ html.dark .nextra-search-results {
    tokens from the other theme. Search results are a listbox too and keep
    their own look. */
 [role="listbox"]:not(.nextra-search-results) {
-  --sp-menu-bg: oklch(0.1 0 0);
+  --sp-menu-bg: oklch(0.175 0 0);
   --sp-menu-fg: oklch(1 0 0);
   --sp-menu-border: oklch(1 0 0 / 16%);
-  --sp-menu-accent: oklch(0.18 0 0);
+  --sp-menu-accent: oklch(0.25 0 0);
   padding: 0.25rem;
   border: 1px solid var(--sp-menu-border);
   border-radius: 2px;
