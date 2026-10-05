@@ -13,7 +13,7 @@ A storybook is the third design skill beside [`design-audit`](../design-audit/SK
 
 1. Quote the owner's words, and name the part and the branch it's shown from (main, or the PR in flight).
 2. Read the part's code: its props, the data and stores it reads, every conditional in its render, and its call sites. Each distinct render branch is a state. Add the states the code reaches through its data: empty, one, many, long text, missing image, loading, error, disabled, no permission. Add the interaction states a person sees: hover, focus, pressed, open menus and tooltips. Add every width the part lives at, and every theme the product ships.
-3. Group the states into controls. A control is one dimension with a short list of **values** (Status: Idle, Running, Failed). The **matrix** is every combination of values; most parts need only a few dozen of its cells, so choose the cells that show something new and list them as named states. A combination nobody can reach in the product stays out.
+3. Group the states into controls. A control is one dimension with a short list of **values** (Status: Idle, Running, Failed); its first value is the default, so lead with the most common state. The **matrix** is every combination of values; most parts need only a few dozen of its cells, so choose the cells that show something new and list them as named states. A combination nobody can reach in the product stays out.
 4. Gather the owner's design rules as [`../design-exploration/RULES.md`](../design-exploration/RULES.md) describes, so the critique in step 4 has something to check against.
 
 Done when every render branch in the part's code maps to a state or to a stated reason it's left out, citing `file:line`.
@@ -37,18 +37,18 @@ Done when every listed state has a capture in every theme, all cropped to one si
 
 ## 4. Build the page
 
-One Artifact per part, built from [`storybook-template.html`](storybook-template.html). Load `artifact-design` first. The template is a built page: read and edit only the part above its `Generated below this line` marker, where you fill in the `PAGE`, `CONTROLS` and `STATES` data (and load the `RENDER` script for live) and swap the token block (shadcn variable names) and font link for the repo's brand. When the repo holds the template's source (the package that builds it), change the page there and rebuild instead. The template does the rest: a bar pinned to the top with the title, the Story and All states tabs and a Light/Dark switch; the stage showing the chosen state in the viewer's theme, at one height for every state and, on a wide screen, short enough that the controls and the state's name share the first screen with it; a segmented control per dimension; a note field per state, with the owner's words and where the part lives under it; an All states grid that marks states with notes; and a bottom bar that copies every note at once, or on a Screenplay canvas sends them to the chat's composer.
+One Artifact per part, built from [`storybook-template.html`](storybook-template.html). Load `artifact-design` first. The template is a built page: read and edit only the part above its `Generated below this line` marker, where you fill in the `PAGE`, `CONTROLS` and `STATES` data (and load the `RENDER` script for live) and swap the token block (shadcn variable names) and font link for the repo's brand. When the repo holds the template's source (the package that builds it), change the page there and rebuild instead. The page draws the controls, a note per state, an All states grid, and Copy notes, holding every state at one height.
 
 - Give each state a short name a person would say ("Running, long title") and, when it shows something worth looking at, one line on what (`why`), citing the code that produces it.
 - A control value with no state next to the current ones is dimmed and jumps to the closest state that has it, so the matrix can stay sparse.
 - When the owner asks for another round, update the same Artifact so the link never changes: bump `PAGE.round`, and put the owner's earlier note and what changed on the state as `said`.
 
-Open every capture at full size in every theme before publishing, the way the owner will see it, and run `node --check` on the filled data script once. A defect visible in a capture goes in that state's `why`, so the owner sees it already noticed.
+Open every capture at full size in every theme before publishing, the way the owner will see it: the part sits at the same size and place in each state, nothing is clipped, and each state matches what the product does. Run `node --check` on the filled data script once. A defect visible in a capture goes in that state's `why`, so the owner sees it already noticed.
 
 ## 5. Share it and take the notes
 
-Reply with the link and one line on what's in it: how many states, and anything already noticed. The owner steps through the states and pastes back the copied notes.
+Reply with the link and one line on what's in it: how many controls and states, and anything already noticed. The owner steps through the states and pastes back the copied notes.
 
-When the notes arrive, record them in memory in the storybook's topic file (`<part>-storybook`): the Artifact link, the round, each note with its state. A note on a part in flight goes into that branch's work. A note that asks a design question with more than one answer becomes a `design-exploration` when the owner wants options. Any other note waits for the owner to say what to do with it.
+When the notes arrive, record them in memory in the storybook's topic file (`<part>-storybook`): the Artifact link, the round, each note with its state. Each note is work on its state: a note asking for a change to the part is the owner's ask, so make it, in the branch in flight when there is one, otherwise on a new branch. A note that asks a design question with more than one fair answer becomes a `design-exploration` when the owner wants options. A note that only observes waits for the owner to say what to do with it.
 
 Done when every note is recorded against its state and each has a next step or is waiting on the owner.
