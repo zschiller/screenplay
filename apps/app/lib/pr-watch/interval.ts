@@ -18,7 +18,11 @@ export function startPrWatchInterval(): void {
   started = true
   const tick = async () => {
     try {
-      await runPrWatchTick()
+      // No request to run a wake turn after: the long-lived server runs it
+      // on its own, without holding up the next tick.
+      await runPrWatchTick((task) => {
+        void task().catch((e) => console.error("PR wake turn failed:", e))
+      })
     } catch (e) {
       console.error("PR Watch tick failed:", e)
     }

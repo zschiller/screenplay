@@ -14,6 +14,7 @@ import {
   REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
   WAKE_MARKER_LABEL,
+  PR_EVENT_MARKER_LABEL,
 } from "@/lib/agent/message-markers"
 import { workspaceLink } from "@/lib/agent/workspace-task"
 import { layerLink } from "@/lib/agent/layer-link"
@@ -343,6 +344,13 @@ To read or search the repository’s issues and pull requests and their comments
  */
 const canvasViewPrompt = `A user message may end with a \`${CANVAS_VIEW_FOOTER_TOKEN}\` footer listing, with ids, what its sender had selected on the canvas and what was on their screen when they sent it. The user doesn’t see it. When they say "this", "that", "these" or "here" without naming it, they mean their selection first, then what was on their screen, the first listed taking the most of it. Several people can share a chat and each sees their own canvas, so read the footer of the message you’re answering, which names its sender; an earlier message’s footer is what its sender saw back then. It is a snapshot from when they sent it. When neither the selection nor the screen settles what they mean, ask.`
 
+/**
+ * How the Workspace agent handles a PR event that woke it (#1703): fix and
+ * push, or say why not.
+ */
+const prEventsPrompt = (t: ToolNaming["name"]) =>
+  `PR events: a message starting with \`[${PR_EVENT_MARKER_LABEL}: …]\` is an automatic update from GitHub about this Workspace’s pull request, not a message from the user, who sees it as a short line. When its checks failed, read them with ${t("read_pr_checks")}, fix the cause, commit and push. When it conflicts with its base branch, merge the base branch in, resolve the conflict, commit and push. If you can’t fix it, or the fix needs the user’s call, reply in a sentence or two saying why. When it merged or closed, reply in one line, and say what’s left only if something is. After a few attempts on the same PR with no word from the user, PR events stop waking you and the user is asked instead.`
+
 const agentSystemPromptTail = (naming: ToolNaming) => {
   const t = naming.name
   // A harness runs commands with its own shell tool, not run_command.
@@ -358,6 +366,8 @@ ${frameDrivePrompt(t, { frames: frameDriveRuntime() })}
 Mockups: when the user wants to see a design idea before it’s built, or to compare takes side by side, call ${t("create_mockup")} with a self-contained HTML page (inline styles, no network). It shows on the canvas beside the live frames without touching the code. Make one Mockup per take, and rewrite your own with ${t("update_mockup")}. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with ${t("update_mockup")} instead of creating a new one.
 
 This Workspace is yours: you are its one chat, and the only one that changes its code. Every other Workspace on the canvas belongs to its own chat. You can read their code with ${t("read_code_file")}, ${t("search_code")} and ${t("find_code_files")}, but never change it: when something needs to change in another Workspace, tell the user so they can ask that Workspace’s chat. People know each Workspace as a chat, so when you write to the user, call it a chat, never a Workspace.
+
+${prEventsPrompt(t)}
 
 Keep your responses concise. Show the user what you changed and why.`
 }

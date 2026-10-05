@@ -113,7 +113,8 @@ export async function POST(req: Request) {
   if (result.kind === "steered") {
     return Response.json({ chatId, steered: true, steerId: result.steerId })
   }
-  if (result.kind === "not-steerable") {
+  // `busy` answers only a PR wake's launch; this route sends none.
+  if (result.kind === "not-steerable" || result.kind === "busy") {
     return Response.json({ error: "not_steerable" }, { status: 409 })
   }
   return Response.json({ chatId, runId: result.runId })

@@ -209,6 +209,12 @@ export type BranchData = {
   prChecksFailed?: boolean
   prConflict?: boolean
   /**
+   * The PR whose events stopped waking the agent (#1703): it took
+   * `PR_WAKE_CAP` wake turns in a row with no message from a person, so the
+   * Workspace needs you. A person writing in its chat clears it.
+   */
+  prWakesPaused?: number
+  /**
    * Cached diff stats (additions/deletions vs the Repo's default branch, from
    * the GitHub compare API), refreshed by the same poll. Same rationale as the
    * PR cache above — read straight from the doc, no client round-trip. */

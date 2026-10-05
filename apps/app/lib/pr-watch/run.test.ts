@@ -40,6 +40,22 @@ vi.mock("@/lib/agent/broadcast", () => ({
   },
 }))
 
+// Turn Launch is faked at the wake's seam: it records who each wake acted
+// for and answers as `wakes.outcome` says.
+const wakes = vi.hoisted(() => ({
+  outcome: "unavailable" as "started" | "busy" | "unavailable",
+  calls: [] as Array<{ userId: string; chatId: string; message: string }>,
+}))
+vi.mock("@/lib/agent/turn-launch-live", () => ({
+  launchPrWakeTurn: async (
+    room: { userId: string },
+    request: { chatId: string; message: string }
+  ) => {
+    wakes.calls.push({ userId: room.userId, ...request })
+    return wakes.outcome
+  },
+}))
+
 const docs = vi.hoisted(() => new Map<string, import("yjs").Doc>())
 vi.mock("@/lib/yjs-host", async () => {
   const Y = await import("yjs")
@@ -73,6 +89,8 @@ beforeEach(async () => {
   docs.clear()
   tokens.clear()
   broadcasts.length = 0
+  wakes.outcome = "unavailable"
+  wakes.calls.length = 0
   const { db, schema } = await import("@/lib/db")
   await db.insert(schema.user).values([
     { id: "owner", name: "Owner", email: "owner@example.com" },
@@ -118,7 +136,7 @@ async function chatLog() {
 }
 
 describe("runPrWatch", () => {
-  it("adds each PR event to the Branch's Workspace Chat and echoes it", async () => {
+  it("adds a PR event the Workspace can't wake for to its chat and echoes it", async () => {
     seedRoom()
     const { runPrWatch } = await import("./run")
     const { openRoomForPrWatchTick } = await import("@/lib/room-access")
@@ -131,6 +149,8 @@ describe("runPrWatch", () => {
     }
     await runPrWatch(openRoomForPrWatchTick(ROOM), async () => failing)
 
+    // The wake was tried as the Branch's owner first.
+    expect(wakes.calls.map((c) => c.userId)).toEqual(["maker"])
     const log = await chatLog()
     expect(log).toHaveLength(1)
     expect(log[0]).toMatchObject({ role: "user" })
@@ -151,6 +171,52 @@ describe("runPrWatch", () => {
     // The same state again changes nothing.
     await runPrWatch(openRoomForPrWatchTick(ROOM), async () => failing)
     expect(await chatLog()).toHaveLength(1)
+  })
+
+  it("holds a wake while the chat is busy and sends it on the next look", async () => {
+    seedRoom()
+    const { runPrWatch } = await import("./run")
+    const { openRoomForPrWatchTick } = await import("@/lib/room-access")
+    const conflict: PrLookup = {
+      number: 7,
+      url: URL,
+      state: "open",
+      conflict: true,
+    }
+    wakes.outcome = "busy"
+    await runPrWatch(openRoomForPrWatchTick(ROOM), async () => conflict)
+    expect(await chatLog()).toHaveLength(0)
+
+    wakes.outcome = "started"
+    await runPrWatch(openRoomForPrWatchTick(ROOM), async () => conflict)
+    expect(wakes.calls).toHaveLength(2)
+    expect(wakes.calls[1]!.message).toMatch(/^\[pr event: 7 conflict\]/)
+
+    // Delivered once: nothing is held for a third look.
+    await runPrWatch(openRoomForPrWatchTick(ROOM), async () => conflict)
+    expect(wakes.calls).toHaveLength(2)
+  })
+
+  it("past the cap, shows the line and marks the PR as needing a person", async () => {
+    const c = seedRoom()
+    const { appendAcpMessage } = await import("@/lib/agent/persistence")
+    for (let i = 0; i < 3; i++) {
+      await appendAcpMessage("chat-1", {
+        role: "user",
+        content: [{ type: "text", text: "[pr event: 7 checks_failed] …" }],
+      })
+    }
+    const { runPrWatch } = await import("./run")
+    const { openRoomForPrWatchTick } = await import("@/lib/room-access")
+    await runPrWatch(openRoomForPrWatchTick(ROOM), async () => ({
+      number: 7,
+      url: URL,
+      state: "merged",
+    }))
+
+    expect(wakes.calls).toEqual([])
+    expect(await chatLog()).toHaveLength(4)
+    expect(c.branches.get("b1")?.prWakesPaused).toBe(7)
   })
 
   it("skips a look while another runs on the same Room", async () => {

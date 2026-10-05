@@ -208,6 +208,24 @@ const CASES: {
     },
   },
   {
+    name: "needs you when its PR's events stopped waking the agent (#1703)",
+    branch: ws({ prNumber: 7, prState: "merged", prWakesPaused: 7 }),
+    expected: {
+      line: { kind: "idle", state: "needs-you", text: "PR needs you" },
+      section: "needs-you",
+      needsYou: true,
+    },
+  },
+  {
+    name: "a newer PR than the paused one is ready again",
+    branch: ws({ prNumber: 8, prState: "open", prWakesPaused: 7 }),
+    expected: {
+      line: { kind: "idle", state: "ready", text: "Ready" },
+      section: "idle",
+      needsYou: false,
+    },
+  },
+  {
     name: "needs you when stopped with a plan pending",
     branch: ws({ status: "stopped" }),
     plans: [{ branchId: "ws", status: "pending" }],
