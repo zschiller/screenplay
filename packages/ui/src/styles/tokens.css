@@ -211,8 +211,11 @@
 
 /* Text selection: solid magenta (the accent, as the canvas selection and the
    focus rings) under black text, the same in both themes, on the homepage
-   and docs. The app softens it to a lighter pink (apps/app globals.css). */
+   and docs. The app softens it to a lighter pink (apps/app globals.css).
+   `fill` too: Chrome paints selected SVG text (the docs diagrams) with
+   its own fill unless the selection sets one. */
 ::selection {
     background-color: oklch(0.667 0.295 322.15);
     color: oklch(0 0 0);
+    fill: oklch(0 0 0);
 }
