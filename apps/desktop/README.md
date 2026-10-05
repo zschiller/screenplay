@@ -23,8 +23,8 @@ control server (thumbnails) ◀──POST /thumbnail── TauriWebviewCapturer
 ```
 
 - **Boot runs off the main thread** (`boot` in `main.rs`), so the window paints
-  `dist/index.html` immediately: a spinner drawn with the homepage hero's
-  liquid dither on the app's theme background, and an error state
+  `dist/index.html` immediately: the app's spinner arc drawn in the homepage
+  hero's liquid dither on the app's theme background, and an error state
   (`window.showBootError`) if the sidecar dies or never answers. The spinner
   (`launch/spinner.ts`) runs the hero's fluid solver;
   `pnpm --filter desktop build:launch` compiles both into `dist/launch/`

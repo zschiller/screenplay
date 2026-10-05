@@ -184,10 +184,7 @@ export function createFluid(w: number, h: number) {
   }
 
   return {
-    /**
-     * Each cell's velocity, in cells a step. A caller that keeps stirring
-     * (the desktop launch spinner) damps it further so the fluid stays calm.
-     */
+    /** Each cell's velocity, in cells a step. */
     vx,
     vy,
     get lit() {
