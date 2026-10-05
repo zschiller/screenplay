@@ -23,9 +23,12 @@ control server (thumbnails) ◀──POST /thumbnail── TauriWebviewCapturer
 ```
 
 - **Boot runs off the main thread** (`boot` in `main.rs`), so the window paints
-  `dist/index.html` immediately: the logo on the app's theme background, a
-  spinner only after ~0.8s, and an error state (`window.showBootError`) if the
-  sidecar dies or never answers.
+  `dist/index.html` immediately: a spinner drawn with the homepage hero's
+  liquid dither on the app's theme background, and an error state
+  (`window.showBootError`) if the sidecar dies or never answers. The spinner
+  (`launch/spinner.ts`) runs the hero's fluid solver;
+  `pnpm --filter desktop build:launch` compiles both into `dist/launch/`
+  (gitignored), and Tauri runs it before every `tauri dev` and `tauri build`.
 - **Port** is OS-assigned (`TcpListener::bind("127.0.0.1:0")`) and handed to the
   sidecar; the first-paint race is closed by gating `navigate()` on `/api/health`.
 - **The single build-time switch** lives in [`desktop.env`](./desktop.env): the
@@ -69,11 +72,11 @@ installer are handled by the release script — see below.)
 
 ## Releasing
 
-The root `ci.yml` never touches this package (no `test`/`typecheck` scripts —
-the only artifact is the build), and there's deliberately no per-PR build
-check: a full sidecar + Tauri build needs a macOS runner (10x billed minutes),
-which isn't worth paying for until the app is release-ready. The build is
-exercised when a release is cut:
+The root `ci.yml` only typechecks this package's launch spinner (there are no
+`test` scripts; the only artifact is the build), and there's deliberately no
+per-PR build check: a full sidecar + Tauri build needs a macOS runner (10x
+billed minutes), which isn't worth paying for until the app is release-ready.
+The build is exercised when a release is cut:
 
 - **`pnpm --filter desktop release <patch|minor|major|X.Y.Z>`**
   (`scripts/release.mjs`), run on a Mac: bumps the version across
