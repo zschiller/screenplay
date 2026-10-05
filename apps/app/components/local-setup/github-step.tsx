@@ -83,7 +83,7 @@ export function GitHubStep({
       title="Connect GitHub"
       chip={<SetupChip>Optional</SetupChip>}
     >
-      <p className="text-xs text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         {connected
           ? status?.ghHandle
             ? `Connected as @${status.ghHandle}.`
@@ -92,7 +92,7 @@ export function GitHubStep({
       </p>
       {connection.working ? (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {connection.working.message}
           </p>
           <HostSessionTerminal

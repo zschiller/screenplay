@@ -87,7 +87,7 @@ export function SettingsRow({
           )}
         </div>
         {detail && (
-          <div className="truncate text-xs text-muted-foreground">{detail}</div>
+          <div className="truncate text-sm text-muted-foreground">{detail}</div>
         )}
       </div>
       {action && (

@@ -166,7 +166,7 @@ export function WorkspaceTaskRow({
         )}
       </span>
       {message && (
-        <span className="block w-full truncate pl-6 text-xs text-muted-foreground">
+        <span className="block w-full truncate pl-6 text-sm text-muted-foreground">
           {message}
         </span>
       )}

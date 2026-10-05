@@ -97,7 +97,7 @@ export default async function PlayPage({
                 />
               </EmptyMedia>
               <EmptyTitle>Connecting</EmptyTitle>
-              <EmptyDescription className="text-xs/relaxed">
+              <EmptyDescription>
                 Joining {room.name || "the canvas"}.
               </EmptyDescription>
             </EmptyHeader>

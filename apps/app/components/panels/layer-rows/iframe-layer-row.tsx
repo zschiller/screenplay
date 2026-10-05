@@ -55,7 +55,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
     const workspace = showWorkspace ? frameWorkspaceOf(branch) : undefined
     const workspaceMention = workspace ? (
       // Names win: the Workspace takes only the room the name leaves.
-      <span className="flex min-w-10 flex-1 basis-0 text-xs text-muted-foreground">
+      <span className="flex min-w-10 flex-1 basis-0 text-sm text-muted-foreground">
         <CompactWorkspaceMention workspace={workspace} layout="row" />
       </span>
     ) : null

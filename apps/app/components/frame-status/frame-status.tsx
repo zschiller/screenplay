@@ -179,7 +179,7 @@ export function FrameStatus({
           </EmptyMedia>
           <EmptyTitle>{copy.title}</EmptyTitle>
           {stage === "workspace-failed" && detail ? (
-            <EmptyDescription className="line-clamp-3 font-mono text-xs break-words">
+            <EmptyDescription className="line-clamp-3 font-mono text-sm break-words">
               {detail}
             </EmptyDescription>
           ) : (

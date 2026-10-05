@@ -70,7 +70,7 @@ export function SignInScreen() {
               Couldn&rsquo;t reach GitHub to sign you in.
             </p>
           )}
-          <p className="max-w-[36ch] text-xs text-balance text-muted-foreground">
+          <p className="max-w-[36ch] text-sm text-balance text-muted-foreground">
             Screenplay clones your GitHub repositories and pushes commits on
             your behalf.
           </p>

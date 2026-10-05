@@ -148,7 +148,7 @@ function WorkspaceHoverDetail({
         <p className="font-medium break-words">{label}</p>
         <p
           className={cn(
-            "text-xs",
+            "text-sm",
             line.kind === "error" ? "text-destructive" : "text-muted-foreground"
           )}
         >
@@ -162,7 +162,7 @@ function WorkspaceHoverDetail({
         </p>
       </div>
       {(details.repository || details.branch) && (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
           {details.repository && (
             <>
               <dt className="text-muted-foreground">Repository</dt>

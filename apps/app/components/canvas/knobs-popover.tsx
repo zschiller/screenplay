@@ -71,7 +71,7 @@ export function KnobsPopover({
           onChange={onChange}
           theme={theme}
           empty={
-            <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-col gap-2 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">
                 {theme ? "No knobs from this page yet" : "No knobs yet"}
               </p>

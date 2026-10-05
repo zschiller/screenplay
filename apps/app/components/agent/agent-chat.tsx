@@ -444,7 +444,7 @@ export function AgentChat({
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         <div ref={scrollContentRef} className="flex min-h-full flex-col p-4">
           {isLoadingHistory ? (
-            <div className="m-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="m-auto flex items-center gap-1.5 text-sm text-muted-foreground">
               <Spinner className="size-3" />
               Loading chat…
             </div>
@@ -665,7 +665,7 @@ function ChatEmptyState({
               ? "Sketch or write something"
               : capabilities.emptyTitle}
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {fresh
             ? "Your first ask starts a chat on the canvas."
             : noRepository
@@ -707,7 +707,7 @@ function ChatLoadError({ onRetry }: { onRetry: () => Promise<unknown> }) {
         <p className="font-heading text-title-sm text-foreground">
           Couldn’t load this chat
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Its messages are still saved. Try loading them again.
         </p>
       </div>
@@ -744,7 +744,7 @@ function FailedSendNotice({
           chatId={chatId}
         />
       </div>
-      <div className="-mr-2 flex max-w-full items-center text-xs">
+      <div className="-mr-2 flex max-w-full items-center text-sm">
         <span className="mr-2 min-w-0 truncate text-destructive" title={error}>
           Not sent: {describeSendError(error)}
         </span>
@@ -782,7 +782,7 @@ function PendingSteerNotice({
           chatId={chatId}
         />
       </div>
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+      <div className="flex items-center gap-1 text-sm text-muted-foreground">
         <ClockIcon className="size-3.5 shrink-0" />
         Waiting for the agent
       </div>
@@ -801,7 +801,7 @@ function QueuedRow({
   onRemove: () => void
 }) {
   return (
-    <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50">
+    <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-sm dark:bg-input/50">
       <ClockIcon className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="shrink-0 text-muted-foreground">Queued</span>
       <span className="min-w-0 flex-1 truncate" title={message}>
@@ -833,7 +833,7 @@ function QuoteRow({
   return (
     <div
       aria-label="Quoted passage"
-      className="flex w-full gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50"
+      className="flex w-full gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-sm dark:bg-input/50"
     >
       <FileTextIcon className="mt-1.5 size-3.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1 py-1">
@@ -866,7 +866,7 @@ function DraftSourceRow({
   return (
     <div
       aria-label="Drafted on a mockup"
-      className="flex w-full items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50"
+      className="flex w-full items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-sm dark:bg-input/50"
     >
       <ScribbleIcon className="size-3.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1 truncate">

@@ -942,7 +942,7 @@ function PlanMessage({
         )}
         {isRejected && message.feedback && (
           <div className="mt-3 rounded-md border border-border bg-background/60 p-2">
-            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <div className="mb-1 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
               <XCircleIcon className="size-3" /> Your feedback
             </div>
             <ChatMarkdown tone="muted" size="xs">
@@ -1085,7 +1085,7 @@ function PrEventLine({ event }: { event: PrEventMark }) {
     <div
       role="note"
       data-testid="pr-event"
-      className="flex items-center gap-2 text-xs text-muted-foreground"
+      className="flex items-center gap-2 text-sm text-muted-foreground"
     >
       <span className="h-px flex-1 bg-border" />
       <span className="flex min-w-0 items-center gap-1.5">
@@ -1484,7 +1484,7 @@ export function AgentMessageItem({
         <div
           role="note"
           data-testid="run-stopped"
-          className="flex items-center gap-2 text-xs text-muted-foreground"
+          className="flex items-center gap-2 text-sm text-muted-foreground"
         >
           <span className="h-px flex-1 bg-border" />
           <span className="flex items-center gap-1">
@@ -1521,7 +1521,7 @@ function ErrorMessage({
   return (
     <div
       data-testid="chat-error"
-      className="flex items-start gap-1.5 rounded-md border py-1 pr-1 pl-2 text-xs"
+      className="flex items-start gap-1.5 rounded-md border py-1 pr-1 pl-2 text-sm"
     >
       <WarningCircleIcon
         aria-hidden

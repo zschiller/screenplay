@@ -38,7 +38,7 @@ function AttachmentIcon({ mediaType }: { mediaType?: string }) {
 }
 
 const CHIP =
-  "inline-flex h-7 max-w-56 min-w-0 items-center gap-1.5 rounded-lg text-xs"
+  "inline-flex h-7 max-w-56 min-w-0 items-center gap-1.5 rounded-lg text-sm"
 
 /** An attachment in the composer, before the message is sent. */
 export function ComposerAttachmentChip({

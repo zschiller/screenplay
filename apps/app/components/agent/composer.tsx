@@ -1371,7 +1371,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                           >
                             <span className="flex-1">{m.label}</span>
                             {m.id === defaultModel && (
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-sm text-muted-foreground">
                                 Default
                               </span>
                             )}

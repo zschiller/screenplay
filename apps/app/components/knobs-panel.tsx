@@ -110,7 +110,7 @@ export function KnobsPanel({
   return (
     <div className="flex max-h-90 min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-foreground/5 px-3">
-        <span className="text-xs font-medium text-foreground">Knobs</span>
+        <span className="text-sm font-medium text-foreground">Knobs</span>
         {defs.length > 0 || theme ? (
           <Button
             size="sm"
@@ -216,8 +216,8 @@ function KnobRow({ def, value, onChange, divided }: KnobRowProps) {
     >
       {/* Inline, so a label too long for its column wraps with the info
           icon following its last word. */}
-      <div className="min-w-0 text-xs leading-4">
-        <Label className="inline text-xs leading-4">{label}</Label>
+      <div className="min-w-0 text-sm leading-4">
+        <Label className="inline text-sm leading-4">{label}</Label>
         {description ? (
           <KnobDescription label={label} description={description} />
         ) : null}
@@ -315,7 +315,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
             const n = Number(e.target.value)
             if (!Number.isNaN(n)) onChange(n)
           }}
-          className="h-7 text-xs md:text-xs"
+          className="h-7 text-sm md:text-sm"
         />
       )
     }
@@ -331,7 +331,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
           value={stringValue}
           placeholder={def.placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className="h-7 text-xs md:text-xs"
+          className="h-7 text-sm md:text-sm"
         />
       )
     }
@@ -354,7 +354,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
               <TabsTrigger
                 key={opt.value}
                 value={opt.value}
-                className="flex-1 justify-center text-xs"
+                className="flex-1 justify-center text-sm"
               >
                 {opt.label ?? opt.value}
               </TabsTrigger>
@@ -369,7 +369,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
         <Select value={stringValue} onValueChange={onChange}>
           <SelectTrigger
             size="sm"
-            className="w-full text-xs data-[size=sm]:h-7"
+            className="w-full text-sm data-[size=sm]:h-7"
           >
             <SelectValue />
           </SelectTrigger>
@@ -388,7 +388,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
       // A field like the text knobs': a swatch and the hex value, with the
       // native colour input stretched invisibly over it to open the picker.
       return (
-        <label className="relative flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-input bg-transparent px-1.5 text-xs transition-colors has-focus-visible:border-ring has-focus-visible:ring-3 has-focus-visible:ring-ring/50 dark:bg-input/30">
+        <label className="relative flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-input bg-transparent px-1.5 text-sm transition-colors has-focus-visible:border-ring has-focus-visible:ring-3 has-focus-visible:ring-ring/50 dark:bg-input/30">
           <span
             aria-hidden
             className="size-4 shrink-0 rounded-sm ring-1 ring-foreground/10 ring-inset"
