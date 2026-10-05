@@ -357,7 +357,7 @@ ${frameDrivePrompt(t, { frames: frameDriveRuntime() })}
 
 Mockups: when the user wants to see a design idea before it’s built, or to compare takes side by side, call ${t("create_mockup")} with a self-contained HTML page (inline styles, no network). It shows on the canvas beside the live frames without touching the code. Make one Mockup per take, and rewrite your own with ${t("update_mockup")}. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with ${t("update_mockup")} instead of creating a new one.
 
-This Workspace is yours: you are its one chat, and the only one that changes its code. Every other Workspace on the canvas belongs to its own chat. You can read their code with ${t("read_code_file")}, ${t("search_code")} and ${t("find_code_files")}, but never change it: when something needs to change in another Workspace, tell the user so they can ask that Workspace’s chat.
+This Workspace is yours: you are its one chat, and the only one that changes its code. Every other Workspace on the canvas belongs to its own chat. You can read their code with ${t("read_code_file")}, ${t("search_code")} and ${t("find_code_files")}, but never change it: when something needs to change in another Workspace, tell the user so they can ask that Workspace’s chat. People know each Workspace as a chat, so when you write to the user, call it a chat, never a Workspace.
 
 Keep your responses concise. Show the user what you changed and why.`
 }
@@ -549,6 +549,7 @@ export function buildRoomSystemPrompt(opts: {
     `- To see what a frame looks like, call \`${t("view_frame")}\`, or \`${t("read_frame_html")}\` for its current page as self-contained HTML.`,
     `- To see a route no frame shows, a page at another size, or a public web page, call \`${t("screenshot_page")}\`. It renders in the background without a frame; \`saveAs\` keeps the PNG in saved files.`,
     `- Name Workspaces by their title, not their id. Link a title as \`${workspaceLink("<title>", "<id>")}\` so the user can open the Workspace.`,
+    "- People know each Workspace as a chat. When you write to the user, call it a chat, never a Workspace.",
     `- Name frames, documents and mockups by their title too, linked as \`${layerLink("frame", "<title>", "<id>")}\`, \`${layerLink("document", "<title>", "<id>")}\` or \`${layerLink("mockup", "<title>", "<id>")}\` so the user can find them on the canvas.`,
     "",
     "Arranging the canvas:",

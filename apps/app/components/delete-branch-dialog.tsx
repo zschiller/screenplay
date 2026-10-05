@@ -82,8 +82,8 @@ export function DeleteBranchDialog({
   // GitHub (the branch, and the PR it closes); otherwise the description does.
   const goes =
     frameCount > 0
-      ? `Its workspace and ${count(frameCount, "frame", "frames")} are deleted.`
-      : "Its workspace is deleted."
+      ? `The chat and its ${count(frameCount, "frame", "frames")} are deleted.`
+      : "The chat is deleted."
   const branchStaysOn = [
     localBranchKept && "this computer",
     !canDeleteOnRemote && onOrigin && "GitHub",

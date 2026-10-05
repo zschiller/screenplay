@@ -44,7 +44,7 @@ interface UnassignedGroupWorkspace {
 }
 
 /** A Group whose frames show different Workspaces (#1276): its label names
- *  none, and offers "Set workspace" only while hovered, to put every frame on
+ *  none, and offers "Choose chat" only while hovered, to put every frame on
  *  one. */
 interface MixedGroupWorkspace {
   branchId?: undefined
@@ -138,7 +138,7 @@ export function GroupLabel({ workspace, menu, ...props }: GroupLabelProps) {
       {"mixed" in workspace ? (
         <WorkspaceChooser
           switcher={workspace.switcher}
-          title="Set workspace"
+          title="Choose chat"
           placeholder={`Show ${props.label} from…`}
           // Only on hover, so a Group of explorations stays quiet. Hidden but
           // holding its place, so hovering the spot where it appears shows it.
@@ -205,7 +205,7 @@ function GroupWorkspaceSwitcher({
             type="button"
             data-slot="group-workspace"
             {...hoverProps}
-            aria-label={`Show ${label} from another workspace (now ${workspaceLabel(workspace)})`}
+            aria-label={`Show ${label} from another chat (now ${workspaceLabel(workspace)})`}
             // Names win: the Workspace gives up its width first.
             className="group flex min-w-10 shrink-[100] items-center text-xs text-muted-foreground outline-none focus-visible:outline-none"
             onPointerDown={(e) => e.stopPropagation()}
@@ -240,16 +240,16 @@ function GroupWorkspaceSwitcher({
 }
 
 /**
- * "Choose a workspace" on the label of a Group whose frames have none yet
- * (#871), styled like the unassigned frame label it replaces, and "Set
- * workspace" on a hovered Group whose frames differ, or on a hovered frame
+ * "Choose a chat" on the label of a Group whose frames have none yet
+ * (#871), styled like the unassigned frame label it replaces, and "Choose
+ * chat" on a hovered Group whose frames differ, or on a hovered frame
  * whose Group names its Workspace. Picking one sets everything the switcher
  * covers.
  */
 export function WorkspaceChooser({
   switcher,
   currentBranchId,
-  title = "Choose a workspace",
+  title = "Choose a chat",
   placeholder,
   className,
 }: {

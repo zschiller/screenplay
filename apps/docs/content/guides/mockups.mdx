@@ -10,7 +10,7 @@ a design idea. It needs no dev server, so it appears the moment it’s written.
 Mockups let you compare a few options side by side with the running app
 before anything is built.
 
-Ask a workspace chat for it in your own words, for example “sketch three
+Ask a chat for it in your own words, for example “sketch three
 takes on the empty cart as mockups”. The chat writes each take as its own
 mockup, and when you ask for changes it rewrites them in place. Or draw one
 yourself with the **Mockup** tool and say what goes in it.
@@ -29,8 +29,8 @@ does. Type what to sketch and press <kbd>Enter</kbd>. The box’s size is sent
 along as the viewport, so a phone-sized box gets a mobile take.
 
 - The chip beside **Send** says which chat sketches it. With nothing selected
-  it’s **New chat**, which starts a new workspace chat. If you had a frame,
-  mockup or document selected when you drew, it’s that layer’s workspace
+  it’s **New chat**, which starts a new chat on a repository. If you had a frame,
+  mockup or document selected when you drew, it’s that layer’s
   chat. Click the chip to switch.
 - The chip also offers **New chat, no repository** and any
   [chats with no repository](/guides/agent#chats-with-no-repository): they
@@ -54,18 +54,18 @@ A mockup you drew stays where you drew it. Mockups a chat makes on its own
 land here:
 
 - **Beside a frame.** A chat’s first mockup joins the group of its
-  workspace’s frames, so the live page and the options read left to right in
+  chat’s frames, so the live page and the options read left to right in
   one row.
 - **Beside each other.** Every later mockup from the same chat joins the
   group of its previous one.
-- **On their own.** When the chat’s workspace has no frame on the canvas yet,
+- **On their own.** When the chat has no frame on the canvas yet,
   its mockups get a group of their own.
 
 ## Which chat made it
 
-Every mockup remembers the chat that made it, and shows that chat’s
-workspace next to its title, as a chat’s documents do. When everything in a
-group comes from the same workspace, the group’s label names it once instead.
+Every mockup remembers the chat that made it, and shows that chat
+next to its title, as a chat’s documents do. When everything in a
+group comes from the same chat, the group’s label names it once instead.
 Only the chat that made a mockup can change it; ask that chat to continue the
 work. Once that chat is deleted, any chat can change the mockup, and the first
 one that does becomes its chat.
@@ -74,7 +74,7 @@ one that does becomes its chat.
 
 When you’ve picked a take, ask the chat that drew it to build it, for
 example “build take 2”. The chat reads that mockup’s page, builds it into
-its own workspace using your app’s real components, and checks the result
+its own code using your app’s real components, and checks the result
 in its frame against the mockup. Its reply sums up the decisions it built
 from: the take you picked, your answers to its questions and the changes you
 asked for along the way. The mockup stays on the canvas, so the take and the live page can sit side by side.
@@ -122,8 +122,7 @@ frame’s. When the
 chat gives its page [knobs](/guides/building/knobs#knobs-on-a-mockup), the button
 opens them: sliders, switches, text fields, selects and color pickers that
 change the page as you drag, for everyone on the canvas. With none yet,
-**Ask the agent to add a knob** opens the chat that drew the mockup (for a
-mockup a workspace drew, that workspace’s chat) with a request started. When
+**Ask the agent to add a knob** opens the chat that drew the mockup with a request started. When
 that chat was deleted, it opens the chat the agent panel is showing instead,
 or a new chat with no repository when the panel shows the Coordinator. A
 mockup you made by hand has no Ask.
@@ -202,14 +201,14 @@ browser, like a [frame](/guides/frames#live-frames). To look at the very same
 page together, click **Go live** (the broadcast button after **Interact**
 under the selected mockup). Going live works as it does on a frame: it
 happens for everyone on the canvas. The mockup’s page opens in one browser in
-a workspace’s sandbox, everyone’s copy switches to it, and the title line
+a chat’s sandbox, everyone’s copy switches to it, and the title line
 reads **Live**. Anyone who opens the canvas while the mockup is live lands on
 it live.
 
-A mockup has no workspace of its own, so it borrows one to run in: the
-workspace of the chat that made it, or another running workspace when that
-one isn’t running. With no workspace running, **Go live** is disabled and its
-tooltip says a workspace has to be running.
+A mockup has no code of its own, so it borrows a chat’s to run in: the
+code of the chat that made it, or another chat’s running code when that
+one isn’t running. With no chat’s code running, **Go live** is disabled and its
+tooltip says **The chat’s code has to be running**.
 
 On a live mockup, whoever has control is the only one whose clicks, keys and
 scrolling reach the page, and others can
@@ -228,7 +227,7 @@ A chat’s agent can click through a mockup for you, the way it
 you how a take behaves, or to get it into a state. It reads the page’s
 buttons and fields, clicks, types and scrolls, and looks at the mockup after
 each step. This works in the browser and in the desktop app, from a
-workspace chat or a [chat with no repository](/guides/agent#chats-with-no-repository).
+chat on a repository or a [chat with no repository](/guides/agent#chats-with-no-repository).
 
 - **It drives your copy.** The steps happen in the mockup on the canvas of
   the person who asked. Everyone else keeps their own copy, as when you click
@@ -277,4 +276,4 @@ it can’t reach Screenplay, your session or the rest of the canvas, and it
 doesn’t load anything from the network. Mockups are self-contained pages:
 the [pictures and templates](#pictures-and-templates) a page names come from
 the canvas, not the network. A live mockup runs locked down the same way, in
-its workspace’s sandbox.
+its chat’s sandbox.

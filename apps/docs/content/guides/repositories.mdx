@@ -19,9 +19,9 @@ canvas, each with **Edit** and **Remove**, then **Your other repositories**,
 the ones of [yours](#your-repositories) it doesn’t use yet, each with
 **Add**. Each row shows the repository’s short name (its label, or the
 repository’s own name) over its setup and run scripts. Add one and it’s on
-the canvas: chats can use it and new workspaces start from its settings. On a
+the canvas: chats can use it and new chats start from its settings. On a
 shared canvas these settings are shared with everyone on it, so a
-collaborator’s new workspaces start the same way as yours.
+collaborator’s new chats start the same way as yours.
 
 <Only hosted /> **On this canvas** holds every repository anyone on the canvas
 has added, and one a teammate added says who after its name. When a teammate has
@@ -29,7 +29,7 @@ already added a repository you also have, under the same name, yours isn’t
 offered: the canvas uses theirs.
 
 The Chats menu lists chats, not repositories: when a canvas has two
-or more repositories, each [workspace](/guides/workspaces)’s row ends with its
+or more repositories, each [chat](/guides/chats)’s row ends with its
 repository’s short name.
 
 ## Adding a repository
@@ -40,13 +40,13 @@ at the end of the list in Canvas settings. It saves the repository to
 step. On a canvas with no repository yet, **Add repository** on the empty
 canvas and in the **Get started** checklist goes straight to the same choice,
 without opening Canvas settings, and closes once the repository is added.
-Adding a repository only adds it: no workspace starts until you ask for a
+Adding a repository only adds it: no chat starts until you ask for a
 change.
 
 <Screenshot name="add-project-menu" alt="The New repository menu" />
 
 - **Open folder** <Only desktop /> picks a folder on your machine, usually your
-  existing clone. Screenplay creates a separate worktree for each workspace
+  existing clone. Screenplay creates a separate worktree for each chat
   and never touches your own checkout.
 - **Open GitHub repository** opens a searchable picker of your GitHub
   repositories. On desktop you can also paste any clone URL, including
@@ -73,11 +73,11 @@ instead.
 
 | Setting                   | What it does                                                                                                                                                                            |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Setup script**          | Runs once when a workspace is set up, e.g. `npm install`.                                                                                                                               |
+| **Setup script**          | Runs once when a chat’s code is set up, e.g. `npm install`.                                                                                                                             |
 | **Run script**            | Starts the dev server that frames preview, e.g. `npm run dev`. Defaults to `npm run dev` when empty.                                                                                    |
 | **Dev server port**       | <Only hosted /> The port your dev server listens on.                                                                                                                                    |
-| **Environment variables** | <Only hosted /> `KEY=value` lines every workspace gets. Stored encrypted; see [who sees the values](#environment-variable-values).                                                      |
-| **Files to copy**         | <Only desktop /> Files from your folder to copy into each workspace (default `.env*`), so local secrets come along. One pattern per line. Only for a local folder, not a GitHub repository or clone URL.                                               |
+| **Environment variables** | <Only hosted /> `KEY=value` lines every chat gets. Stored encrypted; see [who sees the values](#environment-variable-values).                                                           |
+| **Files to copy**         | <Only desktop /> Files from your folder to copy into each chat’s code (default `.env*`), so local secrets come along. One pattern per line. Only for a local folder, not a GitHub repository or clone URL.                                               |
 | **Default frame size**    | The device size new frames open at. _(Advanced)_                                                                                                                                        |
 | **Agent instructions**    | Extra instructions for the agent in this repository, e.g. “Work in the Next.js app under `apps/web`”. _(Advanced)_                                                                      |
 | **Name**                  | Optional. A short name like `web` or `api`, shown instead of the repository’s name in chats, and beside its `owner/name` in repository lists. Tells apart two setups of one repository. |
@@ -87,7 +87,7 @@ handle this automatically; see [Dev server & ports](/guides/building/dev-server)
 yours doesn’t.
 
 To change settings later, click **Edit** on the repository in Canvas
-settings. Changes apply to workspaces you create afterwards.
+settings. Changes apply to chats you start afterwards.
 
 <Screenshot name="project-settings" alt="The Edit repository dialog" />
 
@@ -95,7 +95,7 @@ settings. Changes apply to workspaces you create afterwards.
 
 On a canvas, environment variable values are stored encrypted on the server,
 never in the canvas itself. Everyone on the canvas sees which variables are
-set, by name, and any of them can start workspaces that use the values.
+set, by name, and any of them can start chats that use the values.
 
 Only the person who added the repository to the canvas can see the values:
 they click **Reveal values** in its settings to unlock and edit them. Anyone
@@ -105,7 +105,7 @@ this canvas and leave the rest as they were.
 Chats hide these values from what they show and store, including tool output,
 replies and pull requests, wherever they find them (values shorter than 8
 characters aren’t hidden). This is a courtesy, not a security boundary: the
-values are set inside every workspace, so code running there, or an agent
+values are set inside every chat’s sandbox, so code running there, or an agent
 that encodes a value some other way, can still read them.
 
 ### Customizing a repository for one canvas
@@ -178,7 +178,7 @@ matches none of yours is added to the list.
 
 Deleting a repository in Settings doesn’t take it off your canvases. On
 desktop, the confirm says how many canvases use it; each keeps its copy, which
-keeps running its workspaces but stops getting your edits from Settings. It no
+keeps running its chats but stops getting your edits from Settings. It no
 longer shows a dot, and you can still edit it on its canvas. On hosted, every
 canvas already has its own copy, so nothing changes on them.
 

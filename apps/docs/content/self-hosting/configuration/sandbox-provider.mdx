@@ -1,19 +1,19 @@
 ---
 title: Sandbox provider
-description: Where workspaces run. Vercel Sandbox by default, local worktrees on desktop, or a provider you add.
+description: Where chats run. Vercel Sandbox by default, local worktrees on desktop, or a provider you add.
 ---
 
 # Sandbox provider
 
-Every workspace runs in a **sandbox**. That’s where the repository is checked
+Every chat runs in a **sandbox**. That’s where the repository is checked
 out, the setup and run scripts execute, the agent’s commands run, and terminal
 tabs connect. Sandboxes sit behind the `SandboxProvider` interface in
 `apps/app/lib/sandbox/`, and `SANDBOX_BACKEND` selects the implementation:
 
 | `SANDBOX_BACKEND` | Provider | Used by |
 | --- | --- | --- |
-| unset / `vercel` | [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox): one Linux VM per workspace | Hosted |
-| `local` | A git worktree per workspace on the host machine | Desktop |
+| unset / `vercel` | [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox): one Linux VM per chat | Hosted |
+| `local` | A git worktree per chat on the host machine | Desktop |
 
 Any other value fails at startup.
 
@@ -30,7 +30,7 @@ vercel link
 vercel env pull apps/app/.env.local   # sets VERCEL_OIDC_TOKEN (~12 h)
 ```
 
-Each workspace gets a fixed **4 vCPU, 8 GB** sandbox. That’s room for the dev
+Each chat gets a fixed **4 vCPU, 8 GB** sandbox. That’s room for the dev
 server, the agent’s edits and compiles, and the browsers behind shared frames.
 It doesn’t grow with the number of frames, because a new size only takes
 effect after a restart that loses every running process.
@@ -38,7 +38,7 @@ effect after a restart that loses every running process.
 ### Shared frames
 
 A hosted frame someone has made live (**Go live** in the frame’s toolbar) is
-one Chrome page running in its workspace’s sandbox, next to the dev server.
+one Chrome page running in its chat’s sandbox, next to the dev server.
 Every other frame is a preview in each viewer’s own browser and runs nothing in
 the sandbox. A small service in the sandbox encodes every frame as
 H.264 video at up to twice its size, 30 frames a second, and streams them
@@ -56,7 +56,7 @@ about 1.6 while it animates. Only pictures that changed are encoded and sent.
 A few seconds after its last viewer leaves, a frame pauses: encoding stops and
 its page is frozen in its browser, about 500 MB of memory and a few percent of
 a vCPU. It resumes in a moment, its state intact. To fit the 8 GB sandbox, a
-workspace keeps at most six frames’ browsers running; past that, the least
+chat keeps at most six frames’ browsers running; past that, the least
 recently viewed paused frame closes its browser, keeping its cookies, storage
 and profile, and reopens at its URL when viewed again. Sandboxes created before shared frames don’t forward the stream
 port, so their frames can’t go live until the sandbox restarts. Set
@@ -71,7 +71,7 @@ Google Chrome, Xvfb, ffmpeg and xautomation for shared frames. Its Dockerfile is
 `screenplay-workspace` repository in your app project’s
 [Vercel Container Registry](https://vercel.com/docs/container-registry), or
 from `VERCEL_SANDBOX_IMAGE` if you set it. Push the image before your first deploy,
-or creating a workspace fails with an error naming the missing image.
+or starting a chat fails with an error naming the missing image.
 
 The `Vercel Sandbox image` GitHub workflow builds and pushes it whenever the image
 changes on `main`, and weekly for security updates. It signs in with GitHub
@@ -108,13 +108,13 @@ why the agent commits and pushes after every change.
 <Only desktop />
 
 Each project resolves to one local clone: either your folder, or a managed
-clone of the URL you added. Each workspace is a git worktree of that clone,
+clone of the URL you added. Each chat’s code is a git worktree of that clone,
 so there’s one object store per repository and one checkout per branch.
 Worktrees survive restarts, including uncommitted changes. Local sandboxes
 can’t hibernate, so **Restart sandbox** isn’t offered; **Restart dev server**
 and **Recreate from scratch** are.
 
-Dev servers run under portless on a per-workspace port. See
+Dev servers run under portless on a per-chat port. See
 [Dev server & ports](/guides/building/dev-server).
 
 ## Adding a provider

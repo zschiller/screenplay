@@ -593,7 +593,7 @@ function NewShellButton({
   return (
     <IconButton
       label="New terminal"
-      hint={disabled ? "The workspace is still starting…" : undefined}
+      hint={disabled ? "Still setting up the code…" : undefined}
       className="ml-1 shrink-0"
       onClick={onCreate}
       disabled={disabled}

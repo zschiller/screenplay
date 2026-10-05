@@ -158,7 +158,7 @@ function connections(): Map<string, AgentConnection> {
 }
 
 const STREAM_DOWN =
-  "The workspace’s shared browser isn’t reachable right now. The workspace may be starting or asleep."
+  "The chat’s shared browser isn’t reachable right now. Its code may be starting or asleep."
 
 function connect(stream: HostedFrame["stream"]): AgentConnection {
   const existing = connections().get(stream.url)

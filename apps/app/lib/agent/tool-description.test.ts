@@ -244,7 +244,7 @@ describe("Screenplay’s own tools", () => {
     // Without a title, the plain verb.
     expect(
       label({ title: "read_workspace_diff", rawInput: { workspaceId: "w1" } })
-    ).toEqual({ verb: "Read workspace diff" })
+    ).toEqual({ verb: "Read chat changes" })
     expect(
       describe_({
         title: "read_workspace_chat",

@@ -29,13 +29,13 @@ The agent also loads skills on its own when a request matches a description.
 
 Every chat sees one list of skills, gathered from these places:
 
-| In the menu                             | Where it lives                                      | Which chats see it                                |
-| --------------------------------------- | --------------------------------------------------- | ------------------------------------------------- |
-| **Repository**                          | The workspace’s repository, under `.claude/skills/` | That workspace’s chat                             |
-| **Canvas**                              | Saved to the canvas by any chat on it               | Every chat on the canvas                          |
-| **Account**                             | Saved to your account by any chat you message       | Every chat you message, on any canvas             |
-| Your agent’s name, like **Claude Code** | Your coding agent’s own skills folder on your Mac   | Every chat on the Mac app that runs on that agent |
-| **Built in**                            | Ships with Screenplay                               | Every chat, each kind its own                     |
+| In the menu                             | Where it lives                                    | Which chats see it                                |
+| --------------------------------------- | ------------------------------------------------- | ------------------------------------------------- |
+| **Repository**                          | The chat’s repository, under `.claude/skills/`    | That chat                                         |
+| **Canvas**                              | Saved to the canvas by any chat on it             | Every chat on the canvas                          |
+| **Account**                             | Saved to your account by any chat you message     | Every chat you message, on any canvas             |
+| Your agent’s name, like **Claude Code** | Your coding agent’s own skills folder on your Mac | Every chat on the Mac app that runs on that agent |
+| **Built in**                            | Ships with Screenplay                             | Every chat, each kind its own                     |
 
 When two skills share a name, only one is used: the repository’s wins, then
 the canvas’s, then your account’s, then your coding agent’s own, then
@@ -61,7 +61,7 @@ To change a built-in skill, ask a chat to copy it: “copy screenplay-design-aud
 The [Coordinator](/guides/coordinator) has its own built-in skill,
 `screenplay-try-variants`, which it follows when you ask to
 [try something several ways](/guides/coordinator#trying-something-several-ways).
-It’s in the Coordinator’s <kbd>/</kbd> menu only, and workspace agents don’t
+It’s in the Coordinator’s <kbd>/</kbd> menu only, and other chats’ agents don’t
 see it. A chat with no repository lists `screenplay-add-knob` and
 `screenplay-share-state`, the two that work on a mockup.
 
@@ -86,7 +86,7 @@ since the agent there runs in a sandbox, not on your computer.
 
 ## Saving a skill to the canvas
 
-Ask any chat (a workspace chat, the Coordinator or a chat with no
+Ask any chat (a chat on a repository, the Coordinator or a chat with no
 repository) to save what you just worked out as a skill: “save this review
 checklist as a skill”. The agent writes the `SKILL.md`, and the chat shows it
 as a card with the skill’s name and description and three buttons: **Save to
@@ -125,7 +125,7 @@ On a shared canvas, a message uses the account skills of whoever sent it, not
 of whoever started the chat, and **Save to account** saves to the account of
 whoever presses it.
 Nobody else’s messages ever use your account skills. Messages the Coordinator
-sends on its own, when a workspace finishes, use no one’s account skills.
+sends on its own, when a chat finishes, use no one’s account skills.
 
 To see your account skills, open **Settings** from the bottom of the home
 screen sidebar and choose **Skills**. The rows work like the canvas’s:
@@ -201,8 +201,8 @@ description: >-
 2. …
 ```
 
-Repository skills show up as **Repository** once the workspace’s sandbox is
-running. They’re read from that workspace’s checkout, so different branches
+Repository skills show up as **Repository** once the chat’s sandbox is
+running. They’re read from that chat’s checkout, so different branches
 can carry different skills. If a repository skill has the same name as a
 canvas, account or built-in one, the repository’s version wins.
 

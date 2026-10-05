@@ -48,7 +48,7 @@ const STATUS_LABEL: Record<
 > = {
   disconnected: "Dev server disconnected",
   failed: "Preview failed",
-  stopped: "Workspace stopped",
+  stopped: "Preview stopped",
 }
 
 const STATUS_DOT: Record<

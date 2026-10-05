@@ -88,7 +88,7 @@ export class BranchCheckedOutInCloneError extends Error {
   ) {
     super(
       `The branch “${ref}” is checked out in your local clone (${clonePath}), ` +
-        "so it can’t be opened as a workspace — the agent would be editing " +
+        "so a chat can’t open it — the agent would be editing " +
         "that checkout directly. Switch the clone to another branch " +
         `(e.g. \`git switch --detach\`) and retry, or open a different branch.`
     )

@@ -100,7 +100,7 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
   the WebSocket handshake instead of in the URL, so a leaked URL alone isn’t
   enough. The secret is shared by the sandbox’s members and lasts as long as
   the sandbox, so it can’t be revoked per user mid-session. Deleting the
-  workspace invalidates it.
+  chat invalidates it.
 
 <Callout type="warning">
   Neither mode offers per-user revocation. For a deployment shared with
@@ -115,7 +115,7 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 | --- | --- | --- |
 | `VERCEL_OIDC_TOKEN` | If Vercel Sandbox | Authenticates the default Vercel Sandbox provider, and it’s the only credential Screenplay uses for it: a Vercel access token won’t do. It’s injected automatically on Vercel; locally, `vercel env pull` fetches a ~12-hour token. See [Sandbox provider](/self-hosting/configuration/sandbox-provider). |
 | `SHARED_FRAMES` | Optional | `off` hides **Go live**, so every hosted frame stays a per-viewer preview and no frame runs a browser in the sandbox. Default: on. See [Shared frames](/self-hosting/configuration/sandbox-provider#shared-frames). |
-| `VERCEL_SANDBOX_IMAGE` | Optional | The Vercel Container Registry image workspace sandboxes boot from. Default: `screenplay-workspace`, the image built from `apps/app/vercel-sandbox-image` in the app’s own Vercel project. See [Sandbox image](/self-hosting/configuration/sandbox-provider#sandbox-image). |
+| `VERCEL_SANDBOX_IMAGE` | Optional | The Vercel Container Registry image chat sandboxes boot from. Default: `screenplay-workspace`, the image built from `apps/app/vercel-sandbox-image` in the app’s own Vercel project. See [Sandbox image](/self-hosting/configuration/sandbox-provider#sandbox-image). |
 
 ## Scheduled jobs
 
@@ -142,7 +142,7 @@ leaves them all unset.
 | --- | --- | --- |
 | `SCREENPLAY_DESKTOP` | Optional | `1` builds the self-contained server the desktop shell runs (Next’s `standalone` output). Read at build time. |
 | `NEXT_PUBLIC_SCREENPLAY_LOCAL` | Optional | `1` removes the multi-user surface (single local user). Inlined at build time. |
-| `SANDBOX_BACKEND` | Optional | `local`: workspaces are git worktrees on the host. |
+| `SANDBOX_BACKEND` | Optional | `local`: each chat’s code is a git worktree on the host. |
 | `SCREENPLAY_DB` | Optional | `pglite`: embedded Postgres. |
 | `NEXT_PUBLIC_YJS_HOST` | Optional | `local`: in-process y-websocket server. Inlined at build time. |
 | `BLOB_STORE` | Optional | `local-fs`: thumbnails and canvas files on local disk. |

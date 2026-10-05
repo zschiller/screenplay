@@ -99,7 +99,7 @@ export interface EnvVarsAccess {
 /** What the env field says under it, by who's looking. Kept to what's true:
  *  values are hidden in settings, not out of reach of the Workspace. */
 function envVarsDescription(access: EnvVarsAccess | undefined): string {
-  const base = "One KEY=value per line. Every workspace gets them."
+  const base = "One KEY=value per line. Every chat gets them."
   if (!access) return base
   if (access.owned) return `${base} Only you can see the values.`
   if (access.names.length === 0) return base
@@ -185,7 +185,7 @@ export function RepoSettingsFields({
               className="font-mono"
             />
             <FieldDescription>
-              Runs once when a workspace is set up.
+              Runs once when a chat’s code is set up.
             </FieldDescription>
           </Field>
 
@@ -250,8 +250,8 @@ export function RepoSettingsFields({
                   className="[field-sizing:fixed] max-w-full resize-y font-mono text-xs"
                 />
                 <FieldDescription>
-                  Files from your folder to copy into each workspace, like .env.
-                  One pattern per line.
+                  Files from your folder to copy into each chat’s code, like
+                  .env. One pattern per line.
                 </FieldDescription>
               </Field>
             ) : (

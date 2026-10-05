@@ -262,7 +262,7 @@ const CASES: {
     name: "setting up with no step on record",
     branch: ws({ status: "creating" }),
     expected: {
-      line: { kind: "progress", step: "Setting up the workspace" },
+      line: { kind: "progress", step: "Setting up the code" },
       section: "working",
       needsYou: false,
     },

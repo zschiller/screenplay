@@ -274,7 +274,7 @@ export function FrameGoLiveToggle({
           : live
             ? "Click to end live for everyone"
             : unavailable
-              ? "A workspace has to be running"
+              ? "The chat’s code has to be running"
               : "Everyone on the canvas sees it live"
       }
       pressed={live}

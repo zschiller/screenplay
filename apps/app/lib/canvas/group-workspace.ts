@@ -32,7 +32,7 @@ export function groupBranchId(
  *
  * `null` when the label names no Workspace: its layers differ, or it has none.
  * `branchId` is unset when no frame has a Workspace yet, and the label offers
- * "Choose a workspace" for all of them (#871). `frames` are the Group's frame
+ * "Choose a chat" for all of them (#871). `frames` are the Group's frame
  * ids, which a pick from the label moves; a Group of a chat's Documents alone
  * has none.
  *

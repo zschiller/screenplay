@@ -402,7 +402,7 @@ function WorkspaceChatPanel({
                 <ChatCircleIcon />
               </EmptyMedia>
               <EmptyTitle>No chat yet</EmptyTitle>
-              <EmptyDescription>Start this workspace’s chat.</EmptyDescription>
+              <EmptyDescription>Start a chat for this code.</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button

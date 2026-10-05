@@ -64,7 +64,7 @@ export function ArchitectureDiagram() {
         text="users, canvases, chats, presets"
       />
       <Node b={sandbox} title="Sandbox provider" />
-      <Note x={notes} y={sandboxRow} text="one VM per workspace" />
+      <Note x={notes} y={sandboxRow} text="one VM per chat" />
       <Chip b={box(col + 8, sandbox.y + 40, 80, 20)} text="dev server" />
       <Chip b={box(col + 96, sandbox.y + 40, 80, 20)} text="git" />
       <Chip b={box(col + 8, sandbox.y + 64, 80, 20)} text="terminals" />
@@ -93,7 +93,7 @@ export function ConceptsDiagram() {
     <Diagram
       width={672}
       height={328}
-      label="A canvas has one Coordinator, which sends work to each workspace’s agent. It also holds repositories, each with its workspaces, and layers: frames, which preview a workspace’s dev server, and documents."
+      label="A canvas has one Coordinator, which sends work to each chat’s agent. It also holds repositories, each with its chats, and layers: frames, which preview a chat’s dev server, and documents."
     >
       <Node b={canvas} title="Canvas" tone="group" heading />
       <Node
@@ -109,7 +109,7 @@ export function ConceptsDiagram() {
       />
       <Node
         b={workspace}
-        title="Workspace"
+        title="Chat"
         sub="a branch + its environment + its agent"
         tone="stack"
       />
@@ -127,7 +127,7 @@ export function ConceptsDiagram() {
       <Node
         b={frame}
         title="Frame"
-        sub="a live preview of a workspace’s dev server"
+        sub="a live preview of a chat’s dev server"
       />
       <Node
         b={doc}

@@ -93,7 +93,7 @@ describe("DeleteBranchDialog says what you lose", () => {
     renderDialog({ openPrNumber: 482, canDeleteOnRemote: false })
 
     expect(text()).toContain(
-      "Its workspace and 2 frames are deleted. The branch stays on GitHub. PR #482 stays open."
+      "The chat and its 2 frames are deleted. The branch stays on GitHub. PR #482 stays open."
     )
   })
 
@@ -101,7 +101,7 @@ describe("DeleteBranchDialog says what you lose", () => {
     renderDialog({ openPrNumber: 482, localBranchKept: true })
 
     expect(text()).toContain(
-      "Its workspace and 2 frames are deleted. The branch stays on this computer."
+      "The chat and its 2 frames are deleted. The branch stays on this computer."
     )
     expect(text()).not.toContain("stays open")
     expect(screen.getByText("Closes PR #482")).toBeDefined()

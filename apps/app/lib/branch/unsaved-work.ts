@@ -67,12 +67,12 @@ export function lostWorkWarning(lost: LostWork): string | null {
 
 /**
  * The remove-project warning, summed across its Workspaces, or null when none
- * would lose anything: "Unpushed work in 2 workspaces will be lost."
+ * would lose anything: "Unpushed work in 2 chats will be lost."
  */
 export function projectLostWorkWarning(losses: LostWork[]): string | null {
   const affected = losses.filter(hasLostWork)
   if (affected.length === 0) return null
-  const where = plural(affected.length, "workspace", "workspaces")
+  const where = plural(affected.length, "chat", "chats")
   return affected.some((l) => l.commits > 0)
     ? `Unpushed work in ${where} will be lost.`
     : `Unsaved work in ${where} will be lost.`

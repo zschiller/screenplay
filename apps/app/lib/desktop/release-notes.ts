@@ -98,7 +98,7 @@ Format, in Markdown:
 
 Leave out anything a person using the app would never notice: refactors, tests, CI, dependency upgrades, the docs site and the homepage. Leave out small visual tweaks unless together they change how something looks; then give them one bullet. If nothing is left, write the single sentence "Behind-the-scenes fixes and maintenance."
 
-Words: say "agent" for the coding agent, never "Claude" (naming a coding tool such as Claude Code or Codex is fine). Lowercase product nouns mid-sentence (canvas, workspace, frame, chat), except Coordinator. No jargon such as refactor, seam, harness, ACP or FSM. No exclamation marks.
+Words: say "agent" for the coding agent, never "Claude" (naming a coding tool such as Claude Code or Codex is fine). Say "chat" for what an agent works in, never "workspace". Lowercase product nouns mid-sentence (canvas, frame, chat), except Coordinator. No jargon such as refactor, seam, harness, ACP or FSM. No exclamation marks.
 
 Reply with only the release notes.
 

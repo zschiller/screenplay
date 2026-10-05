@@ -31,6 +31,12 @@ const nextConfig = {
         permanent: true,
       })),
       { source: "/development", destination: "/contributing", permanent: true },
+      // Workspaces are called chats now.
+      {
+        source: "/guides/workspaces",
+        destination: "/guides/chats",
+        permanent: true,
+      },
       {
         source: "/screenshots",
         destination:

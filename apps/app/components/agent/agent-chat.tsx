@@ -386,7 +386,7 @@ export function AgentChat({
     return (
       <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center text-sm text-balance text-muted-foreground">
         <span className="flex items-center gap-2">
-          <Spinner className="size-4" /> The workspace is still starting…
+          <Spinner className="size-4" /> Still setting up the code…
         </span>
       </div>
     )
@@ -667,7 +667,7 @@ function ChatEmptyState({
         </p>
         <p className="text-xs text-muted-foreground">
           {fresh
-            ? "Your first ask runs in the workspace on the canvas."
+            ? "Your first ask starts a chat on the canvas."
             : noRepository
               ? "Ask for a mockup or a document and a chat starts to make it."
               : capabilities.emptyBody}

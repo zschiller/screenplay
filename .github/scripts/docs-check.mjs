@@ -36,7 +36,7 @@ const HINTS = [
     "guides/home.mdx",
   ],
   [/app\/\(home\)\/settings|settings/, "guides/settings.mdx"],
-  [/branch|workspace|components\/panels/, "guides/workspaces.mdx"],
+  [/branch|workspace|components\/panels/, "guides/chats.mdx"],
   [/repo-|add-repo|local-setup|repo-configs/, "guides/projects.mdx"],
   [/lib\/skills|skill-/, "building/skills.mdx"],
   [/screenplay-knobs|lib\/knobs/, "building/knobs.mdx"],

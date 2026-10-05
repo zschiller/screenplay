@@ -132,9 +132,9 @@ async function runSandboxRecovery(
 
   const repo = deps.findRepo(agent.repoId)
   if (!repo) {
-    deps.patchAgent(id, { status: "error", error: "Workspace not found" })
-    deps.toast.error(spec.failureTitle, "Workspace not found")
-    return { ok: false, error: "Workspace not found" }
+    deps.patchAgent(id, { status: "error", error: "Repository not found" })
+    deps.toast.error(spec.failureTitle, "Repository not found")
+    return { ok: false, error: "Repository not found" }
   }
 
   deps.patchAgent(id, {
@@ -220,7 +220,7 @@ async function launchDevServer(
 
   const repo = deps.findRepo(agent.repoId)
   if (!repo) {
-    deps.toast.error(copy.failureTitle, "Workspace not found")
+    deps.toast.error(copy.failureTitle, "Repository not found")
     return
   }
 
@@ -391,7 +391,7 @@ export function reopen(
     id,
     {
       startingMessage: "Starting…",
-      failureTitle: "Couldn’t reopen workspace",
+      failureTitle: "Couldn’t reopen chat",
       run: (agent, repo) => reconnectSandbox(agent.sandboxName, repo),
     },
     deps

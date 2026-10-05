@@ -69,7 +69,7 @@ export function CanvasSkeleton({
             >
               <PillIcon icon={<SidebarSimpleIcon />} />
             </div>
-            <SidebarSection label="Workspaces" rows={2} className="pt-0" />
+            <SidebarSection label="Chats" rows={2} className="pt-0" />
             <SidebarSection label="Canvas" rows={3} />
           </aside>
           <div className="w-px bg-border" />

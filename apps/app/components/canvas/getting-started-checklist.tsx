@@ -144,7 +144,7 @@ function StepBody({
   if (step === "ask") {
     return (
       <>
-        <Hint>Your first ask runs in the workspace on the canvas.</Hint>
+        <Hint>Your first ask starts a chat on the canvas.</Hint>
         <div>
           <Button type="button" size="sm" onClick={onShowCoordinator}>
             Ask the Coordinator

@@ -50,12 +50,12 @@ export interface FrameStatusProps {
 
 const COPY: Record<FrameStage, { title: string; description: string }> = {
   unassigned: {
-    title: "No workspace",
+    title: "No chat",
     description:
-      "Choose a workspace from the frame’s title to preview it here.",
+      "Choose a chat from the frame’s title to preview its code here.",
   },
   booting: {
-    title: "Setting up the workspace",
+    title: "Setting up the code",
     description: "The preview appears once its dev server starts.",
   },
   starting: {
@@ -63,7 +63,7 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
     description: "The preview appears as soon as it answers.",
   },
   "workspace-failed": {
-    title: "Workspace failed to start",
+    title: "Setup failed",
     description: "Something went wrong setting it up.",
   },
   "preview-failed": {
@@ -71,7 +71,7 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
     description: "The preview couldn’t be reached. It may still be starting.",
   },
   stopped: {
-    title: "Workspace stopped",
+    title: "Preview stopped",
     description: "Start it again to see the preview.",
   },
 }

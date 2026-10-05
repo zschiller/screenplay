@@ -115,7 +115,7 @@ export function WorkspaceCommandList({
   const stateOf = useWorkspaceStates()
   const workspaces = pickableWorkspaces(branches)
   // The check column is there only when a row can carry the check: an
-  // unassigned frame's "Choose a workspace" has none, so its rows run to the
+  // unassigned frame's "Choose a chat" has none, so its rows run to the
   // edge instead of leaving an empty column.
   const checkable =
     newChat !== undefined ||

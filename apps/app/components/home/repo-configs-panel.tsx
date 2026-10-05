@@ -206,8 +206,7 @@ export function RepoConfigsPanel({
                 {isLocalBuild
                   ? "its setup and run scripts, and the files to copy from your checkout."
                   : "its setup and run scripts, port and environment variables."}{" "}
-                Add the repository to any canvas and its workspaces start from
-                it.
+                Add the repository to any canvas and its chats start from it.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>{newRepository("default")}</EmptyContent>

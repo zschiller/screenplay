@@ -9,7 +9,7 @@ import { Cards } from "nextra/components"
 
 **Screenplay is a canvas for building software with coding agents.** Ask the
 [Coordinator](/guides/coordinator) for a change. It hands the work to
-a workspace’s agent, and you watch the app change in a live frame. Every branch
+a chat’s agent, and you watch the app change in a live frame. Every branch
 gets its own environment, and its running app appears as real, clickable
 previews on an infinite canvas.
 
@@ -22,9 +22,9 @@ Instead of juggling terminals, browser tabs and branches, you lay the work out
 spatially:
 
 - **Ask in one place.** The Coordinator sees the whole canvas: every
-  workspace, frame and document. It sends each piece of work to the right
-  workspace and tells you when something needs you.
-- **Run several attempts side by side.** Each [workspace](/guides/workspaces)
+  chat, frame and document. It sends each piece of work to the right
+  chat and tells you when something needs you.
+- **Run several attempts side by side.** Each [chat](/guides/chats)
   is its own git branch with its own dev server. Try three directions at once
   and compare them visually.
 - **See every screen at every size.** [Frames](/guides/frames) are live previews
@@ -36,7 +36,7 @@ spatially:
   straight to the agent too.
 - **Keep the plan next to the product.** [Documents](/guides/documents) live
   on the same canvas as your previews, and the agent can read and write them.
-- **Try it full screen.** Open any workspace as a clickable prototype in
+- **Try it full screen.** Open any chat’s code as a clickable prototype in
   [play mode](/guides/play-mode), with live [knobs](/guides/building/knobs) for
   tweaking values without code.
 
@@ -44,12 +44,12 @@ spatially:
 
 <Cards num={2}>
   <Cards.Card title="Desktop app" href="/guides/quickstart" arrow>
-    A single-user macOS app. Workspaces are git worktrees on your machine, and
-    the agent is the coding CLI you already use (Claude Code, Codex, …), signed
-    in with your own account.
+    A single-user macOS app. Each chat’s code is a git worktree on your machine,
+    and the agent is the coding CLI you already use (Claude Code, Codex, …),
+    signed in with your own account.
   </Cards.Card>
   <Cards.Card title="Self-hosted app" href="/self-hosting" arrow>
-    A multi-user deployment. Each workspace is a cloud sandbox VM, the agent
+    A multi-user deployment. Each chat runs in a cloud sandbox VM, the agent
     runs on your model provider keys, and teammates share canvases, cursors, and
     comments.
   </Cards.Card>
@@ -62,7 +62,7 @@ few places where they differ.
 
 **On the desktop app, your work stays on your Mac.** Canvases, chats and
 thumbnails are stored in the app’s data folder under
-`~/Library/Application Support`, and workspaces are git worktrees under
+`~/Library/Application Support`, and each chat’s code is a git worktree under
 `~/.screenplay/worktrees`. Chats run through the coding
 CLI you signed in to, so your code and prompts go only to that CLI’s provider,
 under your own account. A GitHub token you connect is kept in the macOS
@@ -70,7 +70,7 @@ Keychain. Screenplay itself sends no analytics.
 
 **On the hosted app, the data lives in the services you deploy it with.** The
 database holds users, canvases, comments, chat history and encrypted settings;
-the realtime host holds each canvas’s live state; each workspace’s code runs in
+the realtime host holds each canvas’s live state; each chat’s code runs in
 a sandbox VM; and chats go to the model providers you configure. See
 [Self-hosting](/self-hosting#how-it-fits-together) for each service and its
 defaults.
