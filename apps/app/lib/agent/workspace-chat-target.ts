@@ -31,15 +31,11 @@ import { canvasFiles } from "@/lib/files"
 import { loadCanvasFiles } from "@/lib/files/canvas-files"
 import { sandboxProvider } from "@/lib/sandbox"
 import { buildSkillTools } from "./skill-tools"
-import { appSkillSource, getSkillIndex } from "@/lib/skills"
-import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
-import { loadAccountSkills } from "@/lib/skills/account"
-import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
-import {
-  enumerateRepoSkillsForSandbox,
-  repoSkillFsForSandbox,
-} from "@/lib/skills/sandbox-index"
-import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
+import { appSkillSource } from "@/lib/skills"
+import { canvasSkills } from "@/lib/skills/canvas"
+import { agentSkillsFor } from "@/lib/skills/agent-skills"
+import { repoSkillFsForSandbox } from "@/lib/skills/sandbox-index"
+import { skillSources, type OriginTaggedSkill } from "@/lib/skills/sources"
 import type { FileEntryData, MemoryData } from "@/lib/types"
 
 /** A chat on a Branch's sandbox: the Workspace's one chat (#1315). */
@@ -83,18 +79,33 @@ export const workspaceChatTarget: ChatTargetSpec<
   WorkspaceContext
 > = {
   kind: "agent",
-  // Repo-scoped optional system prompt + the merged Skill index: this
-  // Branch's Repo Skills (`.claude/skills/` in its sandbox), the canvas's and
-  // the App Skills, baked into the prompt.
-  async loadContext(room, target) {
-    const { sandboxName, chatId } = target
+  // This Branch's Repo Skills (`.claude/skills/` in its sandbox), the
+  // canvas's, the sender's, the agent's own and every Workspace App Skill. A
+  // target with no sandbox yet (the `/` menu of a chat still starting) has no
+  // Repo Skills.
+  skills(room, target) {
+    const { sandboxName } = target
+    return skillSources({
+      repo: sandboxName ? () => repoSkillFsForSandbox(sandboxName) : undefined,
+      canvas: room && canvasSkills(room),
+      account: accountSkillsFor(target),
+      agent: agentSkillsFor(target.harnessKey),
+      app: appSkillSource(),
+    })
+  },
+  // Repo-scoped optional system prompt + the merged Skill index, baked into
+  // the prompt.
+  async loadContext(
+    room,
+    target,
+    skills = workspaceChatTarget.skills(room, target)
+  ) {
+    const { chatId } = target
+    const { sandboxName } = target
     const [
       branch,
       layerDirectory,
-      repo,
-      canvas,
-      account,
-      agent,
+      skillIndex,
       memory,
       files,
       accountMemory,
@@ -116,10 +127,7 @@ export const workspaceChatTarget: ChatTargetSpec<
         })
         .catch(() => undefined),
       loadLayerDirectory(room),
-      enumerateRepoSkillsForSandbox(sandboxName),
-      loadCanvasSkills(room),
-      loadAccountSkills(turnSender(target)),
-      loadAgentSkills(agentSkillsFor(target.harnessKey)),
+      skills.index(),
       loadCanvasMemory(room),
       loadCanvasFiles(room),
       loadAccountMemory(turnSender(target)),
@@ -130,13 +138,7 @@ export const workspaceChatTarget: ChatTargetSpec<
       branch: branch && { ref: branch.ref, autoNamed: branch.autoNamed },
       repoSystemPrompt: branch?.systemPrompt ?? undefined,
       layerDirectory,
-      skills: mergeSkillIndexes({
-        repo,
-        canvas,
-        account,
-        agent,
-        app: getSkillIndex(),
-      }),
+      skills: skillIndex,
       memory,
       files,
       accountMemory,
@@ -159,8 +161,8 @@ export const workspaceChatTarget: ChatTargetSpec<
       toolNaming: naming,
     })
   },
-  tools(room, target) {
-    const { sandboxName, chatId, userId, harnessKey } = target
+  tools(room, target, skills = workspaceChatTarget.skills(room, target)) {
+    const { sandboxName, chatId, userId } = target
     const sandbox = { sandboxName, room, userId }
     return {
       // Reading, writing and editing files, running commands and plan mode's
@@ -211,12 +213,10 @@ export const workspaceChatTarget: ChatTargetSpec<
         ...buildPrTools(sandbox),
         // Loading Skills, and saving them to the canvas (#1555).
         ...buildSkillTools({
+          skills,
           canvas: canvasSkills(room),
           account: accountSkillsFor(target),
           chatId,
-          app: appSkillSource(),
-          repo: () => repoSkillFsForSandbox(sandboxName),
-          agent: agentSkillsFor(harnessKey),
         }),
       },
     }

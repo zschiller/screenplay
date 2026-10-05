@@ -1,4 +1,4 @@
-import type { OriginTaggedSkill } from "@/lib/skills/merged"
+import type { OriginTaggedSkill } from "@/lib/skills/sources"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
 import type { FileEntryData, MarkdownLayerData, MemoryData } from "@/lib/types"
 import { fileEntryLine } from "@/lib/files/paths"

@@ -33,7 +33,7 @@ export type { SkillAudience, SkillMetadata }
  *
  * A Skill folder may also hold supporting files beside its `SKILL.md`, like a
  * page template (#1642). They load with it: `read_skill` shows them, the
- * harness context folder writes them (`on-disk.ts`), and a saved copy of the
+ * harness context folder writes them (`sources.ts`), and a saved copy of the
  * Skill keeps the ones it doesn't replace ({@link AppSkillSet.carryFiles}).
  *
  * To add a skill: drop a `lib/skills/<name>/SKILL.md` with frontmatter. No
@@ -45,7 +45,7 @@ export interface AppSkills {
   index(): SkillMetadata[]
   /** The Skill as `read_skill` shows it, files included. */
   read(name: string): string | null
-  /** The Skill as written to disk, for a harness (`on-disk.ts`). */
+  /** The Skill as written to disk, for a harness (`sources.ts`). */
   open(name: string): OpenedSkill | null
 }
 

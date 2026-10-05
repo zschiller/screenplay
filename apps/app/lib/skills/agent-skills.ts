@@ -2,7 +2,7 @@ import "server-only"
 
 import { readdir, readFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { join, resolve, sep } from "node:path"
 
 import { harnessOwnSkills, type HarnessOwnSkills } from "@/lib/agent/harnesses"
 
@@ -26,6 +26,11 @@ export interface AgentSkills {
   index(): Promise<SkillMetadata[]>
   /** A Skill's SKILL.md by name; `null` when the agent has none. */
   read(name: string): Promise<string | null>
+  /**
+   * A file of a Skill by path inside its folder; `undefined` when the agent
+   * has no Skill of that name, `null` when it has no such file.
+   */
+  file(name: string, path: string): Promise<string | null | undefined>
 }
 
 /** The Harness Skills of `harnessKey`'s agent, or `null` when it has none. */
@@ -43,7 +48,10 @@ export function agentSkillsAt(
   own: HarnessOwnSkills
 ): AgentSkills {
   const scan = async () => {
-    const found = new Map<string, { metadata: SkillMetadata; raw: string }>()
+    const found = new Map<
+      string,
+      { metadata: SkillMetadata; raw: string; folder: string }
+    >()
     for (const root of await expandDirs(home, own.dirs)) {
       const entries = await readdir(root).catch(() => [] as string[])
       for (const entry of entries.sort()) {
@@ -60,7 +68,7 @@ export function agentSkillsAt(
           continue
         }
         if (!found.has(metadata.name))
-          found.set(metadata.name, { metadata, raw })
+          found.set(metadata.name, { metadata, raw, folder: join(root, entry) })
       }
     }
     return found
@@ -74,6 +82,14 @@ export function agentSkillsAt(
     },
     async read(name) {
       return (await scan()).get(name)?.raw ?? null
+    },
+    async file(name, path) {
+      const skill = (await scan()).get(name)
+      if (!skill) return undefined
+      const full = resolve(skill.folder, path)
+      // Never read outside the Skill's folder.
+      if (!full.startsWith(resolve(skill.folder) + sep)) return null
+      return readFile(full, "utf-8").catch(() => null)
     },
   }
 }

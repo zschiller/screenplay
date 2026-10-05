@@ -24,7 +24,10 @@ vi.mock("@/lib/skills/canvas", () => ({ canvasSkills: () => fx.canvas }))
 vi.mock("@/lib/skills/account", () => ({
   accountSkills: (userId: string) => fx.account.get(userId),
 }))
-vi.mock("@/lib/files", () => ({ canvasFiles: () => fx.files }))
+vi.mock("@/lib/files", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/files")>()),
+  canvasFiles: () => fx.files,
+}))
 vi.mock("@/lib/skills/sandbox-index", () => ({
   repoSkillFsForSandbox: async () => fx.repo,
 }))
@@ -35,6 +38,14 @@ vi.mock("@/lib/skills", async (importOriginal) => {
     get appSkills() {
       return real.loadAppSkills(fx.appDir)
     },
+    appSkillSource: (audience?: "workspace" | "coordinator") =>
+      real.loadAppSkills(fx.appDir).source(audience),
+    getSkillIndex: (audience?: "workspace" | "coordinator") =>
+      real.loadAppSkills(fx.appDir).index(audience),
+    getSkill: (name: string, audience?: "workspace" | "coordinator") =>
+      real.loadAppSkills(fx.appDir).read(name, audience),
+    openSkill: (name: string, audience?: "workspace" | "coordinator") =>
+      real.loadAppSkills(fx.appDir).open(name, audience),
   }
 })
 
@@ -43,6 +54,12 @@ import {
   resolveMockupRefs,
   type MockupRefSources,
 } from "./mockup-refs-server"
+import type { ChatTools } from "@/lib/agent/toolset"
+import { roomChatTarget } from "@/lib/agent/room-chat-target"
+import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
+import { workspaceChatTarget } from "@/lib/agent/workspace-chat-target"
+import { roomChatId } from "@/lib/chat/room-chat"
+import { sketchChatSession } from "@/lib/chat/sketch-chat"
 
 const agent = { addedBy: "agent" as const, addedById: "chat-1" }
 const skillMd = (name: string) =>
@@ -70,9 +87,16 @@ async function save(
   })
 }
 
-function appSkill(name: string, files: Record<string, string>) {
+function appSkill(
+  name: string,
+  files: Record<string, string>,
+  audience?: "coordinator"
+) {
+  const md = audience
+    ? skillMd(name).replace("\n---", `\naudience: ${audience}\n---`)
+    : skillMd(name)
   for (const [path, content] of Object.entries({
-    "SKILL.md": skillMd(name),
+    "SKILL.md": md,
     ...files,
   })) {
     const full = join(fx.appDir, name, path)
@@ -211,9 +235,96 @@ describe("a Mockup's references on a canvas", () => {
   })
 })
 
+describe("a chat's `read_skill` and its Mockup's `skill:` references (#1664)", () => {
+  /** What `read_skill` shows of a Skill's `file`, or null. */
+  async function shownFile(tools: ChatTools, name: string, file: string) {
+    const execute = tools.shared.read_skill!.execute as (
+      input: object,
+      options: object
+    ) => Promise<string>
+    const out = await execute({ name }, { toolCallId: "t", messages: [] })
+    const m = out.match(new RegExp(`This skill’s file \`${file}\`:\\n\\n(.*)`))
+    return m ? m[1]! : null
+  }
+
+  /** A canvas with Mockup `m-1`, made by `chatId`. */
+  function madeBy(chatId: string): RoomDoc {
+    const r = room()
+    void r.mutateDoc((c) => {
+      c.chatSessions.set("chat-s", sketchChatSession("chat-s", 1))
+      c.mockupLayers.update("m-1", { ownerChatId: chatId })
+    })
+    return r
+  }
+
+  it("resolve the same Skill for every kind of chat", async () => {
+    appSkill("screenplay-add-knob", { "k.js": "app knob" })
+    appSkill("screenplay-explore", { "e.js": "app explore" })
+    appSkill("screenplay-try", { "t.js": "app try" }, "coordinator")
+    await save(fx.canvas!, "review", { "r.js": "canvas review" })
+
+    const kinds: Array<[string, string, (r: RoomDoc) => ChatTools]> = [
+      [
+        "a Workspace chat",
+        "chat-1",
+        (r) =>
+          workspaceChatTarget.tools(r, {
+            sandboxName: "ws-1",
+            chatId: "chat-1",
+            userId: "user-1",
+          }),
+      ],
+      [
+        "a sketch chat",
+        "chat-s",
+        (r) =>
+          sketchChatTarget.tools(r, { chatId: "chat-s", userId: "user-1" }),
+      ],
+      [
+        "the Coordinator",
+        roomChatId("room-1"),
+        (r) => roomChatTarget.tools(r, { userId: "user-1" }),
+      ],
+    ]
+    const skills: Array<[string, string]> = [
+      ["screenplay-add-knob", "k.js"],
+      ["screenplay-explore", "e.js"],
+      ["screenplay-try", "t.js"],
+      ["review", "r.js"],
+    ]
+    const seen: Record<string, string[]> = {}
+    for (const [kind, chatId, tools] of kinds) {
+      const r = madeBy(chatId)
+      const sources = await mockupRefSources(r, {
+        mockupId: "m-1",
+        userId: "user-1",
+      })
+      for (const [name, file] of skills) {
+        const ref = `skill:${name}/${file}`
+        const resolved = (await resolveMockupRefs([ref], sources))[ref]
+        const fromRef = resolved ? text(resolved.data) : null
+        expect(fromRef, `${kind}: ${ref}`).toBe(
+          await shownFile(tools(r), name, file)
+        )
+        if (fromRef) (seen[kind] ??= []).push(name)
+      }
+    }
+    // Each kind sees its own App Skills, and every kind the canvas's.
+    expect(seen).toEqual({
+      "a Workspace chat": [
+        "screenplay-add-knob",
+        "screenplay-explore",
+        "review",
+      ],
+      "a sketch chat": ["screenplay-add-knob", "review"],
+      "the Coordinator": ["screenplay-try", "review"],
+    })
+  })
+})
+
 describe("resolveMockupRefs", () => {
   const sources = (size: number): MockupRefSources => ({
-    skill: {},
+    skillFile: async () => null,
     canvasFile: async () => ({
       type: "image/png",
       bytes: new Uint8Array(size),
@@ -243,7 +354,7 @@ describe("resolveMockupRefs", () => {
 
   it("treats a source that fails as unresolved", async () => {
     const out = await resolveMockupRefs(["files:a.png"], {
-      skill: {},
+      skillFile: async () => null,
       canvasFile: async () => {
         throw new Error("store down")
       },

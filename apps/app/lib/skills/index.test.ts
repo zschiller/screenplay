@@ -4,8 +4,42 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { getSkill, getSkillIndex, hasSkill, loadAppSkills } from "@/lib/skills"
-import { SKILL_FILE_SHOWN_MAX_BYTES } from "@/lib/skills/saved"
+import {
+  appSkills,
+  getSkill,
+  getSkillIndex,
+  hasSkill,
+  loadAppSkills,
+} from "@/lib/skills"
+import {
+  prepareSkill,
+  SKILL_FILE_SHOWN_MAX_BYTES,
+  SKILL_MAX_BYTES,
+} from "@/lib/skills/saved"
+
+describe("Screenplay's own App Skills", () => {
+  it("each fit, with their files, the size a saved skill may be", () => {
+    // A saved copy of an App Skill keeps its files (#1642), so each must
+    // save whole. The design audit skill is closest to the limit.
+    const all = [
+      ...getSkillIndex().map((s) => appSkills.open(s.name)!),
+      ...getSkillIndex("coordinator").map((s) =>
+        appSkills.open(s.name, "coordinator")!
+      ),
+    ]
+    expect(all.length).toBeGreaterThan(0)
+    for (const [i, { content, files }] of all.entries()) {
+      const name = content.match(/^name:\s*(\S+)/m)![1]!
+      const prepared = prepareSkill({ name, content, files })
+      expect(prepared, `${name} (skill ${i})`).toMatchObject({ ok: true })
+      const size = [content, ...files.map((f) => f.content)].reduce(
+        (n, c) => n + Buffer.byteLength(c),
+        0
+      )
+      expect(size, name).toBeLessThanOrEqual(SKILL_MAX_BYTES)
+    }
+  })
+})
 
 describe("App Skills by audience", () => {
   it("keeps Coordinator Skills out of the Workspace agents' index", () => {

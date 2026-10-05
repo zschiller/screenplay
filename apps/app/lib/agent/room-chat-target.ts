@@ -21,11 +21,10 @@ import { liveWorkspaceReadPorts } from "./room-read-ports"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
-import { appSkillSource, getSkillIndex } from "@/lib/skills"
-import { canvasSkills, loadCanvasSkills } from "@/lib/skills/canvas"
-import { loadAccountSkills } from "@/lib/skills/account"
-import { agentSkillsFor, loadAgentSkills } from "@/lib/skills/agent-skills"
-import { mergeSkillIndexes, type OriginTaggedSkill } from "@/lib/skills/merged"
+import { appSkillSource } from "@/lib/skills"
+import { canvasSkills } from "@/lib/skills/canvas"
+import { agentSkillsFor } from "@/lib/skills/agent-skills"
+import { skillSources, type OriginTaggedSkill } from "@/lib/skills/sources"
 import { buildSkillTools } from "./skill-tools"
 import type { RoomDoc } from "@/lib/room-access"
 import { buildFileTools } from "./file-tools"
@@ -136,14 +135,26 @@ export function liveRoomToolPorts(
 /** No sandbox: its tools come from the Coordinator tools module. */
 export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
   kind: "room",
-  async loadContext(room, target) {
+  // The canvas's, the sender's and the agent's own, then the Coordinator's
+  // App Skills; no Repo Skills (#1533).
+  skills(room, target) {
+    return skillSources({
+      canvas: room && canvasSkills(room),
+      account: accountSkillsFor(target),
+      agent: agentSkillsFor(target.harnessKey),
+      app: appSkillSource("coordinator"),
+    })
+  },
+  async loadContext(
+    room,
+    target,
+    skills = roomChatTarget.skills(room, target)
+  ) {
     const ports = liveRoomToolPorts(room, target)
     const terminalTabs = await ports.listTerminalTabs().catch(() => [])
     const [
       canvasSummary,
-      canvas,
-      account,
-      agent,
+      skillIndex,
       memory,
       files,
       accountMemory,
@@ -152,9 +163,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       ports.readDoc((collections) =>
         summarizeCanvas(collections, terminalTabs)
       ),
-      loadCanvasSkills(room),
-      loadAccountSkills(turnSender(target)),
-      loadAgentSkills(agentSkillsFor(target.harnessKey)),
+      skills.index(),
       loadCanvasMemory(room),
       loadCanvasFiles(room),
       loadAccountMemory(turnSender(target)),
@@ -162,12 +171,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
     ])
     return {
       canvasSummary,
-      skills: mergeSkillIndexes({
-        canvas,
-        account,
-        agent,
-        app: getSkillIndex("coordinator"),
-      }),
+      skills: skillIndex,
       memory,
       files,
       accountMemory,
@@ -191,7 +195,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       toolNaming: naming,
     })
   },
-  tools(room, target) {
+  tools(room, target, skills = roomChatTarget.skills(room, target)) {
     return {
       shared: {
         ...buildRoomTools(
@@ -224,11 +228,10 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
         }),
         // The canvas's Skills and the Coordinator's App Skills (#905, #1555).
         ...buildSkillTools({
+          skills,
           canvas: canvasSkills(room),
           account: accountSkillsFor(target),
           chatId: target.coordinatorChatId ?? "",
-          app: appSkillSource("coordinator"),
-          agent: agentSkillsFor(target.harnessKey),
         }),
       },
     }

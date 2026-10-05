@@ -9,7 +9,7 @@ import {
   CommandList,
 } from "@workspace/ui/components/command"
 import { BookOpenIcon } from "@workspace/ui/components/icons"
-import type { SkillOrigin } from "@/lib/skills/merged"
+import type { SkillOrigin } from "@/lib/skills/sources"
 
 /**
  * Item shape for the `/` skill picker. `origin` names where the Skill comes

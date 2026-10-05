@@ -18,6 +18,7 @@ import type { FileEntryData, MemoryData } from "@/lib/types"
 import type { SkillMetadata } from "@/lib/skills/frontmatter"
 import { accountSkills } from "@/lib/skills/account"
 import type { SavedSkills } from "@/lib/skills/saved"
+import type { SkillSources } from "@/lib/skills/sources"
 
 /**
  * The seam every chat target kind fills: a Branch's Workspace
@@ -27,6 +28,11 @@ import type { SavedSkills } from "@/lib/skills/saved"
  * Workspace chat writes the Documents it owns with its own tools. Each kind's
  * module holds the code paths that change between targets:
  *
+ *   - `skills` builds the chat's Skill Sources (`lib/skills/sources.ts`,
+ *     #1664): which Skills it sees, its App Skills among them. The prompt's
+ *     index, `read_skill`, the harness context folder and a Mockup's
+ *     `skill:` references all read that one value, so no other code picks a
+ *     chat's Skills by its kind.
  *   - `loadContext` reads the live state of the target from Yjs.
  *   - `buildSystemPrompt` turns that state into a system prompt, naming tools
  *     only through `naming`, which knows just the turn's toolset.
@@ -43,10 +49,17 @@ import type { SavedSkills } from "@/lib/skills/saved"
  */
 export interface ChatTargetSpec<TTarget, TContext> {
   kind: string
-  loadContext(room: RoomDoc, target: TTarget): Promise<TContext | null>
+  /** `room` is `null` off a canvas, which has no Canvas Skills. */
+  skills(room: RoomDoc | null, target: TTarget): SkillSources
+  /** `skills` is the turn's, built by {@link ChatTargetSpec.skills} if absent. */
+  loadContext(
+    room: RoomDoc,
+    target: TTarget,
+    skills?: SkillSources
+  ): Promise<TContext | null>
   buildSystemPrompt(ctx: TContext, naming: ToolNaming): string
   skillIndex(ctx: TContext): readonly SkillMetadata[]
-  tools(room: RoomDoc, target: TTarget): ChatTools
+  tools(room: RoomDoc, target: TTarget, skills?: SkillSources): ChatTools
   decorateUserMessage(message: string, opts: MessageDecoration): string
 }
 
@@ -78,17 +91,19 @@ export interface PreparedChatTarget<TContext> {
  * `null` when the target can't be resolved so the caller can answer cleanly.
  * `naming` is the turn's Engine's (#1223): it picks the toolset (a harness
  * gets the shared tools only) and names them in the prompt, which can name
- * only tools that toolset has.
+ * only tools that toolset has. `skills` is the turn's Skill Sources, when the
+ * turn built them already for its harness's context folder.
  */
 export async function prepareChatTarget<TTarget, TContext>(
   room: RoomDoc,
   spec: ChatTargetSpec<TTarget, TContext>,
   target: TTarget,
-  naming: ToolNaming = BARE_TOOL_NAMING
+  naming: ToolNaming = BARE_TOOL_NAMING,
+  skills: SkillSources = spec.skills(room, target)
 ): Promise<PreparedChatTarget<TContext> | null> {
-  const context = await spec.loadContext(room, target)
+  const context = await spec.loadContext(room, target, skills)
   if (!context) return null
-  const toolset = turnToolset(spec.tools(room, target), naming)
+  const toolset = turnToolset(spec.tools(room, target, skills), naming)
   return {
     kind: spec.kind,
     context,

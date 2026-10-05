@@ -14,12 +14,10 @@ vi.mock("@/lib/mockup-refs-server", async (importOriginal) => ({
   mockupRefSources: async (...args: unknown[]) => {
     fx.sourcesFor(...args)
     return {
-      skill: {
-        app: async (skill: string, path: string) =>
-          skill === "explore" && path === "a.js"
-            ? { type: "text/javascript", bytes: new TextEncoder().encode("a") }
-            : undefined,
-      },
+      skillFile: async (skill: string, path: string) =>
+        skill === "explore" && path === "a.js"
+          ? { type: "text/javascript", bytes: new TextEncoder().encode("a") }
+          : null,
       canvasFile: async () => null,
     }
   },
