@@ -1,5 +1,5 @@
 import { isBranchBusy, type BranchBusyChat } from "@/lib/branch-busy"
-import type { BranchData, PlanData } from "@/lib/types"
+import type { BranchData, ChatSessionData, PlanData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 
 /**
@@ -226,6 +226,24 @@ export function workspaceState(
     section,
     needsYou: section === "needs-you",
   }
+}
+
+/**
+ * A Sketch Chat's status line: with no Branch it has no setup, PR or plan, so
+ * only a turn in flight ("Agent working") or a question waiting on you set it,
+ * read the way a Workspace reads them. `openQuestions` is as for
+ * {@link roomWorkspaceFacts}.
+ */
+export function sketchChatStatusLine(
+  chat: Pick<ChatSessionData, "id" | "closedAt" | "isStreaming">,
+  openQuestions: ReadonlySet<string> = NO_CHATS
+): WorkspaceStatusLine {
+  if (chat.closedAt) return { kind: "idle", state: "ready", text: "Ready" }
+  if (chat.isStreaming)
+    return { kind: "idle", state: "working", text: "Agent working" }
+  if (openQuestions.has(chat.id))
+    return { kind: "idle", state: "needs-you", text: "Question waiting" }
+  return { kind: "idle", state: "ready", text: "Ready" }
 }
 
 /**

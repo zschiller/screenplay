@@ -64,7 +64,11 @@ import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 import { RecreateBranchDialog } from "@/components/recreate-branch-dialog"
 
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
-import { NeedsYouDot, WorkspaceMention } from "@/components/workspace-mention"
+import {
+  NeedsYouDot,
+  WorkspaceMention,
+  WorkspaceStateGlyph,
+} from "@/components/workspace-mention"
 
 import type { DiffStats } from "@/hooks/use-diff-stats"
 
@@ -72,11 +76,15 @@ import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
 
 import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 
-import { useWorkspaceStates } from "@/hooks/use-workspace-states"
+import {
+  useSketchChatStates,
+  useWorkspaceStates,
+} from "@/hooks/use-workspace-states"
 
 import {
   anyWorkspaceNeedsYou,
   type WorkspaceState,
+  type WorkspaceStatusLine,
 } from "@/lib/branch/workspace-state"
 
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -173,9 +181,12 @@ type ChatsMenuValue = Omit<
   doneBranches: BranchData[]
   /** Chats with no repository, newest first. */
   sketchChats: ChatSessionData[]
+  /** A Workspace or a chat with no repository needs you. */
   needsYou: boolean
   /** A Workspace's state: its icon, section and whether its agent works. */
   stateOf: (branch: BranchData) => WorkspaceState
+  /** A chat with no repository's status line: working, needs you or ready. */
+  sketchLineOf: (chat: ChatSessionData) => WorkspaceStatusLine
   /** Which Workspaces have a dialog open over them (no row hover then). */
   pendingBranchIds: Set<string>
   askDelete: (branchId: string) => void
@@ -287,10 +298,7 @@ export function ChatsMenuProvider({
     [flatBranches]
   )
   const stateOf = useWorkspaceStates()
-  const needsYou = useMemo(
-    () => anyWorkspaceNeedsYou(flatBranches, stateOf),
-    [flatBranches, stateOf]
-  )
+  const sketchLineOf = useSketchChatStates()
 
   // Open a Workspace when it finishes setting up. The callback is read through
   // a ref so this runs on `branches` changes only.
@@ -355,6 +363,16 @@ export function ChatsMenuProvider({
         .sort((a, b) => b.createdAt - a.createdAt),
     [chatSessions]
   )
+  // Chats with no repository feed the dot too: theirs is the same question.
+  const needsYou = useMemo(
+    () =>
+      anyWorkspaceNeedsYou(flatBranches, stateOf) ||
+      sketchChats.some((c) => {
+        const line = sketchLineOf(c)
+        return line.kind === "idle" && line.state === "needs-you"
+      }),
+    [flatBranches, stateOf, sketchChats, sketchLineOf]
+  )
 
   const value: ChatsMenuValue = {
     ...props,
@@ -367,6 +385,7 @@ export function ChatsMenuProvider({
     sketchChats,
     needsYou,
     stateOf,
+    sketchLineOf,
     pendingBranchIds,
     askDelete,
     askRecreate,
@@ -455,7 +474,7 @@ export function ChatsMenuProvider({
 
 /**
  * The labelled Chats button at the right of the Coordinator header (the
- * panel's top level), with a dot on its icon while any Workspace needs you. A Workspace
+ * panel's top level), with a dot on its icon while any chat needs you. A Workspace
  * chat has no button: its Coordinator crumb goes back up. Renders nothing
  * outside a provider.
  */
@@ -617,8 +636,10 @@ function ChatsMenuList({ menu }: { menu: ChatsMenuValue }) {
 }
 
 /**
- * One chat with no repository in the menu: its title (renamed inline from its
- * … menu) and the … menu with Rename and Delete.
+ * One chat with no repository in the menu: its state (a Workspace row's
+ * spinner while its agent works, the orange dot while a question waits on
+ * you, else its chat icon), its title (renamed inline from its … menu) and
+ * the … menu with Rename and Delete.
  */
 function SketchChatMenuRow({
   menu,
@@ -631,6 +652,7 @@ function SketchChatMenuRow({
   const pendingEditRef = useRef(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  const line = menu.sketchLineOf(chat)
   return (
     <CommandItem
       value={`${chat.label} ${chat.id}`}
@@ -640,9 +662,18 @@ function SketchChatMenuRow({
       }}
       className="group/ws-row"
     >
-      <span className="flex size-4 shrink-0 items-center justify-center">
-        <ChatCircleIcon className="size-3.5 opacity-70" />
-      </span>
+      {/* Working and needs-you draw a Workspace row's glyph; at rest the
+          row keeps its chat icon. */}
+      {line.kind === "idle" &&
+      (line.state === "working" || line.state === "needs-you") ? (
+        <span role="img" aria-label={line.text} className="flex shrink-0">
+          <WorkspaceStateGlyph line={line} />
+        </span>
+      ) : (
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          <ChatCircleIcon className="size-3.5 opacity-70" />
+        </span>
+      )}
       <span
         className="flex min-w-0 flex-1 has-[[data-editable-text=editing]]:overflow-visible"
         onClick={(e) => {

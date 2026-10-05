@@ -4,6 +4,7 @@ import {
   anyWorkspaceNeedsYou,
   formatElapsed,
   roomWorkspaceFacts,
+  sketchChatStatusLine,
   workspaceSettingUp,
   workspaceState,
   type WorkspaceState,
@@ -434,5 +435,29 @@ describe("formatElapsed", () => {
     expect(formatElapsed(0)).toBe("0s")
     expect(formatElapsed(40_900)).toBe("40s")
     expect(formatElapsed(125_000)).toBe("2m 05s")
+  })
+})
+
+describe("sketchChatStatusLine", () => {
+  const chat = { id: "s1" }
+  it("is working while its turn is in flight", () => {
+    expect(sketchChatStatusLine({ ...chat, isStreaming: true })).toEqual({
+      kind: "idle",
+      state: "working",
+      text: "Agent working",
+    })
+  })
+  it("needs you while its question waits", () => {
+    expect(sketchChatStatusLine(chat, new Set(["s1"]))).toEqual({
+      kind: "idle",
+      state: "needs-you",
+      text: "Question waiting",
+    })
+  })
+  it("is ready otherwise, and once closed", () => {
+    expect(sketchChatStatusLine(chat)).toMatchObject({ state: "ready" })
+    expect(
+      sketchChatStatusLine({ ...chat, closedAt: 1 }, new Set(["s1"]))
+    ).toMatchObject({ state: "ready" })
   })
 })

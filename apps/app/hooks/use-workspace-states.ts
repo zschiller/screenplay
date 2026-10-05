@@ -3,10 +3,12 @@
 import { useCallback } from "react"
 import {
   roomWorkspaceFacts,
+  sketchChatStatusLine,
   workspaceState,
   type RoomWorkspaceFacts,
   type WorkspaceState,
   type WorkspaceStateBranch,
+  type WorkspaceStatusLine,
 } from "@/lib/branch/workspace-state"
 import { useOpenQuestionChats } from "@/hooks/use-open-question-chats"
 import type { ChatSessionData, PlanData } from "@/lib/types"
@@ -49,4 +51,18 @@ export function useWorkspaceStates(): (
   const chats = useChatSessions()
   const facts = cachedFacts(chats, usePlans(), useOpenQuestionChats(chats))
   return useCallback((branch) => workspaceState(branch, facts), [facts])
+}
+
+/**
+ * Each Sketch Chat's status line (no repository, so no Workspace): working
+ * while its turn is in flight, needs you while its question waits.
+ */
+export function useSketchChatStates(): (
+  chat: ChatSessionData
+) => WorkspaceStatusLine {
+  const openQuestions = useOpenQuestionChats(useChatSessions())
+  return useCallback(
+    (chat) => sketchChatStatusLine(chat, openQuestions),
+    [openQuestions]
+  )
 }
