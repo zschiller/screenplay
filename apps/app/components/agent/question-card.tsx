@@ -132,7 +132,7 @@ export function QuestionCard({
                   )}
                 </span>
                 {option.detail && (
-                  <QuestionnaireChoiceDescription className="text-xs">
+                  <QuestionnaireChoiceDescription className="text-sm">
                     {option.detail}
                   </QuestionnaireChoiceDescription>
                 )}
@@ -169,7 +169,7 @@ function MockupLine({ id }: { id: string }) {
     // Item's 16px over the choices, as the question has without it.
     <QuestionnaireDescription
       data-testid="question-mockup"
-      className="mt-1 text-xs"
+      className="mt-1 text-sm"
     >
       On{" "}
       <InlineRef kind="mockup" onClick={() => viewRequests.emit({ ids: [id] })}>

@@ -196,6 +196,6 @@ function StepBody({
 
 function Hint({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs text-balance text-muted-foreground">{children}</p>
+    <p className="text-sm text-balance text-muted-foreground">{children}</p>
   )
 }

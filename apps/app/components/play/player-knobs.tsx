@@ -17,7 +17,7 @@ export function PlayerKnobs({ knobs, values, onChange }: PlayerKnobsProps) {
       values={values}
       onChange={onChange}
       empty={
-        <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
           <p className="font-medium text-foreground">No knobs yet</p>
           <p>
             Knobs let you adjust this page live, like a slider for card padding.

@@ -20,7 +20,7 @@ export function ElementDetail({
     return (
       <>
         <ElementSelector selector={selector} />
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Mockup</dt>
           <dd className="break-words">{frameLabel}</dd>
         </dl>
@@ -30,7 +30,7 @@ export function ElementDetail({
   return (
     <>
       <ElementSelector selector={selector} />
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
         <dt className="text-muted-foreground">Route</dt>
         <dd className="font-mono break-words">{route}</dd>
         {frameLabel ? (

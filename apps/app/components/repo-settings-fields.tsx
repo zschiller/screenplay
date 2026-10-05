@@ -339,7 +339,7 @@ export function RepoSettingsFields({
               onChange={(e) => onSystemPromptChange(e.target.value)}
               placeholder="Work in the Next.js app under apps/web."
               rows={4}
-              className="[field-sizing:fixed] max-w-full resize-y text-xs"
+              className="[field-sizing:fixed] max-w-full resize-y text-sm"
             />
             <FieldDescription>
               Extra instructions for the agent in this repository, like which

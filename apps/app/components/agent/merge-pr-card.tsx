@@ -220,7 +220,7 @@ export function MergePrCard({
         <ConfirmationRequest>
           <span className="flex flex-col gap-0.5">
             <span>Merge {prRef}?</span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {state.kind === "loading" ? (
                 <Spinner
                   className="size-3"
@@ -254,7 +254,7 @@ export function MergePrCard({
         </ConfirmationRejected>
       </ConfirmationTitle>
       {error && (
-        <p role="alert" className="text-xs text-muted-foreground">
+        <p role="alert" className="text-sm text-muted-foreground">
           {error}
         </p>
       )}

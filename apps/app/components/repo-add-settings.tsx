@@ -219,7 +219,7 @@ export function RepoAddSettings({
   return (
     <>
       {status !== "idle" && status !== "done" && (
-        <div className="flex min-h-5 items-center gap-2 px-5 pb-3 text-xs text-muted-foreground">
+        <div className="flex min-h-5 items-center gap-2 px-5 pb-3 text-sm text-muted-foreground">
           {status === "detecting" ? (
             <>
               <Spinner className="size-3.5" />
@@ -231,7 +231,7 @@ export function RepoAddSettings({
               <Button
                 variant="link"
                 size="sm"
-                className="h-auto gap-1 p-0 text-xs"
+                className="h-auto gap-1 p-0 text-sm"
                 onClick={reDetect}
               >
                 <ArrowClockwiseIcon className="size-3" />

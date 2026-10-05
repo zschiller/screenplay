@@ -806,7 +806,7 @@ export function RoomSidebar({
                                               frameWorkspaceOf(branch)
                                             return workspace ? (
                                               // Names win: the Workspace takes only the room the name leaves.
-                                              <span className="flex min-w-10 flex-1 basis-0 text-xs font-normal text-muted-foreground">
+                                              <span className="flex min-w-10 flex-1 basis-0 text-sm font-normal text-muted-foreground">
                                                 <CompactWorkspaceMention
                                                   workspace={workspace}
                                                   layout="row"
@@ -860,7 +860,7 @@ export function RoomSidebar({
                   </SortableContext>
                 </DropHintContext.Provider>
                 {iframeLayerGroups.length === 0 && (
-                  <div className="py-8 text-center text-xs text-balance text-sidebar-foreground/50">
+                  <div className="py-8 text-center text-sm text-balance text-sidebar-foreground/50">
                     Nothing on the canvas yet
                   </div>
                 )}
