@@ -80,6 +80,7 @@ import {
   elementMarkersToPills,
   mockupMarkersToRefs,
   skillMarkersToPills,
+  type PrEventMark,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
 import {
@@ -97,7 +98,11 @@ import { chatStore } from "@/lib/chat-store"
 import { inputStore } from "@/lib/input-store"
 import { diffLines, foldContext } from "@/lib/agent/line-diff"
 import { InlineRef } from "@/components/agent/inline-ref"
-import { WorkspaceStateGlyph } from "@/components/workspace-mention"
+import {
+  WorkspacePrBadge,
+  WorkspaceStateGlyph,
+} from "@/components/workspace-mention"
+import { prEventLabel, prEventState } from "@/lib/pr-watch/events"
 import {
   roomWorkspaceFacts,
   workspaceState,
@@ -1057,6 +1062,7 @@ function UserMessage({
   // A Coordinator wake is the server's report on a Workspace turn, not
   // something anyone said (#897).
   if (message.wakeFrom) return null
+  if (message.prEvent) return <PrEventLine event={message.prEvent} />
   if (message.delegatedFrom)
     return <DelegatedMessage message={message} roomId={roomId} />
   if (!sender) return <UserBubble message={message} roomId={roomId} />
@@ -1064,6 +1070,31 @@ function UserMessage({
     <div className="flex flex-col gap-1">
       <SenderLabel sender={sender} />
       <UserBubble message={message} roomId={roomId} />
+    </div>
+  )
+}
+
+/**
+ * A PR event (#1702): what PR Watch saw happen to the chat's PR, as a quiet
+ * rule across the transcript like Stopped. The PR's glyph and number take the
+ * event's colour; the event reads muted after it.
+ */
+function PrEventLine({ event }: { event: PrEventMark }) {
+  return (
+    <div
+      role="note"
+      data-testid="pr-event"
+      className="flex items-center gap-2 text-xs text-muted-foreground"
+    >
+      <span className="h-px flex-1 bg-border" />
+      <span className="flex min-w-0 items-center gap-1.5">
+        <WorkspacePrBadge
+          number={event.number}
+          state={prEventState(event.kind)}
+        />
+        <span className="truncate">{prEventLabel(event)}</span>
+      </span>
+      <span className="h-px flex-1 bg-border" />
     </div>
   )
 }

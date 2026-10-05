@@ -19,6 +19,10 @@
  *    daemon. It exists only on the local sandbox backend; the hosted (Vercel)
  *    build skips it and keeps the ttyd/`domain(port)` path. The dynamic import
  *    keeps node-pty/`ws` out of the hosted build's graph.
+ *  - **PR Watch tick.** In the local desktop build, looks at every canvas with
+ *    an open PR once a minute (#1702), so PR events reach chats with no canvas
+ *    open. The hosted build runs the same tick from Vercel Cron instead
+ *    (`app/api/pr-watch/tick`).
  */
 export async function register(): Promise<void> {
   // Only the Node.js server runtime touches these seams / holds a long-lived
@@ -84,5 +88,10 @@ export async function register(): Promise<void> {
     const { ensureLocalTerminalServer } =
       await import("@/lib/terminal/local/server")
     await ensureLocalTerminalServer()
+  }
+
+  if (isLocalBuild) {
+    const { startPrWatchInterval } = await import("@/lib/pr-watch/interval")
+    startPrWatchInterval()
   }
 }

@@ -2,7 +2,19 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "ignoreCommand": "bash ../../scripts/vercel-ignore-build.sh app",
   "rewrites": [
-    { "source": "/", "destination": "/app" },
-    { "source": "/favicon.ico", "destination": "/app/icon" }
+    {
+      "source": "/",
+      "destination": "/app"
+    },
+    {
+      "source": "/favicon.ico",
+      "destination": "/app/icon"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/app/api/pr-watch/tick",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }

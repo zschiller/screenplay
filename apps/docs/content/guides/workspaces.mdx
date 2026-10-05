@@ -261,6 +261,25 @@ offering another, and a done workspace offers no new PR. While the PR is being
 created, the button shows a spinner, the menu item reads **Creating pull
 request…**, and neither can start a second one.
 
+### PR updates in the chat
+
+Screenplay keeps checking the chat’s PR on GitHub, every minute while the
+canvas is open and every few minutes when it isn’t. When something changes,
+the chat shows it as a quiet line across the conversation: the PR’s icon and
+number in its colour, then what happened.
+
+| Line                     | When                                                              |
+| ------------------------ | ----------------------------------------------------------------- |
+| **checks failed · lint** | Checks on the PR start failing. The line names the failed checks. |
+| **checks passed**        | Checks pass again after failing.                                  |
+| **conflict**             | The PR conflicts with the branch it merges into.                  |
+| **merged**               | The PR was merged.                                                |
+| **closed**               | The PR was closed without merging.                                |
+
+Failing checks, conflicts and closed PRs are red, passing checks green and
+merges purple, like the PR badge. With the canvas closed, Screenplay checks
+the PR with the GitHub account of the person who started the chat.
+
 ## Deleting
 
 **… → Delete** deletes the chat, its workspace and its frames, and shuts down

@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@/lib/agent/types"
+import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import {
   isUpdate,
   textBlock,
@@ -10,6 +11,7 @@ import {
   parseTargetedElementsFooter,
   parseUserMessage,
   type MessageAttachment,
+  type PrEventMark,
   type TargetedElement,
 } from "@/lib/agent/message-markers"
 
@@ -30,6 +32,8 @@ import {
 export interface UserTurn {
   /** The text the user message view draws. */
   body: string
+  /** What happened to the chat's PR, when this is a PR event (#1702). */
+  prEvent?: PrEventMark
   /** The Workspace whose turn ended, when this is a Coordinator wake. */
   wakeFrom?: string
   /** The sending Coordinator chat, when this is a Delegated Message. */
@@ -50,11 +54,12 @@ export function projectUserTurn(
   wire: string,
   sentBy?: string | null
 ): UserTurn {
-  const { body, wakeFrom, delegatedFrom } = parseUserMessage(wire)
+  const { body, prEvent, wakeFrom, delegatedFrom } = parseUserMessage(wire)
   const targetedElements = parseTargetedElementsFooter(wire)
   const attachments = parseAttachmentsFooter(wire)
   return {
     body,
+    ...(prEvent ? { prEvent } : {}),
     ...(wakeFrom ? { wakeFrom } : {}),
     ...(delegatedFrom ? { delegatedFrom } : {}),
     ...(targetedElements.length > 0 ? { targetedElements } : {}),
@@ -111,4 +116,30 @@ export function echoedUserTurn(update: SessionUpdate): UserTurnMessage | null {
   if (!isUpdate(update, "user_message_chunk")) return null
   const fields = update._meta?.[ECHO_META_KEY] as EchoFields | undefined
   return userTurnToMessage({ body: blockText(update.content), ...fields })
+}
+
+/** Whether a saved user record is a PR event (#1702) rather than a message. */
+function isPrEventRecord(record: AcpMessageRecord): boolean {
+  if (record.role !== "user") return false
+  return !!parseUserMessage(record.content.map(blockText).join("")).prEvent
+}
+
+/**
+ * The history with the message that started this turn last. A PR event saved
+ * while a turn was starting can land after that message, and the newest user
+ * record is the turn's prompt, so PR events at the end move ahead of the
+ * messages around them. A history that ends in a PR event alone keeps it as
+ * the prompt.
+ */
+export function withPromptLast(
+  history: AcpMessageRecord[]
+): AcpMessageRecord[] {
+  let start = history.length
+  while (start > 0 && history[start - 1]!.role === "user") start--
+  const tail = history.slice(start)
+  const events = tail.filter(isPrEventRecord)
+  if (events.length === 0 || events.length === tail.length) return history
+  const rest = tail.filter((r) => !isPrEventRecord(r))
+  if (tail.at(-1) === rest.at(-1)) return history
+  return [...history.slice(0, start), ...events, ...rest]
 }

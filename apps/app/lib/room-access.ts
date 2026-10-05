@@ -76,6 +76,16 @@ export function readRoomForServer(roomId: string): RoomReader {
   return { roomId, readDoc }
 }
 
+/**
+ * Read and write a Room's doc for the PR Watch tick (#1702): server work no
+ * request started, which acts for each Branch's owner rather than a session.
+ * The tick checks that owner is still a member before reading GitHub with
+ * their account; the guard test keeps this to the tick.
+ */
+export function openRoomForPrWatchTick(roomId: string): RoomDoc {
+  return roomDoc(roomId)
+}
+
 /** The chat's Room, or `null` when no turn has recorded the chat yet. */
 export async function chatRoomId(chatId: string): Promise<string | null> {
   const [row] = await db

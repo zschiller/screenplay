@@ -1,11 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef } from "react"
-import {
-  listBranchPrs,
-  type BranchPrInfo,
-  type BranchPrQuery,
-} from "@/lib/github-actions"
+import { listBranchPrs, type BranchPrInfo } from "@/lib/github-actions"
 import { useRoomId } from "@/lib/yjs/context"
 import { useRoomCollections } from "@/lib/yjs/react"
 
@@ -33,9 +29,11 @@ export interface BranchPrsHandle {
  * fields on each Branch in the room's Y.Doc — instant on a cold load and shared
  * across collaborators, no per-client GitHub round-trip on render.
  *
- * The poll batches every candidate branch into one {@link listBranchPrs} server
- * action (single round-trip, GitHub calls fanned out in parallel server-side)
- * which writes results back into the doc. The doc is the source of truth.
+ * The poll is one {@link listBranchPrs} server action for the whole Room: PR
+ * Watch (`lib/pr-watch`) looks up every Branch's PR server-side, writes the
+ * results back into the doc and adds PR events to the Workspace Chats. The doc
+ * is the source of truth. The server tick runs the same look with the canvas
+ * closed.
  */
 export function useBranchPrs(
   agents: Array<{
@@ -81,22 +79,14 @@ export function useBranchPrs(
   }, [agents])
 
   const refresh = useCallback(async () => {
-    const currentAgents = agentsRef.current
     const repoMap = new Map(reposRef.current.map((w) => [w.id, w]))
-    const queries: BranchPrQuery[] = []
-    for (const a of currentAgents) {
-      if (!a.ref) continue
-      const ws = repoMap.get(a.repoId)
-      if (!ws || a.ref === ws.defaultBranch) continue
-      queries.push({
-        id: a.id,
-        owner: ws.repoOwner,
-        repo: ws.repoName,
-        branch: a.ref,
-      })
-    }
-    if (queries.length === 0) return
-    await listBranchPrs(roomId, queries)
+    // Skip the round-trip when no Branch can have a PR of its own.
+    const anyCandidate = agentsRef.current.some((a) => {
+      const repo = repoMap.get(a.repoId)
+      return !!a.ref && !!repo && a.ref !== repo.defaultBranch
+    })
+    if (!anyCandidate) return
+    await listBranchPrs(roomId)
   }, [roomId])
 
   const setBranchPr = useCallback(

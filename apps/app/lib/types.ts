@@ -166,6 +166,17 @@ export type BranchData = {
    *  missing required review or check). Absent otherwise. */
   prBlocked?: boolean
   /**
+   * The open PR's rolled-up checks and whether it conflicts with its base, as
+   * PR Watch last saw them (`lib/pr-watch`). Kept so the next look can tell
+   * what changed: checks that start failing, pass again, or a new conflict.
+   * Absent until PR Watch has seen the PR open.
+   */
+  prChecks?: "pending" | "passing" | "failing"
+  /** True while the last checks to finish failed, kept through a re-run's
+   *  pending checks so their passing reads as “checks passed” again. */
+  prChecksFailed?: boolean
+  prConflict?: boolean
+  /**
    * Cached diff stats (additions/deletions vs the Repo's default branch, from
    * the GitHub compare API), refreshed by the same poll. Same rationale as the
    * PR cache above — read straight from the doc, no client round-trip. */
