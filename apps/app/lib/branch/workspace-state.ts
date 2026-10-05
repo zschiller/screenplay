@@ -132,15 +132,16 @@ export function workspaceSettingUp(branch: StatusLineBranch): boolean {
 
 /**
  * Whether the Workspace's agent can take a turn: its sandbox runs, or it's
- * still setting up but its code is checked out (the install and dev server
- * finish behind the agent).
+ * still setting up, restarting or being recreated but its code is checked out
+ * (the install and dev server finish behind the agent).
  */
 export function agentCanStart(
   branch: Pick<BranchData, "status" | "codeReady">
 ): boolean {
   return (
     branch.status === "running" ||
-    (branch.status === "creating" && branch.codeReady === true)
+    ((branch.status === "creating" || branch.status === "starting") &&
+      branch.codeReady === true)
   )
 }
 

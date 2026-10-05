@@ -8,6 +8,7 @@ import type {
   SandboxInstance,
   SandboxProvider,
 } from "@/lib/sandbox/types"
+import type { ProvisionRequest } from "@/lib/sandbox/provisioning"
 import type { RepoData } from "@/lib/types"
 
 // The lifecycle actions resolve (or create) the live instance through the
@@ -487,6 +488,22 @@ describe("removeSandboxEnv", () => {
   })
 })
 
+/** The Branch collection `markCodeReady` writes, holding one Branch. */
+function fakeBranches(status: string) {
+  return {
+    get: vi.fn((id: string) => (id === "branch-1" ? { status } : undefined)),
+    update: vi.fn(),
+  }
+}
+
+/** A Room whose doc holds just `branches`, as `openRoom` resolves it. */
+function roomWith(branches: ReturnType<typeof fakeBranches>) {
+  return {
+    mutateDoc: async (fn: (c: { branches: typeof branches }) => unknown) =>
+      fn({ branches }),
+  }
+}
+
 describe("restartSandbox", () => {
   it("boots from a snapshot and relaunches without re-provisioning", async () => {
     fake.setGet(fakeSandbox({ snapshotId: "snap-1" }))
@@ -508,6 +525,39 @@ describe("restartSandbox", () => {
     })
     // …so the install/git pipeline is skipped entirely.
     expect(configureAgentGit).not.toHaveBeenCalled()
+  })
+
+  it("lets the agent start once the restored VM is up, before the dev server", async () => {
+    fake.setGet(fakeSandbox({ snapshotId: "snap-1" }))
+    fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
+    const branches = fakeBranches("starting")
+    openRoom.mockResolvedValue(roomWith(branches))
+
+    const result = await restartSandbox("sandbox-a", repo, {
+      roomId: "room-1",
+      branchId: "branch-1",
+    })
+
+    expect(result.success).toBe(true)
+    expect(openRoom).toHaveBeenCalledWith("room-1")
+    expect(branches.update).toHaveBeenCalledWith("branch-1", {
+      codeReady: true,
+    })
+  })
+
+  it("leaves a Workspace that’s no longer starting alone", async () => {
+    // Someone stopped or deleted it mid-restart: no flag to start its agent.
+    fake.setGet(fakeSandbox({ snapshotId: "snap-1" }))
+    fake.setCreate(fakeSandbox({ name: "sandbox-a" }))
+    const branches = fakeBranches("stopped")
+    openRoom.mockResolvedValue(roomWith(branches))
+
+    await restartSandbox("sandbox-a", repo, {
+      roomId: "room-1",
+      branchId: "branch-1",
+    })
+
+    expect(branches.update).not.toHaveBeenCalled()
   })
 
   it("fails loud on a snapshot miss instead of recloning", async () => {
@@ -576,6 +626,7 @@ describe("recreateSandbox", () => {
       sandboxName: "sandbox-a",
       ghToken: undefined,
       envVars: "",
+      onCodeReady: expect.any(Function),
     })
     expect(result).toEqual({
       success: true,
@@ -587,6 +638,20 @@ describe("recreateSandbox", () => {
     // Never a snapshot restore, and never a VM cycle of its own — the module
     // owns every provider call.
     expect(fake.createCalls).toHaveLength(0)
+  })
+
+  it("lets the agent start once the recloned code is checked out", async () => {
+    const branches = fakeBranches("starting")
+    openRoom.mockResolvedValue(roomWith(branches))
+    await recreateSandbox("sandbox-a", repo, "feature", "room-1", "branch-1")
+
+    const [req] = provisionSandbox.mock.lastCall as unknown as [
+      ProvisionRequest,
+    ]
+    await req.onCodeReady?.("sandbox-a")
+    expect(branches.update).toHaveBeenCalledWith("branch-1", {
+      codeReady: true,
+    })
   })
 
   it("uses the session’s token", async () => {

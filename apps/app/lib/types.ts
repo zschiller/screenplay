@@ -99,10 +99,10 @@ export type BranchData = {
   statusMessage?: string
   error?: string
   /**
-   * Set while the Workspace is still `creating` once its code is checked out
-   * and git is configured: the agent can start working while the dependency
-   * install and the dev server finish behind it. Read it through
-   * `agentCanStart`; a new provisioning attempt clears it.
+   * Set while the Workspace is still `creating` (or `starting`, on a Restart
+   * or Recreate) once its code is checked out and git is configured: the agent
+   * can start working while the dependency install and the dev server finish
+   * behind it. Read it through `agentCanStart`; a new attempt clears it.
    */
   codeReady?: boolean
   createdAt: number

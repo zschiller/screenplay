@@ -483,7 +483,8 @@ export async function reconnectSandbox(
  */
 export async function restartSandbox(
   sandboxName: string,
-  repo: RepoData
+  repo: RepoData,
+  workspace?: CodeReadyTarget
 ): Promise<
   SandboxActionResult<{ sandboxName: string; previewDomain: string }>
 > {
@@ -548,6 +549,8 @@ export async function restartSandbox(
       env: mergedEnv,
       networkPolicy,
     })
+    // The restored checkout is all the agent needs; the dev server follows.
+    await markCodeReady(workspace)
 
     const previewDomain = await launchDevAndProxy(
       sandbox,
@@ -597,7 +600,8 @@ export async function recreateSandbox(
   sandboxName: string,
   repo: RepoData,
   branch: string,
-  roomId: string
+  roomId: string,
+  branchId?: string
 ): Promise<
   SandboxActionResult<{ sandboxName: string; previewDomain: string }>
 > {
@@ -614,7 +618,33 @@ export async function recreateSandbox(
     // repo clones fine without it.
     ghToken: (await getGitHubToken().catch(() => null)) ?? undefined,
     envVars: stored ?? (previous ? serializeEnvVars(previous) : ""),
+    onCodeReady: () =>
+      markCodeReady(branchId ? { roomId, branchId } : undefined),
   })
+}
+
+/** The Workspace a Restart or Recreate marks `codeReady` once its code is back. */
+export interface CodeReadyTarget {
+  roomId: string
+  branchId: string
+}
+
+/**
+ * Mark a restarting Workspace `codeReady`, so its agent can start while the
+ * install and dev server finish (`agentCanStart`). Best-effort: a failed write
+ * only means the agent waits for `running`, as it did before.
+ */
+async function markCodeReady(
+  target: CodeReadyTarget | undefined
+): Promise<void> {
+  if (!target) return
+  try {
+    const room = await openRoom(target.roomId)
+    await room.mutateDoc(({ branches }) => {
+      if (branches.get(target.branchId)?.status !== "starting") return
+      branches.update(target.branchId, { codeReady: true })
+    })
+  } catch {}
 }
 
 /**

@@ -64,6 +64,7 @@ export interface RecoveryPatch {
   doneAt?: number
   devServerStoppedAt?: number
   devServerLaunchedAt?: number
+  codeReady?: boolean
 }
 
 /** Surface success / failure to the user. Adapts the sonner `toast` at the call site. */
@@ -111,8 +112,21 @@ interface SandboxRecoverySpec {
   successMessage?: string
   /** Toast title on failure / a missing repo ("Couldn't restart sandbox"). */
   failureTitle: string
-  /** The sandbox fn to await — bound to restartSandbox / recreateSandbox. */
-  run: (agent: RecoveryAgent, repo: RepoData) => Promise<SandboxRecoveryResult>
+  /**
+   * The checkout is already there, so the agent can start at once rather than
+   * when the sandbox fn marks the Branch `codeReady` (the local dev server
+   * restart).
+   */
+  codeReadyAtStart?: boolean
+  /**
+   * The sandbox fn to await — bound to restartSandbox / recreateSandbox, which
+   * mark the Branch (`id`) `codeReady` once its code is back.
+   */
+  run: (
+    agent: RecoveryAgent,
+    repo: RepoData,
+    id: string
+  ) => Promise<SandboxRecoveryResult>
 }
 
 /**
@@ -140,12 +154,13 @@ async function runSandboxRecovery(
   deps.patchAgent(id, {
     status: "starting",
     statusMessage: spec.startingMessage,
+    codeReady: spec.codeReadyAtStart || undefined,
   })
 
   // A thrown call (the server action's request failed) is a failure like any
   // other, not a Branch stuck on `starting`.
   const result = await spec
-    .run(agent, repo)
+    .run(agent, repo, id)
     .catch((err: unknown): SandboxRecoveryResult => ({
       success: false,
       error: err instanceof Error ? err.message : String(err),
@@ -159,6 +174,7 @@ async function runSandboxRecovery(
       status: "running",
       statusMessage: "",
       error: "",
+      codeReady: undefined,
       // Every path through here launched the dev server.
       devServerStoppedAt: undefined,
       devServerLaunchedAt: Date.now(),
@@ -171,6 +187,7 @@ async function runSandboxRecovery(
     deps.patchAgent(id, {
       status: "error",
       error: result.error || spec.failureTitle,
+      codeReady: undefined,
     })
     deps.toast.error(spec.failureTitle, result.error || undefined)
     return { ok: false, error: result.error || spec.failureTitle }
@@ -285,7 +302,11 @@ export function restartSandbox(
       startingMessage: "Restarting sandbox…",
       successMessage: "Sandbox restarted",
       failureTitle: "Couldn’t restart sandbox",
-      run: (agent, repo) => restartSandboxVm(agent.sandboxName, repo),
+      run: (agent, repo, id) =>
+        restartSandboxVm(agent.sandboxName, repo, {
+          roomId: deps.roomId,
+          branchId: id,
+        }),
     },
     deps
   )
@@ -307,7 +328,7 @@ export function recreate(
       successMessage: "Recreated from scratch",
       failureTitle: "Couldn’t recreate from scratch",
       run: (agent, repo) =>
-        recreateSandbox(agent.sandboxName, repo, agent.ref, deps.roomId),
+        recreateSandbox(agent.sandboxName, repo, agent.ref, deps.roomId, id),
     },
     deps
   )
@@ -335,6 +356,7 @@ export function startWorkspace(
       startingMessage: "Restarting dev server…",
       successMessage: "Dev server restarted",
       failureTitle: "Couldn’t restart dev server",
+      codeReadyAtStart: true,
       run: async (agent, repo) => {
         const result = await restartDevServerSandbox(agent.sandboxName, repo)
         if (!result.success) return result

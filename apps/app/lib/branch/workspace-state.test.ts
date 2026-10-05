@@ -459,11 +459,16 @@ describe("agentCanStart and workspaceBooting", () => {
     expect(workspaceSettingUp(ready)).toBe(true)
   })
 
-  it("holds the agent while the code isn’t there yet or the sandbox is starting", () => {
+  it("lets the agent start once a Restart or Recreate has the code back", () => {
+    const ready = { ...ws({ status: "starting" }), codeReady: true }
+    expect(agentCanStart(ready)).toBe(true)
+    expect(workspaceBooting(ready)).toBe(false)
+  })
+
+  it("holds the agent while the code isn’t there yet", () => {
     for (const branch of [
       ws({ status: "creating" }),
       ws({ status: "starting" }),
-      { ...ws({ status: "starting" }), codeReady: true },
     ]) {
       expect(agentCanStart(branch)).toBe(false)
       expect(workspaceBooting(branch)).toBe(true)
