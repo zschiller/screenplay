@@ -5,8 +5,7 @@ import {
   DialogTitle,
 } from "@workspace/ui/components/dialog"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { ListScrollHairline } from "@/components/picker-dialog"
+import { ScrollHairline, useScrollEdges } from "@/components/scroll-hairline"
 
 /**
  * The chrome the repository dialogs share (N5): Settings' Edit and
@@ -47,51 +46,24 @@ export function RepoDialogHeader({
  * scroll up, and above the footer while more fields lie below.
  */
 export function RepoDialogBody({ children }: { children: React.ReactNode }) {
-  const rootRef = useRef<HTMLDivElement>(null)
-  const [edges, setEdges] = useState({ above: false, below: false })
-
-  const measure = useCallback(() => {
-    const viewport = rootRef.current?.querySelector<HTMLElement>(
-      "[data-slot=scroll-area-viewport]"
-    )
-    if (!viewport) return
-    const { scrollTop, scrollHeight, clientHeight } = viewport
-    const above = scrollTop > 0
-    const below = scrollHeight - scrollTop - clientHeight > 1
-    setEdges((prev) =>
-      prev.above === above && prev.below === below ? prev : { above, below }
-    )
-  }, [])
-
-  // Fields change height without a scroll (Advanced opening, an error line),
-  // so re-measure on resize too.
-  useEffect(() => {
-    const viewport = rootRef.current?.querySelector<HTMLElement>(
-      "[data-slot=scroll-area-viewport]"
-    )
-    if (!viewport || typeof ResizeObserver === "undefined") return
-    const observer = new ResizeObserver(measure)
-    observer.observe(viewport)
-    if (viewport.firstElementChild) observer.observe(viewport.firstElementChild)
-    return () => observer.disconnect()
-  }, [measure])
+  const { attach, onScroll, above, below } = useScrollEdges()
 
   return (
     <div className="relative">
-      <ListScrollHairline shown={edges.above} />
+      <ScrollHairline shown={above} />
       {/* The max-height must land on the Radix viewport itself: shadcn
           hardcodes h-full on it, so a max-h on the outer ScrollArea never
           creates a scroll boundary (shadcn #296). Scroll doesn't bubble, so
           the viewport's is caught on the way down. */}
       <ScrollArea
-        ref={rootRef}
+        ref={attach}
         orientation="vertical"
-        onScrollCapture={measure}
+        onScrollCapture={onScroll}
         className="[&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
       >
         <div className="flex flex-col gap-5 p-5">{children}</div>
       </ScrollArea>
-      <ListScrollHairline shown={edges.below} edge="bottom" />
+      <ScrollHairline shown={below} edge="bottom" />
     </div>
   )
 }

@@ -1,5 +1,3 @@
-import { cn } from "@workspace/ui/lib/utils"
-
 /**
  * The frame a searchable list picker sits in when it fills a dialog: Open
  * GitHub repository (`AddRepositoryDialog`) and Settings' OpenCode models
@@ -12,28 +10,3 @@ export const PICKER_DIALOG_CLASS =
 
 /** The picker dialog's header padding, on the same 20px gutter. */
 export const PICKER_DIALOG_HEADER_CLASS = "px-5 pt-5 pb-2"
-
-/**
- * A hairline at the edge of a scrolling list or body, shown only while
- * content is scrolled under it: under a picker's search box once the list
- * scrolls up (`top`), or above a dialog's footer while more lies below
- * (`bottom`). Goes inside a `relative` wrapper around the scroll.
- */
-export function ListScrollHairline({
-  shown,
-  edge = "top",
-}: {
-  shown: boolean
-  edge?: "top" | "bottom"
-}) {
-  return (
-    <div
-      aria-hidden
-      className={cn(
-        "pointer-events-none absolute inset-x-0 z-10 h-px bg-border transition-opacity duration-150",
-        edge === "top" ? "top-0" : "bottom-0",
-        shown ? "opacity-100" : "opacity-0"
-      )}
-    />
-  )
-}

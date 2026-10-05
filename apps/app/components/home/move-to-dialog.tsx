@@ -26,6 +26,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { foldersInParent } from "@/lib/folder-tree"
 import { descendantFolderIds } from "@/lib/folder-cascade"
 import type { FolderSummary } from "@/lib/folders-actions"
+import { ScrollHairline, useScrollEdges } from "@/components/scroll-hairline"
 
 // The "Move to…" folder picker (PRD #475). Lists the user's whole folder tree —
 // the root ("All files") plus every folder, indented by depth — and moves the
@@ -159,6 +160,7 @@ function MoveToForm({
 }) {
   // `undefined` = nothing picked yet (Move stays disabled); `null` = the root;
   // a string = a folder. Kept distinct so "root" is a real, selectable choice.
+  const { attach, onScroll, above, below } = useScrollEdges()
   const [selected, setSelected] = useState<string | null | undefined>(undefined)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -283,47 +285,57 @@ function MoveToForm({
         <DialogTitle>Move &ldquo;{itemName}&rdquo;</DialogTitle>
         <DialogDescription>Choose a destination folder.</DialogDescription>
       </DialogHeader>
-      <ScrollArea className="-mx-1 my-2 max-h-72">
-        <div
-          ref={groupRef}
-          role="radiogroup"
-          aria-label="Destination"
-          onKeyDown={handleGroupKeyDown}
-          // Room for the focus ring, which the scroll viewport would clip;
-          // the -mx-1 above cancels it, so rows sit on the dialog's gutter.
-          className="flex flex-col gap-0.5 p-1"
+      {/* Full bleed, so the scroll's hairlines span the dialog like the
+          pickers'; the 16px gutter leaves room for the focus ring the
+          viewport would clip, and rows still sit on the dialog's 20px one.
+          The max-height must land on the Radix viewport itself (shadcn #296). */}
+      <div className="relative -mx-5 my-2">
+        <ScrollHairline shown={above} />
+        <ScrollArea
+          ref={attach}
+          onScrollCapture={onScroll}
+          className="px-4 [&>[data-slot=scroll-area-viewport]]:max-h-72"
         >
-          <DestinationRow
-            label="All files"
-            icon={
-              <FolderOpenIcon className="size-4 shrink-0 text-muted-foreground" />
-            }
-            depth={0}
-            selected={selected === null}
-            tabbable={tabStop === null}
-            disabled={isDisabled(null)}
-            onSelect={() => setSelected(null)}
-          />
-          {newFolderParent === null && newFolderRow(1)}
-          {rows.map(({ folder, depth }) => (
-            <Fragment key={folder.id}>
-              <DestinationRow
-                label={folder.name}
-                icon={
-                  <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-                }
-                // Nest under the root crumb's indent.
-                depth={depth + 1}
-                selected={selected === folder.id}
-                tabbable={tabStop === folder.id}
-                disabled={isDisabled(folder.id)}
-                onSelect={() => setSelected(folder.id)}
-              />
-              {newFolderParent === folder.id && newFolderRow(depth + 2)}
-            </Fragment>
-          ))}
-        </div>
-      </ScrollArea>
+          <div
+            ref={groupRef}
+            role="radiogroup"
+            aria-label="Destination"
+            onKeyDown={handleGroupKeyDown}
+            className="flex flex-col gap-0.5 p-1"
+          >
+            <DestinationRow
+              label="All files"
+              icon={
+                <FolderOpenIcon className="size-4 shrink-0 text-muted-foreground" />
+              }
+              depth={0}
+              selected={selected === null}
+              tabbable={tabStop === null}
+              disabled={isDisabled(null)}
+              onSelect={() => setSelected(null)}
+            />
+            {newFolderParent === null && newFolderRow(1)}
+            {rows.map(({ folder, depth }) => (
+              <Fragment key={folder.id}>
+                <DestinationRow
+                  label={folder.name}
+                  icon={
+                    <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+                  }
+                  // Nest under the root crumb's indent.
+                  depth={depth + 1}
+                  selected={selected === folder.id}
+                  tabbable={tabStop === folder.id}
+                  disabled={isDisabled(folder.id)}
+                  onSelect={() => setSelected(folder.id)}
+                />
+                {newFolderParent === folder.id && newFolderRow(depth + 2)}
+              </Fragment>
+            ))}
+          </div>
+        </ScrollArea>
+        <ScrollHairline shown={below} edge="bottom" />
+      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
         {onCreateFolder && (

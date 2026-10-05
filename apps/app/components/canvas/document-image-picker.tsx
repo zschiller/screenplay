@@ -18,10 +18,10 @@ import {
 } from "@workspace/ui/components/dialog"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
-  ListScrollHairline,
   PICKER_DIALOG_CLASS,
   PICKER_DIALOG_HEADER_CLASS,
 } from "@/components/picker-dialog"
+import { ScrollHairline } from "@/components/scroll-hairline"
 import { accountFileUrl } from "@/components/canvas/canvas-files-section"
 import { withBasePath } from "@/lib/base-path"
 import { attachmentUrl } from "@/lib/chat-attachments"
@@ -105,7 +105,7 @@ export function DocumentImagePicker({
             onValueChange={() => setListScrolled(false)}
           />
           <div className="relative min-h-0 flex-1">
-            <ListScrollHairline shown={listScrolled} />
+            <ScrollHairline shown={listScrolled} />
             <CommandList
               className="pb-4"
               onScroll={(e) => setListScrolled(e.currentTarget.scrollTop > 0)}
