@@ -24,10 +24,10 @@ on the canvas, and edits the ones it wrote.
 ## Choosing a target
 
 The **Chats** button at the far right of the Coordinator’s header opens the
-list of every chat on the canvas: the **Coordinator** first, then each
-workspace’s chat by its title, with the workspace’s status icon and pull
-request (see [The Chats menu](/guides/workspaces#the-chats-menu)). Pick one to
-open its chat. When you switch back to a target, the panel reopens the chat
+list of every workspace’s chat by its title, with the workspace’s status icon
+and pull request, grouped by what each is doing (see
+[The Chats menu](/guides/workspaces#the-chats-menu)). Pick one to open its
+chat. When you switch back to a target, the panel reopens the chat
 you last used there.
 
 In a workspace the header reads **Coordinator / _workspace_**: click
@@ -205,15 +205,16 @@ shows in the chat.
 Type <kbd>/</kbd> to insert a [skill](/guides/building/skills): a packaged set of
 instructions the agent loads before starting. Each row ends with where the
 skill comes from: **Built in** skills ship with Screenplay, **Repository**
-skills come from the repository’s `.claude/skills/` folder, and **Canvas**
+skills come from the repository’s `.claude/skills/` folder, **Canvas**
 skills were [saved to the canvas](/guides/building/skills#saving-a-skill-to-the-canvas)
-by a chat on it. On the Mac app, your coding agent’s
+by a chat on it, and **Account** skills were
+[saved to your account](/guides/building/skills#saving-a-skill-to-your-account). On the Mac app, your coding agent’s
 [own skills](/guides/building/skills#your-coding-agents-own-skills) are listed too,
 marked with its name, like **Claude Code**.
 
 <Screenshot
   name="composer-skills"
-  alt="The / menu listing screenplay-add-knob and screenplay-share-state"
+  alt="The / menu listing two Account skills above the Built in skills"
 />
 
 ### Targeting an element
@@ -305,6 +306,13 @@ agent the chat runs on. Paths are relative to the repository.
 | **Open frame** _route_                   | Opened a frame to use                                                                                                             |
 | **Used** _page_, _n_ steps               | Used a frame or mockup (expand for each step)                                                                                     |
 | **Read document**                        | Read a document on the canvas                                                                                                     |
+| **Create document** _title_              | Wrote a [document](/guides/documents#documents-a-chat-writes)                                                                     |
+| **Rewrite document**, **Set title**      | Changed a document it wrote                                                                                                       |
+| **Create mockup** _title_                | Drew a [mockup](/guides/mockups)                                                                                                  |
+| **Update mockup** _title_                | Rewrote a mockup’s page                                                                                                           |
+| **Read mockup**                          | Read a mockup’s page                                                                                                              |
+| **Save to account memory**               | Saved a [memory](/guides/memory) entry (or to canvas memory)                                                                      |
+| **Save file**, **Open saved file**       | Saved or opened one of the [saved files](/guides/files)                                                                           |
 | **Create pull request**                  | Opened a pull request (shown as a link card)                                                                                      |
 | **Submit plan**                          | Presented a plan for approval                                                                                                     |
 | A question with options                  | Asked you to pick an option                                                                                                       |

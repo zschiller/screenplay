@@ -81,7 +81,7 @@ article .nextra-steps h3:not([style^="visibility:"])::before {
 /* Sidebar: mono uppercase section labels, regular-weight links, and the
    current page as the app sidebar's active row (SidebarMenuButton
    data-active): a neutral sidebar-accent fill with medium-weight foreground
-   text. Hover uses the same fill. The table of contents'
+   text, also on the phone menu's current tab, which Nextra draws as a button. Hover uses the same fill. The table of contents'
    "On this page" heading uses the same label recipe. */
 .nextra-sidebar li:not(:has(*)),
 .nextra-mobile-nav li:not(:has(*)),
@@ -105,7 +105,7 @@ html.dark .nextra-toc > div > p:first-child {
 .nextra-sidebar :is(a, button):hover,
 .nextra-mobile-nav :is(a, button):hover,
 .nextra-sidebar a.x\:bg-primary-100,
-.nextra-mobile-nav a.x\:bg-primary-100 {
+.nextra-mobile-nav :is(a, button).x\:bg-primary-100 {
   border-radius: 2px;
   background: oklch(0.965 0 0);
   color: oklch(0 0 0);
@@ -113,12 +113,12 @@ html.dark .nextra-toc > div > p:first-child {
 html.dark .nextra-sidebar :is(a, button):hover,
 html.dark .nextra-mobile-nav :is(a, button):hover,
 html.dark .nextra-sidebar a.x\:bg-primary-100,
-html.dark .nextra-mobile-nav a.x\:bg-primary-100 {
+html.dark .nextra-mobile-nav :is(a, button).x\:bg-primary-100 {
   background: oklch(0.18 0 0);
   color: oklch(1 0 0);
 }
 .nextra-sidebar a.x\:bg-primary-100,
-.nextra-mobile-nav a.x\:bg-primary-100 {
+.nextra-mobile-nav :is(a, button).x\:bg-primary-100 {
   font-weight: 500;
 }
 .nextra-toc a {
@@ -383,16 +383,51 @@ html.dark .sp-screenshot .sp-screenshot-light {
 html.dark .sp-screenshot .sp-screenshot-dark {
   display: block;
 }
-/* Related shots side by side, stacking when the column is narrow. */
+/* Related shots side by side, stacking when the column is narrow. Each shot
+   spans two of the row's tracks (a subgrid), so the captions share one
+   hairline under the tallest shot, each led by its letter. */
 .sp-screenshot-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
-  gap: 1rem;
-  align-items: start;
+  gap: 1.5rem 1rem;
   margin: 1.75rem 0;
+  counter-reset: shot;
 }
 .sp-screenshot-row .sp-screenshot {
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0.75rem;
   margin: 0;
+  counter-increment: shot;
+}
+.sp-screenshot-row .sp-screenshot img {
+  margin-inline: 0;
+}
+.sp-screenshot-row .sp-screenshot figcaption {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid oklch(0 0 0 / 12%);
+  text-align: left;
+  text-wrap: pretty;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  opacity: 1;
+  color: oklch(0.556 0 0);
+}
+.sp-screenshot-row .sp-screenshot figcaption::before {
+  content: counter(shot, upper-alpha);
+  font-weight: 500;
+  color: oklch(0 0 0);
+}
+html.dark .sp-screenshot-row .sp-screenshot figcaption {
+  border-top-color: oklch(1 0 0 / 16%);
+  color: oklch(0.708 0 0);
+}
+html.dark .sp-screenshot-row .sp-screenshot figcaption::before {
+  color: oklch(1 0 0);
 }
 .sp-screenshot figcaption {
   margin-top: 0.6rem;
