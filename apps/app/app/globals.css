@@ -80,6 +80,15 @@
   --color-canvas-plane: var(--canvas-plane);
 }
 
+/* Text selection in the product: a softer hot pink under black text, the
+   same in both themes, in place of the solid magenta the shared tokens give
+   the homepage and docs. Lighter and less saturated, so a long selection
+   stops shouting and no longer reads as a selected canvas layer. */
+html ::selection {
+  background-color: oklch(0.78 0.2 330);
+  color: oklch(0 0 0);
+}
+
 /* Disable browser swipe-to-navigate so two-finger horizontal pans on the
    canvas don't accidentally trigger back/forward. */
 html,
