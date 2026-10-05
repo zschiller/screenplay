@@ -121,6 +121,7 @@ export function Frame({
   working,
   selected,
   fadeHandles,
+  bar,
   device = "desktop",
   className,
   style,
@@ -137,6 +138,8 @@ export function Frame({
   selected?: boolean
   /** Someone else has control: no handles, the ring stays (#1588). */
   fadeHandles?: boolean
+  /** Its FrameBar, as wide as the frame and `barGap` under it. */
+  bar?: React.ReactNode
   device?: "desktop" | "mobile"
   className?: string
   style?: React.CSSProperties
@@ -194,6 +197,14 @@ export function Frame({
           <span className={cn(handle, "-right-[3.5px] -bottom-[3.5px]")} />
         </>
       ) : null}
+      {bar ? (
+        <div
+          className="absolute inset-x-0 top-full z-[5]"
+          style={{ marginTop: barGap }}
+        >
+          {bar}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -227,6 +238,9 @@ function GroupLabel({
   )
 }
 
+/** The gap between a frame and the bar under it, as in the app (8px). */
+export const barGap = 8
+
 /**
  * The Safari-style bar under the selected frame, as wide as the frame: back
  * and forward, the address (the route, then record and reload), then
@@ -251,7 +265,12 @@ export function FrameBar({
 }) {
   return (
     <div
-      className={cn(floating, "absolute text-sm whitespace-nowrap", className)}
+      className={cn(
+        floating,
+        "text-sm whitespace-nowrap",
+        style && "absolute",
+        className
+      )}
       style={style}
     >
       <Tool>
@@ -605,7 +624,7 @@ export function CanvasExcerpt() {
           style={{
             left: "max(8px, calc(50% - min(max(14.5%, 180px), 50% - 8px)))",
             width: "min(max(29%, 360px), calc(100% - 16px))",
-            top: "calc(var(--top) + var(--h) + 10px)",
+            top: `calc(var(--top) + var(--h) + ${barGap}px)`,
           }}
         />
         {versions.map((v, i) => (

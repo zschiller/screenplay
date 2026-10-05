@@ -50,9 +50,10 @@ export function MemoryExcerpt() {
         width={400}
         height={520}
         initialScale={0.87}
+        fill
         role="img"
         aria-label={`The Dark hero chat: ${label}`}
-        className="border border-border sm:hidden"
+        className="sm:hidden"
       >
         <div className="flex size-full text-foreground">
           <MemoryChat />
@@ -62,9 +63,10 @@ export function MemoryExcerpt() {
         width={640}
         height={520}
         initialScale={0.9}
+        fill
         role="img"
         aria-label={`A chat beside the Dark hero frame: ${label}`}
-        className="border border-border max-sm:hidden"
+        className="max-sm:hidden"
       >
         <div className="flex size-full text-foreground">
           <div className="bg-plane relative w-[200px] shrink-0 overflow-hidden border-r border-border">

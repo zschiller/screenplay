@@ -64,18 +64,22 @@ function Sender({ name, color }: { name: string; color: string }) {
 
 function PerkCard({
   label,
+  fill,
   children,
 }: {
   label: string
+  /** Widen to a wider column rather than centre (see Fit). */
+  fill?: boolean
   children: React.ReactNode
 }) {
   return (
     <Fit
       width={400}
       height={272}
+      fill={fill}
       role="img"
       aria-label={label}
-      className="bg-plane border border-border text-foreground"
+      className="bg-plane text-foreground"
     >
       <div className="[container-type:inline-size] relative size-full">
         {children}
@@ -91,16 +95,12 @@ export function PerkLive() {
         label="Home"
         workspace={split.title}
         selected
+        bar={<FrameBar live />}
         style={{ left: 40, top: 36, width: 280 }}
       >
         <Northwind version={split.version} />
       </Frame>
       <LiveTag style={{ left: 320, top: 14 }} className="-translate-x-full" />
-      <FrameBar
-        live
-        className="z-[5]"
-        style={{ left: 40, top: 220, width: 280 }}
-      />
       <Cursor name="Maya" color={maya.color} style={{ left: 200, top: 110 }} />
       <Cursor name="Jo" color={jo.color} style={{ left: 90, top: 150 }} />
     </PerkCard>
@@ -176,7 +176,7 @@ export function PerkComments() {
 
 export function PerkChat() {
   return (
-    <PerkCard label="A shared chat naming who sent each message.">
+    <PerkCard fill label="A shared chat naming who sent each message.">
       <div className="absolute inset-0 flex flex-col bg-background">
         <ChatHeader title={split.title} crumb={false} />
         <div className="flex flex-col gap-2.5 px-3 py-3 text-xs leading-normal">

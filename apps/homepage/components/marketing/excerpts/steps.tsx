@@ -11,10 +11,13 @@ import { Fit } from "./fit"
 
 export function Card({
   label,
+  fill,
   className,
   children,
 }: {
   label: string
+  /** Widen to a wider column rather than centre (see Fit). */
+  fill?: boolean
   className?: string
   children: React.ReactNode
 }) {
@@ -22,9 +25,10 @@ export function Card({
     <Fit
       width={320}
       height={256}
+      fill={fill}
       role="img"
       aria-label={label}
-      className={cn("bg-plane border border-border text-foreground", className)}
+      className={cn("bg-plane text-foreground", className)}
     >
       <div className="[container-type:inline-size] relative size-full">
         {children}
