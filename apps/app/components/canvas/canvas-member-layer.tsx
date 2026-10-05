@@ -35,11 +35,9 @@ import { hiddenLayerLabels } from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
 import { useGoLive } from "./use-go-live"
-import {
-  PublishLayerMenu,
-  groupLayerMenu,
-  type LayerMenuActions,
-} from "./layer-menu"
+import { PublishLayerMenu, groupLayerMenu } from "./layer-menu"
+import type { GroupLabelValue } from "./group-label"
+import type { LayerPlacement } from "./layer-shell"
 
 type IframeLayerProps = React.ComponentProps<typeof IframeLayer>
 type GestureLayerHandlers = ReturnType<typeof useCanvasGesture>["layerHandlers"]
@@ -356,29 +354,37 @@ function CanvasMemberLayerImpl({
           const index = members.findIndex((m) => m.id === member.id)
           const groupSelected = selectedGroupIds.has(group.id)
           const showGroupLabel = members.length > 1
-          const groupLabel = showGroupLabel
-            ? groupDisplayNames.get(group.id)
-            : undefined
           // Every frame names its own Workspace unless the group label names
           // the one they all show (#1276).
           const groupNamesWorkspace =
             showGroupLabel &&
             !!groupWorkspace(group, framesById, documentWorkspaces)
-          const groupLabelWorkspace =
-            index === 0 && showGroupLabel ? groupSwitcherOf(group) : undefined
-          // The Group's menu (I7), as … on its label while it alone is
-          // selected.
-          const groupMenu: LayerMenuActions | undefined =
-            index === 0 && showGroupLabel && groupSelected && !multiSelected
-              ? groupMenuOf(group.id)
+          // The group label, worn by the Group's leftmost member. Every Layer
+          // kind hands it to its Layer Shell untouched.
+          const groupName =
+            index === 0 && showGroupLabel
+              ? groupDisplayNames.get(group.id)
               : undefined
-          // Tint this member's name (and, on the leftmost member,
-          // the group label) to match a remote user's selection
+          const groupLabel: GroupLabelValue | undefined = groupName
+            ? {
+                label: groupName,
+                workspace: groupSwitcherOf(group),
+                // Tinted to match a remote user's Group selection rect.
+                remoteSelectedColor: remoteGroupSelectionColors.get(member.id),
+                onSelect: (shiftKey) => handleGroupSelect(group.id, shiftKey),
+                onRename: (name) => renameIframeLayerGroup(group.id, name),
+                // The Group's menu (I7), as … on its label while it alone is
+                // selected.
+                menu:
+                  groupSelected && !multiSelected
+                    ? groupMenuOf(group.id)
+                    : undefined,
+              }
+            : undefined
+          // Tint this member's name to match a remote user's selection
           // rect. Skipped when we've selected it locally — our own
           // fuchsia takes precedence.
           const remoteSelectedColor = remoteSelectionColors.get(member.id)
-          const remoteGroupSelectedColor =
-            index === 0 ? remoteGroupSelectionColors.get(member.id) : undefined
           const layout = effectiveIframeLayerLayouts.get(member.id)
           if (!layout) return null
 
@@ -409,7 +415,29 @@ function CanvasMemberLayerImpl({
             }
           }
 
-          const zIndex = groupZIndex.get(group.id)
+          // Where the member sits, and how dragging it moves its Group or
+          // the selection (#568).
+          const move = (
+            _dx: number,
+            _dy: number,
+            totalDx: number,
+            totalDy: number,
+            metaKey: boolean
+          ) => gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
+          const placement: LayerPlacement = {
+            worldX: layout.x,
+            worldY: layout.y,
+            zIndex: groupZIndex.get(group.id),
+            dragTranslateX,
+            dragTranslateY,
+            dragPopped,
+            onMoveGroup: move,
+            onMoveSelected: move,
+            onGroupDragStart: () =>
+              gestureLayerHandlers.onGroupDragStart(member.id),
+            onGroupDragEnd: gestureLayerHandlers.onGroupDragEnd,
+            onRequestReorderDrag: gestureLayerHandlers.onRequestReorderDrag,
+          }
 
           if (member.kind === "markdown-layer") {
             const doc = markdownLayers.find((d) => d.id === member.id)
@@ -426,16 +454,9 @@ function CanvasMemberLayerImpl({
                 spaceHeld={spaceHeld}
                 userName={selfName}
                 userColor={selfColor}
-                worldX={layout.x}
-                worldY={layout.y}
-                zIndex={zIndex}
-                dragTranslateX={dragTranslateX}
-                dragTranslateY={dragTranslateY}
-                dragPopped={dragPopped}
+                placement={placement}
                 remoteSelectedColor={remoteSelectedColor}
-                remoteGroupSelectedColor={remoteGroupSelectedColor}
-                groupLabel={index === 0 ? groupLabel : undefined}
-                groupWorkspace={groupLabelWorkspace}
+                groupLabel={groupLabel}
                 // The chat that made it, unless the group label names it
                 // (#1314); a hand-made Document names none.
                 ownerWorkspace={
@@ -444,29 +465,7 @@ function CanvasMemberLayerImpl({
                     : workspaceOf(documentWorkspaces.get(doc.id))
                 }
                 groupSelected={groupSelected}
-                onSelectGroup={
-                  index === 0 && showGroupLabel
-                    ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
-                    : undefined
-                }
-                onRenameGroup={
-                  index === 0 && showGroupLabel
-                    ? (name) => renameIframeLayerGroup(group.id, name)
-                    : undefined
-                }
-                groupMenu={groupMenu}
                 onSelect={handleDocumentLayerSelect}
-                onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
-                  gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
-                }
-                onMoveSelected={(_dx, _dy, totalDx, totalDy, metaKey) =>
-                  gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
-                }
-                onGroupDragStart={() =>
-                  gestureLayerHandlers.onGroupDragStart(doc.id)
-                }
-                onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
-                onRequestReorderDrag={gestureLayerHandlers.onRequestReorderDrag}
                 onResize={layerMutations.resizeDocument}
                 onTitleChange={layerMutations.setTitleCache}
                 onRename={layerMutations.setTitle}
@@ -511,40 +510,11 @@ function CanvasMemberLayerImpl({
                 selected={selectedDocumentLayerIds.has(mockup.id)}
                 multiSelected={multiSelected}
                 spaceHeld={spaceHeld}
-                worldX={layout.x}
-                worldY={layout.y}
-                zIndex={zIndex}
-                dragTranslateX={dragTranslateX}
-                dragTranslateY={dragTranslateY}
-                dragPopped={dragPopped}
+                placement={placement}
                 remoteSelectedColor={remoteSelectedColor}
-                remoteGroupSelectedColor={remoteGroupSelectedColor}
-                groupLabel={index === 0 ? groupLabel : undefined}
-                groupWorkspace={groupLabelWorkspace}
+                groupLabel={groupLabel}
                 groupSelected={groupSelected}
-                onSelectGroup={
-                  index === 0 && showGroupLabel
-                    ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
-                    : undefined
-                }
-                onRenameGroup={
-                  index === 0 && showGroupLabel
-                    ? (name) => renameIframeLayerGroup(group.id, name)
-                    : undefined
-                }
-                groupMenu={groupMenu}
                 onSelect={handleDocumentLayerSelect}
-                onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
-                  gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
-                }
-                onMoveSelected={(_dx, _dy, totalDx, totalDy, metaKey) =>
-                  gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
-                }
-                onGroupDragStart={() =>
-                  gestureLayerHandlers.onGroupDragStart(mockup.id)
-                }
-                onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
-                onRequestReorderDrag={gestureLayerHandlers.onRequestReorderDrag}
                 onResize={gestureLayerHandlers.onResize}
                 onResizeStart={gestureLayerHandlers.onResizeStart}
                 onResizeEnd={gestureLayerHandlers.onResizeEnd}
@@ -671,17 +641,6 @@ function CanvasMemberLayerImpl({
                 if (id !== null) setFocusedIframeLayerId(null)
               }}
               onSelect={handleIframeLayerSelect}
-              onMoveGroup={(_dx, _dy, totalDx, totalDy, metaKey) =>
-                gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
-              }
-              onMoveSelected={(_dx, _dy, totalDx, totalDy, metaKey) =>
-                gestureLayerHandlers.onMove(totalDx, totalDy, metaKey)
-              }
-              onGroupDragStart={() =>
-                gestureLayerHandlers.onGroupDragStart(iframeLayer.id)
-              }
-              onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
-              onRequestReorderDrag={gestureLayerHandlers.onRequestReorderDrag}
               onResize={gestureLayerHandlers.onResize}
               onResizeStart={gestureLayerHandlers.onResizeStart}
               onResizeEnd={gestureLayerHandlers.onResizeEnd}
@@ -723,28 +682,10 @@ function CanvasMemberLayerImpl({
               discoveredRoutes={agentInfo?.discoveredRoutes}
               onSelectRoute={layerMutations.updateRoute}
               remoteSelectedColor={remoteSelectedColor}
-              remoteGroupSelectedColor={remoteGroupSelectedColor}
-              groupLabel={index === 0 ? groupLabel : undefined}
-              groupWorkspace={groupLabelWorkspace}
+              groupLabel={groupLabel}
               showWorkspace={!groupNamesWorkspace}
               groupSelected={groupSelected}
-              onSelectGroup={
-                index === 0 && showGroupLabel
-                  ? (shiftKey) => handleGroupSelect(group.id, shiftKey)
-                  : undefined
-              }
-              onRenameGroup={
-                index === 0 && showGroupLabel
-                  ? (name) => renameIframeLayerGroup(group.id, name)
-                  : undefined
-              }
-              groupMenu={groupMenu}
-              worldX={layout.x}
-              worldY={layout.y}
-              zIndex={zIndex}
-              dragTranslateX={dragTranslateX}
-              dragTranslateY={dragTranslateY}
-              dragPopped={dragPopped}
+              placement={placement}
             />
           )
         })

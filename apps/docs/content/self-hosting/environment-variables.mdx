@@ -117,6 +117,12 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 | `SHARED_FRAMES` | Optional | `off` hides **Go live**, so every hosted frame stays a per-viewer preview and no frame runs a browser in the sandbox. Default: on. See [Shared frames](/self-hosting/configuration/sandbox-provider#shared-frames). |
 | `VERCEL_SANDBOX_IMAGE` | Optional | The Vercel Container Registry image workspace sandboxes boot from. Default: `screenplay-workspace`, the image built from `apps/app/vercel-sandbox-image` in the app’s own Vercel project. See [Sandbox image](/self-hosting/configuration/sandbox-provider#sandbox-image). |
 
+## Scheduled jobs
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `CRON_SECRET` | Optional | Lets Vercel Cron call `/api/pr-watch/tick`, which checks every canvas with an open pull request every five minutes, so chats hear about failing checks, conflicts and merges with nobody’s canvas open. Vercel sends it on each cron call; any random string works (`openssl rand -hex 32`). Without it, pull request status only updates while someone has the canvas open. The desktop app runs the same check every minute and doesn’t need it. |
+
 ## Serving
 
 | Variable | Required | Description |

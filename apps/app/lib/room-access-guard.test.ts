@@ -85,4 +85,11 @@ describe("Room Access guard", () => {
     )
     expect(users).toEqual(["lib/thumbnail/rebuild-layout.ts"])
   })
+
+  it("the session-less writer is used only by the PR Watch tick", () => {
+    const users = filesMatching(/\bopenRoomForPrWatchTick\b/).filter(
+      (file) => file !== "lib/room-access.ts"
+    )
+    expect(users).toEqual(["lib/pr-watch/run.ts"])
+  })
 })

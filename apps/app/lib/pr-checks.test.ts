@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { isMergeBlocked, summarizeCheckRuns } from "./pr-checks"
+import {
+  failingCheckNames,
+  isConflicted,
+  isMergeBlocked,
+  summarizeCheckRuns,
+} from "./pr-checks"
 
 const run = (status: string, conclusion: string | null = null) => ({
   status,
@@ -48,5 +53,27 @@ describe("isMergeBlocked", () => {
     expect(isMergeBlocked("clean", "passing")).toBe(false)
     expect(isMergeBlocked("unknown", "pending")).toBe(false)
     expect(isMergeBlocked(undefined, undefined)).toBe(false)
+  })
+})
+
+describe("failingCheckNames", () => {
+  it("lists each failed check once, in order", () => {
+    expect(
+      failingCheckNames([
+        { name: "lint", conclusion: "failure" },
+        { name: "test", conclusion: "success" },
+        { name: "unit", conclusion: "timed_out" },
+        { name: "lint", conclusion: "failure" },
+        { name: "build", conclusion: null },
+      ])
+    ).toEqual(["lint", "unit"])
+  })
+})
+
+describe("isConflicted", () => {
+  it("is true only for GitHub's dirty state", () => {
+    expect(isConflicted("dirty")).toBe(true)
+    expect(isConflicted("blocked")).toBe(false)
+    expect(isConflicted(undefined)).toBe(false)
   })
 })

@@ -28,11 +28,25 @@ export const detailOnly = (on: boolean) => (on ? undefined : "xl:hidden")
 /**
  * The item shown (ABOUT or an id), shared on a canvas like the filter. It
  * falls back to ABOUT when the filter hides it, and ← and → step through
- * `ids` unless a field or a choice has focus.
+ * `ids` unless a field or a choice has focus. A page with several lists
+ * (one per tab) gives each its own `key` and listens only on the shown one;
+ * `step` gets the arrow first and returns true when it moved something
+ * inside the item, such as the exploration page's options.
  */
-export function useDetail(ids: string[]) {
+export function useDetail(
+  ids: string[],
+  {
+    key = "item",
+    active = true,
+    step: inner,
+  }: {
+    key?: string
+    active?: boolean
+    step?: (sel: string, by: number) => boolean
+  } = {}
+) {
   const [sel, setSel] = React.useState(ABOUT)
-  useSharedState("item", sel, setSel)
+  useSharedState(key, sel, setSel)
   const all = [ABOUT, ...ids]
   const shown = all.includes(sel) ? sel : ABOUT
   const go = React.useCallback((id: string) => {
@@ -41,10 +55,12 @@ export function useDetail(ids: string[]) {
   }, [])
   const step = React.useRef<(by: number) => void>(null)
   step.current = (by) => {
+    if (inner?.(shown, by)) return
     const next = all[all.indexOf(shown) + by]
     if (next) go(next)
   }
   React.useEffect(() => {
+    if (!active) return
     const on = (e: KeyboardEvent) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
@@ -61,7 +77,7 @@ export function useDetail(ids: string[]) {
     }
     addEventListener("keydown", on)
     return () => removeEventListener("keydown", on)
-  }, [])
+  }, [active])
   return { sel: shown, go, ids }
 }
 

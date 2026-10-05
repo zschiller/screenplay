@@ -2,6 +2,7 @@ import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
 import { LOCAL_USER_ID } from "@/lib/local-user"
 import { accountFileKeyPrefix } from "@/lib/files/paths"
+import { prEventMessage } from "@/lib/pr-watch/events"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { COLD_WORKSPACE_PREFIX, previewDomainFor } from "../lib/preview-url"
 import {
@@ -1798,6 +1799,27 @@ function checkoutChat(now: number): FixtureChat {
           {
             type: "text",
             text: "Checkout is one scroll now: `AddressFields` and `PaymentFields` render in a single form and `StickySummary` pins under 768px.\n\nLint is still red — `StickySummary` needs importing in `page.tsx`. Want me to fix that and re-run?",
+          },
+        ],
+      },
+    },
+    {
+      // PR Watch's report that the open PR's lint check failed (#1702): a
+      // quiet red line across the transcript.
+      id: "msg-9-pr-event",
+      createdAt: at(30),
+      record: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: prEventMessage({
+              branchId: FIXTURE_IDS.branches.checkoutPolish,
+              number: 482,
+              url: "https://github.com/acme/storefront/pull/482",
+              kind: "checks_failed",
+              detail: "lint",
+            }),
           },
         ],
       },

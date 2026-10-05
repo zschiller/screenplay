@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, like, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { kvStore } from "@/lib/db/schema"
 
@@ -18,6 +18,8 @@ export interface KV {
   get<T = string>(key: string): Promise<T | null>
   set(key: string, value: unknown, options?: KVSetOptions): Promise<"OK">
   del(key: string): Promise<void>
+  /** The live keys starting with `prefix` (a literal, no wildcards). */
+  keys(prefix: string): Promise<string[]>
   acquireLock(key: string, ttlSec: number): Promise<Lock | null>
 }
 
@@ -56,6 +58,18 @@ export const kv: KV = {
 
   async del(key) {
     await db.delete(kvStore).where(eq(kvStore.key, key))
+  },
+
+  async keys(prefix) {
+    const escaped = prefix.replace(/[\\%_]/g, (c) => `\\${c}`)
+    const rows = await db
+      .select({ key: kvStore.key, expiresAt: kvStore.expiresAt })
+      .from(kvStore)
+      .where(like(kvStore.key, `${escaped}%`))
+    const now = Date.now()
+    return rows
+      .filter((r) => !r.expiresAt || r.expiresAt.getTime() > now)
+      .map((r) => r.key)
   },
 
   async acquireLock(key, ttlSec) {

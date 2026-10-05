@@ -37,3 +37,22 @@ export function summarizeCheckRuns(
   if (runs.some((r) => r.status !== "completed")) return "pending"
   return "passing"
 }
+
+/** The names of a head commit's failed check runs, in GitHub's order and
+ *  without repeats (a matrix job reports one run per leg under one name). */
+export function failingCheckNames(
+  runs: Array<{ name?: string; conclusion: string | null }>
+): string[] {
+  const names: string[] = []
+  for (const run of runs) {
+    if (!run.name || !run.conclusion) continue
+    if (!FAILED_CONCLUSIONS.has(run.conclusion)) continue
+    if (!names.includes(run.name)) names.push(run.name)
+  }
+  return names
+}
+
+/** Whether GitHub's `mergeable_state` says the PR conflicts with its base. */
+export function isConflicted(mergeableState: string | null | undefined) {
+  return mergeableState === "dirty"
+}

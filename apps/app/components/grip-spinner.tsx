@@ -1,26 +1,33 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { cn } from "@workspace/ui/lib/utils"
 
 /**
- * GripSpinner — an "agent is running" indicator that reuses lucide's `Grip`
- * 3×3 dot grid but, instead of spinning, twinkles each dot independently:
- * every dot fades in and out on its own randomized cadence so the grid
- * shimmers in a non-repeating, organic pattern.
- *
- * The dot coordinates mirror lucide-react's `Grip` icon exactly so it reads as
- * the same glyph at rest.
+ * GripSpinner — an "agent is running" indicator drawn as lucide's `Grip` 3×3
+ * dot grid where, instead of spinning, each dot fades in and out on its own
+ * cadence so the grid shimmers in a long, organic-looking pattern.
  *
  * **Use it only for LLM activity**: the agent thinking, a reply streaming, a
  * subagent (Task) running, a chat tab whose run is live. Anything else that is
  * merely in progress (loading data, a request in flight, a tool call running,
  * a sandbox booting) uses `Spinner` from `@workspace/ui/components/spinner`.
- * Keeping the two apart is what lets the grid mean "the model is working". Randomized delays/durations are applied in an effect
- * (post-hydration) to avoid SSR mismatches — the server renders a calm,
- * deterministic grid and the client kicks off the shimmer on mount.
+ * Keeping the two apart is what lets the grid mean "the model is working".
+ *
+ * It renders outside React's update loop on purpose, which is what keeps it
+ * smooth while a reply streams:
+ *
+ * - The dots are HTML spans (masked to a circle), not SVG circles. WebKit (the Mac app's webview)
+ *   hands an opacity animation on an HTML element to Core Animation, off the
+ *   main thread, but animates SVG children on the main thread, so a busy page
+ *   (a streaming reply, a canvas pan) froze the shimmer mid-fade.
+ * - Each dot's timing is a fixed constant, so the server and client render the
+ *   same markup and nothing is set in state.
+ * - Every dot's animation starts at the document timeline's origin, so all
+ *   GripSpinners on the page share one phase and one that re-mounts (a list
+ *   re-keying, a row re-rendering) picks up where it was instead of jumping.
  */
 
-// cx/cy for each of Grip's nine dots (lucide viewBox is 0 0 24 24).
+// Grip's dot centres (lucide viewBox 0 0 24 24); each dot draws 4 units wide.
 const DOTS: ReadonlyArray<readonly [number, number]> = [
   [5, 5],
   [12, 5],
@@ -33,59 +40,58 @@ const DOTS: ReadonlyArray<readonly [number, number]> = [
   [19, 19],
 ]
 
-type DotAnim = { delay: number; duration: number }
+// Seconds per dot. Durations sit between 0.9s and 1.9s and share no common
+// beat, and the delays spread the dots across a cycle, so the nine stay out of
+// phase with one another and the pattern takes minutes to repeat.
+const TIMINGS: ReadonlyArray<readonly [duration: number, delay: number]> = [
+  [1.37, -0.41],
+  [1.02, -1.27],
+  [1.71, -0.86],
+  [1.19, -1.64],
+  [1.53, -0.12],
+  [0.94, -0.97],
+  [1.83, -1.48],
+  [1.11, -0.63],
+  [1.62, -1.81],
+]
 
-function randomAnim(): DotAnim {
-  // Durations spread across ~0.9–1.9s and delays across a full cycle so the
-  // nine dots drift permanently out of phase with one another.
-  return {
-    delay: -Math.random() * 1.9,
-    duration: 0.9 + Math.random() * 1,
+/**
+ * One dot as a mask over the whole box, drawn by the SVG renderer so it lands
+ * on the same anti-aliased subpixel spot as lucide's glyph. Laid out as boxes,
+ * the dots would snap to whole pixels and come out uneven at 12–14px.
+ */
+const dotMask = (cx: number, cy: number) =>
+  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='${cx}' cy='${cy}' r='2'/%3E%3C/svg%3E") 0 0 / 100% 100%`
+
+/** Pins every animation in the grid to the document timeline's origin. */
+function syncToTimeline(grid: HTMLSpanElement | null) {
+  if (!grid || typeof grid.getAnimations !== "function") return
+  for (const animation of grid.getAnimations({ subtree: true })) {
+    animation.startTime = 0
   }
 }
 
 export function GripSpinner({ className }: { className?: string }) {
-  const [anims, setAnims] = useState<DotAnim[] | null>(null)
-
-  // Seed the randomized per-dot timings on mount only. This deliberately sets
-  // state in an effect: the values use Math.random, so computing them during
-  // render would mismatch the server's deterministic markup. Running once
-  // post-hydration is the intended client-only sync, not a render cascade.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    setAnims(DOTS.map(() => randomAnim()))
-  }, [])
-  /* eslint-enable react-hooks/set-state-in-effect */
-
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
+    <span
+      ref={syncToTimeline}
+      data-slot="grip-spinner"
       aria-hidden="true"
+      className={cn("relative inline-block size-4 shrink-0", className)}
     >
       {DOTS.map(([cx, cy], i) => {
-        const anim = anims?.[i]
+        const [duration, delay] = TIMINGS[i]
         return (
-          <circle
+          <span
             key={i}
-            cx={cx}
-            cy={cy}
-            r={1}
-            style={
-              anim
-                ? {
-                    animation: `grip-dot-twinkle ${anim.duration}s ease-in-out ${anim.delay}s infinite`,
-                  }
-                : undefined
-            }
+            className="absolute inset-0 bg-current"
+            style={{
+              mask: dotMask(cx, cy),
+              animation: `grip-dot-twinkle ${duration}s ease-in-out ${delay}s infinite`,
+            }}
           />
         )
       })}
-    </svg>
+    </span>
   )
 }

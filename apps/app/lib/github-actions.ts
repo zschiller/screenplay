@@ -1,7 +1,8 @@
 "use server"
 
 import { getGitHubToken } from "@/lib/auth-helpers"
-import { isMergeBlocked, summarizeCheckRuns } from "@/lib/pr-checks"
+import { githubPrReader } from "@/lib/pr-watch/github"
+import { runPrWatch } from "@/lib/pr-watch/run"
 import { FIXTURE_GITHUB_REPOS, hasFixtureGitHub } from "@/lib/fixture-github"
 import { openRoom, type RoomAccess } from "@/lib/room-access"
 
@@ -316,8 +317,6 @@ async function cacheDiffStats(
 
 export type BranchPrState = "open" | "closed" | "merged"
 
-import type { BranchPrChecks } from "@/lib/pr-checks"
-
 export interface BranchPrInfo {
   number: number
   url: string
@@ -327,152 +326,36 @@ export interface BranchPrInfo {
   blocked?: boolean
 }
 
-async function fetchPrChecks(
-  token: string,
-  owner: string,
-  repo: string,
-  sha: string
-): Promise<BranchPrChecks | undefined> {
-  const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=100`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-      },
-    }
-  )
-  if (!res.ok) return undefined
-  const data = (await res.json()) as {
-    check_runs: Array<{ status: string; conclusion: string | null }>
-  }
-  return summarizeCheckRuns(data.check_runs ?? [])
-}
-
-/** `mergeable_state` is only on the single-PR endpoint, not the pulls list. */
-async function fetchMergeableState(
-  token: string,
-  owner: string,
-  repo: string,
-  number: number
-): Promise<string | undefined> {
-  const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/pulls/${number}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-      },
-    }
-  )
-  if (!res.ok) return undefined
-  const data = (await res.json()) as { mergeable_state?: string }
-  return data.mergeable_state
-}
-
-/** Token-injected core of the PR lookup. Fanned out in parallel by
- *  {@link listBranchPrs} after a single token fetch. */
-async function fetchBranchPr(
-  token: string,
-  owner: string,
-  repo: string,
-  branch: string
-): Promise<BranchPrInfo | null> {
-  const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:${branch}&state=all&per_page=1&sort=created&direction=desc`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-      },
-    }
-  )
-
-  if (!res.ok) return null
-
-  const data = (await res.json()) as Array<{
-    number: number
-    html_url: string
-    state: "open" | "closed"
-    merged_at: string | null
-    head: { sha: string }
-  }>
-  const pr = data[0]
-  if (!pr) return null
-
-  const state: BranchPrState = pr.merged_at ? "merged" : pr.state
-  if (state !== "open") return { number: pr.number, url: pr.html_url, state }
-  const [checks, mergeableState] = await Promise.all([
-    fetchPrChecks(token, owner, repo, pr.head.sha),
-    fetchMergeableState(token, owner, repo, pr.number),
-  ])
-  const blocked = isMergeBlocked(mergeableState, checks) || undefined
-  return { number: pr.number, url: pr.html_url, state, blocked }
-}
-
-export interface BranchPrQuery {
-  /** Branch id — keys the result and the doc entry the PR is cached into. */
-  id: string
-  owner: string
-  repo: string
-  branch: string
-}
-
 /**
- * PR status for many branches in ONE server action — same single-round-trip,
- * parallel-fan-out, write-through-to-the-doc shape as {@link compareBranches}.
- * Replaces the per-branch action whose `Promise.all` was secretly serialized
- * by React's server-action queue.
+ * PR status for the Room's Branches in ONE server action, through PR Watch
+ * (#1702): it looks up every Branch's PR with the caller's GitHub account
+ * (GitHub calls fanned out in parallel server-side), writes what changed into
+ * the doc, and adds any PR event (checks failed, merged…) to the Branch's
+ * Workspace Chat. The Branches come from the doc, not the caller. Returns
+ * nothing new while another look at the same Room is running: that look
+ * writes the doc.
  */
 export async function listBranchPrs(
-  roomId: string,
-  queries: BranchPrQuery[]
+  roomId: string
 ): Promise<Array<{ id: string; pr: BranchPrInfo | null }>> {
-  if (queries.length === 0) return []
+  // Membership first: a non-member is rejected before any GitHub call, and
+  // the write-through can only reach the room through this handle.
   const room = await openRoom(roomId)
   const token = await getGitHubToken()
-  if (!token) return queries.map((q) => ({ id: q.id, pr: null }))
-
-  const results = await Promise.all(
-    queries.map(async (q) => ({
-      id: q.id,
-      pr: await fetchBranchPr(token, q.owner, q.repo, q.branch),
-    }))
+  if (!token) return []
+  const result = await runPrWatch(
+    room,
+    githubPrReader(async () => token)
   )
-  await cachePrs(room, results)
-  return results
-}
-
-/** Write-through to the doc. A `null` lookup never clears a cached PR: GitHub's
- *  pulls list lags a beat behind a freshly created PR, so a poll already in
- *  flight when one is opened can momentarily not see it — clearing here would
- *  flicker the icon back to "no PR". Server-side write → remote change on
- *  clients → never tracked by their undo history. */
-async function cachePrs(
-  room: RoomAccess,
-  results: Array<{ id: string; pr: BranchPrInfo | null }>
-): Promise<void> {
-  if (!results.some((r) => r.pr)) return
-  await room.mutateDoc(({ branches }) => {
-    for (const { id, pr } of results) {
-      if (!pr) continue
-      const cur = branches.get(id)
-      if (!cur) continue
-      if (
-        cur.prNumber !== pr.number ||
-        cur.prUrl !== pr.url ||
-        cur.prState !== pr.state ||
-        cur.prBlocked !== pr.blocked
-      ) {
-        branches.update(id, {
-          prNumber: pr.number,
-          prUrl: pr.url,
-          prState: pr.state,
-          prBlocked: pr.blocked,
-        })
-      }
-    }
-  })
+  return (result?.prs ?? []).map(({ id, pr }) => ({
+    id,
+    pr: pr && {
+      number: pr.number,
+      url: pr.url,
+      state: pr.state,
+      ...(pr.blocked ? { blocked: true } : {}),
+    },
+  }))
 }
 
 export async function listRepoBranches(

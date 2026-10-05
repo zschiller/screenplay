@@ -17,7 +17,9 @@ import {
   projectUserTurn,
   userTurnEcho,
   userTurnMessage,
+  withPromptLast,
 } from "@/lib/agent/user-turn"
+import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 
 const element: TargetedElement = {
   ref: "el1",
@@ -163,5 +165,36 @@ describe("the browser parses no marker strings (#1253)", () => {
       join(appRoot, "lib/chat-store.ts"),
     ].filter((path) => call.test(readFileSync(path, "utf8")))
     expect(offenders).toEqual([])
+  })
+})
+
+describe("withPromptLast (#1702)", () => {
+  const user = (text: string): AcpMessageRecord => ({
+    role: "user",
+    content: [{ type: "text", text }],
+  })
+  const agent: AcpMessageRecord = {
+    role: "agent",
+    content: [{ type: "text", text: "Done." }],
+  }
+  const event = user(
+    prependTurnMarkers("PR #7 was merged.", {
+      prEvent: { number: 7, kind: "merged" },
+    })
+  )
+
+  it("moves a PR event saved after the turn's message ahead of it", () => {
+    const ask = user("Fix the header")
+    expect(withPromptLast([agent, ask, event])).toEqual([agent, event, ask])
+  })
+
+  it("keeps a history that already ends in a message", () => {
+    const history = [agent, event, user("Thanks")]
+    expect(withPromptLast(history)).toBe(history)
+  })
+
+  it("keeps a PR event as the prompt when nothing else follows the reply", () => {
+    const history = [user("Hi"), agent, event]
+    expect(withPromptLast(history)).toBe(history)
   })
 })

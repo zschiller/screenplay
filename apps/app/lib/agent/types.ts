@@ -1,5 +1,6 @@
 import type {
   MessageAttachment,
+  PrEventMark,
   TargetedElement,
 } from "@/lib/agent/message-markers"
 // Tool names are derived from the builders, not hand-maintained: each builder's
@@ -28,6 +29,8 @@ export type AgentMessage =
   | {
       role: "user"
       content: string
+      /** What happened to the chat's PR, when this is a PR event (#1702). */
+      prEvent?: PrEventMark
       /** The Workspace whose turn ended, when this is a Coordinator wake. */
       wakeFrom?: string
       /** The sending Coordinator chat, when this is a Delegated Message. */

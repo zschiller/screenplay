@@ -26,6 +26,7 @@ import {
 import {
   LayerShell,
   LAYER_SURFACE_CLASS,
+  type LayerPlacement,
 } from "@/components/canvas/layer-shell"
 import type { MockupLayerData } from "@/lib/types"
 import {
@@ -42,7 +43,7 @@ import type {
 } from "@/components/canvas/use-frame-control"
 import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import { useLayerToolbar } from "@/components/canvas/use-layer-toolbar"
-import type { GroupWorkspace } from "@/components/canvas/group-label"
+import type { GroupLabelValue } from "@/components/canvas/group-label"
 import type { FrameWorkspace } from "@/components/canvas/frame-nav"
 import { CompactWorkspaceMention } from "@/components/canvas/workspace-list"
 import { MaybeWorkspaceHoverCard } from "@/components/workspace-hover-card"
@@ -54,14 +55,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
-
-type Mover = (
-  dx: number,
-  dy: number,
-  totalDx: number,
-  totalDy: number,
-  metaKey: boolean
-) => void
 
 interface MockupLayerProps {
   layer: MockupLayerData
@@ -76,29 +69,13 @@ interface MockupLayerProps {
   selected: boolean
   multiSelected: boolean
   spaceHeld: boolean
-  /** Absolute world-space top-left, from `effectiveIframeLayerLayouts`. */
-  worldX: number
-  worldY: number
-  zIndex?: number
-  dragTranslateX?: number
-  dragTranslateY?: number
-  dragPopped?: boolean
-  /** Group display name — only set on the leftmost member of a multi-member group. */
-  groupLabel?: string
-  groupWorkspace?: GroupWorkspace
+  /** Where the mockup sits and how dragging it moves things. */
+  placement: LayerPlacement
+  /** The group label — only set on the leftmost member of a multi-member group. */
+  groupLabel?: GroupLabelValue
   groupSelected?: boolean
   remoteSelectedColor?: string
-  remoteGroupSelectedColor?: string
-  onSelectGroup?: (shiftKey: boolean) => void
-  onRenameGroup?: (next: string) => void
-  /** The Group's menu, on its label while it alone is selected (I7). */
-  groupMenu?: LayerMenuActions
-  onRequestReorderDrag?: (layerId: string, e: React.PointerEvent) => boolean
   onSelect: (id: string, shiftKey: boolean) => void
-  onMoveGroup: Mover
-  onMoveSelected: Mover
-  onGroupDragStart?: () => void
-  onGroupDragEnd?: (metaKey: boolean) => void
   /**
    * Resize delta from an edge drag, as on a frame: the canvas snaps the
    * mockup to device sizes (⌘ resizes freely) and shifts the Group for
@@ -229,26 +206,11 @@ export function MockupLayer({
   selected,
   multiSelected,
   spaceHeld,
-  worldX,
-  worldY,
-  zIndex,
-  dragTranslateX,
-  dragTranslateY,
-  dragPopped,
+  placement,
   groupLabel,
-  groupWorkspace,
   groupSelected,
   remoteSelectedColor,
-  remoteGroupSelectedColor,
-  onSelectGroup,
-  onRenameGroup,
-  groupMenu,
-  onRequestReorderDrag,
   onSelect,
-  onMoveGroup,
-  onMoveSelected,
-  onGroupDragStart,
-  onGroupDragEnd,
   onResize,
   onResizeStart,
   onResizeEnd,
@@ -412,12 +374,7 @@ export function MockupLayer({
       layerId={layer.id}
       width={layer.width}
       height={layer.height}
-      worldX={worldX}
-      worldY={worldY}
-      zIndex={zIndex}
-      dragTranslateX={dragTranslateX}
-      dragTranslateY={dragTranslateY}
-      dragPopped={dragPopped}
+      placement={placement}
       containerId={`mockup-layer-${layer.id}`}
       containerRef={containerRef}
       // No overflow-hidden on the root: the title bar sits above the tile.
@@ -430,11 +387,6 @@ export function MockupLayer({
       multiSelected={multiSelected}
       spaceHeld={spaceHeld}
       onSelect={onSelect}
-      onMoveGroup={onMoveGroup}
-      onMoveSelected={onMoveSelected}
-      onGroupDragStart={onGroupDragStart}
-      onGroupDragEnd={onGroupDragEnd}
-      onRequestReorderDrag={onRequestReorderDrag}
       titleDragDisabled={spaceHeld || focused}
       resizable={chrome.resizable}
       titleTag={chrome.titleTag}
@@ -442,11 +394,6 @@ export function MockupLayer({
       onResizeStart={onResizeStart}
       onResizeEnd={onResizeEnd}
       groupLabel={groupLabel}
-      groupWorkspace={groupWorkspace}
-      remoteGroupSelectedColor={remoteGroupSelectedColor}
-      onSelectGroup={onSelectGroup}
-      onRenameGroup={onRenameGroup}
-      groupMenu={groupMenu}
       renderTitle={(api) => (
         <LayerLabelRow
           editableRef={titleEditableRef}

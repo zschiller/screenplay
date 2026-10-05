@@ -60,6 +60,7 @@ sign-in. That’s why some values must be identical everywhere.
 | `BETTER_AUTH_URL` | **Production only** | Previews derive their own URL from `VERCEL_URL`. |
 | `BETTER_AUTH_PRODUCTION_URL`, `BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | **Production + Preview**, identical values | Required by the preview sign-in proxy. |
 | `NEXT_PUBLIC_BASE_PATH` | Production + Preview | Only if you serve under a [path prefix](/self-hosting/configuration/mount-path). |
+| `CRON_SECRET` | Production | Vercel Cron only runs on production. See below. |
 | Everything else (`DATABASE_URL`, `LIVEBLOCKS_SECRET_KEY`, model keys, `AGENT_DEFAULT_MODEL`, `ENCRYPTION_KEY`, `TERMINAL_AUTH_SECRET`, `SANDBOX_HARNESSES`, …) | Production + Preview | |
 
 <Callout type="warning">
@@ -69,6 +70,16 @@ sign-in. That’s why some values must be identical everywhere.
   [Neon’s Vercel integration](https://neon.tech/docs/guides/vercel) creates a
   database branch per preview automatically.
 </Callout>
+
+## Pull request checks
+
+The app’s `vercel.json` adds a Vercel Cron job that calls
+`/app/api/pr-watch/tick` every five minutes. It checks each canvas with an open
+pull request on GitHub and adds what changed (failing checks, a conflict, the
+merge) to the chat, even when no one has the canvas open. Set `CRON_SECRET` in
+Production so the route accepts the call. If you serve the app at the domain
+root rather than under `/app`, change the job’s `path` to `/api/pr-watch/tick`.
+Vercel’s Hobby plan only runs cron jobs once a day, so the job needs a Pro plan.
 
 ## Preview deploys are opt-in
 

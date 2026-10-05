@@ -173,6 +173,14 @@ const inWorkspace =
     return title ? { verb, detail: title, as: "text" } : null
   }
 
+/** A GitHub issue or pull request call's row: "Close #12". */
+const issueNumber =
+  (verb: string) =>
+  (input: Input): Partial<RowLabel> | null =>
+    typeof input.number === "number"
+      ? { verb, detail: `#${input.number}`, as: "text" }
+      : { verb }
+
 /** A selector's last step, which is usually the part that names the element. */
 function shortSelector(selector: string): string {
   const last =
@@ -257,6 +265,73 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     verb: "Create pull request",
     icon: "pull-request",
     kind: "other",
+  },
+  // The canvas's GitHub issues and pull requests, and their comments.
+  search_issues: {
+    verb: "Search issues",
+    icon: "search",
+    kind: "search",
+    category: "search",
+    label: subject("query", "text"),
+  },
+  read_issue: {
+    verb: "Read",
+    icon: "chat-text",
+    kind: "read",
+    output: "markdown",
+    label: issueNumber("Read"),
+  },
+  create_issue: {
+    verb: "Create issue",
+    icon: "note",
+    kind: "other",
+    label: subject("title", "text"),
+  },
+  comment_on_issue: {
+    verb: "Comment",
+    icon: "chat",
+    kind: "other",
+    label: issueNumber("Comment on"),
+  },
+  update_issue: {
+    verb: "Update",
+    icon: "edit",
+    kind: "other",
+    label: (input) => {
+      const verb =
+        input.state === "closed"
+          ? "Close"
+          : input.state === "open"
+            ? "Reopen"
+            : "Update"
+      return issueNumber(verb)(input)
+    },
+  },
+  link_issues: {
+    verb: "Link",
+    icon: "list",
+    kind: "other",
+    label: (input) =>
+      typeof input.number === "number" && typeof input.other === "number"
+        ? {
+            verb: input.remove ? "Unlink" : "Link",
+            detail: `#${input.number} and #${input.other}`,
+            as: "text",
+          }
+        : null,
+  },
+  list_labels: { verb: "List labels", icon: "list", kind: "read" },
+  read_pr_diff: {
+    verb: "Read diff of",
+    icon: "diff",
+    kind: "read",
+    label: issueNumber("Read diff of"),
+  },
+  read_pr_checks: {
+    verb: "Read checks of",
+    icon: "list",
+    kind: "read",
+    label: issueNumber("Read checks of"),
   },
   read_skill: {
     verb: "Read skill",
