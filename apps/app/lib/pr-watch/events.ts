@@ -27,12 +27,17 @@ export function prEventLabel({ kind, detail }: Omit<PrEventMark, "number">) {
 /**
  * The state a PR event's line is drawn in, in GitHub's colours: green when
  * checks pass again, purple once merged, red for everything that needs a fix
- * or ended the PR.
+ * or ended the PR. Failing checks and conflicts are an open PR that can't
+ * merge, so they take the merge-blocked glyph; a closed PR takes closed's.
  */
-export function prEventState(kind: PrEventKind): "open" | "merged" | "closed" {
-  if (kind === "checks_passed") return "open"
-  if (kind === "merged") return "merged"
-  return "closed"
+export function prEventState(kind: PrEventKind): {
+  state: "open" | "merged" | "closed"
+  blocked?: boolean
+} {
+  if (kind === "checks_passed") return { state: "open" }
+  if (kind === "merged") return { state: "merged" }
+  if (kind === "closed") return { state: "closed" }
+  return { state: "open", blocked: true }
 }
 
 const SENTENCE: Record<PrEventKind, (n: number, detail?: string) => string> = {

@@ -1088,10 +1088,7 @@ function PrEventLine({ event }: { event: PrEventMark }) {
     >
       <span className="h-px flex-1 bg-border" />
       <span className="flex min-w-0 items-center gap-1.5">
-        <WorkspacePrBadge
-          number={event.number}
-          state={prEventState(event.kind)}
-        />
+        <WorkspacePrBadge number={event.number} {...prEventState(event.kind)} />
         <span className="truncate">{prEventLabel(event)}</span>
       </span>
       <span className="h-px flex-1 bg-border" />

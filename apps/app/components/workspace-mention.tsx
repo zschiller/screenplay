@@ -5,14 +5,13 @@ import {
   CheckCircleIcon,
   CircleDashedIcon,
   CircleIcon,
-  GitMergeIcon,
-  GitPullRequestIcon,
   WarningIcon,
 } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { GripSpinner } from "@/components/grip-spinner"
 import { prStateColor } from "@/components/pr-state-color"
+import { PrStateIcon } from "@/components/pr-state-icon"
 import type { WorkspaceStatusLine } from "@/lib/branch/workspace-state"
 import type { WorkspaceState } from "@/lib/branch/workspace-state"
 import type { BranchPrInfo } from "@/lib/github-actions"
@@ -114,35 +113,50 @@ export function WorkspaceStateIcon({ state }: { state: WorkspaceState }) {
   )
 }
 
-export type WorkspacePr = { number: number; state: BranchPrInfo["state"] }
+export type WorkspacePr = {
+  number: number
+  state: BranchPrInfo["state"]
+  /** An open PR that can't merge. */
+  blocked?: boolean
+}
 
 /**
  * A Workspace's PR: GitHub's state glyph and `#N` in its state colour, set as
  * plain text with no border or padding. Only the chat header's PR button has a
- * border, because that's a button.
+ * border, because that's a button. A blocked open PR shows as the header
+ * button does: red, with the merge-conflict glyph.
  */
 export function WorkspacePrBadge({
   number,
   state,
+  blocked,
   className,
 }: {
   number: number
   state: BranchPrInfo["state"]
+  blocked?: boolean
   className?: string
 }) {
-  const Icon = state === "merged" ? GitMergeIcon : GitPullRequestIcon
+  const shownBlocked = state === "open" && !!blocked
   return (
     <span
       data-slot="workspace-pr"
       className={cn(
         "inline-flex shrink-0 items-center gap-0.5 text-xs tabular-nums",
-        prStateColor(state),
+        prStateColor(state, blocked),
         className
       )}
     >
-      <Icon aria-hidden className="size-3! shrink-0" />
+      <PrStateIcon
+        state={state}
+        blocked={blocked}
+        aria-hidden
+        className="size-3! shrink-0"
+      />
       <span className="sr-only">PR </span>#{number}
-      <span className="sr-only">, {state}</span>
+      <span className="sr-only">
+        , {shownBlocked ? "merge blocked" : state}
+      </span>
     </span>
   )
 }
@@ -159,7 +173,11 @@ export function workspacePr(
   if (branch.status !== "running" || branch.error) return null
   if (pr !== undefined) return pr
   if (!branch.prNumber || !branch.prState) return null
-  return { number: branch.prNumber, state: branch.prState }
+  return {
+    number: branch.prNumber,
+    state: branch.prState,
+    blocked: branch.prBlocked,
+  }
 }
 
 /**
@@ -207,7 +225,11 @@ export function WorkspaceMention({
 )) {
   const shownPr = pr === false ? null : workspacePr(branch, prOverride)
   const end = shownPr ? (
-    <WorkspacePrBadge number={shownPr.number} state={shownPr.state} />
+    <WorkspacePrBadge
+      number={shownPr.number}
+      state={shownPr.state}
+      blocked={shownPr.blocked}
+    />
   ) : pr === false ? null : (
     fallback
   )
