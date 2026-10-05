@@ -1030,9 +1030,9 @@ that single default entry. The stored id is the **single home** for the choice
 on its _first_ colon, so the colon-free, comma-free `key` is always recovered
 whole and the opaque `modelId` survives intact even when it holds colons
 (`opus[1m]`, `openrouter:anthropic/claude:beta`); a `provider:<model>` id never
-decodes as a Harness (`harnesses/model-id.ts`). The dropdown list is the
-descriptor's **curated floor** plus a discover-once-and-cached live augment (the
-**Harness model catalog**, below; #527). _How_ the chosen model is applied is the
+decodes as a Harness (`harnesses/model-id.ts`, client-safe, the one codec on
+both sides of the wire). The dropdown list is the descriptor's **curated floor**,
+shaped per device by the **Harness model menu** (below). _How_ the chosen model is applied is the
 adapter's call: an ACP-native adapter (claude-code) sets it in-session via ACP's
 `session/set_config_option` on the `"model"`-category option; a spawn-env adapter
 (codex, which advertises no models) takes it at launch as `--model <id>`. See ADR
@@ -1119,29 +1119,25 @@ dedupe-by-`hostBinary` rule (one of each: `probeHostFacts`,
 are probed live — that freshness is the point); gating the availability list on the
 auth fact it surfaces (auth is a Settings label, presence still lists); a per-slot
 opencode row (dedupe by `hostBinary`); picking a Harness's model here (that's the
-model dropdown / **Harness model catalog**, ADR 0011); signing a harness _out_ or
+model dropdown / **Harness model menu**, ADR 0011); signing a harness _out_ or
 uninstalling it (one-directional — help in, never out).
 
-**Harness model catalog**:
-The source the desktop model fold (`harnessModels`) reads each Harness's dropdown
-list from — its **curated floor** (the descriptor's `models`, authoritative) plus
-a **discover-once-and-cached** live augment (`lib/agent/harnesses/model-catalog.ts`).
-Mirrors the model-provider `discover()` cache and the desktop resolver's
-once-per-launch memoization: discovery runs at most once per app launch, a second
-`list()` reuses it, and an unreachable/empty source degrades to the curated floor
-— the same staleness contract as `hostBinary` detection (a model added to a
-subscription shows up after a restart, never via a mid-session re-probe). Spike
-#523 inverted the original "discover live `availableModels` as the source"
-framing: enumeration is stateless and can't open a session, and the advertised set
-under-delivers (claude-code advertises 3 buckets, codex none) — all ⊆ a sensible
-curated set. So the curated floor is **authoritative** and discovery is **purely
-additive** (a discovered modelId only appends a row the floor doesn't name).
-Today the production discovery is the deferred session-open augment and advertises
-nothing, so the dropdown is identical to the static-list slice.
-_Avoid_: "discover the dropdown's models" framing (curated floor is the source,
-discovery augments); a live re-probe on the dropdown path (it's stateless — no
-session); reordering/relabelling a curated entry a discovery also advertises (the
-floor wins on id collisions).
+**Harness model menu**:
+The one pure module (`lib/harness-model-menu.ts`) that turns the server's model
+catalog into what a picker lists and sits on. The server lists each Harness's
+**curated floor** (its default entry marked `isDefault`), or one bare
+`harness:<key>` entry for a Harness whose CLI reaches too many models to curate
+(OpenCode); on this device the bare entry gives way to the models chosen in
+Settings › Agent › Choose models, the first taking over as the Harness's default.
+It then resolves the picker's id (chat's pick → device default → server default →
+first model), and an id that has left the menu — a bare id after models were
+chosen, an unchecked model, a retired curated one — falls to its **own Harness's**
+default entry, never another Harness: switching Harness would run the next turn
+on another CLI and replay the history there.
+_Avoid_: resolving a stale Harness id to the server default (that's another
+Harness on a multi-CLI desktop); a second copy of the `harness:` codec on the
+client; live model discovery on the dropdown path (enumeration is stateless, and
+the advertised sets under-deliver the curated floor, spike #523).
 
 **Composer**:
 The shared rich-text input for authoring a single chat turn — owns model

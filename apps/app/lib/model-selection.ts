@@ -30,46 +30,6 @@ export function groupModelsByProvider(models: ModelInfo[]): ModelGroup[] {
   return order.map((k) => byKey.get(k)!)
 }
 
-export interface ResolveModelArgs {
-  /**
-   * Per-session override — the model explicitly picked for this chat/row.
-   * Highest precedence. Omit (or pass null) where there's no per-session
-   * concept, e.g. each parallel-create row seeds from the shared default.
-   */
-  perSession?: string | null
-  /** The user's default model, set in Settings (`lib/default-model-store`). */
-  stored?: string | null
-  /** Server-suggested default for the configured provider set. */
-  serverDefault?: string | null
-  /** The loaded catalog. Empty while still fetching. */
-  models: ModelInfo[]
-}
-
-/**
- * Resolve the model a picker should sit on, by precedence:
- * per-session override → user's default → server default → first available.
- *
- * Returns "" while the catalog is still loading (length 0) so callers can
- * render a "Loading…" placeholder rather than a stale id from a different
- * deployment's provider set. Once the catalog has loaded, a preferred id
- * that's no longer in it (e.g. the user's default model was retired when a
- * newer one shipped, or its CLI was uninstalled) is dropped — we fall back to the server default, then
- * the first listed model — so the picker never sits on an invalid value.
- */
-export function resolveDefaultModel({
-  perSession,
-  stored,
-  serverDefault,
-  models,
-}: ResolveModelArgs): string {
-  const preferred = perSession ?? stored ?? serverDefault ?? ""
-  if (models.length === 0 || models.some((m) => m.id === preferred))
-    return preferred
-  if (serverDefault && models.some((m) => m.id === serverDefault))
-    return serverDefault
-  return models[0]?.id ?? preferred
-}
-
 /**
  * How a model reads in a picker: its agent (the provider or Harness) and the
  * model, e.g. "Claude Code · Opus 4.8". A Harness with no model list is a
