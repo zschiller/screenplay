@@ -15,11 +15,13 @@ import { cn } from "@workspace/ui/lib/utils"
 import {
   answer,
   askedId,
+  answersInChat,
+  canAnswer,
   cardIndex,
   onCanvas,
   useCardQuestion,
 } from "../shared/chat.ts"
-import { Choices } from "../shared/choices.tsx"
+import { AnswerInChat, Choices } from "../shared/choices.tsx"
 import {
   Intro,
   ItemHead,
@@ -120,9 +122,11 @@ export function Decisions({
         : { ...s, [asked]: { ...s[asked]!, v: `o${answeredOption}` } }
     )
   }, [asked, answeredOption])
+  // While the page can't answer the card (it's live, or the agent drives it), its pick stays here
+  const chatOnly = answersInChat(card) ? asked : null
   // An option chosen on the page answers the card too, when it's the card's
   const choose = (q: Q, v: string) => {
-    if (q.id === asked && card && !card.answer && v.startsWith("o")) {
+    if (q.id === asked && canAnswer(card) && v.startsWith("o")) {
       const at = cardIndex(
         card,
         q.o.map(([l]) => l),
@@ -245,6 +249,7 @@ export function Decisions({
               a={answers[q.id]!}
               set={(a) => set(q.id, a)}
               choose={(v) => choose(q, v)}
+              chatOnly={chatOnly === q.id}
             />
           ))}
         </section>
@@ -297,11 +302,14 @@ function Question({
   a,
   set,
   choose,
+  chatOnly,
 }: {
   q: Q
   a: Answer
   set: (a: Partial<Answer>) => void
   choose: (v: string) => void
+  /** The chat's open card asks this, and a pick here can't answer it. */
+  chatOnly: boolean
 }) {
   const own = React.useRef<HTMLInputElement>(null)
   return (
@@ -344,6 +352,7 @@ function Question({
           value={a.own}
           onChange={(e) => set({ own: e.target.value })}
         />
+        {chatOnly && <AnswerInChat />}
       </ItemNote>
     </div>
   )

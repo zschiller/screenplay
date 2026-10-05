@@ -3,6 +3,7 @@ import type { AgentMessage } from "@/lib/agent/types"
 import type { DraftSource } from "@/lib/chat-draft-source-store"
 import {
   createMockupChatLink,
+  pageAnswers,
   pageVoice,
   type ShownChat,
 } from "./mockup-chat-link"
@@ -288,5 +289,25 @@ describe("what a tap on the page says for this viewer (#1662)", () => {
         liveDriver: { kind: "person", id: "u2", name: "Sam", color: "#f80" },
       })
     ).toEqual(neither)
+  })
+})
+
+describe("whether a tap on the page can answer at all", () => {
+  const you = { kind: "you" } as const
+  const agent = { kind: "agent" } as const
+  const none = { kind: "none" } as const
+  const sam = { kind: "person", id: "u2", name: "Sam", color: "#f80" } as const
+
+  it("can in their own copy unless the agent drives it, focused or not", () => {
+    const own = { live: false, liveDriver: none }
+    expect(pageAnswers({ ...own, focused: true, driver: none })).toBe(true)
+    expect(pageAnswers({ ...own, focused: false, driver: none })).toBe(true)
+    expect(pageAnswers({ ...own, focused: true, driver: agent })).toBe(false)
+  })
+
+  it("never can on a live page, for any viewer", () => {
+    const live = { live: true, driver: none, focused: false }
+    for (const liveDriver of [you, sam, none, agent])
+      expect(pageAnswers({ ...live, liveDriver })).toBe(false)
   })
 })

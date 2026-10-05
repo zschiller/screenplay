@@ -32,7 +32,7 @@ In dev, any capture the sample data names (`r2/a-light.png`) is served as a labe
 
 ## On a canvas
 
-A Mockup gets the `screenplay` bridge, which `src/shared/chat.ts` wraps. Pass `send` to `CopyBar` and its button reads Send to chat on a canvas, putting the same text in the chat's composer (`screenplay.draft`); as an Artifact it copies. When the chat's open question card asks about one of the page's questions (its id starts the card's question, or its option labels match), a pick on that question answers the card (`screenplay.answer`), and an answer on the card shows as the pick. The page adds no label and never scrolls: the agent asks one card per call, so either would fire on every card. `src/shared/choices.tsx` draws a question's options as the app's question card does.
+A Mockup gets the `screenplay` bridge, which `src/shared/chat.ts` wraps. Pass `send` to `CopyBar` and its button reads Send to chat on a canvas, putting the same text in the chat's composer (`screenplay.draft`); as an Artifact it copies. When the chat's open question card asks about one of the page's questions (its id starts the card's question, or its option labels match), a pick on that question answers the card (`screenplay.answer`), and an answer on the card shows as the pick. While the canvas can’t take an answer from the page (the page is live, or the agent is driving it), the pick stays on the page and the question says “Answer in the chat” (`AnswerInChat`). The page adds no label and never scrolls: the agent asks one card per call, so either would fire on every card. `src/shared/choices.tsx` draws a question's options as the app's question card does.
 
 ## Adding a template
 

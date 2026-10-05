@@ -15,8 +15,15 @@ import {
   AlertTitle,
 } from "@workspace/ui/components/alert"
 
-import { answer, askedId, cardIndex, useCardQuestion } from "../shared/chat.ts"
-import { Choices } from "../shared/choices.tsx"
+import {
+  answer,
+  askedId,
+  answersInChat,
+  canAnswer,
+  cardIndex,
+  useCardQuestion,
+} from "../shared/chat.ts"
+import { AnswerInChat, Choices } from "../shared/choices.tsx"
 import {
   Fold,
   FoldList,
@@ -133,10 +140,12 @@ export function Audit({
       else picks[id] = v
       return { ...s, picks }
     })
+  // While the page can't answer the card (it's live, or the agent drives it), its pick stays here
+  const chatOnly = answersInChat(card) ? asked : null
   // A call's option, chosen on the page: answers the chat's card too when
   // it's the call the card asks about and the option is one of the card's
   const choose = (f: Finding, v: string) => {
-    if (f.id === asked && card && !card.answer) {
+    if (f.id === asked && canAnswer(card)) {
       const labels = f.call!.options.map((o) => o.label)
       const i = f.call!.options.findIndex((o) => o.id === v)
       const at = i < 0 ? -1 : cardIndex(card, labels, i)
@@ -262,6 +271,7 @@ export function Audit({
                 picked={state.picks[f.id]}
                 pick={pick}
                 choose={choose}
+                chatOnly={chatOnly === f.id}
                 note={state.notes[f.id] || ""}
                 setNote={(v) =>
                   setState((s) => ({
@@ -304,6 +314,7 @@ function FindingCard({
   picked,
   pick,
   choose,
+  chatOnly,
   note,
   setNote,
 }: {
@@ -312,6 +323,8 @@ function FindingCard({
   picked?: string
   pick: (id: string, v: string) => void
   choose: (f: Finding, v: string) => void
+  /** The chat's open card asks this call, and a pick here can't answer it. */
+  chatOnly: boolean
   note: string
   setNote: (v: string) => void
 }) {
@@ -372,6 +385,7 @@ function FindingCard({
                 { value: "skip", label: "Skip", quiet: true },
               ]}
             />
+            {chatOnly && <AnswerInChat />}
           </ItemNote>
         </>
       ) : (
