@@ -183,7 +183,7 @@ export function FrameStatus({
               {detail}
             </EmptyDescription>
           ) : (
-            <EmptyDescription className="text-xs/relaxed">
+            <EmptyDescription>
               {(progress || stage === "unassigned") && detail
                 ? detail
                 : copy.description}

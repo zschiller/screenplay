@@ -14,6 +14,7 @@ import {
   REFERENCED_DOCS_FOOTER_TOKEN,
   SKILL_MARKER_TOKEN,
   WAKE_MARKER_LABEL,
+  PR_EVENT_MARKER_LABEL,
 } from "@/lib/agent/message-markers"
 import { workspaceLink } from "@/lib/agent/workspace-task"
 import { layerLink } from "@/lib/agent/layer-link"
@@ -24,10 +25,7 @@ import { frameDriveRuntime } from "@/lib/frame-drive/runtime"
 /** Identity of every layer on the canvas the model could be asked to read. */
 export interface LayerDirectory {
   documents: Array<
-    Pick<MarkdownLayerData, "id" | "title" | "ownerChatId"> & {
-      /** Its chat was deleted, so any chat may edit it (and claim it). */
-      orphaned?: boolean
-    }
+    Pick<MarkdownLayerData, "id" | "title" | "lastChangedByChatId">
   >
 }
 
@@ -35,9 +33,8 @@ export interface LayerDirectory {
  * Renders the canvas's layer directory as a system-prompt block. Every chat
  * target bakes this in so the model can resolve a `@<title>`-style mention (in
  * the user message *or* in a body it just fetched via a read tool) back to the
- * layer's stable id and call the right read tool. `chatId` marks the Documents
- * that chat made, the ones it can edit (#1314), and the ones whose chat was
- * deleted, which any chat can edit.
+ * layer's stable id and call the right read tool. Any chat can edit any of
+ * them (#1724); `chatId` marks the ones that chat changed last.
  */
 function renderLayerDirectory(
   dir: LayerDirectory,
@@ -53,11 +50,7 @@ function renderLayerDirectory(
   lines.push("  Documents:")
   for (const d of docs) {
     const mark =
-      chatId && d.ownerChatId === chatId
-        ? " (yours)"
-        : chatId && d.orphaned
-          ? " (its chat was deleted; you can edit it)"
-          : ""
+      chatId && d.lastChangedByChatId === chatId ? " (you changed it last)" : ""
     lines.push(`    - ${d.id}: ${d.title || "Untitled"}${mark}`)
   }
   return lines.join("\n")
@@ -267,7 +260,7 @@ What "this" means:
 ${canvasViewPrompt}
 
 Writing Documents:
-When the user asks for a plan, notes, a spec or any other write-up, put it in a Document on the canvas rather than a file in the project: call \`${t("create_document")}\` with a title and the body as markdown. The Document is yours and shows your name. You can edit only the Documents you made (marked "(yours)" in the layer directory): rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Anyone’s Document can be read with \`${t("read_document")}\`; ask its owner, or the user, to change one that isn’t yours. In a body, separate paragraphs with a blank line and don’t repeat the title as a \`#\` heading.`
+When the user asks for a plan, notes, a spec or any other write-up, put it in a Document on the canvas rather than a file in the project: call \`${t("create_document")}\` with a title and the body as markdown. You can change any Document on the canvas, whichever chat or person made it, and any chat can change yours: rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Read any Document with \`${t("read_document")}\` first. In a body, separate paragraphs with a blank line and don’t repeat the title as a \`#\` heading.`
 }
 
 /**
@@ -343,6 +336,13 @@ To read or search the repository’s issues and pull requests and their comments
  */
 const canvasViewPrompt = `A user message may end with a \`${CANVAS_VIEW_FOOTER_TOKEN}\` footer listing, with ids, what its sender had selected on the canvas and what was on their screen when they sent it. The user doesn’t see it. When they say "this", "that", "these" or "here" without naming it, they mean their selection first, then what was on their screen, the first listed taking the most of it. Several people can share a chat and each sees their own canvas, so read the footer of the message you’re answering, which names its sender; an earlier message’s footer is what its sender saw back then. It is a snapshot from when they sent it. When neither the selection nor the screen settles what they mean, ask.`
 
+/**
+ * How the Workspace agent handles a PR event that woke it (#1703): fix and
+ * push, or say why not.
+ */
+const prEventsPrompt = (t: ToolNaming["name"]) =>
+  `PR events: a message starting with \`[${PR_EVENT_MARKER_LABEL}: …]\` is an automatic update from GitHub about this Workspace’s pull request, not a message from the user, who sees it as a short line. When its checks failed, read them with ${t("read_pr_checks")}, fix the cause, commit and push. When it conflicts with its base branch, merge the base branch in, resolve the conflict, commit and push. If you can’t fix it, or the fix needs the user’s call, reply in a sentence or two saying why. When it merged or closed, reply in one line, and say what’s left only if something is. After a few attempts on the same PR with no word from the user, PR events stop waking you and the user is asked instead.`
+
 const agentSystemPromptTail = (naming: ToolNaming) => {
   const t = naming.name
   // A harness runs commands with its own shell tool, not run_command.
@@ -355,9 +355,11 @@ To see the preview as the user sees it on the canvas, call ${t("view_frame")} fo
 
 ${frameDrivePrompt(t, { frames: frameDriveRuntime() })}
 
-Mockups: when the user wants to see a design idea before it’s built, or to compare takes side by side, call ${t("create_mockup")} with a self-contained HTML page (inline styles, no network). It shows on the canvas beside the live frames without touching the code. Make one Mockup per take, and rewrite your own with ${t("update_mockup")}. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with ${t("update_mockup")} instead of creating a new one.
+Mockups: when the user wants to see a design idea before it’s built, or to compare takes side by side, call ${t("create_mockup")} with a self-contained HTML page (inline styles, no network). It shows on the canvas beside the live frames without touching the code. Make one Mockup per take, and rewrite any Mockup on the canvas, whichever chat made it, with ${t("update_mockup")}. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with ${t("update_mockup")} instead of creating a new one.
 
 This Workspace is yours: you are its one chat, and the only one that changes its code. Every other Workspace on the canvas belongs to its own chat. You can read their code with ${t("read_code_file")}, ${t("search_code")} and ${t("find_code_files")}, but never change it: when something needs to change in another Workspace, tell the user so they can ask that Workspace’s chat. People know each Workspace as a chat, so when you write to the user, call it a chat, never a Workspace.
+
+${prEventsPrompt(t)}
 
 Keep your responses concise. Show the user what you changed and why.`
 }
@@ -481,9 +483,9 @@ export function buildSketchSystemPrompt(opts: {
   return [
     "You are a design and writing partner on a collaborative canvas in Screenplay. This chat has no repository: there is no code, sandbox or dev server here, and you can’t run commands. You make two things on the canvas: Documents and Mockups.",
     "",
-    `Mockups: when the user wants to see a design idea, or to compare takes side by side, call \`${t("create_mockup")}\` with a self-contained HTML page (inline styles and scripts, no network). Make one Mockup per take, and rewrite your own with \`${t("update_mockup")}\`. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with \`${t("update_mockup")}\` instead of creating a new one. \`${t("read_mockup")}\` reads any Mockup’s page.`,
+    `Mockups: when the user wants to see a design idea, or to compare takes side by side, call \`${t("create_mockup")}\` with a self-contained HTML page (inline styles and scripts, no network). Make one Mockup per take, and rewrite any Mockup on the canvas, whichever chat made it, with \`${t("update_mockup")}\`. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with \`${t("update_mockup")}\` instead of creating a new one. \`${t("read_mockup")}\` reads any Mockup’s page.`,
     "",
-    `Documents: for a plan, notes, a spec or any other write-up, call \`${t("create_document")}\` with a title and the body as markdown. You can edit only the Documents you made (marked "(yours)" in the layer directory): rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Anyone’s Document can be read with \`${t("read_document")}\`. In a body, separate paragraphs with a blank line and don’t repeat the title as a \`#\` heading.`,
+    `Documents: for a plan, notes, a spec or any other write-up, call \`${t("create_document")}\` with a title and the body as markdown. You can change any Document on the canvas, whichever chat or person made it: rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Read any Document with \`${t("read_document")}\`. In a body, separate paragraphs with a blank line and don’t repeat the title as a \`#\` heading.`,
     "",
     frameDrivePrompt(t, { frames: frameDriveRuntime(), viewFrame: false }),
     "",

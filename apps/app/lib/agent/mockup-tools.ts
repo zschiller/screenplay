@@ -11,15 +11,14 @@ import {
 } from "@/lib/constants"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
-import { editRight } from "@/lib/canvas/document-owner"
+import { lastChangedBy } from "@/lib/canvas/layer-chat"
 
 /**
  * A chat's Mockup tools (#1309): write a static HTML page onto the canvas as a
- * Mockup Layer, rewrite the ones this chat made, and read any Mockup's page
- * back (#1313), e.g. to build a picked take. Every Mockup records the
- * chat that made it, which is the only chat its update tool accepts and the
- * name its label shows. Once that chat is deleted any chat may change it, and
- * the first that does becomes its chat.
+ * Mockup Layer, rewrite any Mockup on the canvas (#1724), and read any
+ * Mockup's page back (#1313), e.g. to build a picked take. Each create or
+ * update records the chat as the Mockup's `lastChangedByChatId`, which its
+ * Knobs Ask and drafts go to (`lib/canvas/layer-chat`).
  *
  * Writes go through the turn's `room.mutateDoc` and Canvas Operations, so a
  * Mockup lands exactly as one a member's client would write. They read through
@@ -29,7 +28,7 @@ import { editRight } from "@/lib/canvas/document-owner"
 export interface MockupToolContext {
   /** The turn's Room, opened through Room Access by the agent route. */
   room: RoomDoc
-  /** The chat whose turn this is: the owner of every Mockup it creates. */
+  /** The chat whose turn this is: what the Mockups it changes record. */
   chatId: string
 }
 
@@ -82,7 +81,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
             title,
             width: width ?? DEFAULT_IFRAME_LAYER_WIDTH,
             height: height ?? DEFAULT_IFRAME_LAYER_HEIGHT,
-            ownerChatId: ctx.chatId,
+            lastChangedByChatId: ctx.chatId,
             groupId: mockupGroupFor(collections, ctx.chatId),
           })
         })
@@ -93,7 +92,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
 
     update_mockup: tool({
       description:
-        "Change a Mockup this chat made, or one whose chat was deleted (changing it makes it this chat’s): replace its whole page, its title, or both. The canvas re-renders it in place. A Mockup another chat on the canvas made is theirs to change.",
+        "Change any Mockup on the canvas, whichever chat made it: replace its whole page, its title, or both. The canvas re-renders it in place.",
       inputSchema: z.object({
         mockup_id: z.string().describe("The id create_mockup returned"),
         html: htmlSchema.optional(),
@@ -107,75 +106,57 @@ export function buildMockupTools(ctx: MockupToolContext) {
           const collections = createRoomCollections(doc)
           const mockup = collections.mockupLayers.get(mockup_id)
           if (!mockup) return "missing" as const
-          const right = editRight(
-            mockup.ownerChatId,
-            ctx.chatId,
-            (id) => !!collections.chatSessions.get(id)
-          )
-          if (right === "theirs") return "not-owner" as const
           const ops = createCanvasOps(collections)
           ops.batch(() => {
-            if (right === "claim") {
-              collections.mockupLayers.update(mockup_id, {
-                ownerChatId: ctx.chatId,
-              })
-            }
+            collections.mockupLayers.update(mockup_id, {
+              lastChangedByChatId: ctx.chatId,
+            })
             ops.updateMockup(mockup_id, { html, title })
           })
           return "updated" as const
         })
         if (outcome === "missing") return `There’s no Mockup ${mockup_id}.`
-        if (outcome === "not-owner") {
-          return `Mockup ${mockup_id} was made by another chat, and only that chat can change it. Create your own with create_mockup.`
-        }
         return `Updated Mockup ${mockup_id}.`
       },
     }),
 
     read_mockup: tool({
       description:
-        "Read Mockups back. Without an id, lists this chat’s Mockups with their ids and titles. With an id, returns that Mockup’s title and whole page, e.g. to build a picked take from it. Reads any Mockup on the canvas. Read-only.",
+        "Read Mockups back. Without an id, lists the Mockups this chat changed last, with their ids and titles. With an id, returns that Mockup’s title and whole page, e.g. to build a picked take from it. Reads any Mockup on the canvas. Read-only.",
       inputSchema: z.object({
         mockup_id: z
           .string()
           .optional()
-          .describe("The Mockup to read; leave it out to list your Mockups"),
+          .describe(
+            "The Mockup to read; leave it out to list the Mockups this chat changed last"
+          ),
       }),
       execute: async ({ mockup_id }) => {
         if (mockup_id === undefined) {
           const own = await ctx.room.readDoc(({ mockupLayers }) =>
             mockupLayers
               .toArray()
-              .filter((m) => m.ownerChatId === ctx.chatId)
+              .filter((m) => lastChangedBy(m) === ctx.chatId)
               .map((m) => ({ id: m.id, title: m.title }))
           )
-          if (own.length === 0) return "This chat hasn’t made any Mockups."
+          if (own.length === 0) {
+            return "No Mockup was changed last by this chat. Pass a mockup_id to read any Mockup on the canvas."
+          }
           return [
-            "Your Mockups:",
+            "Mockups this chat changed last:",
             ...own.map((m) => `- ${m.id}: ${m.title}`),
           ].join("\n")
         }
-        const found = await ctx.room.readDoc(
-          ({ mockupLayers, chatSessions, doc }) => {
-            const mockup = mockupLayers.get(mockup_id)
-            if (!mockup) return null
-            return {
-              title: mockup.title,
-              right: editRight(
-                mockup.ownerChatId,
-                ctx.chatId,
-                (id) => !!chatSessions.get(id)
-              ),
-              html: mockupHtml(doc, mockup_id).toString(),
-            }
+        const found = await ctx.room.readDoc(({ mockupLayers, doc }) => {
+          const mockup = mockupLayers.get(mockup_id)
+          if (!mockup) return null
+          return {
+            title: mockup.title,
+            html: mockupHtml(doc, mockup_id).toString(),
           }
-        )
+        })
         if (!found) return `There’s no Mockup ${mockup_id}.`
-        return [
-          `# ${found.title}${READ_NOTE[found.right]}`,
-          "",
-          found.html || "(empty page)",
-        ].join("\n")
+        return [`# ${found.title}`, "", found.html || "(empty page)"].join("\n")
       },
     }),
   }
@@ -187,15 +168,8 @@ export function buildMockupTools(ctx: MockupToolContext) {
   })
 }
 
-/** What read_mockup says after a Mockup's title about who can change it. */
-const READ_NOTE = {
-  own: "",
-  claim: " (its chat was deleted; you can change it)",
-  theirs: " (made by another chat)",
-} as const
-
 /**
- * Where a chat's new Mockup lands: beside its latest Mockup, else in the Group
+ * Where a chat's new Mockup lands: beside the latest Mockup it changed, else in the Group
  * of its Workspace's first frame, else (`undefined`) in a new Group beside the
  * others.
  */
@@ -210,7 +184,7 @@ export function mockupGroupFor(
     )?.id
   const own = collections.mockupLayers
     .toArray()
-    .filter((m) => m.ownerChatId === chatId)
+    .filter((m) => lastChangedBy(m) === chatId)
   const latest = own.at(-1)
   if (latest) {
     const id = groupOf("mockup-layer", new Set([latest.id]))

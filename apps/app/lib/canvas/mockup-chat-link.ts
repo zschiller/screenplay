@@ -1,4 +1,4 @@
-import { layerOwner, isOrphaned } from "@/lib/canvas/document-owner"
+import { lastChangedBy, layerChat } from "@/lib/canvas/layer-chat"
 import { isSketchChat } from "@/lib/chat/sketch-chat"
 import { mockupQuestion, type MockupQuestion } from "@/lib/agent/question"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -12,10 +12,10 @@ import type { ChatSessionData, MockupLayerData } from "@/lib/types"
  * question, answer). React-free; the canvas builds one link from its stores
  * and hands it to every Mockup (`components/canvas/mockup-chat-link.tsx`).
  *
- * The chat that speaks for a Mockup is its {@link layerOwner}: the Sketch Chat
- * that made it, or its Workspace's chat. A Mockup without one (made by hand,
- * by the Coordinator, which has no Mockup tools, or whose chat was deleted)
- * goes to the chat the panel shows, or a new Sketch Chat when the panel shows
+ * The chat that speaks for a Mockup is its {@link layerChat}: the Sketch Chat
+ * that last changed it, or that chat's Workspace's chat (#1724). A Mockup
+ * without one (made by hand, or whose last chat was deleted) goes to the chat
+ * the panel shows, or a new Sketch Chat when the panel shows
  * the Coordinator. A question is the exception: any chat may ask one about a
  * Mockup (`ask_question` with a `mockup_id`), so the page shows it whichever
  * chat asked, and the answer goes back to that chat.
@@ -34,7 +34,10 @@ export type ShownChat =
   | null
 
 export interface MockupChatLinkDeps {
-  mockups: readonly Pick<MockupLayerData, "id" | "title" | "ownerChatId">[]
+  mockups: readonly Pick<
+    MockupLayerData,
+    "id" | "title" | "lastChangedByChatId" | "ownerChatId"
+  >[]
   chats: readonly Pick<
     ChatSessionData,
     "id" | "branchId" | "target" | "createdAt"
@@ -69,7 +72,7 @@ export interface MockupChatLinkDeps {
 }
 
 export interface MockupChatLink {
-  /** Whether the Mockup offers the Knobs Ask: a chat made it, or its chat is gone. */
+  /** Whether the Mockup offers the Knobs Ask: any Mockup on the canvas does. */
   canAsk(mockupId: string): boolean
   /** Start an "add a knob" request in the chat that can rewrite the page. */
   askForKnob(mockupId: string): void
@@ -95,18 +98,21 @@ export interface MockupChatLink {
 export function createMockupChatLink(deps: MockupChatLinkDeps): MockupChatLink {
   const { mockups, chats, panel, input } = deps
   const mockupOf = (id: string) => mockups.find((m) => m.id === id)
-  const ownerOf = (id: string) => layerOwner(mockupOf(id)?.ownerChatId, chats)
+  const chatOf = (id: string) => {
+    const mockup = mockupOf(id)
+    return mockup ? layerChat(lastChangedBy(mockup), chats) : null
+  }
 
   /** Open the chat that speaks for a Mockup and return its id. */
   function openChat(mockupId: string): string {
-    const owner = ownerOf(mockupId)
-    if (owner?.kind === "sketch") {
-      panel.showSketchChat(owner.chatId)
-      return owner.chatId
+    const found = chatOf(mockupId)
+    if (found?.kind === "sketch") {
+      panel.showSketchChat(found.chatId)
+      return found.chatId
     }
-    if (owner?.kind === "workspace") {
-      panel.showWorkspaceChat(owner.branchId, owner.chatId)
-      return owner.chatId
+    if (found?.kind === "workspace") {
+      panel.showWorkspaceChat(found.branchId, found.chatId)
+      return found.chatId
     }
     const shown = panel.shown()
     if (shown?.kind === "agent") return panel.openWorkspaceChat(shown.branchId)
@@ -138,9 +144,7 @@ export function createMockupChatLink(deps: MockupChatLinkDeps): MockupChatLink {
 
   return {
     canAsk(mockupId) {
-      const mockup = mockupOf(mockupId)
-      if (!mockup) return false
-      return !!ownerOf(mockupId) || isOrphaned(mockup.ownerChatId, chats)
+      return !!mockupOf(mockupId)
     },
 
     askForKnob(mockupId) {
@@ -167,14 +171,15 @@ export function createMockupChatLink(deps: MockupChatLinkDeps): MockupChatLink {
         return hit.found
       }
       // Each chat's latest question about it. An open one beats an answered
-      // one, and the owner's beats another chat's.
-      const owner = mockupOf(mockupId)?.ownerChatId
+      // one, and the last changer's beats another chat's.
+      const mockup = mockupOf(mockupId)
+      const last = mockup && lastChangedBy(mockup)
       let found: AskedQuestion | null = null
       for (const [i, chat] of chats.entries()) {
         const latest = mockupQuestion([...transcripts[i]!], mockupId)
         if (!latest) continue
         const next = { ...latest, chatId: chat.id }
-        if (!found || rank(next, owner) > rank(found, owner)) found = next
+        if (!found || rank(next, last) > rank(found, last)) found = next
       }
       asked.set(mockupId, { transcripts, found })
       return found
@@ -195,8 +200,8 @@ export function createMockupChatLink(deps: MockupChatLinkDeps): MockupChatLink {
   }
 }
 
-function rank(q: AskedQuestion, ownerChatId: string | undefined): number {
-  return (q.answer ? 0 : 2) + (q.chatId === ownerChatId ? 1 : 0)
+function rank(q: AskedQuestion, lastChatId: string | undefined): number {
+  return (q.answer ? 0 : 2) + (q.chatId === lastChatId ? 1 : 0)
 }
 
 /** Who drives a Mockup's page and how this viewer sees it. */

@@ -119,7 +119,7 @@ function room(workspace: "running" | "stopped" = "running"): RoomDoc {
     title: "A",
     width: 400,
     height: 300,
-    ownerChatId: "chat-1",
+    lastChangedByChatId: "chat-1",
   })
   return {
     roomId: "room-1",
@@ -252,7 +252,7 @@ describe("a chat's `read_skill` and its Mockup's `skill:` references (#1664)", (
     const r = room()
     void r.mutateDoc((c) => {
       c.chatSessions.set("chat-s", sketchChatSession("chat-s", 1))
-      c.mockupLayers.update("m-1", { ownerChatId: chatId })
+      c.mockupLayers.update("m-1", { lastChangedByChatId: chatId })
     })
     return r
   }

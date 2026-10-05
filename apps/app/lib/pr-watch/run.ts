@@ -1,20 +1,23 @@
 import "server-only"
 
+import { after } from "next/server"
 import { textBlock } from "@/lib/agent/acp/schema"
 import { broadcastAcpUpdate } from "@/lib/agent/broadcast"
-import { appendAcpMessage } from "@/lib/agent/persistence"
+import { appendAcpMessage, loadAcpHistory } from "@/lib/agent/persistence"
+import { launchPrWakeTurn } from "@/lib/agent/turn-launch-live"
 import { userTurnEcho } from "@/lib/agent/user-turn"
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import { kv } from "@/lib/kv"
 import {
+  actAsMember,
   chatRoomId,
   openRoomForPrWatchTick,
   type RoomDoc,
 } from "@/lib/room-access"
 import { canAccess, getRoom } from "@/lib/rooms"
-import { prEventMessage } from "./events"
 import { githubPrReader } from "./github"
+import { deliverPrWakes, type ChatPrEvent, type PrWakePorts } from "./wake"
 import {
   watchRoomPrs,
   type GitHubPrReader,
@@ -24,9 +27,9 @@ import {
 
 /**
  * PR Watch's live wiring (#1702): one look at a Room under a lock, its events
- * added to their Workspace Chats, and the index of Rooms the server tick
- * watches. The browser poll (`listBranchPrs`) and the tick both come through
- * {@link runPrWatch}.
+ * delivered to their Workspace Chats (waking the agent where one needs action,
+ * #1703), and the index of Rooms the server tick watches. The browser poll
+ * (`listBranchPrs`) and the tick both come through {@link runPrWatch}.
  */
 
 /** Rooms with an open PR, one KV key each, so the tick finds them without
@@ -36,23 +39,51 @@ const WATCHED_PREFIX = "pr-watch:room:"
  *  each add its event. */
 const LOCK_PREFIX = "pr-watch:lock:"
 const LOCK_TTL_SEC = 60
+/** PR events held behind a turn in flight (#1703), one KV key per Room. */
+const HELD_PREFIX = "pr-watch:held:"
+
+/** Where a wake turn's Engine work runs once it has started. */
+export type RunAfter = (task: () => Promise<void>) => void
+
+export interface RunPrWatchOptions {
+  openOnly?: boolean
+  /**
+   * Who a wake acts for when its Branch's owner isn't recorded or has left
+   * the Room: the polling member, or on the tick the Room's owner.
+   */
+  fallbackUserId?: string
+  /** Defaults to `after()`, for a look a request started. */
+  runAfter?: RunAfter
+}
 
 /**
- * Look at a Room's PRs once and deliver what changed. `null` when another look
- * at the same Room is already running; the doc then gets its result from that
- * one.
+ * Look at a Room's PRs once and deliver what changed, then the events held
+ * from an earlier look. `null` when another look at the same Room is already
+ * running; the doc then gets its result from that one.
  */
 export async function runPrWatch(
   room: RoomDoc,
   read: GitHubPrReader,
-  opts: { openOnly?: boolean } = {}
+  { fallbackUserId, runAfter = after, ...opts }: RunPrWatchOptions = {}
 ): Promise<PrWatchResult | null> {
   const lock = await kv.acquireLock(LOCK_PREFIX + room.roomId, LOCK_TTL_SEC)
   if (!lock) return null
   try {
     const result = await watchRoomPrs(room, read, opts)
-    await deliverPrEvents(room, result.events)
-    await markWatched(room.roomId, result.hasOpenPr)
+    const heldKey = HELD_PREFIX + room.roomId
+    const held = (await kv.get<ChatPrEvent[]>(heldKey)) ?? []
+    const events = await inWorkspaceChats(room, result.events)
+    const stillHeld =
+      held.length + events.length === 0
+        ? held
+        : await deliverPrWakes(
+            livePrWakePorts(room, { fallbackUserId, runAfter }),
+            held,
+            events
+          )
+    if (stillHeld.length > 0) await kv.set(heldKey, stillHeld)
+    else if (held.length > 0) await kv.del(heldKey)
+    await markWatched(room.roomId, result.hasOpenPr || stillHeld.length > 0)
     return result
   } finally {
     await lock.release().catch(() => {})
@@ -60,34 +91,70 @@ export async function runPrWatch(
 }
 
 /**
- * Add each PR event to its Branch's Workspace Chat: saved to the chat's log
- * and echoed to everyone in the Room, so open chats draw the line at once and
- * a reload draws the same one. A Branch whose chat has never run a turn has
- * no log to add to, and is skipped.
+ * Each PR event bound for its Branch's Workspace Chat. A Branch whose chat
+ * has never run a turn has no log to add to, and is skipped.
  */
-async function deliverPrEvents(room: RoomDoc, events: PrEvent[]) {
-  if (events.length === 0) return
+async function inWorkspaceChats(
+  room: RoomDoc,
+  events: PrEvent[]
+): Promise<ChatPrEvent[]> {
+  if (events.length === 0) return []
   const chatIds = await room.readDoc(({ chatSessions }) => {
     const sessions = chatSessions.toArray()
     return new Map(
       events.map((e) => [e.branchId, workspaceChatId(sessions, e.branchId)])
     )
   })
+  const bound: ChatPrEvent[] = []
   for (const event of events) {
     const chatId = chatIds.get(event.branchId)
     if (!chatId) continue
     if ((await chatRoomId(chatId)) !== room.roomId) continue
-    const wire = prEventMessage(event)
-    try {
-      await appendAcpMessage(chatId, {
-        role: "user",
-        content: [textBlock(wire)],
+    bound.push({ ...event, chatId })
+  }
+  return bound
+}
+
+/**
+ * PR wakes over the live database, Turn Launch and broadcast. A line is saved
+ * to the chat's log and echoed to everyone in the Room, so open chats draw it
+ * at once and a reload draws the same one. A wake runs as the Branch's owner,
+ * or `fallbackUserId` when the owner isn't a member.
+ */
+function livePrWakePorts(
+  room: RoomDoc,
+  { fallbackUserId, runAfter }: { fallbackUserId?: string; runAfter: RunAfter }
+): PrWakePorts {
+  return {
+    history: loadAcpHistory,
+    async addLine({ chatId }, wire) {
+      try {
+        await appendAcpMessage(chatId, {
+          role: "user",
+          content: [textBlock(wire)],
+        })
+      } catch (e) {
+        console.error("PR event not saved:", e)
+        return
+      }
+      await broadcastAcpUpdate(room.roomId, chatId, userTurnEcho(wire))
+    },
+    async launch({ branchId, chatId }, message) {
+      const owner = await room.readDoc(
+        ({ branches }) => branches.get(branchId)?.createdBy
+      )
+      const access = await actAsMember(room, [owner, fallbackUserId])
+      if (!access) return "unavailable"
+      return launchPrWakeTurn(access, { branchId, chatId, message }, runAfter)
+    },
+    async pauseWakes({ branchId, number }) {
+      await room.mutateDoc(({ branches }) => {
+        const branch = branches.get(branchId)
+        if (branch && branch.prWakesPaused !== number) {
+          branches.update(branchId, { prWakesPaused: number })
+        }
       })
-    } catch (e) {
-      console.error("PR event not saved:", e)
-      continue
-    }
-    await broadcastAcpUpdate(room.roomId, chatId, userTurnEcho(wire))
+    },
   }
 }
 
@@ -109,14 +176,16 @@ const TICK_CONCURRENCY = 4
  * account (the member who created it), falling back to the Room's owner for
  * Branches from before owners were recorded or whose owner has left.
  */
-export async function runPrWatchTick(): Promise<{ rooms: number }> {
+export async function runPrWatchTick(
+  runAfter: RunAfter = after
+): Promise<{ rooms: number }> {
   const roomIds = (await kv.keys(WATCHED_PREFIX)).map((k) =>
     k.slice(WATCHED_PREFIX.length)
   )
   const queue = [...roomIds]
   const worker = async () => {
     for (let id = queue.shift(); id; id = queue.shift()) {
-      await tickRoom(id).catch((e) => {
+      await tickRoom(id, runAfter).catch((e) => {
         console.error(`PR Watch tick failed for ${id}:`, e)
       })
     }
@@ -125,7 +194,7 @@ export async function runPrWatchTick(): Promise<{ rooms: number }> {
   return { rooms: roomIds.length }
 }
 
-async function tickRoom(roomId: string) {
+async function tickRoom(roomId: string, runAfter: RunAfter) {
   const record = await getRoom(roomId)
   if (!record) {
     await kv.del(WATCHED_PREFIX + roomId)
@@ -146,5 +215,9 @@ async function tickRoom(roomId: string) {
     const own = target.ownerId ? await tokenOf(target.ownerId) : null
     return own ?? tokenOf(record.ownerId)
   })
-  await runPrWatch(openRoomForPrWatchTick(roomId), read, { openOnly: true })
+  await runPrWatch(openRoomForPrWatchTick(roomId), read, {
+    openOnly: true,
+    fallbackUserId: record.ownerId,
+    runAfter,
+  })
 }

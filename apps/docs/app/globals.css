@@ -720,10 +720,12 @@ article .nextra-steps {
 
 /* Text selection: the solid magenta from packages/ui tokens.css. Nextra's
    <Head> injects its own unlayered `::selection` (the primary at 30%) after
-   our styles, so this one wins on specificity. */
+   our styles, so this one wins on specificity. `fill` keeps selected
+   diagram text black too, not its own grey. */
 html ::selection {
   background-color: oklch(0.667 0.295 322.15);
   color: oklch(0 0 0);
+  fill: oklch(0 0 0);
 }
 
 /* Every underline sits a little below the text, as in the app

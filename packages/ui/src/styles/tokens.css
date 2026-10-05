@@ -8,7 +8,8 @@
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
-    /* UI text has two steps, Tailwind's text-xs (12px) and text-sm (14px),
+    /* UI text has two steps, Tailwind's text-xs (12px) and text-sm (14px;
+       the app sets it to 13px and adds a 14px text-prose for chat replies),
        plus the title sizes below (#1141). Nothing goes under 12px:
        apps/app/lib/type-scale.test.ts fails on smaller or arbitrary sizes. */
     /* Title sizes for `font-heading` titles (#1077), tapered so the biggest
@@ -210,9 +211,12 @@
 }
 
 /* Text selection: solid magenta (the accent, as the canvas selection and the
-   focus rings) under black text, the same in both themes, on every surface
-   that loads these tokens (app, homepage, docs). */
+   focus rings) under black text, the same in both themes, on the homepage
+   and docs. The app softens it to a lighter pink (apps/app globals.css).
+   `fill` too: Chrome paints selected SVG text (the docs diagrams) with
+   its own fill unless the selection sets one. */
 ::selection {
     background-color: oklch(0.667 0.295 322.15);
     color: oklch(0 0 0);
+    fill: oklch(0 0 0);
 }

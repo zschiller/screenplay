@@ -18,8 +18,9 @@ import { workspaceLabel } from "@/lib/workspace-label"
  * show it at their end (#963), except that a PR which can't merge needs you.
  *
  * Needs you means the person has to act: a plan waiting for approval, a
- * question card waiting for an answer, a PR whose merge is blocked, or (as
- * the error line) a failed setup. An open,
+ * question card waiting for an answer, a PR whose events stopped waking the
+ * agent (#1703), a PR whose merge is blocked, or (as the error line) a failed
+ * setup. An open,
  * healthy PR waits on its reviewers, so it's Ready.
  *
  * Pure, so `workspace-state.test.ts` asserts it from one fixture table with no
@@ -29,7 +30,14 @@ import { workspaceLabel } from "@/lib/workspace-label"
 /** The slice of a Branch the status line reads. {@link BranchData} satisfies it. */
 type StatusLineBranch = Pick<
   BranchData,
-  "status" | "statusMessage" | "error" | "doneAt" | "prState" | "prBlocked"
+  | "status"
+  | "statusMessage"
+  | "error"
+  | "doneAt"
+  | "prNumber"
+  | "prState"
+  | "prBlocked"
+  | "prWakesPaused"
 >
 
 interface StatusLineContext {
@@ -97,9 +105,12 @@ function workspaceStatusLine(
     ? { kind: "idle", state: "needs-you", text: "Plan waiting for approval" }
     : ctx.questionPending
       ? { kind: "idle", state: "needs-you", text: "Question waiting" }
-      : branch.prState === "open" && branch.prBlocked
-        ? { kind: "idle", state: "needs-you", text: "Merge blocked" }
-        : null
+      : branch.prWakesPaused !== undefined &&
+          branch.prWakesPaused === branch.prNumber
+        ? { kind: "idle", state: "needs-you", text: "PR needs you" }
+        : branch.prState === "open" && branch.prBlocked
+          ? { kind: "idle", state: "needs-you", text: "Merge blocked" }
+          : null
   // A stopped sandbox still waits on the person for its plan, question or PR.
   if (branch.status === "stopped")
     return needsYou ?? { kind: "idle", state: "stopped", text: "Stopped" }

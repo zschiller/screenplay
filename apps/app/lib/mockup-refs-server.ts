@@ -10,6 +10,7 @@ import {
 } from "@/lib/mockup-refs"
 import type { RoomDoc } from "@/lib/room-access"
 import { chatSkillSources } from "@/lib/agent/chat-skill-sources"
+import { lastChangedBy } from "@/lib/canvas/layer-chat"
 
 /** A file a reference names: its media type and bytes. */
 export interface MockupRefFile {
@@ -64,17 +65,20 @@ async function resolveOne(
 
 /**
  * The references' sources for a Mockup on a Room: the Skills the chat that
- * made it sees (`read_skill`'s, with `userId`'s Account Skills, the viewer's;
+ * last changed it sees (#1724) (`read_skill`'s, with `userId`'s Account Skills, the viewer's;
  * none without one), and the canvas Files.
  */
 export async function mockupRefSources(
   room: RoomDoc,
   opts: { mockupId: string; userId?: string | null }
 ): Promise<MockupRefSources> {
-  const ownerChatId = await room
-    .readDoc((c) => c.mockupLayers.get(opts.mockupId)?.ownerChatId)
+  const chatId = await room
+    .readDoc((c) => {
+      const mockup = c.mockupLayers.get(opts.mockupId)
+      return mockup && lastChangedBy(mockup)
+    })
     .catch(() => undefined)
-  const skills = await chatSkillSources(room, ownerChatId, opts.userId ?? null)
+  const skills = await chatSkillSources(room, chatId, opts.userId ?? null)
   return {
     async skillFile(name, path) {
       const content = await skills.file(name, path)

@@ -51,10 +51,38 @@ const SENTENCE: Record<PrEventKind, (n: number, detail?: string) => string> = {
   closed: (n) => `PR #${n} was closed without merging.`,
 }
 
+/** The PR events that wake the chat's agent (#1703): the ones that need a
+ *  fix or end the PR. Checks passing again is only a line. */
+const WAKES: ReadonlySet<PrEventKind> = new Set<PrEventKind>([
+  "checks_failed",
+  "conflict",
+  "merged",
+  "closed",
+])
+
+/** Whether a PR event wakes the chat's agent, rather than only showing. */
+export function prEventWakes(kind: PrEventKind): boolean {
+  return WAKES.has(kind)
+}
+
+/** What the agent does about a PR event that woke it. */
+const NUDGE: Record<PrEventKind, string> = {
+  checks_failed:
+    "Read the failing checks, fix the cause and push. If you can’t fix it, reply saying why.",
+  checks_passed: "",
+  conflict:
+    "Bring the base branch in, resolve the conflict and push. If you can’t resolve it safely, reply saying why.",
+  merged:
+    "Reply in one line saying the PR merged, unless something is left for the user.",
+  closed:
+    "Reply in one line saying the PR was closed, unless something is left for the user.",
+}
+
 /**
  * The Workspace Chat message for a PR event. It carries the `[pr event: …]`
  * marker, so the chat draws it as a quiet line rather than a bubble, while the
- * agent reads a plain sentence saying what happened.
+ * agent reads a plain sentence saying what happened and, for one that wakes
+ * it, what to do.
  */
 export function prEventMessage(event: PrEvent): string {
   const { number, kind, detail, url } = event
@@ -64,6 +92,7 @@ export function prEventMessage(event: PrEvent): string {
       url,
       "",
       "This is an automatic update from GitHub, not a message from the user.",
+      ...(NUDGE[kind] ? [NUDGE[kind]] : []),
     ].join("\n"),
     { prEvent: { number, kind, ...(detail ? { detail } : {}) } }
   )

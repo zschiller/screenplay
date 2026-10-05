@@ -61,10 +61,10 @@ import {
 interface MockupLayerProps {
   layer: MockupLayerData
   /**
-   * The Workspace of the chat that made it (#1309), named after its title
-   * unless the group label names it.
+   * A chat's Workspace, named after the title. The canvas names none since
+   * any chat changes any layer (#1724): an idle layer shows only its title.
    */
-  ownerWorkspace?: FrameWorkspace
+  chatWorkspace?: FrameWorkspace
   zoom: number
   /** The Canvas hides this Layer's label (see `hiddenLayerLabels`). */
   labelHidden?: boolean
@@ -205,7 +205,7 @@ const ignoreLive = () => {}
  */
 export function MockupLayer({
   layer,
-  ownerWorkspace,
+  chatWorkspace,
   zoom,
   labelHidden,
   selected,
@@ -432,15 +432,15 @@ export function MockupLayer({
           onSelectLayer={api.deferSelect}
           onRename={(next) => onRename(layer.id, next)}
           trailing={
-            ownerWorkspace && (
+            chatWorkspace && (
               <MaybeWorkspaceHoverCard
-                branchId={ownerWorkspace.branchId}
+                branchId={chatWorkspace.branchId}
                 side="bottom"
               >
                 {/* The mention doesn't take the trigger's props; this span
                   does. Names win: the Workspace gives up its width first. */}
                 <span className="flex min-w-10 shrink-[100] text-xs text-muted-foreground">
-                  <CompactWorkspaceMention workspace={ownerWorkspace} />
+                  <CompactWorkspaceMention workspace={chatWorkspace} />
                 </span>
               </MaybeWorkspaceHoverCard>
             )
@@ -512,7 +512,7 @@ export function MockupLayer({
                   <GripSpinner className="text-muted-foreground" />
                 </EmptyMedia>
                 <EmptyTitle>Sketching</EmptyTitle>
-                <EmptyDescription className="text-xs/relaxed">
+                <EmptyDescription>
                   The chat is drawing this page.
                 </EmptyDescription>
               </EmptyHeader>

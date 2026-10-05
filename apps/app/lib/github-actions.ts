@@ -347,7 +347,8 @@ export async function listBranchPrs(
   if (!token) return []
   const result = await runPrWatch(
     room,
-    githubPrReader(async () => token)
+    githubPrReader(async () => token),
+    { fallbackUserId: room.userId }
   )
   return (result?.prs ?? []).map(({ id, pr }) => ({
     id,

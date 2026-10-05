@@ -11,7 +11,7 @@ and the agent should share.
 
 <Screenshot
   name="doc-chat"
-  alt="A ‘Pricing launch checklist’ document on the canvas, labelled with the Pricing FAQ chat that wrote it, and that chat open"
+  alt="A ‘Pricing launch checklist’ document on the canvas, written by the Pricing FAQ chat, and that chat open"
 />
 
 ## Creating and editing
@@ -74,9 +74,10 @@ can put an image from the canvas’s files in it too.
 ## Ask an agent about a passage
 
 Select text in a document and click **Reply in chat** (the curved arrow at the
-end of the formatting toolbar). On a document a chat wrote, the passage goes
-into that chat’s composer and the panel switches to it. On a document you made
-yourself, it goes into the chat the agent panel is showing, whether that’s the
+end of the formatting toolbar). On a document a chat wrote or edited, the
+passage goes into the composer of the chat that changed it last, and the panel
+switches to it. On a document no chat has changed, it goes into the chat the
+agent panel is showing, whether that’s the
 [Coordinator](/guides/coordinator) or another chat. Either way the panel
 opens if it was closed. This works the same in the hosted app and the desktop
 app.
@@ -108,22 +109,18 @@ contents.
 
 A [chat](/guides/agent) can write documents: ask it for a plan, a
 spec or release notes and it drops a new document beside that chat’s
-frames. The document shows the chat’s name next to its title, the same
-way a group does, unless the group around it already says it. Documents you
-make yourself show no name. A
+frames. A document’s label shows only its title. A
 [chat with no repository](/guides/agent#chats-with-no-repository) writes
 documents too, on a canvas with no repository or beside other chats.
 
-A chat edits only the documents it wrote. It can rewrite the body, append to
+Any chat can edit any document, whether a chat wrote it or you made it
+yourself. It can rewrite the body, append to
 it and change the title, and its edits merge live into the shared document, so
 it never overwrites what you’re typing. A chat reads a document’s formatting,
 images and mentions, each mention by its current name, and appending keeps
-them all. Every chat can read every document,
-but to have a chat change one you made, ask it to write a new one or edit the
-text yourself. When the chat that wrote a document is deleted, any chat can
-edit it, and the first one that does becomes the chat it belongs to. The agent’s tool calls show as **Create document**, **Rewrite
+them all. Every document remembers the chat that changed it last. The agent’s tool calls show as **Create document**, **Rewrite
 document**, **Append to document**, **Set title** and **Read document** rows.
 
 Comments go to the same place. **Send to agent** on a thread on a chat’s
-document sends it to the chat that wrote it. On a document you made, it goes
-to the chat the agent panel is showing.
+document sends it to the chat that changed it last. On a document no chat has
+changed, it goes to the chat the agent panel is showing.

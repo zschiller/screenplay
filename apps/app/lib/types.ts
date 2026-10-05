@@ -209,6 +209,12 @@ export type BranchData = {
   prChecksFailed?: boolean
   prConflict?: boolean
   /**
+   * The PR whose events stopped waking the agent (#1703): it took
+   * `PR_WAKE_CAP` wake turns in a row with no message from a person, so the
+   * Workspace needs you. A person writing in its chat clears it.
+   */
+  prWakesPaused?: number
+  /**
    * Cached diff stats (additions/deletions vs the Repo's default branch, from
    * the GitHub compare API), refreshed by the same poll. Same rationale as the
    * PR cache above — read straight from the doc, no client round-trip. */
@@ -224,8 +230,7 @@ export type BranchData = {
  * work means more Branches. A Branch from before then may hold several: the
  * newest is its chat, the rest are read-only **earlier chats**. A Room has
  * exactly one Room Target chat (see `lib/chat/room-chat.ts`). Documents are no longer a chat's
- * target (#1314): a chat writes the Documents it owns
- * ({@link MarkdownLayerData.ownerChatId}). Chats saved against a Document
+ * target (#1314): any chat writes any Document with its tools (#1724). Chats saved against a Document
  * before then have neither field and are listed nowhere.
  *
  * Chat sessions live in the shared `chatSessions` Y.Doc collection. Terminal
@@ -437,9 +442,15 @@ export type MarkdownLayerData = {
   height: number
   title: string
   /**
-   * The chat that made this Document (#1314), which alone edits it with its
-   * tools and gets its Send to agent and Reply in chat. Unset for a Document
-   * a person made by hand, or one the Coordinator made.
+   * The chat that last made or changed this Document with its tools (#1724),
+   * which gets its Send to agent and Reply in chat (`lib/canvas/layer-chat`).
+   * Unset for a Document a person made by hand that no chat changed since.
+   */
+  lastChangedByChatId?: string
+  /**
+   * The chat that made it, on a Document from before #1724, when only that
+   * chat could change it. Read when `lastChangedByChatId` is unset; never
+   * written.
    */
   ownerChatId?: string
 }
@@ -456,10 +467,12 @@ export type MockupLayerData = {
   height: number
   title: string
   /**
-   * The chat that made the mockup (#1309), which alone updates it with its
-   * tools, and whose Workspace its label names, as a Document's owner does.
-   * Once that chat is gone the mockup stays and names none.
+   * The chat that last made or changed the Mockup with its tools (#1724),
+   * which its Knobs Ask, drafts and Draw-and-ask go to, and whose Workspace
+   * it borrows to go live, as for a Document.
    */
+  lastChangedByChatId?: string
+  /** The chat that made it, on a Mockup from before #1724; read, never written. */
   ownerChatId?: string
   /** Knob declarations the page posted, replaced wholesale on each, as a frame's are. */
   knobs?: JsonValue[]

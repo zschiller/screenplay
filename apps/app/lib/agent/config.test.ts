@@ -191,27 +191,29 @@ describe("buildAgentSystemPrompt — Documents (#1314)", () => {
   const directory = {
     ...EMPTY_DIRECTORY,
     documents: [
-      { id: "doc-1", title: "Rollout plan", ownerChatId: "chat-1" },
+      { id: "doc-1", title: "Rollout plan", lastChangedByChatId: "chat-1" },
       { id: "doc-2", title: "Notes" },
     ],
   }
 
-  it("tells the chat to write up plans in a Document it owns", () => {
+  it("tells the chat to write up plans in a Document, and that it can edit any (#1724)", () => {
     const prompt = buildAgentSystemPrompt({
       layerDirectory: EMPTY_DIRECTORY,
       skills: APP_SKILLS,
     })
     expect(prompt).toContain("call `create_document`")
-    expect(prompt).toContain("You can edit only the Documents you made")
+    expect(prompt).toContain(
+      "You can change any Document on the canvas, whichever chat or person made it"
+    )
   })
 
-  it("marks the chat’s own Documents in the layer directory", () => {
+  it("marks the Documents the chat changed last in the layer directory", () => {
     const prompt = buildAgentSystemPrompt({
       layerDirectory: directory,
       skills: APP_SKILLS,
       chatId: "chat-1",
     })
-    expect(prompt).toContain("- doc-1: Rollout plan (yours)")
+    expect(prompt).toContain("- doc-1: Rollout plan (you changed it last)")
     expect(prompt).toMatch(/- doc-2: Notes$/m)
   })
 })
@@ -234,6 +236,20 @@ describe("buildAgentSystemPrompt — one chat per Workspace (#1315)", () => {
     })
     expect(prompt).toContain("mcp__screenplay__read_code_file")
     expect(prompt).toContain("mcp__screenplay__find_code_files")
+  })
+})
+
+describe("buildAgentSystemPrompt — PR events (#1703)", () => {
+  it("says to fix and push, or reply saying why not", () => {
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: EMPTY_DIRECTORY,
+      skills: APP_SKILLS,
+      toolNaming: harnessToolNaming("claude-code", "screenplay"),
+    })
+    expect(prompt).toContain("[pr event: …]")
+    expect(prompt).toContain("mcp__screenplay__read_pr_checks")
+    expect(prompt).toContain("commit and push")
+    expect(prompt).toContain("reply in a sentence or two saying why")
   })
 })
 

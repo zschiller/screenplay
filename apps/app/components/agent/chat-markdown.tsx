@@ -50,6 +50,8 @@ const TONE_CLASS: Record<ChatMarkdownTone, string> = {
 }
 
 const SIZE_CLASS = {
+  /** What's said on the chat itself: replies and sent messages. */
+  prose: "text-prose",
   sm: "text-sm",
   xs: "text-xs",
 } as const

@@ -727,6 +727,41 @@ describe("Turn Launch — steering (#1190)", () => {
   })
 })
 
+describe("Turn Launch — PR event wakes (#1703)", () => {
+  const wake = {
+    ...request,
+    message: "[pr event: 7 checks_failed] …",
+    queueBehindRun: true,
+  }
+
+  it("starts an ordinary turn on an idle chat", async () => {
+    const { deps, log, flush } = recordingDeps()
+    const result = await launchTurn(deps, wake, target(log))
+    expect(result).toEqual({ kind: "started", runId: "run_1" })
+    await flush()
+    expect(log).toContain("drive run_1 planMode=false")
+  })
+
+  it("waits behind a running turn instead of steering it, writing nothing", async () => {
+    const { deps, log } = recordingDeps({
+      activeRun: { id: "run_9", status: "running", steers: true },
+    })
+    const result = await launchTurn(deps, wake, target(log))
+    expect(result).toEqual({ kind: "busy" })
+    expect(log).toEqual(["resolve engine"])
+  })
+
+  it("never rejects a plan waiting on the user", async () => {
+    const { deps, log } = recordingDeps({
+      activeRun: { id: "run_9", status: "paused_for_plan" },
+      pendingPlan: "plan_1",
+    })
+    const result = await launchTurn(deps, wake, target(log))
+    expect(result).toEqual({ kind: "busy" })
+    expect(log).toEqual(["resolve engine"])
+  })
+})
+
 describe("stopTurn (#909)", () => {
   it("records the stop, marks the transcript, then ends the stream", async () => {
     const { deps, log } = recordingStopDeps("run_1")

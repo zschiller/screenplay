@@ -499,9 +499,9 @@ export function AgentChat({
                 <div
                   role="status"
                   data-testid="run-in-progress"
-                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground"
                 >
-                  <GripSpinner className="size-3" />
+                  <GripSpinner className="size-4" />
                   {lastRole === "assistant" ? (
                     <span className="sr-only">Responding…</span>
                   ) : wakeFrom ? (

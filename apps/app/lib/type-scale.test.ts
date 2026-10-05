@@ -63,7 +63,8 @@ function violations(pattern: RegExp): string[] {
 
 describe("type scale", () => {
   it("uses theme text sizes, never arbitrary ones", () => {
-    // UI text is text-xs (12px) or text-sm (14px); titles use text-title-*.
+    // UI text is text-xs (12px), text-sm (13px) or text-prose (14px, chat
+    // replies); titles use text-title-*.
     expect(violations(ARBITRARY_TEXT_SIZE)).toEqual([])
   })
 

@@ -187,7 +187,7 @@ export function SkillSaveCard({
     <>
       <ChatDisclosure
         collapsible={false}
-        icon={<BookOpenIcon aria-hidden className="size-3 shrink-0" />}
+        icon={<BookOpenIcon aria-hidden className="size-4 shrink-0" />}
         title={<span className="font-medium">{offered.name}</span>}
         headerProps={{ "data-testid": "skill-save-card" }}
       >

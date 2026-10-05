@@ -87,7 +87,7 @@ export function useSharedFrames({
     MockupLayerData,
     "id" | "live" | "liveBranchId"
   >[]
-  /** Each chat-made Mockup's Workspace: its owning chat's. */
+  /** Each Mockup's Workspace: the one of the chat that last changed it. */
   mockupOwners?: ReadonlyMap<string, string>
   /** This viewer's user id; null until the session loads. */
   viewerId: string | null

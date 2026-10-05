@@ -86,6 +86,27 @@ export function openRoomForPrWatchTick(roomId: string): RoomDoc {
   return roomDoc(roomId)
 }
 
+/**
+ * Room Access for server work acting for a member no session holds: a PR
+ * event's wake (#1703) runs as the Branch's owner. The first of `userIds`
+ * still a member of the Room, or `null` when none is.
+ */
+export async function actAsMember(
+  room: RoomDoc,
+  userIds: readonly (string | null | undefined)[]
+): Promise<RoomAccess | null> {
+  for (const userId of userIds) {
+    if (!userId) continue
+    try {
+      const { role } = await requireMember(room.roomId, userId)
+      return { ...roomDoc(room.roomId), userId, role }
+    } catch {
+      // Not a member (any more); try the next.
+    }
+  }
+  return null
+}
+
 /** The chat's Room, or `null` when no turn has recorded the chat yet. */
 export async function chatRoomId(chatId: string): Promise<string | null> {
   const [row] = await db

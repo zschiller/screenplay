@@ -51,7 +51,7 @@ describe("create_mockup", () => {
     expect(out).toContain('Created Mockup "Option A"')
     expect(collections.mockupLayers.get(mockupId)).toMatchObject({
       title: "Option A",
-      ownerChatId: "chat-1",
+      lastChangedByChatId: "chat-1",
       width: 1280,
       height: 800,
     })
@@ -125,14 +125,15 @@ describe("update_mockup", () => {
 
   it("fills a Mockup a person drew and sent to this chat (#1359)", async () => {
     const { run, doc, collections, ops } = chatTools()
-    // What the ask card writes: an empty page, owned by the answering chat.
+    // What the ask card writes: an empty page, last changed by the answering
+    // chat.
     ops.createMockup({
       id: "drawn-1",
       html: "",
       title: "",
       width: 390,
       height: 844,
-      ownerChatId: "chat-1",
+      lastChangedByChatId: "chat-1",
       anchor: { x: 40, y: 60 },
     })
 
@@ -152,14 +153,14 @@ describe("update_mockup", () => {
     })
   })
 
-  it("refuses a Mockup another chat made", async () => {
-    const { run, doc, ops } = chatTools()
+  it("changes a Mockup another chat made, and records this chat (#1724)", async () => {
+    const { run, doc, ops, collections } = chatTools()
     const { mockupId } = ops.createMockup({
       html: "<p>theirs</p>",
       title: "Theirs",
       width: 400,
       height: 300,
-      ownerChatId: "chat-2",
+      lastChangedByChatId: "chat-2",
     })!
 
     const out = await run("update_mockup", {
@@ -167,28 +168,40 @@ describe("update_mockup", () => {
       html: "<p>mine</p>",
     })
 
-    expect(out).toContain("made by another chat")
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>theirs</p>")
+    expect(out).toBe(`Updated Mockup ${mockupId}.`)
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>mine</p>")
+    expect(collections.mockupLayers.get(mockupId)?.lastChangedByChatId).toBe(
+      "chat-1"
+    )
   })
 
-  it("lets the chat change a Mockup whose chat was deleted, and claims it", async () => {
+  it("changes a Mockup made by hand or from before #1724", async () => {
     const { run, doc, ops, collections } = chatTools()
-    const { mockupId } = ops.createMockup({
-      html: "<p>orphan</p>",
-      title: "Orphan",
+    const { mockupId: hand } = ops.createMockup({
+      html: "<p>hand</p>",
+      title: "Hand",
       width: 400,
       height: 300,
-      ownerChatId: "deleted-chat",
     })!
+    const { mockupId: old } = ops.createMockup({
+      html: "<p>old</p>",
+      title: "Old",
+      width: 400,
+      height: 300,
+    })!
+    collections.mockupLayers.update(old, { ownerChatId: "chat-2" })
 
-    const out = await run("update_mockup", {
-      mockup_id: mockupId,
-      html: "<p>mine now</p>",
+    await run("update_mockup", { mockup_id: hand, title: "Hand 2" })
+    await run("update_mockup", { mockup_id: old, html: "<p>new</p>" })
+
+    expect(collections.mockupLayers.get(hand)).toMatchObject({
+      title: "Hand 2",
+      lastChangedByChatId: "chat-1",
     })
-
-    expect(out).toBe(`Updated Mockup ${mockupId}.`)
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>mine now</p>")
-    expect(collections.mockupLayers.get(mockupId)?.ownerChatId).toBe("chat-1")
+    expect(mockupHtml(doc, old).toString()).toBe("<p>new</p>")
+    expect(collections.mockupLayers.get(old)?.lastChangedByChatId).toBe(
+      "chat-1"
+    )
   })
 
   it("reports a missing Mockup", async () => {
@@ -200,7 +213,7 @@ describe("update_mockup", () => {
 })
 
 describe("read_mockup", () => {
-  it("lists the chat’s own Mockups", async () => {
+  it("lists the Mockups this chat changed last", async () => {
     const { run, ops } = chatTools()
     const a = idIn(
       await run("create_mockup", { title: "Take 1", html: "<p>1</p>" })
@@ -208,23 +221,38 @@ describe("read_mockup", () => {
     const b = idIn(
       await run("create_mockup", { title: "Take 2", html: "<p>2</p>" })
     )
-    ops.createMockup({
+    const { mockupId: theirs } = ops.createMockup({
       html: "<p>theirs</p>",
       title: "Theirs",
       width: 400,
       height: 300,
-      ownerChatId: "chat-2",
-    })
+      lastChangedByChatId: "chat-2",
+    })!
+    const { mockupId: taken } = ops.createMockup({
+      html: "<p>taken</p>",
+      title: "Taken",
+      width: 400,
+      height: 300,
+      lastChangedByChatId: "chat-2",
+    })!
+    await run("update_mockup", { mockup_id: taken, title: "Taken over" })
 
-    expect(await run("read_mockup", {})).toBe(
-      ["Your Mockups:", `- ${a}: Take 1`, `- ${b}: Take 2`].join("\n")
+    const out = await run("read_mockup", {})
+    expect(out).toBe(
+      [
+        "Mockups this chat changed last:",
+        `- ${a}: Take 1`,
+        `- ${b}: Take 2`,
+        `- ${taken}: Taken over`,
+      ].join("\n")
     )
+    expect(out).not.toContain(theirs)
   })
 
-  it("says when the chat has no Mockups", async () => {
+  it("says when the chat changed no Mockup last", async () => {
     const { run } = chatTools()
     expect(await run("read_mockup", {})).toBe(
-      "This chat hasn’t made any Mockups."
+      "No Mockup was changed last by this chat. Pass a mockup_id to read any Mockup on the canvas."
     )
   })
 
@@ -239,34 +267,18 @@ describe("read_mockup", () => {
     )
   })
 
-  it("reads a Mockup another chat made, and says so", async () => {
+  it("reads a Mockup another chat made", async () => {
     const { run, ops } = chatTools()
     const { mockupId } = ops.createMockup({
       html: "<p>theirs</p>",
       title: "Theirs",
       width: 400,
       height: 300,
-      ownerChatId: "chat-2",
+      lastChangedByChatId: "chat-2",
     })!
 
-    const out = await run("read_mockup", { mockup_id: mockupId })
-
-    expect(out).toContain("# Theirs (made by another chat)")
-    expect(out).toContain("<p>theirs</p>")
-  })
-
-  it("says a Mockup whose chat was deleted is the chat’s to change", async () => {
-    const { run, ops } = chatTools()
-    const { mockupId } = ops.createMockup({
-      html: "<p>orphan</p>",
-      title: "Orphan",
-      width: 400,
-      height: 300,
-      ownerChatId: "deleted-chat",
-    })!
-
-    expect(await run("read_mockup", { mockup_id: mockupId })).toContain(
-      "# Orphan (its chat was deleted; you can change it)"
+    expect(await run("read_mockup", { mockup_id: mockupId })).toBe(
+      ["# Theirs", "", "<p>theirs</p>"].join("\n")
     )
   })
 

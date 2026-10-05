@@ -149,7 +149,7 @@ export interface SendableThread {
 /**
  * The Workspace whose agent a thread goes to: the one it was made on, else
  * the one its frame shows. A Document thread goes where `documentWorkspace`
- * says (#1314): the Workspace of the chat that made the Document, else the
+ * says (#1314): the Workspace of the chat that last changed the Document (#1724), else the
  * one the panel shows. Canvas threads have none.
  */
 export function threadWorkspace(

@@ -349,7 +349,8 @@ export function TerminalPane({
               >
                 <ScrollArea
                   orientation="horizontal"
-                  className="min-w-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:hidden"
+                  // A tab past the edge fades out rather than being cut off.
+                  className="min-w-0 flex-1 [mask-image:linear-gradient(to_right,black_calc(100%-16px),transparent)] [&_[data-slot=scroll-area-scrollbar]]:hidden"
                 >
                   <div
                     className={cn(
@@ -541,7 +542,7 @@ function PaneTab({
           MOTION,
           open
             ? cn("text-sm", terminal.kind === "shell" && "min-w-[100px]")
-            : "min-w-0 text-xs font-normal data-active:text-muted-foreground group-data-[variant=line]/tabs-list:data-active:after:opacity-0 dark:data-active:text-muted-foreground"
+            : "min-w-0 text-sm font-normal data-active:text-muted-foreground group-data-[variant=line]/tabs-list:data-active:after:opacity-0 dark:data-active:text-muted-foreground"
         )}
       >
         {terminal.kind === "dev-server" ? (
