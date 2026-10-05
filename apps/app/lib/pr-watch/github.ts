@@ -8,6 +8,10 @@ import {
 } from "@/lib/pr-checks"
 import type { GitHubPrReader, PrLookup, PrTarget } from "./watch"
 
+/** How many of a branch's PRs one lookup reads: the newest is the current
+ *  one, the rest refresh the Branch's past PRs (#1701). */
+const BRANCH_PR_PAGE = 10
+
 /**
  * PR Watch's GitHub reader: a Branch's newest PR from GitHub's REST API, with
  * an open PR's checks and mergeability. `tokenFor` picks the account each
@@ -39,22 +43,35 @@ async function fetchBranchPr(
 ): Promise<PrLookup | null> {
   const res = await get(
     token,
-    `${owner}/${repo}/pulls?head=${owner}:${branch}&state=all&per_page=1&sort=created&direction=desc`
+    `${owner}/${repo}/pulls?head=${owner}:${branch}&state=all&per_page=${BRANCH_PR_PAGE}&sort=created&direction=desc`
   )
   if (!res.ok) return null
 
   const data = (await res.json()) as Array<{
     number: number
     html_url: string
+    title?: string
     state: "open" | "closed"
     merged_at: string | null
     head: { sha: string }
   }>
-  const pr = data[0]
+  const [pr, ...rest] = data
   if (!pr) return null
 
+  const earlier = rest.map((p) => ({
+    number: p.number,
+    url: p.html_url,
+    ...(p.title ? { title: p.title } : {}),
+    state: p.merged_at ? ("merged" as const) : p.state,
+  }))
   const state = pr.merged_at ? "merged" : pr.state
-  if (state !== "open") return { number: pr.number, url: pr.html_url, state }
+  const base = {
+    number: pr.number,
+    url: pr.html_url,
+    ...(pr.title ? { title: pr.title } : {}),
+    ...(earlier.length > 0 ? { earlier } : {}),
+  }
+  if (state !== "open") return { ...base, state }
   const [runs, mergeableState] = await Promise.all([
     fetchCheckRuns(token, owner, repo, pr.head.sha),
     fetchMergeableState(token, owner, repo, pr.number),
@@ -62,8 +79,7 @@ async function fetchBranchPr(
   const checks = runs ? summarizeCheckRuns(runs) : undefined
   const failingChecks = runs ? failingCheckNames(runs) : []
   return {
-    number: pr.number,
-    url: pr.html_url,
+    ...base,
     state,
     blocked: isMergeBlocked(mergeableState, checks) || undefined,
     ...(checks ? { checks } : {}),

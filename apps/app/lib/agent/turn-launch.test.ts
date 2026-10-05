@@ -101,6 +101,10 @@ function recordingDeps(
     async renameBranch(claim) {
       log.push(`rename git ${claim.from} -> ${claim.to}`)
     },
+    async moveMergedBranch(claim) {
+      log.push(`move past #${claim.prNumber}`)
+      return `#${claim.prNumber} merged`
+    },
     async queueCommentRequest({ threadIds }) {
       log.push(`queue comments ${threadIds.join(",")}`)
     },
@@ -112,7 +116,7 @@ function recordingDeps(
     },
     async driveTurn(turn) {
       log.push(
-        `drive ${turn.runId} planMode=${turn.planMode ?? false}${turn.wake ? " wake" : ""}`
+        `drive ${turn.runId} planMode=${turn.planMode ?? false}${turn.wake ? " wake" : ""}${turn.turnNote ? ` note "${turn.turnNote}"` : ""}`
       )
       // The scripted Engine's session opens, and it says whether it steers.
       if (opts.reportsSteering !== undefined) {
@@ -235,6 +239,30 @@ describe("Turn Launch", () => {
       "drive run_1 planMode=true",
       "settle comments run_1",
     ])
+  })
+
+  it("moves the Branch past its merged PR before the Engine runs, and tells the agent (#1701)", async () => {
+    const { deps, log, flush } = recordingDeps()
+    await launchTurn(
+      deps,
+      request,
+      target(log, {
+        mergedPrMove: {
+          branchId: "branch_1",
+          sandboxName: "sb_1",
+          userId: "user_1",
+          ref: "checkout-polish",
+          defaultBranch: "main",
+          prNumber: 482,
+        },
+      })
+    )
+    await flush()
+    const moved = log.indexOf("move past #482")
+    expect(moved).toBeGreaterThan(log.indexOf("response sent"))
+    expect(log[moved + 1]).toBe('drive run_1 planMode=false note "#482 merged"')
+    // The note is the agent's alone: the stored turn is the message as sent.
+    expect(log).toContain("persist fix it")
   })
 
   it("records who sent the message on the stored turn and its echo", async () => {

@@ -6,6 +6,7 @@ import type { ChatControlEvent } from "@/lib/chat-store"
 import type { PlanResolution, RunStatus } from "./run-state"
 import { isWakeStatus, type WorkspaceTurnEnd } from "./coordinator-wake"
 import type { BranchRenameClaim } from "./auto-naming"
+import type { MergedPrMoveClaim } from "@/lib/branch/next-pr"
 import type { SteerInbox } from "./steer-inbox"
 import { projectUserTurn, userTurnEcho } from "./user-turn"
 
@@ -33,6 +34,12 @@ export interface PreparedTurn {
    * agent works on the branch its first message names.
    */
   branchRename?: BranchRenameClaim
+  /**
+   * The merged PR this turn's Branch moves past (#1701), claimed in the doc.
+   * Turn Launch moves the ref onto the default branch's tip before the Engine
+   * runs, or hands that to the agent, and tells the agent which.
+   */
+  mergedPrMove?: MergedPrMoveClaim
   /**
    * Comment threads (#788). Present on every sandbox turn: the turn queues
    * `threadIds` (possibly none), and starts and settles whatever the chat
@@ -139,6 +146,11 @@ export interface EngineTurnLaunch {
   reportSteering(steers: boolean): Promise<void>
   /** See {@link PreparedTurn.secrets}. */
   secrets?: readonly string[]
+  /**
+   * A note for the agent on this turn only, leading the new message (the
+   * move after a merge, #1701). Never stored or shown.
+   */
+  turnNote?: string
 }
 
 /**
@@ -184,6 +196,11 @@ export interface TurnLaunchDeps {
   ): Promise<void>
   /** Rename the claimed git branch; roll the doc back if git refuses. */
   renameBranch(claim: BranchRenameClaim): Promise<void>
+  /**
+   * Move the claimed Branch past its merged PR (#1701), or leave that to the
+   * agent; returns what the agent is told about it.
+   */
+  moveMergedBranch(claim: MergedPrMoveClaim): Promise<string>
   queueCommentRequest(input: {
     roomId: string
     chatId: string
@@ -261,8 +278,10 @@ export type TurnLaunchResult =
  *    echo. Clients replay back to the latest start marker and the event log
  *    is trimmed on each start, so anything emitted earlier is lost to a
  *    client joining mid-stream.
- * 7. After the response, rename the claimed git branch, then drive the Engine
- *    turn, with the comment request started before it and settled after it.
+ * 7. After the response, rename the claimed git branch and, after a merge,
+ *    move the Branch onto the latest code (the agent is told how that went),
+ *    then drive the Engine turn, with the comment request started before it
+ *    and settled after it.
  *    Whether the run takes Steers is known only once the Engine's session is
  *    open: its first report is recorded on the run, then broadcast.
  * 8. Steers the run never took don't wait: when it completed, failed or
@@ -329,7 +348,7 @@ export async function launchTurn(
       userTurnEcho(prepared.userText, sentBy)
     )
   }
-  const { branchRename, commentRequest } = prepared
+  const { branchRename, mergedPrMove, commentRequest } = prepared
 
   // Comments sent to the agent show as queued from here on.
   if (commentRequest && commentRequest.threadIds.length > 0) {
@@ -343,6 +362,9 @@ export async function launchTurn(
 
   deps.runAfterResponse(async () => {
     if (branchRename) await deps.renameBranch(branchRename)
+    const turnNote = mergedPrMove
+      ? await deps.moveMergedBranch(mergedPrMove)
+      : undefined
     if (commentRequest) await deps.startCommentRequest(roomId, chatId)
     await deps.driveTurn({
       engine,
@@ -357,6 +379,7 @@ export async function launchTurn(
       wake: Boolean(projectUserTurn(prepared.userText).wakeFrom),
       reportSteering: reportSteeringOnce(deps, { roomId, chatId, runId }),
       secrets: prepared.secrets,
+      ...(turnNote ? { turnNote } : {}),
     })
     if (commentRequest) {
       await deps.settleCommentRequest({

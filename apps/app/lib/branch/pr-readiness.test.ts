@@ -53,7 +53,7 @@ const CASES: {
     },
   },
   {
-    name: "a merged PR is linked, not offered again",
+    name: "a merged PR is linked until the Branch moves past it",
     input: input({ pr: { ...openPr, state: "merged" } }),
     expected: {
       existingPr: { ...openPr, state: "merged", blocked: undefined },
@@ -63,14 +63,44 @@ const CASES: {
     },
   },
   {
-    name: "a closed PR is linked, not offered again",
-    input: input({ pr: { ...openPr, state: "closed" } }),
+    name: "after the merge, the next PR is offered once there are changes",
+    input: input({
+      branch: { ...ready.branch, prMovedPast: 7 },
+      pr: { ...openPr, state: "merged" },
+    }),
+    expected: { existingPr: null, shown: true, blocker: null, running: false },
+  },
+  {
+    name: "after the merge, with no new changes yet, Create PR waits for them",
+    input: input({
+      branch: { ...ready.branch, prMovedPast: 7 },
+      pr: { ...openPr, state: "merged" },
+      hasChanges: false,
+    }),
     expected: {
-      existingPr: { ...openPr, state: "closed", blocked: undefined },
+      existingPr: null,
+      shown: true,
+      blocker: { kind: "no-changes", reason: "No changes to propose yet." },
+      running: false,
+    },
+  },
+  {
+    name: "moving past an earlier PR doesn't finish a later merged one",
+    input: input({
+      branch: { ...ready.branch, prMovedPast: 3 },
+      pr: { ...openPr, state: "merged" },
+    }),
+    expected: {
+      existingPr: { ...openPr, state: "merged", blocked: undefined },
       shown: false,
       blocker: null,
       running: false,
     },
+  },
+  {
+    name: "a closed PR makes way for the next one",
+    input: input({ pr: { ...openPr, state: "closed" } }),
+    expected: { existingPr: null, shown: true, blocker: null, running: false },
   },
   {
     name: "a PR known only from a chat's create_pr result counts as open",
@@ -90,6 +120,24 @@ const CASES: {
     }),
     expected: {
       existingPr: { ...openPr, state: "open" },
+      shown: false,
+      blocker: null,
+      running: false,
+    },
+  },
+  {
+    name: "a chat's older create_pr result never hides a newer polled PR",
+    input: input({
+      pr: { url: "https://github.com/a/b/pull/9", number: 9, state: "open" },
+      chatPr: openPr,
+    }),
+    expected: {
+      existingPr: {
+        url: "https://github.com/a/b/pull/9",
+        number: 9,
+        state: "open",
+        blocked: undefined,
+      },
       shown: false,
       blocker: null,
       running: false,

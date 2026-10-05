@@ -5,8 +5,10 @@ import {
   ArrowClockwiseIcon,
   ArrowCounterClockwiseIcon,
   ArrowUUpLeftIcon,
+  ArrowUpRightIcon,
   ArrowsClockwiseIcon,
   CheckCircleIcon,
+  GitMergeIcon,
   GitPullRequestIcon,
   PathIcon,
   PencilSimpleIcon,
@@ -17,6 +19,7 @@ import {
 import {
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -29,7 +32,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { branchPrList, type PrListItem } from "@/lib/branch/pr-history"
 import type { PrReadinessState } from "@/lib/branch/pr-readiness"
+import { cn } from "@workspace/ui/lib/utils"
 import { openExternal } from "@/lib/open-external"
 import { openPreviewInBrowser } from "@/lib/open-preview"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -50,11 +55,13 @@ export type BranchMenuItemKey =
   | "routes"
   | "restart"
   | "create-pr"
+  | "pull-requests"
   | "mark-done"
   | "reopen"
   | "delete"
 
-export type BranchMenuSectionId = "view" | "git" | "manage" | "danger"
+export type BranchMenuSectionId =
+  "view" | "git" | "pull-requests" | "manage" | "danger"
 
 export interface BranchMenuSection {
   id: BranchMenuSectionId
@@ -85,6 +92,11 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
     id: "git",
     label: "Git",
     itemKeys: ["create-pr"],
+  },
+  {
+    id: "pull-requests",
+    label: "Pull requests",
+    itemKeys: ["pull-requests"],
   },
   {
     id: "manage",
@@ -118,11 +130,11 @@ export interface WorkspaceMenuLeadInput {
 
 /**
  * The one action that leads the Workspace menu, from its state: Retry when
- * setup failed, Mark as done once its PR has merged and the agent is idle, the
- * open PR when there is one, Create pull request when nothing blocks it (it
- * keeps the lead while it runs), otherwise the prototype player. A Workspace
- * that's still being set up (or stopped, until its PR merges) has no lead:
- * nothing in it works yet. A Done one leads with Reopen (#976).
+ * setup failed, Mark as done once its PR has merged and the agent is idle,
+ * Create pull request when nothing blocks it (it keeps the lead while it
+ * runs), otherwise the prototype player. Its PRs have their own group. A
+ * Workspace that's still being set up (or stopped, until its PR merges) has no
+ * lead: nothing in it works yet. A Done one leads with Reopen (#976).
  */
 export function workspaceMenuLead({
   branch,
@@ -135,7 +147,6 @@ export function workspaceMenuLead({
   if (branch.status === "creating" || branch.status === "starting") return null
   if (pr?.state === "merged" && !isBusy) return "mark-done"
   if (branch.status === "stopped") return null
-  if (pr?.state === "open") return "create-pr"
   if (prReadiness.shown && !prReadiness.blocker) return "create-pr"
   return branch.previewDomain ? "play" : null
 }
@@ -164,9 +175,9 @@ export interface BranchOverflowMenuContentProps {
   onShowRoutes: (branchId: string) => void
   /**
    * Create PR Readiness (`usePrReadiness`), the same the chat header's Create
-   * PR renders from. A PR the Workspace has becomes "Open pull request #N";
-   * otherwise Create pull request shows when `shown`, disabled with the
-   * blocker's reason as its tooltip, and `run` opens the PR (#355).
+   * PR renders from. Create pull request shows when `shown`, disabled with
+   * the blocker's reason as its tooltip, and `run` opens the PR (#355). Every
+   * PR the Workspace opened is listed in the Pull requests group (#1701).
    */
   prReadiness: PrReadinessState & { run: () => void }
   /** Marks the Workspace Done (#976): stops its sandbox and hides its frames. */
@@ -230,7 +241,7 @@ export function BranchOverflowMenuItems({
   prReadiness,
   isBusy = false,
 }: Omit<BranchOverflowMenuContentProps, "onCloseAutoFocus">) {
-  const pr = prReadiness.existingPr
+  const prs = branchPrList(branch, prReadiness.existingPr)
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
     retry: (
       <DropdownMenuItem onClick={() => onRetry(branch.id)}>
@@ -338,15 +349,9 @@ export function BranchOverflowMenuItems({
         </DropdownMenuSubContent>
       </DropdownMenuSub>
     ),
-    // A PR the Workspace has, open, merged or closed, is linked instead of
-    // offering another. A blocked create says why in a tooltip, like the chat
-    // header's Create PR.
-    "create-pr": pr ? (
-      <DropdownMenuItem onClick={() => openExternal(pr.url)}>
-        <GitPullRequestIcon />
-        Open pull request #{pr.number}
-      </DropdownMenuItem>
-    ) : prReadiness.blocker ? (
+    // A blocked create says why in a tooltip, like the chat header's Create
+    // PR. A Workspace with a PR to link shows none (Create PR Readiness).
+    "create-pr": prReadiness.blocker ? (
       // A disabled item takes no pointer events, so the reason hangs off a
       // wrapper.
       <TooltipProvider>
@@ -372,6 +377,16 @@ export function BranchOverflowMenuItems({
         {prReadiness.running ? <Spinner /> : <GitPullRequestIcon />}
         {prReadiness.running ? "Creating pull request…" : "Create pull request"}
       </DropdownMenuItem>
+    ),
+    // Every PR the Workspace opened, newest first, each opening on GitHub
+    // (#1701). State shows by colour alone.
+    "pull-requests": (
+      <>
+        <DropdownMenuLabel>Pull requests</DropdownMenuLabel>
+        {prs.map((item) => (
+          <PullRequestItem key={item.number} pr={item} />
+        ))}
+      </>
     ),
     // Not while the agent works (its turn needs the sandbox) or while setup
     // is still running.
@@ -406,7 +421,8 @@ export function BranchOverflowMenuItems({
   const lead = workspaceMenuLead({ branch, isBusy, prReadiness })
   const shown = (key: BranchMenuItemKey) => {
     if (key === lead) return false
-    if (key === "create-pr") return !!pr || prReadiness.shown
+    if (key === "create-pr") return prReadiness.shown
+    if (key === "pull-requests") return prs.length > 0
     if (!branch.doneAt) return true
     return !HIDDEN_WHILE_DONE.has(key)
   }
@@ -426,4 +442,40 @@ export function BranchOverflowMenuItems({
       ))}
     </Fragment>
   ))
+}
+
+/**
+ * `prStateColor` for a menu row: a highlighted item sets every
+ * descendant to the accent foreground, so the state colour is marked
+ * important to keep it on hover.
+ */
+const PR_ROW_COLOR: Record<PrListItem["state"], string> = {
+  open: "text-success!",
+  merged: "text-merged!",
+  closed: "text-destructive!",
+}
+
+/**
+ * One row of the Pull requests group: GitHub's state glyph and `#N` in the
+ * state colour, the title, and the external-link arrow the chat header's PR
+ * button has, muted until the row is highlighted.
+ */
+function PullRequestItem({ pr }: { pr: PrListItem }) {
+  const Icon = pr.state === "merged" ? GitMergeIcon : GitPullRequestIcon
+  const color = PR_ROW_COLOR[pr.state]
+  return (
+    <DropdownMenuItem onClick={() => openExternal(pr.url)}>
+      <span className={cn("flex items-center gap-1 tabular-nums", color)}>
+        <Icon aria-hidden className={color} />
+        <span className="sr-only">Pull request </span>#{pr.number}
+        <span className="sr-only">, {pr.state}</span>
+      </span>
+      {pr.title ? (
+        <span className="max-w-72 truncate" title={pr.title}>
+          {pr.title}
+        </span>
+      ) : null}
+      <ArrowUpRightIcon aria-hidden className="ml-auto text-muted-foreground" />
+    </DropdownMenuItem>
+  )
 }

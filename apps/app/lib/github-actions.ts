@@ -321,6 +321,8 @@ export interface BranchPrInfo {
   number: number
   url: string
   state: BranchPrState
+  /** Its title, when the lookup read it. */
+  title?: string
   /** An open PR that can't merge: failing checks, a conflict, or a missing
    *  required review or check. Only looked up for open PRs. */
   blocked?: boolean

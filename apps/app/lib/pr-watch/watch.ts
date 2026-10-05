@@ -1,7 +1,8 @@
 import type { PrEventKind, PrEventMark } from "@/lib/agent/message-markers"
 import type { BranchPrChecks } from "@/lib/pr-checks"
 import type { RoomDoc } from "@/lib/room-access"
-import type { BranchData, RepoData } from "@/lib/types"
+import type { BranchData, PastPr, RepoData } from "@/lib/types"
+import { prCacheUpdate } from "@/lib/branch/pr-history"
 
 /**
  * **PR Watch** (#1702): the one module that owns “what changed on a Room's
@@ -33,6 +34,11 @@ export interface PrLookup {
   number: number
   url: string
   state: "open" | "closed" | "merged"
+  /** Its title, when GitHub sent one. */
+  title?: string
+  /** The Branch's other PRs, newest first (#1701): they refresh the past PRs'
+   *  states and titles. */
+  earlier?: PastPr[]
   /** An open PR that can't merge: failing checks, a conflict, or a missing
    *  required review or check. */
   blocked?: boolean
@@ -199,11 +205,28 @@ export async function watchRoomPrs(
       if (!pr) continue
       const cur = branches.get(id)
       if (!cur) continue
+      // The Branch's PR history (#1701): a newer PR moves the current one into
+      // the past PRs; an older one (a lagging list) only refreshes them.
+      const history = prCacheUpdate(cur, pr, pr.earlier ?? [])
+      const historyPatch: Partial<BranchData> = {
+        ...(history?.pastPrs ? { pastPrs: history.pastPrs } : {}),
+        ...(history && "prTitle" in history
+          ? { prTitle: history.prTitle }
+          : {}),
+      }
+      if (typeof cur.prNumber === "number" && pr.number < cur.prNumber) {
+        if (history?.pastPrs) branches.update(id, { pastPrs: history.pastPrs })
+        continue
+      }
       for (const e of prEvents(cur, pr)) {
         events.push({ ...e, branchId: id, number: pr.number, url: pr.url })
       }
       const next = cachedFields(cur, pr)
-      if (!sameCache(cur, next)) branches.update(id, next)
+      const patch = {
+        ...(sameCache(cur, next) ? {} : next),
+        ...historyPatch,
+      }
+      if (Object.keys(patch).length > 0) branches.update(id, patch)
     }
     const hasOpenPr = branches.toArray().some((b) => {
       const latest = branches.get(b.id)

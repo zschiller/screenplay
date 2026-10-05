@@ -292,6 +292,7 @@ function liveHarness(
         })
       },
       async renameBranch() {},
+      moveMergedBranch: async () => "",
       async queueCommentRequest() {},
       async startCommentRequest() {},
       async settleCommentRequest() {},
