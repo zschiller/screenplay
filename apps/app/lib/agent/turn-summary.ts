@@ -39,14 +39,15 @@ const PINNED_ROLES = new Set<AgentMessage["role"]>(["plan", "error", "stopped"])
  * Whether an entry stays on screen in a folded turn: a pinned kind, a
  * Coordinator call that names a Workspace, whose task row is the point of the
  * turn (#896), a question card (#1312), which shows what was asked and
- * answered, or a skill card (#1633), which waits for someone to save it.
+ * answered, a skill card (#1633), which waits for someone to save it, or a
+ * merge card, which waits for someone to press Merge.
  */
 function isPinned(message: AgentMessage): boolean {
   if (PINNED_ROLES.has(message.role)) return true
   if (isQuestionCall(message)) return true
   if (
     message.role === "tool_call" &&
-    bareToolName(message.title) === "save_skill"
+    ["save_skill", "merge_pr"].includes(bareToolName(message.title))
   )
     return true
   return isCard(message)

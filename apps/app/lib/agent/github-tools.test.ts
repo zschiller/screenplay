@@ -488,3 +488,71 @@ describe("pull request diff and checks", () => {
     )
   })
 })
+
+describe("reviews and merges", () => {
+  it("submits a review with line comments on the new side", async () => {
+    const { run, calls } = setup({
+      "POST /repos/acme/web/pulls/7/reviews": () => ({
+        html_url: "https://github.com/acme/web/pull/7#pullrequestreview-1",
+      }),
+    })
+    expect(
+      await run("review_pr", {
+        number: 7,
+        event: "request_changes",
+        body: "One thing.",
+        comments: [{ path: "src/auth.ts", line: 40, body: "Rename this." }],
+      })
+    ).toBe(
+      "Requested changes on #7: https://github.com/acme/web/pull/7#pullrequestreview-1"
+    )
+    expect(calls[0]!.body).toEqual({
+      event: "REQUEST_CHANGES",
+      body: "One thing.",
+      comments: [
+        { path: "src/auth.ts", line: 40, side: "RIGHT", body: "Rename this." },
+      ],
+    })
+  })
+
+  it("refuses to review on a turn nobody sent", async () => {
+    const { run, calls } = setup({}, { senderless: true })
+    expect(await run("review_pr", { number: 7, event: "approve" })).toMatch(
+      /nobody sent this turn/
+    )
+    expect(calls).toEqual([])
+  })
+
+  const openPr = (overrides: object = {}) => ({
+    "GET /repos/acme/web/pulls/7": () => ({
+      title: "Fix sign-in",
+      html_url: "https://github.com/acme/web/pull/7",
+      draft: false,
+      state: "open",
+      merged: false,
+      mergeable_state: "clean",
+      head: { sha: "abc123" },
+      ...overrides,
+    }),
+    "GET /repos/acme/web/commits/abc123/check-runs": () => ({
+      check_runs: [],
+    }),
+  })
+
+  it("offers a merge card and merges nothing itself", async () => {
+    const { run, calls } = setup(openPr())
+    expect(await run("merge_pr", { number: 7 })).toBe(
+      "Showed a merge card for acme/web#7 (Fix sign-in). Nothing merges until someone presses Merge on it; Not now comes back as their next message."
+    )
+    expect(calls.every((c) => c.method === "GET")).toBe(true)
+  })
+
+  it("says so for a merged or draft PR instead of a card", async () => {
+    const merged = setup(openPr({ state: "closed", merged: true }))
+    expect(await merged.run("merge_pr", { number: 7 })).toBe(
+      "#7 is already merged."
+    )
+    const draft = setup(openPr({ draft: true }))
+    expect(await draft.run("merge_pr", { number: 7 })).toMatch(/is a draft/)
+  })
+})
