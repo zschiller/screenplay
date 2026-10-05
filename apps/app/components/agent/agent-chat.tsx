@@ -748,10 +748,10 @@ function FailedSendNotice({
         <span className="mr-2 min-w-0 truncate text-destructive" title={error}>
           Not sent: {describeSendError(error)}
         </span>
-        <Button variant="ghost" size="xs" onClick={onRetry}>
+        <Button variant="ghost" size="sm" onClick={onRetry}>
           Retry
         </Button>
-        <Button variant="ghost" size="xs" onClick={onEdit}>
+        <Button variant="ghost" size="sm" onClick={onEdit}>
           Edit
         </Button>
       </div>
@@ -807,7 +807,7 @@ function QueuedRow({
       <span className="min-w-0 flex-1 truncate" title={message}>
         {message}
       </span>
-      <Button variant="ghost" size="xs" onClick={onEdit}>
+      <Button variant="ghost" size="sm" onClick={onEdit}>
         Edit
       </Button>
       <IconButton label="Remove from queue" onClick={onRemove}>

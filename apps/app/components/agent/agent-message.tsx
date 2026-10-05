@@ -1520,7 +1520,7 @@ function ErrorMessage({
         {message.content}
       </p>
       {detail && (
-        <Button variant="ghost" size="xs" onClick={copyError}>
+        <Button variant="ghost" size="sm" onClick={copyError}>
           <CopyIcon />
           Copy error
         </Button>
@@ -1528,7 +1528,7 @@ function ErrorMessage({
       {onRetry && (
         <Button
           variant="outline"
-          size="xs"
+          size="sm"
           disabled={retrying}
           onClick={async () => {
             setRetrying(true)

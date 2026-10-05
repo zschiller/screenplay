@@ -113,7 +113,7 @@ export function KnobsPanel({
         <span className="text-xs font-medium text-foreground">Knobs</span>
         {defs.length > 0 || theme ? (
           <Button
-            size="xxs"
+            size="sm"
             variant="ghost"
             disabled={!hasOverrides}
             onClick={resetAll}

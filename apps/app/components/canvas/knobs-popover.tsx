@@ -81,7 +81,7 @@ export function KnobsPopover({
               </p>
               {onAskForKnob ? (
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="outline"
                   className="mt-1 self-start"
                   onClick={() => {

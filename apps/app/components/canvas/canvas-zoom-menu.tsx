@@ -51,9 +51,9 @@ export function CanvasZoomMenu({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="xs"
+          size="sm"
           aria-label={`Zoom, ${percent}%`}
-          className="h-7 gap-0.5 px-1.5 font-normal tabular-nums"
+          className="gap-0.5 px-1.5 font-normal tabular-nums"
         >
           {percent}%
           <CaretDownIcon className="text-muted-foreground" />

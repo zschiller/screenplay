@@ -351,7 +351,7 @@ function WorkspaceChatPanel({
           )}
           {existingPr ? (
             <HintTooltip hint={prBlocked ? "Merge blocked" : undefined}>
-              <Button size="xs" variant="outline" asChild>
+              <Button size="sm" variant="outline" asChild>
                 <a
                   href={existingPr.url}
                   target="_blank"
@@ -369,7 +369,7 @@ function WorkspaceChatPanel({
             <HintTooltip hint={prReadiness.blocker?.reason}>
               <span className="flex">
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="outline"
                   onClick={prReadiness.run}
                   disabled={prReadiness.running || !!prReadiness.blocker}

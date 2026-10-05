@@ -482,7 +482,7 @@ export function ChatsMenuButton() {
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          size="xs"
+          size="sm"
           aria-label="Chats"
           aria-description={menu.needsYou ? "A chat needs you" : undefined}
         >
@@ -491,9 +491,9 @@ export function ChatsMenuButton() {
           <span data-icon="inline-start" className="relative flex">
             <ChatsIcon
               className={cn(
-                "size-3",
+                "size-4",
                 menu.needsYou &&
-                  "[mask-image:radial-gradient(circle_at_12px_0px,transparent_4.5px,black_5px)]"
+                  "[mask-image:radial-gradient(circle_at_16px_0px,transparent_4.5px,black_5px)]"
               )}
             />
             {menu.needsYou ? (

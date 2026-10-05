@@ -266,7 +266,7 @@ export function RepoSettingsFields({
                     (envVarsAccess.locked ? (
                       <Button
                         variant="ghost"
-                        size="xs"
+                        size="sm"
                         className="-my-1"
                         onClick={envVarsAccess.onReveal}
                         disabled={envVarsAccess.revealing}
@@ -284,7 +284,7 @@ export function RepoSettingsFields({
                     ) : (
                       <Button
                         variant="ghost"
-                        size="xs"
+                        size="sm"
                         className="-my-1"
                         onClick={envVarsAccess.onHide}
                       >

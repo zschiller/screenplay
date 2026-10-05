@@ -73,7 +73,7 @@ export function CommentsButton({
         <TooltipTrigger asChild>
           <Button
             variant={open ? "secondary" : "ghost"}
-            size="xs"
+            size="sm"
             aria-label={label}
             aria-pressed={open}
             onClick={onToggle}
@@ -551,7 +551,7 @@ function FilterButton({
 }) {
   return (
     <Button
-      size="xs"
+      size="sm"
       variant={selected ? "secondary" : "ghost"}
       aria-pressed={selected}
       onClick={onClick}

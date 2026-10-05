@@ -135,7 +135,7 @@ export function ThreadCard({
         {place && <PlaceChip place={place} />}
         <div className="ml-auto flex shrink-0 items-center">
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             className="text-muted-foreground"
             onClick={thread.resolved ? onReopen : onResolve}
@@ -214,7 +214,7 @@ export function ThreadCard({
             onSubmit={submitReply}
           />
           <ComposerFooter>
-            <Button size="xs" onClick={submitReply} disabled={!reply.trim()}>
+            <Button size="sm" onClick={submitReply} disabled={!reply.trim()}>
               Reply
             </Button>
           </ComposerFooter>
@@ -343,13 +343,13 @@ function CommentRow({
             />
             <ComposerFooter>
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 onClick={() => setEditing(false)}
               >
                 Cancel
               </Button>
-              <Button size="xs" onClick={save} disabled={!draft.trim()}>
+              <Button size="sm" onClick={save} disabled={!draft.trim()}>
                 Save
               </Button>
             </ComposerFooter>
