@@ -72,8 +72,6 @@ import { GearIcon as GearBase } from "@phosphor-icons/react/dist/ssr/Gear"
 import { GitBranchIcon as GitBranchBase } from "@phosphor-icons/react/dist/ssr/GitBranch"
 import { GitDiffIcon as GitDiffBase } from "@phosphor-icons/react/dist/ssr/GitDiff"
 import { GitForkIcon as GitForkBase } from "@phosphor-icons/react/dist/ssr/GitFork"
-import { GitMergeIcon as GitMergeBase } from "@phosphor-icons/react/dist/ssr/GitMerge"
-import { GitPullRequestIcon as GitPullRequestBase } from "@phosphor-icons/react/dist/ssr/GitPullRequest"
 import { GlobeIcon as GlobeBase } from "@phosphor-icons/react/dist/ssr/Globe"
 import { ImageIcon as ImageBase } from "@phosphor-icons/react/dist/ssr/Image"
 import { InfoIcon as InfoBase } from "@phosphor-icons/react/dist/ssr/Info"
@@ -196,6 +194,62 @@ function phosphor(
   return Wrapped
 }
 
+/** Lucide's stroke widths that match each Phosphor weight's line. */
+const LUCIDE_STROKE: Record<NonNullable<IconProps["weight"]>, number> = {
+  thin: 0.75,
+  light: 1.125,
+  regular: 1.5,
+  bold: 2.25,
+  fill: 1.5,
+  duotone: 1.5,
+}
+
+/**
+ * A Lucide glyph (ISC) where Phosphor falls short: the PR states. Phosphor
+ * draws open and closed alike and has no merge-conflict glyph; Lucide's
+ * follow GitHub's, one shape per state.
+ *
+ * It behaves like {@link phosphor}'s icons: the same props (bar `mirrored`),
+ * 24px default, hidden unless labelled, and a `lu-<name>` class. Lucide's
+ * 2-unit stroke is heavier than Phosphor's, so the stroke follows Phosphor's
+ * lines instead: Light's 1.125 units above 16px and Regular's 1.5 at 16px and
+ * under, picked by a container query like Phosphor's (`.lu-dual` in
+ * icons.css). Passing `weight` pins one.
+ */
+function lucide(name: string, glyph: React.ReactNode): Icon {
+  const Wrapped = React.forwardRef<SVGSVGElement, IconProps>(
+    ({ alt, color = "currentColor", size = 24, weight, ...props }, ref) => {
+      const labelled =
+        alt != null ||
+        props["aria-label"] != null ||
+        props["aria-labelledby"] != null
+      return (
+        <svg
+          ref={ref}
+          xmlns="http://www.w3.org/2000/svg"
+          width={size}
+          height={size}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth={weight ? LUCIDE_STROKE[weight] : undefined}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden={labelled ? undefined : true}
+          {...props}
+          className={cn(name, !weight && "lu-dual", props.className)}
+        >
+          {alt ? <title>{alt}</title> : null}
+          {glyph}
+          {props.children}
+        </svg>
+      )
+    }
+  )
+  Wrapped.displayName = name
+  return Wrapped as Icon
+}
+
 export const AppWindowIcon = phosphor(AppWindowBase, "ph-app-window")
 export const ArchiveIcon = phosphor(ArchiveBase, "ph-archive")
 export const ArrowClockwiseIcon = phosphor(
@@ -299,11 +353,34 @@ export const GearIcon = phosphor(GearBase, "ph-gear")
 export const GitBranchIcon = phosphor(GitBranchBase, "ph-git-branch")
 export const GitDiffIcon = phosphor(GitDiffBase, "ph-git-diff")
 export const GitForkIcon = phosphor(GitForkBase, "ph-git-fork")
-export const GitMergeIcon = phosphor(GitMergeBase, "ph-git-merge")
-export const GitPullRequestIcon = phosphor(
-  GitPullRequestBase,
-  "ph-git-pull-request"
-)
+export const GitMergeIcon = lucide("lu-git-merge", [
+  <circle key="a" cx="18" cy="18" r="3" />,
+  <circle key="b" cx="6" cy="6" r="3" />,
+  <path key="c" d="M6 21V9a9 9 0 0 0 9 9" />,
+])
+export const GitMergeConflictIcon = lucide("lu-git-merge-conflict", [
+  <path key="a" d="M12 6h4a2 2 0 0 1 2 2v7" />,
+  <path key="b" d="M6 12v9" />,
+  <path key="c" d="m8.5 3.5-5 5" />,
+  <path key="d" d="m8.5 8.5-5-5" />,
+  <circle key="e" cx="18" cy="18" r="3" />,
+])
+/** GitHub's open PR glyph (Lucide's `git-pull-request-arrow`). */
+export const GitPullRequestIcon = lucide("lu-git-pull-request", [
+  <circle key="a" cx="5" cy="6" r="3" />,
+  <path key="b" d="M5 9v12" />,
+  <circle key="c" cx="19" cy="18" r="3" />,
+  <path key="d" d="m15 9-3-3 3-3" />,
+  <path key="e" d="M12 6h5a2 2 0 0 1 2 2v7" />,
+])
+export const GitPullRequestClosedIcon = lucide("lu-git-pull-request-closed", [
+  <path key="a" d="m15.5 3.5 5 5" />,
+  <path key="b" d="m15.5 8.5 5-5" />,
+  <path key="c" d="M18 11.62V15" />,
+  <path key="d" d="M6 9v12" />,
+  <circle key="e" cx="18" cy="18" r="3" />,
+  <circle key="f" cx="6" cy="6" r="3" />,
+])
 export const GlobeIcon = phosphor(GlobeBase, "ph-globe")
 export const ImageIcon = phosphor(ImageBase, "ph-image")
 export const InfoIcon = phosphor(InfoBase, "ph-info")

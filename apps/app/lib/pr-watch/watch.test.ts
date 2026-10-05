@@ -288,11 +288,14 @@ describe("PR event messages", () => {
       "checks failed · lint"
     )
     expect(prEventLabel({ kind: "merged" })).toBe("merged")
-    expect(prEventState("checks_passed")).toBe("open")
-    expect(prEventState("merged")).toBe("merged")
-    expect(prEventState("checks_failed")).toBe("closed")
-    expect(prEventState("conflict")).toBe("closed")
-    expect(prEventState("closed")).toBe("closed")
+    expect(prEventState("checks_passed")).toEqual({ state: "open" })
+    expect(prEventState("merged")).toEqual({ state: "merged" })
+    expect(prEventState("checks_failed")).toEqual({
+      state: "open",
+      blocked: true,
+    })
+    expect(prEventState("conflict")).toEqual({ state: "open", blocked: true })
+    expect(prEventState("closed")).toEqual({ state: "closed" })
   })
 })
 

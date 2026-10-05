@@ -4,8 +4,6 @@ import { useEffect, useRef } from "react"
 import {
   ArrowUpRightIcon,
   ChatCircleIcon,
-  GitDiffIcon,
-  GitMergeIcon,
   GitPullRequestIcon,
   PlusIcon,
 } from "@workspace/ui/components/icons"
@@ -43,6 +41,7 @@ import { usePrReadiness } from "@/hooks/use-pr-readiness"
 import { useRepos } from "@/lib/yjs/react"
 import type { BranchPrInfo } from "@/lib/github-actions"
 import { prStateButtonColor } from "@/components/pr-state-color"
+import { PrStateIcon } from "@/components/pr-state-icon"
 import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
 import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
@@ -286,19 +285,12 @@ function WorkspaceChatPanel({
     },
   })
   const existingPr = prReadiness.existingPr
-  // The PR button's icon and color mirror the sidebar branch icon so the two
+  // The PR button's icon and color mirror the Workspace PR badge so the two
   // stay legible together: open = green, merged = purple, closed = red. An open
   // PR that can't merge (failing checks, a conflict) turns red with the
-  // merge-blocked icon.
+  // merge-conflict icon.
   const prBlocked = existingPr?.state === "open" && !!existingPr.blocked
-  const PrStateIcon = prBlocked
-    ? GitDiffIcon
-    : existingPr?.state === "merged"
-      ? GitMergeIcon
-      : GitPullRequestIcon
-  const prColor = prStateButtonColor(
-    prBlocked ? "closed" : (existingPr?.state ?? "open")
-  )
+  const prColor = prStateButtonColor(existingPr?.state ?? "open", prBlocked)
   const isAgentBusy = workspaceBooting(agent)
 
   // First chat for this Workspace — drives auto branch/chat naming.
@@ -358,7 +350,8 @@ function WorkspaceChatPanel({
                   rel="noopener noreferrer"
                   className={cn("group", prColor)}
                 >
-                  <PrStateIcon />#{existingPr.number}
+                  <PrStateIcon state={existingPr.state} blocked={prBlocked} />#
+                  {existingPr.number}
                   <ArrowUpRightIcon className="opacity-60 group-hover:opacity-100" />
                 </a>
               </Button>

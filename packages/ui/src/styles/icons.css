@@ -8,7 +8,17 @@
   .ph-dual > svg {
     display: none;
   }
+  /* Lucide glyphs (the PR states) take Phosphor's line weights. */
+  .lu-dual {
+    container-type: inline-size;
+  }
+  .lu-dual > * {
+    stroke-width: 1.125;
+  }
   @container (width <= 16px) {
+    .lu-dual > * {
+      stroke-width: 1.5;
+    }
     .ph-dual > path {
       display: none;
     }

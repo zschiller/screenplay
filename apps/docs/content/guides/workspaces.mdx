@@ -119,8 +119,9 @@ Each chat row shows:
   existed, or not asked anything yet) reads **New chat** until you
   rename it or its first chat message names it;
 - at the end, the workspace’s **pull request** as a small outlined badge:
-  its icon in GitHub’s colours (green open, purple merged, red closed) and
-  its number. When the row is too narrow for both, the badge is hidden
+  GitHub’s icon for its state in GitHub’s colours (green open, purple
+  merged, red closed, and red with a merge-conflict icon when failing checks
+  or a conflict block the merge) and its number. When the row is too narrow for both, the badge is hidden
   rather than cutting off the title. With no pull request the row shows
   **+/− line counts** for changes compared with the base branch. A workspace
   that’s starting, stopped or failed shows neither;
@@ -283,8 +284,9 @@ number in its colour, then what happened.
 | **merged**               | The PR was merged.                                                |
 | **closed**               | The PR was closed without merging.                                |
 
-Failing checks, conflicts and closed PRs are red, passing checks green and
-merges purple, like the PR badge. With the canvas closed, Screenplay checks
+Failing checks and conflicts are red with the merge-conflict icon, closed PRs
+red with the closed icon, passing checks green and merges purple, like the PR
+badge. With the canvas closed, Screenplay checks
 the PR with the GitHub account of the person who started the chat.
 
 ### The next pull request
