@@ -9,6 +9,7 @@ import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { editRight } from "@/lib/canvas/document-owner"
 import { documentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
+import { mentionMarkdownNames } from "@/lib/mention-kinds"
 import {
   appendDocumentMarkdown,
   writeDocumentMarkdown,
@@ -109,8 +110,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
     }),
 
     replace_document_body: tool({
-      description:
-        "Replace the body of a Document you made (or one whose chat was deleted, which makes it yours), below its title. The `content` is parsed as CommonMark markdown — headings (`##`, `###`), bullet/ordered lists, blockquotes, code blocks, inline marks (`**bold**`, `*italic*`, `` `code` ``, `[link](url)`), images and mentions all work. A mention is `[@<name>](mention:<kind>:<id>)`, as `read_document` shows them, where kind is `document`, `chat` or `mockup`. An image is `![alt](path)` on its own line, where `path` is an image in the canvas’s saved files (`uploads/sketch.png`; wrap a path with spaces in `<…>`), and the Document shows it. The title is set separately; don’t repeat it as a top-level `#` heading. Use this when you’ve redrafted the Document; for incremental edits prefer `append_to_document_body`.",
+      description: `Replace the body of a Document you made (or one whose chat was deleted, which makes it yours), below its title. The \`content\` is parsed as CommonMark markdown — headings (\`##\`, \`###\`), bullet/ordered lists, blockquotes, code blocks, inline marks (\`**bold**\`, \`*italic*\`, \`\` \`code\` \`\`, \`[link](url)\`), images and mentions all work. A mention is \`[@<name>](mention:<kind>:<id>)\`, as \`read_document\` shows them, where kind is ${mentionMarkdownNames()}. An image is \`![alt](path)\` on its own line, where \`path\` is an image in the canvas’s saved files (\`uploads/sketch.png\`; wrap a path with spaces in \`<…>\`), and the Document shows it. The title is set separately; don’t repeat it as a top-level \`#\` heading. Use this when you’ve redrafted the Document; for incremental edits prefer \`append_to_document_body\`.`,
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {

@@ -8,9 +8,17 @@ import {
   prosemirrorJSONToYXmlFragment,
   yXmlFragmentToProsemirrorJSON,
 } from "@tiptap/y-tiptap"
-import type { MentionKind } from "@/components/agent/mention-list"
 import { DocumentImage, liftImagesFromParagraphs } from "@/lib/document-image"
-import { workspaceLabel } from "@/lib/workspace-label"
+import {
+  DEFAULT_MENTION_KIND,
+  MENTION_KIND_REGISTRY,
+  MENTION_KINDS,
+  type MentionKind,
+  type MentionTargets,
+  mentionKindOf,
+  mentionKindOfMarkdown,
+  mentionTargetLabel,
+} from "@/lib/mention-kinds"
 import type { RoomCollections } from "@/lib/yjs/schema"
 
 /**
@@ -32,27 +40,9 @@ export const DocumentWithTitle = Document.extend({
   content: "heading block*",
 })
 
-/** How each mention kind reads in a mention's markdown href. */
-const MARKDOWN_KIND: Record<MentionKind, string> = {
-  "markdown-layer": "document",
-  chat: "chat",
-  "mockup-layer": "mockup",
-}
-
-const KIND_OF_MARKDOWN: Record<string, MentionKind> = {
-  document: "markdown-layer",
-  chat: "chat",
-  mockup: "mockup-layer",
-}
-
-/** A mention node's kind; one saved before kinds existed is a document. */
-export function mentionKindOf(kind: unknown): MentionKind {
-  return kind === "chat" || kind === "mockup-layer" ? kind : "markdown-layer"
-}
-
 /**
  * A mention as markdown: `[@<name>](mention:<kind>:<id>)`, where kind is
- * `document`, `chat` or `mockup`. The composer's `[@<name>](mention:<id>)`
+ * its registered markdown name (`mention-kinds.ts`). The composer's `[@<name>](mention:<id>)`
  * (no kind) reads as a document.
  */
 export function mentionMarkdown(
@@ -60,11 +50,14 @@ export function mentionMarkdown(
   id: string,
   label: string
 ): string {
-  return `[@${label.replace(/[[\]]/g, "")}](mention:${MARKDOWN_KIND[kind]}:${id})`
+  return `[@${label.replace(/[[\]]/g, "")}](mention:${MENTION_KIND_REGISTRY[kind].markdownName}:${id})`
 }
 
-const MENTION_RE =
-  /^\[@([^\]\n]*)\]\(mention:(?:(document|chat|mockup):)?([^)\s]+)\)/
+const MENTION_RE = new RegExp(
+  String.raw`^\[@([^\]\n]*)\]\(mention:(?:(${MENTION_KINDS.map(
+    (k) => MENTION_KIND_REGISTRY[k].markdownName
+  ).join("|")}):)?([^)\s]+)\)`
+)
 
 /**
  * A mention pill in a Document: what it points at (`kind`, `id`) and the name
@@ -76,8 +69,8 @@ export const DocumentMention = Mention.extend({
     return {
       ...this.parent?.(),
       kind: {
-        default: "markdown-layer",
-        parseHTML: (el) => el.getAttribute("data-kind") ?? "markdown-layer",
+        default: DEFAULT_MENTION_KIND,
+        parseHTML: (el) => el.getAttribute("data-kind") ?? DEFAULT_MENTION_KIND,
         renderHTML: (attrs) =>
           attrs.kind ? { "data-kind": attrs.kind as string } : {},
       },
@@ -95,7 +88,9 @@ export const DocumentMention = Mention.extend({
         raw: match[0],
         attributes: {
           label: match[1],
-          kind: KIND_OF_MARKDOWN[match[2] ?? "document"],
+          kind:
+            (match[2] && mentionKindOfMarkdown(match[2])) ??
+            DEFAULT_MENTION_KIND,
           id: match[3],
         },
       }
@@ -146,31 +141,6 @@ export type MentionLabelOf = (
   kind: MentionKind,
   id: string
 ) => string | undefined
-
-/** Looks up the things a mention can point at, by id. */
-export interface MentionTargets {
-  document: (id: string) => { title: string } | undefined
-  mockup: (id: string) => { title: string } | undefined
-  workspace: (id: string) => { title?: string } | undefined
-  chat: (id: string) => { label: string } | undefined
-}
-
-/**
- * The live name of what a mention points at, so a mention follows a rename.
- * A chat mention names a Workspace (its id is the Branch's) or a chat with no
- * repository (its own id).
- */
-export function mentionTargetLabel(
-  kind: MentionKind,
-  id: string,
-  targets: MentionTargets
-): string | undefined {
-  if (kind === "markdown-layer") return targets.document(id)?.title || undefined
-  if (kind === "mockup-layer") return targets.mockup(id)?.title || undefined
-  const workspace = targets.workspace(id)
-  if (workspace) return workspaceLabel(workspace)
-  return targets.chat(id)?.label || undefined
-}
 
 /** {@link MentionLabelOf} over a Room's collections. */
 export function roomMentionLabels(

@@ -2,12 +2,12 @@
 
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
-import type { MentionKind } from "@/components/agent/mention-list"
+import { useMentionTargetLabel } from "@/lib/document-mentions"
 import {
-  MENTION_ICON_MASK,
-  useMentionTargetLabel,
-} from "@/lib/document-mentions"
-import { mentionKindOf } from "@/lib/document-markdown"
+  MENTION_KIND_REGISTRY,
+  type MentionKind,
+  mentionKindOf,
+} from "@/lib/mention-kinds"
 
 /**
  * Renders a mention pill with the *live* name of what it points at: a
@@ -26,7 +26,7 @@ export function MarkdownLayerMentionNodeView({ node }: NodeViewProps) {
       as="span"
       data-mention-id={id}
       data-mention-kind={kind}
-      data-inline-ref-mask={MENTION_ICON_MASK[kind]}
+      data-inline-ref-mask={MENTION_KIND_REGISTRY[kind].mask}
       className="inline-ref"
     >
       <span className="inline-ref-label">{label}</span>

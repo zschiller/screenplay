@@ -10,6 +10,7 @@ import {
   writeDocumentMarkdown,
 } from "@/lib/document-markdown"
 import { getLineNumbers } from "@/lib/document-comments"
+import { MENTION_KIND_REGISTRY, MENTION_KINDS } from "@/lib/mention-kinds"
 import { documentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 
 function bodyOf(markdown: string): Y.XmlFragment {
@@ -55,6 +56,16 @@ describe("Document Markdown round trip", () => {
       label: "Fix the login",
       kind: "chat",
     })
+  })
+
+  it.each(MENTION_KINDS)("keeps a %s mention and its kind", (kind) => {
+    const name = MENTION_KIND_REGISTRY[kind].markdownName
+    const markdown = `See [@Target](mention:${name}:target-1).`
+    const fragment = bodyOf(markdown)
+    const pill = (fragment.get(1) as Y.XmlElement).get(1) as Y.XmlElement
+
+    expect(pill.getAttribute("kind")).toBe(kind)
+    expect(readDocumentBody(fragment)).toBe(markdown)
   })
 
   it("reads the composer’s kindless mention as a document", () => {

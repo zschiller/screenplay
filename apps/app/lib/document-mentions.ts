@@ -1,9 +1,12 @@
 "use client"
 
 import { useMemo } from "react"
-import type { MentionItem, MentionKind } from "@/components/agent/mention-list"
-import { workspaceLabel } from "@/lib/workspace-label"
-import { mentionTargetLabel } from "@/lib/document-markdown"
+import {
+  type MentionCandidate,
+  type MentionKind,
+  mentionCandidates,
+  mentionTargetLabel,
+} from "@/lib/mention-kinds"
 import {
   useBranches,
   useChatSessions,
@@ -11,39 +14,24 @@ import {
   useMockupLayers,
 } from "@/lib/yjs/react"
 
-/** The `.inline-ref` icon mask (`globals.css`) each kind draws. */
-export const MENTION_ICON_MASK: Record<MentionKind, string> = {
-  "markdown-layer": "document",
-  chat: "chat",
-  "mockup-layer": "mockup",
-}
-
 /**
- * The chats and mockups a Document's `@` lists after its documents. A chat is
- * a Workspace's (its id is the Branch's, named as the Chats menu names it) or
- * a chat with no repository (its own id). The Coordinator isn't one.
+ * What a Document's `@` list offers on this canvas: every registered kind in
+ * registry order, leaving out `excludeId`, the Document typing it.
  */
-export function useChatAndMockupMentions(): MentionItem[] {
+export function useMentionCandidates({
+  excludeId,
+}: { excludeId?: string } = {}): MentionCandidate[] {
+  const documents = useMarkdownLayers()
   const branches = useBranches()
-  const sessions = useChatSessions()
+  const chatSessions = useChatSessions()
   const mockups = useMockupLayers()
   return useMemo(
-    () => [
-      ...branches.map((b) => ({
-        kind: "chat" as const,
-        id: b.id,
-        label: workspaceLabel(b),
-      })),
-      ...sessions
-        .filter((s) => s.target === "sketch")
-        .map((s) => ({ kind: "chat" as const, id: s.id, label: s.label })),
-      ...mockups.map((m) => ({
-        kind: "mockup-layer" as const,
-        id: m.id,
-        label: m.title || "Untitled",
-      })),
-    ],
-    [branches, sessions, mockups]
+    () =>
+      mentionCandidates(
+        { documents, branches, chatSessions, mockups },
+        { excludeId }
+      ),
+    [documents, branches, chatSessions, mockups, excludeId]
   )
 }
 
