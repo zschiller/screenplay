@@ -1,4 +1,6 @@
 import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
   ArrowUpIcon,
   CaretDownIcon,
   CaretRightIcon,
@@ -266,6 +268,12 @@ export function FrameBar({
       )}
       style={style}
     >
+      <Tool>
+        <ArrowLeftIcon />
+      </Tool>
+      <Tool>
+        <ArrowRightIcon />
+      </Tool>
       <span className="flex h-7 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-2 font-mono text-xs text-muted-foreground">
         {route}
       </span>
