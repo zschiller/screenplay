@@ -1,5 +1,5 @@
 import { sortForSidebar } from "@/lib/sidebar-order"
-import { layerOwners } from "@/lib/canvas/document-owner"
+import { layerChats } from "@/lib/canvas/layer-chat"
 import type {
   BranchData,
   ChatSessionData,
@@ -54,18 +54,18 @@ export type DrawnMockup = {
 }
 
 /**
- * The empty Mockup a sent Mockup box becomes (#1359), owned by the chat that
- * answers: the one record `createMockup` takes, whichever chat that is. An
+ * The empty Mockup a sent Mockup box becomes (#1359), recording the chat that
+ * answers as its last changer (#1724): the one record `createMockup` takes, whichever chat that is. An
  * empty page shows the sketching state until the chat fills it.
  */
-export function emptyMockup(mockup: DrawnMockup, ownerChatId: string) {
+export function emptyMockup(mockup: DrawnMockup, chatId: string) {
   return {
     id: mockup.id,
     html: "",
     title: "",
     width: mockup.width,
     height: mockup.height,
-    ownerChatId,
+    lastChangedByChatId: chatId,
     anchor: { x: mockup.x, y: mockup.y },
   }
 }
@@ -73,7 +73,7 @@ export function emptyMockup(mockup: DrawnMockup, ownerChatId: string) {
 /**
  * The prompt a drawn Mockup box's ask sends (#1359): what was typed, then which
  * Mockup to fill and its size as the viewport. The Mockup already exists, empty
- * and owned by the answering chat, so the chat writes it with `update_mockup`.
+ * and last changed by the answering chat, so the chat writes it with `update_mockup`.
  * The `[mockup: <id>]` marker names it the way the system prompt describes.
  */
 export function forMockup(
@@ -105,12 +105,12 @@ export const NEW_SKETCH_CHAT: FrameAnswerer = { kind: "sketch" }
 /**
  * Who answers by default (#1357, spec #1355), from the canvas selection when
  * the frame was drawn: a selected frame's Workspace, a selected Mockup's or
- * Document's owner chat's Workspace, else a new chat. Several layers answer
+ * Document's last chat's Workspace (`lib/canvas/layer-chat`), else a new chat. Several layers answer
  * together only when they all lead to one Workspace. A Workspace that can't be
  * picked (gone, failed, stopped) falls back to a new chat. Prompts to a
  * Workspace land in its one chat (`workspaceChatId`), so the Branch is enough.
- * With `sketch` (a drawn Mockup box), Mockups and Documents that all belong
- * to one chat with no repository pick that chat.
+ * With `sketch` (a drawn Mockup box), Mockups and Documents that one chat with
+ * no repository changed last pick that chat.
  */
 export function defaultFrameAnswerer(input: {
   /** Selected frames. */
@@ -118,7 +118,11 @@ export function defaultFrameAnswerer(input: {
   /** Selected Documents and Mockups (they share one selection). */
   ownedLayerIds: Iterable<string>
   frames: readonly Pick<IframeLayerData, "id" | "branchId">[]
-  ownedLayers: readonly { id: string; ownerChatId?: string }[]
+  ownedLayers: readonly {
+    id: string
+    lastChangedByChatId?: string
+    ownerChatId?: string
+  }[]
   chatSessions: readonly Pick<ChatSessionData, "id" | "branchId" | "target">[]
   /** The Workspaces the chip can pick. */
   pickable: readonly Pick<BranchData, "id">[]
@@ -126,23 +130,23 @@ export function defaultFrameAnswerer(input: {
   sketch?: boolean
 }): FrameAnswerer {
   const framesById = new Map(input.frames.map((f) => [f.id, f]))
-  const owners = layerOwners(input.ownedLayers, input.chatSessions)
+  const routes = layerChats(input.ownedLayers, input.chatSessions)
 
   const frameIds = [...input.frameIds]
   const owned = [...input.ownedLayerIds]
   if (input.sketch && owned.length > 0 && frameIds.length === 0) {
-    const chatIds = new Set(owned.map((id) => owners.get(id)?.chatId))
-    const owner = owners.get(owned[0])
-    if (chatIds.size === 1 && owner?.kind === "sketch") {
-      return { kind: "sketch", chatId: owner.chatId }
+    const chatIds = new Set(owned.map((id) => routes.get(id)?.chatId))
+    const first = routes.get(owned[0])
+    if (chatIds.size === 1 && first?.kind === "sketch") {
+      return { kind: "sketch", chatId: first.chatId }
     }
   }
 
   const branchIds = new Set<string | undefined>()
   for (const id of frameIds) branchIds.add(framesById.get(id)?.branchId)
   for (const id of owned) {
-    const owner = owners.get(id)
-    branchIds.add(owner?.kind === "workspace" ? owner.branchId : undefined)
+    const route = routes.get(id)
+    branchIds.add(route?.kind === "workspace" ? route.branchId : undefined)
   }
 
   if (branchIds.size !== 1) return NEW_CHAT

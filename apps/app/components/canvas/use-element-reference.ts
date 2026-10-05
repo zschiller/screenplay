@@ -8,7 +8,7 @@ import type { ScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import type { ChatTarget } from "@/components/canvas/use-chat-target"
 import type { InlineCommentDraft } from "./markdown-layer"
-import type { LayerOwner } from "@/lib/canvas/document-owner"
+import type { LayerChat } from "@/lib/canvas/layer-chat"
 
 /**
  * Element Reference controller (PRD #570) — how the Canvas points at an element
@@ -39,10 +39,11 @@ export interface ElementReferenceInputs {
     "expandPanel" | "selectAgentChat" | "selectSketchChat"
   >
   /**
-   * Who a chat-made Document goes back to (#1314): its Sketch Chat or its
-   * Workspace's chat. Null for a Document made by hand, or whose chat is gone.
+   * Where a Document's messages go (#1724): the Sketch Chat that last changed
+   * it or that chat's Workspace's chat. Null for a Document no chat changed,
+   * or whose last chat is gone.
    */
-  documentOwner: (documentId: string) => LayerOwner | null
+  documentChat: (documentId: string) => LayerChat | null
 }
 
 /** Comment-mode placement position — layer-local for frame/doc-anchored pins. */
@@ -93,8 +94,8 @@ export interface ElementReference {
   clearMode: () => void
   /**
    * Reply in chat (#1243): quote a Document passage into the composer of the
-   * chat that made the Document, shown in the panel (#1314), or, for a
-   * Document made by hand, of the chat the panel is showing, opening the
+   * chat that last changed the Document, shown in the panel (#1724), or, for
+   * a Document no chat changed, of the chat the panel is showing, opening the
    * panel when it's collapsed. Nothing is sent; the quote rides the next
    * message typed there.
    */
@@ -266,19 +267,20 @@ export function useElementReference(
   const replyInChat = useCallback(
     (quote: ChatQuote) => {
       const inputs = inputsRef.current
-      // A passage from a Document a chat made goes to that chat (#1314),
-      // brought on screen; any other goes to the chat on screen.
-      const owner = inputs?.documentOwner(quote.documentId)
-      if (owner) {
-        if (owner.kind === "sketch") {
-          inputs?.chatTarget.selectSketchChat(owner.chatId)
+      // A passage from a Document a chat changed goes to the chat that
+      // changed it last (#1724), brought on screen; any other goes to the
+      // chat on screen.
+      const found = inputs?.documentChat(quote.documentId)
+      if (found) {
+        if (found.kind === "sketch") {
+          inputs?.chatTarget.selectSketchChat(found.chatId)
         } else {
-          inputs?.chatTarget.selectAgentChat(owner.branchId, owner.chatId, {
+          inputs?.chatTarget.selectAgentChat(found.branchId, found.chatId, {
             expandPanel: true,
             remember: true,
           })
         }
-        chatQuoteStore.quoteInto(owner.chatId, quote)
+        chatQuoteStore.quoteInto(found.chatId, quote)
         return
       }
       inputs?.chatTarget.expandPanel()

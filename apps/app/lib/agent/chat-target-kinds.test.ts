@@ -1191,8 +1191,8 @@ describe("account skills in every kind", () => {
 
 /**
  * A Workspace chat writes Documents (#1314): the Chat Target toolset seam hands
- * it the Document tools, bound to the chat, which creates Documents it owns
- * and edits only those.
+ * it the Document tools, bound to the chat, which creates Documents and edits
+ * any (#1724).
  */
 describe("a Workspace chat’s Document tools", () => {
   function setup() {
@@ -1213,7 +1213,7 @@ describe("a Workspace chat’s Document tools", () => {
     )
     collections.markdownLayers.set(
       "theirs",
-      baseDoc("theirs", { title: "Other plan", ownerChatId: "chat-2" })
+      baseDoc("theirs", { title: "Other plan", lastChangedByChatId: "chat-2" })
     )
     seedGroup(collections, "g-hand", [
       { kind: "markdown-layer", id: "hand-made" },
@@ -1254,7 +1254,7 @@ describe("a Workspace chat’s Document tools", () => {
     expect(Object.keys(tools)).not.toContain("send_to_workspace")
   })
 
-  it("creates a Document the chat owns, with its title and body", async () => {
+  it("creates a Document the chat changed last, with its title and body", async () => {
     const { collections, run, body } = setup()
 
     const out = await run("create_document", {
@@ -1266,7 +1266,7 @@ describe("a Workspace chat’s Document tools", () => {
       .toArray()
       .find((d) => d.title === "Rollout plan")!
     expect(out).toBe(`Created document "Rollout plan" (id ${doc.id}).`)
-    expect(doc.ownerChatId).toBe("chat-1")
+    expect(doc.lastChangedByChatId).toBe("chat-1")
     expect(body(doc.id)).toBe("Ship to 10% first.")
     expect(
       collections.iframeLayerGroups
@@ -1280,7 +1280,7 @@ describe("a Workspace chat’s Document tools", () => {
     await run("create_document", { title: "Plan" })
     const id = collections.markdownLayers
       .toArray()
-      .find((d) => d.ownerChatId === "chat-1")!.id
+      .find((d) => d.lastChangedByChatId === "chat-1")!.id
 
     await run("replace_document_body", { document_id: id, content: "One." })
     await run("append_to_document_body", { document_id: id, content: "Two." })
@@ -1290,72 +1290,46 @@ describe("a Workspace chat’s Document tools", () => {
     expect(collections.markdownLayers.get(id)?.title).toBe("Final plan")
   })
 
-  it("refuses to change a hand-made Document or another chat’s", async () => {
+  it("edits a hand-made Document, another chat’s, and one from before #1724", async () => {
     const { collections, run, body } = setup()
+    collections.markdownLayers.set(
+      "old",
+      baseDoc("old", { title: "Old plan", ownerChatId: "chat-2" })
+    )
 
-    for (const [id, title] of [
-      ["hand-made", "Notes"],
-      ["theirs", "Other plan"],
-    ]) {
-      const refusal = `Error: "${title}" wasn’t made by this chat, so you can read it but not change it.`
+    for (const id of ["hand-made", "theirs", "old"]) {
       expect(
-        await run("replace_document_body", { document_id: id, content: "x" })
-      ).toBe(refusal)
-      expect(
-        await run("append_to_document_body", { document_id: id, content: "x" })
-      ).toBe(refusal)
-      expect(
-        await run("set_document_title", { document_id: id, title: "x" })
-      ).toBe(refusal)
-      expect(collections.markdownLayers.get(id)?.title).toBe(title)
-      expect(body(id)).toBe("")
+        await run("replace_document_body", { document_id: id, content: "One." })
+      ).toBe("Replaced document body (4 characters).")
+      await run("append_to_document_body", { document_id: id, content: "Two." })
+      await run("set_document_title", { document_id: id, title: `${id} 2` })
+      expect(body(id)).toBe("One.\n\nTwo.")
+      expect(collections.markdownLayers.get(id)).toMatchObject({
+        title: `${id} 2`,
+        lastChangedByChatId: "chat-1",
+      })
     }
   })
 
-  it("edits a Document whose chat was deleted, and claims it", async () => {
-    const { collections, run, body } = setup()
-    collections.markdownLayers.set(
-      "orphan",
-      baseDoc("orphan", { title: "Old plan", ownerChatId: "deleted-chat" })
-    )
-
-    expect(
-      await run("replace_document_body", {
-        document_id: "orphan",
-        content: "Picked up.",
-      })
-    ).toBe("Replaced document body (10 characters).")
-    expect(body("orphan")).toBe("Picked up.")
-    expect(collections.markdownLayers.get("orphan")?.ownerChatId).toBe("chat-1")
-  })
-
-  it("marks Documents whose chat was deleted in its prompt", async () => {
-    const { collections, room, target } = setup()
-    collections.markdownLayers.set(
-      "orphan",
-      baseDoc("orphan", { title: "Old plan", ownerChatId: "deleted-chat" })
-    )
-
-    const ctx = await workspaceChatTarget.loadContext(room, target)
-    const prompt = workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
-
-    expect(prompt).toMatch(/Old plan \(its chat was deleted; you can edit it\)/)
-    expect(prompt).not.toMatch(/Other plan \(/)
-  })
-
-  it("marks the chat’s own Documents in its prompt", async () => {
+  it("marks the Documents the chat changed last in its prompt", async () => {
     const { collections, room, target } = setup()
     collections.markdownLayers.set(
       "mine",
-      baseDoc("mine", { title: "My plan", ownerChatId: "chat-1" })
+      baseDoc("mine", { title: "My plan", lastChangedByChatId: "chat-1" })
+    )
+    collections.markdownLayers.set(
+      "old",
+      baseDoc("old", { title: "Old plan", ownerChatId: "chat-1" })
     )
 
     const ctx = await workspaceChatTarget.loadContext(room, target)
     const prompt = workspaceChatTarget.buildSystemPrompt(ctx!, BARE_TOOL_NAMING)
 
     expect(prompt).toContain("create_document")
-    expect(prompt).toMatch(/My plan.*\(yours\)/)
-    expect(prompt).not.toMatch(/Notes.*\(yours\)/)
+    expect(prompt).toMatch(/My plan \(you changed it last\)/)
+    expect(prompt).toMatch(/Old plan \(you changed it last\)/)
+    expect(prompt).not.toMatch(/Notes \(/)
+    expect(prompt).not.toMatch(/Other plan \(/)
   })
 })
 
@@ -1494,7 +1468,7 @@ describe("every kind’s prompt names only tools its turn has", () => {
   }
   const memory = [{ id: "mem-1", text: "Use pnpm.", source: "member" }] as never
   const layerDirectory = {
-    documents: [{ id: "doc-1", title: "Plan", ownerChatId: "chat-1" }],
+    documents: [{ id: "doc-1", title: "Plan", lastChangedByChatId: "chat-1" }],
   }
   const kinds = [
     {

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 import { getRoomCollections } from "@/lib/yjs/schema"
-import { documentWorkspaceIds } from "./document-owner"
 import { groupBranchId, groupWorkspace } from "./group-workspace"
 
 const frames = new Map([
@@ -181,22 +180,6 @@ describe("groupWorkspace", () => {
         frames: ["a"],
       })
     })
-  })
-})
-
-describe("documentWorkspaceIds", () => {
-  it("maps each chat-made Document to its chat's Workspace", () => {
-    expect(
-      documentWorkspaceIds(
-        [
-          { id: "doc-1", ownerChatId: "chat-1" },
-          { id: "doc-2" },
-          { id: "doc-3", ownerChatId: "gone" },
-          { id: "doc-4", ownerChatId: "room-chat" },
-        ],
-        [{ id: "chat-1", branchId: "ws-1" }, { id: "room-chat" }]
-      )
-    ).toEqual(new Map([["doc-1", "ws-1"]]))
   })
 })
 

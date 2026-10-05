@@ -12,7 +12,7 @@ import { workspaceChatTarget } from "./workspace-chat-target"
 /**
  * The Skill Sources (#1664) of a chat on `room`, by id, as its own Chat
  * Target builds them, for code that holds a chat's id rather than its target:
- * a Mockup page's `skill:` references resolve through the chat that made it.
+ * a Mockup page's `skill:` references resolve through the chat that last changed it.
  * `userId` is whose Account Skills join them (none when `null`). A Workspace
  * chat's Repo Skills come while its sandbox runs; an id that names no chat
  * (a Mockup made by hand) gets a Workspace chat's Skills without a Branch.

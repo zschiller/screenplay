@@ -18,6 +18,7 @@ import {
   shownIndexToMemberIndex,
 } from "@/lib/canvas/done-workspaces"
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
+import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
 import { mockupHtml, writeMockupHtml } from "@/lib/yjs/mockup-html"
@@ -204,13 +205,13 @@ export type CanvasOps = {
    * Create a Document (Markdown Layer) in a fresh single-member Group anchored
    * at `anchor` (canvas-space top-left), `size` clamped to the document floor.
    * Seeds the body fragment's title heading via `documentFragment` (the single
-   * fragment-key owner). `ownerChatId` records the chat that made it (#1314);
-   * a Document made by hand has none. Returns the new document and Group ids.
+   * fragment-key owner). `lastChangedByChatId` records the chat that made it
+   * (#1724); a Document made by hand has none. Returns the new document and Group ids.
    */
   createDocument(
     anchor: { x: number; y: number },
     size: { width: number; height: number },
-    opts?: { ownerChatId?: string }
+    opts?: { lastChangedByChatId?: string }
   ): { docId: string; groupId: string }
   /**
    * Create a Branch record from `spec`, allocating its id and setting the
@@ -289,14 +290,14 @@ export type CanvasOps = {
    * sibling of {@link addFrameToGroup}, sized from the resolved `size` (the
    * caller mirrors the Group's last sibling) and spliced onto the end of the
    * member row. Like {@link createDocument} it seeds the body fragment's title
-   * heading and records `ownerChatId`; the multi-collection write is why this
+   * heading and records `lastChangedByChatId`; the multi-collection write is why this
    * earns a verb. Returns the new document id, or `undefined` when the Group
    * is missing.
    */
   addDocumentToGroup(
     groupId: string,
     size: { width: number; height: number },
-    opts?: { ownerChatId?: string }
+    opts?: { lastChangedByChatId?: string }
   ): { docId: string } | undefined
   /**
    * Rename a Document (Markdown Layer) from outside the editor (sidebar, agent
@@ -325,8 +326,8 @@ export type CanvasOps = {
    * Create a Mockup Layer (#1309) showing `spec.html`. With `groupId` it joins
    * the end of that Group's row, beside the layers it sits with; otherwise it
    * starts a fresh Group at `anchor` (canvas-space top-left), or beside the
-   * existing Groups when no anchor is given. `chatId` names the chat that made
-   * it. The record and its HTML text commit together. `id` lets a caller that
+   * existing Groups when no anchor is given. `lastChangedByChatId` names the chat
+   * that made it. The record and its HTML text commit together. `id` lets a caller that
    * names the Mockup before it exists (a drawn box's ask, #1359) pick it.
    * Returns `undefined` when `groupId` names a missing Group.
    */
@@ -336,7 +337,7 @@ export type CanvasOps = {
     title: string
     width: number
     height: number
-    ownerChatId?: string
+    lastChangedByChatId?: string
     groupId?: string
     anchor?: { x: number; y: number }
   }): { mockupId: string; groupId: string } | undefined
@@ -346,7 +347,7 @@ export type CanvasOps = {
    */
   updateMockup(id: string, patch: { html?: string; title?: string }): boolean
   /**
-   * Copy a Mockup Layer (page, size, knobs and owning chat) to the end of its
+   * Copy a Mockup Layer (page, size, knobs and last chat) to the end of its
    * Group's row, named "<title> copy" — the mockup bar's
    * Duplicate. Returns the copy's id, or `undefined` when the mockup is gone.
    */
@@ -449,11 +450,11 @@ export type CanvasOps = {
 }
 
 /** A new Document's record: its size above the document floor, no title yet,
- *  and the chat that made it, if any. */
+ *  and the chat that made it, if any, as its last changer. */
 function newDocument(
   id: string,
   size: { width: number; height: number },
-  { ownerChatId }: { ownerChatId?: string }
+  { lastChangedByChatId }: { lastChangedByChatId?: string }
 ): MarkdownLayerData {
   return {
     id,
@@ -461,7 +462,7 @@ function newDocument(
     width: Math.max(200, size.width),
     height: Math.max(120, size.height),
     title: "",
-    ...(ownerChatId ? { ownerChatId } : {}),
+    ...(lastChangedByChatId ? { lastChangedByChatId } : {}),
   }
 }
 
@@ -773,7 +774,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   function createDocument(
     anchor: { x: number; y: number },
     size: { width: number; height: number },
-    opts: { ownerChatId?: string } = {}
+    opts: { lastChangedByChatId?: string } = {}
   ): { docId: string; groupId: string } {
     const docId = nanoid()
     const groupId = nanoid()
@@ -948,7 +949,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
   function addDocumentToGroup(
     groupId: string,
     size: { width: number; height: number },
-    opts: { ownerChatId?: string } = {}
+    opts: { lastChangedByChatId?: string } = {}
   ): { docId: string } | undefined {
     const docId = nanoid()
     let created = false
@@ -1010,7 +1011,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     title: string
     width: number
     height: number
-    ownerChatId?: string
+    lastChangedByChatId?: string
     groupId?: string
     anchor?: { x: number; y: number }
   }): { mockupId: string; groupId: string } | undefined {
@@ -1029,7 +1030,9 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         width: Math.max(MOCKUP_MIN_WIDTH, spec.width),
         height: Math.max(MOCKUP_MIN_HEIGHT, spec.height),
         title: spec.title,
-        ...(spec.ownerChatId ? { ownerChatId: spec.ownerChatId } : {}),
+        ...(spec.lastChangedByChatId
+          ? { lastChangedByChatId: spec.lastChangedByChatId }
+          : {}),
       })
       writeMockupHtml(mockupHtml(doc, mockupId), spec.html)
       const member = { kind: "mockup-layer" as const, id: mockupId }
@@ -1093,7 +1096,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
         title: source.title ? `${source.title} copy` : "",
         width: source.width,
         height: source.height,
-        ownerChatId: source.ownerChatId,
+        lastChangedByChatId: lastChangedBy(source),
         groupId: group.id,
       })
       if (source.fitHeight) {

@@ -61,18 +61,18 @@ land here:
 - **On their own.** When the chat has no frame on the canvas yet,
   its mockups get a group of their own.
 
-## Which chat made it
+## Which chat changes it
 
-Every mockup remembers the chat that made it, and shows that chat
-next to its title, as a chat’s documents do. When everything in a
-group comes from the same chat, the group’s label names it once instead.
-Only the chat that made a mockup can change it; ask that chat to continue the
-work. Once that chat is deleted, any chat can change the mockup, and the first
-one that does becomes its chat.
+Any chat can change any mockup, whichever chat drew it, so you can ask the
+chat you’re talking to to take a mockup further. Every mockup remembers the
+chat that changed it last, and that’s the chat its page, **Ask the agent to
+add a knob** and **Send to chat** talk to. A mockup’s label shows only its
+title. When everything in a group was last changed by the same chat, the
+group’s label names it once.
 
 ## Building one
 
-When you’ve picked a take, ask the chat that drew it to build it, for
+When you’ve picked a take, ask a chat to build it, for
 example “build take 2”. The chat reads that mockup’s page, builds it into
 its own code using your app’s real components, and checks the result
 in its frame against the mockup. Its reply sums up the decisions it built
@@ -110,10 +110,10 @@ and <kbd>Esc</kbd> or a click outside the mockup returns to the canvas. A
 mockup has no address bar or reload. Mockups aren’t chat targets. A chat
 writes every mockup’s page, including the ones you draw.
 
-You can still point at part of one. In the chat that drew it, click the
+You can still point at part of one. In the chat that changed it last, click the
 composer’s **crosshair** and then an element in the mockup, as you would in
 a frame (see [Targeting an element](/guides/agent#targeting-an-element)).
-Mockups from other chats dim while you pick.
+Mockups other chats changed last dim while you pick.
 
 ## Knobs and shared state
 
@@ -122,10 +122,10 @@ frame’s. When the
 chat gives its page [knobs](/guides/building/knobs#knobs-on-a-mockup), the button
 opens them: sliders, switches, text fields, selects and color pickers that
 change the page as you drag, for everyone on the canvas. With none yet,
-**Ask the agent to add a knob** opens the chat that drew the mockup with a request started. When
-that chat was deleted, it opens the chat the agent panel is showing instead,
-or a new chat with no repository when the panel shows the Coordinator. A
-mockup you made by hand has no Ask.
+**Ask the agent to add a knob** opens the chat that changed the mockup last
+with a request started. For a mockup no chat changed, or when that chat was
+deleted, it opens the chat the agent panel is showing instead,
+or a new chat with no repository when the panel shows the Coordinator.
 
 A mockup’s page can also [share its state](/guides/building/shared-state#on-a-mockup),
 such as the open tab or what’s in a cart, so everyone looking at it sees the
@@ -145,7 +145,7 @@ names the file and Screenplay puts it in when the mockup shows, for everyone
 on the canvas, so the page stays small. A file from a skill comes from the
 skill of that name your chats would use, in the usual
 [order](/guides/building/skills#where-skills-come-from): the repository of the
-chat that drew the mockup, then the canvas’s, your account’s and the built-in
+chat that changed the mockup last, then the canvas’s, your account’s and the built-in
 one.
 
 A file the page names that isn’t there, say a screenshot that was deleted,
@@ -155,7 +155,7 @@ shows as an empty picture, and the rest of the page works as before.
 
 When a chat asks you a [question](/guides/agent#questions) about a mockup,
 the question names the mockup under it, and clicking the name brings the
-mockup into view. Any chat can ask one: the chat that drew the mockup, the
+mockup into view. Any chat can ask one: the chat that changed the mockup last, the
 [Coordinator](/guides/coordinator) or another chat. The mockup’s page can show
 the same question and its options, so you can pick one where you see the
 designs. A pick on the page opens the chat that asked and lands exactly as
@@ -174,14 +174,14 @@ drives a mockup, a pick stays on the page, which says to answer in the chat.
 
 A mockup’s page can hand you a message to send to its chat. A decision page,
 for example, may have a **Send to chat** button that sums up your picks and
-notes. Pressing it opens the chat that drew the mockup and puts the message
+notes. Pressing it opens the chat that changed the mockup last and puts the message
 in its composer, after anything you had already typed, with the caret at the
 end. Edit it as you like, then send it. Nothing is ever sent for you.
 
 A **From** row at the top of the composer names the mockup the message came
 from, and when you send, the chat is told which mockup it was written on. The
-row’s X removes it and keeps the text. When the chat that drew the mockup was
-deleted, the message goes to the chat the agent panel is showing, as
+row’s X removes it and keeps the text. When no chat on the canvas changed the
+mockup, the message goes to the chat the agent panel is showing, as
 **Ask the agent to add a knob** does.
 
 A page can only do this from your own click or key press while you
@@ -206,7 +206,7 @@ reads **Live**. Anyone who opens the canvas while the mockup is live lands on
 it live.
 
 A mockup has no code of its own, so it borrows a chat’s to run in: the
-code of the chat that made it, or another chat’s running code when that
+code of the chat that changed it last, or another chat’s running code when that
 one isn’t running. With no chat’s code running, **Go live** is disabled and its
 tooltip says **The chat’s code has to be running**.
 

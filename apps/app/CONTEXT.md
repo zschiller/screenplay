@@ -404,27 +404,29 @@ _Avoid_: screen, window, panel; "frame" is the UI label only.
 **Markdown Layer** (Document):
 A rich-text layer whose body is a TipTap-owned `Y.XmlFragment` keyed
 `markdown-layer-{id}`. Its title is mirrored into both the fragment heading and
-the layer's collection record. A Document a chat made records that chat as
-its **owner** (`ownerChatId`, #1314): only the owner edits it with tools, and
-it shows the owner's name by the Group label rule. One a person made has no
-owner and no name. Every chat reads every Document.
+the layer's collection record. Any chat reads and edits any Document with its
+tools (#1724); each create or edit records the chat as its **last chat**
+(`lastChangedByChatId`, read from `ownerChatId` on older records), where its
+Reply in chat and Send to agent go (`lib/canvas/layer-chat.ts`). Its label
+shows only its title. One a person made and no chat changed has no last chat.
 _Avoid_: note, text layer; "document chat" (Documents are not Chat Targets
 since #1314).
 
 **Mockup Layer** (Mockup):
 A static HTML page a chat wrote, shown on the canvas with no Sandbox
 (#1309). Its page is a `Y.Text` keyed `mockup-layer-{id}` beside its record
-(`MockupLayerData`: size, title and the `ownerChatId` of the chat that made
-it). Mockups have no status; the Set aside / Current / Built status (#1310)
+(`MockupLayerData`: size, title and the `lastChangedByChatId` of its last
+chat, as a Document's). Mockups have no status; the Set aside / Current / Built status (#1310)
 was removed. Older records may still carry a `status` field, which nothing
 reads.
 It renders in an `<iframe srcdoc sandbox="allow-scripts">` with no
 `allow-same-origin` and a Content Security Policy that blocks the network, so
 the page can never reach the app, its cookies or the canvas, and has no
 browser chrome. A Workspace chat creates one with `create_mockup` and rewrites
-its own (page or title) with `update_mockup`; a new one joins the Group of the chat's latest
-Mockup, else of its Workspace's frames. Like a chat-made Document, it names
-its chat's Workspace by the Group label rule. Not a Chat Target. Canvas selection carries it
+any (page or title) with `update_mockup`; a new one joins the Group of the latest
+Mockup the chat changed, else of its Workspace's frames. Like a Document, its
+label shows only its title, and the Group label rule counts its last chat's
+Workspace. Not a Chat Target. Canvas selection carries it
 in the Markdown Layer Set: selection only tells frames apart from the other
 kinds.
 _Avoid_: prototype (that's a running Workspace), wireframe, design layer;
@@ -669,7 +671,7 @@ persisted thread is its own surface).
 **Chat Quote**:
 A Document passage quoted into a chat's composer by **Reply in chat** (#1243),
 the last button of a Document's selection toolbar on the web and desktop. It
-lands in the composer of the Document's **owner** chat when a chat made it,
+lands in the composer of the Document's **last chat** when a chat changed it,
 which the panel switches to (`quoteInto`, #1314); otherwise in the chat the
 panel is **showing** — the Coordinator, or the active chat tab of a Workspace —
 the way an element token lands

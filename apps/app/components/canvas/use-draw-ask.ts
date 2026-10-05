@@ -49,7 +49,11 @@ export interface DrawAskDeps {
   agents: BranchData[]
   iframeLayers: IframeLayerData[]
   /** Documents and Mockups, for who owns a selected one. */
-  ownedLayers: readonly { id: string; ownerChatId?: string }[]
+  ownedLayers: readonly {
+    id: string
+    lastChangedByChatId?: string
+    ownerChatId?: string
+  }[]
   chatSessions: ChatSessionData[]
   selection: Pick<CanvasSelection, "current" | "selectIframeLayer">
   setSelectedGroupIds: Dispatch<SetStateAction<Set<string>>>
@@ -225,8 +229,8 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     (box: DrawnRect, payload: ComposerSubmitPayload, to: FrameAnswerer) => {
       const mockup: DrawnMockup = { id: nanoid(), ...box }
       const prompt = forMockup(payload.text, mockup.id, box)
-      const place = (ownerChatId: string) => {
-        ops.createMockup(emptyMockup(mockup, ownerChatId))
+      const place = (chatId: string) => {
+        ops.createMockup(emptyMockup(mockup, chatId))
         setSelectedGroupIds(new Set())
         setSelectedIframeLayerIds(new Set())
         setSelectedDocumentLayerIds(new Set([mockup.id]))

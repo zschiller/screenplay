@@ -100,7 +100,7 @@ export function useCommentRequests({
             quotedText: t.quotedText,
           }))
         )
-        // A Document's threads go to the Workspace of the chat that made it,
+        // A Document's threads go to the Workspace of the chat that last changed it,
         // or the one the panel shows, and land in that Workspace's one chat.
         const ok = sendComments(
           workspaceId,

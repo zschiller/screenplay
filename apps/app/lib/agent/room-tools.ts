@@ -35,6 +35,7 @@ import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import { isSketchChat, sketchChatSession } from "@/lib/chat/sketch-chat"
+import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import type {
   BranchData,
@@ -894,10 +895,10 @@ export function summarizeCanvas(
   )
   const byCreated = <T extends { createdAt?: number }>(a: T, b: T) =>
     (a.createdAt ?? 0) - (b.createdAt ?? 0)
-  // A Mockup's chat, or that it was deleted (any chat can change it then).
-  const ownerOf = (chatId: string) => {
-    const chat = chats.find((c) => c.id === chatId)
-    return chat ? `by chat "${clip(chat.label)}"` : "its chat was deleted"
+  // The chat that last changed a Document or Mockup (#1724), while it's on the canvas.
+  const lastChatOf = (chatId: string | undefined) => {
+    const chat = chatId ? chats.find((c) => c.id === chatId) : undefined
+    return chat && `last changed by chat "${clip(chat.label)}"`
   }
 
   return [
@@ -960,6 +961,7 @@ export function summarizeCanvas(
     section("Documents", documents, CANVAS_SUMMARY_LIMITS.documents, (d) =>
       [
         `- [${d.id}] "${clip(d.title || "Untitled")}"`,
+        lastChatOf(lastChangedBy(d)),
         groupOf.get(d.id) && `Group ${groupOf.get(d.id)}`,
       ]
         .filter(Boolean)
@@ -969,7 +971,7 @@ export function summarizeCanvas(
       [
         `- [${m.id}] "${clip(m.title || "Untitled")}"`,
         `${Math.round(m.width)}×${Math.round(m.height)}`,
-        m.ownerChatId && ownerOf(m.ownerChatId),
+        lastChatOf(lastChangedBy(m)),
         groupOf.get(m.id) && `Group ${groupOf.get(m.id)}`,
       ]
         .filter(Boolean)

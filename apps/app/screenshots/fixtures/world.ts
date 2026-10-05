@@ -771,7 +771,7 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
       height: 800,
       title: "Checkout brief",
       // The Checkout polish chat wrote it (#1314).
-      ownerChatId: FIXTURE_IDS.chats.checkoutPolish,
+      lastChangedByChatId: FIXTURE_IDS.chats.checkoutPolish,
     },
   ]
 
@@ -780,21 +780,21 @@ function checkoutRoom(now: number, previewOrigin: string): FixtureRoom {
   const mockupLayers: MockupLayerData[] = [
     {
       id: "mockup-cart-illustrated",
-      ownerChatId: EMPTY_CART_CHAT_ID,
+      lastChangedByChatId: EMPTY_CART_CHAT_ID,
       width: 1280,
       height: 800,
       title: "Option A · Illustrated",
     },
     {
       id: "mockup-cart-suggestions",
-      ownerChatId: EMPTY_CART_CHAT_ID,
+      lastChangedByChatId: EMPTY_CART_CHAT_ID,
       width: 1280,
       height: 800,
       title: "Option B · Suggestions",
     },
     {
       id: "mockup-receipt",
-      ownerChatId: FIXTURE_IDS.chats.checkoutPolish,
+      lastChangedByChatId: FIXTURE_IDS.chats.checkoutPolish,
       width: 720,
       height: 800,
       title: "Order receipt email",

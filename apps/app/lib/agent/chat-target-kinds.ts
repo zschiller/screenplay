@@ -19,6 +19,7 @@ import type { SkillMetadata } from "@/lib/skills/frontmatter"
 import { accountSkills } from "@/lib/skills/account"
 import type { SavedSkills } from "@/lib/skills/saved"
 import type { SkillSources } from "@/lib/skills/sources"
+import { lastChangedBy } from "@/lib/canvas/layer-chat"
 
 /**
  * The seam every chat target kind fills: a Branch's Workspace
@@ -212,23 +213,23 @@ export function turnSender(target: {
 
 /**
  * Snapshot the canvas's docs for the model's directory block. Cheap — the
- * collection is already in memory; we copy id, title and owning chat only,
- * and mark the ones whose chat was deleted.
+ * collection is already in memory; we copy id, title and the chat that last
+ * changed each.
  */
 export async function loadLayerDirectory(
   room: RoomDoc
 ): Promise<LayerDirectory> {
   return (
     (await room
-      .readDoc(({ markdownLayers, chatSessions }) => ({
-        documents: markdownLayers.toArray().map((d) => ({
-          id: d.id,
-          title: d.title,
-          ...(d.ownerChatId ? { ownerChatId: d.ownerChatId } : {}),
-          ...(d.ownerChatId && !chatSessions.get(d.ownerChatId)
-            ? { orphaned: true }
-            : {}),
-        })),
+      .readDoc(({ markdownLayers }) => ({
+        documents: markdownLayers.toArray().map((d) => {
+          const chatId = lastChangedBy(d)
+          return {
+            id: d.id,
+            title: d.title,
+            ...(chatId ? { lastChangedByChatId: chatId } : {}),
+          }
+        }),
       }))
       .catch(() => null)) ?? { documents: [] }
   )
