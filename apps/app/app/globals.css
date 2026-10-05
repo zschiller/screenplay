@@ -13,6 +13,17 @@
   --font-heading: var(--font-unbounded), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* The app's text steps: 12px meta (`text-xs`), 13px UI (`text-sm`), and 14px
+   `text-prose` for what's said in a chat: replies, sent messages and questions
+   that sit on the chat itself rather than in a row or card. Every step keeps
+   a 20px line except meta, so a row is the same height at either size. */
+@theme {
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: calc(1.25 / 0.8125);
+  --text-prose: 0.875rem;
+  --text-prose--line-height: calc(1.25 / 0.875);
+}
+
 /* Canvas tokens (issue #719). One source for the canvas chrome's colours and
    its stacking order, read by both the drawn overlays (`lib/canvas/tokens.ts`
    resolves these for the 2D contexts) and the DOM (`text-canvas-selection`,

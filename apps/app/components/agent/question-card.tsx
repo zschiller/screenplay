@@ -106,8 +106,8 @@ export function QuestionCard({
       {/* Choices are disabled one by one: a disabled Item counts as
           skipped, and the Questionnaire hides it. */}
       <QuestionnaireItem name={`question-${message.toolCallId}`}>
-        {/* The chat's type scale: the question reads as body text. */}
-        <QuestionnaireTitle className="text-sm">
+        {/* The question sits on the chat, so it reads as the reply around it. */}
+        <QuestionnaireTitle className="text-prose">
           {question.question}
         </QuestionnaireTitle>
         {question.mockupId && <MockupLine id={question.mockupId} />}

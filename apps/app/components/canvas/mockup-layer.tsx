@@ -512,7 +512,7 @@ export function MockupLayer({
                   <GripSpinner className="text-muted-foreground" />
                 </EmptyMedia>
                 <EmptyTitle>Sketching</EmptyTitle>
-                <EmptyDescription className="text-xs/relaxed">
+                <EmptyDescription>
                   The chat is drawing this page.
                 </EmptyDescription>
               </EmptyHeader>
