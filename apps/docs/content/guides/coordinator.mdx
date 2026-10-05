@@ -70,7 +70,7 @@ as soon as it’s up.
 Each workspace chat the Coordinator starts or messages shows up as a card
 under the Coordinator message that started it, with the workspace’s title, its
 changed lines and its state, and under them the message it was sent. The state
-reads the same as the workspace’s row in the Workspaces menu:
+reads the same as the workspace’s row in the Chats menu:
 
 - **Sending** while the message goes out;
 - **Starting** while the workspace’s sandbox comes up;
@@ -188,14 +188,15 @@ reads a workspace names it, such as **Read changes in** _Checkout_. Once a
 change to the canvas finishes, its row says what changed, such as **Renamed
 Group “Hero” to “Sign-in”**.
 
-| Kind    | Rows                                                                                                                                                     |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read    | **Read canvas**, **Read document**, **Read chat**, **Read workspace diff**, **Read workspace file**, **View frame**, **Read frame HTML**, **Read skill** |
-| Arrange | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**   |
-| View    | **Show on canvas**                                                                                                                                       |
-| Chats   | **Start chats**, **Stop chat**, **Create pull request**, **Delete chat**                                                                                 |
-| Memory  | **Save to memory**                                                                                                                                       |
-| Skills  | **Save skill**, **Delete skill**                                                                                                                         |
+| Kind    | Rows                                                                                                                                                                          |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read    | **Read canvas**, **Read document**, **Read chat**, **Read workspace diff**, **Read workspace file**, **View frame**, **Read frame HTML**, **Screenshot page**, **Read skill** |
+| Arrange | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**                        |
+| View    | **Show on canvas**                                                                                                                                                            |
+| Chats   | **Start chats**, **Start chat**, **Stop chat**, **Create pull request**, **Delete chat**                                                                                      |
+| Memory  | **Save to canvas memory**                                                                                                                                                     |
+| Files   | **List saved files**, **Open saved file**, **Save file**, **Move saved file**, **Delete saved file**, **Make folder**                                                         |
+| Skills  | **Save skill**, **Delete skill**                                                                                                                                              |
 
 A message to a workspace shows as its [card](#messages-to-workspaces) rather
 than a row, and a [question](/guides/agent#questions) it

@@ -94,6 +94,9 @@ export default async function RootLayout({
           docsRepositoryBase="https://github.com/zschiller/screenplay/tree/main/apps/docs"
           footer={footer}
           toc={{ title: "On this page" }}
+          // On a phone the menu lists every tab; keep the tabs you’re not on
+          // closed so Self-hosting and Contributing aren’t under every guide.
+          sidebar={{ defaultMenuCollapseLevel: 1 }}
           // components/copy-page.tsx renders it as the app's split button.
           copyPageButton={false}
           // components/page-nav.tsx renders previous / next as buttons.
