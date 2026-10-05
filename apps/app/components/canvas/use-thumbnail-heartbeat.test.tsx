@@ -113,6 +113,37 @@ describe("useThumbnailHeartbeat", () => {
     })
   })
 
+  describe("capture cooldown", () => {
+    it("sends a skipped subset again once the server's cooldown ends", async () => {
+      fetchMock.mockImplementationOnce(() =>
+        Promise.resolve(Response.json({ skipped: true, retryInMs: 5_000 }))
+      )
+      const tracker = new DirtyFrameTracker()
+      renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
+
+      act(() => tracker.setReady("m1", true))
+      await act(() => vi.advanceTimersByTimeAsync(SETTLE_MS))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      // Nothing more until the cooldown ends, then the subset settles again.
+      await act(() => vi.advanceTimersByTimeAsync(5_000))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      await act(() => vi.advanceTimersByTimeAsync(SETTLE_MS))
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(bodyOf(fetchMock.mock.calls[1])).toEqual({ frameIds: ["m1"] })
+    })
+
+    it("doesn't send a queued round again", async () => {
+      const tracker = new DirtyFrameTracker()
+      renderHook(() => useThumbnailHeartbeat("room-1", true, tracker))
+
+      act(() => tracker.setReady("m1", true))
+      await act(() => vi.advanceTimersByTimeAsync(SETTLE_MS))
+      await act(() => vi.advanceTimersByTimeAsync(60_000))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe("layout lane", () => {
     it("posts an empty subset shortly after a layout-only Y.Doc update", () => {
       const tracker = new DirtyFrameTracker()

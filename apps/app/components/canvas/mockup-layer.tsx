@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTheme } from "next-themes"
 import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
@@ -170,6 +170,13 @@ interface MockupLayerProps {
   commentMode?: boolean
   /** A pinch or ⌘-scroll over the interacting page, to zoom the canvas. */
   onWheel?: (id: string, wheel: WheelForward) => void
+  /**
+   * The thumbnail's capture bookkeeping (#474), as on a frame: the mockup
+   * is ready to capture once it has a page, and dirty whenever the page or
+   * its size changes.
+   */
+  onCaptureReadyChange?: (id: string, ready: boolean) => void
+  onCaptureDirty?: (id: string) => void
 }
 
 const NOBODY_DRIVES: FrameDriverView = { kind: "none" }
@@ -249,6 +256,8 @@ export function MockupLayer({
   onFocus,
   commentMode = false,
   onWheel,
+  onCaptureReadyChange,
+  onCaptureDirty,
 }: MockupLayerProps) {
   const html = useMockupHtml(layer.id)
   const runtime = useMockupRuntime()
@@ -276,6 +285,23 @@ export function MockupLayer({
   const settled = builtDoc !== undefined || !hasPage
   if (settled && shownDoc !== builtDoc) setShownDoc(builtDoc)
   const srcDoc = settled ? builtDoc : shownDoc
+  // The home grid's thumbnail renders the same page on the server, so tell
+  // the capture when there's one to take, and retake it when the page or its
+  // size changes (the capture settles before it shoots).
+  const capturable = builtDoc !== undefined
+  useEffect(() => {
+    onCaptureReadyChange?.(layer.id, capturable)
+  }, [onCaptureReadyChange, layer.id, capturable])
+  useEffect(() => {
+    if (capturable) onCaptureDirty?.(layer.id)
+  }, [
+    onCaptureDirty,
+    layer.id,
+    capturable,
+    builtDoc,
+    layer.width,
+    layer.height,
+  ])
   const shared = !!sharedStream
   const showFit = !!onSetFitToContent && hasPage
   const fitHeight = showFit && !!layer.fitHeight

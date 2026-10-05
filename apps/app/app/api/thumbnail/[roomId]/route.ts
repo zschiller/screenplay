@@ -43,10 +43,15 @@ export async function POST(
     return NextResponse.json({ rebuilt: true }, { status: 200 })
   }
 
-  // The capture cooldown guards the expensive lane only.
+  // The capture cooldown guards the expensive lane only. A skipped round says
+  // when the cooldown ends, so the heartbeat can send its frames again then
+  // rather than lose them.
   const updatedAt = await getRoomThumbnailUpdatedAt(roomId)
   if (updatedAt && Date.now() - updatedAt < COOLDOWN_MS) {
-    return NextResponse.json({ skipped: true }, { status: 200 })
+    return NextResponse.json(
+      { skipped: true, retryInMs: COOLDOWN_MS - (Date.now() - updatedAt) },
+      { status: 200 }
+    )
   }
 
   // Bump the timestamp before queueing so concurrent captures dedup against the
