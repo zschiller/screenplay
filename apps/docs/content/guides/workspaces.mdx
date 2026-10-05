@@ -76,7 +76,9 @@ level. In a workspace, click **Coordinator** in the header to get back to it.
 An orange dot on the **Chats** button means a workspace needs you: its setup
 failed, its plan waits for your approval, its agent
 [asked you a question](/guides/agent#questions), or its pull request can’t
-merge. An open pull request waiting on review doesn’t count.
+merge. An open pull request waiting on review doesn’t count. A
+[chat with no repository](/guides/agent#chats-with-no-repository) counts too
+while its question waits.
 Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
 
 - a **search** field that finds a chat by its title or its workspace’s
@@ -86,7 +88,8 @@ Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
 - one row for each workspace’s chat, under **Working**, **Needs you** and
   **Idle** (see [Order](#order));
 - under **No repository**, any
-  [chats with no repository](/guides/agent#chats-with-no-repository).
+  [chats with no repository](/guides/agent#chats-with-no-repository), with a
+  spinner while its agent works and an orange dot while its question waits.
 
 On a canvas with no repository the menu lists only chats with no repository,
 and **+** beside the search field starts one.

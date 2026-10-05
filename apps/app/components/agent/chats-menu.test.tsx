@@ -7,22 +7,29 @@ import {
   screen,
   within,
 } from "@testing-library/react"
-import type { BranchData, RepoData } from "@/lib/types"
+import type { BranchData, ChatSessionData, RepoData } from "@/lib/types"
 
 // The create dialog's base picker lists the remote's branches; none here.
 vi.mock("@/lib/github-actions", () => ({
   listRepoBranches: vi.fn().mockResolvedValue([]),
 }))
-vi.mock("@/lib/yjs/react", () => ({ useChatSessions: () => [] }))
+// The canvas's chats and which of them wait on a question, set per test.
+const chats = vi.hoisted(() => ({
+  sessions: [] as ChatSessionData[],
+  openQuestions: new Set<string>(),
+}))
+vi.mock("@/lib/yjs/react", () => ({ useChatSessions: () => chats.sessions }))
 // Each Workspace's state comes from its chats and plans; the rows under test
 // need only the Branch's own status, and one Workspace needing you.
 vi.mock("@/hooks/use-workspace-states", async () => {
-  const { roomWorkspaceFacts, workspaceState } =
+  const { roomWorkspaceFacts, sketchChatStatusLine, workspaceState } =
     await import("@/lib/branch/workspace-state")
   const room = roomWorkspaceFacts([], [])
   return {
     useWorkspaceStates: () => (branch: Parameters<typeof workspaceState>[0]) =>
       workspaceState(branch, room),
+    useSketchChatStates: () => (chat: ChatSessionData) =>
+      sketchChatStatusLine(chat, chats.openQuestions),
   }
 })
 vi.mock("@/hooks/use-unsaved-work", () => ({
@@ -49,7 +56,11 @@ if (!Element.prototype.hasPointerCapture) {
   Element.prototype.scrollIntoView = () => {}
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  chats.sessions = []
+  chats.openQuestions = new Set()
+})
 
 const REPO = {
   id: "r1",
@@ -170,6 +181,50 @@ describe("Chats menu", () => {
         .getByRole("button", { name: "Chats" })
         .getAttribute("aria-description")
     ).toBe("A chat needs you")
+  })
+
+  it("shows a chat with no repository working while its agent works", () => {
+    chats.sessions = [
+      {
+        id: "s1",
+        target: "sketch",
+        label: "Pricing page",
+        createdAt: 1,
+        isStreaming: true,
+      },
+    ]
+    renderMenu([], { repos: [] })
+    const row = [
+      ...openMenu().querySelectorAll<HTMLElement>("[cmdk-item]"),
+    ].find((r) => r.textContent?.includes("Pricing page"))
+    expect(
+      within(row!).getByRole("img", { name: "Agent working" })
+    ).toBeTruthy()
+    expect(
+      screen
+        .getByRole("button", { name: "Chats" })
+        .getAttribute("aria-description")
+    ).toBeNull()
+  })
+
+  it("puts the needs-you dot on a chat with no repository whose question waits", () => {
+    chats.sessions = [
+      { id: "s1", target: "sketch", label: "Pricing page", createdAt: 1 },
+    ]
+    chats.openQuestions = new Set(["s1"])
+    renderMenu([branch({})])
+    expect(
+      screen
+        .getByRole("button", { name: "Chats" })
+        .getAttribute("aria-description")
+    ).toBe("A chat needs you")
+    const row = [
+      ...openMenu().querySelectorAll<HTMLElement>("[cmdk-item]"),
+    ].find((r) => r.textContent?.includes("Pricing page"))
+    expect(
+      within(row!).getByRole("img", { name: "Question waiting" })
+    ).toBeTruthy()
+    expect(row!.querySelector("[data-slot=needs-you-dot]")).toBeTruthy()
   })
 
   it("switches the panel to the picked chat", () => {

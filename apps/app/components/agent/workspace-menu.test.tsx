@@ -18,12 +18,13 @@ vi.mock("@/lib/yjs/react", () => ({ useChatSessions: () => [] }))
 // Each Workspace's state comes from its chats and plans; the rows under test
 // need only the Branch's own status, and one Workspace needing you.
 vi.mock("@/hooks/use-workspace-states", async () => {
-  const { roomWorkspaceFacts, workspaceState } =
+  const { roomWorkspaceFacts, sketchChatStatusLine, workspaceState } =
     await import("@/lib/branch/workspace-state")
   const room = roomWorkspaceFacts([], [])
   return {
     useWorkspaceStates: () => (branch: Parameters<typeof workspaceState>[0]) =>
       workspaceState(branch, room),
+    useSketchChatStates: () => sketchChatStatusLine,
   }
 })
 vi.mock("@/hooks/use-unsaved-work", () => ({
