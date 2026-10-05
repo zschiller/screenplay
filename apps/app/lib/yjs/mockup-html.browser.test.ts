@@ -300,10 +300,10 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
     await page.evaluate("document.querySelector('iframe').remove()")
   }, 20_000)
 
-  // The exploration page on a canvas (#1647): its Pick answers the card the
+  // The exploration page on a canvas (#1647): its answer answers the card the
   // chat asked about it, and Send to chat drafts the reaction, each from a
   // real click, as the canvas would get them.
-  it("answers the chat's card from Pick and drafts from Send to chat", async () => {
+  it("answers the chat's card from the page's answer and drafts from Send to chat", async () => {
     const { html, resources } = templatePage(
       "screenplay-explore-with-mockups",
       "exploration-template.html"
@@ -343,8 +343,8 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
       document.body.append(frame)
     }, doc)
     const frame = page.frameLocator("iframe")
-    await frame.getByRole("radio", { name: /^B/ }).first().click()
-    await frame.getByRole("button", { name: "Pick B" }).click()
+    // The answer's choice rows, under the question's options
+    await frame.getByRole("radio", { name: /^B · / }).first().click()
     await frame.getByRole("button", { name: "Send to chat" }).click()
     const answersAndDrafts = async () =>
       (await page.evaluate(
