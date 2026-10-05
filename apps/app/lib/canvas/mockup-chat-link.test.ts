@@ -3,7 +3,7 @@ import type { AgentMessage } from "@/lib/agent/types"
 import type { DraftSource } from "@/lib/chat-draft-source-store"
 import {
   createMockupChatLink,
-  tapSpeaks,
+  pageVoice,
   type ShownChat,
 } from "./mockup-chat-link"
 
@@ -259,29 +259,34 @@ describe("a question about a Mockup (#1644, #1662)", () => {
   })
 })
 
-describe("whether a tap on the page speaks for this viewer (#1662)", () => {
+describe("what a tap on the page says for this viewer (#1662)", () => {
   const you = { kind: "you" } as const
   const agent = { kind: "agent" } as const
   const none = { kind: "none" } as const
+  const both = { draft: true, answer: true }
+  const neither = { draft: false, answer: false }
 
-  it("speaks in their own copy while they interact and the agent isn't driving", () => {
+  it("drafts and answers in their own copy while they interact and the agent isn't driving", () => {
     const own = { live: false, liveDriver: none }
-    expect(tapSpeaks({ ...own, focused: true, driver: none })).toBe(true)
-    expect(tapSpeaks({ ...own, focused: true, driver: you })).toBe(true)
-    expect(tapSpeaks({ ...own, focused: false, driver: none })).toBe(false)
-    expect(tapSpeaks({ ...own, focused: true, driver: agent })).toBe(false)
+    expect(pageVoice({ ...own, focused: true, driver: none })).toEqual(both)
+    expect(pageVoice({ ...own, focused: true, driver: you })).toEqual(both)
+    expect(pageVoice({ ...own, focused: false, driver: none })).toEqual(neither)
+    expect(pageVoice({ ...own, focused: true, driver: agent })).toEqual(neither)
   })
 
-  it("speaks on a live page only while they have control", () => {
+  it("drafts on a live page only while they have control, and never answers there", () => {
     const live = { live: true, focused: true, driver: none }
-    expect(tapSpeaks({ ...live, liveDriver: you })).toBe(true)
-    expect(tapSpeaks({ ...live, liveDriver: none })).toBe(false)
-    expect(tapSpeaks({ ...live, liveDriver: agent })).toBe(false)
+    expect(pageVoice({ ...live, liveDriver: you })).toEqual({
+      draft: true,
+      answer: false,
+    })
+    expect(pageVoice({ ...live, liveDriver: none })).toEqual(neither)
+    expect(pageVoice({ ...live, liveDriver: agent })).toEqual(neither)
     expect(
-      tapSpeaks({
+      pageVoice({
         ...live,
         liveDriver: { kind: "person", id: "u2", name: "Sam", color: "#f80" },
       })
-    ).toBe(false)
+    ).toEqual(neither)
   })
 })

@@ -20,7 +20,7 @@ import {
   useMockupPageChat,
   useMockupQuestion,
 } from "@/components/canvas/mockup-chat-link"
-import { tapSpeaks } from "@/lib/canvas/mockup-chat-link"
+import { pageVoice } from "@/lib/canvas/mockup-chat-link"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
@@ -356,12 +356,15 @@ export function MockupLayer({
   // viewer.
   const link = useMockupChatLink()
   const question = useMockupQuestion(link, layer.id)
-  const speaks =
-    !!link && tapSpeaks({ focused, driver, live: shared, liveDriver })
+  const voice = pageVoice({ focused, driver, live: shared, liveDriver })
   useMockupPageChat(page.port, {
     question,
-    onDraft: speaks ? (text) => link.draft(layer.id, text) : undefined,
-    onAnswer: speaks ? (found, index) => link.answer(found, index) : undefined,
+    onDraft:
+      link && voice.draft ? (text) => link.draft(layer.id, text) : undefined,
+    onAnswer:
+      link && voice.answer
+        ? (found, index) => link.answer(found, index)
+        : undefined,
   })
   const onAskForKnob = link?.canAsk(layer.id)
     ? () => link.askForKnob(layer.id)

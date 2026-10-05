@@ -211,16 +211,27 @@ export interface MockupViewer {
   liveDriver: FrameDriverView
 }
 
+/** What a tap on a Mockup's page may say for this viewer. */
+export interface PageVoice {
+  /** Put a message in their composer (`screenplay.draft`). */
+  draft: boolean
+  /** Answer the open question (`screenplay.answer`). */
+  answer: boolean
+}
+
 /**
- * Whether a tap on the page speaks for this viewer, the one gate a draft and
- * an answer both pass. In their own copy: while they Interact and the agent
- * isn't driving it (the agent mustn't answer its own question). On a live
- * page: only while they have control, so of every canvas that hears the live
- * page, one speaks. The runtime checks for the tap too, but page script could
- * post the message itself.
+ * The one gate for what a tap on the page says for this viewer. In their own
+ * copy: a draft or an answer, while they Interact and the agent isn't driving
+ * it (the agent mustn't answer its own question). On a live page, which every
+ * viewer's canvas hears from: a draft only while they have control, so one
+ * canvas speaks; never an answer, since the page can't tell one viewer it may
+ * answer and the rest it may not, so people answer in the chat. The runtime
+ * checks for the tap too, but page script could post the message itself.
  */
-export function tapSpeaks(viewer: MockupViewer): boolean {
-  return viewer.live
-    ? viewer.liveDriver.kind === "you"
-    : viewer.focused && viewer.driver.kind !== "agent"
+export function pageVoice(viewer: MockupViewer): PageVoice {
+  if (viewer.live) {
+    return { draft: viewer.liveDriver.kind === "you", answer: false }
+  }
+  const speaks = viewer.focused && viewer.driver.kind !== "agent"
+  return { draft: speaks, answer: speaks }
 }

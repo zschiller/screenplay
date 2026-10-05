@@ -52,12 +52,12 @@ export interface MockupPageChat {
   question: AskedQuestion | null
   /**
    * The page drafted a message (`screenplay.draft`, #1645). Unset while this
-   * viewer's tap doesn't speak (see `tapSpeaks`).
+   * viewer's tap may not draft (see `pageVoice`).
    */
   onDraft?: (text: string) => void
   /**
    * The page answered the open question (`screenplay.answer`, #1644). Unset
-   * while this viewer's tap doesn't speak.
+   * while this viewer's tap may not answer.
    */
   onAnswer?: (found: AskedQuestion, index: number) => void
 }
