@@ -276,6 +276,14 @@ describe("real input on the Mac", () => {
     expect(h.order.indexOf("release")).toBeGreaterThan(
       h.order.indexOf("wait", sentAt)
     )
+    // And the pointer stays resting there, so the page keeps its hover.
+    expect(h.asks.at(-1)).toEqual({ kind: "release", rest: true })
+  })
+
+  it("hands the whole input back after a hover that went to the bridge", async () => {
+    const h = harness({ window: null })
+    expect(await h.run({ op: "hover", target: { text: "Info" } })).toBeNull()
+    expect(h.asks.at(-1)).toEqual({ kind: "release" })
   })
 
   it("stops when someone took the frame", async () => {

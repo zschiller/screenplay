@@ -65,8 +65,13 @@ export type PageAsk =
    * (a point in the page) the pointer, which must hit the frame there.
    */
   | { kind: "take"; at?: { x: number; y: number } }
-  /** Hand the input back to the canvas, as it was before `take`. */
-  | { kind: "release" }
+  /**
+   * Hand the input back to the canvas, as it was before `take`. With `rest`
+   * (after a hover) the pointer stays in the frame, so the page keeps its
+   * hover, until the person's own pointer moves on the canvas or the next
+   * gesture takes the input.
+   */
+  | { kind: "release"; rest?: boolean }
 
 export type PageCursor =
   | { to: { x: number; y: number } }

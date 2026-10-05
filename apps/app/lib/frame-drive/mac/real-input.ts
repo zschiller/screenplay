@@ -111,6 +111,8 @@ export async function runRealInput(
   // Once any input has landed, the gesture can't be played again through the
   // bridge: a failure after that is the gesture's.
   let landed = false
+  // A hover that landed leaves the pointer resting on the element.
+  let rest = false
   const deps: RealInputDeps = {
     ...given,
     native: {
@@ -129,8 +131,11 @@ export async function runRealInput(
         return await type(op, deps)
       case "key":
         return await key(op, deps)
-      case "hover":
-        return await hover(op, deps)
+      case "hover": {
+        const result = await hover(op, deps)
+        rest = landed && result?.status === "done"
+        return result
+      }
       default:
         return BRIDGE
     }
@@ -143,7 +148,9 @@ export async function runRealInput(
       reason: `The Mac’s input failed: ${err instanceof Error ? err.message : String(err)}`,
     }
   } finally {
-    await deps.page({ kind: "release" }).catch(() => null)
+    await deps
+      .page(rest ? { kind: "release", rest } : { kind: "release" })
+      .catch(() => null)
   }
 }
 
