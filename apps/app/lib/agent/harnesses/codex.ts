@@ -252,6 +252,10 @@ export const codexHarness: Harness = {
     // A second prompt doesn't join the running turn; a mid-turn message goes
     // through the adapter's steering request instead (#1192).
     promptQueueing: false,
+    // It plans through its `collaboration_mode` option and asks to carry out
+    // the plan with it in `rawInput.plan` (#1337). Its MCP tool names vary by
+    // version, so it states no `mcpToolName`.
+    plan: "collaboration",
   },
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.

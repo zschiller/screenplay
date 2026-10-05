@@ -27,6 +27,18 @@ import {
   type AcpTransport,
   type PlanDecision,
 } from "./session"
+import type { AcpAdapter } from "../harnesses/types"
+
+/** A Harness's ACP adapter with the generic facts, and `facts` over them. */
+function adapter(facts: Partial<AcpAdapter>): AcpAdapter {
+  return {
+    command: "agent",
+    args: [],
+    modelOption: "model",
+    promptQueueing: false,
+    ...facts,
+  }
+}
 
 /**
  * The generic ACP session module, exercised end-to-end against a **fake ACP
@@ -715,7 +727,7 @@ describe("AcpSession — plan through the collaboration mode (#1337)", () => {
       "prompt",
     ])
     expect(agent.setSessionModeCalls).toEqual([])
-    expect(session.plansByCollaborationMode).toBe(true)
+    expect(session.plan.style).toBe("collaboration")
   })
 
   it("sets a resumed session that is still planning back to default", async () => {
@@ -733,7 +745,7 @@ describe("AcpSession — plan through the collaboration mode (#1337)", () => {
     expect(agent.calls).toEqual([
       "set_config_option collaboration_mode=default",
     ])
-    expect(session.plansByCollaborationMode).toBe(false)
+    expect(session.plan.style).toBe("collaboration")
   })
 
   it("sets a fresh session that starts in plan back to default", async () => {
@@ -788,12 +800,12 @@ describe("AcpSession — plan through the collaboration mode (#1337)", () => {
 
     expect(agent.setSessionModeCalls).toEqual(["plan"])
     expect(agent.calls).toEqual([])
-    expect(session.plansByCollaborationMode).toBe(false)
+    expect(session.plan.style).toBe("mode")
   })
 })
 
 describe("AcpSession — plan through opencode's mode option (#1589)", () => {
-  it("switches to the plan agent on a plan turn and says the reply is the plan", async () => {
+  it("switches to the plan agent on a plan turn, planning by reply", async () => {
     const { transport, agent } = connectFakeAgent(async () => "end_turn", {
       agentMode: "build",
     })
@@ -801,14 +813,13 @@ describe("AcpSession — plan through opencode's mode option (#1589)", () => {
     const session = await AcpSession.open(transport, collectingPorts().ports, {
       cwd: "/work",
       planMode: true,
-      adapter: { planAsReply: true },
+      adapter: adapter({ plan: "reply" }),
     })
     await session.prompt([textBlock("plan it")], new AbortController().signal)
 
     expect(agent.calls).toEqual(["set_config_option mode=plan", "prompt"])
     expect(agent.setSessionModeCalls).toEqual([])
-    expect(session.plansByCollaborationMode).toBe(true)
-    expect(session.plansByReply).toBe(true)
+    expect(session.plan.style).toBe("reply")
   })
 
   it("switches a resumed session that is still planning back to build", async () => {
@@ -816,14 +827,13 @@ describe("AcpSession — plan through opencode's mode option (#1589)", () => {
       agentMode: "plan",
     })
 
-    const session = await AcpSession.open(transport, collectingPorts().ports, {
+    await AcpSession.open(transport, collectingPorts().ports, {
       cwd: "/work",
       loadSessionId: SESSION_ID,
-      adapter: { planAsReply: true },
+      adapter: adapter({ plan: "reply" }),
     })
 
     expect(agent.calls).toEqual(["set_config_option mode=build"])
-    expect(session.plansByReply).toBe(false)
   })
 
   it("plans by request, not by reply, when the descriptor doesn't say otherwise", async () => {
@@ -836,8 +846,7 @@ describe("AcpSession — plan through opencode's mode option (#1589)", () => {
       planMode: true,
     })
 
-    expect(session.plansByCollaborationMode).toBe(true)
-    expect(session.plansByReply).toBe(false)
+    expect(session.plan.style).toBe("collaboration")
   })
 })
 
@@ -1184,7 +1193,7 @@ describe("AcpSession — adapter facts from the Harness descriptor (#1266)", () 
     const queueing = await AcpSession.open(
       connectFakeAgent(async () => "end_turn").transport,
       collectingPorts().ports,
-      { cwd: "/work", adapter: { promptQueueing: true } }
+      { cwd: "/work", adapter: adapter({ promptQueueing: true }) }
     )
     const plain = await AcpSession.open(
       connectFakeAgent(async () => "end_turn").transport,
@@ -1210,7 +1219,7 @@ describe("AcpSession — adapter facts from the Harness descriptor (#1266)", () 
     await AcpSession.open(named.transport, collectingPorts().ports, {
       cwd: "/work",
       modelId: "large",
-      adapter: { modelOption: "llm" },
+      adapter: adapter({ modelOption: "llm" }),
     })
     expect(named.agent.setSessionModelCalls).toEqual(["large"])
 

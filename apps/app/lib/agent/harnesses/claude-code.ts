@@ -214,6 +214,10 @@ export const claudeCodeHarness: Harness = {
     // Claude Code works joins it in its own terminal (#1191). The adapter also
     // says so at initialize (`_meta.claudeCode.promptQueueing`).
     promptQueueing: true,
+    // It plans in its native `plan` mode and asks to leave it with
+    // ExitPlanMode, the plan gate (spike #408).
+    plan: "mode",
+    mcpToolName: (server, tool) => `mcp__${server}__${tool}`,
   },
   // Curated model floor for the desktop dropdown — authoritative; the model
   // catalog (#527) only appends discovered-once-and-cached live models on top.

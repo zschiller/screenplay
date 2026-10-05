@@ -43,7 +43,7 @@ const line = "h-1.5 rounded-full bg-foreground/15"
 /** The plan: a doc in a docs tool, last touched weeks ago. */
 export function DocsToolExcerpt() {
   return (
-    <Card label="A plan in a docs tool, last edited three weeks ago.">
+    <Card fill label="A plan in a docs tool, last edited three weeks ago.">
       <Window name="Hero plan · Docs">
         <div className="flex flex-col gap-2">
           <span className="font-heading text-[14px] tracking-[-0.02em]">
@@ -69,7 +69,10 @@ export function DocsToolExcerpt() {
 /** The mockup: grey boxes and placeholder copy, drawn from scratch. */
 export function DesignToolExcerpt() {
   return (
-    <Card label="A mockup drawn from scratch in a design tool: grey boxes and placeholder copy.">
+    <Card
+      fill
+      label="A mockup drawn from scratch in a design tool: grey boxes and placeholder copy."
+    >
       <Window name="Hero v2 · Design">
         <div className="absolute inset-0 flex">
           <div className="flex w-14 shrink-0 flex-col gap-1.5 border-r border-border p-2">
@@ -89,7 +92,7 @@ export function DesignToolExcerpt() {
                   ))}
                 </span>
               </div>
-              <div className="mt-2 flex flex-1 gap-3">
+              <div className="mt-2 flex min-h-0 flex-1 gap-3">
                 <div className="flex flex-1 flex-col gap-1.5">
                   <span className="text-[13px] leading-tight font-semibold text-neutral-700">
                     Headline goes here
@@ -101,7 +104,7 @@ export function DesignToolExcerpt() {
                 </div>
                 {/* An image placeholder: a box with a cross. */}
                 <svg
-                  className="flex-1 border border-neutral-300 bg-neutral-200 text-neutral-300"
+                  className="h-full min-w-0 flex-1 border border-neutral-300 bg-neutral-200 text-neutral-300"
                   preserveAspectRatio="none"
                   viewBox="0 0 10 10"
                 >
@@ -131,7 +134,10 @@ const dance = [
 /** The build: a worktree, an install and a dev server, by hand. */
 export function TerminalExcerpt() {
   return (
-    <Card label="A terminal setting up a worktree, an install and a dev server.">
+    <Card
+      fill
+      label="A terminal setting up a worktree, an install and a dev server."
+    >
       <Window name="zsh" terminal>
         <div className="font-mono text-[11px] leading-[1.9] text-neutral-200">
           {dance.map(([p, cmd], i) => (

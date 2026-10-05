@@ -10,14 +10,11 @@ import {
 import {
   decodeHarnessModelId,
   encodeHarnessModelId,
+  harnessToolNaming,
 } from "@/lib/agent/harnesses"
 import { roomIdOfRoomChat } from "@/lib/chat/room-chat"
 import { isLocalBuild } from "@/lib/local-mode"
-import {
-  BARE_TOOL_NAMING,
-  harnessToolNaming,
-  type ToolNaming,
-} from "@/lib/agent/tool-name"
+import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
 import {
   COORDINATOR_MCP_SERVER_NAME,
   coordinatorMcpServer,

@@ -157,19 +157,23 @@
 
 .dark,
 :root:not(.dark) .inverted {
+    /* The page is pure black, so the fills keep stock shadcn neutral's
+       contrast steps rather than its values: popover 0.175 on black reads
+       like stock's 0.205 on 0.145, and muted, secondary and accent at 0.25
+       like its 0.269 (both by WCAG luminance ratio). */
     --background: oklch(0 0 0);
     --foreground: oklch(1 0 0);
     --card: oklch(0 0 0);
     --card-foreground: oklch(1 0 0);
-    --popover: oklch(0.1 0 0);
+    --popover: oklch(0.175 0 0);
     --popover-foreground: oklch(1 0 0);
     --primary: oklch(1 0 0);
     --primary-foreground: oklch(0 0 0);
-    --secondary: oklch(0.14 0 0);
+    --secondary: oklch(0.25 0 0);
     --secondary-foreground: oklch(1 0 0);
-    --muted: oklch(0.14 0 0);
+    --muted: oklch(0.25 0 0);
     --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.18 0 0);
+    --accent: oklch(0.25 0 0);
     --accent-foreground: oklch(1 0 0);
     --destructive: oklch(0.66 0.225 27);
     --destructive-fill: oklch(0.66 0.225 27);
@@ -199,7 +203,7 @@
     --sidebar-foreground: oklch(1 0 0);
     --sidebar-primary: oklch(1 0 0);
     --sidebar-primary-foreground: oklch(0 0 0);
-    --sidebar-accent: oklch(0.18 0 0);
+    --sidebar-accent: oklch(0.25 0 0);
     --sidebar-accent-foreground: oklch(1 0 0);
     --sidebar-border: oklch(1 0 0 / 16%);
     --sidebar-ring: oklch(0.667 0.295 322.15);

@@ -29,16 +29,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
-import {
-  CONNECT_GITHUB_FOR_PR_HINT,
-  type PrAvailability,
-} from "@/hooks/use-can-create-pr"
-import { useIsCreatingPr } from "@/lib/creating-pr-store"
+import type { PrReadinessState } from "@/lib/branch/pr-readiness"
 import { openExternal } from "@/lib/open-external"
 import { openPreviewInBrowser } from "@/lib/open-preview"
 import { isLocalBuild } from "@/lib/local-mode"
 import { OpenInBrowserItem } from "@/components/open-in-browser-item"
-import type { BranchPrInfo } from "@/lib/github-actions"
 import type { BranchData, RepoData } from "@/lib/types"
 
 /**
@@ -101,8 +96,8 @@ export const BRANCH_MENU_SECTIONS: readonly BranchMenuSection[] = [
 
 /**
  * What a Done Workspace's menu leaves out (#976): everything that needs its
- * sandbox running. Reopen leads instead, and a PR that's still open keeps its
- * link (see {@link BranchOverflowMenuContent}).
+ * sandbox running. Reopen leads instead, and its PR keeps its link (Create PR
+ * Readiness hides the create).
  */
 const HIDDEN_WHILE_DONE: ReadonlySet<BranchMenuItemKey> = new Set([
   "play",
@@ -115,37 +110,33 @@ const HIDDEN_WHILE_DONE: ReadonlySet<BranchMenuItemKey> = new Set([
 /** What the lead action reads. {@link BranchData} satisfies the branch half. */
 export interface WorkspaceMenuLeadInput {
   branch: Pick<BranchData, "status" | "error" | "previewDomain" | "doneAt">
-  pr?: Pick<BranchPrInfo, "state"> | null
-  /** The Workspace has a diff against its base (the sidebar's diff stat). */
-  hasChanges: boolean
   /** A chat turn is in flight on this Workspace. */
   isBusy: boolean
-  /** Whether a pull request can be opened: see {@link BranchOverflowMenuContentProps}. */
-  prAvailability?: PrAvailability
+  /** Its Create PR Readiness. */
+  prReadiness: PrReadinessState
 }
 
 /**
  * The one action that leads the Workspace menu, from its state: Retry when
  * setup failed, Mark as done once its PR has merged and the agent is idle, the
- * open PR when there is one, Create pull request when there are changes to
- * propose and a GitHub connection to propose them with, otherwise the prototype player. A Workspace that's still being set
- * up (or stopped, until its PR merges) has no lead: nothing in it works yet. A
- * Done one leads with Reopen (#976).
+ * open PR when there is one, Create pull request when nothing blocks it (it
+ * keeps the lead while it runs), otherwise the prototype player. A Workspace
+ * that's still being set up (or stopped, until its PR merges) has no lead:
+ * nothing in it works yet. A Done one leads with Reopen (#976).
  */
 export function workspaceMenuLead({
   branch,
-  pr,
-  hasChanges,
   isBusy,
-  prAvailability = "ready",
+  prReadiness,
 }: WorkspaceMenuLeadInput): BranchMenuItemKey | null {
+  const pr = prReadiness.existingPr
   if (branch.doneAt) return "reopen"
   if (branch.status === "error" || branch.error) return "retry"
   if (branch.status === "creating" || branch.status === "starting") return null
   if (pr?.state === "merged" && !isBusy) return "mark-done"
   if (branch.status === "stopped") return null
   if (pr?.state === "open") return "create-pr"
-  if (hasChanges && !isBusy && prAvailability === "ready") return "create-pr"
+  if (prReadiness.shown && !prReadiness.blocker) return "create-pr"
   return branch.previewDomain ? "play" : null
 }
 
@@ -155,8 +146,6 @@ export interface BranchOverflowMenuContentProps {
   onPlay: (branchId: string) => void
   /** Re-runs a failed setup (the status icon's Retry). Leads the menu on error. */
   onRetry: (branchId: string) => void
-  /** The Workspace has a diff against its base; see {@link workspaceMenuLead}. */
-  hasChanges?: boolean
   /** Opens the inline title editor — already bound to this Workspace. */
   onRename: () => void
   /** Bounce the dev server in place — no VM cycle. Stays enabled while working. */
@@ -174,23 +163,12 @@ export interface BranchOverflowMenuContentProps {
   onRecreate: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
   /**
-   * Opens a GitHub PR for this branch via the direct server action (#355) —
-   * deterministic title/body, no model turn. Disabled while the branch is busy.
+   * Create PR Readiness (`usePrReadiness`), the same the chat header's Create
+   * PR renders from. A PR the Workspace has becomes "Open pull request #N";
+   * otherwise Create pull request shows when `shown`, disabled with the
+   * blocker's reason as its tooltip, and `run` opens the PR (#355).
    */
-  onCreatePr: (branchId: string) => void
-  /**
-   * This branch's known PR from the shared source of truth, or null. When a PR
-   * is open the "Create pull request" item becomes "Open pull request" linking
-   * straight to it, so the menu never offers to re-create a PR that exists.
-   */
-  pr?: BranchPrInfo | null
-  /**
-   * Whether a pull request can be opened ({@link PrAvailability}). A local-only
-   * repo hides Create pull request; a GitHub repo with no GitHub connection
-   * shows it disabled, its tooltip pointing at Settings (H3). An open PR's
-   * link shows either way.
-   */
-  prAvailability?: PrAvailability
+  prReadiness: PrReadinessState & { run: () => void }
   /** Marks the Workspace Done (#976): stops its sandbox and hides its frames. */
   onMarkDone: (branchId: string) => void
   /** Undoes Mark as done: starts the Workspace and shows its frames again. */
@@ -203,10 +181,10 @@ export interface BranchOverflowMenuContentProps {
    */
   onOpenInBrowser?: () => void
   /**
-   * Whether this Branch's agent is currently working (`isBranchBusy`). Gates
-   * the "disable while working" items, like Create pull request. Routing is
-   * unchanged; an enabled click while busy would be a silent no-op because the
-   * chat store ignores messages mid-stream.
+   * Whether this Branch's agent is currently working (Workspace State's
+   * `agentWorking`). Gates the "disable while working" items, like Restart
+   * sandbox and Mark as done; Create pull request reads it through
+   * `prReadiness`.
    */
   isBusy?: boolean
 }
@@ -240,23 +218,19 @@ export function BranchOverflowMenuItems({
   repo,
   onPlay,
   onRetry,
-  hasChanges = false,
   onRename,
   onRestartDevServer,
   onRestart,
   onRecreate,
   onShowRoutes,
-  onCreatePr,
   onMarkDone,
   onReopen,
   onDelete,
   onOpenInBrowser,
-  pr,
-  prAvailability = "ready",
+  prReadiness,
   isBusy = false,
 }: Omit<BranchOverflowMenuContentProps, "onCloseAutoFocus">) {
-  // A create already running, from here or the chat header, shows here too.
-  const creatingPr = useIsCreatingPr(branch.id)
+  const pr = prReadiness.existingPr
   const nodes: Record<BranchMenuItemKey, ReactNode> = {
     retry: (
       <DropdownMenuItem onClick={() => onRetry(branch.id)}>
@@ -364,49 +338,41 @@ export function BranchOverflowMenuItems({
         </DropdownMenuSubContent>
       </DropdownMenuSub>
     ),
-    // An open PR makes "Create" a duplicate-creating no-op, so swap it for a
-    // direct link to the PR. Closed/merged PRs fall through to "Create" since
-    // the branch can legitimately open a fresh one. With no diff there's
-    // nothing to propose, and GitHub would refuse it.
-    "create-pr":
-      pr?.state === "open" ? (
-        <DropdownMenuItem onClick={() => openExternal(pr.url)}>
-          <GitPullRequestIcon />
-          Open pull request #{pr.number}
-        </DropdownMenuItem>
-      ) : prAvailability === "connect" ? (
-        // A disabled item takes no pointer events, so the reason hangs off a
-        // wrapper, like the chat header's Create PR.
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <DropdownMenuItem disabled>
-                  <GitPullRequestIcon />
-                  Create pull request
-                </DropdownMenuItem>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {CONNECT_GITHUB_FOR_PR_HINT}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : (
-        <DropdownMenuItem
-          disabled={
-            !branch.sandboxName ||
-            !branch.ref ||
-            isBusy ||
-            !hasChanges ||
-            creatingPr
-          }
-          onClick={() => onCreatePr(branch.id)}
-        >
-          {creatingPr ? <Spinner /> : <GitPullRequestIcon />}
-          {creatingPr ? "Creating pull request…" : "Create pull request"}
-        </DropdownMenuItem>
-      ),
+    // A PR the Workspace has, open, merged or closed, is linked instead of
+    // offering another. A blocked create says why in a tooltip, like the chat
+    // header's Create PR.
+    "create-pr": pr ? (
+      <DropdownMenuItem onClick={() => openExternal(pr.url)}>
+        <GitPullRequestIcon />
+        Open pull request #{pr.number}
+      </DropdownMenuItem>
+    ) : prReadiness.blocker ? (
+      // A disabled item takes no pointer events, so the reason hangs off a
+      // wrapper.
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>
+              <DropdownMenuItem disabled>
+                <GitPullRequestIcon />
+                Create pull request
+              </DropdownMenuItem>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {prReadiness.blocker.reason}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    ) : (
+      <DropdownMenuItem
+        disabled={prReadiness.running}
+        onClick={prReadiness.run}
+      >
+        {prReadiness.running ? <Spinner /> : <GitPullRequestIcon />}
+        {prReadiness.running ? "Creating pull request…" : "Create pull request"}
+      </DropdownMenuItem>
+    ),
     // Not while the agent works (its turn needs the sandbox) or while setup
     // is still running.
     "mark-done": (
@@ -437,23 +403,11 @@ export function BranchOverflowMenuItems({
     ),
   }
 
-  const lead = workspaceMenuLead({
-    branch,
-    pr,
-    hasChanges,
-    isBusy,
-    prAvailability,
-  })
+  const lead = workspaceMenuLead({ branch, isBusy, prReadiness })
   const shown = (key: BranchMenuItemKey) => {
     if (key === lead) return false
-    if (
-      key === "create-pr" &&
-      pr?.state !== "open" &&
-      prAvailability === "none"
-    )
-      return false
+    if (key === "create-pr") return !!pr || prReadiness.shown
     if (!branch.doneAt) return true
-    if (key === "create-pr") return pr?.state === "open"
     return !HIDDEN_WHILE_DONE.has(key)
   }
   const groups = [

@@ -1,21 +1,18 @@
 import {
-  ArrowClockwiseIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowUpIcon,
-  BroadcastIcon,
   CaretDownIcon,
   CaretRightIcon,
   ChatsIcon,
   CircleIcon,
-  CursorIcon,
   DotsThreeIcon,
   FileTextIcon,
   FrameCornersIcon,
   NavigationArrowIcon,
+  PaperclipIcon,
   ScribbleIcon,
   SidebarSimpleIcon,
-  SlidersHorizontalIcon,
 } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -121,6 +118,7 @@ export function Frame({
   working,
   selected,
   fadeHandles,
+  bar,
   device = "desktop",
   className,
   style,
@@ -137,6 +135,8 @@ export function Frame({
   selected?: boolean
   /** Someone else has control: no handles, the ring stays (#1588). */
   fadeHandles?: boolean
+  /** Its FrameBar, as wide as the frame and `barGap` under it. */
+  bar?: React.ReactNode
   device?: "desktop" | "mobile"
   className?: string
   style?: React.CSSProperties
@@ -194,6 +194,14 @@ export function Frame({
           <span className={cn(handle, "-right-[3.5px] -bottom-[3.5px]")} />
         </>
       ) : null}
+      {bar ? (
+        <div
+          className="absolute inset-x-0 top-full z-[5]"
+          style={{ marginTop: barGap }}
+        >
+          {bar}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -227,31 +235,37 @@ function GroupLabel({
   )
 }
 
+/** The gap between a frame and the bar under it, as in the app (8px). */
+export const barGap = 8
+
 /**
- * The Safari-style bar under the selected frame, as wide as the frame: back
- * and forward, the address (the route, then record and reload), then
- * Interact, Go live where the frame can go live, Knobs and the menu. The
- * frame's label names its Workspace, so the address holds only the route.
+ * The bar under the selected frame, cut down for a small picture: the
+ * address (the route) and, when the figure is about one of the bar's
+ * controls, that control, then the menu standing in for the rest. The app's
+ * full bar (back, forward, record, reload, Interact, Knobs) is too busy at
+ * this size. The frame's label names its Workspace, so the address holds
+ * only the route.
  */
 export function FrameBar({
   route = "/",
-  live,
-  driver,
   className,
   style,
+  children,
 }: {
   route?: string
-  /** The frame is live for everyone: Go live shows, pressed. Unset, the bar
-   *  has no Go live, as on the desktop app. */
-  live?: boolean
-  /** Who has control, in place of Interact: their face in their colour. */
-  driver?: { initial: string; color: string }
   className?: string
   style?: React.CSSProperties
+  /** The control the figure shows off, between the address and the menu. */
+  children?: React.ReactNode
 }) {
   return (
     <div
-      className={cn(floating, "absolute text-sm whitespace-nowrap", className)}
+      className={cn(
+        floating,
+        "text-sm whitespace-nowrap",
+        style && "absolute",
+        className
+      )}
       style={style}
     >
       <Tool>
@@ -260,40 +274,10 @@ export function FrameBar({
       <Tool>
         <ArrowRightIcon />
       </Tool>
-      <span className="flex h-7 min-w-0 flex-1 items-center rounded-md bg-muted px-0.5 text-muted-foreground">
-        <span className="ml-0.5 flex h-5 min-w-0 flex-1 items-center truncate px-1 font-mono text-xs">
-          {route}
-        </span>
-        <Tool>
-          <span className="size-2 rounded-full bg-current" />
-        </Tool>
-        <Tool>
-          <ArrowClockwiseIcon />
-        </Tool>
+      <span className="flex h-7 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-2 font-mono text-xs text-muted-foreground">
+        {route}
       </span>
-      <span className="mx-0.5 h-4 w-px shrink-0 bg-foreground/10" />
-      {driver ? (
-        <Tool className="bg-secondary">
-          <span
-            className="flex size-4! items-center justify-center rounded-full text-xs font-medium text-neutral-950"
-            style={{ backgroundColor: driver.color }}
-          >
-            {driver.initial}
-          </span>
-        </Tool>
-      ) : (
-        <Tool>
-          <CursorIcon />
-        </Tool>
-      )}
-      {live !== undefined ? (
-        <Tool active={live}>
-          <BroadcastIcon />
-        </Tool>
-      ) : null}
-      <Tool>
-        <SlidersHorizontalIcon />
-      </Tool>
+      {children}
       <Tool>
         <DotsThreeIcon className="text-muted-foreground" />
       </Tool>
@@ -483,8 +467,13 @@ function Coordinator() {
             Opus 5.5
             <CaretDownIcon className="size-3 text-muted-foreground" />
           </span>
-          <span className="ml-auto flex size-7 items-center justify-center rounded-md bg-muted-foreground text-background">
-            <ArrowUpIcon className="size-4" />
+          <span className="ml-auto flex gap-0.5">
+            <Tool>
+              <PaperclipIcon className="text-muted-foreground" />
+            </Tool>
+            <span className="flex size-7 items-center justify-center rounded-md bg-muted-foreground text-background">
+              <ArrowUpIcon className="size-4" />
+            </span>
           </span>
         </div>
       </div>
@@ -588,6 +577,7 @@ export function CanvasExcerpt() {
             label="Home"
             workspace={v.title}
             selected={i === 1}
+            bar={i === 1 ? <FrameBar className="max-sm:hidden" /> : undefined}
             className={cn(i === 2 && "max-sm:hidden")}
             style={{
               left: `var(--l${i})`,
@@ -598,16 +588,6 @@ export function CanvasExcerpt() {
             <Northwind version={v.version} />
           </Frame>
         ))}
-        <FrameBar
-          className="z-[5] max-sm:hidden"
-          // Centred under the middle frame like the app's: as wide as the
-          // frame, or 360px under a narrow one, never past the canvas's edges.
-          style={{
-            left: "max(8px, calc(50% - min(max(14.5%, 180px), 50% - 8px)))",
-            width: "min(max(29%, 360px), calc(100% - 16px))",
-            top: "calc(var(--top) + var(--h) + 10px)",
-          }}
-        />
         {versions.map((v, i) => (
           <Frame
             key={v.title}

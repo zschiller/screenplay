@@ -385,7 +385,7 @@ describe("opencode in chats (#1589)", () => {
       expect(harness.acpAdapter).toMatchObject({
         command: "opencode",
         args: ["acp"],
-        planAsReply: true,
+        plan: "reply",
       })
       expect(harness.hostLabel).toBe("OpenCode")
       expect(harness.printModel).toBe(opencodePrintModel)
