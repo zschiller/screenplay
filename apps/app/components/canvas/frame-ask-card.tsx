@@ -239,7 +239,7 @@ function AnswererChip({
   const noRepository = answerer.kind === "sketch" && workspaces.length === 0
   if (noRepository && !sketchChats?.length) {
     return (
-      <span className="-ml-1.5 inline-flex min-w-0 items-center px-2.5 text-sm text-foreground">
+      <span className="inline-flex min-w-0 items-center pl-0.75 text-sm text-foreground">
         New chat
       </span>
     )

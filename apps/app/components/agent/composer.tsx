@@ -807,7 +807,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       editorProps: {
         attributes: {
           class:
-            "tiptap min-h-[40px] max-h-48 overflow-y-auto px-2.5 py-2.5 text-sm focus:outline-none",
+            // pl-3.25: typed text starts where the model pill's label does
+            // (footer addon 10px, pill pulled back 6px, then its 1px border
+            // and 8px padding), whatever size the label is.
+            "tiptap min-h-[40px] max-h-48 overflow-y-auto py-2.5 pr-2.5 pl-3.25 text-sm focus:outline-none",
           "data-placeholder": placeholder,
           [COMPOSER_ATTRIBUTE]: "",
         },
@@ -1304,7 +1307,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           <EditorContent editor={editor} className="w-full" />
           <InputGroupAddon align="block-end" className="gap-0.5">
             {modelsStatus === "failed" ? (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1 pl-0.75 text-xs text-muted-foreground">
                 Couldn’t load models.
                 <InputGroupButton
                   size="sm"
@@ -1315,7 +1318,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 </InputGroupButton>
               </span>
             ) : noAgents ? (
-              <span className="text-xs text-muted-foreground">
+              <span className="pl-0.75 text-xs text-muted-foreground">
                 {isLocalBuild ? (
                   <>
                     No coding agent found. Install Claude Code or Codex in{" "}
@@ -1540,7 +1543,7 @@ function EmptyAwarePlaceholder({
 
   if (!empty) return null
   return (
-    <div className="pointer-events-none absolute top-0 left-0 px-2.5 py-2.5 text-sm text-muted-foreground">
+    <div className="pointer-events-none absolute top-0 left-0 py-2.5 pr-2.5 pl-3.25 text-sm text-muted-foreground">
       {text}
     </div>
   )
