@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "typecheck": {
+      // launch/spinner.ts imports the homepage hero's fluid solver.
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/homepage/components/marketing/site/fluid.ts",
+      ],
+    },
+  },
+}

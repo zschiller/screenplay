@@ -4,7 +4,12 @@
   "version": "0.1.6",
   "identifier": "space.screenplay.desktop",
   "build": {
-    "frontendDist": "../dist"
+    "frontendDist": "../dist",
+    "beforeDevCommand": {
+      "script": "pnpm --filter desktop build:launch",
+      "wait": true
+    },
+    "beforeBuildCommand": "pnpm --filter desktop build:launch"
   },
   "app": {
     "windows": [

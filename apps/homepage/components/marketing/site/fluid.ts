@@ -1,6 +1,7 @@
 /**
  * A small stable-fluids solver (Stam's semi-Lagrangian scheme) on a coarse
- * grid, for the hero veil's mouse peek. The pointer stirs the velocity and
+ * grid, for the hero veil's mouse peek (and the desktop app's launch spinner,
+ * apps/desktop/launch). The pointer stirs the velocity and
  * drops dye, the dye is how far the veil opens, and each cell also carries
  * the coordinates of the "material" it holds, so a pattern drawn from those
  * coordinates gets swirled like marbled paper.
@@ -183,6 +184,12 @@ export function createFluid(w: number, h: number) {
   }
 
   return {
+    /**
+     * Each cell's velocity, in cells a step. A caller that keeps stirring
+     * (the desktop launch spinner) damps it further so the fluid stays calm.
+     */
+    vx,
+    vy,
     get lit() {
       return lit
     },
