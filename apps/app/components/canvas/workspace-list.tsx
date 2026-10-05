@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
   ChatCircleIcon,
   CheckIcon,
@@ -116,11 +117,14 @@ export function WorkspaceCommandList({
   const workspaces = pickableWorkspaces(branches)
   // The check column is there only when a row can carry the check: an
   // unassigned frame's "Choose a chat" has none, so its rows run to the
-  // edge instead of leaving an empty column.
-  const checkable =
-    newChat !== undefined ||
-    sketch !== undefined ||
-    workspaces.some((a) => a.id === currentBranchId)
+  // edge instead of leaving an empty column. Settled when the list opens, so
+  // a pick doesn't add the column while the list closes.
+  const [checkable] = useState(
+    () =>
+      newChat !== undefined ||
+      sketch !== undefined ||
+      workspaces.some((a) => a.id === currentBranchId)
+  )
   const check = (checked: boolean) =>
     checkable && (
       <CheckIcon className={cn("size-3.5", !checked && "invisible")} />
