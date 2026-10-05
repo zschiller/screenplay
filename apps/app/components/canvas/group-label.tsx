@@ -27,8 +27,6 @@ import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 export interface GroupWorkspaceSwitch {
   /** Workspaces to offer, filtered like every Workspace list. */
   branches: BranchData[]
-  /** Footer lines: what the pick moves. */
-  summary: string[]
   /** Show the whole Group from `branchId`. */
   onPick: (branchId: string) => void
 }
@@ -181,7 +179,7 @@ export function GroupLabel({ workspace, menu, ...props }: GroupLabelProps) {
 /**
  * The Group's Workspace as a switcher (#869): the shared mention, muted, with the
  * up-down chevron on hover, and pressing it opens the Workspace list. Picking one
- * shows the whole Group from it; the footer says what moves before you pick.
+ * shows the whole Group from it.
  */
 function GroupWorkspaceSwitcher({
   label,
@@ -231,7 +229,6 @@ function GroupWorkspaceSwitcher({
           branches={switcher.branches}
           currentBranchId={workspace.branchId}
           placeholder={`Show ${label} from…`}
-          footer={switcher.summary}
           onPick={(id) => {
             if (id !== workspace.branchId) switcher.onPick(id)
             setOpen(false)
@@ -297,7 +294,6 @@ export function WorkspaceChooser({
           branches={switcher.branches}
           currentBranchId={currentBranchId}
           placeholder={placeholder}
-          footer={switcher.summary}
           onPick={(id) => {
             if (id !== currentBranchId) switcher.onPick(id)
             setOpen(false)

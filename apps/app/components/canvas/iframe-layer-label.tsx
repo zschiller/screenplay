@@ -87,7 +87,6 @@ export function IframeLayerLabel({
         <WorkspaceChooser
           switcher={{
             branches: assignableBranches ?? [],
-            summary: [],
             onPick: onAssignBranch,
           }}
           currentBranchId={workspace?.branchId}

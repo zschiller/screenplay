@@ -4,11 +4,7 @@ import { memo, useCallback, useMemo } from "react"
 import { toast } from "sonner"
 
 import { getGroupMembers } from "@/lib/canvas/layout"
-import {
-  groupAssignSummary,
-  groupSwitchSummary,
-  groupWorkspace,
-} from "@/lib/canvas/group-workspace"
+import { groupWorkspace } from "@/lib/canvas/group-workspace"
 import type {
   IframeLayerLayoutMap,
   PlaceholderRect,
@@ -335,7 +331,6 @@ function CanvasMemberLayerImpl({
               mixed: true as const,
               switcher: {
                 branches: agents,
-                summary: [groupSwitchSummary(frames)],
                 onPick: (branchId: string) =>
                   layerMutations.assignGroupAgent(group.id, branchId),
               },
@@ -343,13 +338,6 @@ function CanvasMemberLayerImpl({
           }
           const switcher = {
             branches: agents,
-            summary: [
-              shared.branchId
-                ? groupSwitchSummary(shared.frames.length)
-                : // Frames with no Workspace yet pick one here, once,
-                  // instead of on each frame's label (#871).
-                  groupAssignSummary(shared.frames.length),
-            ],
             onPick: (branchId: string) =>
               layerMutations.assignGroupAgent(group.id, branchId),
           }

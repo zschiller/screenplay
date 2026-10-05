@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 import { getRoomCollections } from "@/lib/yjs/schema"
 import { documentWorkspaceIds } from "./document-owner"
-import {
-  groupBranchId,
-  groupSwitchSummary,
-  groupWorkspace,
-} from "./group-workspace"
+import { groupBranchId, groupWorkspace } from "./group-workspace"
 
 const frames = new Map([
   ["a", { branchId: "ws-1" }],
@@ -239,16 +235,5 @@ describe("the label rule with Mockups (#1309)", () => {
   it("ignores a Mockup whose chat is gone", () => {
     const g = group(["iframe-layer", "a"], ["mockup-layer", "orphan"])
     expect(groupWorkspace(g, frames, owned)?.branchId).toBe("ws-1")
-  })
-})
-
-describe("groupSwitchSummary", () => {
-  it("counts the frames that move", () => {
-    expect(groupSwitchSummary(2)).toBe(
-      "Moves 2 frames. Each keeps its route and state."
-    )
-    expect(groupSwitchSummary(1)).toBe(
-      "Moves 1 frame. It keeps its route and state."
-    )
   })
 })
