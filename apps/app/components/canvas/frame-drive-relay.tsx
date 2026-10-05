@@ -197,19 +197,21 @@ export function useDriveFrame(
   })
   useEffect(() => {
     // The input a real-input gesture took, until it hands it back. A gesture
-    // that never does (the server went away) hands it back on its own.
+    // that never does (the server went away) hands it back on its own. A
+    // hover's pointer rests in the frame until the person moves theirs, so
+    // it's kept here until the next gesture takes the input or the frame goes.
     let taken: {
-      release(): void
+      release(rest?: boolean): void
       timer: ReturnType<typeof setTimeout>
     } | null = null
-    const release = () => {
+    const release = (rest = false) => {
       if (!taken) return
       clearTimeout(taken.timer)
-      taken.release()
-      taken = null
+      taken.release(rest)
+      if (!rest) taken = null
     }
     const page = async (ask: PageAsk): Promise<unknown> => {
-      if (ask.kind === "release") return release()
+      if (ask.kind === "release") return release(ask.rest)
       if (ask.kind !== "take") return dom.drivePage(ask)
       release()
       const iframe = iframeRef.current

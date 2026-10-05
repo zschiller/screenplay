@@ -163,8 +163,10 @@ async function pageAsk(ask: PageAsk): Promise<unknown> {
         const w = window as unknown as {
           takeFrameInput: typeof takeFrameInput
           setTakesPointer(on: boolean): void
-          released?: () => void
+          released?: (rest?: boolean) => void
         }
+        // A hover's resting pointer ends here, as in the canvas's relay.
+        w.released?.()
         const got = await w.takeFrameInput(
           document.getElementById("frame") as HTMLIFrameElement,
           at,
@@ -174,13 +176,31 @@ async function pageAsk(ask: PageAsk): Promise<unknown> {
         return { window: got.window }
       }, ask.at)
     case "release":
-      return page.evaluate(() => {
-        const w = window as unknown as { released?: () => void }
-        w.released?.()
-        w.released = undefined
-        return null
-      })
+      await page.evaluate((rest) => {
+        const w = window as unknown as {
+          released?: (rest?: boolean) => void
+        }
+        w.released?.(rest)
+        if (!rest) w.released = undefined
+      }, ask.rest ?? false)
+      // The browser hit-tests the pointer again soon after the overlay
+      // changes (Chrome at its next frame, when it likes): do it now, so a
+      // hover the overlay would end ends before the test reads the page.
+      await rehitTest()
+      return null
   }
+}
+
+/** Where the shell last put the pointer. */
+let pointer: { x: number; y: number } | null = null
+
+/** A mouse move to where the pointer already is: the hit test a browser runs
+ *  on its own after the page under the pointer changes. */
+async function rehitTest() {
+  if (!pointer) return
+  const cdp = await page.createCDPSession()
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...pointer })
+  await cdp.detach()
 }
 
 /** Chrome's own input and clipboard, standing in for the desktop shell. */
@@ -205,6 +225,7 @@ function chromeInput(): NativeInput {
       for (const event of events) {
         switch (event.kind) {
           case "move":
+            pointer = { x: event.x, y: event.y }
             await page.mouse.move(event.x, event.y)
             break
           case "down":
@@ -443,6 +464,21 @@ describe.skipIf(!CHROME)("Mac real input", () => {
         () => document.getElementById("overlay")!.style.display
       )
     ).toBe("")
+  })
+
+  it("keeps a hover's pointer in the frame until the person moves theirs", async () => {
+    const overlay = () =>
+      page.evaluate(() => document.getElementById("overlay")!.style.display)
+    await load(
+      `<style>#card .reveal { visibility: hidden } #card:hover .reveal { visibility: visible }</style>
+      <div id="card">Card <button class="reveal">Edit</button></div>`
+    )
+    await backend.run(FRAME, { op: "hover", target: { selector: "#card" } })
+    expect(await overlay()).toBe("none")
+    // The person's pointer moves on the canvas: the layer drags again.
+    await page.mouse.move(600, 600)
+    expect(await overlay()).toBe("")
+    pointer = null
   })
 
   it("plays a click on a frame scrolled out of the window through the bridge", async () => {
