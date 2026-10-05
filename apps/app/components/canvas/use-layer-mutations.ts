@@ -93,14 +93,10 @@ export interface LayerMutations {
   setTitleCache: (id: string, title: string) => void
 
   // --- Mockup Layer writers ---
-  /** Resize a mockup by edge deltas, shifting its group anchor as needed. */
-  resizeMockup: (
-    id: string,
-    dx: number,
-    dy: number,
-    dw: number,
-    dh: number
-  ) => void
+  /** Set a mockup's size outright: a device size, or its page's full size
+   *  (Fit to content). Dragging an edge resizes it through the Canvas Gesture,
+   *  as a frame's does. */
+  setMockupSize: (id: string, width: number, height: number) => void
   /** Rename a mockup (its title lives on the record alone). */
   renameMockup: (id: string, title: string) => void
   /**
@@ -226,24 +222,15 @@ export function useLayerMutations({
     [ops, collections, captureTracker]
   )
 
-  // Resize a box Layer (a Document or a Mockup) by edge deltas, clamped to its
-  // kind's floor; a left/top edge shifts the Group anchor so the far edge
-  // stays put.
-  const resizeBoxLayer = useCallback(
-    (
-      key: "markdownLayers" | "mockupLayers",
-      min: { width: number; height: number },
-      id: string,
-      dx: number,
-      dy: number,
-      dw: number,
-      dh: number
-    ) => {
+  // Resize a Document by edge deltas, clamped to its floor; a left/top edge
+  // shifts the Group anchor so the far edge stays put.
+  const resizeDocument = useCallback(
+    (id: string, dx: number, dy: number, dw: number, dh: number) => {
       ops.batch(() => {
-        const d = collections[key].get(id)
+        const d = collections.markdownLayers.get(id)
         if (!d) return
-        const newWidth = Math.max(min.width, d.width + dw)
-        const newHeight = Math.max(min.height, d.height + dh)
+        const newWidth = Math.max(200, d.width + dw)
+        const newHeight = Math.max(120, d.height + dh)
         const actualDw = newWidth - d.width
         const actualDh = newHeight - d.height
         const shiftX = dx === 0 ? 0 : -actualDw
@@ -260,7 +247,7 @@ export function useLayerMutations({
           }
         }
         if (actualDw !== 0 || actualDh !== 0) {
-          ops.patch(key, id, {
+          ops.patch("markdownLayers", id, {
             width: newWidth,
             height: newHeight,
           })
@@ -270,32 +257,16 @@ export function useLayerMutations({
     [collections, ops]
   )
 
-  const resizeDocument = useCallback(
-    (id: string, dx: number, dy: number, dw: number, dh: number) =>
-      resizeBoxLayer(
-        "markdownLayers",
-        { width: 200, height: 120 },
-        id,
-        dx,
-        dy,
-        dw,
-        dh
-      ),
-    [resizeBoxLayer]
-  )
-
-  const resizeMockup = useCallback(
-    (id: string, dx: number, dy: number, dw: number, dh: number) =>
-      resizeBoxLayer(
-        "mockupLayers",
-        { width: MOCKUP_MIN_WIDTH, height: MOCKUP_MIN_HEIGHT },
-        id,
-        dx,
-        dy,
-        dw,
-        dh
-      ),
-    [resizeBoxLayer]
+  const setMockupSize = useCallback(
+    (id: string, width: number, height: number) => {
+      // Ceil, as Fit to content on a frame does, so a sub-pixel page never
+      // shrinks a little on each click.
+      ops.patch("mockupLayers", id, {
+        width: Math.max(MOCKUP_MIN_WIDTH, Math.ceil(width)),
+        height: Math.max(MOCKUP_MIN_HEIGHT, Math.ceil(height)),
+      })
+    },
+    [ops]
   )
 
   const renameMockup = useCallback(
@@ -371,7 +342,7 @@ export function useLayerMutations({
       resizeDocument,
       setTitle,
       setTitleCache,
-      resizeMockup,
+      setMockupSize,
       renameMockup,
       updateMockupLive,
       updateMockupScroll,
@@ -392,7 +363,7 @@ export function useLayerMutations({
       resizeDocument,
       setTitle,
       setTitleCache,
-      resizeMockup,
+      setMockupSize,
       renameMockup,
       updateMockupLive,
       updateMockupScroll,

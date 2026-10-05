@@ -79,7 +79,11 @@ export function useGestureIntent({
             }
           }
         }
-        ops.patch("iframeLayers", iframeLayerId, { width, height })
+        // A Mockup resizes through the same device snap as a frame.
+        const key = collections.mockupLayers.get(iframeLayerId)
+          ? "mockupLayers"
+          : "iframeLayers"
+        ops.patch(key, iframeLayerId, { width, height })
       })
     },
     [collections, ops]

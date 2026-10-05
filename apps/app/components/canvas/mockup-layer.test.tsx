@@ -14,8 +14,10 @@ vi.mock("@/hooks/use-mockup-refs", () => ({ useMockupRefs: () => ({}) }))
 vi.mock("@/hooks/use-mockup-runtime", () => ({
   useMockupRuntime: () => "/* runtime */",
 }))
+// The page's full size, as its bridge reports it (Fit to content).
+const getDocumentSize = vi.fn(async () => ({ width: 402, height: 1800 }))
 vi.mock("@/hooks/use-screenplay-dom", () => ({
-  useScreenplayDom: () => ({ elementAtPoint: vi.fn() }),
+  useScreenplayDom: () => ({ elementAtPoint: vi.fn(), getDocumentSize }),
 }))
 vi.mock("@/components/canvas/frame-drive-relay", () => ({
   useDriveFrame: () => {},
@@ -41,6 +43,12 @@ class ResizeObserverStub {
 }
 globalThis.ResizeObserver ??=
   ResizeObserverStub as unknown as typeof ResizeObserver
+// The bar's … is a Radix menu, which uses pointer-capture APIs jsdom lacks.
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false
+  Element.prototype.releasePointerCapture = () => {}
+  Element.prototype.scrollIntoView = () => {}
+}
 
 const LAYER: MockupLayerData = {
   id: "mockup-1",
@@ -219,5 +227,54 @@ describe("MockupLayer drafts (#1645)", () => {
     renderMockup({ onDraft, focused: true, driver: { kind: "agent" } })
     fromPage(draft)
     expect(onDraft).not.toHaveBeenCalled()
+  })
+})
+
+describe("MockupLayer sizes", () => {
+  /** Open the bar's … menu and list its items. */
+  function openMore() {
+    fireEvent.pointerDown(screen.getByRole("button", { name: "More" }), {
+      button: 0,
+      pointerType: "mouse",
+    })
+    return screen.getAllByRole("menuitem").map((item) => item.textContent)
+  }
+
+  it("offers a frame's Device size and Fit to content", () => {
+    renderMockup({ onSetSize: () => {}, onDuplicate: () => {} })
+    expect(openMore()).toEqual([
+      "Rename",
+      "Duplicate⌘D",
+      "Device size",
+      "Fit to content",
+      "Delete",
+    ])
+  })
+
+  it("sets a device size from the menu", () => {
+    const onSetSize = vi.fn()
+    renderMockup({ onSetSize })
+    openMore()
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Device size" }), {
+      key: "ArrowRight",
+    })
+    fireEvent.click(screen.getByRole("menuitem", { name: /iPhone SE/ }))
+    expect(onSetSize).toHaveBeenCalledWith("mockup-1", 375, 667)
+  })
+
+  it("fits to the page's full size", async () => {
+    const onSetSize = vi.fn()
+    renderMockup({ onSetSize })
+    openMore()
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "Fit to content" }))
+    })
+    expect(onSetSize).toHaveBeenCalledWith("mockup-1", 402, 1800)
+  })
+
+  it("has nothing to fit while the chat is still sketching it", () => {
+    html = ""
+    renderMockup({ onSetSize: () => {} })
+    expect(openMore()).not.toContain("Fit to content")
   })
 })

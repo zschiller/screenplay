@@ -565,7 +565,10 @@ function CanvasMemberLayerImpl({
                 }
                 onGroupDragEnd={gestureLayerHandlers.onGroupDragEnd}
                 onRequestReorderDrag={gestureLayerHandlers.onRequestReorderDrag}
-                onResize={layerMutations.resizeMockup}
+                onResize={gestureLayerHandlers.onResize}
+                onResizeStart={gestureLayerHandlers.onResizeStart}
+                onResizeEnd={gestureLayerHandlers.onResizeEnd}
+                onSetSize={layerMutations.setMockupSize}
                 onRename={layerMutations.renameMockup}
                 onDuplicate={groupActions.duplicateMockup}
                 onRemove={removeMockup}

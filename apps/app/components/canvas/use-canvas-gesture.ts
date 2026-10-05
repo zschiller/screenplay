@@ -122,8 +122,9 @@ export type CanvasGestureInputs = {
     groups: readonly MoveAssemblyGroup[]
     layouts: Iterable<MoveAssemblyLayout>
   }
-  /** A frame's committed size at resize start (or `null` if it vanished). */
-  getIframeLayerSize: (id: string) => { width: number; height: number } | null
+  /** A frame's or Mockup's committed size at resize start (or `null` if it
+   *  vanished). */
+  getResizeLayerSize: (id: string) => { width: number; height: number } | null
   /** Mark a frame dirty so the thumbnail heartbeat recaptures it after a resize. */
   markFrameDirty: (id: string) => void
   /** Clear the component's hover-highlight when a group drag begins (sweeping
@@ -641,7 +642,7 @@ export function useCanvasGesture(
     (id: string, edge: ResizeEdge) => {
       const i = inputsRef.current
       if (!i) return
-      const size = i.getIframeLayerSize(id)
+      const size = i.getResizeLayerSize(id)
       if (!size) return
       dispatch({
         type: "start",

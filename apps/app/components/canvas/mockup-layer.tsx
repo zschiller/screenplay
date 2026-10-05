@@ -103,8 +103,26 @@ interface MockupLayerProps {
   onMoveSelected: Mover
   onGroupDragStart?: () => void
   onGroupDragEnd?: (metaKey: boolean) => void
-  /** Adjust the mockup's own box; the Group anchor shifts for left/top edges. */
-  onResize: (id: string, dx: number, dy: number, dw: number, dh: number) => void
+  /**
+   * Resize delta from an edge drag, as on a frame: the canvas snaps the
+   * mockup to device sizes (⌘ resizes freely) and shifts the Group for
+   * left/top edges.
+   */
+  onResize: (
+    id: string,
+    edge: ResizeEdge,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number
+  ) => void
+  /** A resize gesture began, so the canvas can show the device-size ghosts. */
+  onResizeStart?: (id: string, edge: ResizeEdge) => void
+  /** The resize gesture ended, so the canvas can clear them. */
+  onResizeEnd?: (id: string) => void
+  /** Set the mockup's size outright: the menu's Device size and Fit to
+   *  content, as on a frame. */
+  onSetSize?: (id: string, width: number, height: number) => void
   onRename: (id: string, title: string) => void
   /** The bar's ⋯ Duplicate: a copy at the end of the mockup's Group. */
   onDuplicate?: (id: string) => void
@@ -248,6 +266,9 @@ export function MockupLayer({
   onGroupDragStart,
   onGroupDragEnd,
   onResize,
+  onResizeStart,
+  onResizeEnd,
+  onSetSize,
   onRename,
   onDuplicate,
   onRemove,
@@ -378,29 +399,34 @@ export function MockupLayer({
     toolbarRef,
   })
 
-  // The mockup's one menu (I7), in the bar's … and its sidebar row's ….
+  const { dom } = page
+  const handleFitToContent = useCallback(async () => {
+    try {
+      const size = await dom.getDocumentSize()
+      if (!size) return
+      onSetSize?.(layer.id, size.width, size.height)
+    } catch {
+      // Bridge timeout / page not ready — ignore.
+    }
+  }, [dom, layer.id, onSetSize])
+
+  // The mockup's one menu (I7), in the bar's … and its sidebar row's …. Its
+  // sizes are a frame's: Device size and Fit to content.
   const titleEditableRef = useRef<EditableTextHandle>(null)
   const menuActions: LayerMenuActions = {
     noun: "mockup",
     onDuplicate: onDuplicate ? () => onDuplicate(layer.id) : undefined,
+    size: onSetSize
+      ? {
+          width: layer.width,
+          height: layer.height,
+          onSelect: (w, h) => onSetSize(layer.id, w, h),
+        }
+      : undefined,
+    onFitToContent: onSetSize && hasPage ? handleFitToContent : undefined,
     onDelete: () => onRemove?.(layer.id),
   }
   useRegisterLayerMenu(layer.id, menuActions)
-
-  // A mockup snaps on neither axis, so drop the edge and forward the deltas.
-  const handleResize = useCallback(
-    (
-      id: string,
-      _edge: ResizeEdge,
-      dx: number,
-      dy: number,
-      dw: number,
-      dh: number
-    ) => {
-      onResize(id, dx, dy, dw, dh)
-    },
-    [onResize]
-  )
 
   return (
     <LayerShell
@@ -433,7 +459,9 @@ export function MockupLayer({
       titleDragDisabled={spaceHeld || focused}
       resizable={chrome.resizable}
       titleTag={chrome.titleTag}
-      onResize={handleResize}
+      onResize={onResize}
+      onResizeStart={onResizeStart}
+      onResizeEnd={onResizeEnd}
       groupLabel={groupLabel}
       groupWorkspace={groupWorkspace}
       remoteGroupSelectedColor={remoteGroupSelectedColor}
