@@ -326,7 +326,11 @@ export function MockupLayer({
   const { resolvedTheme } = useTheme()
   useMockupPageTheme(
     page.port,
-    shared || !resolvedTheme ? null : resolvedTheme === "dark" ? "dark" : "light"
+    shared || !resolvedTheme
+      ? null
+      : resolvedTheme === "dark"
+        ? "dark"
+        : "light"
   )
   useMockupPageChat(page.port, {
     question,
