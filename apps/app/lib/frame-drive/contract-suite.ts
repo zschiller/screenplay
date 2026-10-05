@@ -331,6 +331,21 @@ export function frameDriveContract(
         }
       }
 
+      it("types the capital letter for shift and a letter", async () => {
+        const result = await run({
+          op: "key",
+          key: "a",
+          modifiers: { shiftKey: true },
+          target: { selector: "#name" },
+        })
+        if (opts.gaps.includes("key-typing")) {
+          expect(result).toMatchObject({ status: "gap", gap: "key-typing" })
+          return
+        }
+        expectDone(result)
+        expect((await read("#name")).read?.value).toBe("A")
+      })
+
       it("answers a file picker with a file from the Workspace", async () => {
         const file = opts.real?.file
         if (!file) return

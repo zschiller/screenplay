@@ -1852,8 +1852,15 @@ class Frame {
       (m.metaKey ? 4 : 0) |
       (m.shiftKey ? 8 : 0)
     const plain = !(m.altKey || m.ctrlKey || m.metaKey)
+    // Shift and a letter types the capital, as on the Mac.
     const text =
-      key === "Enter" ? "\r" : plain && [...key].length === 1 ? key : undefined
+      key === "Enter"
+        ? "\r"
+        : plain && [...key].length === 1
+          ? m.shiftKey
+            ? key.toUpperCase()
+            : key
+          : undefined
     await this.press(key, modifiers, text)
     return this.agentDone(op, target)
   }

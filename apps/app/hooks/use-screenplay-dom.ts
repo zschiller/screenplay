@@ -13,7 +13,11 @@ import type {
   DriveResult,
   DriveTarget,
 } from "@/lib/frame-drive/contract"
-import type { PageAsk, PageInView } from "@/lib/frame-drive/canvas/protocol"
+import {
+  pageAskMessage,
+  type BridgePageAsk,
+} from "@/lib/frame-drive/canvas/page-answerer"
+import type { PageInView } from "@/lib/frame-drive/canvas/protocol"
 
 export type Handle = string
 
@@ -304,24 +308,10 @@ export function useScreenplayDom(
       /** One step of a gesture the Mac plays with real input (#1385): find
        *  a target, draw the agent's cursor, or read what the gesture left.
        *  Null when the bridge fails or doesn't answer. */
-      drivePage: (ask: Exclude<PageAsk, { kind: "take" | "release" }>) => {
-        const message =
-          ask.kind === "locate"
-            ? {
-                type: "screenplay:drive-locate" as const,
-                target: ask.target,
-                focus: ask.focus,
-                replace: ask.replace,
-                show: ask.show,
-              }
-            : ask.kind === "cursor"
-              ? { type: "screenplay:drive-cursor" as const, ...ask.what }
-              : {
-                  type: "screenplay:drive-state" as const,
-                  selector: ask.selector,
-                }
-        return request<unknown>(message, DRIVE_TIMEOUT_MS).catch(() => null)
-      },
+      drivePage: (ask: BridgePageAsk) =>
+        request<unknown>(pageAskMessage(ask), DRIVE_TIMEOUT_MS).catch(
+          () => null
+        ),
       stopDrive: () =>
         void request<null>({ type: "screenplay:drive-stop" }).catch(() => {}),
       startPick: () => request<null>({ type: "screenplay:pick-start" }),

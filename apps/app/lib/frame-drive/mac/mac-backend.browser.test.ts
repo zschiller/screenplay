@@ -20,12 +20,15 @@ import {
   FRAME_DRIVE_PATH,
   FRAME_DRIVE_ROOM_PARAM,
   type FrameWhere,
-  type PageAsk,
 } from "@/lib/frame-drive/canvas/protocol"
 import {
   createRelayFrames,
   runFrameDriveRelay,
 } from "@/lib/frame-drive/canvas/relay"
+import {
+  createPageAnswerer,
+  pageAskMessage,
+} from "@/lib/frame-drive/canvas/page-answerer"
 import { takeFrameInput } from "@/lib/frame-drive/canvas/take-input"
 import { macFrameDriveBackend } from "@/lib/frame-drive/mac/channel"
 import type { NativeEvent, NativeInput } from "@/lib/frame-drive/mac/real-input"
@@ -143,53 +146,44 @@ const bridge = <T>(message: Record<string, unknown>) =>
     message
   ) as Promise<T>
 
-/** The canvas side of each page ask, as `useDriveFrame` answers it. */
-async function pageAsk(ask: PageAsk): Promise<unknown> {
-  switch (ask.kind) {
-    case "locate":
-      return bridge({
-        type: "screenplay:drive-locate",
-        target: ask.target,
-        focus: ask.focus,
-        replace: ask.replace,
-        show: ask.show,
-      })
-    case "cursor":
-      return bridge({ type: "screenplay:drive-cursor", ...ask.what })
-    case "state":
-      return bridge({ type: "screenplay:drive-state", selector: ask.selector })
-    case "take":
-      return page.evaluate(async (at) => {
-        const w = window as unknown as {
-          takeFrameInput: typeof takeFrameInput
-          setTakesPointer(on: boolean): void
-          released?: (rest?: boolean) => void
-        }
-        // A hover's resting pointer ends here, as in the canvas's relay.
-        w.released?.()
-        const got = await w.takeFrameInput(
-          document.getElementById("frame") as HTMLIFrameElement,
-          at,
-          w.setTakesPointer
+/** The canvas side of each page ask: the canvas's own answerer, with the
+ *  canvas page's `takeFrameInput`. */
+const answerer = createPageAnswerer({
+  bridge: (ask) => bridge(pageAskMessage(ask)),
+  take: async (at) => {
+    const point = await page.evaluate(async (at) => {
+      const w = window as unknown as {
+        takeFrameInput: typeof takeFrameInput
+        setTakesPointer(on: boolean): void
+        taken?: (rest?: boolean) => void
+      }
+      const got = await w.takeFrameInput(
+        document.getElementById("frame") as HTMLIFrameElement,
+        at,
+        w.setTakesPointer
+      )
+      w.taken = got.release
+      return got.window
+    }, at)
+    return {
+      window: point,
+      release: async (rest) => {
+        await page.evaluate(
+          (rest) =>
+            (window as unknown as { taken?: (rest?: boolean) => void }).taken?.(
+              rest
+            ),
+          rest ?? false
         )
-        w.released = got.release
-        return { window: got.window }
-      }, ask.at)
-    case "release":
-      await page.evaluate((rest) => {
-        const w = window as unknown as {
-          released?: (rest?: boolean) => void
-        }
-        w.released?.(rest)
-        if (!rest) w.released = undefined
-      }, ask.rest ?? false)
-      // The browser hit-tests the pointer again soon after the overlay
-      // changes (Chrome at its next frame, when it likes): do it now, so a
-      // hover the overlay would end ends before the test reads the page.
-      await rehitTest()
-      return null
-  }
-}
+        // The browser hit-tests the pointer again soon after the overlay
+        // changes (Chrome at its next frame, when it likes): do it now, so a
+        // hover the overlay would end ends before the test reads the page.
+        await rehitTest()
+      },
+    }
+  },
+  maxTakenMs: 15_000,
+})
 
 /** Where the shell last put the pointer. */
 let pointer: { x: number; y: number } | null = null
@@ -240,7 +234,12 @@ function chromeInput(): NativeInput {
             for (const k of held) await page.keyboard.down(k)
             if (event.text && event.text !== "\r" && event.key.length !== 1)
               await page.keyboard.sendCharacter(event.text)
-            else await page.keyboard.press(event.key as KeyInput)
+            // The shell types the event's text (shift and a letter is the
+            // capital), where Chrome would type the key's own.
+            else
+              await page.keyboard.press(event.key as KeyInput, {
+                text: event.text,
+              })
             for (const k of held.reverse()) await page.keyboard.up(k)
             break
           }
@@ -354,7 +353,7 @@ beforeAll(async () => {
       zoom: 0.5,
       visibility: "visible",
     }),
-    page: pageAsk,
+    page: (ask) => answerer.answer(ask),
   })
   const url = new URL(FRAME_DRIVE_PATH, `ws://127.0.0.1:${yjs.port}`)
   url.searchParams.set(FRAME_DRIVE_ROOM_PARAM, ROOM)
@@ -376,6 +375,7 @@ beforeAll(async () => {
 }, 60_000)
 
 afterAll(async () => {
+  answerer.dispose()
   relay?.close()
   await browser?.close()
   await yjs?.close()
