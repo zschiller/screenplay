@@ -21,6 +21,7 @@ import {
   NotepadIcon,
   ScribbleIcon,
   CaretRightIcon,
+  CheckIcon,
   CheckCircleIcon,
   ClipboardTextIcon,
   ClockCounterClockwiseIcon,
@@ -121,6 +122,7 @@ import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
 import { QuestionCard } from "./question-card"
 import { isSaveSkillCall, SkillSaveCard } from "./skill-save-card"
 import { isMergePrCall, MergePrCard } from "./merge-pr-card"
+import { isMarkedDoneCall, MarkedDoneCard } from "./marked-done-card"
 import { Avatar, AvatarImage } from "@workspace/ui/components/avatar"
 import type { ChatSender } from "@/hooks/use-chat-senders"
 import {
@@ -179,6 +181,7 @@ const TOOL_ICONS: Record<ToolIcon, typeof FileTextIcon> = {
   warning: WarningCircleIcon,
   fetch: ArrowSquareOutIcon,
   think: LightbulbIcon,
+  check: CheckIcon,
 }
 
 /**
@@ -1400,6 +1403,14 @@ function ToolCallItem({
         message={message}
         roomId={roomId}
         chatId={chatId}
+        fallback={<ToolCallRow message={message} />}
+      />
+    )
+  }
+  if (isMarkedDoneCall(message)) {
+    return (
+      <MarkedDoneCard
+        message={message}
         fallback={<ToolCallRow message={message} />}
       />
     )

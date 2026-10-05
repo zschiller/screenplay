@@ -226,6 +226,12 @@ export interface TurnLaunchDeps {
   driveTurn(turn: EngineTurnLaunch): Promise<void>
   /** The run's recorded status once the Engine turn is over. */
   loadRunStatus(runId: string): Promise<RunStatus | null>
+  /**
+   * Once a Workspace turn is over (#1705): stop the sandbox of a Branch the
+   * turn marked Done, or, when leftover Steers are `continuing` the chat,
+   * reopen it. A Branch that isn't Done is left alone.
+   */
+  settleDone(input: { sandboxName: string; continuing: boolean }): Promise<void>
   /** Start a Coordinator turn about a Workspace turn that just ended (#897). */
   wakeCoordinator(end: WorkspaceTurnEnd): Promise<void>
   /** Schedule work to run after the HTTP response (`after()` in production). */
@@ -297,7 +303,10 @@ export type TurnLaunchResult =
  * 8. Steers the run never took don't wait: when it completed, failed or
  *    paused for a plan, they start the next turn at once, joined oldest first
  *    into one message; when it was stopped, they go back to their sender.
- * 9. Once a Workspace turn is over, wake the Coordinator with how it ended:
+ * 9. Once a Workspace turn is over, a Branch it marked Done stops its
+ *    sandbox (#1705), unless leftover Steers carry the chat on, which
+ *    reopens it.
+ * 10. Wake the Coordinator with how it ended:
  *    completed, failed, stopped, or paused for plan approval. Whichever
  *    Engine ran it, this is where every turn ends. A superseded run wakes
  *    nothing: the turn that superseded it will.
@@ -409,6 +418,12 @@ export async function launchTurn(
       runId,
       status,
     })
+    if (prepared.wakesCoordinator && request.sandboxName) {
+      await deps.settleDone({
+        sandboxName: request.sandboxName,
+        continuing: Boolean(next),
+      })
+    }
     if (prepared.wakesCoordinator && status && isWakeStatus(status)) {
       await deps.wakeCoordinator({ roomId, chatId, runId, status })
     }

@@ -508,6 +508,20 @@ describe("markDone and reopen (#976)", () => {
     expect(deps.toasts).toEqual([])
   })
 
+  it("keeps the chat open while a message's reopen starts the sandbox (#1705)", async () => {
+    lifecycle.reconnectSandbox.mockResolvedValue(ok)
+    const deps = makeDeps()
+    await reopen("branch-1", deps, { codeReadyAtStart: true })
+    expect(deps.patches[1]?.patch).toMatchObject({
+      status: "starting",
+      codeReady: true,
+    })
+    expect(deps.patches.at(-1)?.patch).toMatchObject({
+      status: "running",
+      codeReady: undefined,
+    })
+  })
+
   it("lands a failed reopen on error, out of the Done section", async () => {
     lifecycle.reconnectSandbox.mockResolvedValue({
       success: false,

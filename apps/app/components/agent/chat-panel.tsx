@@ -26,9 +26,10 @@ import {
   EmptyTitle,
 } from "@workspace/ui/components/empty"
 import { AgentChat } from "./agent-chat"
+import { ChatDoneProvider } from "./marked-done-card"
 import { ChatPanelHeader } from "./chat-panel-header"
 import { CoordinatorChat } from "./coordinator-chat"
-import { ChatsMenuButton } from "./chats-menu"
+import { ChatsMenuButton, useChatsMenu } from "./chats-menu"
 import { TerminalPane, type DevServerControls } from "./terminal-pane"
 import { useTerminalPaneController } from "./use-terminal-pane-controller"
 import { WorkspaceHeaderTitle } from "./workspace-menu"
@@ -292,6 +293,8 @@ function WorkspaceChatPanel({
   const prBlocked = existingPr?.state === "open" && !!existingPr.blocked
   const prColor = prStateButtonColor(existingPr?.state ?? "open", prBlocked)
   const isAgentBusy = workspaceBooting(agent)
+  // Reopen from a Marked done card (#1705), as the Chats menu's Reopen.
+  const chatsMenu = useChatsMenu()
 
   // First chat for this Workspace — drives auto branch/chat naming.
   const isFirstChat = (chat: ChatSessionData) =>
@@ -302,23 +305,33 @@ function WorkspaceChatPanel({
       key={chat.id}
       className={cn("min-h-0 flex-1 overflow-hidden", !shown && "hidden")}
     >
-      <AgentChat
-        chatId={chat.id}
-        roomId={roomId}
-        target={chatTarget}
-        booting={workspaceBooting(agent)}
-        isFirstChat={isFirstChat(chat)}
-        planMode={chat.planMode}
-        onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
-        model={chat.model}
-        onModelChange={(m) => onModelChange(chat.id, m)}
-        isActive={shown}
-        onOpenWorkspaceChat={
-          ownChatId && chat.id !== ownChatId
-            ? () => onSelectChat(ownChatId)
-            : undefined
-        }
-      />
+      <ChatDoneProvider
+        value={{
+          done: Boolean(agent.doneAt),
+          onReopen: chatsMenu
+            ? () => chatsMenu.onReopenBranch(agent.id)
+            : undefined,
+        }}
+      >
+        <AgentChat
+          chatId={chat.id}
+          roomId={roomId}
+          target={chatTarget}
+          booting={workspaceBooting(agent)}
+          isFirstChat={isFirstChat(chat)}
+          planMode={chat.planMode}
+          onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
+          model={chat.model}
+          onModelChange={(m) => onModelChange(chat.id, m)}
+          isActive={shown}
+          onOpenWorkspaceChat={
+            ownChatId && chat.id !== ownChatId
+              ? () => onSelectChat(ownChatId)
+              : undefined
+          }
+          done={Boolean(agent.doneAt)}
+        />
+      </ChatDoneProvider>
     </div>
   )
 

@@ -76,6 +76,9 @@ import { removeAttachment, uploadAttachment } from "@/lib/chat-attachments"
 
 // Stable subscribe reference for `useSyncExternalStore` — a fresh closure each
 // render would make React re-subscribe every render.
+/** A Done chat's composer (#1705): writing reopens it. */
+export const WRITE_TO_REOPEN = "Write to reopen…"
+
 const subscribeTargetEligibility = (onChange: () => void) =>
   targetingStore.subscribeEligibility(onChange)
 
@@ -104,6 +107,9 @@ interface AgentChatProps {
    * points to the Workspace's chat, which this opens.
    */
   onOpenWorkspaceChat?: () => void
+  /** The Workspace is Done (#1705): the composer reads “Write to reopen…”,
+   *  and sending reopens it. */
+  done?: boolean
 }
 
 export function AgentChat({
@@ -119,6 +125,7 @@ export function AgentChat({
   onModelChange,
   isActive = true,
   onOpenWorkspaceChat,
+  done = false,
 }: AgentChatProps) {
   const {
     messages,
@@ -586,7 +593,7 @@ export function AgentChat({
           queueWhileStreaming
           steersWhileStreaming={steerable}
           draftKey={chatId}
-          placeholder={capabilities.placeholder}
+          placeholder={done ? WRITE_TO_REOPEN : capabilities.placeholder}
           aboveInput={
             queued.length > 0 ? (
               <ul aria-label="Queued messages" className="mb-2 space-y-1">

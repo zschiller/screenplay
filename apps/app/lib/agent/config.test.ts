@@ -253,6 +253,20 @@ describe("buildAgentSystemPrompt — PR events (#1703)", () => {
   })
 })
 
+describe("buildAgentSystemPrompt — marking the chat done (#1705)", () => {
+  it("says when to call mark_done, and when never to", () => {
+    const prompt = buildAgentSystemPrompt({
+      layerDirectory: EMPTY_DIRECTORY,
+      skills: APP_SKILLS,
+      toolNaming: harnessToolNaming("claude-code", "screenplay"),
+    })
+    expect(prompt).toContain("call mcp__screenplay__mark_done as the last")
+    expect(prompt).toContain(
+      "Never call it when your last message asks the user something"
+    )
+  })
+})
+
 describe("the Canvas view footer", () => {
   it('tells both chat kinds what "this" means', () => {
     for (const prompt of [

@@ -1246,6 +1246,14 @@ function pricingRoom(now: number, previewOrigin: string): FixtureRoom {
           model: "claude-sonnet-4-5",
           isStreaming: true,
         },
+        // Rate-limit headers' own chat, its PR merged: what the agent marks
+        // done (#1705).
+        {
+          id: "chat-rate-limit-headers",
+          branchId: apiBranch.id,
+          label: "Rate-limit headers",
+          createdAt: daysAgo(now, 4),
+        },
       ],
       // Low enough that the Pricing group's label clears the top chrome.
       savedViewport: { x: 60, y: 120, zoom: 0.5 },

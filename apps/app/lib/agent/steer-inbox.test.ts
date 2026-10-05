@@ -119,4 +119,21 @@ describe("Steer inbox", () => {
     await inbox.take("run_1")
     expect(await inbox.reclaim(taken.id)).toBe(false)
   })
+
+  it("knows a person steered the run, pending or taken, but not a wake", async () => {
+    const { inbox } = await seedRun()
+    expect(await inbox.hasPersonSteer("run_1")).toBe(false)
+    await inbox.add({
+      runId: "run_1",
+      chatId: "chat_1",
+      message: "nobody typed this",
+      userId: null,
+    })
+    expect(await inbox.hasPersonSteer("run_1")).toBe(false)
+
+    await add(inbox, "from a person")
+    expect(await inbox.hasPersonSteer("run_1")).toBe(true)
+    await inbox.take("run_1")
+    expect(await inbox.hasPersonSteer("run_1")).toBe(true)
+  })
 })

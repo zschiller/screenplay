@@ -77,6 +77,7 @@ import {
 import { startBranchProvisioning } from "@/lib/branch/provisioning-live"
 import { claimMergedPrMove } from "@/lib/branch/next-pr"
 import { moveMergedBranch } from "@/lib/branch/next-pr-live"
+import { settleDoneBranch } from "@/lib/branch/reopen-live"
 import { isLocalBuild } from "@/lib/local-mode"
 import { createGitHubPr } from "@/lib/github-pr"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
@@ -163,6 +164,10 @@ export const liveTurnLaunchDeps = (room: RoomAccess): TurnLaunchDeps => ({
         }),
     }),
   loadRunStatus: runStatus,
+  settleDone: (input) =>
+    settleDoneBranch(room, input).catch((e) => {
+      console.error("settling a done chat failed:", e)
+    }),
   wakeCoordinator: (end) =>
     wakeCoordinator(room, end).catch((e) => {
       console.error("coordinator wake failed:", e)

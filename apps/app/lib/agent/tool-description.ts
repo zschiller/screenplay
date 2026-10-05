@@ -73,6 +73,7 @@ export type ToolIcon =
   | "warning"
   | "fetch"
   | "think"
+  | "check"
 
 /**
  * How a row draws its result text: as markdown, as a log (with its ANSI
@@ -341,6 +342,7 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     kind: "other",
     label: issueNumber("Offer to merge"),
   },
+  mark_done: { verb: "Mark chat done", icon: "check", kind: "other" },
   read_pr_diff: {
     verb: "Read diff of",
     icon: "diff",
