@@ -2,11 +2,12 @@
 import { renderHook } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { iframeBridgePort } from "@/lib/bridge-port"
-import type { MockupQuestion } from "@/lib/agent/question"
-import { usePageQuestion } from "./use-mockup-question"
+import type { AskedQuestion } from "@/lib/canvas/mockup-chat-link"
+import { useMockupPageChat } from "./mockup-chat-link"
 
-const open: MockupQuestion = {
+const open: AskedQuestion = {
   toolCallId: "call-1",
+  chatId: "chat-1",
   question: {
     question: "How should the row show each product?",
     options: [
@@ -18,16 +19,17 @@ const open: MockupQuestion = {
   },
 }
 
-function mount(found: MockupQuestion | null) {
+function mount(found: AskedQuestion | null) {
   const frameWindow = { postMessage: vi.fn() }
   const iframeRef = {
     current: { contentWindow: frameWindow } as unknown as HTMLIFrameElement,
   }
   const port = iframeBridgePort(iframeRef)
   const onAnswer = vi.fn()
+  const onDraft = vi.fn()
   const view = renderHook(
-    ({ found }: { found: MockupQuestion | null }) =>
-      usePageQuestion(port, found, onAnswer),
+    ({ found }: { found: AskedQuestion | null }) =>
+      useMockupPageChat(port, { question: found, onDraft, onAnswer }),
     { initialProps: { found } }
   )
   const fromPage = (data: object) => {
@@ -35,10 +37,10 @@ function mount(found: MockupQuestion | null) {
     Object.defineProperty(event, "source", { value: frameWindow })
     window.dispatchEvent(event)
   }
-  return { frameWindow, onAnswer, view, fromPage }
+  return { frameWindow, onAnswer, onDraft, view, fromPage }
 }
 
-describe("usePageQuestion (#1644)", () => {
+describe("useMockupPageChat (#1644, #1645)", () => {
   it("hands the page its question when it asks, then every change", () => {
     const { frameWindow, view, fromPage } = mount(open)
     expect(frameWindow.postMessage).not.toHaveBeenCalled()
@@ -86,5 +88,13 @@ describe("usePageQuestion (#1644)", () => {
     view.rerender({ found: null })
     fromPage({ type: "screenplay:question-answer", id: "call-1", index: 1 })
     expect(onAnswer).not.toHaveBeenCalled()
+  })
+
+  it("passes on a draft the page posts", () => {
+    const { onDraft, fromPage } = mount(null)
+    fromPage({ type: "screenplay:draft", text: "Picked B" })
+    fromPage({ type: "screenplay:draft", text: 7 })
+    expect(onDraft).toHaveBeenCalledTimes(1)
+    expect(onDraft).toHaveBeenCalledWith("Picked B")
   })
 })

@@ -28,7 +28,6 @@ import { openPreviewInBrowser } from "@/lib/open-preview"
 import { IframeLayer } from "./iframe-layer"
 import { MarkdownLayer } from "./markdown-layer"
 import { MockupLayer } from "./mockup-layer"
-import type { MockupQuestion } from "@/lib/agent/question"
 import { useCanvasGesture } from "./use-canvas-gesture"
 import type { CanvasCamera } from "./use-canvas-camera"
 import type { CanvasSelection } from "./use-canvas-selection"
@@ -121,10 +120,6 @@ function CanvasMemberLayerImpl({
   removeDocument,
   handlePlayIframeLayer,
   onAskForKnob,
-  askableMockupIds,
-  onAskForMockupKnob,
-  onMockupDraft,
-  onAnswerFromMockup,
   handleCaptureReadyChange,
   handleCaptureDirty,
   layerMutations,
@@ -205,21 +200,6 @@ function CanvasMemberLayerImpl({
   handlePlayIframeLayer: NonNullable<IframeLayerProps["onPlay"]>
   /** Start an "add a knob" request in a Workspace's chat composer. */
   onAskForKnob: (branchId: string) => void
-  /** The Mockups that offer an Ask: chat-made ones, or ones whose chat is gone. */
-  askableMockupIds: ReadonlySet<string>
-  /**
-   * Start an "add a knob" request in the composer of the chat that can rewrite
-   * a Mockup (its Sketch Chat or its Workspace's chat).
-   */
-  onAskForMockupKnob: (mockupId: string) => void
-  /** A Mockup page's `screenplay.draft(text)`, into its chat's composer. */
-  onMockupDraft: (mockupId: string, text: string) => void
-  /** A Mockup page answered its chat's question card (#1644). */
-  onAnswerFromMockup: (
-    mockupId: string,
-    found: MockupQuestion,
-    index: number
-  ) => void
   handleCaptureReadyChange: IframeLayerProps["onCaptureReadyChange"]
   handleCaptureDirty: IframeLayerProps["onCaptureDirty"]
   /**
@@ -577,9 +557,6 @@ function CanvasMemberLayerImpl({
                 onHover={reference.setInspectHover}
                 onDomReady={reference.onIframeLayerDomReady}
                 writes={layerMutations.mockupPage}
-                onAnswerQuestion={(found, index) =>
-                  onAnswerFromMockup(mockup.id, found, index)
-                }
                 focused={focusedIframeLayerId === mockup.id}
                 driver={frameControl.driverOf(mockup.id)}
                 askedForControl={frameControl.askedFor(mockup.id)}
@@ -611,12 +588,6 @@ function CanvasMemberLayerImpl({
                 onFocus={focusPage}
                 commentMode={commentMode}
                 onWheel={onIframeWheel}
-                onAskForKnob={
-                  askableMockupIds.has(mockup.id)
-                    ? () => onAskForMockupKnob(mockup.id)
-                    : undefined
-                }
-                onDraft={onMockupDraft}
               />
             )
           }
