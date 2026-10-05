@@ -141,6 +141,7 @@ describe("read_document", () => {
     typeBody(fragment)
     collections.markdownLayers.update("doc-2", { title: "Field notes" })
     collections.branches.update("ws-1", { title: "Fix sign in" })
+    collections.mockupLayers.update("mock-1", { title: "Hero v2" })
 
     const out = await run("read_document", { id: "doc-1" })
 
@@ -149,7 +150,7 @@ describe("read_document", () => {
         "# Plan",
         "",
         "See **this** and [@Field notes](mention:document:doc-2), " +
-          "[@Fix sign in](mention:chat:ws-1), [@Hero](mention:mockup:mock-1)",
+          "[@Fix sign in](mention:chat:ws-1), [@Hero v2](mention:mockup:mock-1)",
       ].join("\n")
     )
   })

@@ -5,6 +5,7 @@ import { annotateTools } from "@/lib/mcp/tool-server"
 import type { RoomReader } from "@/lib/room-access"
 import { documentFragment } from "@/lib/yjs/fragment-text"
 import { readDocumentBody, roomMentionLabels } from "@/lib/document-markdown"
+import { mentionMarkdownNames } from "@/lib/mention-kinds"
 
 /**
  * Cross-cutting "read another layer's contents" tools, available to every
@@ -23,8 +24,7 @@ export interface LayerReadToolContext {
 export function buildLayerReadTools(ctx: LayerReadToolContext) {
   const tools = {
     read_document: tool({
-      description:
-        "Read a markdown document on the canvas by id. Returns the title as a `#` heading, then the body as markdown; a comment quoting “Line N” means line N of that body, counting from the line after the title’s blank line. Mentions read `[@<name>](mention:<kind>:<id>)` with the current name, where kind is `document` (read it with this tool), `chat` or `mockup`. Use this to follow `@<title>`-style mentions (look up the id in the canvas layer directory baked into your system prompt).",
+      description: `Read a markdown document on the canvas by id. Returns the title as a \`#\` heading, then the body as markdown; a comment quoting “Line N” means line N of that body, counting from the line after the title’s blank line. Mentions read \`[@<name>](mention:<kind>:<id>)\` with the current name, where kind is ${mentionMarkdownNames()}; read a \`document\` one with this tool. Use this to follow \`@<title>\`-style mentions (look up the id in the canvas layer directory baked into your system prompt).`,
       inputSchema: jsonSchema<{ id: string }>({
         type: "object",
         properties: { id: { type: "string" } },

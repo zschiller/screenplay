@@ -1,11 +1,10 @@
-// The design-exploration page. Phone first, one column at every width: round
-// tabs under the question, in time order (Today, Round 1, Round 2…) and
-// opening on the newest; each question shows one option at a time behind a
-// segmented A/B/C control that sticks to the top while you read. A bar pinned
-// to the bottom carries the picks, a note and Copy.
+// The design-exploration page: round tabs under the question, in time order
+// (Today, Round 1, Round 2…) and opening on the newest. A round is laid out
+// like the audit (shared/detail.tsx): its questions in a list, the option
+// you're viewing (A/B/C letters or ← →) and your answer as the chat card's
+// choice rows. A bar pinned to the bottom carries the picks, a note and Copy.
 
 import * as React from "react"
-import { flushSync } from "react-dom"
 
 import { useSharedState } from "@screenplay.space/state"
 
@@ -22,10 +21,8 @@ import {
   useCardQuestion,
 } from "../shared/chat.ts"
 import {
-  Fold,
   Intro,
   ItemHead,
-  Quote,
   Rec,
   RecDot,
   SectionHead,
@@ -33,7 +30,15 @@ import {
   Shell,
   Tag,
 } from "../shared/kit.tsx"
-import { AnswerInChat } from "../shared/choices.tsx"
+import {
+  ABOUT,
+  DetailItem,
+  DetailLayout,
+  DetailNav,
+  detailOnly,
+  useDetail,
+} from "../shared/detail.tsx"
+import { AnswerInChat, Choices } from "../shared/choices.tsx"
 import { CopyBar, Facts, Html, Label, load, store } from "../shared/page.tsx"
 import { Shots } from "../shared/shots.tsx"
 import { useTheme } from "../shared/theme.tsx"
@@ -199,6 +204,7 @@ export function Exploration({
       setTab={setTab}
       tabsLabel="Rounds"
       theme={theme}
+      wide
       bar={
         <CopyBar
           status={status}
@@ -210,10 +216,13 @@ export function Exploration({
           outLabel="Reaction to copy"
           text={text}
           send
+          wide
         />
       }
     >
-      <Intro meta={`Design exploration · ${page.date}`} quote={page.quote} />
+      {tab === "today" && (
+        <Intro meta={`Design exploration · ${page.date}`} quote={page.quote} />
+      )}
       {rounds.map((r) => (
         <TabsContent
           key={r.n}
@@ -221,7 +230,13 @@ export function Exploration({
           forceMount
           hidden={tab !== `r${r.n}`}
         >
-          <RoundPanel round={r} live={r === latest} {...pickProps} />
+          <RoundPanel
+            round={r}
+            live={r === latest}
+            shownTab={tab === `r${r.n}`}
+            page={page}
+            {...pickProps}
+          />
         </TabsContent>
       ))}
       <TabsContent value="today" forceMount hidden={tab !== "today"}>
@@ -245,45 +260,281 @@ const outcome = (r: Round) => {
   return p.length ? p.join(", ") : "no pick"
 }
 
+/** From 1024px, each question's answer sits beside it, so the middle shows one option at a time. */
+const BESIDE = "(min-width: 64rem)"
+function useBeside() {
+  const [on, setOn] = React.useState(() => matchMedia(BESIDE).matches)
+  React.useEffect(() => {
+    const mq = matchMedia(BESIDE)
+    const change = () => setOn(mq.matches)
+    mq.addEventListener("change", change)
+    return () => mq.removeEventListener("change", change)
+  }, [])
+  return on
+}
+
+/**
+ * A round as the audit lays out its findings: from 1280px the round's
+ * questions on the left, the option you're viewing in the middle (letters or
+ * ← →) and your answer pinned on the right, one question at a time. From
+ * 1024px the list goes and every question is on the page. A phone is one
+ * scroll: each question, every option in full, then its answer.
+ */
 function RoundPanel({
   round: r,
   live,
+  shownTab,
+  page,
   ...pickProps
-}: { round: Round; live: boolean } & PickProps) {
+}: {
+  round: Round
+  live: boolean
+  shownTab: boolean
+  page: Page
+} & PickProps) {
+  const { picks } = pickProps
+  const beside = useBeside()
+  const n = r.questions.length
+  const ids = r.questions.map((_, i) => String(i + 1))
+  // The option each question shows beside its answer
+  const [opts, setOpts] = React.useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      r.questions.map((q) => [
+        q.key,
+        (q.options.find((o) => o.state === "picked") ?? q.options[0]!).id,
+      ])
+    )
+  )
+  useSharedState(`options:r${r.n}`, opts, setOpts)
+  const view = (q: Question, id: string) =>
+    id && setOpts((v) => ({ ...v, [q.key]: id }))
+  const detail = useDetail(ids, {
+    key: `question:r${r.n}`,
+    active: shownTab,
+    // ← and → move through the shown question's options first
+    step: (sel, by) => {
+      const q = r.questions[ids.indexOf(sel)]
+      if (!q || signoff(q)) return false
+      const i = q.options.findIndex((o) => o.id === opts[q.key])
+      const next = q.options[i + by]
+      if (next) view(q, next.id)
+      return !!next
+    },
+  })
+  const about = detail.sel === ABOUT
+  const answered = (q: Question) =>
+    live ? !!picks[q.key] : q.options.some((o) => o.state === "picked")
+  const nav = <DetailNav detail={detail} noun="questions" />
   return (
-    <section className="flex min-w-0 flex-col gap-10">
+    <DetailLayout
+      about="About this round"
+      detail={detail}
+      groups={[
+        {
+          name: `Round ${r.n}`,
+          items: r.questions.map((q, i) => ({
+            id: ids[i]!,
+            title: q.title || page.q,
+            done: answered(q),
+          })),
+        },
+      ]}
+    >
       {(r.feedback || r.every) && (
-        // What started the round and what its options share, folded so the options come first
-        <div className="-mb-4 flex flex-col gap-2">
-          <Label>
-            Round {r.n} · {live ? "open" : outcome(r)}
-          </Label>
-          <Fold title={r.feedback ? "Your feedback" : "In every option"}>
-            <div className="flex flex-col gap-3.5">
-              {r.feedback && (
-                <Quote>{<Html as="span" html={r.feedback} />}</Quote>
-              )}
-              {r.every && (
-                <>
-                  {r.feedback && <Label>In every option</Label>}
-                  <Facts items={r.every} />
-                </>
-              )}
-            </div>
-          </Fold>
+        <div className={detailOnly(about)}>
+          <About r={r} live={live} />
         </div>
       )}
-      {r.questions.map((q, i) => (
-        <QuestionBlock
-          key={q.key}
-          round={r}
-          q={q}
-          i={i}
-          live={live}
-          {...pickProps}
-        />
-      ))}
-    </section>
+      {r.questions.map((q, i) => {
+        const o = q.options.find((x) => x.id === opts[q.key])!
+        return (
+          <DetailItem
+            key={q.key}
+            id={`r${r.n}-${ids[i]}`}
+            open={!answered(q)}
+            hidden={false}
+            shown={detail.sel === ids[i]}
+            nav={nav}
+            head={
+              beside ? (
+                <>
+                  {!signoff(q) && (
+                    <Segmented
+                      aria-label="Options"
+                      value={o.id}
+                      onChange={(id) => view(q, id)}
+                      items={q.options.map((x) => ({
+                        value: x.id,
+                        label: (
+                          <>
+                            <span className="font-mono font-semibold">
+                              {x.id}
+                            </span>
+                            <Mark o={x} mine={live && picks[q.key] === x.id} />
+                          </>
+                        ),
+                      }))}
+                      className="flex w-fit"
+                      itemClassName="min-w-14"
+                    />
+                  )}
+                  <OptionText q={q} o={o} />
+                </>
+              ) : (
+                <div className="flex flex-col gap-6">
+                  <SectionHead
+                    eyebrow={n > 1 ? `Question ${i + 1} of ${n}` : undefined}
+                    title={q.title || page.q}
+                    blurb={q.intro ? <Html as="p" html={q.intro} /> : undefined}
+                  />
+                  {q.options.map((x) => (
+                    <div key={x.id} className="flex flex-col gap-2.5">
+                      <OptionText q={q} o={x} />
+                      <Stage o={x} />
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+            shots={beside ? <Stage o={o} /> : undefined}
+            answer={
+              <>
+                {beside ? (
+                  <>
+                    <h2 className="m-0 text-base leading-snug font-medium text-pretty">
+                      {q.title || page.q}
+                    </h2>
+                    {q.intro && (
+                      <Html
+                        as="p"
+                        html={q.intro}
+                        className="text-sm text-muted-foreground"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <Label className="mt-4">
+                    {live ? "Your answer" : "Outcome"}
+                  </Label>
+                )}
+                <Answer
+                  r={r}
+                  q={q}
+                  live={live}
+                  {...pickProps}
+                  onPick={signoff(q) ? undefined : (id) => view(q, id)}
+                />
+              </>
+            }
+          />
+        )
+      })}
+      {about && <div className="hidden xl:block">{nav}</div>}
+    </DetailLayout>
+  )
+}
+
+/** The answer to a question: its options as the chat card's choice rows. */
+function Answer({
+  r,
+  q,
+  live,
+  picks,
+  pick,
+  sent,
+  chatOnly,
+  onPick,
+}: {
+  r: Round
+  q: Question
+  live: boolean
+  onPick?: (id: string) => void
+} & PickProps) {
+  if (!live)
+    return <p className="m-0 text-sm text-muted-foreground">{outcomeOf(q)}</p>
+  return (
+    <>
+      <Choices
+        name={`answer-r${r.n}-${q.key}`}
+        value={picks[q.key]}
+        onChange={(v) => {
+          if (sent === q.key) return
+          pick(q.key, v)
+          onPick?.(v)
+        }}
+        choices={
+          signoff(q)
+            ? SIGN.map(([value, label]) => ({ value, label }))
+            : q.options.map((o) => ({
+                value: o.id,
+                label: `${o.id} · ${o.name}`,
+                rec: o.rec,
+              }))
+        }
+      />
+      {chatOnly === q.key && <AnswerInChat />}
+    </>
+  )
+}
+
+const outcomeOf = (q: Question) => {
+  const o = q.options.find((x) => x.state === "picked")
+  if (!o) return "No pick"
+  return signoff(q) ? "Signed off" : `Picked ${o.id} · ${o.name}`
+}
+
+/** The feedback that started the round and what every option shares. */
+function About({ r, live }: { r: Round; live: boolean }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-5">
+      <Intro
+        meta={`Round ${r.n} · ${live ? "open" : outcome(r)}`}
+        quote={r.feedback ? <Html as="span" html={r.feedback} /> : undefined}
+      />
+      {r.every && (
+        <section className="flex flex-col gap-2">
+          <Label>In every option</Label>
+          <Facts items={r.every} />
+        </section>
+      )}
+    </div>
+  )
+}
+
+/** An option's name, why and cost. */
+function OptionText({ q, o }: { q: Question; o: Option }) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
+        {o.rec && <Rec />}
+        {o.state === "picked" && <Tag tone="done">Picked</Tag>}
+        {o.state === "rejected" && <Tag tone="no">Rejected</Tag>}
+      </div>
+      {o.why && <Html as="p" html={o.why} className="max-w-[72ch] text-sm" />}
+      {o.cost && (
+        <p className="m-0 max-w-[72ch] text-sm text-muted-foreground">
+          <b className="font-medium text-foreground">Cost</b>{" "}
+          <Html as="span" html={o.cost} />
+        </p>
+      )}
+    </>
+  )
+}
+
+/** Captures sit on a muted stage, so a screenshot of a page never reads as part of this one. */
+function Stage({ o }: { o: Option }) {
+  if (!o.shots?.length && !o.html) return null
+  return (
+    <div className="flex min-w-0 flex-col items-center gap-4 bg-muted px-4 py-5 md:px-8 md:py-8">
+      {o.html && <Html as="div" html={o.html} />}
+      <Shots
+        list={o.shots}
+        className={
+          "w-full items-center" + (o.state === "rejected" ? " opacity-55" : "")
+        }
+      />
+    </div>
   )
 }
 
@@ -300,153 +551,4 @@ function Mark({ o, mine }: { o: Option; mine: boolean }) {
     return <XIcon aria-label="rejected" className="size-3.5 text-destructive" />
   if (o.rec) return <RecDot />
   return null
-}
-
-function QuestionBlock({
-  round: r,
-  q,
-  i,
-  live,
-  picks,
-  pick,
-  sent,
-  chatOnly,
-}: { round: Round; q: Question; i: number; live: boolean } & PickProps) {
-  const n = r.questions.length
-  const [opt, setOpt] = React.useState(
-    () => (q.options.find((o) => o.state === "picked") ?? q.options[0]!).id
-  )
-  useSharedState(`option:r${r.n}-${q.key}`, opt, setOpt)
-  const root = React.useRef<HTMLDivElement>(null)
-  const bar = React.useRef<HTMLDivElement>(null)
-  const choose = (id: string) => {
-    if (!id) return
-    flushSync(() => setOpt(id))
-    // When the letters are stuck to the top, start the new option from its beginning
-    const b = bar.current!
-    const stuck =
-      b.getBoundingClientRect().top <= parseFloat(getComputedStyle(b).top) + 1
-    const panel = root.current!.querySelector(
-      ":scope>[data-option]:not([hidden])"
-    )
-    if (stuck && panel)
-      scrollTo({
-        top: scrollY + panel.getBoundingClientRect().top - b.offsetHeight - 12,
-        behavior: "instant",
-      })
-  }
-  const card = (o: Option) => (
-    <Card
-      q={q}
-      o={o}
-      live={live}
-      picks={picks}
-      pick={pick}
-      sent={live && sent === q.key ? sent : undefined}
-      chatOnly={live && chatOnly === q.key ? chatOnly : undefined}
-    />
-  )
-  return (
-    <div ref={root} className="flex min-w-0 flex-col gap-4">
-      {(q.title || n > 1) && (
-        <SectionHead
-          eyebrow={n > 1 ? `Question ${i + 1} of ${n}` : undefined}
-          title={q.title || undefined}
-          blurb={q.intro ? <Html as="p" html={q.intro} /> : undefined}
-        />
-      )}
-      {signoff(q) ? (
-        card(q.options[0]!)
-      ) : (
-        <>
-          {/* Stuck, the letters keep a page-coloured margin so content never shows around their corners */}
-          <div
-            ref={bar}
-            className="sticky top-[calc(env(safe-area-inset-top,0px)+var(--top-bar,0px)+8px)] z-[5] bg-background shadow-[0_0_0_8px_var(--background)]"
-          >
-            <Segmented
-              aria-label="Options"
-              value={opt}
-              onChange={choose}
-              items={q.options.map((o) => ({
-                value: o.id,
-                label: (
-                  <>
-                    <span className="font-mono font-semibold">{o.id}</span>
-                    <Mark o={o} mine={live && picks[q.key] === o.id} />
-                  </>
-                ),
-              }))}
-              className="flex w-full"
-              itemClassName="flex-1"
-            />
-          </div>
-          {q.options.map((o) => (
-            <div key={o.id} data-option hidden={opt !== o.id}>
-              {card(o)}
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  )
-}
-
-function Card({
-  q,
-  o,
-  live,
-  picks,
-  pick,
-  sent,
-  chatOnly,
-}: { q: Question; o: Option; live: boolean } & PickProps) {
-  const mine = picks[q.key]
-  return (
-    <article className="flex min-w-0 flex-col gap-3">
-      <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
-      {(o.rec || o.state) && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {o.rec && <Rec />}
-          {o.state === "picked" && <Tag tone="done">Picked</Tag>}
-          {o.state === "rejected" && <Tag tone="no">Rejected</Tag>}
-        </div>
-      )}
-      {o.html && <Html as="div" html={o.html} />}
-      <Shots
-        list={o.shots}
-        className={o.state === "rejected" ? "opacity-55" : undefined}
-      />
-      {o.why && <Html as="p" html={o.why} className="max-w-[72ch] text-sm" />}
-      {o.cost && (
-        <p className="m-0 max-w-[72ch] text-sm text-muted-foreground">
-          <b className="font-medium text-foreground">Cost</b>{" "}
-          <Html as="span" html={o.cost} />
-        </p>
-      )}
-      {live && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {signoff(q) ? (
-            <Segmented
-              aria-label="Sign off"
-              value={mine ?? ""}
-              onChange={(v) => !sent && pick(q.key, v || mine!)}
-              items={SIGN.map(([value, label]) => ({ value, label }))}
-            />
-          ) : (
-            <Button
-              type="button"
-              variant={mine === o.id ? "default" : "outline"}
-              aria-pressed={mine === o.id}
-              disabled={!!sent && mine !== o.id}
-              onClick={() => pick(q.key, o.id)}
-            >
-              {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
-            </Button>
-          )}
-          {chatOnly && <AnswerInChat />}
-        </div>
-      )}
-    </article>
-  )
 }
