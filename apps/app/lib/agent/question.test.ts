@@ -150,6 +150,19 @@ describe("hasOpenQuestion", () => {
     ).toBe(true)
   })
 
+  it("stays open through a PR event", () => {
+    expect(
+      hasOpenQuestion([
+        ask("q1", layout),
+        {
+          role: "user",
+          content: "PR #7 was merged.",
+          prEvent: { number: 7, kind: "merged" },
+        },
+      ])
+    ).toBe(true)
+  })
+
   it("is closed in a transcript with no question", () => {
     expect(hasOpenQuestion([{ role: "user", content: "Hi" }])).toBe(false)
   })

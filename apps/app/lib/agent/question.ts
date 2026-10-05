@@ -117,7 +117,11 @@ export function questionAnswers(
   for (const message of messages) {
     if (message.role === "tool_call" && isQuestionCall(message)) {
       open.push(message)
-    } else if (message.role === "user" && !message.wakeFrom) {
+    } else if (
+      message.role === "user" &&
+      !message.wakeFrom &&
+      !message.prEvent
+    ) {
       for (const call of open) {
         answers.set(call.toolCallId, {
           chosen: chosenOption(parseQuestion(call.rawInput), message.content),
@@ -203,7 +207,8 @@ export function toPageQuestion(
 export function hasOpenQuestion(messages: readonly AgentMessage[]): boolean {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
-    if (message.role === "user" && !message.wakeFrom) return false
+    if (message.role === "user" && !message.wakeFrom && !message.prEvent)
+      return false
     if (isQuestionCall(message)) return true
   }
   return false
