@@ -30,12 +30,14 @@ export function CoordinatorChat({
   roomId,
   chatSession,
   onModelChange,
+  onPlanModeChange,
   onOpenWorkspace,
 }: {
   roomId: string
   /** The Room's Coordinator chat record, or undefined until it's created. */
   chatSession: ChatSessionData | undefined
   onModelChange: (chatId: string, model: string) => void
+  onPlanModeChange: (chatId: string, planMode: boolean) => void
   /** Open a Workspace from its task row, on the chat the message went to. */
   onOpenWorkspace: (task: WorkspaceTaskRef) => void
 }) {
@@ -87,6 +89,8 @@ export function CoordinatorChat({
           roomStart={roomStart}
           model={chatSession?.model}
           onModelChange={(model) => onModelChange(chatId, model)}
+          planMode={chatSession?.planMode}
+          onPlanModeChange={(pm) => onPlanModeChange(chatId, pm)}
         />
       </WorkspaceTasksProvider>
     </div>

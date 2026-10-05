@@ -12,7 +12,9 @@ chat’s agent instead, and everything the agent does happens inside that
 chat’s sandbox.
 
 The Coordinator uses the same composer, with less in it. It is one chat with
-no terminals, and has no **Plan** toggle or crosshair.
+no terminals. Its **Plan** toggle plans which chats it starts and what it
+sends them, and its crosshair picks in every frame and mockup, passing the
+element on to the chat that owns it.
 
 Every chat has its own branch, sandbox, preview and terminals from the
 moment it starts, and it’s the only chat that changes that code. More work in
@@ -247,8 +249,9 @@ instead of editing. It works the same in chats running Claude Code, Codex or
 OpenCode on desktop: Codex plans in its own Plan setting, OpenCode in its
 read-only plan agent, and you approve their plans on the same card. OpenCode
 has no step that asks to carry out its plan, so its last reply in a plan turn
-is the plan the card shows. Plan mode is for chats; the Coordinator has no
-**Plan** toggle.
+is the plan the card shows. The Coordinator’s **Plan** toggle plans what it
+will start and send instead (see
+[Chatting with the Coordinator](/guides/coordinator#chatting-with-the-coordinator)).
 
 <Screenshot
   name="plan-card"

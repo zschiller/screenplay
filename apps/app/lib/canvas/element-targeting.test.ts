@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  ANY_BRANCH,
   type ElementAtPointResult,
   ElementTargeting,
   type GetTargetingFrameDom,
@@ -113,7 +114,19 @@ describe("eligibility — one rule for pickable and dimmed", () => {
       frame("c", "b2"),
       frame("d"),
     ])
-    expect([...ids].sort()).toEqual(["b1", "b2"])
+    expect([...ids].sort()).toEqual([ANY_BRANCH, "b1", "b2"])
+  })
+
+  it("lets the Coordinator's pick hit every Workspace's frames and every Mockup", () => {
+    const mockup = { id: "m", label: "Pricing", kind: "mockup" as const }
+    const layers = [frame("a", "b1"), frame("b", "b2"), frame("c"), mockup]
+    const { eligible, dimmedIds } = partitionTargetFrames(ANY_BRANCH, layers)
+    expect(eligible).toEqual([layers[0], layers[1], mockup])
+    expect([...dimmedIds]).toEqual(["c"])
+  })
+
+  it("publishes nothing to pick for the Coordinator on a canvas of empty frames", () => {
+    expect(targetableBranchIds([frame("a")]).has(ANY_BRANCH)).toBe(false)
   })
 })
 

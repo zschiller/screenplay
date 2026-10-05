@@ -58,6 +58,7 @@ import {
 import { inputStore } from "@/lib/input-store"
 import { canvasViewSource } from "@/lib/canvas/canvas-view"
 import { questionAnswers } from "@/lib/agent/question"
+import { planProposalOutcomes } from "@/lib/agent/coordinator-plan"
 import { useChatSenders } from "@/hooks/use-chat-senders"
 import { targetingStore } from "@/lib/targeting-store"
 import { useModelCatalog } from "@/lib/use-model-catalog"
@@ -340,13 +341,13 @@ export function AgentChat({
   }, [returnedSteers, takeReturnedSteers, restoreToComposer])
 
   // Element targeting (PRD #616): agent chats in a room can target this branch's
-  // own preview frames. The Composer's target icon / ⌘E calls this, which asks
+  // own preview frames, and the Coordinator any frame or Mockup. The Composer's target icon / ⌘E calls this, which asks
   // the Canvas (through the targeting store) to run a one-shot crosshair pick
   // over the eligible frames and resolves with the picked element — or null when
   // cancelled or when no Canvas is mounted (doc chats, the seed composer).
   //
-  // The pick key is a **Branch id**: Element Targeting's eligibility rule
-  // matches it against each frame's `branchId`.
+  // The pick key is a **Branch id** (or `ANY_BRANCH`): Element Targeting's
+  // eligibility rule matches it against each frame's `branchId`.
   const { pickBranchId } = capabilities
   const handlePickElement = useCallback(() => {
     if (!pickBranchId) return Promise.resolve(null)
@@ -374,14 +375,16 @@ export function AgentChat({
 
   // Allow shortcut actions (e.g. the Create PR button) to send a message directly.
   useEffect(() => {
-    return inputStore.subscribeSend(chatId, (text) => {
+    return inputStore.subscribeSend(chatId, (text, overrides) => {
       if (!model && effectiveModel) onModelChange?.(effectiveModel)
-      return sendMessage(text, { model: effectiveModel })
+      return sendMessage(text, { model: effectiveModel, ...overrides })
     })
   }, [chatId, sendMessage, effectiveModel, model, onModelChange])
 
   // Question cards (#1312) close once a user message follows them.
   const answers = useMemo(() => questionAnswers(messages), [messages])
+  // The Coordinator's Plan cards settle the same way (`propose_plan`).
+  const planOutcomes = useMemo(() => planProposalOutcomes(messages), [messages])
   // On a shared Canvas, messages and answers name who sent them.
   const senders = useChatSenders(roomId, messages)
 
@@ -431,6 +434,11 @@ export function AgentChat({
         chatId={chatId}
         questionAnswer={
           msg.role === "tool_call" ? answers.get(msg.toolCallId) : undefined
+        }
+        planOutcome={
+          msg.role === "tool_call"
+            ? planOutcomes.get(msg.toolCallId)
+            : undefined
         }
         senders={senders}
         // Retry only while the error is the last thing in the chat: once the
@@ -628,6 +636,7 @@ export function AgentChat({
           }
           onPickElement={pickBranchId ? handlePickElement : undefined}
           targetEligible={targetEligible}
+          targetHint={capabilities.pickHint}
           focusKey={quote?.key}
         />
       )}

@@ -189,8 +189,22 @@ one chat, so there are no tabs and no chat history. You can
 [@ mention documents](/guides/agent#mentioning-documents), point at what’s
 [selected or on screen](/guides/agent#pointing-with-the-canvas), pick its model and
 [send while it works](/guides/agent#sending-while-the-agent-works) and
-[pick a skill](/guides/building/skills#using-skills) with <kbd>/</kbd>, but its
-composer has no **Plan** toggle and no crosshair, since it never edits code.
+[pick a skill](/guides/building/skills#using-skills) with <kbd>/</kbd>.
+
+Turn on **Plan** in its composer to see the work before any of it starts.
+Instead of starting chats, messaging them or arranging the canvas, the
+Coordinator shows a **Plan** card listing the chats it would start, what it
+would send each one, and any canvas changes. **Approve** sends “Approved. Go
+ahead with the plan.” and it carries the plan out. **Request changes** quotes
+the plan in the composer, and any other reply asks for a new plan. While
+**Plan** is on, a chat finishing gets a plan for its next step too, rather
+than the next message going straight out.
+
+Its **crosshair** (<kbd>⌘</kbd> <kbd>E</kbd>) picks an element in any frame
+or mockup on the canvas, not only one chat’s. Ask for a change to it and the
+Coordinator sends the element on to the chat that owns that frame or mockup,
+where it shows as the same token with its selector and route (see
+[Targeting an element](/guides/agent#targeting-an-element)).
 
 Its tool calls show as compact rows, like any other chat’s agent. A row that
 reads a chat names it, such as **Read changes in** _Checkout_. Once a

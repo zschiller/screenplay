@@ -809,6 +809,8 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     output: "outcome",
   },
   ask_question: { verb: "Ask a question", icon: "question", kind: "other" },
+  // The Coordinator's plan, drawn as a Plan card rather than a row.
+  propose_plan: { verb: "Propose plan", icon: "terminal", kind: "other" },
 }
 
 /**

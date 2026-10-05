@@ -548,6 +548,8 @@ export interface ComposerProps {
    * opened first, and ⌘/Ctrl+E is a no-op. Defaults to `true`.
    */
   targetEligible?: boolean
+  /** The target button's tooltip hint while `targetEligible` is false. */
+  targetHint?: string
   /**
    * Takes files dropped or pasted into the composer as attachments (#1525).
    * Omit it and a file is refused with a message.
@@ -601,6 +603,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       className = "relative border-t border-border p-2",
       onPickElement,
       targetEligible = true,
+      targetHint = "Show this chat in a frame first.",
       focusKey,
       attach,
     },
@@ -1411,11 +1414,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               <IconButton
                 label="Target an element"
                 shortcut="⌘E"
-                hint={
-                  targetEligible
-                    ? undefined
-                    : "Show this chat in a frame first."
-                }
+                hint={targetEligible ? undefined : targetHint}
                 disabled={noAgents || !targetEligible}
                 onClick={triggerPick}
               >

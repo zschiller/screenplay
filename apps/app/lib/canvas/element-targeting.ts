@@ -48,16 +48,26 @@ export interface TargetLayer {
 }
 
 /**
+ * The pick key of the Coordinator's Composer: it sees the whole canvas, so it
+ * picks in every Workspace's frames and in every Mockup, and passes the element
+ * on to the chat that owns it. Never a Branch id (those are nanoids).
+ */
+export const ANY_BRANCH = "*"
+
+/**
  * The single eligibility rule: an Iframe Layer is targetable for a pick keyed by
- * `branchId` iff it belongs to that Branch. Cross-branch targeting is out of
- * scope. An absent Branch id (a composer with no bound Branch) targets nothing,
- * and a frame with no `branchId` (an empty frame) is never targetable — matching
- * happens on a concrete id, never on `undefined === undefined`.
+ * `branchId` iff it belongs to that Branch, or for an {@link ANY_BRANCH} pick
+ * iff it is a Mockup or a frame with a Branch. An absent Branch id (a composer
+ * with no bound Branch) targets nothing, and a frame with no `branchId` (an
+ * empty frame) is never targetable — matching happens on a concrete id, never
+ * on `undefined === undefined`.
  */
 export function isTargetableFrame(
   layer: TargetLayer,
   branchId: string | null | undefined
 ): boolean {
+  if (branchId === ANY_BRANCH)
+    return !!layer.branchId || layer.kind === "mockup"
   return !!branchId && layer.branchId === branchId
 }
 
@@ -87,8 +97,9 @@ export function partitionTargetFrames(
 
 /**
  * The Branch ids a pick would have something to hit for — those with at least
- * one targetable frame on the canvas. Published to the Composers so each can
- * disable its target affordance when its own Branch has no frame (#619).
+ * one targetable frame on the canvas, plus {@link ANY_BRANCH} when anything is
+ * targetable. Published to the Composers so each can disable its target
+ * affordance when its own Branch has no frame (#619).
  */
 export function targetableBranchIds(
   iframeLayers: readonly TargetLayer[]
@@ -98,6 +109,7 @@ export function targetableBranchIds(
     if (layer.branchId && isTargetableFrame(layer, layer.branchId)) {
       ids.add(layer.branchId)
     }
+    if (isTargetableFrame(layer, ANY_BRANCH)) ids.add(ANY_BRANCH)
   }
   return ids
 }

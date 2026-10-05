@@ -86,7 +86,7 @@ export async function POST(req: Request) {
   // agent is working steers it; this route only picks the Chat Target.
   // A sketch turn finds nothing (404) unless the chat is a Sketch Chat.
   const target = isRoomTarget
-    ? roomTurn({ room, chatId, message, model })
+    ? roomTurn({ room, chatId, message, model, planMode: body.planMode })
     : isSketchTarget
       ? sketchTurn({ room, chatId, message, model })
       : sandboxTurn({

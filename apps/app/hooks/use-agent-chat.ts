@@ -19,6 +19,8 @@ interface UseAgentChatOptions {
 
 interface SendOptions {
   model?: string
+  /** `false` sends outside plan mode whatever the toggle says. */
+  planMode?: false
   /** The composer document, kept so a failed or queued send can be edited. */
   draft?: unknown
 }
@@ -72,7 +74,7 @@ export function useAgentChat({
         // Plain text, or the Composer's parts with the chat's own added.
         ...(typeof message === "string" ? { message } : message),
         isFirstChat,
-        planMode,
+        planMode: options?.planMode ?? planMode,
         model: options?.model,
         draft: options?.draft,
       })

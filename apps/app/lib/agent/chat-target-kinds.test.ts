@@ -130,14 +130,19 @@ describe("decorateUserMessage — per target kind", () => {
     expect(out).toContain(MESSAGE)
   })
 
-  it("leaves a Room Target chat’s message undecorated", () => {
+  it("marks only plan mode on a Room Target chat’s message, never a branch", () => {
     const out = decorate(roomChatTarget.decorateUserMessage, {
       planMode: true,
       branch: "feat/x",
       isFirstMessage: true,
     })
-
-    expect(out).toBe(MESSAGE)
+    expect(out).toBe(`[plan mode: enabled] ${MESSAGE}`)
+    expect(
+      decorate(roomChatTarget.decorateUserMessage, {
+        branch: "feat/x",
+        isFirstMessage: true,
+      })
+    ).toBe(MESSAGE)
   })
 })
 
@@ -233,6 +238,7 @@ describe("room chat target", () => {
       "move_saved_file",
       "move_to_group",
       "open_pull_request",
+      "propose_plan",
       "read_canvas",
       "read_document",
       "read_frame_html",

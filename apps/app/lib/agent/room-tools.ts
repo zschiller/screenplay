@@ -18,6 +18,16 @@ import {
   type WorkspaceReadPorts,
 } from "@/lib/agent/room-read-tools"
 import { annotateTools } from "@/lib/mcp/tool-server"
+import {
+  parseProposedPlan,
+  PROPOSE_PLAN_TOOL,
+} from "@/lib/agent/coordinator-plan"
+import {
+  buildTargetedElementsFooter,
+  elementMarkerRefs,
+  TARGETED_ELEMENTS_FOOTER_TOKEN,
+  type TargetedElement,
+} from "@/lib/agent/message-markers"
 import { isBranchBusy } from "@/lib/branch-busy"
 import {
   createdWorkspacesResult,
@@ -184,7 +194,11 @@ export function buildRoomTools(
         required: ["workspace_id", "message"],
       }),
       execute: async ({ workspace_id, message }) =>
-        sendToWorkspace(ports, workspace_id, message),
+        sendToWorkspace(
+          ports,
+          workspace_id,
+          await withTargetedElements(ports, message)
+        ),
     }),
     [CREATE_WORKSPACES_TOOL]: tool({
       description:
@@ -225,7 +239,15 @@ export function buildRoomTools(
         },
         required: ["workspaces"],
       }),
-      execute: async (input) => createWorkspaces(ports, input),
+      execute: async (input) =>
+        createWorkspaces(ports, {
+          workspaces: await Promise.all(
+            (input?.workspaces ?? []).map(async (w) => ({
+              ...w,
+              prompt: await withTargetedElements(ports, w?.prompt),
+            }))
+          ),
+        }),
     }),
     [OPEN_PULL_REQUEST_TOOL]: tool({
       description:
@@ -291,7 +313,27 @@ export function buildRoomTools(
         },
         required: ["title", "prompt"],
       }),
-      execute: async ({ title, prompt }) => startChat(ports, title, prompt),
+      execute: async ({ title, prompt }) =>
+        startChat(ports, title, await withTargetedElements(ports, prompt)),
+    }),
+    [PROPOSE_PLAN_TOOL]: tool({
+      description:
+        "Propose what you’ll do, for the user to approve. Use it only on a turn in plan mode, in place of starting, messaging, stopping or arranging anything. The chat shows it as a Plan card with Approve; nothing happens until they approve it, and their approval arrives as their next message. After calling this, end your turn.",
+      inputSchema: jsonSchema<{ plan: string }>({
+        type: "object",
+        properties: {
+          plan: {
+            type: "string",
+            description:
+              "The plan in short markdown: each chat you’ll start (title, repository, and its first message in a line) or message (which chat, and what you’ll send), anything you’ll stop, open or remove, and any canvas changes.",
+          },
+        },
+        required: ["plan"],
+      }),
+      execute: async (input) =>
+        parseProposedPlan(input)
+          ? "Showed the plan. End your turn now: nothing starts until the user approves it, and their answer arrives as their next message."
+          : "Not shown: the plan is empty.",
     }),
     send_to_chat: tool({
       description:
@@ -312,10 +354,10 @@ export function buildRoomTools(
         required: ["chat_id", "message"],
       }),
       execute: async ({ chat_id, message }) =>
-        sendToChat(ports, chat_id, message),
+        sendToChat(ports, chat_id, await withTargetedElements(ports, message)),
     }),
   }
-  return {
+  return gatePlanTurn(ports, {
     ...buildArrangeTools(ports.mutateDoc, turnId),
     ...buildViewTools(ports.readDoc),
     ...buildWorkspaceReadTools(ports),
@@ -346,8 +388,66 @@ export function buildRoomTools(
       // (#901).
       [OPEN_PULL_REQUEST_TOOL]: { destructiveHint: false, openWorldHint: true },
       [REMOVE_WORKSPACE_TOOL]: { destructiveHint: true, openWorldHint: false },
+      // Shows a card; changes nothing.
+      [PROPOSE_PLAN_TOOL]: { readOnlyHint: true, openWorldHint: false },
     }),
+  })
+}
+
+/**
+ * The Coordinator tools that start, message, stop or arrange something. On a
+ * turn in plan mode they refuse, so the Coordinator proposes them with
+ * `propose_plan` first; reading, viewing and showing stay open.
+ */
+export const PLAN_GATED_TOOLS: readonly string[] = [
+  "send_to_workspace",
+  CREATE_WORKSPACES_TOOL,
+  OPEN_PULL_REQUEST_TOOL,
+  REMOVE_WORKSPACE_TOOL,
+  "stop_workspace",
+  "start_chat",
+  "send_to_chat",
+  "create_frames",
+  "move_group",
+  "arrange_groups",
+  "move_to_group",
+  "merge_groups",
+  "rename",
+  "remove",
+  "undo_changes",
+]
+
+/**
+ * Make each of {@link PLAN_GATED_TOOLS} refuse while the Coordinator chat's
+ * running turn plans (`ChatSessionData.planTurn`). Read when the tool runs,
+ * so the in-process turn and a desktop harness over MCP gate alike.
+ */
+function gatePlanTurn(ports: RoomToolPorts, tools: ToolSet): ToolSet {
+  const planning = () =>
+    ports
+      .readDoc(
+        ({ chatSessions }) =>
+          chatSessions.get(ports.coordinatorChatId)?.planTurn === true
+      )
+      .catch(() => false)
+  const gated: ToolSet = { ...tools }
+  for (const name of PLAN_GATED_TOOLS) {
+    const t = tools[name]
+    if (!t?.execute) continue
+    const execute = t.execute
+    gated[name] = {
+      ...t,
+      execute: async (input, options) => {
+        if (await planning()) {
+          throw new Error(
+            `Plan mode is on, so ${name} waits for the user’s approval. Call ${PROPOSE_PLAN_TOOL} with everything you’d do, then end your turn.`
+          )
+        }
+        return execute(input, options)
+      },
+    }
   }
+  return gated
 }
 
 /** One Workspace in a `create_workspaces` call, as the model writes it. */
@@ -785,6 +885,40 @@ async function sendToWorkspace(
     model: target.model,
   })
   return sentToWorkspaceResult(target.title, target.chatId)
+}
+
+/**
+ * A Delegated Message with the detail of each element it targets. The user
+ * targets an element in the Coordinator's composer, and the Coordinator passes
+ * its inline `[element: …](element:<ref>)` marker on to the chat that owns the
+ * frame or Mockup; this appends the `Targeted elements:` footer entry the
+ * Coordinator chat's user turns carry for each such ref, so the receiving
+ * agent gets the route and selector and its chat shows the element's hover
+ * card. A message with no marker, or one that already has the footer, goes as
+ * written, as does one whose refs no user turn carries.
+ */
+export async function withTargetedElements(
+  ports: Pick<RoomToolPorts, "readChatTranscript" | "coordinatorChatId">,
+  message: unknown
+): Promise<string> {
+  if (typeof message !== "string") return ""
+  const refs = elementMarkerRefs(message)
+  if (refs.length === 0 || message.includes(TARGETED_ELEMENTS_FOOTER_TOKEN)) {
+    return message
+  }
+  const transcript = await ports
+    .readChatTranscript(ports.coordinatorChatId)
+    .catch(() => [])
+  const known = new Map<string, TargetedElement>()
+  for (const m of transcript) {
+    if (m.role !== "user") continue
+    for (const e of m.targetedElements ?? []) known.set(e.ref, e)
+  }
+  const carried = [...new Set(refs)].flatMap((ref) => {
+    const entry = known.get(ref)
+    return entry ? [entry] : []
+  })
+  return message.trimEnd() + buildTargetedElementsFooter(carried)
 }
 
 /**
