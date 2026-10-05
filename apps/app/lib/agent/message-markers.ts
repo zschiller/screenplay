@@ -80,18 +80,24 @@ export const PR_EVENT_MARKER_LABEL = "pr event"
 
 /** What happened to a chat's PR, as PR Watch reports it (#1702). */
 export type PrEventKind =
-  "checks_failed" | "checks_passed" | "conflict" | "merged" | "closed"
+  | "checks_failed"
+  | "checks_passed"
+  | "conflict"
+  | "review"
+  | "merged"
+  | "closed"
 
 const PR_EVENT_KINDS: ReadonlySet<string> = new Set<PrEventKind>([
   "checks_failed",
   "checks_passed",
   "conflict",
+  "review",
   "merged",
   "closed",
 ])
 
 /** A PR event as its marker carries it: the PR, what happened, and a short
- *  detail (the failing checks' names). */
+ *  detail (the failing checks' names, or a review's author and comments). */
 export interface PrEventMark {
   number: number
   kind: PrEventKind

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { buildGitHubTools } from "@/lib/agent/github-tools"
+import { AGENT_POST_MARK } from "@/lib/agent-post-mark"
 import { gitHubIssuesClient } from "@/lib/github-issues"
 import { baseBranch, baseRepo, makeHarness } from "@/test/canvas/harness"
 
@@ -174,7 +175,8 @@ describe("read_issue", () => {
           id: 2,
           user: { login: "lin" },
           submitted_at: "2026-10-05T10:01:00Z",
-          body: "Two things.",
+          // The agent's mark (#1704) is left out of what it reads back.
+          body: `Two things.\n\n${AGENT_POST_MARK}`,
           state: "CHANGES_REQUESTED",
         },
         // A review that only holds its line comments is left out.
@@ -266,7 +268,11 @@ describe("writes", () => {
       "/repos/acme/web/issues/7/comments",
       "/repos/acme/web/pulls/7/comments/99/replies",
     ])
-    expect(calls[1]!.body).toEqual({ body: "Renamed." })
+    // A reply joins a review, so it carries the agent's mark (#1704).
+    expect(calls[0]!.body).toEqual({ body: "Done." })
+    expect(calls[1]!.body).toEqual({
+      body: `Renamed.\n\n${AGENT_POST_MARK}`,
+    })
   })
 
   it("closes an issue as not planned", async () => {
@@ -508,9 +514,14 @@ describe("reviews and merges", () => {
     )
     expect(calls[0]!.body).toEqual({
       event: "REQUEST_CHANGES",
-      body: "One thing.",
+      body: `One thing.\n\n${AGENT_POST_MARK}`,
       comments: [
-        { path: "src/auth.ts", line: 40, side: "RIGHT", body: "Rename this." },
+        {
+          path: "src/auth.ts",
+          line: 40,
+          side: "RIGHT",
+          body: `Rename this.\n\n${AGENT_POST_MARK}`,
+        },
       ],
     })
   })

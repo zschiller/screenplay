@@ -1,3 +1,5 @@
+import { markAgentPost, unmarkAgentPost } from "@/lib/agent-post-mark"
+
 /**
  * GitHub issues and comments over the REST API, for the agent's GitHub tools
  * (`lib/agent/github-tools.ts`). Every call runs with one person's token, so
@@ -363,11 +365,12 @@ export function gitHubIssuesClient(
         more ||= reviews.more || reviewComments.more
         for (const r of reviews.items) {
           // A review with no summary is only the container of its comments.
-          if (!r.body?.trim() && r.state === "COMMENTED") continue
+          const body = unmarkAgentPost(r.body ?? "")
+          if (!body.trim() && r.state === "COMMENTED") continue
           timeline.push({
             author: login(r.user),
             createdAt: r.submitted_at ?? "",
-            body: r.body ?? "",
+            body,
             on: `review: ${(r.state ?? "").toLowerCase().replace(/_/g, " ")}`,
           })
         }
@@ -377,7 +380,7 @@ export function gitHubIssuesClient(
             id: c.id,
             author: login(c.user),
             createdAt: c.created_at ?? "",
-            body: c.body ?? "",
+            body: unmarkAgentPost(c.body ?? ""),
             on: line ? `${c.path}:${line}` : c.path,
           })
         }
@@ -407,7 +410,8 @@ export function gitHubIssuesClient(
         replyTo
           ? path(repo, `/pulls/${number}/comments/${replyTo}/replies`)
           : path(repo, `/issues/${number}/comments`),
-        { method: "POST", body: { body } }
+        // A reply joins a review, so it carries the agent's mark (#1704).
+        { method: "POST", body: { body: replyTo ? markAgentPost(body) : body } }
       )
       return { url: raw.html_url }
     },
@@ -529,14 +533,14 @@ export function gitHubIssuesClient(
           method: "POST",
           body: {
             event: event.toUpperCase(),
-            ...(body ? { body } : {}),
+            body: markAgentPost(body),
             ...(comments?.length
               ? {
                   comments: comments.map((c) => ({
                     path: c.path,
                     line: c.line,
                     side: "RIGHT",
-                    body: c.body,
+                    body: markAgentPost(c.body),
                   })),
                 }
               : {}),
