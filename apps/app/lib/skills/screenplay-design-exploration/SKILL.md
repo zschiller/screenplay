@@ -1,5 +1,5 @@
 ---
-name: screenplay-explore-with-mockups
+name: screenplay-design-exploration
 description: Explore a design question with lettered takes as Mockups on the canvas, over as many rounds as the user wants, then build the one they pick. Use when the user asks to explore, mock up or compare designs for a screen, flow or component, or to build one of your takes (“build take B”).
 ---
 

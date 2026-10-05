@@ -178,7 +178,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   // The design templates' App Skill pages (#1646): a few KB of data that
   // load their runtime from the Skill with a `skill:` reference.
   const TEMPLATES = [
-    ["screenplay-explore-with-mockups", "exploration-template.html"],
+    ["screenplay-design-exploration", "exploration-template.html"],
     ["screenplay-design-audit", "audit-template.html"],
     ["screenplay-design-audit", "decisions-template.html"],
     ["screenplay-design-storybook", "storybook-template.html"],
@@ -305,7 +305,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   // real click, as the canvas would get them.
   it("answers the chat's card from the page's answer and drafts from Send to chat", async () => {
     const { html, resources } = templatePage(
-      "screenplay-explore-with-mockups",
+      "screenplay-design-exploration",
       "exploration-template.html"
     )
     const doc = mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources)
@@ -368,7 +368,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   // answer in the chat.
   it("keeps the pick on the page while it can't answer the card", async () => {
     const { html, resources } = templatePage(
-      "screenplay-explore-with-mockups",
+      "screenplay-design-exploration",
       "exploration-template.html"
     )
     const doc = mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources)

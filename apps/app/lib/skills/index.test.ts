@@ -46,7 +46,7 @@ describe("App Skills by audience", () => {
     const names = getSkillIndex().map((s) => s.name)
 
     expect(names).toContain("screenplay-add-knob")
-    expect(names).toContain("screenplay-explore-with-mockups")
+    expect(names).toContain("screenplay-design-exploration")
     expect(names).not.toContain("screenplay-try-variants")
     expect(getSkill("screenplay-try-variants")).toBeNull()
     expect(hasSkill("screenplay-try-variants")).toBe(false)
