@@ -452,7 +452,6 @@ function MockupLayerImpl({
       renderTitle={(api) => (
         <LayerLabelRow
           editableRef={titleEditableRef}
-          style={{ maxWidth: layer.width * zoom }}
           title={layer.title}
           placeholder="Untitled"
           selected={selected || groupSelected}

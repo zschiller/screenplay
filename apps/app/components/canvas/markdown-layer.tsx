@@ -1001,10 +1001,7 @@ function MarkdownLayerImpl({
       resizable={!editing}
       groupLabel={groupLabel}
       renderTitle={(api) => (
-        // The explicit max-width gives the name's `truncate` something to
-        // clip against inside the title bar's `items-start` column.
         <LayerLabelRow
-          style={{ maxWidth: layer.width * zoom }}
           title={layer.title}
           placeholder="Untitled"
           selected={selected || groupSelected}
