@@ -147,3 +147,42 @@ export const LAYER_DETAIL_MIN_ZOOM = 0.25
 export function showsLayerDetail(zoom: number): boolean {
   return zoom >= LAYER_DETAIL_MIN_ZOOM - 1e-3
 }
+
+/**
+ * The transform that brings `rect` (world-space) into view without a jump
+ * nobody asked for: `null` when it's already wholly on screen, a pan at the
+ * current zoom that centres it when it fits there with `padding`, and a fit
+ * ({@link fitRectToViewport}) when it doesn't.
+ */
+export function revealRectInViewport(
+  rect: Rect,
+  current: CameraTransform,
+  viewport: ViewportSize,
+  options: FitOptions
+): CameraTransform | null {
+  const { zoom } = current
+  const left = current.x + rect.x * zoom
+  const top = current.y + rect.y * zoom
+  const width = rect.width * zoom
+  const height = rect.height * zoom
+  if (
+    left >= 0 &&
+    top >= 0 &&
+    left + width <= viewport.width &&
+    top + height <= viewport.height
+  ) {
+    return null
+  }
+  const { padding } = options
+  if (
+    width <= viewport.width - padding * 2 &&
+    height <= viewport.height - padding * 2
+  ) {
+    return {
+      x: viewport.width / 2 - (rect.x + rect.width / 2) * zoom,
+      y: viewport.height / 2 - (rect.y + rect.height / 2) * zoom,
+      zoom,
+    }
+  }
+  return fitRectToViewport(rect, viewport, options)
+}

@@ -110,6 +110,7 @@ import {
 } from "@/lib/branch/workspace-state"
 import { parseLayerLink } from "@/lib/agent/layer-link"
 import { useMockupTitle } from "@/lib/yjs/react"
+import { viewRequests } from "@/lib/canvas/view-requests"
 import { attachmentUrl } from "@/lib/chat-attachments"
 import { SentAttachmentChip } from "@/components/agent/attachment-chip"
 import { ElementDetail } from "./element-detail"
@@ -1105,13 +1106,24 @@ function ElementHistoryToken({
   )
 }
 
+/** Select a layer the member named in their own message, and bring it into
+ *  view if it's off screen. */
+function selectNamedLayer(id: string) {
+  viewRequests.emit({ ids: [id], select: true })
+}
+
 /**
  * A drawn Mockup named in a sent message, by its live title (the box is empty
- * and untitled when the message is sent; the chat titles it).
+ * and untitled when the message is sent; the chat titles it). Clicking it
+ * selects the Mockup.
  */
 function MockupRef({ id }: { id: string }) {
   const title = useMockupTitle(id)
-  return <InlineRef kind="mockup">{title || "Mockup"}</InlineRef>
+  return (
+    <InlineRef kind="mockup" onClick={() => selectNamedLayer(id)}>
+      {title || "Mockup"}
+    </InlineRef>
+  )
 }
 
 /**
@@ -1258,7 +1270,12 @@ function UserBubble({
           return <InlineRef kind="skill">{children}</InlineRef>
         }
         if (typeof href === "string" && href.startsWith("mention:")) {
-          return <InlineRef kind="document">{stripAt(children)}</InlineRef>
+          const id = href.slice("mention:".length)
+          return (
+            <InlineRef kind="document" onClick={() => selectNamedLayer(id)}>
+              {stripAt(children)}
+            </InlineRef>
+          )
         }
         // A drawn Mockup, by its live title.
         if (typeof href === "string" && href.startsWith("mockup:")) {
