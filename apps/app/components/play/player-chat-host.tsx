@@ -24,7 +24,7 @@ interface PlayerChatHostProps {
 }
 
 /**
- * Drives a `ChatPanel` for a single agent inside the prototype player: finds
+ * Drives a `ChatPanel` for a single agent inside play mode: finds
  * the agent, then shows the placeholder or the panel. Chat tabs and Chat Sync
  * come from `useChatTabs`, the same module the Canvas uses, scoped to the one
  * Branch the player is showing.
@@ -145,7 +145,7 @@ function PlayerChatPlaceholder({
 }
 
 /**
- * Memoized so the prototype player's per-frame `stageSize` re-renders don't
+ * Memoized so play mode's per-frame `stageSize` re-renders don't
  * reach the chat subtree. `PrototypePlayer` runs a ResizeObserver on the preview
  * stage that `setStageSize`s on every resize frame; while dragging the chat
  * panel's handle the stage shrinks each frame, so without this every frame

@@ -60,7 +60,7 @@ export interface DocsScreen extends Screen {
   keepFocus?: boolean
   /**
    * For a full-window screen of a page that opens in the user's browser
-   * rather than the app (the prototype player): the address `./frame.ts`
+   * rather than the app (play mode): the address `./frame.ts`
    * shows in the browser window it draws around the capture.
    */
   browser?: string
@@ -1391,7 +1391,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
     crop: [560, 40, 640, 440],
     // The open submenu alone, like Device size's.
     ...clipped(
-      boxAround("body", "Open in prototype player", {
+      boxAround("body", "Open in play mode", {
         closest: "[role=menu]",
       }),
       { pad: 0 }

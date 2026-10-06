@@ -22,7 +22,7 @@ export const DOCS_SCREENSHOT_DIR = resolve(
  *   Tauri overlay title bar's traffic lights at the app's
  *   `trafficLightPosition`, rounded corners, and a soft shadow. A screen
  *   with a `browser` address is drawn as a plain browser window instead (the
- *   prototype player opens in the user's browser, not the app): a title bar
+ *   play mode opens in the user's browser, not the app): a title bar
  *   with the traffic lights and that address, and the page below it.
  * - **Detail** screens are cropped around their focus (measured from the
  *   screen's `focus` during capture, else its fixed `crop`): the focus with a

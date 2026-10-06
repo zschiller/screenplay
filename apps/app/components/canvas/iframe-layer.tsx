@@ -185,7 +185,7 @@ interface IframeLayerProps {
   writes?: LivePageWrites
   /** Set a shared frame's Theme knob. */
   onColorSchemeChange?: (id: string, scheme: "light" | "dark") => void
-  /** Open the prototype player route for this iframeLayer's branch in a new tab. */
+  /** Open the play mode route for this iframeLayer's branch in a new tab. */
   onPlay?: (id: string) => void
   /**
    * Open this frame's live preview in the system browser, deep-linked to the

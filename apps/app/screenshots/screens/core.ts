@@ -266,7 +266,7 @@ export const CORE_SCREENS: Screen[] = [
   },
   {
     name: "player",
-    description: "The prototype player for a running Workspace.",
+    description: "Play mode for a running Workspace.",
     path: `/play/${ids.rooms.checkout}/${ids.branches.checkoutPolish}`,
   },
   {

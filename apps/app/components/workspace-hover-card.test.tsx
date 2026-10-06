@@ -81,7 +81,7 @@ describe("WorkspaceHoverCard", () => {
     expect(screen.queryByRole("button", { name: "Open chat" })).toBeNull()
   })
 
-  it("has no Open chat outside the canvas (the prototype player)", () => {
+  it("has no Open chat outside the canvas (play mode)", () => {
     hoverCard()
     expect(screen.getByText("acme/storefront")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Open chat" })).toBeNull()

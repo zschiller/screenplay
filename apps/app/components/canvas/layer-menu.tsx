@@ -248,7 +248,7 @@ function LayerMenuItems({
                       {chat.onPlay && (
                         <DropdownMenuItem onSelect={chat.onPlay}>
                           <PlayIcon />
-                          Open in prototype player
+                          Open in play mode
                         </DropdownMenuItem>
                       )}
                       {chat.onOpenInBrowser && (
