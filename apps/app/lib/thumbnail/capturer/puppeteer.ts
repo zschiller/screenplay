@@ -44,6 +44,9 @@ function resolveViewport(viewport: CaptureViewport): {
   }
 }
 
+/** The pixel density frames are screenshot at. */
+const CAPTURE_SCALE = 2
+
 async function launchBrowser(): Promise<Browser> {
   const puppeteer = (await import("puppeteer-core")).default
 
@@ -80,7 +83,12 @@ class PuppeteerCapturer implements ThumbnailCapturer, FramePageReader {
     const browser = await launchBrowser()
     try {
       const page = await browser.newPage()
-      await page.setViewport(resolveViewport(viewport))
+      // At 2x, like the Mac app's Retina snapshot, so a narrow frame still has
+      // the pixels for a sharp hover-card preview (`frameCaptureSize`).
+      await page.setViewport({
+        ...resolveViewport(viewport),
+        deviceScaleFactor: CAPTURE_SCALE,
+      })
       await page.goto(previewUrl, {
         waitUntil: "load",
         timeout: NAV_TIMEOUT_MS,
