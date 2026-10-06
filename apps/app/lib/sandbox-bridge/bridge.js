@@ -1509,6 +1509,26 @@
     dragover: 0,
   }
   const driveDocId = Math.random().toString(36).slice(2)
+  // A navigation away from this page that's under way: a link followed, a
+  // form sent. The page says so itself, the moment it starts, so a
+  // gesture's result can wait for the page it leads to; the browser's own
+  // report of it can come after this page has already answered.
+  // As long as a navigation can take before Frame Drive gives up on it.
+  const LEAVING_MS = 10000
+  let leaving = null
+  let leavingAt = 0
+  if (window.navigation && navigation.addEventListener) {
+    navigation.addEventListener("navigate", (e) => {
+      if (e.destination.sameDocument || e.downloadRequest) return
+      leaving = e
+      leavingAt = performance.now()
+    })
+  }
+  // Still leaving: not called off, and not one that never landed (a 204).
+  function isLeaving() {
+    if (!leaving || leaving.defaultPrevented) return false
+    return performance.now() - leavingAt < LEAVING_MS
+  }
   Object.keys(trustedInputs).forEach((type) =>
     window.addEventListener(
       type,
@@ -1626,6 +1646,7 @@
     const out = {
       path: currentPath(),
       doc: driveDocId,
+      leaving: isLeaving(),
       inputs: Object.assign({}, trustedInputs),
       // Keys go to a nested frame, which this page doesn't hear.
       nestedFocus:
