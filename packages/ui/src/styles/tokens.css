@@ -123,14 +123,14 @@
        the same in both themes.
        Tuned in OKLCH so no hue outshines the rest: each fill sits where its
        hue is most vivid in sRGB (red and violet lighter, or yellow darker,
-       washes them out), except pink and green, which glared and are pulled
-       down to orange's perceived brightness. The light inks each sit at
+       washes them out), except pink, which glared and is pulled down to
+       orange's perceived brightness. The light inks each sit at
        exactly 5:1 on white. */
     --destructive: oklch(0.571 0.23 27);
     --destructive-fill: oklch(0.66 0.225 27);
     --destructive-foreground: oklch(0 0 0);
     --success: oklch(0.527 0.151 148);
-    --success-fill: oklch(0.702 0.201 148);
+    --success-fill: oklch(0.82 0.235 148);
     --success-foreground: oklch(0 0 0);
     --warning: oklch(0.552 0.128 60);
     --warning-fill: oklch(0.88 0.179 95);
@@ -184,8 +184,8 @@
     --destructive: oklch(0.66 0.225 27);
     --destructive-fill: oklch(0.66 0.225 27);
     --destructive-foreground: oklch(0 0 0);
-    --success: oklch(0.702 0.201 148);
-    --success-fill: oklch(0.702 0.201 148);
+    --success: oklch(0.82 0.235 148);
+    --success-fill: oklch(0.82 0.235 148);
     --success-foreground: oklch(0 0 0);
     --warning: oklch(0.88 0.179 95);
     --warning-fill: oklch(0.88 0.179 95);

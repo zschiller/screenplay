@@ -9,7 +9,7 @@
  */
 export const PRESENCE_COLORS = [
   "#FF8506", // orange
-  "#0CBF4E", // green
+  "#10EB62", // green
   "#49A9FF", // blue
   "#0DC1D0", // cyan
   "#C0F447", // lime
