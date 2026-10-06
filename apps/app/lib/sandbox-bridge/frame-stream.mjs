@@ -510,6 +510,11 @@ class Frame {
     this.inputThrough = new Set()
     this.startedAt = 0
     this.docAt = 0
+    // A navigation the app's page asked for that hasn't landed yet, and
+    // whether it has started loading: a gesture's result waits for it, or
+    // the old page answers for the new.
+    /** @type {false | "requested" | "loading"} */
+    this.navigationPending = false
   }
 
   // ---- lifecycle ----
@@ -593,6 +598,7 @@ class Frame {
     this.hostContext = null
     this.requests.clear()
     this.dropAgentCalls()
+    this.navigationPending = false
     this.inputThrough = new Set()
     this.startedAt = Date.now()
     this.knobs = null
@@ -602,8 +608,22 @@ class Frame {
       const p = msg.params
       if (msg.method === "Page.frameAttached") {
         if (p.parentFrameId === host) this.appFrame = p.frameId
+      } else if (
+        msg.method === "Page.frameRequestedNavigation" ||
+        msg.method === "Page.frameStartedNavigating"
+      ) {
+        if (p.frameId === this.appFrame) this.navigationPending = "requested"
+      } else if (msg.method === "Page.frameStartedLoading") {
+        if (p.frameId === this.appFrame && this.navigationPending)
+          this.navigationPending = "loading"
+      } else if (msg.method === "Page.frameStoppedLoading") {
+        // Where a navigation that never commits (a download, a 204) ends.
+        // The page before it can stop loading after it was asked for.
+        if (p.frameId === this.appFrame && this.navigationPending === "loading")
+          this.navigationPending = false
       } else if (msg.method === "Page.frameNavigated") {
         if (p.frame.parentId !== host) return
+        this.navigationPending = false
         this.appFrame = p.frame.id
         this.knobs = null
         // The page the agent was asking is gone; it asks the new one, and
@@ -1717,6 +1737,9 @@ class Frame {
   }
 
   async agentDone(op, target, state = {}) {
+    // A link the gesture followed: report from the page it led to.
+    const until = Date.now() + AGENT_SETTLE_MS
+    while (this.navigationPending && Date.now() < until) await sleep(50)
     const after = await this.bridgeSettled({
       type: "screenplay:drive-state",
       ...state,
