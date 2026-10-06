@@ -1,5 +1,10 @@
-export const ZOOM_MIN = 0.1
-export const ZOOM_MAX = 5
+export const ZOOM_MIN = 0.02
+export const ZOOM_MAX = 16
+/**
+ * Highest zoom that Zoom to fit / to selection lands on, so fitting a small
+ * layer doesn't jump all the way to `ZOOM_MAX`.
+ */
+export const FIT_ZOOM_MAX = 5
 export const ZOOM_STEP = 0.015
 
 export const DEFAULT_IFRAME_LAYER_WIDTH = 1280

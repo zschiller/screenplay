@@ -82,7 +82,9 @@ export function fitRectToViewport(
  * The stops the zoom-in / zoom-out buttons and `⌘=` / `⌘-` step through,
  * spanning `ZOOM_MIN`..`ZOOM_MAX`.
  */
-export const ZOOM_LEVELS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5] as const
+export const ZOOM_LEVELS = [
+  0.02, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16,
+] as const
 
 /**
  * The next zoom stop above (`direction` 1) or below (-1) `current`, staying at
