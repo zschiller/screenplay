@@ -18,6 +18,7 @@ import {
   type WorkspaceReadPorts,
 } from "@/lib/agent/room-read-tools"
 import { annotateTools } from "@/lib/mcp/tool-server"
+import { WAKE_FOLLOW_UP_LIMIT } from "@/lib/agent/coordinator-wake"
 import {
   parseProposedPlan,
   PROPOSE_PLAN_TOOL,
@@ -117,6 +118,12 @@ export interface RoomToolPorts extends WorkspaceReadPorts {
   requesterId: string
   /** The Coordinator chat these tools run for. */
   coordinatorChatId: string
+  /**
+   * On a wake turn, the follow-ups the Coordinator already sent on its own
+   * since the user last wrote to it (`wakeFollowUps`); absent on a turn the
+   * user sent, which may start and message chats freely.
+   */
+  wakeFollowUps?: () => Promise<number>
 }
 
 /** A Delegated Message on its way into a Workspace chat. */
@@ -357,41 +364,50 @@ export function buildRoomTools(
         sendToChat(ports, chat_id, await withTargetedElements(ports, message)),
     }),
   }
-  return gatePlanTurn(ports, {
-    ...buildArrangeTools(ports.mutateDoc, turnId),
-    ...buildViewTools(ports.readDoc),
-    ...buildWorkspaceReadTools(ports),
-    // MCP annotations, sent when a desktop harness lists the tools (#903).
-    // Give each tool the honest hints: no Screenplay tool asks the user first
-    // on either harness (#1217), and that is the harness's configuration, not
-    // the hints. Claude Code pre-allows every tool on the server
-    // (`COORDINATOR_ALLOWED_TOOLS`). Codex asks for a tool that isn't
-    // `readOnlyHint` or both `destructiveHint: false` and `openWorldHint:
-    // false`, but it asks the ACP client, and the external engine allows
-    // every such request on a Coordinator turn, which is never in plan mode
-    // (`acp-engine.ts`).
-    ...annotateTools(tools, {
-      read_canvas: { readOnlyHint: true, openWorldHint: false },
-      // Starts a turn in a Workspace chat the user can see and take over.
-      send_to_workspace: { destructiveHint: false, openWorldHint: false },
-      // Creates Workspaces the user can remove again (#898).
-      [CREATE_WORKSPACES_TOOL]: {
-        destructiveHint: false,
-        openWorldHint: false,
-      },
-      // Stops a turn the user can resume by messaging the Workspace again.
-      stop_workspace: { destructiveHint: false, openWorldHint: false },
-      // Chats with no repository: Documents and Mockups only.
-      start_chat: { destructiveHint: false, openWorldHint: false },
-      send_to_chat: { destructiveHint: false, openWorldHint: false },
-      // A PR on GitHub, and a removal that tears the sandbox down for good
-      // (#901).
-      [OPEN_PULL_REQUEST_TOOL]: { destructiveHint: false, openWorldHint: true },
-      [REMOVE_WORKSPACE_TOOL]: { destructiveHint: true, openWorldHint: false },
-      // Shows a card; changes nothing.
-      [PROPOSE_PLAN_TOOL]: { readOnlyHint: true, openWorldHint: false },
-    }),
-  })
+  return gatePlanTurn(
+    ports,
+    gateWakeFollowUps(ports, {
+      ...buildArrangeTools(ports.mutateDoc, turnId),
+      ...buildViewTools(ports.readDoc),
+      ...buildWorkspaceReadTools(ports),
+      // MCP annotations, sent when a desktop harness lists the tools (#903).
+      // Give each tool the honest hints: no Screenplay tool asks the user first
+      // on either harness (#1217), and that is the harness's configuration, not
+      // the hints. Claude Code pre-allows every tool on the server
+      // (`COORDINATOR_ALLOWED_TOOLS`). Codex asks for a tool that isn't
+      // `readOnlyHint` or both `destructiveHint: false` and `openWorldHint:
+      // false`, but it asks the ACP client, and the external engine allows
+      // every such request on a Coordinator turn, which is never in plan mode
+      // (`acp-engine.ts`).
+      ...annotateTools(tools, {
+        read_canvas: { readOnlyHint: true, openWorldHint: false },
+        // Starts a turn in a Workspace chat the user can see and take over.
+        send_to_workspace: { destructiveHint: false, openWorldHint: false },
+        // Creates Workspaces the user can remove again (#898).
+        [CREATE_WORKSPACES_TOOL]: {
+          destructiveHint: false,
+          openWorldHint: false,
+        },
+        // Stops a turn the user can resume by messaging the Workspace again.
+        stop_workspace: { destructiveHint: false, openWorldHint: false },
+        // Chats with no repository: Documents and Mockups only.
+        start_chat: { destructiveHint: false, openWorldHint: false },
+        send_to_chat: { destructiveHint: false, openWorldHint: false },
+        // A PR on GitHub, and a removal that tears the sandbox down for good
+        // (#901).
+        [OPEN_PULL_REQUEST_TOOL]: {
+          destructiveHint: false,
+          openWorldHint: true,
+        },
+        [REMOVE_WORKSPACE_TOOL]: {
+          destructiveHint: true,
+          openWorldHint: false,
+        },
+        // Shows a card; changes nothing.
+        [PROPOSE_PLAN_TOOL]: { readOnlyHint: true, openWorldHint: false },
+      }),
+    })
+  )
 }
 
 /**
@@ -441,6 +457,43 @@ function gatePlanTurn(ports: RoomToolPorts, tools: ToolSet): ToolSet {
         if (await planning()) {
           throw new Error(
             `Plan mode is on, so ${name} waits for the user’s approval. Call ${PROPOSE_PLAN_TOOL} with everything you’d do, then end your turn.`
+          )
+        }
+        return execute(input, options)
+      },
+    }
+  }
+  return gated
+}
+
+/** The Coordinator tools that hand a chat work: a follow-up, on a wake. */
+const FOLLOW_UP_TOOLS: readonly string[] = [
+  "send_to_workspace",
+  CREATE_WORKSPACES_TOOL,
+  "start_chat",
+  "send_to_chat",
+]
+
+/**
+ * Stop a chain of follow-ups nobody is reading: on a wake turn, once the
+ * Coordinator has sent {@link WAKE_FOLLOW_UP_LIMIT} on its own since the user
+ * last wrote, its tools that hand a chat work refuse, and it tells the user
+ * what's next instead (Claude Projects' two-reply rule).
+ */
+function gateWakeFollowUps(ports: RoomToolPorts, tools: ToolSet): ToolSet {
+  const followUps = ports.wakeFollowUps
+  if (!followUps) return tools
+  const gated: ToolSet = { ...tools }
+  for (const name of FOLLOW_UP_TOOLS) {
+    const t = tools[name]
+    if (!t?.execute) continue
+    const execute = t.execute
+    gated[name] = {
+      ...t,
+      execute: async (input, options) => {
+        if ((await followUps().catch(() => 0)) >= WAKE_FOLLOW_UP_LIMIT) {
+          throw new Error(
+            `You’ve already followed up ${WAKE_FOLLOW_UP_LIMIT} times on your own since the user last wrote. Don’t hand out more work now: tell the user in one line what you’d do next, and they’ll say go.`
           )
         }
         return execute(input, options)

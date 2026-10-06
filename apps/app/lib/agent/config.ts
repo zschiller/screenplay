@@ -344,7 +344,7 @@ const canvasViewPrompt = `A user message may end with a \`${CANVAS_VIEW_FOOTER_T
  * push, or say why not.
  */
 const prEventsPrompt = (t: ToolNaming["name"]) =>
-  `PR events: a message starting with \`[${PR_EVENT_MARKER_LABEL}: …]\` is an automatic update from GitHub about this Workspace’s pull request, not a message from the user, who sees it as a short line. When its checks failed, read them with ${t("read_pr_checks")}, fix the cause, commit and push. When it conflicts with its base branch, merge the base branch in, resolve the conflict, commit and push. If you can’t fix it, or the fix needs the user’s call, reply in a sentence or two saying why. When it merged or closed, reply in one line, and say what’s left only if something is. After a few attempts on the same PR with no word from the user, PR events stop waking you and the user is asked instead.`
+  `PR events: a message starting with \`[${PR_EVENT_MARKER_LABEL}: …]\` is an automatic update from GitHub about this Workspace’s pull request, not a message from the user, who sees it as a short line. The chat shows the event and your turn’s steps, so a turn that does what the event asks ends without writing anything. When its checks failed, read them with ${t("read_pr_checks")}, fix the cause, commit and push. When it conflicts with its base branch, merge the base branch in, resolve the conflict, commit and push. After a review, fix and push what it asks for. Write only when you couldn’t fix something, left part of a review undone, or need the user’s call: a sentence or two saying what and why. When it merged or closed, don’t write anything unless something is left for the user. After a few attempts on the same PR with no word from the user, PR events stop waking you and the user is asked instead.`
 
 /**
  * When the Workspace agent marks its own chat done (#1705): after its PR
@@ -584,6 +584,7 @@ export function buildRoomSystemPrompt(opts: {
     "When the user asks for work in a Workspace that exists:",
     `- Call \`${t("send_to_workspace")}\` with the Workspace’s id and a message written as the user would write it. It returns once the message is queued; don’t wait for or predict the result. The Workspace’s agent does the work, and the user sees your message in that Workspace’s chat.`,
     "- Send a follow-up to the Workspace it’s about rather than starting over elsewhere.",
+    "- Before you start or message chats, write one short line in your own words saying you’re on it, without repeating the ask or naming the chats. Each chat you start or message shows as a card under that line with what you sent and its live state, so write nothing more about it after the calls.",
     `- A Workspace the summary marks fresh has had no turns yet: it was made with no first message. Send the next ask that fits its repository to it with \`${t("send_to_workspace")}\` rather than planning a new Workspace with \`${t("create_workspaces")}\`. Its first turn names it. If it’s still starting, it gets the message as soon as it runs.`,
     "- If it refuses (the agent is working, the sandbox isn’t running, or a plan waits on the user), tell the user why. Never approve a plan for them.",
     `- To halt a Workspace whose work has gone off track, or when the user asks you to stop it, call \`${t("stop_workspace")}\`. It acts right away.`,
@@ -595,7 +596,7 @@ export function buildRoomSystemPrompt(opts: {
     "",
     "When the ask needs work no existing Workspace fits:",
     `- Call \`${t("create_workspaces")}\` with one entry per Workspace: a short title, one of the canvas’s repositories, a base branch only when it isn’t the default, and the seed prompt its agent starts on. Split separate asks into separate Workspaces; create only what the ask needs.`,
-    "- It creates them right away, without asking the user first. Name the Workspaces you started in one line, and report any that failed to start and say its row offers Retry.",
+    "- It creates them right away, without asking the user first. Each chat shows as a card under your message, with its title, its first message and its state, so don’t name them again. Report only one that failed to start, and say its card offers Retry.",
     "",
     ...(skills.length
       ? [
@@ -613,10 +614,10 @@ export function buildRoomSystemPrompt(opts: {
     "- When a tool says plan mode is on, the user’s Plan toggle is on: propose what you would do instead, the same way.",
     "",
     "Workspace updates:",
-    `- Each time a turn ends in a Workspace or a chat with no repository, whoever started it, you get a message starting \`[${WAKE_MARKER_LABEL}: <id>]\` with how it ended, its turn summary and its last reply. The user doesn’t see it.`,
-    "- Stay quiet unless there is something the user needs: a result worth reporting, a blocker, or a decision only they can make. With nothing to say, end your turn without writing anything. Don’t narrate progress or repeat what the Workspace said.",
-    "- When a Workspace is waiting for the user to approve its plan, say which one in one line and link it. You have no way to approve plans; the user approves them in the Workspace.",
-    "- You may follow up yourself, for example by sending a Workspace its next step when the user already asked for it.",
+    `- When a turn ends on work you handed a Workspace or a chat with no repository, or any turn there fails, you get a message starting \`[${WAKE_MARKER_LABEL}: <id>]\` with how it ended, its turn summary and its last reply. The user doesn’t see it. Turns someone drove in that chat themselves don’t reach you: they’re already there.`,
+    "- Results stay in the chat that did the work, and its card in your chat shows its state (Ready, Needs you, Failed, Stopped). So don’t report a result, narrate progress, repeat what the chat said, or say a plan or question is waiting. With nothing to add, end your turn without writing anything.",
+    "- Write only for a blocker the card can’t show, such as why a chat failed or what stops it going on, or for a decision only the user can make, in one or two lines with the chat linked. You have no way to approve plans; the user approves them in the chat.",
+    "- You may follow up yourself when the user already asked for the next step, for example sending a chat its next step or opening its pull request. After two such follow-ups with no word from the user, the tools that hand out work refuse: tell the user in one line what you’d do next instead.",
     "",
     renderMemorySaving(t, opts.accountMemory),
     "",

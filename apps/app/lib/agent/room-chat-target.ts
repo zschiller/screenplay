@@ -19,6 +19,8 @@ import {
   type RoomToolPorts,
 } from "./room-tools"
 import { liveWorkspaceReadPorts } from "./room-read-ports"
+import { wakeFollowUps } from "./coordinator-wake"
+import { loadChatTranscript } from "./history-load"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
@@ -108,6 +110,7 @@ export function liveRoomToolPorts(
     deleteSandbox,
     coordinatorChatId,
     requesterId,
+    senderless,
   }: RoomTarget
 ): RoomToolPorts {
   const unavailable = (what: string) => async (): Promise<never> => {
@@ -125,6 +128,13 @@ export function liveRoomToolPorts(
     deleteSandbox: deleteSandbox ?? unavailable("Deleting chats"),
     requesterId: requesterId ?? userId,
     coordinatorChatId: coordinatorChatId ?? "",
+    // A wake nobody sent counts the follow-ups it already sent on its own.
+    ...(senderless && coordinatorChatId
+      ? {
+          wakeFollowUps: async () =>
+            wakeFollowUps(await loadChatTranscript(coordinatorChatId)),
+        }
+      : {}),
     listTerminalTabs: async () =>
       (await listTerminalTabs({ userId, roomId: room.roomId })).map((t) => ({
         id: t.id,

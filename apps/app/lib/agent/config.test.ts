@@ -240,7 +240,7 @@ describe("buildAgentSystemPrompt — one chat per Workspace (#1315)", () => {
 })
 
 describe("buildAgentSystemPrompt — PR events (#1703)", () => {
-  it("says to fix and push, or reply saying why not", () => {
+  it("says to fix and push without writing, and to write only when it can’t", () => {
     const prompt = buildAgentSystemPrompt({
       layerDirectory: EMPTY_DIRECTORY,
       skills: APP_SKILLS,
@@ -249,7 +249,13 @@ describe("buildAgentSystemPrompt — PR events (#1703)", () => {
     expect(prompt).toContain("[pr event: …]")
     expect(prompt).toContain("mcp__screenplay__read_pr_checks")
     expect(prompt).toContain("commit and push")
-    expect(prompt).toContain("reply in a sentence or two saying why")
+    expect(prompt).toContain(
+      "a turn that does what the event asks ends without writing anything"
+    )
+    expect(prompt).toContain("Write only when you couldn’t fix something")
+    expect(prompt).toContain(
+      "When it merged or closed, don’t write anything unless something is left for the user."
+    )
   })
 })
 

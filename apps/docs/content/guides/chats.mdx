@@ -321,8 +321,10 @@ Failing checks, a conflict, a review, a merge and a close also start a turn
 for the chat’s agent, right after the line, so you don’t have to come back and
 ask. It reads the failing checks or brings the base branch in, fixes the cause
 and pushes, or replies saying why it can’t. After a review it fixes what the
-review asks for and replies with what it changed and what it left. After a
-merge or a close it replies in one line. Checks passing again is only a line.
+review asks for and replies only about anything it left. After a merge or a
+close it writes nothing unless something is left for you. When it fixes
+something, the line and its steps show what it did. Checks passing again is
+only a line.
 A review the agent posted itself never starts a turn.
 
 The agent acts for the person who started the chat, with their GitHub
