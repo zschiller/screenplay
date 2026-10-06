@@ -37,7 +37,7 @@ describe("FrameGoLiveToggle", () => {
     const onToggle = renderToggle(true, vi.fn(), true)
     const button = screen.getByRole("button", { name: "Going live" })
     expect(button.getAttribute("aria-busy")).toBe("true")
-    expect(button.querySelector(".animate-spin")).toBeTruthy()
+    expect(button.querySelector(".ph-circle-notch")).toBeTruthy()
     fireEvent.click(button)
     fireEvent.click(button)
     expect(onToggle).not.toHaveBeenCalled()
