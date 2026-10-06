@@ -18,6 +18,34 @@ import { thumbnailCapturer, type ThumbnailCapturer } from "./capturer"
 // keeping the blobs small keeps the per-Room manifest read cheap to render.
 const MAX_FRAME_DIM = 512
 
+// The narrowest a stored Frame Capture gets: the hover card on a frame mention
+// shows the capture 236px wide (`layer-hover-card.tsx`), so this keeps it sharp
+// at 2x. A tall frame would otherwise come out far narrower under the long-side
+// cap above.
+const MIN_FRAME_WIDTH = 480
+
+/**
+ * The stored size of a frame's capture: its shape, capped at MAX_FRAME_DIM on
+ * the long side but never narrower than MIN_FRAME_WIDTH, and never wider than
+ * the screenshot holds (no upscaling).
+ */
+export function frameCaptureSize(
+  frame: { width: number; height: number },
+  screenshotWidth: number
+): { width: number; height: number } {
+  const capped =
+    frame.width *
+    Math.min(1, MAX_FRAME_DIM / Math.max(frame.width, frame.height))
+  const width = Math.max(
+    1,
+    Math.round(Math.min(screenshotWidth, Math.max(capped, MIN_FRAME_WIDTH)))
+  )
+  return {
+    width,
+    height: Math.max(1, Math.round((width * frame.height) / frame.width)),
+  }
+}
+
 // Hard ceiling on a single frame's capture. The capturers carry their own,
 // finer-grained nav/ready timeouts, but a still-booting dev server can hang the
 // screenshot past those; this is the orchestration's last-resort skip so one
@@ -132,19 +160,14 @@ export async function captureRoomThumbnail(
         `frame ${frame.id} capture`
       )
 
-      // Downscale to the frame's rect, capped at MAX_FRAME_DIM on the long side.
-      // The capture already shares the frame's aspect ratio, so `cover` only
-      // shrinks here (and absorbs any sub-pixel rounding) rather than cropping.
-      const scale = Math.min(
-        1,
-        MAX_FRAME_DIM / Math.max(layout.width, layout.height)
-      )
-      const webp = await sharp(pngBuffer)
-        .resize(
-          Math.round(layout.width * scale),
-          Math.round(layout.height * scale),
-          { fit: "cover" }
-        )
+      // Downscale to the stored size (`frameCaptureSize`). The capture already
+      // shares the frame's aspect ratio, so `cover` only shrinks here (and
+      // absorbs any sub-pixel rounding) rather than cropping.
+      const png = sharp(pngBuffer)
+      const { width: shotWidth = layout.width } = await png.metadata()
+      const size = frameCaptureSize(layout, shotWidth)
+      const webp = await png
+        .resize(size.width, size.height, { fit: "cover" })
         .webp({ quality: 80 })
         .toBuffer()
 
