@@ -153,6 +153,7 @@ export interface CameraTransformWrapperProps {
   }
   onInit: (ref: ReactZoomPanPinchContentRef) => void
   onPanningStart: () => void
+  onPanning: () => void
   onPanningStop: () => void
   onWheelStart: () => void
   onPinchStart: () => void
@@ -872,13 +873,21 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     [savedViewport, setPresence, setLiveZoom]
   )
 
+  // A press only arms the pan: the grabbing cursor and the panning state wait
+  // for the pointer to move. A right- or middle-click that doesn't drag (a
+  // context click on a label) would otherwise flip the canvas's cursor, which
+  // every element inherits, and restyle the whole canvas twice.
   const onPanningStart = useCallback(() => {
     breakFollow()
+  }, [breakFollow])
+  const onPanning = useCallback(() => {
+    if (dragPanningRef.current) return
     dragPanningRef.current = true
     setIsDragPanning(true)
     beginPan()
-  }, [breakFollow, beginPan])
+  }, [beginPan])
   const onPanningStop = useCallback(() => {
+    if (!dragPanningRef.current) return
     dragPanningRef.current = false
     setIsDragPanning(false)
     endPan()
@@ -953,6 +962,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       },
       onInit,
       onPanningStart,
+      onPanning,
       onPanningStop,
       onWheelStart: breakFollow,
       onPinchStart,
@@ -965,6 +975,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       spaceHeld,
       onInit,
       onPanningStart,
+      onPanning,
       onPanningStop,
       breakFollow,
       onPinchStart,
