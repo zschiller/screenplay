@@ -860,6 +860,38 @@ export const INTERACTIONS: Interaction[] = [
       })
     },
   },
+  {
+    name: "toolbar-off-screen",
+    description:
+      "Panning a selected frame off the left edge and back, then off the top and back: its floating toolbar hides once the whole frame is off screen and returns as soon as any of it is back.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    run: async (page) => {
+      await click(
+        page,
+        page
+          .locator("[data-layer-label]")
+          .filter({ hasText: "Checkout · desktop" })
+          .first()
+      )
+      await page.waitForTimeout(1200)
+      const box = page.viewportSize() ?? DEFAULT_VIEWPORT
+      await page.mouse.move(box.width * 0.4, box.height / 2)
+      // A bare wheel pans the canvas.
+      const pan = async (dx: number, dy: number, steps: number) => {
+        for (let i = 0; i < steps; i++) {
+          await page.mouse.wheel(dx, dy)
+          await page.waitForTimeout(60)
+        }
+        await page.waitForTimeout(900)
+      }
+      await pan(60, 0, 30)
+      await pan(-60, 0, 30)
+      await pan(0, 60, 24)
+      await pan(0, -60, 24)
+      await page.waitForTimeout(600)
+    },
+  },
 ]
 
 /**

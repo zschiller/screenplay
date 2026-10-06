@@ -5,6 +5,8 @@ import { useEffect, useRef, type RefObject } from "react"
 interface AnchorOffset {
   x: number
   y: number
+  /** Hide the target this frame (it keeps being placed, so it shows in place). */
+  hidden?: boolean
 }
 
 interface UseCanvasAnchoredPortalOptions {
@@ -64,11 +66,14 @@ export function useCanvasAnchoredPortal({
       const anchor = anchorRef.current
       const target = targetRef.current
       if (anchor && target) {
-        const { x, y } = getOffsetRef.current(
+        const { x, y, hidden } = getOffsetRef.current(
           anchor.getBoundingClientRect(),
           canvasWrapper.getBoundingClientRect()
         )
         target.style.transform = `translate(${x}px, ${y}px)`
+        const visibility = hidden ? "hidden" : ""
+        if (target.style.visibility !== visibility)
+          target.style.visibility = visibility
       }
       rafId = requestAnimationFrame(tick)
     }

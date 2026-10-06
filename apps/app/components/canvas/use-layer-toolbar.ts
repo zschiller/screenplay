@@ -12,10 +12,27 @@ const CANVAS_TOOLBAR_STRIP = 48
 const LAYER_TOOLBAR_INSET = 8
 
 /**
+ * True when the layer's screen rect lies wholly outside the canvas — the
+ * toolbar has nothing on screen to belong to, so it hides until the layer
+ * pans or zooms back into view. Touching an edge still counts as on screen.
+ */
+export function layerOffCanvas(
+  layer: Pick<DOMRect, "left" | "top" | "right" | "bottom">,
+  canvas: Pick<DOMRect, "left" | "top" | "right" | "bottom">
+): boolean {
+  return (
+    layer.right < canvas.left ||
+    layer.left > canvas.right ||
+    layer.bottom < canvas.top ||
+    layer.top > canvas.bottom
+  )
+}
+
+/**
  * The floating toolbar under a selected frame or Mockup: where it portals to,
  * and the loop that keeps it centred under `anchorRef`. When the layer's bottom
  * is off screen the toolbar stops above the canvas toolbar, and it never slides
- * off the sides.
+ * off the sides. Once the whole layer is off screen the toolbar hides.
  *
  * The portal target is created in canvas.tsx in the popovers layer (above the
  * SelectionOverlay's overlay layer — see the canvas tokens in globals.css), so
@@ -55,6 +72,7 @@ export function useLayerToolbar({
           fr.bottom - cw.top + LAYER_TOOLBAR_GAP,
           cw.height - CANVAS_TOOLBAR_STRIP - height
         ),
+        hidden: layerOffCanvas(fr, cw),
       }
     },
   })
