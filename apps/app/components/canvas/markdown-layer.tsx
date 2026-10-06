@@ -12,7 +12,7 @@ import {
 import { createPortal } from "react-dom"
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import {
-  ArrowUUpLeftIcon,
+  ArrowRightIcon,
   CaretDownIcon,
   ChatIcon,
   CheckIcon,
@@ -20,6 +20,7 @@ import {
   ImageIcon,
   ListBulletsIcon,
   ListNumbersIcon,
+  PencilSimpleIcon,
   TextBIcon,
   TextItalicIcon,
   TextStrikethroughIcon,
@@ -93,6 +94,7 @@ import { MODEL_IMAGE_TYPES } from "@/lib/files/attachments"
 import { baseName } from "@/lib/files/paths"
 import { toast } from "sonner"
 import { LabelChat } from "@/components/canvas/label-chat"
+import { useLayerToolbar } from "@/components/canvas/use-layer-toolbar"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
   LayerMenu,
@@ -241,7 +243,7 @@ function FormatButton({
   )
 }
 
-/** "Turn into" block-type selector for the selection toolbar — the shared
+/** "Turn into" block-type selector for the bar under the page — the shared
  *  shadcn {@link DropdownMenu}, for visual/keyboard consistency with the rest
  *  of the app. `modal={false}` keeps Radix from locking body pointer-events (so
  *  the canvas/editor stay live underneath) and avoids focus-trapping the menu.
@@ -263,13 +265,7 @@ function NodeTypeDropdown({
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          tabIndex={-1}
-          className="text-muted-foreground"
-        >
-          <current.Icon />
+        <Button variant="ghost" size="sm" tabIndex={-1}>
           <span className="whitespace-nowrap">{current.label}</span>
           <CaretDownIcon />
         </Button>
@@ -295,8 +291,8 @@ function NodeTypeDropdown({
   )
 }
 
-/** The selection toolbar's Image button: the `/` menu's image items, put in
- *  after the block the selection ends in. Same non-modal Radix menu as
+/** The bar's Image button: the `/` menu's image items, put in after the
+ *  block the caret or selection ends in. Same non-modal Radix menu as
  *  {@link NodeTypeDropdown}, so picking one doesn't blur the editor. */
 function ImageDropdown({
   onPick,
@@ -419,16 +415,14 @@ function MarkdownLayerImpl({
   onReplyInChat,
 }: MarkdownLayerProps) {
   const { awareness } = useYjs()
-  // A document has no toolbar until it's being edited, so its one menu (I7)
-  // sits on its label as … while it alone is selected, and its sidebar row
-  // opens the same one.
+  // Its menu (I7) ends the bar under the page, as on a frame or Mockup, and
+  // its sidebar row opens the same one.
   const titleEditableRef = useRef<EditableTextHandle>(null)
   const menuActions: LayerMenuActions = {
     noun: "document",
     onDelete: onRemove ? () => onRemove(layer.id) : undefined,
   }
   useRegisterLayerMenu(layer.id, menuActions)
-  const showMenu = !!onRemove && selected && !multiSelected && !editing
   // Carets only: the pointer moving changes the awareness on every move.
   const provider = useMemo(
     () => ({ awareness: editorAwareness(awareness) }),
@@ -436,6 +430,15 @@ function MarkdownLayerImpl({
   )
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
+
+  // The bar under the page while it alone is selected: Edit and ⋯, and while
+  // editing the block controls between them (block type, lists, Image).
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const toolbarTarget = useLayerToolbar({
+    show: selected && !multiSelected,
+    anchorRef: rootRef,
+    toolbarRef,
+  })
 
   // Images: paste, drop and Upload image save into the canvas's files under
   // `uploads/`, as chat attachments do, and Image from files picks one there
@@ -867,8 +870,10 @@ function MarkdownLayerImpl({
       // The floating selection toolbar is portaled out of the doc's DOM tree
       // (so it can paint above the SelectionOverlay), but interactions with
       // it should not count as clicking outside the doc — that would blur
-      // the editor and clear the selection before the command can fire.
+      // the editor and clear the selection before the command can fire. The
+      // bar under the page is the same, and its Edit stops editing itself.
       if (bubbleRef.current?.contains(target)) return
+      if (toolbarRef.current?.contains(target)) return
       // The node-type dropdown is the shared shadcn menu, which Radix portals
       // straight to <body> — outside both refs above. Treat a click inside its
       // popper wrapper the same as a click on the toolbar so choosing a block
@@ -1013,25 +1018,10 @@ function MarkdownLayerImpl({
           onRename={onRename ? (next) => onRename(layer.id, next) : undefined}
           editableRef={titleEditableRef}
           trailing={
-            (workingChat || showMenu) && (
-              <>
-                {workingChat && (
-                  <LabelChat>
-                    <WorkingChatMention chat={workingChat} />
-                  </LabelChat>
-                )}
-                {showMenu && (
-                  <LayerMenu
-                    placement="label"
-                    actions={menuActions}
-                    onRename={
-                      onRename
-                        ? () => titleEditableRef.current?.startEditing()
-                        : undefined
-                    }
-                  />
-                )}
-              </>
+            workingChat && (
+              <LabelChat>
+                <WorkingChatMention chat={workingChat} />
+              </LabelChat>
             )
           }
         />
@@ -1097,6 +1087,91 @@ function MarkdownLayerImpl({
             onPick={onImagePicked}
           />
 
+          {toolbarTarget &&
+            createPortal(
+              <FloatingToolbar
+                ref={toolbarRef}
+                aria-label="Document"
+                // Positioned every frame by useLayerToolbar, outside the world
+                // transform, so it's already at constant screen size.
+                className="absolute top-0 left-0"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <FloatingToolbarButton
+                  label="Edit"
+                  shortcut={editing ? ["Esc"] : undefined}
+                  pressed={editing}
+                  // On, it takes Interact's selection fill, like the 2px ring
+                  // around the page.
+                  className={
+                    editing
+                      ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
+                      : undefined
+                  }
+                  onClick={() =>
+                    editing ? onStopEdit() : onStartEdit(layer.id)
+                  }
+                >
+                  <PencilSimpleIcon />
+                </FloatingToolbarButton>
+                {editing && editor && (
+                  <>
+                    <FloatingToolbarSeparator />
+                    <NodeTypeDropdown
+                      editor={editor}
+                      blockType={activeFormats?.blockType ?? "paragraph"}
+                    />
+                    <FloatingToolbarSeparator />
+                    <FormatButton
+                      label="Bullet list"
+                      active={!!activeFormats?.bulletList}
+                      onRun={() =>
+                        editor.chain().focus().toggleBulletList().run()
+                      }
+                    >
+                      <ListBulletsIcon />
+                    </FormatButton>
+                    <FormatButton
+                      label="Numbered list"
+                      active={!!activeFormats?.orderedList}
+                      onRun={() =>
+                        editor.chain().focus().toggleOrderedList().run()
+                      }
+                    >
+                      <ListNumbersIcon />
+                    </FormatButton>
+                    <ImageDropdown
+                      onPick={(key) => {
+                        const { $to } = editor.state.selection
+                        // After the top-level block the selection ends in; a
+                        // selected image is one itself.
+                        onSlashPickRef.current(
+                          key,
+                          $to.depth > 0 ? $to.after(1) : $to.pos
+                        )
+                      }}
+                    />
+                  </>
+                )}
+                {onRemove && (
+                  <>
+                    {editing && <FloatingToolbarSeparator />}
+                    <LayerMenu
+                      placement="toolbar"
+                      actions={menuActions}
+                      onRename={
+                        onRename
+                          ? () => titleEditableRef.current?.startEditing()
+                          : undefined
+                      }
+                    />
+                  </>
+                )}
+              </FloatingToolbar>,
+              toolbarTarget
+            )}
+
           {bubbleAnchor &&
             editing &&
             editor &&
@@ -1110,7 +1185,9 @@ function MarkdownLayerImpl({
               // it tracks pan/zoom/drag without needing inverse-scale tricks.
               // Each button fires on mousedown (not click) with preventDefault so
               // running a format command never blurs the editor or collapses the
-              // selection before the command lands — see FormatButton.
+              // selection before the command lands — see FormatButton. It holds
+              // only what styles a passage, Comment and Reply in chat; block
+              // controls are in the bar under the page.
               <div
                 ref={bubbleRef}
                 className="pointer-events-none absolute top-0 left-0"
@@ -1122,11 +1199,6 @@ function MarkdownLayerImpl({
                     transformOrigin: "bottom center",
                   }}
                 >
-                  <NodeTypeDropdown
-                    editor={editor}
-                    blockType={activeFormats?.blockType ?? "paragraph"}
-                  />
-                  <FloatingToolbarSeparator />
                   <FormatButton
                     label="Bold"
                     active={!!activeFormats?.bold}
@@ -1155,32 +1227,6 @@ function MarkdownLayerImpl({
                   >
                     <CodeIcon />
                   </FormatButton>
-                  <FloatingToolbarSeparator />
-                  <FormatButton
-                    label="Bullet list"
-                    active={!!activeFormats?.bulletList}
-                    onRun={() =>
-                      editor.chain().focus().toggleBulletList().run()
-                    }
-                  >
-                    <ListBulletsIcon />
-                  </FormatButton>
-                  <FormatButton
-                    label="Numbered list"
-                    active={!!activeFormats?.orderedList}
-                    onRun={() =>
-                      editor.chain().focus().toggleOrderedList().run()
-                    }
-                  >
-                    <ListNumbersIcon />
-                  </FormatButton>
-                  <FloatingToolbarSeparator />
-                  <ImageDropdown
-                    onPick={(key) => {
-                      const { $to } = editor.state.selection
-                      onSlashPickRef.current(key, $to.after(1))
-                    }}
-                  />
                   {((!isLocalBuild && onStartInlineComment) ||
                     onReplyInChat) && <FloatingToolbarSeparator />}
                   {!isLocalBuild && onStartInlineComment && (
@@ -1218,7 +1264,7 @@ function MarkdownLayerImpl({
                         setBubbleAnchor(null)
                       }}
                     >
-                      <ArrowUUpLeftIcon />
+                      <ArrowRightIcon />
                     </FormatButton>
                   )}
                 </FloatingToolbar>

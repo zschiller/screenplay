@@ -20,6 +20,7 @@ vi.mock("sonner", () => ({ toast }))
 import {
   defaultFrameAnswerer,
   defaultNewWorkspaceRepoId,
+  forDocument,
   forMockup,
   sizeHint,
   runningPreviews,
@@ -75,6 +76,7 @@ function setup(
   const setSelectedGroupIds = vi.fn()
   const setSelectedIframeLayerIds = vi.fn()
   const setSelectedDocumentLayerIds = vi.fn()
+  const setEditingDocumentLayerId = vi.fn()
   const selectIframeLayer = vi.fn()
   const created: Array<{ branchId: string; chatId?: string }> = []
   const createBranch = vi.fn(
@@ -124,6 +126,7 @@ function setup(
       setSelectedGroupIds,
       setSelectedIframeLayerIds,
       setSelectedDocumentLayerIds,
+      setEditingDocumentLayerId,
       sendPrompt,
       createBranch,
       addChatSession: (id, chat) => collections.chatSessions.set(id, chat),
@@ -149,6 +152,7 @@ function setup(
     sendMessage,
     selectSketchChat,
     setSelectedDocumentLayerIds,
+    setEditingDocumentLayerId,
     selectIframeLayer,
     createBranch,
     created,
@@ -521,6 +525,112 @@ describe("sending a Mockup box’s ask", () => {
   })
 })
 
+describe("a drawn Document’s ask", () => {
+  function opened(opts: Parameters<typeof setup>[0] = {}) {
+    const t = setup(opts)
+    const { docId } = t.ops.createDocument(
+      { x: 0, y: 0 },
+      { width: 480, height: 640 }
+    )
+    t.hook.rerender()
+    act(() => t.hook.result.current.startFromDocument(docId))
+    return { ...t, docId }
+  }
+
+  it("opens on the Document with a new chat answering", () => {
+    const t = opened()
+    expect(t.hook.result.current.open).toEqual({
+      kind: "document",
+      documentId: t.docId,
+    })
+    expect(t.hook.result.current.answerer).toEqual({ kind: "new-chat" })
+  })
+
+  it("asks the Workspace chat to write the Document", () => {
+    const t = opened({ workspaceChat: "c1" })
+
+    act(() =>
+      t.hook.result.current.send(payload("A checkout brief"), {
+        kind: "workspace",
+        branchId: "b1",
+      })
+    )
+
+    expect(t.sendPrompt).toHaveBeenCalledWith(
+      "b1",
+      forDocument("A checkout brief", t.docId)
+    )
+    expect(t.hook.result.current.open).toBeNull()
+  })
+
+  it("asks a picked chat with no repository", () => {
+    const sketch = {
+      ...baseChat("s1"),
+      branchId: undefined,
+      target: "sketch" as const,
+      model: "own-model",
+    }
+    const t = opened({ chats: [sketch] })
+
+    act(() =>
+      t.hook.result.current.send(payload("Notes"), {
+        kind: "sketch",
+        chatId: "s1",
+      })
+    )
+
+    expect(t.selectSketchChat).toHaveBeenCalledWith("s1")
+    expect(t.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ chatId: "s1", model: "own-model" })
+    )
+  })
+
+  it("starts a new chat, camera kept", () => {
+    const t = opened()
+
+    act(() => t.hook.result.current.send(payload("x"), { kind: "new-chat" }))
+
+    expect(t.createBranch).toHaveBeenCalledWith(
+      "repo-1",
+      [
+        expect.objectContaining({
+          prompt: forDocument("x", t.docId),
+          model: "model-x",
+        }),
+      ],
+      { keepView: true }
+    )
+  })
+
+  it("writes it by hand, what was typed as its title", () => {
+    const t = opened()
+
+    act(() => t.hook.result.current.writeDocument(" Launch plan "))
+
+    expect(t.collections.markdownLayers.get(t.docId)?.title).toBe("Launch plan")
+    expect(t.setEditingDocumentLayerId).toHaveBeenCalledWith(t.docId)
+    expect(t.hook.result.current.open).toBeNull()
+  })
+
+  it("writes it by hand untitled when nothing was typed", () => {
+    const t = opened()
+
+    act(() => t.hook.result.current.writeDocument(""))
+
+    expect(t.collections.markdownLayers.get(t.docId)?.title).toBe("")
+    expect(t.setEditingDocumentLayerId).toHaveBeenCalledWith(t.docId)
+  })
+
+  it("closes, leaving the empty Document", () => {
+    const t = opened()
+
+    act(() => t.hook.result.current.close())
+
+    expect(t.collections.markdownLayers.has(t.docId)).toBe(true)
+    expect(t.setEditingDocumentLayerId).not.toHaveBeenCalled()
+  })
+})
+
 // The pure helpers the module routes with.
 
 const repo = (id: string, repoFullName: string) =>
@@ -681,5 +791,21 @@ Drawn box: the sender drew Mockup [mockup: m-1] on the canvas for this; sketch i
     const wire = forMockup("An empty cart", "m-1", { width: 390, height: 600 })
     expect(projectUserTurn(wire).body).toBe("An empty cart")
     expect(buildOutgoingTurn({ message: wire }).turn.body).toBe("An empty cart")
+  })
+})
+
+describe("forDocument", () => {
+  it("names the drawn Document in a footer after what was typed", () => {
+    expect(forDocument(" A launch plan ", "d-1")).toBe(`A launch plan
+
+---
+
+Drawn box: the sender drew Document [document: d-1] on the canvas for this; write its title and body there with set_document_title and replace_document_body.`)
+  })
+
+  it("shows only what was typed", () => {
+    const wire = forDocument("A launch plan", "d-1")
+    expect(projectUserTurn(wire).body).toBe("A launch plan")
+    expect(buildOutgoingTurn({ message: wire }).turn.body).toBe("A launch plan")
   })
 })

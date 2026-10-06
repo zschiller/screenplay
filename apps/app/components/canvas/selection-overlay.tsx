@@ -37,6 +37,8 @@ interface SelectionOverlayProps {
   selectedIframeLayerIds: Set<string>
   /** IframeLayers highlighted because their parent group is selected. No resize handles. */
   groupSelectedIframeLayerIds: Set<string>
+  /** The layer in use, ringed at 2px: an interacting frame or Mockup, or a
+   *  Document being edited. */
   focusedIframeLayerId: string | null
   hoveredIframeLayerId: string | null
   /** Frames of the Workspace hovered in the sidebar (#793). Drawn like the

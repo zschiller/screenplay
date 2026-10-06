@@ -17,7 +17,14 @@ vi.mock("@/components/agent/composer", async () => {
       {
         placeholder,
         modelSlot,
-      }: { placeholder: string; modelSlot?: React.ReactNode },
+        beforeSend,
+        onChange,
+      }: {
+        placeholder: string
+        modelSlot?: React.ReactNode
+        beforeSend?: React.ReactNode
+        onChange?: (payload: { text: string }) => void
+      },
       ref
     ) {
       useImperativeHandle(ref, () => ({
@@ -25,8 +32,12 @@ vi.mock("@/components/agent/composer", async () => {
       }))
       return (
         <>
-          <textarea aria-label={placeholder} />
+          <textarea
+            aria-label={placeholder}
+            onChange={(e) => onChange?.({ text: e.target.value })}
+          />
           {modelSlot}
+          {beforeSend}
         </>
       )
     }),
@@ -197,5 +208,63 @@ describe("FrameAskCard for a drawn frame with running previews", () => {
     fireEvent.click(row)
 
     expect(inserted).toEqual(["A pricing page"])
+  })
+})
+
+describe("FrameAskCard for a drawn Document", () => {
+  function renderDocumentCard() {
+    const onClose = vi.fn()
+    const onWriteMyself = vi.fn()
+    render(
+      <FrameAskCard
+        kind="document"
+        locate={() => ({ left: 0, top: 0, width: 480, height: 640 })}
+        markdownLayers={[]}
+        workspaces={[]}
+        defaultAnswerer={NEW_CHAT}
+        onSubmit={() => {}}
+        onWriteMyself={onWriteMyself}
+        onClose={onClose}
+      />
+    )
+    return { onClose, onWriteMyself }
+  }
+
+  it("asks what the document should say", () => {
+    renderDocumentCard()
+
+    expect(
+      screen.getByRole("dialog", { name: "What should this document say?" })
+    ).toBeTruthy()
+  })
+
+  it("writes it by hand from Write it myself, what was typed as the title", () => {
+    const { onClose, onWriteMyself } = renderDocumentCard()
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Launch plan" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Write it myself" }))
+
+    expect(onWriteMyself).toHaveBeenCalledWith("Launch plan")
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("writes it by hand on Esc", () => {
+    const { onClose, onWriteMyself } = renderDocumentCard()
+
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" })
+
+    expect(onWriteMyself).toHaveBeenCalledWith("")
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("closes on a press outside, leaving the Document", () => {
+    const { onClose, onWriteMyself } = renderDocumentCard()
+
+    fireEvent.pointerDown(document.body)
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onWriteMyself).not.toHaveBeenCalled()
   })
 })

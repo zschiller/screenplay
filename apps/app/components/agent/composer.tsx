@@ -529,6 +529,11 @@ export interface ComposerProps {
    * its who-answers chip here (#1356), and the turn uses the default model.
    */
   modelSlot?: ReactNode
+  /**
+   * Shown just before the send button: a drawn Document's ask card puts its
+   * Write it myself button here.
+   */
+  beforeSend?: ReactNode
   /** Placeholder shown while the draft is empty. */
   placeholder?: string
   /**
@@ -606,6 +611,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       inputHeader,
       hideSend = false,
       modelSlot,
+      beforeSend,
       placeholder = "Ask the agent…",
       disabled = false,
       className = "relative border-t border-border p-2",
@@ -1472,6 +1478,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                       <PaperclipIcon />
                     </IconButton>
                   )}
+                  {beforeSend}
                   {hideSend ? null : isStreaming &&
                     onStop &&
                     !(queueWhileStreaming && (hasContent || hasAttachments)) ? (

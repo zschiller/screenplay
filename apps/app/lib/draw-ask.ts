@@ -125,6 +125,22 @@ export function forMockup(
 }
 
 /**
+ * The prompt a drawn Document's ask sends: what was typed, then a
+ * `Drawn box:` footer naming the Document to write, as `forMockup` names its
+ * Mockup. The Document already exists, empty, so the chat fills it with
+ * `set_document_title` and `replace_document_body`. The `[document: <id>]`
+ * marker names it the way the system prompt describes.
+ */
+export function forDocument(prompt: string, documentId: string): string {
+  return (
+    prompt.trim() +
+    buildDrawnBoxFooter(
+      `the sender drew Document [document: ${documentId}] on the canvas for this; write its title and body there with set_document_title and replace_document_body.`
+    )
+  )
+}
+
+/**
  * Who answers a drawn frame's ask: a new chat, or a Workspace's own chat. A
  * drawn Mockup box can also go to a chat with no repository (a Sketch Chat):
  * an existing one by `chatId`, else a new one. On a canvas with no repository

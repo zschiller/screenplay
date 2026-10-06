@@ -10,6 +10,8 @@ import type { ToolMode } from "@/lib/canvas/tool-mode"
 function setup(armed: ToolMode) {
   const onFrameDrawn = vi.fn()
   const onMockupDrawn = vi.fn()
+  const onDocumentDrawn = vi.fn()
+  const setEditingDocumentLayerId = vi.fn()
   const addFrame = vi.fn(() => "drawn-frame")
   const addIframeLayerToGroup = vi.fn(() => "frame-new")
   const addDocumentLayerToGroup = vi.fn(() => "doc-new")
@@ -30,9 +32,10 @@ function setup(armed: ToolMode) {
       setSelectedIframeLayerIds: setIframeIds,
       setSelectedDocumentLayerIds: setDocumentIds,
       setSelectedGroupIds: setGroupIds,
-      setEditingDocumentLayerId: () => {},
+      setEditingDocumentLayerId,
       onFrameDrawn,
       onMockupDrawn,
+      onDocumentDrawn,
     })
     return { toolMode, draw, iframeIds, documentIds, groupIds }
   })
@@ -44,6 +47,8 @@ function setup(armed: ToolMode) {
     addDocumentLayerToGroup,
     onFrameDrawn,
     onMockupDrawn,
+    onDocumentDrawn,
+    setEditingDocumentLayerId,
   }
 }
 
@@ -94,8 +99,9 @@ describe("useDrawTool frame release", () => {
     expect(rect.y).toBe(-rect.height / 2)
   })
 
-  it("doesn't ask for a Document", () => {
-    const { hook, onFrameDrawn } = setup("document")
+  it("asks what a drawn Document should say instead of editing it", () => {
+    const { hook, onFrameDrawn, onDocumentDrawn, setEditingDocumentLayerId } =
+      setup("document")
     const { drawTool } = hook.result.current.draw
     act(() => {
       drawTool.beginDraft({ x: 0, y: 0 })
@@ -103,6 +109,10 @@ describe("useDrawTool frame release", () => {
     })
 
     expect(onFrameDrawn).not.toHaveBeenCalled()
+    expect(onDocumentDrawn).toHaveBeenCalledWith("drawn-doc")
+    expect(setEditingDocumentLayerId).not.toHaveBeenCalled()
+    expect(hook.result.current.documentIds).toEqual(new Set(["drawn-doc"]))
+    expect(hook.result.current.toolMode.mode).toBe("select")
   })
 })
 

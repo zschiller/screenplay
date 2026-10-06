@@ -18,6 +18,7 @@ import {
   defaultFrameAnswerer,
   defaultNewWorkspaceRepoId,
   emptyMockup,
+  forDocument,
   forMockup,
   NEW_CHAT,
   NEW_SKETCH_CHAT,
@@ -38,12 +39,15 @@ import type {
 
 /**
  * The open draw-then-ask (#1356, #1359): a drawn frame waiting for what to
- * show, or a drawn Mockup box waiting for what to sketch. Per-viewer, never in
- * the room doc. A Mockup box is only a box until sent: closing drops it,
- * leaving nothing behind.
+ * show, a drawn Mockup box waiting for what to sketch, or a drawn Document
+ * waiting for what to say. Per-viewer, never in the room doc. A Mockup box is
+ * only a box until sent: closing drops it, leaving nothing behind. A Document
+ * is made when it's drawn, so closing leaves it there, empty.
  */
 export type OpenAsk =
-  { kind: "frame"; frameId: string } | { kind: "mockup"; box: DrawnRect }
+  | { kind: "frame"; frameId: string }
+  | { kind: "mockup"; box: DrawnRect }
+  | { kind: "document"; documentId: string }
 
 export interface DrawAskDeps {
   ops: CanvasOps
@@ -61,6 +65,8 @@ export interface DrawAskDeps {
   setSelectedGroupIds: Dispatch<SetStateAction<Set<string>>>
   setSelectedIframeLayerIds: Dispatch<SetStateAction<Set<string>>>
   setSelectedDocumentLayerIds: Dispatch<SetStateAction<Set<string>>>
+  /** Open a Document for editing, for a drawn one's Write it myself. */
+  setEditingDocumentLayerId: (id: string | null) => void
   /** A prompt into a Workspace's chat; its chat id, or none while it starts. */
   sendPrompt: (branchId: string, message: string) => string | undefined
   /** Branch Intake's create, for a new chat. */
@@ -95,6 +101,13 @@ export interface DrawAsk {
   startFromFrame: (frameId: string) => void
   /** A Mockup box was drawn. */
   startFromMockupBox: (box: DrawnRect) => void
+  /** A Document was drawn. */
+  startFromDocument: (documentId: string) => void
+  /**
+   * A drawn Document's Write it myself: close and open it for editing, what
+   * was typed in the card as its title.
+   */
+  writeDocument: (title: string) => void
   /**
    * An unanswered frame's Start a chat (#1358): select it and reopen its ask.
    * Absent with no Repo for a new chat to start in.
@@ -111,8 +124,8 @@ export interface DrawAsk {
 }
 
 /**
- * The Draw-and-ask module (#1489): one home for the Frame and Mockup tools'
- * ask, from the drawn layer to the chat that answers. The canvas root only
+ * The Draw-and-ask module (#1489): one home for the Frame, Mockup and
+ * Document tools' ask, from the drawn layer to the chat that answers. The canvas root only
  * renders the ask card from `open`.
  *
  * Sending routes by answerer. A Workspace's own chat takes the prompt, and a
@@ -120,7 +133,8 @@ export interface DrawAsk {
  * takes it in the panel; a new chat starts a Workspace through Branch Intake
  * with the New Workspace dialog's defaults. A frame's prompt carries its size
  * as the viewport; a Mockup box becomes an empty Mockup owned by the
- * answering chat, which the prompt asks it to fill with update_mockup.
+ * answering chat, which the prompt asks it to fill with update_mockup. A
+ * drawn Document is already there; the prompt asks the chat to write it.
  */
 export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
   const {
@@ -134,6 +148,7 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     setSelectedGroupIds,
     setSelectedIframeLayerIds,
     setSelectedDocumentLayerIds,
+    setEditingDocumentLayerId,
     sendPrompt,
     createBranch,
     addChatSession,
@@ -196,6 +211,19 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
       )
       setPreviews([])
       setAsk({ kind: "mockup", box })
+    },
+    [newChatRepoId, answererFromSelection]
+  )
+
+  // A Document is written by the same chats a Mockup box offers.
+  const startFromDocument = useCallback(
+    (documentId: string) => {
+      const picked = answererFromSelection({ sketch: true })
+      setAnswerer(
+        newChatRepoId || picked.kind === "sketch" ? picked : NEW_SKETCH_CHAT
+      )
+      setPreviews([])
+      setAsk({ kind: "document", documentId })
     },
     [newChatRepoId, answererFromSelection]
   )
@@ -324,12 +352,65 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     ]
   )
 
-  // A frame's ask is open only while the frame is there with no Workspace.
+  // The drawn Document is there already: the prompt names it for the chat
+  // that answers to write, as a Mockup box's does.
+  const sendDocument = useCallback(
+    (documentId: string, payload: ComposerSubmitPayload, to: FrameAnswerer) => {
+      const prompt = forDocument(payload.text, documentId)
+      if (to.kind === "workspace") {
+        if (!sendPrompt(to.branchId, prompt)) notRunning(to.branchId)
+        return
+      }
+      if (to.kind === "sketch") {
+        const existing = to.chatId
+          ? chatSessions.find((c) => c.id === to.chatId)
+          : undefined
+        const chatId = existing?.id ?? nanoid()
+        if (!existing) {
+          addChatSession(chatId, sketchChatSession(chatId, Date.now()))
+        }
+        chatTarget.selectSketchChat(chatId)
+        void sendMessage({
+          roomId,
+          chatId,
+          target: { kind: "sketch", chatId },
+          message: prompt,
+          model: existing?.model ?? payload.model,
+        })
+        return
+      }
+      const repo = repos.find((r) => r.id === newChatRepoId)
+      if (!repo) return
+      void createBranch(
+        repo.id,
+        [{ baseBranch: repo.defaultBranch, model: payload.model, prompt }],
+        { keepView: true }
+      )
+    },
+    [
+      sendPrompt,
+      notRunning,
+      chatSessions,
+      addChatSession,
+      chatTarget,
+      sendMessage,
+      roomId,
+      repos,
+      newChatRepoId,
+      createBranch,
+    ]
+  )
+
+  // A frame's ask is open only while the frame is there with no Workspace,
+  // and a Document's while the Document is.
   const open = useMemo<OpenAsk | null>(() => {
+    if (ask?.kind === "document") {
+      return ownedLayers.some((l) => l.id === ask.documentId) ? ask : null
+    }
     if (ask?.kind !== "frame") return ask
     const frame = iframeLayers.find((l) => l.id === ask.frameId)
     return frame && !frame.branchId ? ask : null
-  }, [ask, iframeLayers])
+  }, [ask, iframeLayers, ownedLayers])
 
   const show = useCallback(
     (branchId: string) => {
@@ -347,12 +428,27 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     (payload: ComposerSubmitPayload, to: FrameAnswerer) => {
       close()
       if (open?.kind === "mockup") return sendMockup(open.box, payload, to)
+      if (open?.kind === "document") {
+        return sendDocument(open.documentId, payload, to)
+      }
       const frame = open
         ? iframeLayers.find((l) => l.id === open.frameId)
         : undefined
       if (frame) sendFrame(frame, payload, to)
     },
-    [close, open, iframeLayers, sendMockup, sendFrame]
+    [close, open, iframeLayers, sendMockup, sendDocument, sendFrame]
+  )
+
+  const writeDocument = useCallback(
+    (title: string) => {
+      const documentId = open?.kind === "document" ? open.documentId : null
+      close()
+      if (!documentId) return
+      const text = title.trim()
+      if (text) ops.renameDocument(documentId, text)
+      setEditingDocumentLayerId(documentId)
+    },
+    [open, close, ops, setEditingDocumentLayerId]
   )
 
   return {
@@ -361,6 +457,8 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     previews,
     startFromFrame,
     startFromMockupBox,
+    startFromDocument,
+    writeDocument,
     startFrameChat: newChatRepoId ? startFrameChat : undefined,
     show,
     send,
