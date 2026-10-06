@@ -98,7 +98,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
 
     update_mockup: tool({
       description:
-        "Change any Mockup on the canvas, whichever chat made it, unless another chat is changing it right now: replace its whole page, its title, or both. The canvas re-renders it in place.",
+        "Change any Mockup on the canvas, whichever chat made it, unless another chat is changing it right now: replace its whole page, its title, or both. The canvas re-renders it in place. Call start_editing with its id first, before you write the page.",
       inputSchema: z.object({
         mockup_id: z.string().describe("The id create_mockup returned"),
         html: htmlSchema.optional(),

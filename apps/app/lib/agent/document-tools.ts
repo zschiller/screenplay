@@ -106,7 +106,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
     }),
 
     replace_document_body: tool({
-      description: `Replace the body of any Document on the canvas, whichever chat or person made it, below its title. Another chat that’s changing it right now holds it until its turn ends: the edit is refused, so tell the person and carry on. The \`content\` is parsed as CommonMark markdown — headings (\`##\`, \`###\`), bullet/ordered lists, blockquotes, code blocks, inline marks (\`**bold**\`, \`*italic*\`, \`\` \`code\` \`\`, \`[link](url)\`), images and mentions all work. A mention is \`[@<name>](mention:<kind>:<id>)\`, as \`read_document\` shows them, where kind is ${mentionMarkdownNames()}. An image is \`![alt](path)\` on its own line, where \`path\` is an image in the canvas’s saved files (\`uploads/sketch.png\`; wrap a path with spaces in \`<…>\`), and the Document shows it. The title is set separately; don’t repeat it as a top-level \`#\` heading. Use this when you’ve redrafted the Document; for incremental edits prefer \`append_to_document_body\`.`,
+      description: `Replace the body of any Document on the canvas, whichever chat or person made it, below its title. Another chat that’s changing it right now holds it until its turn ends: the edit is refused, so tell the person and carry on. Call \`start_editing\` with its id first, before you write the body. The \`content\` is parsed as CommonMark markdown — headings (\`##\`, \`###\`), bullet/ordered lists, blockquotes, code blocks, inline marks (\`**bold**\`, \`*italic*\`, \`\` \`code\` \`\`, \`[link](url)\`), images and mentions all work. A mention is \`[@<name>](mention:<kind>:<id>)\`, as \`read_document\` shows them, where kind is ${mentionMarkdownNames()}. An image is \`![alt](path)\` on its own line, where \`path\` is an image in the canvas’s saved files (\`uploads/sketch.png\`; wrap a path with spaces in \`<…>\`), and the Document shows it. The title is set separately; don’t repeat it as a top-level \`#\` heading. Use this when you’ve redrafted the Document; for incremental edits prefer \`append_to_document_body\`.`,
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {
@@ -126,7 +126,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     append_to_document_body: tool({
       description:
-        "Append a block of text to the end of any Document on the canvas. Use the same markdown as `replace_document_body`. Everything already in the Document stays as it is.",
+        "Append a block of text to the end of any Document on the canvas. Use the same markdown as `replace_document_body`. Everything already in the Document stays as it is. Call `start_editing` with its id first, before you write the block.",
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {

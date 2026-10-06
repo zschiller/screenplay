@@ -438,6 +438,14 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     category: "editDoc",
     label: subject("title", "text"),
   },
+  // Saying which Mockup or Document the chat is about to change.
+  start_editing: {
+    verb: "Start editing",
+    icon: "edit",
+    kind: "other",
+    output: "quiet",
+    label: () => null,
+  },
   // Mockups.
   create_mockup: {
     verb: "Create mockup",

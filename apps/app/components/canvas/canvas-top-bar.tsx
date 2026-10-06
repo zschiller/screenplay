@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import {
   DotsThreeIcon,
   GearIcon,
+  KeyboardIcon,
   PencilSimpleIcon,
   SidebarSimpleIcon,
   SignOutIcon,
@@ -34,6 +35,8 @@ import { cn } from "@workspace/ui/lib/utils"
 import { type PanelImperativeHandle } from "react-resizable-panels"
 
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
+import { MenuKeys } from "@/components/menu-keys"
+import { SHORTCUT_SHEET_KEY } from "@/lib/canvas/shortcuts"
 import { deleteRoom } from "@/lib/rooms-actions"
 import { withBasePath } from "@/lib/base-path"
 
@@ -64,6 +67,7 @@ export function CanvasTopBar({
   deleteDialogOpen,
   onDeleteDialogOpenChange,
   onOpenSettings,
+  onOpenShortcuts,
   stopRoomDevServers,
   flushLayout,
 }: {
@@ -83,6 +87,8 @@ export function CanvasTopBar({
   onDeleteDialogOpenChange: (open: boolean) => void
   /** Opens Canvas settings (#883). */
   onOpenSettings: () => void
+  /** Opens the keyboard shortcut sheet, as `?` does (#734). */
+  onOpenShortcuts: () => void
   stopRoomDevServers: () => void
   flushLayout: () => Promise<unknown>
 }) {
@@ -194,6 +200,12 @@ export function CanvasTopBar({
                   <DropdownMenuItem onSelect={onOpenSettings}>
                     <GearIcon />
                     Settings
+                  </DropdownMenuItem>
+                  {/* Where Figma's main menu keeps Help ▸ Keyboard shortcuts. */}
+                  <DropdownMenuItem onSelect={onOpenShortcuts}>
+                    <KeyboardIcon />
+                    Keyboard shortcuts
+                    <MenuKeys keys={[SHORTCUT_SHEET_KEY]} />
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   {isOwner && (
