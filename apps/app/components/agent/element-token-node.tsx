@@ -13,7 +13,7 @@ import { useElementHighlight } from "./use-element-highlight"
 
 /**
  * React node view for the composer's atomic element token (PRD #616, slice
- * #620). It renders the same mention-coloured, `font-mono`, crosshair-prefixed label as
+ * #620). It renders the same mention-coloured, crosshair-prefixed label as
  * the static `renderHTML`, but wraps it in a shadcn HoverCard so hovering
  * reveals the messy detail hidden from the inline label — the full CSS selector
  * (mono), the route, and the frame label.
@@ -40,7 +40,7 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
         <HoverCardTrigger asChild>
           <span
             data-inline-ref="element"
-            className="inline-ref cursor-default font-mono"
+            className="inline-ref cursor-default"
             contentEditable={false}
           >
             {/*

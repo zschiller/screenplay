@@ -1090,9 +1090,7 @@ function ElementHistoryToken({
   return (
     <HoverCard onOpenChange={handleOpenChange}>
       <HoverCardTrigger asChild>
-        <InlineRef kind="element" className="font-mono">
-          {children}
-        </InlineRef>
+        <InlineRef kind="element">{children}</InlineRef>
       </HoverCardTrigger>
       <HoverCardContent align="start">
         <ElementDetail
@@ -1281,7 +1279,7 @@ function UserBubble({
         if (typeof href === "string" && href.startsWith("mockup:")) {
           return <MockupRef id={href.slice("mockup:".length)} />
         }
-        // element tokens: the crosshair + `font-mono` tag name,
+        // element tokens: the crosshair + the tag name, in the text face,
         // matching the composer token. Detail rides the footer, keyed by the
         // link's `element:<ref>`; missing (a footer-less legacy turn) → plain
         // token, no card.
@@ -1289,11 +1287,7 @@ function UserBubble({
           const refId = href.slice("element:".length)
           const detail = targetedElements.get(refId)
           if (!detail) {
-            return (
-              <InlineRef kind="element" className="font-mono">
-                {children}
-              </InlineRef>
-            )
+            return <InlineRef kind="element">{children}</InlineRef>
           }
           return (
             <ElementHistoryToken refId={refId} detail={detail}>
