@@ -13,6 +13,7 @@ import {
   ArchitectureDiagram,
   ConceptsDiagram,
 } from "./components/diagram/diagrams"
+import { FileTree } from "./components/file-tree"
 import { Only } from "./components/only"
 import { Screenshot, ScreenshotRow } from "./components/screenshot"
 
@@ -60,6 +61,7 @@ export function useMDXComponents(components?: MDXComponents): MDXComponents {
     ArchitectureDiagram,
     Callout,
     ConceptsDiagram,
+    FileTree,
     Only,
     Screenshot,
     ScreenshotRow,

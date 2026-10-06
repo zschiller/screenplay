@@ -689,7 +689,20 @@ article :is(h1, h2, h3) em {
   opacity: 0.6;
 }
 
-/* File trees: one row pitch, whether or not the row above had children. */
+/* File trees (components/file-tree.tsx): the column’s full width, paths in
+   the code font at the code blocks’ size and padding, on the same hairline.
+   One row pitch, whether or not the row above had children. */
+.nextra-filetree {
+  display: flex;
+  padding: 1rem;
+  font-family: var(--x-font-mono);
+  font-size: 0.9rem;
+  line-height: 1.25rem;
+  border-color: oklch(0 0 0 / 12%);
+}
+html.dark .nextra-filetree {
+  border-color: oklch(1 0 0 / 16%);
+}
 .nextra-filetree,
 .nextra-filetree ul {
   gap: 0.25rem;
