@@ -797,6 +797,45 @@ export const INTERACTIONS: Interaction[] = [
       await page.waitForTimeout(1500)
     },
   },
+  {
+    name: "frame-resize-toolbar",
+    description:
+      "Resizing a selected frame by its bottom edge, then its corner: the floating toolbar under it hides while the edge moves and comes back in place on release.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    run: async (page) => {
+      await click(
+        page,
+        page
+          .locator("[data-layer-label]")
+          .filter({ hasText: "Checkout · desktop" })
+          .first()
+      )
+      await page.waitForTimeout(1200)
+      for (const edge of ["s", "se"] as const) {
+        await step(async () => {
+          const handle = page
+            .locator(edge === "s" ? ".cursor-ns-resize" : ".cursor-nwse-resize")
+            .nth(1)
+          const box = await handle.boundingBox({ timeout: 10_000 })
+          if (!box) return
+          const x = box.x + box.width / 2
+          const y = box.y + box.height / 2
+          await page.mouse.move(x, y, { steps: 10 })
+          await page.waitForTimeout(500)
+          await page.mouse.down()
+          await page.mouse.move(x + (edge === "se" ? 80 : 0), y + 90, {
+            steps: 30,
+          })
+          await page.waitForTimeout(400)
+          await page.mouse.move(x, y, { steps: 30 })
+          await page.waitForTimeout(400)
+          await page.mouse.up()
+          await page.waitForTimeout(1400)
+        })
+      }
+    },
+  },
 ]
 
 /**
