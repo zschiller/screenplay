@@ -16,6 +16,7 @@ import {
 import { prependTurnMarkers } from "./message-markers"
 import { buildDocumentTools } from "./document-tools"
 import { buildMockupTools } from "./mockup-tools"
+import { buildLayerHoldTools } from "./layer-hold"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
 import { sketchAppSkills } from "./sketch-tools"
@@ -125,6 +126,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
       shared: {
         ...buildDocumentTools({ room, chatId }),
         ...buildMockupTools({ room, chatId }),
+        ...buildLayerHoldTools({ room, chatId }),
         // Driving a Mockup in the asker's view (#1391).
         ...chatFrameDriveTools({ room, userId }),
         // The canvas's Skills and the Mockup App Skills (#1555).
