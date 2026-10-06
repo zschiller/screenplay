@@ -42,7 +42,8 @@ export function RepoDialogHeader({
 }
 
 /**
- * The dialog's only scroll. A hairline shows under the header once the fields
+ * The dialog’s only scroll, with no padding above the first field (the header
+ * spaces it). A hairline shows under the header once the fields
  * scroll up, and above the footer while more fields lie below.
  */
 export function RepoDialogBody({ children }: { children: React.ReactNode }) {
@@ -61,7 +62,7 @@ export function RepoDialogBody({ children }: { children: React.ReactNode }) {
         onScrollCapture={onScroll}
         className="[&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
       >
-        <div className="flex flex-col gap-5 p-5">{children}</div>
+        <div className="flex flex-col gap-5 px-5 pb-5">{children}</div>
       </ScrollArea>
       <ScrollHairline shown={below} edge="bottom" />
     </div>

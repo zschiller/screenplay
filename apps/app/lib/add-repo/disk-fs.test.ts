@@ -68,6 +68,7 @@ describe("DiskDetectFileSystem", () => {
       setupScript: "npm install",
       devScript: "npm run dev",
       devServerPort: 3000,
+      apps: [],
     })
   })
 })

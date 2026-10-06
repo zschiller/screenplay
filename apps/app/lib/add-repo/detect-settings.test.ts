@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import { InMemoryDetectFileSystem } from "@/lib/add-repo/detect-fs"
-import { detectSettings } from "@/lib/add-repo/detect-settings"
+import { detectSettings, sortApps } from "@/lib/add-repo/detect-settings"
+import type { DetectedApp } from "@/lib/add-repo/resolver"
 
 /**
  * Seam A (PRD #673, slice #678): `detectSettings` over an in-memory FS fixture.
@@ -101,6 +102,91 @@ describe("detectSettings — monorepo", () => {
   })
 })
 
+describe("detectSettings — monorepo apps", () => {
+  // A Turborepo-style pnpm workspace: two Next.js apps under apps/ and a Vite
+  // playground under packages/, which build-info lists first.
+  const monorepo = () =>
+    new InMemoryDetectFileSystem({
+      "package.json": pkg({ private: true }),
+      "pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
+      "pnpm-workspace.yaml": "packages:\n  - 'apps/*'\n  - 'packages/*'\n",
+      "packages/playground/package.json": pkg({
+        name: "playground",
+        devDependencies: { vite: "6.0.0" },
+        scripts: { dev: "vite" },
+      }),
+      "packages/playground/vite.config.ts": "export default {}",
+      "apps/web/package.json": pkg({
+        name: "web",
+        dependencies: { next: "15.0.0", react: "19", "react-dom": "19" },
+        scripts: { dev: "next dev" },
+      }),
+      "apps/web/next.config.js": "module.exports = {}",
+      "apps/docs/package.json": pkg({
+        name: "docs",
+        dependencies: { next: "15.0.0", react: "19", "react-dom": "19" },
+        scripts: { dev: "next dev" },
+      }),
+      "apps/docs/next.config.js": "module.exports = {}",
+    })
+
+  it("lists every app, apps/ before packages/", async () => {
+    const { apps } = await detectSettings(monorepo())
+    expect(apps.map((a) => a.path)).toEqual([
+      "apps/docs",
+      "apps/web",
+      "packages/playground",
+    ])
+    expect(apps[0]).toMatchObject({ name: "docs", framework: "Next.js" })
+    expect(apps[2]).toMatchObject({
+      name: "playground",
+      framework: "Vite",
+      devServerPort: 5173,
+    })
+  })
+
+  it("takes the run settings from the first app", async () => {
+    const detected = await detectSettings(monorepo())
+    expect(detected.setupScript).toBe("pnpm install")
+    expect(detected.devScript).toBe(detected.apps[0]!.devScript)
+    expect(detected.devServerPort).toBe(3000)
+  })
+
+  it("lists no apps for a single-app repository", async () => {
+    const fs = new InMemoryDetectFileSystem({
+      "package.json": pkg({
+        dependencies: { next: "15.0.0", react: "19", "react-dom": "19" },
+        scripts: { dev: "next dev" },
+      }),
+      "package-lock.json": "{}",
+      "next.config.js": "module.exports = {}",
+    })
+    expect((await detectSettings(fs)).apps).toEqual([])
+  })
+})
+
+describe("sortApps", () => {
+  const app = (path: string): DetectedApp => ({
+    name: path.split("/").pop()!,
+    path,
+    framework: "",
+    devScript: "",
+    devServerPort: 3000,
+  })
+
+  it("puts apps/ first, packages/ last, other folders between", () => {
+    const sorted = sortApps(
+      ["packages/ui", "services/api", "apps/web", "apps/admin"].map(app)
+    )
+    expect(sorted.map((a) => a.path)).toEqual([
+      "apps/admin",
+      "apps/web",
+      "services/api",
+      "packages/ui",
+    ])
+  })
+})
+
 describe("detectSettings — unrecognized project", () => {
   it("falls back to plain defaults (empty scripts, port 3000)", async () => {
     const fs = new InMemoryDetectFileSystem({
@@ -110,6 +196,7 @@ describe("detectSettings — unrecognized project", () => {
       setupScript: "",
       devScript: "",
       devServerPort: 3000,
+      apps: [],
     })
   })
 
@@ -122,6 +209,7 @@ describe("detectSettings — unrecognized project", () => {
       setupScript: "yarn install",
       devScript: "",
       devServerPort: 3000,
+      apps: [],
     })
   })
 })

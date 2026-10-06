@@ -58,6 +58,20 @@ describe("gatherProjectFiles", () => {
     ])
   })
 
+  it("reads the chosen app's manifest first among the packages", async () => {
+    const fs = new InMemoryDetectFileSystem({
+      "package.json": "{}",
+      "apps/web/package.json": '{"name":"web"}',
+      "apps/docs/package.json": '{"name":"docs"}',
+    })
+    const { files } = await gatherProjectFiles(fs, "apps/web")
+    expect(Object.keys(files)).toEqual([
+      "package.json",
+      "apps/web/package.json",
+      "apps/docs/package.json",
+    ])
+  })
+
   it("clips a long file", async () => {
     const fs = new InMemoryDetectFileSystem({ "README.md": "x".repeat(20_000) })
     const { files } = await gatherProjectFiles(fs)
@@ -78,6 +92,16 @@ describe("buildDetectionPrompt", () => {
     expect(prompt).toContain('<file path="package.json">')
     expect(prompt).toContain("next dev -p 4000")
     expect(prompt).toContain(JSON.stringify(baseline))
+    expect(prompt).not.toContain("<chosen_app>")
+  })
+
+  it("names the app chosen in a monorepo", () => {
+    const prompt = buildDetectionPrompt(
+      { listing: ["apps/"], files: {} },
+      baseline,
+      "apps/docs"
+    )
+    expect(prompt).toContain("<chosen_app>\napps/docs\n</chosen_app>")
   })
 })
 

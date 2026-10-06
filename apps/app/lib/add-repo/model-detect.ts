@@ -100,7 +100,8 @@ export interface GatheredProject {
  * files are skipped; the total is capped.
  */
 export async function gatherProjectFiles(
-  fs: DetectFileSystem
+  fs: DetectFileSystem,
+  appPath?: string
 ): Promise<GatheredProject> {
   const root = await fs.readDir("/")
   const names = Object.keys(root).sort()
@@ -118,12 +119,18 @@ export async function gatherProjectFiles(
   // Keep ROOT_FILES' priority order, configs after.
   wanted.sort((a, b) => rank(a) - rank(b))
 
+  // The chosen app's manifest leads the packages, so the cap never drops it.
+  const appManifest = appPath ? `${appPath}/package.json` : undefined
+  if (appManifest && (await fs.fileExists(`/${appManifest}`))) {
+    wanted.push(appManifest)
+  }
   for (const dir of WORKSPACE_DIRS) {
     if (root[dir] !== "directory") continue
     const children = await fs.readDir(`/${dir}`)
     for (const child of Object.keys(children).sort()) {
       if (children[child] !== "directory") continue
       const manifest = `${dir}/${child}/package.json`
+      if (manifest === appManifest) continue
       if (await fs.fileExists(`/${manifest}`)) wanted.push(manifest)
     }
   }
@@ -160,7 +167,7 @@ Reply with only a JSON object, no prose and no code fence:
 {"setupScript": string, "devScript": string, "devServerPort": number}
 
 - setupScript: the shell command run once from the repository root after cloning, usually the package manager’s install (e.g. "pnpm install"). Add a one-time step such as code generation only when the project’s docs say it is required before the dev server can start. Use "" when nothing is needed.
-- devScript: the long-running command, run from the repository root, that starts the dev server for the project’s main web app. Prefer the project’s own script (e.g. "pnpm dev") over calling a framework binary directly. In a monorepo, target the user-facing web app (e.g. "pnpm --filter web dev").
+- devScript: the long-running command, run from the repository root, that starts the dev server for the project’s main web app. Prefer the project’s own script (e.g. "pnpm dev") over calling a framework binary directly. In a monorepo, target the user-facing web app (e.g. "pnpm --filter web dev"), or the app named in <chosen_app> when one is given.
 - devServerPort: the port that dev server listens on. Read it from the dev script’s flags, framework config, or README before falling back to the framework’s default.
 
 Keep the first guess for any field the files give you no reason to change. Never invent secrets or environment values.`
@@ -168,7 +175,8 @@ Keep the first guess for any field the files give you no reason to change. Never
 /** The user turn: the listing, the files, and the rule-based guess. */
 export function buildDetectionPrompt(
   project: GatheredProject,
-  baseline: DetectedSettings
+  baseline: DetectedSettings,
+  appPath?: string
 ): string {
   const files = Object.entries(project.files)
     .map(([path, contents]) => `<file path="${path}">\n${contents}\n</file>`)
@@ -178,6 +186,9 @@ export function buildDetectionPrompt(
     `<listing>\n${project.listing.join("\n")}\n</listing>`,
     lockfiles.length ? `Lockfiles present: ${lockfiles.join(", ")}` : "",
     files,
+    appPath
+      ? `<chosen_app>\n${appPath}\n</chosen_app>\nThe person chose this app. devScript and devServerPort are for it.`
+      : "",
     `<first_guess>\n${JSON.stringify(baseline)}\n</first_guess>`,
   ]
     .filter(Boolean)
@@ -239,13 +250,17 @@ function port(value: unknown): number | undefined {
 export async function detectSettingsWithModel(
   fs: DetectFileSystem,
   baseline: DetectedSettings,
-  runModel: (opts: { system: string; prompt: string }) => Promise<string | null>
+  runModel: (opts: {
+    system: string
+    prompt: string
+  }) => Promise<string | null>,
+  appPath?: string
 ): Promise<DetectedSettings | null> {
-  const project = await gatherProjectFiles(fs)
+  const project = await gatherProjectFiles(fs, appPath)
   if (!project.listing.length) return null
   const reply = await runModel({
     system: DETECTION_SYSTEM_PROMPT,
-    prompt: buildDetectionPrompt(project, baseline),
+    prompt: buildDetectionPrompt(project, baseline, appPath),
   })
   return parseDetectionReply(reply, baseline)
 }

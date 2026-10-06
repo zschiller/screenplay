@@ -9,7 +9,7 @@ import type { DetectFileSystem } from "@/lib/add-repo/detect-fs"
 import { runOneShotModel } from "@/lib/agent/one-shot-model"
 import { fixtureModelReply } from "@/lib/fixture-model"
 import { isLocalBuild } from "@/lib/local-mode"
-import type { DetectedSettings } from "@/lib/add-repo/resolver"
+import type { DetectedApp, DetectedSettings } from "@/lib/add-repo/resolver"
 
 /**
  * The client entry to deterministic settings detection (PRD #673, slice #678).
@@ -30,7 +30,14 @@ export interface DetectRepoSettingsInput {
 }
 
 export type DetectRepoSettingsResult =
-  { ok: true; settings: DetectedSettings } | { ok: false }
+  | {
+      ok: true
+      settings: DetectedSettings
+      /** Every app found, for a monorepo's App picker; only the rule-based
+       *  pass lists them. */
+      apps?: DetectedApp[]
+    }
+  | { ok: false }
 
 export async function detectRepoSettings(
   input: DetectRepoSettingsInput
@@ -39,8 +46,8 @@ export async function detectRepoSettings(
     const token = await getGitHubToken()
     if (!token) return { ok: false }
     const fs = new GitHubDetectFileSystem({ ...input, token })
-    const settings = await detectSettings(fs)
-    return { ok: true, settings }
+    const { apps, ...settings } = await detectSettings(fs)
+    return { ok: true, settings, apps }
   } catch {
     return { ok: false }
   }
@@ -66,8 +73,8 @@ export async function detectFolderSettings(
   if (!isLocalBuild) return { ok: false }
   try {
     const fs = new DiskDetectFileSystem(input.localPath)
-    const settings = await detectSettings(fs)
-    return { ok: true, settings }
+    const { apps, ...settings } = await detectSettings(fs)
+    return { ok: true, settings, apps }
   } catch {
     return { ok: false }
   }
@@ -84,17 +91,19 @@ const MODEL_DETECTION_TIMEOUT_MS = 30_000
  * The model-assisted second pass for a GitHub-repo pick: the same virtual FS
  * as {@link detectRepoSettings}, read by a model that refines the rule-based
  * `baseline`. `{ ok: false }` when no token, no model, or no usable answer, so
- * the modal keeps what the first pass found.
+ * the modal keeps what the first pass found. In a monorepo, `appPath` is the
+ * app chosen in the modal's App picker, and the model answers for that app.
  */
 export async function refineRepoSettings(
   input: DetectRepoSettingsInput,
-  baseline: DetectedSettings
+  baseline: DetectedSettings,
+  appPath?: string
 ): Promise<DetectRepoSettingsResult> {
   try {
     const token = await getGitHubToken()
     if (!token) return { ok: false }
     const fs = new GitHubDetectFileSystem({ ...input, token })
-    return await refineWithModel(fs, baseline)
+    return await refineWithModel(fs, baseline, appPath)
   } catch {
     return { ok: false }
   }
@@ -103,12 +112,13 @@ export async function refineRepoSettings(
 /** The model-assisted second pass for a local-folder pick (desktop only). */
 export async function refineFolderSettings(
   input: DetectFolderSettingsInput,
-  baseline: DetectedSettings
+  baseline: DetectedSettings,
+  appPath?: string
 ): Promise<DetectRepoSettingsResult> {
   if (!isLocalBuild) return { ok: false }
   try {
     const fs = new DiskDetectFileSystem(input.localPath)
-    return await refineWithModel(fs, baseline)
+    return await refineWithModel(fs, baseline, appPath)
   } catch {
     return { ok: false }
   }
@@ -116,13 +126,18 @@ export async function refineFolderSettings(
 
 async function refineWithModel(
   fs: DetectFileSystem,
-  baseline: DetectedSettings
+  baseline: DetectedSettings,
+  appPath: string | undefined
 ): Promise<DetectRepoSettingsResult> {
   const fixtureReply = await fixtureModelReply()
-  const settings = await detectSettingsWithModel(fs, baseline, (opts) =>
-    fixtureReply !== undefined
-      ? Promise.resolve(fixtureReply)
-      : runOneShotModel({ ...opts, timeoutMs: MODEL_DETECTION_TIMEOUT_MS })
+  const settings = await detectSettingsWithModel(
+    fs,
+    baseline,
+    (opts) =>
+      fixtureReply !== undefined
+        ? Promise.resolve(fixtureReply)
+        : runOneShotModel({ ...opts, timeoutMs: MODEL_DETECTION_TIMEOUT_MS }),
+    appPath
   )
   return settings ? { ok: true, settings } : { ok: false }
 }

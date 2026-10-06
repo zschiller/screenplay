@@ -9,7 +9,11 @@ import {
 } from "@netlify/build-info"
 
 import type { DetectFileSystem } from "@/lib/add-repo/detect-fs"
-import type { DetectedSettings } from "@/lib/add-repo/resolver"
+import type {
+  DetectedApp,
+  DetectedProject,
+  DetectedSettings,
+} from "@/lib/add-repo/resolver"
 import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
 
 /**
@@ -28,8 +32,9 @@ import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
  * - framework default port → dev server port
  *
  * Env vars, frame size, and the system prompt are never detected. For a
- * monorepo, build-info yields one settings entry per workspace package; v1
- * takes the top-level/primary detection (see {@link pickPrimary}).
+ * monorepo, build-info yields one settings entry per workspace package; each
+ * becomes a {@link DetectedApp} the add modal offers in its App picker, and
+ * the settings are the first app's (see {@link sortApps}).
  */
 
 /** Today's plain defaults — the no-op result for an unrecognized project. */
@@ -41,7 +46,7 @@ const PLAIN_DEFAULTS: DetectedSettings = {
 
 export async function detectSettings(
   fs: DetectFileSystem
-): Promise<DetectedSettings> {
+): Promise<DetectedProject> {
   try {
     const project = new Project(new BuildInfoFileSystem(fs), "/")
     // Detection reports through bugsnag by default; a virtual FS has nothing to
@@ -52,30 +57,65 @@ export async function detectSettings(
     // shape each framework's dev command, so the order matters.
     const packageManager = await project.detectPackageManager()
     const settings = await project.getBuildSettings()
-    const primary = pickPrimary(settings)
+    const apps = listApps(settings)
+    // A root-level detection is a single-app repo, whatever packages sit
+    // beside it; otherwise the first app (apps/ before packages/) leads.
+    const root = settings.find((s) => !s.packagePath)
+    const primary = root ? appFrom(root, "") : apps[0]
 
     return {
       setupScript: packageManager?.installCommand ?? PLAIN_DEFAULTS.setupScript,
-      devScript: primary?.devCommand ?? PLAIN_DEFAULTS.devScript,
-      devServerPort: primary?.frameworkPort ?? PLAIN_DEFAULTS.devServerPort,
+      devScript: primary?.devScript ?? PLAIN_DEFAULTS.devScript,
+      devServerPort: primary?.devServerPort ?? PLAIN_DEFAULTS.devServerPort,
+      apps: root ? [] : apps,
     }
   } catch {
     // A total seam: a malformed project or a detector that throws falls back to
     // today's defaults rather than surfacing an error — the modal's "couldn't
     // auto-detect" path is driven by the caller's timeout, not by this throwing.
-    return { ...PLAIN_DEFAULTS }
+    return { ...PLAIN_DEFAULTS, apps: [] }
   }
 }
 
 /**
- * The top-level/primary settings entry. A monorepo returns one per workspace
- * package, keyed by `packagePath`; prefer a root-level detection (no package
- * path) when one exists, else the first entry build-info returned — a stable,
- * deterministic pick. Choosing a specific workspace is a manual adjustment in
- * the advanced section (a later slice), not something detection infers.
+ * One app per workspace package build-info recognized, in picker order. A
+ * package can match more than one framework; its first match wins, the same
+ * one build-info would run.
  */
-function pickPrimary(settings: Settings[]): Settings | undefined {
-  return settings.find((s) => !s.packagePath) ?? settings[0]
+function listApps(settings: Settings[]): DetectedApp[] {
+  const byPath = new Map<string, DetectedApp>()
+  for (const entry of settings) {
+    const path = entry.packagePath?.replace(/^\/+|\/+$/g, "")
+    if (!path || byPath.has(path)) continue
+    byPath.set(path, appFrom(entry, path))
+  }
+  return sortApps([...byPath.values()])
+}
+
+function appFrom(entry: Settings, path: string): DetectedApp {
+  return {
+    name: path.split("/").pop() ?? path,
+    path,
+    framework: entry.framework?.name ?? "",
+    devScript: entry.devCommand ?? PLAIN_DEFAULTS.devScript,
+    devServerPort: entry.frameworkPort ?? PLAIN_DEFAULTS.devServerPort,
+  }
+}
+
+/**
+ * Picker order: `apps/` first, `packages/` last, any other folder between,
+ * then by path. build-info lists packages in workspace-glob order, which can
+ * put a component playground in `packages/` ahead of the real app — the first
+ * entry here is the one the modal suggests.
+ */
+export function sortApps(apps: DetectedApp[]): DetectedApp[] {
+  const rank = (path: string) => {
+    const top = path.split("/")[0]
+    return top === "apps" ? 0 : top === "packages" ? 2 : 1
+  }
+  return [...apps].sort(
+    (a, b) => rank(a.path) - rank(b.path) || a.path.localeCompare(b.path)
+  )
 }
 
 /**
