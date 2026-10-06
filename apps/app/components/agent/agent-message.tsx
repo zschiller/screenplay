@@ -99,6 +99,9 @@ import { chatStore } from "@/lib/chat-store"
 import { inputStore } from "@/lib/input-store"
 import { diffLines, foldContext } from "@/lib/agent/line-diff"
 import { InlineRef } from "@/components/agent/inline-ref"
+import { LayerHoverCard } from "@/components/agent/layer-hover-card"
+import { SkillHoverCard } from "@/components/agent/skill-hover-card"
+import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import {
   WorkspacePrBadge,
   WorkspaceStateGlyph,
@@ -1118,9 +1121,11 @@ function selectNamedLayer(id: string) {
 function MockupRef({ id }: { id: string }) {
   const title = useMockupTitle(id)
   return (
-    <InlineRef kind="mockup" onClick={() => selectNamedLayer(id)}>
-      {title || "Mockup"}
-    </InlineRef>
+    <LayerHoverCard kind="mockup" id={id}>
+      <InlineRef kind="mockup" onClick={() => selectNamedLayer(id)}>
+        {title || "Mockup"}
+      </InlineRef>
+    </LayerHoverCard>
   )
 }
 
@@ -1265,14 +1270,20 @@ function UserBubble({
         // Inline references, as the composer draws them: a `/`-skill keeps
         // its `/`; an `@`-document trades its `@` for the document icon.
         if (typeof href === "string" && href.startsWith("skill:")) {
-          return <InlineRef kind="skill">{children}</InlineRef>
+          return (
+            <SkillHoverCard name={href.slice("skill:".length)}>
+              <InlineRef kind="skill">{children}</InlineRef>
+            </SkillHoverCard>
+          )
         }
         if (typeof href === "string" && href.startsWith("mention:")) {
           const id = href.slice("mention:".length)
           return (
-            <InlineRef kind="document" onClick={() => selectNamedLayer(id)}>
-              {stripAt(children)}
-            </InlineRef>
+            <LayerHoverCard kind="document" id={id}>
+              <InlineRef kind="document" onClick={() => selectNamedLayer(id)}>
+                {stripAt(children)}
+              </InlineRef>
+            </LayerHoverCard>
           )
         }
         // A drawn Mockup, by its live title.
@@ -1371,12 +1382,14 @@ function AssistantMessage({ content }: { content: string }) {
         if (layer) {
           const onShow = tasks?.onShow
           return (
-            <InlineRef
-              kind={layer.kind}
-              onClick={onShow && (() => onShow(layer.id))}
-            >
-              {children}
-            </InlineRef>
+            <LayerHoverCard kind={layer.kind} id={layer.id}>
+              <InlineRef
+                kind={layer.kind}
+                onClick={onShow && (() => onShow(layer.id))}
+              >
+                {children}
+              </InlineRef>
+            </LayerHoverCard>
           )
         }
         if (
@@ -1394,16 +1407,20 @@ function AssistantMessage({ content }: { content: string }) {
         if (!tasks || !facts || !branch) return <span>{children}</span>
         // Led by the Workspace's state; it opens the Workspace in place.
         return (
-          <InlineRef
-            kind="workspace"
-            data-testid="workspace-link"
-            icon={
-              <WorkspaceStateGlyph line={workspaceState(branch, facts).line} />
-            }
-            onClick={() => tasks.onOpen({ branchId })}
-          >
-            {children}
-          </InlineRef>
+          <WorkspaceHoverCard branchId={branchId} side="bottom" align="start">
+            <InlineRef
+              kind="workspace"
+              data-testid="workspace-link"
+              icon={
+                <WorkspaceStateGlyph
+                  line={workspaceState(branch, facts).line}
+                />
+              }
+              onClick={() => tasks.onOpen({ branchId })}
+            >
+              {children}
+            </InlineRef>
+          </WorkspaceHoverCard>
         )
       },
     }),

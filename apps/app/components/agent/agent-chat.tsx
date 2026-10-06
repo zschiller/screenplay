@@ -61,7 +61,9 @@ import { questionAnswers } from "@/lib/agent/question"
 import { planProposalOutcomes } from "@/lib/agent/coordinator-plan"
 import { useChatSenders } from "@/hooks/use-chat-senders"
 import { targetingStore } from "@/lib/targeting-store"
-import { useModelCatalog } from "@/lib/use-model-catalog"
+import { useModelCatalog, useSkillIndex } from "@/lib/use-model-catalog"
+import type { SkillSource } from "@/lib/skills-store"
+import { SkillIndexContext } from "./skill-hover-card"
 import { isLocalBuild } from "@/lib/local-mode"
 import {
   chatQuoteStore,
@@ -181,6 +183,30 @@ export function AgentChat({
   // What the Composer offers and how the empty chat reads, for this chat's
   // Chat Target kind (skills, plan mode and element picking need a sandbox).
   const capabilities = chatCapabilitiesOf(target)
+  // The `/` menu lists the Skills this chat reads: a Workspace's Repo
+  // Skills, the canvas's and the App Skills its kind sees, fetched when the
+  // chat opens (so reopening after a Skill changes refreshes it). The same
+  // index gives the Skills sent messages name their hover cards.
+  const skillSource = useMemo<SkillSource | undefined>(
+    () =>
+      capabilities.skills
+        ? {
+            sandboxName: capabilities.skillSandboxName,
+            roomId,
+            chat: capabilities.skillChat,
+            // The desktop agent's own Skills (#1560) follow the model.
+            ...(isLocalBuild ? { model: effectiveModel } : {}),
+          }
+        : undefined,
+    [
+      capabilities.skills,
+      capabilities.skillSandboxName,
+      capabilities.skillChat,
+      roomId,
+      effectiveModel,
+    ]
+  )
+  const { skills } = useSkillIndex(skillSource)
 
   // Keep the message list pinned to the bottom as content resolves —
   // react-markdown / code blocks / streaming tokens all change the height
@@ -454,98 +480,100 @@ export function AgentChat({
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-        <div ref={scrollContentRef} className="flex min-h-full flex-col p-4">
-          {setup ? (
-            <div className="m-auto">{setup}</div>
-          ) : isLoadingHistory ? (
-            <div className="m-auto flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Spinner className="size-3" />
-              Loading chat…
-            </div>
-          ) : historyFailed && messages.length === 0 && !failedSend ? (
-            <ChatLoadError onRetry={retryHistory} />
-          ) : messages.length === 0 && !failedSend ? (
-            <ChatEmptyState
-              capabilities={capabilities}
-              roomStart={roomStart}
-              onPickStarter={(text) => composerRef.current?.insertText(text)}
-            />
-          ) : (
-            <div className="space-y-5">
-              {stackTaskRows(
-                foldFinishedTurns(
-                  foldFrameDrives(
-                    groupToolCalls(
-                      // Every chat leaves out a harness's own plumbing.
-                      messages.filter((m) => !isHarnessPlumbing(m))
-                    )
+      <SkillIndexContext.Provider value={skills}>
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+          <div ref={scrollContentRef} className="flex min-h-full flex-col p-4">
+            {setup ? (
+              <div className="m-auto">{setup}</div>
+            ) : isLoadingHistory ? (
+              <div className="m-auto flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Spinner className="size-3" />
+                Loading chat…
+              </div>
+            ) : historyFailed && messages.length === 0 && !failedSend ? (
+              <ChatLoadError onRetry={retryHistory} />
+            ) : messages.length === 0 && !failedSend ? (
+              <ChatEmptyState
+                capabilities={capabilities}
+                roomStart={roomStart}
+                onPickStarter={(text) => composerRef.current?.insertText(text)}
+              />
+            ) : (
+              <div className="space-y-5">
+                {stackTaskRows(
+                  foldFinishedTurns(
+                    foldFrameDrives(
+                      groupToolCalls(
+                        // Every chat leaves out a harness's own plumbing.
+                        messages.filter((m) => !isHarnessPlumbing(m))
+                      )
+                    ),
+                    {
+                      streaming: isStreaming,
+                      liveFrom: runStart,
+                    }
                   ),
-                  {
-                    streaming: isStreaming,
-                    liveFrom: runStart,
-                  }
-                ),
-                workspaceTasks != null
-              ).map((item) =>
-                item.kind === "turn-summary" ? (
-                  <TurnSummaryRow
-                    key={`summary-${item.index}`}
-                    summary={item.summary}
-                  >
-                    {item.steps.map((entry) => renderEntry(entry))}
-                  </TurnSummaryRow>
-                ) : item.kind === "task-rows" ? (
-                  <div
-                    key={`tasks-${item.entries[0].index}`}
-                    className="flex flex-col gap-1"
-                  >
-                    {item.entries.map((entry) => renderEntry(entry))}
-                  </div>
-                ) : (
-                  renderEntry(item.entry)
-                )
-              )}
-              {/* The run's in-progress cue, held until the run settles. Before
+                  workspaceTasks != null
+                ).map((item) =>
+                  item.kind === "turn-summary" ? (
+                    <TurnSummaryRow
+                      key={`summary-${item.index}`}
+                      summary={item.summary}
+                    >
+                      {item.steps.map((entry) => renderEntry(entry))}
+                    </TurnSummaryRow>
+                  ) : item.kind === "task-rows" ? (
+                    <div
+                      key={`tasks-${item.entries[0].index}`}
+                      className="flex flex-col gap-1"
+                    >
+                      {item.entries.map((entry) => renderEntry(entry))}
+                    </div>
+                  ) : (
+                    renderEntry(item.entry)
+                  )
+                )}
+                {/* The run's in-progress cue, held until the run settles. Before
                   any text streams (and between tool calls) it says "Thinking…";
                   once the assistant is writing, the grid alone trails the
                   message, so the reply never looks finished while it grows. */}
-              {isStreaming && !quietWake && (
-                <div
-                  role="status"
-                  data-testid="run-in-progress"
-                  className="flex items-center gap-1.5 text-sm text-muted-foreground"
-                >
-                  <GripSpinner className="size-4" />
-                  {lastRole === "assistant" ? (
-                    <span className="sr-only">Responding…</span>
-                  ) : (
-                    "Thinking…"
-                  )}
-                </div>
-              )}
-              {pendingSteers.map((steer) => (
-                <PendingSteerNotice
-                  key={steer.key}
-                  turn={steer.turn}
-                  roomId={roomId}
-                  chatId={chatId}
-                />
-              ))}
-              {failedSend && (
-                <FailedSendNotice
-                  turn={sentTurn(failedSend.options)}
-                  error={failedSend.error}
-                  roomId={roomId}
-                  chatId={chatId}
-                  onRetry={() => void retryFailedSend()}
-                  onEdit={() => restoreToComposer(takeFailedSend())}
-                />
-              )}
-            </div>
-          )}
+                {isStreaming && !quietWake && (
+                  <div
+                    role="status"
+                    data-testid="run-in-progress"
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground"
+                  >
+                    <GripSpinner className="size-4" />
+                    {lastRole === "assistant" ? (
+                      <span className="sr-only">Responding…</span>
+                    ) : (
+                      "Thinking…"
+                    )}
+                  </div>
+                )}
+                {pendingSteers.map((steer) => (
+                  <PendingSteerNotice
+                    key={steer.key}
+                    turn={steer.turn}
+                    roomId={roomId}
+                    chatId={chatId}
+                  />
+                ))}
+                {failedSend && (
+                  <FailedSendNotice
+                    turn={sentTurn(failedSend.options)}
+                    error={failedSend.error}
+                    roomId={roomId}
+                    chatId={chatId}
+                    onRetry={() => void retryFailedSend()}
+                    onEdit={() => restoreToComposer(takeFailedSend())}
+                  />
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </SkillIndexContext.Provider>
 
       {/* Input. An earlier chat is read-only (#1315): only the Workspace's
           own chat sends. */}
@@ -568,21 +596,7 @@ export function AgentChat({
           ref={composerRef}
           markdownLayers={markdownLayers}
           attach={attach}
-          // The `/` menu lists the Skills this chat reads: a Workspace's
-          // Repo Skills, the canvas's and the App Skills its kind sees,
-          // fetched when the chat opens (so reopening after a Skill changes
-          // refreshes it).
-          skillSource={
-            capabilities.skills
-              ? {
-                  sandboxName: capabilities.skillSandboxName,
-                  roomId,
-                  chat: capabilities.skillChat,
-                  // The desktop agent's own Skills (#1560) follow the model.
-                  ...(isLocalBuild ? { model: effectiveModel } : {}),
-                }
-              : undefined
-          }
+          skillSource={skillSource}
           model={model}
           onModelChange={handleModelChange}
           planMode={planMode}
