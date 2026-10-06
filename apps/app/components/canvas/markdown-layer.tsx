@@ -98,6 +98,7 @@ import {
 import {
   LayerShell,
   LAYER_SURFACE_CLASS,
+  useLayerSurface,
   type LayerPlacement,
 } from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
@@ -436,6 +437,7 @@ function MarkdownLayerImpl({
   )
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
+  useLayerSurface(rootRef)
 
   // Images: paste, drop and Upload image save into the canvas's files under
   // `uploads/`, as chat attachments do, and Image from files picks one there

@@ -34,6 +34,7 @@ import {
 import {
   LayerShell,
   LAYER_SURFACE_CLASS,
+  useLayerSurface,
   type LayerPlacement,
 } from "@/components/canvas/layer-shell"
 import type { MockupLayerData } from "@/lib/types"
@@ -269,6 +270,7 @@ function MockupLayerImpl({
   const runtime = useMockupRuntime()
   const resources = useMockupRefs(layer.id, html)
   const containerRef = useRef<HTMLDivElement>(null)
+  useLayerSurface(containerRef)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
