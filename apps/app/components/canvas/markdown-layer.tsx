@@ -55,6 +55,7 @@ import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import { buildLayerMentionSuggestion } from "@/lib/layer-mention-suggestion"
 import { DOCUMENT_BLOCK_TYPES } from "@/lib/document-block-types"
 import { useMentionCandidates } from "@/lib/document-mentions"
+import { editorAwareness } from "@/lib/yjs/editor-awareness"
 import { DocumentMention, documentExtensions } from "@/lib/document-markdown"
 import { MENTION_KIND_REGISTRY, mentionKindOf } from "@/lib/mention-kinds"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
@@ -428,7 +429,11 @@ function MarkdownLayerImpl({
   }
   useRegisterLayerMenu(layer.id, menuActions)
   const showMenu = !!onRemove && selected && !multiSelected && !editing
-  const provider = useMemo(() => ({ awareness }), [awareness])
+  // Carets only: the pointer moving changes the awareness on every move.
+  const provider = useMemo(
+    () => ({ awareness: editorAwareness(awareness) }),
+    [awareness]
+  )
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
 

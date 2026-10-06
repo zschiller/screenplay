@@ -1,3 +1,5 @@
+import { useState } from "react"
+
 /**
  * Keeps per-item props referentially stable across renders that don't change
  * them, so a list of `memo`-wrapped items (the canvas's Layers) bails out
@@ -102,4 +104,14 @@ function shallowEqual(a: unknown, b: unknown): boolean {
   const keys = Object.keys(a)
   if (keys.length !== Object.keys(b).length) return false
   return keys.every((k) => Object.hasOwn(b, k) && Object.is(a[k], b[k]))
+}
+
+/**
+ * One value kept stable across renders by {@link StableProps}: the same
+ * object until something in it changes, its functions stubs that call the
+ * latest.
+ */
+export function useStableValue<T>(value: T): T {
+  const [stable] = useState(() => new StableProps())
+  return stable.value("value", value)
 }

@@ -82,6 +82,43 @@ export function useMockupLayers(): Array<MockupLayerData> {
   return useCollectionArray(useRoomCollections().mockupLayers)
 }
 
+/** A Layer as a list of names reads it: its id and title. */
+export type TitledLayerName = { id: string; title: string }
+
+/**
+ * The ids and titles of a collection's Layers. Unlike the whole array, it
+ * keeps its identity while a Layer only resizes, scrolls or changes its page
+ * state, so a component that lists names doesn't re-render on every step of
+ * a resize.
+ */
+function useCollectionTitles(
+  collection: YjsCollection<MarkdownLayerData> | YjsCollection<MockupLayerData>
+): TitledLayerName[] {
+  const last = useRef<TitledLayerName[]>([])
+  const subscribe = useCallback(
+    (cb: () => void) => collection.observe(cb),
+    [collection]
+  )
+  const getSnapshot = useCallback(() => {
+    const items = collection.toArray()
+    const prev = last.current
+    const same =
+      items.length === prev.length &&
+      items.every((d, i) => d.id === prev[i]!.id && d.title === prev[i]!.title)
+    if (!same) last.current = items.map(({ id, title }) => ({ id, title }))
+    return last.current
+  }, [collection])
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+export function useMarkdownLayerTitles(): TitledLayerName[] {
+  return useCollectionTitles(useRoomCollections().markdownLayers)
+}
+
+export function useMockupLayerTitles(): TitledLayerName[] {
+  return useCollectionTitles(useRoomCollections().mockupLayers)
+}
+
 /**
  * A Mockup Layer's title, kept current as it changes: `""` while untitled,
  * `undefined` once deleted or outside a room.

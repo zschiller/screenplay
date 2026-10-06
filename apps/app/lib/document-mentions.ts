@@ -10,8 +10,8 @@ import {
 import {
   useBranches,
   useChatSessions,
-  useMarkdownLayers,
-  useMockupLayers,
+  useMarkdownLayerTitles,
+  useMockupLayerTitles,
 } from "@/lib/yjs/react"
 
 /**
@@ -21,10 +21,10 @@ import {
 export function useMentionCandidates({
   excludeId,
 }: { excludeId?: string } = {}): MentionCandidate[] {
-  const documents = useMarkdownLayers()
+  const documents = useMarkdownLayerTitles()
   const branches = useBranches()
   const chatSessions = useChatSessions()
-  const mockups = useMockupLayers()
+  const mockups = useMockupLayerTitles()
   return useMemo(
     () =>
       mentionCandidates(
@@ -43,10 +43,10 @@ export function useMentionTargetLabel(
   kind: MentionKind,
   id: string
 ): string | undefined {
-  const docs = useMarkdownLayers()
+  const docs = useMarkdownLayerTitles()
   const branches = useBranches()
   const sessions = useChatSessions()
-  const mockups = useMockupLayers()
+  const mockups = useMockupLayerTitles()
   return mentionTargetLabel(kind, id, {
     document: (docId) => docs.find((d) => d.id === docId),
     mockup: (mockupId) => mockups.find((m) => m.id === mockupId),

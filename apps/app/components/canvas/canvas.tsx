@@ -101,9 +101,10 @@ import { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 
 import {
   RoomSidebar,
+  type SidebarFrame,
   type SidebarLayerGroup,
 } from "@/components/panels/room-sidebar"
-import { StableProps } from "@/lib/canvas/stable-props"
+import { StableProps, useStableValue } from "@/lib/canvas/stable-props"
 
 import { useBranchPrs } from "@/hooks/use-branch-prs"
 
@@ -1480,10 +1481,20 @@ export function Canvas({
     mockupPanelRef.current = { chatTarget, openWorkspaceChat, addChatSession }
   })
   const answeredFromPages = useRef(new Set<string>())
+  // Only what the link reads of each Mockup, so a Mockup resizing, scrolling
+  // or turning a knob doesn't rebuild the link and re-render every Mockup.
+  const mockupLinkMockups = useStableValue(
+    mockupLayers.map(({ id, title, lastChangedByChatId, ownerChatId }) => ({
+      id,
+      title,
+      lastChangedByChatId,
+      ownerChatId,
+    }))
+  )
   const mockupChatLink = useMemo(
     () =>
       createMockupChatLink({
-        mockups: mockupLayers,
+        mockups: mockupLinkMockups,
         chats: chatSessions,
         transcripts: {
           messages: (chatId) => chatStore.getSnapshot(chatId).messages,
@@ -1523,7 +1534,7 @@ export function Canvas({
         draftSource: chatDraftSourceStore,
         answered: answeredFromPages.current,
       }),
-    [mockupLayers, chatSessions]
+    [mockupLinkMockups, chatSessions]
   )
 
   // Deleting a chat with no repository: the panel goes home if it showed it,
@@ -2045,11 +2056,30 @@ export function Canvas({
       ),
     [sortedIframeLayerGroups]
   )
+  // Only what the rows show, so the sidebar skips a resize or scroll too.
+  const sidebarFrames = useMemo(
+    () =>
+      iframeLayers.map(({ id, branchId, label, route }): SidebarFrame => ({
+        id,
+        branchId,
+        label,
+        route,
+      })),
+    [iframeLayers]
+  )
+  const sidebarDocuments = useMemo(
+    () => markdownLayers.map(({ id, title }) => ({ id, title })),
+    [markdownLayers]
+  )
+  const sidebarMockups = useMemo(
+    () => mockupLayers.map(({ id, title }) => ({ id, title })),
+    [mockupLayers]
+  )
   const sidebarProps = sidebarStable.value("sidebar", {
     branches: agents,
-    iframeLayers,
-    markdownLayers,
-    mockupLayers,
+    iframeLayers: sidebarFrames,
+    markdownLayers: sidebarDocuments,
+    mockupLayers: sidebarMockups,
     iframeLayerGroups: sidebarGroups,
     selectedIframeLayerIds,
     selectedGroupIds,
