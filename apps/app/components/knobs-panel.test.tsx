@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { KnobsPanel, knobSections } from "./knobs-panel"
+import {
+  KnobsPanel,
+  knobSections,
+  labelHead,
+  labelLastWord,
+} from "./knobs-panel"
 
 class ResizeObserverStub {
   observe() {}
@@ -125,6 +130,42 @@ describe("KnobsPanel layout", () => {
     expect(
       (await screen.findAllByText("Buttons, cards and inputs")).length
     ).toBeGreaterThan(0)
+  })
+
+  it("keeps a label's info icon on the line of its last word", () => {
+    render(
+      <KnobsPanel
+        knobs={[
+          {
+            type: "boolean",
+            id: "logos",
+            label: "Show customer logos",
+            description: "The logo strip under the hero",
+            default: true,
+          },
+        ]}
+        values={{}}
+        onChange={() => {}}
+        empty={null}
+      />
+    )
+    const icon = screen.getByRole("button", {
+      name: "About Show customer logos",
+    })
+    const nowrap = icon.parentElement!
+    expect(nowrap.className).toContain("whitespace-nowrap")
+    expect(nowrap.textContent).toBe("logos")
+    expect(nowrap.parentElement!.textContent).toBe("Show customer logos")
+    // Not a <label>, which would click the icon from anywhere on the text.
+    expect(icon.closest("label")).toBeNull()
+  })
+
+  it("splits a label before its last word", () => {
+    expect([
+      labelHead("Show customer logos"),
+      labelLastWord("Show customer logos"),
+    ]).toEqual(["Show customer ", "logos"])
+    expect([labelHead("Theme"), labelLastWord("Theme")]).toEqual(["", "Theme"])
   })
 
   it("shows a colour knob as its hex value", () => {

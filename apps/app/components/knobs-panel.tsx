@@ -214,19 +214,41 @@ function KnobRow({ def, value, onChange, divided }: KnobRowProps) {
         divided && "border-b border-foreground/5"
       )}
     >
-      {/* Inline, so a label too long for its column wraps with the info
-          icon following its last word. */}
-      <div className="min-w-0 text-sm leading-4">
-        <Label className="inline text-sm leading-4">{label}</Label>
+      {/* Inline, so a label too long for its column wraps, and the info
+          icon stays on the line of the label's last word. A span, not a
+          <label>: one holding the icon's button would click it. Its own
+          padding keeps a wrapped label as far from the row's edges as a
+          one-line label is (12px), and leaves one-line rows at 40px. */}
+      <div className="min-w-0 py-1.5 text-sm leading-4">
         {description ? (
-          <KnobDescription label={label} description={description} />
-        ) : null}
+          <Label asChild className="inline text-sm leading-4">
+            <span>
+              {labelHead(label)}
+              <span className="whitespace-nowrap">
+                {labelLastWord(label)}
+                <KnobDescription label={label} description={description} />
+              </span>
+            </span>
+          </Label>
+        ) : (
+          <Label className="inline text-sm leading-4">{label}</Label>
+        )}
       </div>
       <div className="flex min-w-0 items-center justify-end gap-2.5">
         <KnobControl def={def} value={value} onChange={onChange} />
       </div>
     </div>
   )
+}
+
+/** A label up to and including the space before its last word. */
+export function labelHead(label: string): string {
+  return label.replace(/\S+\s*$/, "")
+}
+
+/** A label's last word, which its info icon never wraps away from. */
+export function labelLastWord(label: string): string {
+  return label.slice(labelHead(label).length).trimEnd()
 }
 
 /**
