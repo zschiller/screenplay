@@ -390,21 +390,70 @@ describe("LivePageContent while resizing", () => {
   const widthOf = () =>
     (document.querySelector("iframe") as HTMLIFrameElement).style.width
 
-  it("resizes the page at once, then holds it until a run of sizes pauses", () => {
-    vi.useFakeTimers()
+  const fakeFrames = () =>
+    vi.useFakeTimers({
+      toFake: [
+        "setTimeout",
+        "clearTimeout",
+        "requestAnimationFrame",
+        "cancelAnimationFrame",
+        "performance",
+      ],
+    })
+
+  it("follows a resize on the next frame, every frame", () => {
+    fakeFrames()
     try {
       const source = SOURCES.frame
       const { rerender } = render(<Harness source={source} />)
       expect(widthOf()).toBe("calc(100% + 0px)")
       rerender(<Harness source={source} width={410} />)
+      act(() => vi.advanceTimersByTime(16))
       expect(widthOf()).toBe("calc(100% + 0px)")
       rerender(<Harness source={source} width={420} />)
-      rerender(<Harness source={source} width={430} />)
-      expect(widthOf()).toBe("calc(100% - 20px)")
-      act(() => vi.advanceTimersByTime(150))
+      act(() => vi.advanceTimersByTime(16))
       expect(widthOf()).toBe("calc(100% + 0px)")
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it("waits out a long frame, but never past the cap", () => {
+    // Frames by hand, each at the time we say.
+    let pending: FrameRequestCallback | null = null
+    let clock = 0
+    vi.spyOn(performance, "now").mockImplementation(() => clock)
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      pending = cb
+      return 1
+    })
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {})
+    const frame = (ms: number) => {
+      clock += ms
+      const cb = pending
+      pending = null
+      act(() => cb?.(clock))
+    }
+    try {
+      const source = SOURCES.frame
+      const { rerender } = render(<Harness source={source} />)
+      rerender(<Harness source={source} width={410} />)
+      frame(16)
+      expect(widthOf()).toBe("calc(100% + 0px)")
+      // The page took a while to lay out: the next size waits for a short
+      // frame…
+      rerender(<Harness source={source} width={430} />)
+      frame(60)
+      expect(widthOf()).toBe("calc(100% - 20px)")
+      frame(16)
+      expect(widthOf()).toBe("calc(100% + 0px)")
+      // …or the cap, however long the frames run.
+      rerender(<Harness source={source} width={450} />)
+      frame(60)
+      frame(60)
+      expect(widthOf()).toBe("calc(100% + 0px)")
+    } finally {
+      vi.restoreAllMocks()
     }
   })
 })
