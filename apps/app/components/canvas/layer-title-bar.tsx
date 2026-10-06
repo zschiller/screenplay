@@ -1,6 +1,15 @@
 "use client"
 
-import { useMemo, useRef, type Ref } from "react"
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type Ref,
+} from "react"
+import { createPortal } from "react-dom"
 import { cn } from "@workspace/ui/lib/utils"
 import {
   EditableText,
@@ -11,6 +20,14 @@ import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import { showsLayerDetail } from "@/lib/canvas/camera"
 import { GroupLabel, type GroupLabelValue } from "./group-label"
 import { LabelFitContext, useLabelChatHidden } from "./label-chat"
+import {
+  LAYER_LABEL_ATTRIBUTE,
+  LabelLayerContext,
+  snapToDevicePixel,
+} from "./label-layer"
+
+/** Screen px between a label's bottom and its Layer's top edge. */
+const LABEL_GAP = 4
 
 interface LayerTitleBarProps {
   /** Identifies which layer to lift when the user starts a reorder gesture
@@ -19,6 +36,11 @@ interface LayerTitleBarProps {
   /** Underlying tile width in canvas units — clamps the bar so it can't
    *  extend past the tile's footprint. */
   layerWidth: number
+  /** The Layer's top-left in world units, where the label sits on screen. */
+  worldX: number
+  worldY: number
+  /** Paint order among labels, the Layer's own. */
+  zIndex?: number
   zoom: number
   /** Hides the bar, kept mounted so measurements and rename state survive. */
   hidden?: boolean
@@ -58,8 +80,9 @@ interface LayerTitleBarProps {
  * Shared title-bar wrapper rendered above a canvas layer (frame or doc).
  *
  * Owns the cross-cutting behavior:
- *  - The absolute-positioned, `scale(1/zoom)` wrapper that keeps the bar at a
- *    constant screen size regardless of canvas zoom.
+ *  - Drawing the bar at UI scale in the canvas's label layer (see
+ *    `label-layer.ts`), placed above the Layer from the live camera, so it
+ *    keeps one crisp screen size at every zoom.
  *  - Composing the caller's base drag handlers with `onRequestReorderDrag` so
  *    pointerdown from the bar enters a reorder drag for multi-member groups
  *    and falls back to a group-move drag for single-member groups.
@@ -75,6 +98,9 @@ interface LayerTitleBarProps {
 export function LayerTitleBar({
   layerId,
   layerWidth,
+  worldX,
+  worldY,
+  zIndex,
   zoom,
   hidden,
   dragHandlers,
@@ -117,53 +143,101 @@ export function LayerTitleBar({
     }
   }, [dragHandlers, onRequestReorderDrag, layerId])
 
-  return (
+  const labelLayer = useContext(LabelLayerContext)
+  const barRef = useRef<HTMLDivElement>(null)
+  const rowsRef = useRef<HTMLDivElement>(null)
+  const groupRowRef = useRef<HTMLDivElement>(null)
+  // What `place` reads, kept current on every render so a camera frame (which
+  // renders nothing) positions the label from the latest Layer geometry.
+  const geometry = useRef({
+    worldX,
+    worldY,
+    dx: reorderDragTranslateX ?? 0,
+    dy: reorderDragTranslateY ?? 0,
+    layerWidth,
+    groupWidth,
+    tag: !!tag,
+  })
+  useLayoutEffect(() => {
+    geometry.current = {
+      worldX,
+      worldY,
+      dx: reorderDragTranslateX ?? 0,
+      dy: reorderDragTranslateY ?? 0,
+      layerWidth,
+      groupWidth,
+      tag: !!tag,
+    }
+  })
+  // Put the label's bottom-left 4px above the Layer's top-left on screen, at
+  // whole device pixels, and size its rows to the Layer's on-screen width.
+  // Style writes only: this runs on every camera frame mid-pan and mid-zoom.
+  const place = useCallback(() => {
+    const bar = barRef.current
+    if (!bar || !labelLayer) return
+    const { x, y, zoom: z } = labelLayer.camera.get()
+    const g = geometry.current
+    const dpr = window.devicePixelRatio || 1
+    const left = snapToDevicePixel(x + (g.worldX + g.dx) * z, dpr)
+    const bottom = snapToDevicePixel(y + (g.worldY + g.dy) * z, dpr)
+    bar.style.transform = `translate(${left}px, ${bottom - LABEL_GAP}px) translateY(-100%)`
+    bar.style.maxWidth = `${g.groupWidth * z}px`
+    bar.style.width = g.tag ? `${g.layerWidth * z}px` : ""
+    if (rowsRef.current)
+      rowsRef.current.style.maxWidth = `${g.layerWidth * z}px`
+    if (groupRowRef.current)
+      groupRowRef.current.style.maxWidth = `${g.groupWidth * z}px`
+  }, [labelLayer])
+  useLayoutEffect(place)
+  useEffect(() => labelLayer?.camera.subscribe(place), [labelLayer, place])
+
+  // Off the canvas (no label layer: tests, play mode), the label sits in
+  // the Layer's own box and counter-scales with the deferred zoom.
+  const inline = !labelLayer
+  const groupDragTranslate =
+    reorderDragTranslateX != null || reorderDragTranslateY != null
+      ? `translate(${-(reorderDragTranslateX ?? 0) * zoom}px, ${-(reorderDragTranslateY ?? 0) * zoom}px)`
+      : undefined
+
+  const bar = (
     <LabelFitContext.Provider value={labelFit}>
       <div
+        ref={barRef}
+        {...{ [LAYER_LABEL_ATTRIBUTE]: layerId }}
         className={cn(
-          "canvas-frame-label group/title-bar absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap",
+          "canvas-frame-label group/title-bar absolute left-0 flex flex-col items-start whitespace-nowrap",
+          inline ? "bottom-full" : "top-0",
           // With a tag the bar spans the layer so the tag sits at its right
           // edge; only its contents take the pointer, not the gap between them.
-          tag && "pointer-events-none",
+          tag ? "pointer-events-none" : "pointer-events-auto",
           hidden && "invisible"
         )}
-        style={{
-          // `--label-promote` resolves to `translateZ(0)`, which lifts the label
-          // onto its own GPU layer so WebKit rasterizes this constant-size text at
-          // native resolution. Without it the label inherits the zoomed content
-          // layer's downsampled raster and turns unreadably blurry when zoomed in
-          // (WebKit only — Chrome re-rasterizes sharp). The label is tiny, so its
-          // own layer is cheap and hits no texture-size limit, unlike the 10000px
-          // content layer.
-          //
-          // The promotion is driven by a CSS var (not hard-coded) so the canvas
-          // can momentarily drop it on zoom-settle (`[data-zoom-settling]` in
-          // globals.css): the label's counter-scale keeps its on-screen size
-          // constant, so WebKit sees no scale change and reuses whatever texture
-          // it baked mid-gesture — often blurry. De-composing and re-composing on
-          // settle forces a fresh raster at the resting scale. See globals.css.
-          transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
-          transformOrigin: "bottom left",
-          maxWidth: groupWidth * zoom,
-          width: tag ? layerWidth * zoom : undefined,
-          marginBottom: 4 / zoom,
-        }}
+        style={
+          inline
+            ? {
+                transform: `scale(${1 / zoom})`,
+                transformOrigin: "bottom left",
+                maxWidth: groupWidth * zoom,
+                width: tag ? layerWidth * zoom : undefined,
+                marginBottom: LABEL_GAP / zoom,
+              }
+            : // Position and widths are written by `place`, per camera frame.
+              // Paint order among labels follows the Layers'.
+              { zIndex }
+        }
         data-compact={compact ? "" : undefined}
         {...labelDragHandlers}
       >
         {groupLabel && !reorderDragPopped && (
           <div
+            ref={groupRowRef}
             className="pointer-events-auto"
             style={{
-              maxWidth: groupWidth * zoom,
-              // The outer layer container is `translate(dx, dy)` in world
-              // units; this label sits inside a `scale(1/zoom)` wrapper, so
-              // its own local px need to be multiplied by `zoom` to produce
-              // the same world-space distance.
-              transform:
-                reorderDragTranslateX != null || reorderDragTranslateY != null
-                  ? `translate(${-(reorderDragTranslateX ?? 0) * zoom}px, ${-(reorderDragTranslateY ?? 0) * zoom}px)`
-                  : undefined,
+              maxWidth: inline ? groupWidth * zoom : undefined,
+              // The Layer (and so this label) is dragged `translate(dx, dy)` in
+              // world units; the Group's label stays at the source Group's
+              // origin, so undo the drag here in screen px.
+              transform: groupDragTranslate,
             }}
           >
             <LabelFitContext.Provider value={groupFit}>
@@ -191,8 +265,9 @@ export function LayerTitleBar({
           </div>
         ) : (
           <div
+            ref={rowsRef}
             className="flex flex-col items-start"
-            style={{ maxWidth: layerWidth * zoom }}
+            style={{ maxWidth: inline ? layerWidth * zoom : undefined }}
           >
             {children}
           </div>
@@ -200,6 +275,7 @@ export function LayerTitleBar({
       </div>
     </LabelFitContext.Provider>
   )
+  return inline ? bar : createPortal(bar, labelLayer.element)
 }
 
 interface LayerTitleTextProps {

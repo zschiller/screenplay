@@ -6,7 +6,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -262,6 +261,7 @@ import { CanvasTopBar } from "./canvas-top-bar"
 import { CanvasSettingsDialog } from "./canvas-settings-dialog"
 
 import { addMemory, editMemory, removeMemory } from "@/lib/memory/canvas"
+import { LabelLayerContext } from "./label-layer"
 import { LiveZoomContext } from "./live-zoom"
 
 import { ChatPanelHost } from "./chat-panel-host"
@@ -758,36 +758,33 @@ export function Canvas({
   // glide imperatively). Frozen, the overlays would lag the content and snap on
   // settle, so hide them for the duration of either gesture.
   const isCameraMoving = camera.isZooming || camera.isPanning
-  const isZooming = camera.isZooming
   const followingConnectionId = camera.followingConnectionId
 
-  // Frame-label re-raster on zoom-settle (fixes intermittent WebKit blur). The
-  // labels are GPU-promoted (`translateZ(0)`) to stay crisp against the zoomed
-  // content, but WebKit reuses the mid-gesture texture because their
-  // counter-scale leaves their on-screen size unchanged — no scale-change signal
-  // to re-raster. For two frames after a zoom ends we flag `data-zoom-settling`,
-  // which drops the promotion (globals.css) so each label de-composites, paints
-  // inline crisp at the resting scale, then re-composites into a fresh backing
-  // store. A layout effect flips it on before paint so no stale frame shows.
-  const wasZoomingRef = useRef(false)
-  const [zoomSettling, setZoomSettling] = useState(false)
-  useLayoutEffect(() => {
-    if (isZooming) {
-      wasZoomingRef.current = true
-      return
-    }
-    if (!wasZoomingRef.current) return
-    wasZoomingRef.current = false
-    setZoomSettling(true)
-    let inner = 0
-    const outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(() => setZoomSettling(false))
-    })
+  // The screen-space layer Layer labels draw in (see `label-layer.ts`): a
+  // sibling of the zoomed content inside rzpp's wrapper, so wheels, pans and
+  // canvas pointer routing that start on a label behave as on the canvas.
+  // rzpp attaches its wrapper in its own effect, which runs before this one.
+  const [labelLayerElement, setLabelLayerElement] =
+    useState<HTMLElement | null>(null)
+  useEffect(() => {
+    const wrapper = transformRef.current?.instance.wrapperComponent
+    if (!wrapper) return
+    const element = document.createElement("div")
+    element.className = "canvas-label-layer"
+    wrapper.appendChild(element)
+    setLabelLayerElement(element)
     return () => {
-      cancelAnimationFrame(outer)
-      cancelAnimationFrame(inner)
+      element.remove()
+      setLabelLayerElement(null)
     }
-  }, [isZooming])
+  }, [])
+  const labelLayer = useMemo(
+    () =>
+      labelLayerElement
+        ? { element: labelLayerElement, camera: camera.liveCamera }
+        : null,
+    [labelLayerElement, camera.liveCamera]
+  )
 
   // Per-frame dirty/ready bookkeeping for the thumbnail heartbeat (#474): the
   // Iframe Layers report their ready/HMR transitions into this tracker, and the
@@ -2359,91 +2356,86 @@ export function Canvas({
                 <CanvasContentContext.Provider
                   value={
                     <LiveZoomContext.Provider value={camera.liveZoom}>
-                      <div
-                        className="relative"
-                        style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
-                        // Hides frame labels mid-zoom (CSS in globals.css). They read
-                        // the deferred `zoom` for their counter-scale, so they'd
-                        // balloon/snap during a zoom — cheaper to hide than thread
-                        // `isZooming` down through every layer.
-                        data-zooming={isZooming || undefined}
-                        // For two frames after a zoom settles, drop each label's GPU
-                        // promotion so WebKit re-rasterizes it crisp at the resting
-                        // scale (see globals.css `.canvas-frame-label`).
-                        data-zoom-settling={zoomSettling || undefined}
-                      >
-                        <MockupChatLinkProvider value={mockupChatLink}>
-                          <CanvasMemberLayer
-                            iframeLayerGroups={iframeLayerGroups}
-                            iframeLayers={iframeLayers}
-                            markdownLayers={markdownLayers}
-                            documentWorkspaces={documentWorkspaces}
-                            workingChats={workingChats}
-                            mockupLayers={mockupLayers}
-                            selection={selection}
-                            onIframeWheel={camera.handleIframeWheel}
-                            reference={reference}
-                            reorderPreview={gesturePreview.reorder}
-                            gestureLayerHandlers={gestureLayerHandlers}
-                            effectiveIframeLayerLayouts={
-                              effectiveIframeLayerLayouts
-                            }
-                            iframeLayerLayouts={iframeLayerLayouts}
-                            groupZIndex={groupZIndex}
-                            groupDisplayNames={groupDisplayNames}
-                            placeholderRects={placeholderRects}
-                            placeholderTool={
-                              frameMode
-                                ? "frame"
-                                : documentMode
-                                  ? "document"
-                                  : null
-                            }
-                            onPlaceholderAdd={addAtPlaceholder}
-                            remoteSelectionColors={remoteSelectionColors}
-                            remoteGroupSelectionColors={
-                              remoteGroupSelectionColors
-                            }
-                            agentDomains={agentDomains}
-                            agents={agents}
-                            onRestartWorkspace={
-                              memberCallbacks.onRestartWorkspace
-                            }
-                            onOpenLogs={openBranchLogs}
-                            onStartChat={drawAsk.startFrameChat}
-                            askingIframeLayerId={askFrameId}
-                            repos={repos}
-                            zoom={zoom}
-                            spaceHeld={spaceHeld}
-                            commentMode={commentMode}
-                            pickActive={targeting.pickActive}
-                            dimmedIframeLayerIds={targeting.dimmedIds}
-                            selfName={self?.name || "Anonymous"}
-                            selfColor={self?.color || "#888888"}
-                            editingDocumentLayerId={editingDocumentLayerId}
-                            setEditingDocumentLayerId={
-                              setEditingDocumentLayerId
-                            }
-                            focusedIframeLayerId={focusedIframeLayerId}
-                            setFocusedIframeLayerId={setFocusedIframeLayerId}
-                            frameControl={frameControl}
-                            sharedFrames={sharedFrames}
-                            createFlowIframeLayerId={createFlowIframeLayerId}
-                            setCreateFlowIframeLayerId={
-                              setCreateFlowIframeLayerId
-                            }
-                            removeIframeLayer={removeIframeLayer}
-                            removeMockup={removeMockup}
-                            removeDocument={removeDocument}
-                            handlePlayIframeLayer={handlePlayIframeLayer}
-                            onAskForKnob={memberCallbacks.onAskForKnob}
-                            handleCaptureReadyChange={handleCaptureReadyChange}
-                            handleCaptureDirty={handleCaptureDirty}
-                            layerMutations={layerMutations}
-                            groupActions={groupActions}
-                          />
-                        </MockupChatLinkProvider>
-                      </div>
+                      <LabelLayerContext.Provider value={labelLayer}>
+                        <div
+                          className="relative"
+                          style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+                        >
+                          <MockupChatLinkProvider value={mockupChatLink}>
+                            <CanvasMemberLayer
+                              iframeLayerGroups={iframeLayerGroups}
+                              iframeLayers={iframeLayers}
+                              markdownLayers={markdownLayers}
+                              documentWorkspaces={documentWorkspaces}
+                              workingChats={workingChats}
+                              mockupLayers={mockupLayers}
+                              selection={selection}
+                              onIframeWheel={camera.handleIframeWheel}
+                              reference={reference}
+                              reorderPreview={gesturePreview.reorder}
+                              gestureLayerHandlers={gestureLayerHandlers}
+                              effectiveIframeLayerLayouts={
+                                effectiveIframeLayerLayouts
+                              }
+                              iframeLayerLayouts={iframeLayerLayouts}
+                              groupZIndex={groupZIndex}
+                              groupDisplayNames={groupDisplayNames}
+                              placeholderRects={placeholderRects}
+                              placeholderTool={
+                                frameMode
+                                  ? "frame"
+                                  : documentMode
+                                    ? "document"
+                                    : null
+                              }
+                              onPlaceholderAdd={addAtPlaceholder}
+                              remoteSelectionColors={remoteSelectionColors}
+                              remoteGroupSelectionColors={
+                                remoteGroupSelectionColors
+                              }
+                              agentDomains={agentDomains}
+                              agents={agents}
+                              onRestartWorkspace={
+                                memberCallbacks.onRestartWorkspace
+                              }
+                              onOpenLogs={openBranchLogs}
+                              onStartChat={drawAsk.startFrameChat}
+                              askingIframeLayerId={askFrameId}
+                              repos={repos}
+                              zoom={zoom}
+                              spaceHeld={spaceHeld}
+                              commentMode={commentMode}
+                              pickActive={targeting.pickActive}
+                              dimmedIframeLayerIds={targeting.dimmedIds}
+                              selfName={self?.name || "Anonymous"}
+                              selfColor={self?.color || "#888888"}
+                              editingDocumentLayerId={editingDocumentLayerId}
+                              setEditingDocumentLayerId={
+                                setEditingDocumentLayerId
+                              }
+                              focusedIframeLayerId={focusedIframeLayerId}
+                              setFocusedIframeLayerId={setFocusedIframeLayerId}
+                              frameControl={frameControl}
+                              sharedFrames={sharedFrames}
+                              createFlowIframeLayerId={createFlowIframeLayerId}
+                              setCreateFlowIframeLayerId={
+                                setCreateFlowIframeLayerId
+                              }
+                              removeIframeLayer={removeIframeLayer}
+                              removeMockup={removeMockup}
+                              removeDocument={removeDocument}
+                              handlePlayIframeLayer={handlePlayIframeLayer}
+                              onAskForKnob={memberCallbacks.onAskForKnob}
+                              handleCaptureReadyChange={
+                                handleCaptureReadyChange
+                              }
+                              handleCaptureDirty={handleCaptureDirty}
+                              layerMutations={layerMutations}
+                              groupActions={groupActions}
+                            />
+                          </MockupChatLinkProvider>
+                        </div>
+                      </LabelLayerContext.Provider>
                     </LiveZoomContext.Provider>
                   }
                 >

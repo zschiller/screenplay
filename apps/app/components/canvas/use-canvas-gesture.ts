@@ -32,6 +32,10 @@ import {
   type RouteGroup,
 } from "@/lib/canvas/route"
 import type { ResizeEdge } from "@/lib/canvas/snap"
+import {
+  LAYER_LABEL_ATTRIBUTE,
+  pressedLayerId,
+} from "@/components/canvas/label-layer"
 
 /** The gap handle the cursor hovers/drags — drives the wrapper's col-resize
  *  cursor. Owned by the controller; the render tree reads it for the cursor. */
@@ -272,9 +276,7 @@ export function useCanvasGesture(
         if (
           pressLeavesInteraction({
             interactingId: i.interactingLayerId,
-            pressedLayerId:
-              target.closest<HTMLElement>("[data-layer-id]")?.dataset.layerId ??
-              null,
+            pressedLayerId: pressedLayerId(target),
             onLayerToolbar: !!target.closest("#frame-toolbar-portal"),
           })
         )
@@ -334,6 +336,7 @@ export function useCanvasGesture(
       if (
         target.closest("[data-iframe-layer]") ||
         target.closest("[data-markdown-layer]") ||
+        target.closest(`[${LAYER_LABEL_ATTRIBUTE}]`) ||
         target.closest("button") ||
         target.closest("a") ||
         // Top window-drag strip: let Tauri start a native window drag.

@@ -28,7 +28,7 @@ import { isFixtureWorld } from "@/lib/fixture-world"
 import { usePeerViewport, type CanvasPresence } from "@/lib/yjs/react"
 import type { ViewportData } from "@/lib/types"
 import type { WheelForward } from "@/hooks/use-screenplay-dom"
-import type { LiveZoom } from "./live-zoom"
+import type { LiveCamera, LiveZoom } from "./live-zoom"
 
 /**
  * Canvas Camera controller (PRD #567) — one owner for zoom, viewport position,
@@ -107,6 +107,9 @@ export interface CanvasCamera {
   /** The exact zoom, notifying on every transform frame — for the few
    *  elements that counter-scale imperatively mid-zoom (see `live-zoom.ts`). */
   liveZoom: LiveZoom
+  /** The exact camera, notifying on every transform frame (pans too) — for
+   *  screen-space chrome that tracks the content, like Layer labels. */
+  liveCamera: LiveCamera
   followingConnectionId: number | null
   /** Follow a peer's viewport (or `null` to stop following). */
   follow(connectionId: number | null): void
@@ -233,7 +236,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   // --- Deferred camera sync during an active ZOOM ---
   // A zoom (wheel+ctrl / pinch / gesture) fires rzpp's `onTransform` on every
   // animation frame. Running the React state writes + presence broadcast there
-  // re-renders the whole canvas tree (overlays, every title bar's inverse-scale)
+  // re-renders the whole canvas tree (overlays, every Layer's chrome)
   // and ships an awareness update ~60x/s — which on WebKit drops the zoom to
   // ~40fps (confirmed: skipping this sync restores 60fps). So during a zoom we
   // move only the cheap imperative transform rzpp already applies, and flush
@@ -241,8 +244,8 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   // redraw on settle"). Panning is left untouched — it's a cheap translate, so
   // it keeps syncing per frame and its overlays track live.
   //
-  // `isZooming` also drives hiding the lagging screen-space overlays and the
-  // during-zoom layer promotion that keeps WebKit from caching a blurry texture.
+  // `isZooming` also drives hiding the lagging screen-space overlays. Layer
+  // labels don't lag: they follow `liveCamera` frame by frame.
   // The watchdog guarantees a flush even when no explicit stop fires (e.g. a
   // wheel-zoom burst, which has no "end" event).
   const zoomingRef = useRef(false)
@@ -289,6 +292,34 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
         }
       },
       get: () => liveZoomRef.current,
+    }),
+    []
+  )
+
+  // The whole camera, live: the label layer positions every Layer label from it
+  // on each transform frame, pans included (see `layer-title-bar.tsx`).
+  const liveCameraRef = useRef({ x: 0, y: 0, zoom: 1 })
+  const liveCameraListenersRef = useRef(new Set<() => void>())
+  const setLiveCamera = useCallback(
+    (vp: ViewportData) => {
+      const cam = liveCameraRef.current
+      if (cam.x !== vp.x || cam.y !== vp.y || cam.zoom !== vp.zoom) {
+        liveCameraRef.current = { x: vp.x, y: vp.y, zoom: vp.zoom }
+        for (const listener of liveCameraListenersRef.current) listener()
+      }
+      setLiveZoom(vp.zoom)
+    },
+    [setLiveZoom]
+  )
+  const liveCamera = useMemo<LiveCamera>(
+    () => ({
+      subscribe(listener: () => void) {
+        liveCameraListenersRef.current.add(listener)
+        return () => {
+          liveCameraListenersRef.current.delete(listener)
+        }
+      },
+      get: () => liveCameraRef.current,
     }),
     []
   )
@@ -428,10 +459,10 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     viewportRestoredRef.current = true
     ref.setTransform(savedViewport.x, savedViewport.y, savedViewport.zoom, 0)
     setZoom(savedViewport.zoom)
-    setLiveZoom(savedViewport.zoom)
+    setLiveCamera(savedViewport)
     setViewportPos({ x: savedViewport.x, y: savedViewport.y })
     setPresence({ viewport: savedViewport })
-  }, [transformRef, savedViewport, setPresence, setLiveZoom])
+  }, [transformRef, savedViewport, setPresence, setLiveCamera])
 
   // The screenshot harness frames one Canvas several ways, so in the Fixture
   // World build it moves the camera through this handle instead of re-seeding
@@ -443,6 +474,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       setTransform: (x: number, y: number, zoom: number) => {
         viewportRestoredRef.current = true
         transformRef.current?.setTransform(x, y, zoom, 0)
+        setLiveCamera({ x, y, zoom })
         setZoom(zoom)
         setViewportPos({ x, y })
       },
@@ -452,7 +484,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     return () => {
       if (w.__canvasCamera === handle) delete w.__canvasCamera
     }
-  }, [transformRef])
+  }, [transformRef, setLiveCamera])
 
   // --- Presence: identity publish + placeholder-viewport seed ---
   // Publish identity + a stable color into awareness on mount and whenever the
@@ -848,20 +880,20 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
           0
         )
         setZoom(savedViewport.zoom)
-        setLiveZoom(savedViewport.zoom)
+        setLiveCamera(savedViewport)
         setViewportPos({ x: savedViewport.x, y: savedViewport.y })
         setPresence({ viewport: savedViewport })
       } else {
         const { scale, positionX, positionY } = ref.state
         setZoom(scale)
-        setLiveZoom(scale)
+        setLiveCamera({ x: positionX, y: positionY, zoom: scale })
         setViewportPos({ x: positionX, y: positionY })
         setPresence({
           viewport: { x: positionX, y: positionY, zoom: scale },
         })
       }
     },
-    [savedViewport, setPresence, setLiveZoom]
+    [savedViewport, setPresence, setLiveCamera]
   )
 
   // A press only arms the pan: the grabbing cursor and the panning state wait
@@ -896,7 +928,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     ) => {
       const vp = { x: state.positionX, y: state.positionY, zoom: state.scale }
       latestVpRef.current = vp
-      setLiveZoom(state.scale)
+      setLiveCamera(vp)
       if (zoomingRef.current) {
         // Mid-zoom: skip the expensive React/presence sync, keep the latest
         // state, and (re)arm the settle watchdog so we flush when motion stops.
@@ -920,7 +952,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       // them to the moving layers, throttled to ~60Hz.
       flushCameraSyncThrottled(vp)
     },
-    [flushCameraSyncThrottled, endZoom, endPan, setLiveZoom]
+    [flushCameraSyncThrottled, endZoom, endPan, setLiveCamera]
   )
 
   const transformWrapperProps = useMemo<CameraTransformWrapperProps>(
@@ -982,6 +1014,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     isZooming,
     liveZoomPercent,
     liveZoom,
+    liveCamera,
     followingConnectionId,
     follow,
     breakFollow,
