@@ -21,9 +21,6 @@ import type { LiveCamera } from "./live-zoom"
  */
 export interface LabelLayer {
   element: HTMLElement
-  /** The same kind of screen-space layer, beneath the zoomed content, that
-   *  each Layer's resting hairline draws in (`LayerEdge`). */
-  edges: HTMLElement
   camera: LiveCamera
 }
 

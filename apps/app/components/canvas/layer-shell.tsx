@@ -1,14 +1,6 @@
 "use client"
 
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-} from "react"
-import { createPortal } from "react-dom"
+import { useCallback, useMemo, useRef } from "react"
 import { useLayerDrag, type LayerDragHandlers } from "@/hooks/use-layer-drag"
 import { useLayerResize, type ResizeEdge } from "@/hooks/use-layer-resize"
 import {
@@ -16,100 +8,9 @@ import {
   shouldSelectOnPointerDown,
 } from "@/lib/canvas/layer-shell"
 import { showsResizeHandles } from "@/lib/canvas/camera"
-import { LabelLayerContext, snapToDevicePixel } from "./label-layer"
-import { useLiveZoom } from "./live-zoom"
 import { LayerTitleBar } from "./layer-title-bar"
 import { ResizeHandles } from "./resize-handles"
 import type { GroupLabelValue } from "./group-label"
-
-/**
- * The resting edge every Layer wears: a 2px radius and a 1px hairline, so an
- * unselected frame and an unselected Document read as the same kind of object
- * on the canvas, at one on-screen size at every zoom. Selection is drawn over
- * it by the Selection Overlay.
- *
- * The hairline is a `LayerEdge` under the zoomed content, at UI scale (see
- * there). The surface only clips its content to the same radius: this class,
- * on the element whose own `--layer-zoom` `useLayerSurface` keeps current.
- */
-export const LAYER_SURFACE_CLASS = "rounded-[calc(2px/var(--layer-zoom))]"
-
-/** The edge's look on screen: the brand's small radius and a hairline just
- *  outside the Layer's box. */
-const LAYER_EDGE_CLASS =
-  "pointer-events-none absolute top-0 left-0 rounded-[2px] ring-1 ring-foreground/10"
-
-/**
- * Keeps `LAYER_SURFACE_CLASS` on `ref` at UI size: writes the live canvas zoom
- * into the surface's own `--layer-zoom` (registered non-inheriting in
- * globals.css) on every transform frame, with no React render.
- */
-export function useLayerSurface(ref: React.RefObject<HTMLElement | null>) {
-  useLiveZoom((zoom) => {
-    ref.current?.style.setProperty("--layer-zoom", String(zoom))
-  })
-}
-
-/**
- * A Layer's hairline, drawn at UI scale in the canvas's edge layer: a plain
- * screen-space box beneath the zoomed content, moved on every camera frame and
- * snapped to whole device pixels, like the labels (`label-layer.ts`). Inside
- * the zoomed content a 1/zoom-wide ring came out blurry or vanished in WebKit,
- * which rasterizes it before scaling. Beneath the content, a Layer in front
- * covers the edges behind it. Off the canvas (play mode, tests) it sits in the
- * Layer's own box.
- */
-function LayerEdge({
-  worldX,
-  worldY,
-  dx,
-  dy,
-  width,
-  height,
-}: {
-  worldX: number
-  worldY: number
-  dx: number
-  dy: number
-  width: number
-  height: number
-}) {
-  const layer = useContext(LabelLayerContext)
-  const ref = useRef<HTMLDivElement>(null)
-  // What `place` reads, kept current on every render so a camera frame (which
-  // renders nothing) places the edge from the latest Layer geometry.
-  const geometry = useRef({ worldX, worldY, dx, dy, width, height })
-  useLayoutEffect(() => {
-    geometry.current = { worldX, worldY, dx, dy, width, height }
-  })
-  // Style writes only: this runs on every camera frame mid-pan and mid-zoom.
-  const place = useCallback(() => {
-    const el = ref.current
-    if (!el || !layer) return
-    const { x, y, zoom } = layer.camera.get()
-    const g = geometry.current
-    const dpr = window.devicePixelRatio || 1
-    const left = snapToDevicePixel(x + (g.worldX + g.dx) * zoom, dpr)
-    const top = snapToDevicePixel(y + (g.worldY + g.dy) * zoom, dpr)
-    const right = snapToDevicePixel(x + (g.worldX + g.dx + g.width) * zoom, dpr)
-    const bottom = snapToDevicePixel(
-      y + (g.worldY + g.dy + g.height) * zoom,
-      dpr
-    )
-    el.style.transform = `translate(${left}px, ${top}px)`
-    el.style.width = `${right - left}px`
-    el.style.height = `${bottom - top}px`
-  }, [layer])
-  useLayoutEffect(place)
-  useEffect(() => layer?.camera.subscribe(place), [layer, place])
-
-  if (!layer)
-    return <div aria-hidden className={`${LAYER_EDGE_CLASS} size-full`} />
-  return createPortal(
-    <div ref={ref} aria-hidden className={LAYER_EDGE_CLASS} />,
-    layer.edges
-  )
-}
 
 /** Move callback shared by `onMoveGroup` / `onMoveSelected`. */
 type Mover = (
@@ -470,15 +371,6 @@ export function LayerShell({
           renderTitle(api)
         }
       </LayerTitleBar>
-
-      <LayerEdge
-        worldX={worldX}
-        worldY={worldY}
-        dx={dragTranslateX ?? 0}
-        dy={dragTranslateY ?? 0}
-        width={width}
-        height={height}
-      />
 
       {
         // See the note on `renderTitle(api)` above — same deferred-ref access.

@@ -544,13 +544,9 @@ export function SelectionOverlay({
         ctx.globalAlpha = 1
         if (frameDraft.pending) {
           // A drawn Mockup box waiting on its prompt looks like a frame just
-          // drawn: the frame's body and surface ring, selected, with handles.
-          // The radius matches the surface's steady on-screen 2px.
-          const radius = 2
+          // drawn: the frame's square body, selected, with handles.
           ctx.fillStyle = resolveCanvasColor(canvas, CANVAS_COLOR.frameBody)
-          ctx.beginPath()
-          ctx.roundRect(l, t, r - l, bo - t, radius)
-          ctx.fill()
+          ctx.fillRect(l, t, r - l, bo - t)
           strokeWorldRect(l, t, r, bo)
           const w = Math.abs(frameDraft.currentX - frameDraft.startX)
           const h = Math.abs(frameDraft.currentY - frameDraft.startY)

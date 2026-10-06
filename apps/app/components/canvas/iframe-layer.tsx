@@ -45,12 +45,7 @@ import type { FrameStreamConnection } from "@/lib/frame-stream/client"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
 import { recordsLiveRoute } from "@/lib/canvas/frame-control"
 import { useLayerToolbar } from "./use-layer-toolbar"
-import {
-  LayerShell,
-  LAYER_SURFACE_CLASS,
-  useLayerSurface,
-  type LayerPlacement,
-} from "./layer-shell"
+import { LayerShell, type LayerPlacement } from "./layer-shell"
 import type { BranchData } from "@/lib/types"
 import type {
   DomRect,
@@ -371,7 +366,6 @@ function IframeLayerImpl({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   // The box the page fills, which the element hit-test measures.
   const bodyRef = useRef<HTMLDivElement>(null)
-  useLayerSurface(bodyRef)
 
   // A shared frame (#1392) has no iframe: reloads and routes go to the shared
   // browser over its stream.
@@ -1002,7 +996,7 @@ function IframeLayerImpl({
             )}
           <div
             ref={bodyRef}
-            className={`relative h-full w-full overflow-hidden bg-white dark:bg-neutral-900 ${LAYER_SURFACE_CLASS}`}
+            className="relative h-full w-full overflow-hidden bg-white dark:bg-neutral-900"
           >
             {/* The iframe mounts as soon as there's a URL — not gated on the
             probe. The probe is a server-action round-trip; gating the mount on
