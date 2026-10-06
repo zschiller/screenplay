@@ -305,7 +305,9 @@ function MockupLayerImpl({
     layer.height,
   ])
   const shared = !!sharedStream
-  const showFit = !!onSetFitToContent && hasPage
+  // Offered before there's a page, as on a frame: the height follows the
+  // page once the chat writes one.
+  const showFit = !!onSetFitToContent
   const fitHeight = showFit && !!layer.fitHeight
   const page = useLivePage({
     id: layer.id,
@@ -395,14 +397,17 @@ function MockupLayerImpl({
     async (on: boolean) => {
       if (!on) return onSetFitToContent?.(layer.id, false)
       let height: number | undefined
-      try {
-        height = (await dom.getDocumentSize())?.height
-      } catch {
-        // Bridge timeout / page not ready: the page reports it once ready.
+      // No page yet: on now, and the page reports its height once written.
+      if (hasPage) {
+        try {
+          height = (await dom.getDocumentSize())?.height
+        } catch {
+          // Bridge timeout / page not ready: the page reports it once ready.
+        }
       }
       onSetFitToContent?.(layer.id, true, height)
     },
-    [dom, layer.id, onSetFitToContent]
+    [dom, hasPage, layer.id, onSetFitToContent]
   )
 
   // The mockup's one menu (I7), in the bar's … and its sidebar row's …. Its
