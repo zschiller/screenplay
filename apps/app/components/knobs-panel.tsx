@@ -216,8 +216,10 @@ function KnobRow({ def, value, onChange, divided }: KnobRowProps) {
     >
       {/* Inline, so a label too long for its column wraps, and the info
           icon stays on the line of the label's last word. A span, not a
-          <label>: one holding the icon's button would click it. */}
-      <div className="min-w-0 text-sm leading-4">
+          <label>: one holding the icon's button would click it. Its own
+          padding keeps a wrapped label as far from the row's edges as a
+          one-line label is (12px), and leaves one-line rows at 40px. */}
+      <div className="min-w-0 py-1.5 text-sm leading-4">
         {description ? (
           <Label asChild className="inline text-sm leading-4">
             <span>
