@@ -43,7 +43,7 @@ vi.mock("./room-layout", () => ({ readRoomCaptureLayout }))
 vi.mock("./mockup-page", () => ({ mockupPageUrl }))
 
 import sharp from "sharp"
-import { captureRoomThumbnail } from "./capture"
+import { captureRoomThumbnail, frameCaptureSize } from "./capture"
 
 // The layout read is stubbed above, so the Room's doc reader is never called.
 const ROOM = { roomId: "room-1", readDoc: vi.fn() }
@@ -598,5 +598,28 @@ describe("captureRoomThumbnail", () => {
     expect(setRoomThumbnailManifest).toHaveBeenCalledTimes(1)
     expect(manifest.frames).toHaveLength(1)
     expect(manifest.frames[0]!.capture).toBeNull()
+  })
+})
+
+describe("frameCaptureSize", () => {
+  it("caps a wide frame's long side", () => {
+    expect(frameCaptureSize({ width: 1280, height: 800 }, 2560)).toEqual({
+      width: 512,
+      height: 320,
+    })
+  })
+
+  it("keeps a tall frame wide enough for a sharp hover card at 2x", () => {
+    expect(frameCaptureSize({ width: 390, height: 844 }, 780)).toEqual({
+      width: 480,
+      height: 1039,
+    })
+  })
+
+  it("never upscales past the screenshot", () => {
+    expect(frameCaptureSize({ width: 390, height: 844 }, 390)).toEqual({
+      width: 390,
+      height: 844,
+    })
   })
 })

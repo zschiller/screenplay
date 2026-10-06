@@ -68,6 +68,12 @@ press <kbd>Backspace</kbd> to take it out of the document; the file stays in
 Files. If an image’s file is deleted, the document says so where the image
 was.
 
+Images show at the size they were on screen, so a screenshot from a retina
+display isn’t twice as big as it should be. A PNG that records its
+resolution, as macOS screenshots do, and a file named like `chart@2x.png`
+show at that density. An image wider than 1000 pixels with neither is shown
+at half its width. No image is ever wider than the document.
+
 Documents show PNG, JPEG, GIF and WebP images. A chat that writes a document
 can put an image from the canvas’s files in it too.
 
