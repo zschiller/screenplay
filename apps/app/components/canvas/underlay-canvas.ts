@@ -11,6 +11,15 @@ import { useEffect, type RefObject } from "react"
  * same, empty either way.
  */
 
+/** The grid, in CSS pixels, a bounded canvas's size rounds up to. */
+const GRID = 32
+
+/** Each bounded canvas's size in CSS pixels, kept while it fits the drawing. */
+const boundedSizes = new WeakMap<
+  HTMLCanvasElement,
+  { width: number; height: number }
+>()
+
 /** Underlays drawn to a part of the view (`bounds`): their size is their own. */
 const boundedCanvases = new WeakSet<HTMLCanvasElement>()
 
@@ -36,6 +45,7 @@ export function beginUnderlayDraw(
   bounds?: { x: number; y: number; width: number; height: number }
 ): CanvasRenderingContext2D | null {
   if (empty) {
+    boundedSizes.delete(canvas)
     if (canvas.width !== 0 || canvas.height !== 0) {
       canvas.width = 0
       canvas.height = 0
@@ -53,39 +63,69 @@ export function beginUnderlayDraw(
     (canvas.parentElement ?? canvas).getBoundingClientRect()
   if (bounds) {
     // Only the part inside the view.
-    const x = Math.max(0, Math.floor(bounds.x))
-    const y = Math.max(0, Math.floor(bounds.y))
-    const width = Math.min(box.width, Math.ceil(bounds.x + bounds.width)) - x
-    const height = Math.min(box.height, Math.ceil(bounds.y + bounds.height)) - y
+    const left = Math.max(0, Math.floor(bounds.x))
+    const top = Math.max(0, Math.floor(bounds.y))
+    const right = Math.min(box.width, Math.ceil(bounds.x + bounds.width))
+    const bottom = Math.min(box.height, Math.ceil(bounds.y + bounds.height))
+    let width = right - left
+    let height = bottom - top
     if (width <= 0 || height <= 0) return beginUnderlayDraw(canvas, true)
+    // Keep the backing store while the drawing still fits it and fills a
+    // good part of it, so a box that slides or grows on each pointer move
+    // moves the canvas instead of reallocating it. A new one gets room to
+    // grow.
+    const have = boundedSizes.get(canvas)
+    if (
+      have &&
+      width <= have.width &&
+      height <= have.height &&
+      width * height * 4 >= have.width * have.height
+    ) {
+      width = have.width
+      height = have.height
+    } else {
+      width = Math.min(box.width, Math.ceil((width * 1.25) / GRID) * GRID)
+      height = Math.min(box.height, Math.ceil((height * 1.25) / GRID) * GRID)
+      boundedSizes.set(canvas, { width, height })
+    }
+    const x = Math.max(0, Math.min(left, Math.floor(box.width - width)))
+    const y = Math.max(0, Math.min(top, Math.floor(box.height - height)))
     boundedCanvases.add(canvas)
     canvas.style.left = `${x}px`
     canvas.style.top = `${y}px`
     canvas.style.width = `${width}px`
     canvas.style.height = `${height}px`
-    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-      canvas.width = width * dpr
-      canvas.height = height * dpr
-    }
+    setBackingSize(canvas, width * dpr, height * dpr)
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.setTransform(dpr, 0, 0, dpr, -x * dpr, -y * dpr)
     return ctx
   }
+  boundedSizes.delete(canvas)
   if (boundedCanvases.delete(canvas)) {
     canvas.style.left = ""
     canvas.style.top = ""
   }
   canvas.style.width = `${box.width}px`
   canvas.style.height = `${box.height}px`
-  if (canvas.width !== box.width * dpr || canvas.height !== box.height * dpr) {
-    canvas.width = box.width * dpr
-    canvas.height = box.height * dpr
-  }
+  setBackingSize(canvas, box.width * dpr, box.height * dpr)
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.scale(dpr, dpr)
   return ctx
+}
+
+/** Size the backing store, only when it changes: setting it reallocates. A
+ *  fractional size is floored by the canvas, so compare it floored. */
+function setBackingSize(
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number
+) {
+  width = Math.floor(width)
+  height = Math.floor(height)
+  if (canvas.width !== width) canvas.width = width
+  if (canvas.height !== height) canvas.height = height
 }
 
 /** Keep an underlay canvas sized to its container while it holds a drawing. */
