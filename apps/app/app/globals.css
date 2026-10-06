@@ -71,6 +71,8 @@
   --canvas-plane: oklch(0.975 0 0);
   /* A frame's empty body: bg-white / dark:bg-neutral-900. */
   --canvas-frame-body: oklch(1 0 0);
+  /* Each Layer's resting hairline (layer-edges-underlay.tsx). */
+  --canvas-layer-edge: oklch(0 0 0 / 10%);
 
   --z-canvas-overlay: 10;
   --z-canvas-annotations: 20;
@@ -89,6 +91,7 @@
   --canvas-comment: oklch(0.88 0.179 95);
   --canvas-plane: oklch(0.07 0 0);
   --canvas-frame-body: oklch(0.205 0 0);
+  --canvas-layer-edge: oklch(1 0 0 / 10%);
 }
 
 @theme inline {
@@ -140,27 +143,6 @@ body {
   z-index: 1;
   overflow: hidden;
   pointer-events: none;
-}
-
-/* Each Layer's resting hairline, at UI scale beneath the zoomed content
-   (`LayerEdge` in components/canvas/layer-shell.tsx). First in rzpp's
-   wrapper, so the content paints over it. */
-.canvas-edge-layer {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-/* A Layer's surface (`LAYER_SURFACE_CLASS`) clips to one on-screen radius at
-   every zoom: the Layer writes the live canvas zoom here and the class
-   divides by it. Not inherited, so the per-frame write mid-zoom
-   restyles only the surface element, never the Layer's content. Outside a
-   canvas (play mode) it stays 1. */
-@property --layer-zoom {
-  syntax: "<number>";
-  inherits: false;
-  initial-value: 1;
 }
 
 /* Screen-space overlays drawn from the settled camera (selection rings,

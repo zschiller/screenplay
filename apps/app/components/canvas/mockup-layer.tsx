@@ -33,8 +33,6 @@ import {
 } from "@/components/canvas/layer-menu"
 import {
   LayerShell,
-  LAYER_SURFACE_CLASS,
-  useLayerSurface,
   type LayerPlacement,
 } from "@/components/canvas/layer-shell"
 import type { MockupLayerData } from "@/lib/types"
@@ -270,7 +268,6 @@ function MockupLayerImpl({
   const runtime = useMockupRuntime()
   const resources = useMockupRefs(layer.id, html)
   const containerRef = useRef<HTMLDivElement>(null)
-  useLayerSurface(containerRef)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
@@ -440,7 +437,7 @@ function MockupLayerImpl({
       containerId={`mockup-layer-${layer.id}`}
       containerRef={containerRef}
       // No overflow-hidden on the root: the title bar sits above the tile.
-      containerClassName={`absolute flex flex-col bg-background ${LAYER_SURFACE_CLASS}`}
+      containerClassName="absolute flex flex-col bg-background"
       containerProps={{ "data-mockup-layer": "" }}
       zoom={zoom}
       labelHidden={labelHidden}

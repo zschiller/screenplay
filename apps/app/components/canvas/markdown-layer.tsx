@@ -97,8 +97,6 @@ import {
 } from "@/components/canvas/layer-menu"
 import {
   LayerShell,
-  LAYER_SURFACE_CLASS,
-  useLayerSurface,
   type LayerPlacement,
 } from "@/components/canvas/layer-shell"
 import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
@@ -437,7 +435,6 @@ function MarkdownLayerImpl({
   )
   const fragment = useDocumentFragment(layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
-  useLayerSurface(rootRef)
 
   // Images: paste, drop and Upload image save into the canvas's files under
   // `uploads/`, as chat attachments do, and Image from files picks one there
@@ -981,7 +978,7 @@ function MarkdownLayerImpl({
       // pushes overflow clipping to the inner body: `data-markdown-layer-scroll`
       // (overflow-y-auto) clips vertically and the body padding constrains
       // horizontal layout.
-      containerClassName={`absolute flex flex-col bg-background ${LAYER_SURFACE_CLASS}`}
+      containerClassName="absolute flex flex-col bg-background"
       containerRef={rootRef}
       containerProps={{
         "data-markdown-layer": "",

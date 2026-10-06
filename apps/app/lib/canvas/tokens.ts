@@ -21,6 +21,8 @@ export const CANVAS_COLOR = {
   comment: "--canvas-comment",
   /** A frame's empty body, for a drawn box that stands in for one. */
   frameBody: "--canvas-frame-body",
+  /** Each Layer's resting hairline, drawn beneath the content. */
+  layerEdge: "--canvas-layer-edge",
 } as const
 
 export type CanvasColorToken = (typeof CANVAS_COLOR)[keyof typeof CANVAS_COLOR]
