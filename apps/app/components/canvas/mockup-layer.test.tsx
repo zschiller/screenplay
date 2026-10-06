@@ -491,10 +491,17 @@ describe("MockupLayer sizes", () => {
     expect(onSetFitToContent).toHaveBeenCalledWith("mockup-1", false)
   })
 
-  it("has nothing to fit while the chat is still sketching it", () => {
+  it("offers Fit to content before there's a page, as a frame does", async () => {
     html = ""
-    renderMockup({ onSetSize: () => {}, onSetFitToContent: () => {} })
-    expect(openMenu()).not.toContain("Fit to content")
+    const onSetFitToContent = vi.fn()
+    renderMockup({ onSetSize: () => {}, onSetFitToContent })
+    expect(openMenu()).toContain("Fit to content")
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("menuitemcheckbox", { name: "Fit to content" })
+      )
+    })
+    expect(onSetFitToContent).toHaveBeenCalledWith("mockup-1", true, undefined)
   })
 })
 
