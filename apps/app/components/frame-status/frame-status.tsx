@@ -23,7 +23,7 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { STATUS_BLOCK, STATUS_HIDE, useStatusFit } from "./status-fit"
+import { STATUS_BLOCK, useStatusFit } from "./status-fit"
 
 import type { FrameStage } from "./frame-stage"
 
@@ -153,10 +153,9 @@ export function FrameStatus({
               <FrameCornersIcon className="text-muted-foreground" />
             )}
           </EmptyMedia>
-          <EmptyTitle className={STATUS_HIDE.title}>{copy.title}</EmptyTitle>
+          <EmptyTitle>{copy.title}</EmptyTitle>
           <EmptyDescription
             className={cn(
-              STATUS_HIDE.description,
               stage === "workspace-failed" &&
                 detail &&
                 "line-clamp-3 font-mono text-sm break-words"
@@ -168,8 +167,7 @@ export function FrameStatus({
         {(retry || logs || startChat) && (
           <EmptyContent
             className={cn(
-              "pointer-events-auto w-auto flex-row justify-center gap-2",
-              STATUS_HIDE.actions
+              "pointer-events-auto w-auto flex-row justify-center gap-2"
             )}
             // Keep the press on the button: the canvas would otherwise read it as
             // a select or the start of a drag on the frame underneath.

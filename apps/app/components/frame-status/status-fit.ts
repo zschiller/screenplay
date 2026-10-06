@@ -49,13 +49,37 @@ export function statusTier(
   return "none"
 }
 
-function measure(block: HTMLElement): StatusParts {
-  const part = (slot: string) =>
-    block.querySelector<HTMLElement>(`[data-slot=${slot}]`)
-  const description = part("empty-description")
-  const actions = part("empty-content")
-  const title = part("empty-title")
-  const icon = part("empty-icon")
+const part = (block: HTMLElement, slot: string) =>
+  block.querySelector<HTMLElement>(`[data-slot=${slot}]`)
+
+/**
+ * Shows the parts `tier` keeps and hides the rest, on the parts themselves.
+ * Classes keyed on the block's `data-tier` (`group-data-[tier=…]`) leaned on
+ * the engine restyling every part when that attribute changed, and on the
+ * desktop app's WebKit the parts stayed put as the zoom changed; `hidden` on
+ * the part itself needs no such restyle.
+ */
+function showTier(block: HTMLElement, tier: StatusTier) {
+  if (block.dataset.tier !== tier) block.dataset.tier = tier
+  const hide = (slot: string, hidden: boolean) => {
+    const el = part(block, slot)
+    if (el && el.hidden !== hidden) el.hidden = hidden
+  }
+  hide("empty-description", tier !== "full")
+  hide("empty-content", tier !== "full" && tier !== "no-description")
+  hide("empty-title", tier === "icon" || tier === "none")
+  const visibility = tier === "none" ? "hidden" : ""
+  if (block.style.visibility !== visibility) block.style.visibility = visibility
+}
+
+/** Measures the block with every part showing; null while it has no layout. */
+function measure(block: HTMLElement): StatusParts | null {
+  showTier(block, "full")
+  if (!block.offsetWidth || !block.offsetHeight) return null
+  const description = part(block, "empty-description")
+  const actions = part(block, "empty-content")
+  const title = part(block, "empty-title")
+  const icon = part(block, "empty-icon")
   return {
     width: block.offsetWidth,
     height: block.offsetHeight,
@@ -72,7 +96,8 @@ function measure(block: HTMLElement): StatusParts {
  * label: it counter-scales by 1/zoom about the layer's centre, and drops the
  * parts that no longer fit (see `statusTier`) instead of shrinking. It follows
  * the live zoom through a gesture, so it never jumps; the parts are measured
- * only when `contentKey` changes, since the block lays out at a fixed width.
+ * only when `contentKey` changes, since the block lays out at a fixed width,
+ * or on the next zoom if the block had no layout then.
  *
  * Without a layer size (the prototype player) the block shows whole at 1:1.
  */
@@ -86,12 +111,15 @@ export function useStatusFit(
   }: { zoom: number; width: number; height: number; contentKey: string }
 ) {
   const parts = useRef<StatusParts | null>(null)
+  const lastZoom = useRef(zoom)
   const apply = (z: number) => {
+    lastZoom.current = z
     const el = blockRef.current
-    const p = parts.current
-    if (!el || !p || !(width > 0) || !(height > 0) || !(z > 0)) return
-    const tier = statusTier(p, width * z, height * z)
-    if (el.dataset.tier !== tier) el.dataset.tier = tier
+    if (!el || !(width > 0) || !(height > 0) || !(z > 0)) return
+    // Measured before the block had layout: the parts would all read 0 and
+    // every tier would fit, so measure again now.
+    const p = (parts.current ??= measure(el))
+    if (p) showTier(el, statusTier(p, width * z, height * z))
     const transform = z === 1 ? "" : `scale(${1 / z})`
     if (el.style.transform !== transform) el.style.transform = transform
   }
@@ -103,16 +131,14 @@ export function useStatusFit(
   useLayoutEffect(() => {
     const el = blockRef.current
     if (!el) return
-    el.dataset.tier = "full"
     parts.current = measure(el)
     applyRef.current(zoom)
     // Measure again once fonts land: the title's width depends on them.
     let live = true
     void document.fonts?.ready.then(() => {
       if (!live || !blockRef.current) return
-      blockRef.current.dataset.tier = "full"
       parts.current = measure(blockRef.current)
-      applyRef.current(zoom)
+      applyRef.current(lastZoom.current)
     })
     return () => {
       live = false
@@ -128,16 +154,5 @@ export function useStatusFit(
   useLiveZoom((live) => applyRef.current(live))
 }
 
-/**
- * The classes that hide a status block's parts by tier: put `STATUS_BLOCK` on
- * the block and each part's class on its part.
- */
-export const STATUS_BLOCK =
-  "group/status w-80 shrink-0 data-[tier=none]:invisible"
-export const STATUS_HIDE = {
-  description:
-    "group-data-[tier=icon]/status:hidden group-data-[tier=no-description]/status:hidden group-data-[tier=title]/status:hidden",
-  actions:
-    "group-data-[tier=icon]/status:hidden group-data-[tier=title]/status:hidden",
-  title: "group-data-[tier=icon]/status:hidden",
-}
+/** The block's layout: a fixed width, so it never wraps to the layer's. */
+export const STATUS_BLOCK = "w-80 shrink-0"
