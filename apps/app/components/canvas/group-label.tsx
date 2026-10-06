@@ -64,6 +64,9 @@ export type GroupWorkspace =
  */
 export interface GroupLabelValue {
   label: string
+  /** Canvas units from the leftmost member's left edge to the Group's right
+   *  edge: the room the label has. */
+  width?: number
   /** The Workspace every member shows (#1276); unset when they differ. */
   workspace?: GroupWorkspace
   /** A remote user's selection colour for the Group. */

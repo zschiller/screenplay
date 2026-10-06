@@ -32,7 +32,12 @@ import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
 import { frameWorkspaceOf } from "./frame-nav"
 import type { WorkingChat } from "./working-chat"
-import { hiddenGroupLabels, hiddenLayerLabels } from "@/lib/canvas/layer-labels"
+import {
+  hiddenGroupLabels,
+  hiddenLayerLabels,
+  type LabelledGroup,
+  widthAcross,
+} from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
 import { useGoLive } from "./use-go-live"
@@ -252,14 +257,15 @@ function CanvasMemberLayerImpl({
     [effectiveIframeLayerLayouts, zoom]
   )
   const groupLabelsHidden = useMemo(() => {
-    const leaders = new Map<string, string>()
+    const labelled = new Map<string, LabelledGroup>()
     for (const group of iframeLayerGroups) {
       const members = getGroupMembers(group)
-      if (members.length > 1) leaders.set(group.id, members[0].id)
+      if (members.length > 1)
+        labelled.set(group.id, { memberIds: members.map((m) => m.id) })
     }
     return hiddenGroupLabels(
       effectiveIframeLayerLayouts.values(),
-      leaders,
+      labelled,
       zoom
     )
   }, [iframeLayerGroups, effectiveIframeLayerLayouts, zoom])
@@ -297,6 +303,19 @@ function CanvasMemberLayerImpl({
     ),
     onFailed: useCallback((message: string) => toast.error(message), []),
   })
+
+  // A group label runs the width of its Group, not just its leftmost member.
+  const groupLabelWidth = (
+    leaderId: string,
+    members: readonly { id: string }[]
+  ) => {
+    const leader = effectiveIframeLayerLayouts.get(leaderId)
+    if (!leader) return undefined
+    return widthAcross(
+      leader,
+      members.flatMap((m) => effectiveIframeLayerLayouts.get(m.id) ?? [])
+    )
+  }
 
   const groupMenuOf = (groupId: string) =>
     groupLayerMenu(() => groupActions.removeIframeLayerGroup(groupId))
@@ -387,6 +406,7 @@ function CanvasMemberLayerImpl({
           const groupLabel: GroupLabelValue | undefined = groupName
             ? {
                 label: groupName,
+                width: groupLabelWidth(member.id, members),
                 workspace: groupSwitcherOf(group),
                 // Tinted to match a remote user's Group selection rect.
                 remoteSelectedColor: remoteGroupSelectionColors.get(member.id),

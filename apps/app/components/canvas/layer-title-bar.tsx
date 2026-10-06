@@ -95,6 +95,12 @@ export function LayerTitleBar({
     () => ({ width: layerWidth * zoom, compact }),
     [layerWidth, zoom, compact]
   )
+  // A group label runs the Group's width; the Layer's own rows run its own.
+  const groupWidth = Math.max(layerWidth, groupLabel?.width ?? 0)
+  const groupFit = useMemo(
+    () => ({ width: groupWidth * zoom, compact }),
+    [groupWidth, zoom, compact]
+  )
   // Compose the caller's base move-drag handlers with the reorder-request
   // hook. Pointerdown first asks the canvas to lift this layer into a
   // reorder drag (multi-member groups capture the gesture); for single-
@@ -138,7 +144,7 @@ export function LayerTitleBar({
           // settle forces a fresh raster at the resting scale. See globals.css.
           transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
           transformOrigin: "bottom left",
-          maxWidth: layerWidth * zoom,
+          maxWidth: groupWidth * zoom,
           width: tag ? layerWidth * zoom : undefined,
           marginBottom: 4 / zoom,
         }}
@@ -147,29 +153,31 @@ export function LayerTitleBar({
       >
         {groupLabel && !reorderDragPopped && (
           <div
-            className="pointer-events-auto max-w-full"
-            style={
-              reorderDragTranslateX != null || reorderDragTranslateY != null
-                ? {
-                    // The outer layer container is `translate(dx, dy)` in world
-                    // units; this label sits inside a `scale(1/zoom)` wrapper,
-                    // so its own local px need to be multiplied by `zoom` to
-                    // produce the same world-space distance.
-                    transform: `translate(${-(reorderDragTranslateX ?? 0) * zoom}px, ${-(reorderDragTranslateY ?? 0) * zoom}px)`,
-                  }
-                : undefined
-            }
+            className="pointer-events-auto"
+            style={{
+              maxWidth: groupWidth * zoom,
+              // The outer layer container is `translate(dx, dy)` in world
+              // units; this label sits inside a `scale(1/zoom)` wrapper, so
+              // its own local px need to be multiplied by `zoom` to produce
+              // the same world-space distance.
+              transform:
+                reorderDragTranslateX != null || reorderDragTranslateY != null
+                  ? `translate(${-(reorderDragTranslateX ?? 0) * zoom}px, ${-(reorderDragTranslateY ?? 0) * zoom}px)`
+                  : undefined,
+            }}
           >
-            <GroupLabel
-              label={groupLabel.label}
-              workspace={groupLabel.workspace}
-              groupSelected={groupSelected}
-              color={groupLabel.remoteSelectedColor}
-              onSelectGroup={groupLabel.onSelect}
-              onRename={groupLabel.onRename}
-              menu={compact ? undefined : groupLabel.menu}
-              dragHandlers={groupLabelDragHandlers}
-            />
+            <LabelFitContext.Provider value={groupFit}>
+              <GroupLabel
+                label={groupLabel.label}
+                workspace={groupLabel.workspace}
+                groupSelected={groupSelected}
+                color={groupLabel.remoteSelectedColor}
+                onSelectGroup={groupLabel.onSelect}
+                onRename={groupLabel.onRename}
+                menu={compact ? undefined : groupLabel.menu}
+                dragHandlers={groupLabelDragHandlers}
+              />
+            </LabelFitContext.Provider>
           </div>
         )}
         {tag ? (
@@ -182,7 +190,12 @@ export function LayerTitleBar({
             </div>
           </div>
         ) : (
-          children
+          <div
+            className="flex flex-col items-start"
+            style={{ maxWidth: layerWidth * zoom }}
+          >
+            {children}
+          </div>
         )}
       </div>
     </LabelFitContext.Provider>

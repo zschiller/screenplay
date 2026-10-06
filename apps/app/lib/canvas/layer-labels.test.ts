@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { hiddenGroupLabels, hiddenLayerLabels } from "./layer-labels"
+import {
+  hiddenGroupLabels,
+  hiddenLayerLabels,
+  widthAcross,
+} from "./layer-labels"
 
 const frame = (
   id: string,
@@ -43,23 +47,43 @@ describe("hiddenLayerLabels", () => {
 })
 
 describe("hiddenGroupLabels", () => {
-  const leaders = new Map([["g", "a"]])
+  const groups = new Map([["g", { memberIds: ["a"] }]])
 
   it("keeps a group label far out while its frame has room", () => {
-    expect(hiddenGroupLabels([frame("a", 0, 0)], leaders, 0.1).size).toBe(0)
+    expect(hiddenGroupLabels([frame("a", 0, 0)], groups, 0.1).size).toBe(0)
   })
 
   it("hides it with its frame's name when the frame is too narrow", () => {
     const phone = frame("a", 0, 0, 390, 844)
-    expect(hiddenGroupLabels([phone], leaders, 0.1)).toEqual(new Set(["g"]))
+    expect(hiddenGroupLabels([phone], groups, 0.1)).toEqual(new Set(["g"]))
+  })
+
+  it("checks the strip across the whole Group, not just its first frame", () => {
+    const pair = new Map([["g", { memberIds: ["a", "b"] }]])
+    const row = [frame("a", 0, 1100), frame("b", 1340, 1100)]
+    // A frame above the second member, clear of the first.
+    const above = frame("top", 1400, 0)
+    expect(hiddenGroupLabels(row, pair, 0.1).size).toBe(0)
+    expect(hiddenLayerLabels([...row, above], 0.1).size).toBe(0)
+    expect(hiddenGroupLabels([...row, above], pair, 0.1)).toEqual(
+      new Set(["g"])
+    )
   })
 
   it("hides it far out where it would sit on the frame above", () => {
     // Name and group label take 42px: 420 world units at 10%. The name alone
     // (200) clears the 300 gap; with the group label it doesn't.
     const layouts = [frame("top", 0, 0), frame("a", 0, 1100)]
-    expect(hiddenGroupLabels(layouts, leaders, 0.1)).toEqual(new Set(["g"]))
+    expect(hiddenGroupLabels(layouts, groups, 0.1)).toEqual(new Set(["g"]))
     expect(hiddenLayerLabels(layouts, 0.1).size).toBe(0)
-    expect(hiddenGroupLabels(layouts, leaders, 0.5).size).toBe(0)
+    expect(hiddenGroupLabels(layouts, groups, 0.5).size).toBe(0)
+  })
+})
+
+describe("widthAcross", () => {
+  it("runs from the first rect's left edge to the furthest right edge", () => {
+    const a = frame("a", 100, 0, 390, 844)
+    expect(widthAcross(a, [a, frame("b", 550, 0)])).toBe(1730)
+    expect(widthAcross(a, [a])).toBe(390)
   })
 })

@@ -40,28 +40,36 @@ export function hiddenLayerLabels(
   return hidden
 }
 
+/** A labelled Group: its members, leftmost first. */
+export interface LabelledGroup {
+  memberIds: readonly string[]
+}
+
 /**
  * The Groups whose labels hide at `zoom`, by the same rule as Layer names: a
  * group label sits above its leftmost member's name, so it hides with that
  * name, and far out also where the two lines together would sit on top of
- * another Layer. `leaders` maps each labelled Group to its leftmost member.
+ * another Layer. The group label runs the Group's width, so that whole strip
+ * must be clear.
  */
 export function hiddenGroupLabels(
   layouts: Iterable<Rect & { id: string }>,
-  leaders: ReadonlyMap<string, string>,
+  groups: ReadonlyMap<string, LabelledGroup>,
   zoom: number
 ): ReadonlySet<string> {
   const rects = [...layouts]
   const hidden = new Set<string>()
-  for (const [groupId, leaderId] of leaders) {
-    const r = rects.find((o) => o.id === leaderId)
+  for (const [groupId, { memberIds }] of groups) {
+    const r = rects.find((o) => o.id === memberIds[0])
+    const members = rects.filter((o) => memberIds.includes(o.id))
     if (
       !r ||
       !fitsLabel(
         r,
         rects,
         zoom,
-        LAYER_LABEL_SCREEN_HEIGHT + GROUP_LABEL_SCREEN_HEIGHT
+        LAYER_LABEL_SCREEN_HEIGHT + GROUP_LABEL_SCREEN_HEIGHT,
+        members
       )
     ) {
       hidden.add(groupId)
@@ -71,14 +79,24 @@ export function hiddenGroupLabels(
 }
 
 /**
+ * The width from `r`'s left edge to the furthest right edge of `rects`: the
+ * room a group label on `r` has across its Group.
+ */
+export function widthAcross(r: Rect, rects: readonly Rect[]): number {
+  return Math.max(r.width, ...rects.map((o) => o.x + o.width - r.x))
+}
+
+/**
  * Whether a label `screenHeight` px tall fits above `r`: its Layer is wide
- * enough on screen, and far out the label clears every other Layer.
+ * enough on screen, and far out the label clears every other Layer. A group
+ * label spans its `members` (`r` among them) and may sit over none else.
  */
 function fitsLabel(
   r: Rect & { id: string },
   rects: ReadonlyArray<Rect & { id: string }>,
   zoom: number,
-  screenHeight: number
+  screenHeight: number,
+  members: ReadonlyArray<Rect & { id: string }> = [r]
 ): boolean {
   if (r.width * zoom < LAYER_LABEL_MIN_SCREEN_WIDTH - 1e-3) return false
   if (showsLayerDetail(zoom)) return true
@@ -86,10 +104,10 @@ function fitsLabel(
   const strip = {
     x: r.x,
     y: r.y - stripHeight,
-    width: r.width,
+    width: widthAcross(r, members),
     height: stripHeight,
   }
-  return !rects.some((o) => o.id !== r.id && overlaps(strip, o))
+  return !rects.some((o) => !members.includes(o) && overlaps(strip, o))
 }
 
 function overlaps(a: Rect, b: Rect): boolean {
