@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { layerArgOfPartialInput } from "@/lib/chat/working-layer"
+import {
+  layerArgOfPartialInput,
+  workingLayerOf,
+} from "@/lib/chat/working-layer"
 
 describe("layerArgOfPartialInput", () => {
   it("names the layer once its id is written out, before the page ends", () => {
@@ -38,6 +41,25 @@ describe("layerArgOfPartialInput", () => {
     expect(layerArgOfPartialInput("Edit", '{"mockup_id": "mock-1"')).toBe(null)
     expect(
       layerArgOfPartialInput("create_mockup", '{"mockup_id": "mock-1"')
+    ).toBe(null)
+  })
+})
+
+describe("workingLayerOf", () => {
+  it("names the layer a harness’s start_editing names, before any page", () => {
+    expect(
+      workingLayerOf({
+        title: "mcp__screenplay__start_editing",
+        status: "pending",
+        rawInput: { layer_id: "mock-1" },
+      })
+    ).toBe("mock-1")
+    expect(
+      workingLayerOf({
+        title: "mcp__screenplay__start_editing",
+        status: "pending",
+        rawInput: {},
+      })
     ).toBe(null)
   })
 })
