@@ -84,6 +84,7 @@ import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
 import {
   createKeyedQueue,
   wakeMessage,
+  wakesOnTurnEnd,
   type WorkspaceTurnEnd,
 } from "./coordinator-wake"
 import { loadChatTranscript } from "./history-load"
@@ -194,8 +195,10 @@ const COORDINATOR_IDLE_WAIT_MS = 5 * 60_000
 /**
  * Tell the Room's Coordinator how a Workspace turn ended (#897): which
  * Workspace, the run state, and the turn's summary and final reply, read now
- * so a queued wake still reports its own turn. A Sketch Chat's turns wake it
- * too; any other chat that isn't on a Workspace wakes nothing.
+ * so a queued wake still reports its own turn. Only a turn on work the
+ * Coordinator handed out, or one that failed, wakes it (`wakesOnTurnEnd`). A
+ * Sketch Chat's turns wake it too; any other chat that isn't on a Workspace
+ * wakes nothing.
  */
 async function wakeCoordinator(
   room: RoomAccess,
@@ -224,12 +227,15 @@ async function wakeCoordinator(
       : null
   })
   if (!workspace) return
+  const transcript = await loadChatTranscript(end.chatId)
+  // Only work the Coordinator handed out, or a failure (`wakesOnTurnEnd`).
+  if (!wakesOnTurnEnd(transcript, end.status)) return
   const message = wakeMessage({
     workspaceId: workspace.id,
     title: workspace.title,
     sketch: workspace.sketch,
     status: end.status,
-    lastTurn: renderLastTurn(await loadChatTranscript(end.chatId)),
+    lastTurn: renderLastTurn(transcript),
   })
   await wakeQueue(room.roomId, () =>
     runWakeTurn(room, message, workspace.requesterId)

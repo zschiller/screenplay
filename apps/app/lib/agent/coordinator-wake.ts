@@ -1,5 +1,8 @@
+import type { AgentMessage } from "./types"
 import type { RunStatus } from "./run-state"
+import { planResolutionText } from "./acp/resolution"
 import { prependTurnMarkers } from "./message-markers"
+import { bareToolName } from "./tool-name"
 import { workspaceLink } from "./workspace-task"
 
 /**
@@ -28,6 +31,79 @@ const WAKE_STATUSES: ReadonlySet<RunStatus> = new Set<WakeStatus>([
  */
 export function isWakeStatus(status: RunStatus): status is WakeStatus {
   return WAKE_STATUSES.has(status)
+}
+
+/**
+ * Whether a chat's turn that just ended wakes the Coordinator. Like a project's
+ * coordinator, it hears about the work it handed out and about failures, not
+ * about a chat someone is already in: a turn wakes it when it failed, or when
+ * the chat's current task came from the Coordinator. The current task is the
+ * latest message a person or the Coordinator sent; a plan approval carries on
+ * the task the plan was for. A PR event's turn (#1703) wakes it only when it
+ * failed: the chat already shows the event and what the agent did.
+ */
+export function wakesOnTurnEnd(
+  transcript: readonly AgentMessage[],
+  status: WakeStatus
+): boolean {
+  if (status === "failed") return true
+  const asks = transcript.filter(
+    (m): m is Extract<AgentMessage, { role: "user" }> => m.role === "user"
+  )
+  if (asks.at(-1)?.prEvent) return false
+  // The approval a plan decision resumes a chat with, as its next user turn.
+  const approval = planResolutionText({ approved: true })
+  for (const ask of [...asks].reverse()) {
+    if (ask.prEvent || ask.wakeFrom) continue
+    if (ask.content.trim() === approval) continue
+    return Boolean(ask.delegatedFrom)
+  }
+  return false
+}
+
+/**
+ * How many follow-ups the Coordinator may send on its own, from wakes, before
+ * the user says anything (Claude Projects' two-reply rule).
+ */
+export const WAKE_FOLLOW_UP_LIMIT = 2
+
+/** The Coordinator tools that hand a chat work. */
+const FOLLOW_UP_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "send_to_workspace",
+  "create_workspaces",
+  "start_chat",
+  "send_to_chat",
+])
+
+/**
+ * The follow-ups the Coordinator sent on its own since the user last wrote to
+ * it: earlier wake turns that started or messaged a chat. The turn running now
+ * (the transcript's last) doesn't count, so one wake that messages two chats
+ * is one follow-up.
+ */
+export function wakeFollowUps(transcript: readonly AgentMessage[]): number {
+  let count = 0
+  let wake = false
+  let delegated = false
+  const close = () => {
+    if (wake && delegated) count++
+  }
+  for (const m of transcript) {
+    if (m.role === "user") {
+      close()
+      // A message from the user starts the count over.
+      if (!m.wakeFrom) count = 0
+      wake = Boolean(m.wakeFrom)
+      delegated = false
+    } else if (
+      m.role === "tool_call" &&
+      m.status !== "failed" &&
+      FOLLOW_UP_TOOL_NAMES.has(bareToolName(m.title))
+    ) {
+      delegated = true
+    }
+  }
+  return count
 }
 
 /** A Workspace chat's turn that just ended. */
@@ -67,10 +143,11 @@ export function wakeMessage(input: {
     ? `"${title}" (a chat with no repository) [chat ${workspaceId}]`
     : workspaceLink(title, workspaceId)
   const subject = input.sketch ? "Chat" : "Workspace"
-  const nudge =
-    status === "paused_for_plan"
-      ? `Tell the user that ${link} is waiting for them to approve its plan, in one line with that link. You can’t approve plans; the user does.`
-      : "Reply only if the user needs to hear a result, a blocker or a decision only they can make. Otherwise end your turn without writing anything."
+  const nudge = [
+    "Its card in your chat, when it has one, already shows how it ended (Ready, Needs you, Failed, Stopped), and its reply is in its own chat, so don’t restate its result, and don’t say it’s waiting on a plan or a question.",
+    "Write only for a blocker the card can’t show (why it failed or what stops it going on) or a decision only the user can make, in one or two lines.",
+    "If the user, or a skill you’re following, asked you to do something once this chat finished, do it now. Otherwise end your turn without writing anything.",
+  ].join(" ")
   return prependTurnMarkers(
     [
       `${subject} ${link} ${ENDING[status]}. This is an automatic update, not a message from the user.`,

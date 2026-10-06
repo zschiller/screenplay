@@ -141,8 +141,9 @@ export interface EngineTurnLaunch {
   tools: Record<string, Tool>
   planMode?: boolean
   /**
-   * The turn answers a Coordinator wake (#897): a stock no-reply line it
-   * writes is dropped rather than shown (#1224).
+   * The turn answers a Coordinator wake (#897) or a PR event (#1703), so it may
+   * end without a reply: a stock no-reply line it writes is dropped rather
+   * than shown (#1224).
    */
   wake?: boolean
   /**
@@ -399,7 +400,7 @@ export async function launchTurn(
       model: prepared.model,
       tools: prepared.tools,
       planMode: prepared.planMode,
-      wake: Boolean(projectUserTurn(prepared.userText).wakeFrom),
+      wake: answersNobody(prepared.userText),
       reportSteering: reportSteeringOnce(deps, { roomId, chatId, runId }),
       secrets: prepared.secrets,
       ...(turnNote ? { turnNote } : {}),
@@ -634,4 +635,13 @@ export async function stopTurn(
     await deps.broadcastControl(roomId, chatId, { kind: "stopped" })
   }
   await deps.broadcastStreamEnd(roomId, chatId)
+}
+
+/**
+ * Whether a turn answers no one's message: a Coordinator wake, or a PR event,
+ * either of which may rightly end without a reply.
+ */
+function answersNobody(userText: string): boolean {
+  const { wakeFrom, prEvent } = projectUserTurn(userText)
+  return Boolean(wakeFrom || prEvent)
 }

@@ -389,6 +389,52 @@ describe("plan mode", () => {
   })
 })
 
+describe("follow-ups on a wake (two-reply rule)", () => {
+  function wakeHarness(followUps: number | undefined) {
+    const { collections } = makeHarness()
+    collections.branches.set("ws-1", baseBranch("ws-1"))
+    collections.chatSessions.set("chat", baseChat("chat", { branchId: "ws-1" }))
+    const launched: WorkspaceTurnRequest[] = []
+    const ports: RoomToolPorts = {
+      ...portsOver(collections),
+      launchWorkspaceTurn: async (request) => {
+        launched.push(request)
+      },
+      ...(followUps === undefined
+        ? {}
+        : { wakeFollowUps: async () => followUps }),
+    }
+    const run = (name: string, input: unknown) =>
+      buildRoomTools("room-1", ports)[name]!.execute!(input, {
+        toolCallId: "t1",
+        messages: [],
+        context: {},
+      })
+    return { launched, run }
+  }
+
+  it("refuses to hand out more work after two follow-ups nobody answered", async () => {
+    const { launched, run } = wakeHarness(2)
+    await expect(
+      run("send_to_workspace", { workspace_id: "ws-1", message: "Go" })
+    ).rejects.toThrow(/followed up 2 times on your own/)
+    await expect(
+      run("start_chat", { title: "Notes", prompt: "Write" })
+    ).rejects.toThrow(/followed up 2 times/)
+    expect(launched).toEqual([])
+    // Reading still works.
+    expect(await run("read_canvas", {})).toContain("ws-1")
+  })
+
+  it("follows up below the limit, and on any turn the user sent", async () => {
+    for (const followUps of [1, undefined]) {
+      const { launched, run } = wakeHarness(followUps)
+      await run("send_to_workspace", { workspace_id: "ws-1", message: "Go" })
+      expect(launched).toHaveLength(1)
+    }
+  })
+})
+
 describe("targeted elements in a Delegated Message", () => {
   const button: TargetedElement = {
     ref: "el-1",

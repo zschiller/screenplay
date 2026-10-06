@@ -46,7 +46,6 @@ import {
   chatCapabilitiesOf,
   type ChatCapabilities,
 } from "@/lib/chat/chat-capabilities"
-import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceTasks } from "./workspace-task-row"
 import { isHarnessPlumbing } from "@/lib/agent/tool-name"
 import {
@@ -403,12 +402,10 @@ export function AgentChat({
   }
 
   const lastRole = messages[messages.length - 1]?.role
-  // A Coordinator turn answering a wake (#897) works out of sight, so its cue
-  // names the Workspace it's catching up on instead of "Thinking…".
-  const wakeFrom = isStreaming ? runningWakeFrom(messages) : undefined
-  const wakeBranch = wakeFrom
-    ? workspaceTasks?.branches.find((b) => b.id === wakeFrom)
-    : undefined
+  // A Coordinator turn answering a wake (#897) works out of sight: like a
+  // project chat's silent turn, it shows no cue until it writes a reply.
+  const quietWake =
+    isStreaming && lastRole !== "assistant" && !!runningWakeFrom(messages)
 
   const renderEntry = ({
     message: msg,
@@ -510,7 +507,7 @@ export function AgentChat({
                   any text streams (and between tool calls) it says "Thinking…";
                   once the assistant is writing, the grid alone trails the
                   message, so the reply never looks finished while it grows. */}
-              {isStreaming && (
+              {isStreaming && !quietWake && (
                 <div
                   role="status"
                   data-testid="run-in-progress"
@@ -519,12 +516,6 @@ export function AgentChat({
                   <GripSpinner className="size-4" />
                   {lastRole === "assistant" ? (
                     <span className="sr-only">Responding…</span>
-                  ) : wakeFrom ? (
-                    wakeBranch ? (
-                      `Catching up on ${workspaceLabel(wakeBranch)}…`
-                    ) : (
-                      "Catching up…"
-                    )
                   ) : (
                     "Thinking…"
                   )}
@@ -903,8 +894,8 @@ function draftedOn(
 }
 
 /**
- * The Workspace a running Coordinator turn is catching up on, when the turn
- * answers a wake (#897): the last user message's wake.
+ * The chat a running Coordinator turn heard from, when the turn answers a
+ * wake (#897): the last user message's wake.
  */
 function runningWakeFrom(messages: AgentMessage[]): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {

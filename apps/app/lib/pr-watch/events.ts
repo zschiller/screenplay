@@ -106,16 +106,16 @@ export function prEventWakes(kind: PrEventKind): boolean {
 /** What the agent does about a PR event that woke it. */
 const NUDGE: Record<PrEventKind, string> = {
   checks_failed:
-    "Read the failing checks, fix the cause and push. If you can’t fix it, reply saying why.",
+    "Read the failing checks, fix the cause and push, then end without writing anything. If you can’t fix it, reply saying why.",
   checks_passed: "",
   conflict:
-    "Bring the base branch in, resolve the conflict and push. If you can’t resolve it safely, reply saying why.",
+    "Bring the base branch in, resolve the conflict and push, then end without writing anything. If you can’t resolve it safely, reply saying why.",
   review:
-    "Read the review and its comments, fix and push what it asks for, then reply with what you changed and anything you left and why. If it only approves, reply in one line saying so.",
+    "Read the review and its comments, and fix and push what it asks for. Reply only about anything you left and why; when you did it all, or it only approves, end without writing anything.",
   merged:
-    "Reply in one line saying the PR merged, unless something is left for the user.",
+    "The chat already shows the merge, so don’t write anything unless something is left for the user.",
   closed:
-    "Reply in one line saying the PR was closed, unless something is left for the user.",
+    "The chat already shows the close, so don’t write anything unless something is left for the user.",
 }
 
 const VERDICT_SENTENCE: Record<PrReviewVerdict, string> = {

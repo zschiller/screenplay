@@ -100,14 +100,14 @@ instead, and only you approve plans.
 ## Starting chats
 
 When an ask needs work no chat covers, the Coordinator starts new
-chats right away, without asking first, and names them in its reply. If
-it started one you didn’t want, ask it to remove it.
+chats right away, without asking first. It says it’s on it in one short line,
+and the new chats show up as cards under that line. If it started one you
+didn’t want, ask it to remove it.
 
 Each chat starts its sandbox, and its agent begins on the Coordinator’s
 first message as soon as its code is checked out, while the setup script and
-preview finish. The new chats show up as
-cards in the Coordinator’s reply, **Starting** at first, each with the first
-message it was given.
+preview finish. Each card reads **Starting** at first and shows the first
+message the chat was given.
 They belong to whoever asked for them. If one fails to start, the others carry
 on: its card shows **Failed**, the Coordinator tells you, and **Retry** on the
 chat brings it up and sends that first message then.
@@ -154,17 +154,23 @@ reply and leaves the pick to you.
 
 ## When a chat finishes
 
-The Coordinator hears from every chat on the canvas, including ones you
-started yourself. Each time a chat’s agent finishes, fails, is stopped or
-stops to wait for plan approval, the Coordinator reads what happened. That
-happens out of sight: while it reads, the chat shows only a quiet
-**Catching up on** line naming the chat, and its reads never appear in
-the chat.
+The Coordinator hears back about the work it handed out. Each time a chat it
+sent a message finishes, fails, is stopped or stops to wait for plan approval,
+the Coordinator reads what happened, out of sight: nothing shows in its chat
+while it reads. It also hears when any chat’s turn fails. A turn you drove in
+a chat yourself, or one a [pull request update](/guides/chats#pr-updates-in-the-chat) started, doesn’t
+reach it, since you’re already there or the chat shows it.
 
-It stays quiet unless there’s something you need to know: a result, a
-blocker, or a decision only you can make. When a chat is waiting for you
-to approve its plan, it tells you which one. You approve the plan in that
-chat; the Coordinator can’t.
+Results stay in the chat that did the work, and the chat’s card in the
+Coordinator shows its state, such as **Ready** or **Needs you**. So the
+Coordinator stays quiet unless there’s a blocker the card can’t show, like why
+a chat failed, or a decision only you can make. You approve a plan in the
+chat that asks; the Coordinator can’t.
+
+When you asked for a next step, like “then open the PR”, the Coordinator
+does it once the chat finishes. It follows up on its own at most twice before
+you write again; after that it tells you what it would do next and waits for
+you.
 
 When the Coordinator names a chat, frame, document or mockup, the name
 shows in medium weight after its icon. A chat’s icon is its state, so you

@@ -4,9 +4,45 @@ import {
   createKeyedQueue,
   isNoReply,
   isWakeStatus,
+  wakeFollowUps,
   wakeMessage,
+  wakesOnTurnEnd,
 } from "./coordinator-wake"
 import { parseUserMessage } from "./message-markers"
+import { planResolutionText } from "./acp/resolution"
+import type { AgentMessage } from "./types"
+
+const typed = (content: string): AgentMessage => ({ role: "user", content })
+const delegated = (content: string): AgentMessage => ({
+  role: "user",
+  content,
+  delegatedFrom: "room-chat",
+})
+const prEvent = (): AgentMessage => ({
+  role: "user",
+  content: "PR #7 was merged.",
+  prEvent: { kind: "merged", number: 7 },
+})
+const wake = (from: string): AgentMessage => ({
+  role: "user",
+  content: "update",
+  wakeFrom: from,
+})
+const reply = (content: string): AgentMessage => ({
+  role: "assistant",
+  content,
+})
+const call = (
+  title: string,
+  status: "completed" | "failed" = "completed"
+): AgentMessage =>
+  ({
+    role: "tool_call",
+    toolCallId: `${title}-${Math.random()}`,
+    title,
+    kind: "other",
+    status,
+  }) as AgentMessage
 
 describe("Coordinator wakes (#897)", () => {
   it("names a chat with no repository by its title, without a Workspace link", () => {
@@ -50,7 +86,7 @@ describe("Coordinator wakes (#897)", () => {
     expect(parsed.body).toContain("Otherwise end your turn without writing")
   })
 
-  it("on a plan pause, asks for one line naming and linking the Workspace, and says the user approves", () => {
+  it("on a plan pause, leaves it to the card rather than asking for a line", () => {
     const message = wakeMessage({
       workspaceId: "ws-1",
       title: "Checkout form",
@@ -58,9 +94,122 @@ describe("Coordinator wakes (#897)", () => {
       lastTurn: "Waiting for the user to approve this plan:\n1. ship it",
     })
     expect(message).toContain(
-      "Tell the user that [Checkout form](workspace:ws-1) is waiting for them to approve its plan"
+      "Workspace [Checkout form](workspace:ws-1) is waiting for the user to approve its plan."
     )
-    expect(message).toContain("You can’t approve plans; the user does.")
+    expect(message).toContain("don’t say it’s waiting on a plan")
+    expect(message).not.toContain("Tell the user")
+  })
+
+  it("asks for a blocker only, never the chat’s result", () => {
+    const message = wakeMessage({
+      workspaceId: "ws-1",
+      title: "Checkout form",
+      status: "completed",
+      lastTurn: "Last reply:\nFixed.",
+    })
+    expect(message).toContain("don’t restate its result")
+    expect(message).toContain("Write only for a blocker the card can’t show")
+    expect(message).not.toContain("a result")
+  })
+
+  describe("which turns wake it (Claude Projects: the coordinator hears its own work)", () => {
+    it("wakes for a turn on work the Coordinator sent, however it ended", () => {
+      const t = [delegated("fix the badge"), reply("Fixed.")]
+      for (const status of [
+        "completed",
+        "aborted",
+        "paused_for_plan",
+        "failed",
+      ] as const) {
+        expect(wakesOnTurnEnd(t, status), status).toBe(true)
+      }
+    })
+
+    it("doesn’t wake for a turn someone typed in the chat, unless it failed", () => {
+      const t = [
+        delegated("fix the badge"),
+        reply("Fixed."),
+        typed("open a PR"),
+      ]
+      expect(wakesOnTurnEnd(t, "completed")).toBe(false)
+      expect(wakesOnTurnEnd(t, "aborted")).toBe(false)
+      expect(wakesOnTurnEnd(t, "paused_for_plan")).toBe(false)
+      expect(wakesOnTurnEnd(t, "failed")).toBe(true)
+    })
+
+    it("doesn’t wake for a PR event’s turn, unless it failed", () => {
+      const t = [delegated("fix the badge"), reply("Fixed."), prEvent()]
+      expect(wakesOnTurnEnd(t, "completed")).toBe(false)
+      expect(wakesOnTurnEnd(t, "failed")).toBe(true)
+    })
+
+    it("carries the Coordinator’s task through a plan approval", () => {
+      const approve = typed(planResolutionText({ approved: true }))
+      expect(
+        wakesOnTurnEnd([delegated("plan the form"), approve], "completed")
+      ).toBe(true)
+      expect(
+        wakesOnTurnEnd([typed("plan the form"), approve], "completed")
+      ).toBe(false)
+    })
+
+    it("treats plan feedback as the person taking over", () => {
+      const feedback = typed(
+        planResolutionText({ approved: false, feedback: "smaller" })
+      )
+      expect(
+        wakesOnTurnEnd([delegated("plan the form"), feedback], "completed")
+      ).toBe(false)
+    })
+
+    it("doesn’t wake for a chat with no messages", () => {
+      expect(wakesOnTurnEnd([], "completed")).toBe(false)
+    })
+  })
+
+  describe("follow-ups it sent on its own (two-reply rule)", () => {
+    it("counts earlier wake turns that started or messaged a chat", () => {
+      expect(
+        wakeFollowUps([
+          typed("build it, then open a PR"),
+          call("create_workspaces"),
+          wake("ws-1"),
+          call("mcp__screenplay__send_to_workspace"),
+          call("send_to_chat"),
+          wake("ws-1"),
+          call("start_chat"),
+          wake("ws-1"),
+        ])
+      ).toBe(2)
+    })
+
+    it("leaves out the running turn, wakes that only read, and failed sends", () => {
+      expect(
+        wakeFollowUps([
+          typed("go"),
+          wake("ws-1"),
+          call("read_canvas"),
+          wake("ws-1"),
+          call("send_to_workspace", "failed"),
+          wake("ws-1"),
+          call("send_to_workspace"),
+        ])
+      ).toBe(0)
+    })
+
+    it("starts over when the user writes", () => {
+      expect(
+        wakeFollowUps([
+          wake("ws-1"),
+          call("send_to_workspace"),
+          wake("ws-1"),
+          call("send_to_workspace"),
+          typed("keep going"),
+          call("send_to_workspace"),
+          wake("ws-1"),
+        ])
+      ).toBe(0)
+    })
   })
 
   it("recognizes the stock lines a harness writes when a wake needs no answer (#1224)", () => {
