@@ -1,5 +1,6 @@
 import Image from "@tiptap/extension-image"
-import type { JSONContent } from "@tiptap/core"
+import type { Editor, JSONContent } from "@tiptap/core"
+import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state"
 
 /**
  * **Document images**: a picture in a Document's body. Its `src` is the path
@@ -80,4 +81,22 @@ export function liftImagesFromParagraphs(node: JSONContent): JSONContent {
     content.unshift({ type: "paragraph" })
   }
   return { ...node, content }
+}
+
+/**
+ * Drop a selected image's selection, for when the Document stops editing.
+ * ProseMirror keeps its selection through `setEditable(false)`, so a clicked
+ * image would stay outlined after the layer is deselected. The caret moves to
+ * the nearest text instead, which nothing shows while the Document isn't
+ * editing.
+ */
+export function releaseImageSelection(editor: Editor): void {
+  const { state } = editor
+  if (!(state.selection instanceof NodeSelection)) return
+  const $from = state.doc.resolve(state.selection.from)
+  const text =
+    TextSelection.findFrom($from, -1, true) ??
+    TextSelection.findFrom($from, 1, true) ??
+    Selection.atStart(state.doc)
+  editor.view.dispatch(state.tr.setSelection(text))
 }

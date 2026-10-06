@@ -64,7 +64,11 @@ import {
   DocumentImagePicker,
   type PickedImage,
 } from "@/components/canvas/document-image-picker"
-import { DocumentImage, imageAltFor } from "@/lib/document-image"
+import {
+  DocumentImage,
+  imageAltFor,
+  releaseImageSelection,
+} from "@/lib/document-image"
 import {
   DocumentImageUpload,
   imagesIn,
@@ -713,6 +717,7 @@ function MarkdownLayerImpl({
   useEffect(() => {
     if (!editor) return
     editor.setEditable(editing)
+    if (!editing) releaseImageSelection(editor)
     if (editing) {
       const coords = pendingFocusCoordsRef.current
       pendingFocusCoordsRef.current = null
