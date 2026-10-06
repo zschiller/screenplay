@@ -26,10 +26,10 @@ import {
   useChatSessions,
   useMarkdownLayers,
   useMockupLayers,
-  useOtherPresences,
+  useOtherPeers,
   useRoomCollections,
   useSavedViewport,
-  useSelfPresence,
+  useSelfIdentity,
   useSetPresence,
   useMemories,
   useCanvasFiles,
@@ -402,8 +402,8 @@ export function Canvas({
   // pointer/route callbacks below) and driven by the Canvas Camera controller.
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const setPresence = useSetPresence()
-  const self = useSelfPresence()
-  const others = useOtherPresences()
+  const self = useSelfIdentity()
+  const others = useOtherPeers()
   const { data: session } = useAppSession()
   const userId = session?.user.id
   const history = useYjsHistory()
@@ -545,13 +545,14 @@ export function Canvas({
 
   // Awareness mirrors the Interaction controller's cursor-chat verbs read: the
   // latest self pointer (where '/' anchors the bubble) and message (null =
-  // closed). Mirrored from `self` after commit (the effect below) so the verbs
-  // and the Escape resolver read them without re-binding. Declared here, ahead
+  // closed). The pointer is written by the pointer handlers below and the
+  // message mirrored from `self` after commit, so the verbs and the Escape
+  // resolver read them without re-binding (and the Canvas doesn't re-render on
+  // our own cursor moves). Declared here, ahead
   // of the controller that consumes them, so no ordering cycle is introduced.
   const selfPointerRef = useRef<{ x: number; y: number } | null>(null)
   const selfMessageRef = useRef<string | null>(null)
   useEffect(() => {
-    selfPointerRef.current = self?.pointer ?? null
     selfMessageRef.current = self?.message ?? null
   })
 
@@ -689,7 +690,6 @@ export function Canvas({
     session,
     saveViewport,
     savedViewport,
-    others,
     overlaySelectedIds,
     groupSelectedIframeLayerIds,
     focusedIframeLayerId,
@@ -1828,7 +1828,8 @@ export function Canvas({
       const relY = e.clientY - rect.top
       const canvasX = (relX - positionX) / scale
       const canvasY = (relY - positionY) / scale
-      setPresence({ pointer: { x: canvasX, y: canvasY } })
+      selfPointerRef.current = { x: canvasX, y: canvasY }
+      setPresence({ pointer: selfPointerRef.current })
 
       // Hit-test for hover highlight. Suppressed while a reorder or layer
       // drag is active so the dragged iframeLayer sweeping over its siblings
@@ -1861,6 +1862,7 @@ export function Canvas({
   )
 
   const handlePointerLeave = useCallback(() => {
+    selfPointerRef.current = null
     setPresence({ pointer: null })
     setHoveredIframeLayerId(null)
     resetHandleHover()
@@ -1895,7 +1897,7 @@ export function Canvas({
   // members (drives the group label). First writer wins if two users overlap.
   //
   // Memoized on `others` so a pan — which rebroadcasts our own viewport ~60x/s
-  // but leaves the peer set untouched (see `useOtherPresences`) — doesn't
+  // but leaves the peer set untouched (see `useOtherPeers`) — doesn't
   // rebuild these and re-render the memoized member layer every frame.
   const {
     othersSelections,
@@ -2368,7 +2370,7 @@ export function Canvas({
                             commentMode={commentMode}
                             pickActive={targeting.pickActive}
                             dimmedIframeLayerIds={targeting.dimmedIds}
-                            selfName={self?.identity.name || "Anonymous"}
+                            selfName={self?.name || "Anonymous"}
                             selfColor={self?.color || "#888888"}
                             editingDocumentLayerId={editingDocumentLayerId}
                             setEditingDocumentLayerId={

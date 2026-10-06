@@ -23,7 +23,7 @@ import {
   type FrameControlRecord,
   type FrameDriver,
 } from "@/lib/canvas/frame-control"
-import type { CanvasPresence } from "@/lib/yjs/react"
+import type { CanvasPresence, PeerPresence } from "@/lib/yjs/react"
 import type { YjsCollection } from "@/lib/yjs/schema"
 
 /** Who drives a frame, as the canvas draws it: the driver plus their name and
@@ -56,7 +56,7 @@ export interface FrameControlDeps {
   viewerId: string | null
   /** Other people's awareness states: who is online, and their name and
    *  colour for the tag and ring. */
-  others: ReadonlyArray<{ presence: CanvasPresence }>
+  others: ReadonlyArray<{ presence: PeerPresence }>
   /** The Iframe Layers Frame Control governs. */
   frameIds: readonly string[]
   /** Frames that are one shared browser (#1392): one record for everyone,

@@ -8,7 +8,7 @@ import {
   AvatarFallback,
 } from "@workspace/ui/components/avatar"
 import { IconButton } from "@workspace/ui/components/icon-button"
-import { useOtherPresences, useSelfPresence } from "@/lib/yjs/react"
+import { useOtherPresences, useSelfIdentity } from "@/lib/yjs/react"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 
 interface FollowingToolbarProps {
@@ -35,27 +35,25 @@ export function FollowingToolbar({
   onFollow,
 }: FollowingToolbarProps) {
   const others = useOtherPresences()
-  const self = useSelfPresence()
+  const self = useSelfIdentity()
 
   return (
     <div className="ml-0.5 flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
       {self && (
         <IconButton
-          label={`${self.identity.name || "You"} (you)`}
+          label={`${self.name || "You"} (you)`}
           tooltipSide="bottom"
           className={AVATAR_BUTTON_CLASS}
           onClick={() => onFollow(null)}
         >
           <Avatar size="sm">
-            {self.identity.avatar ? (
-              <AvatarImage src={self.identity.avatar} alt="" />
-            ) : null}
+            {self.avatar ? <AvatarImage src={self.avatar} alt="" /> : null}
             <AvatarFallback
               aria-hidden
               style={{ backgroundColor: self.color }}
               className="text-xs font-medium text-white"
             >
-              {getInitials(self.identity.name || "?")}
+              {getInitials(self.name || "?")}
             </AvatarFallback>
           </Avatar>
         </IconButton>

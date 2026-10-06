@@ -24,7 +24,7 @@ import {
   ZOOM_STEP,
 } from "@/lib/constants"
 import { isFixtureWorld } from "@/lib/fixture-world"
-import type { CanvasPresence } from "@/lib/yjs/react"
+import { usePeerViewport, type CanvasPresence } from "@/lib/yjs/react"
 import type { ViewportData } from "@/lib/types"
 import type { WheelForward } from "@/hooks/use-screenplay-dom"
 import type { LiveZoom } from "./live-zoom"
@@ -70,8 +70,6 @@ export interface CanvasCameraDeps {
   saveViewport: (vp: ViewportData) => void
   /** The viewport restored from the Y.Doc on first load, if any. */
   savedViewport: ViewportData | null
-  /** Other peers' presence — the follow effect reads the followed viewport. */
-  others: Array<{ clientId: number; presence: CanvasPresence }>
   /** Local selection ids broadcast into awareness for remote selection rings. */
   overlaySelectedIds: Set<string>
   groupSelectedIframeLayerIds: Set<string>
@@ -190,7 +188,6 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     session,
     saveViewport,
     savedViewport,
-    others,
     overlaySelectedIds,
     groupSelectedIframeLayerIds,
     focusedIframeLayerId,
@@ -657,16 +654,16 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   )
 
   // --- Follow another user's viewport ---
+  const followedViewport = usePeerViewport(followingConnectionId)
   useEffect(() => {
-    if (followingConnectionId === null) return
-    const followed = others.find((o) => o.clientId === followingConnectionId)
+    if (followingConnectionId === null || followedViewport === null) return
     // If the user we're following disconnected, stop following.
-    if (!followed) {
+    if (!followedViewport) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFollowingConnectionId(null)
       return
     }
-    const { viewport } = followed.presence
+    const viewport = followedViewport
     const ref = transformRef.current
     if (!ref) return
     // Only move if our viewport actually differs.
@@ -676,7 +673,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     const dz = Math.abs(scale - viewport.zoom)
     if (dx < 1 && dy < 1 && dz < 0.001) return
     ref.setTransform(viewport.x, viewport.y, viewport.zoom, 200)
-  }, [transformRef, followingConnectionId, others])
+  }, [transformRef, followingConnectionId, followedViewport])
 
   // --- Figma-style wheel: scroll = pan, Ctrl/Cmd+scroll = zoom ---
   useEffect(() => {
