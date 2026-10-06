@@ -270,7 +270,9 @@ describe("a question about a Mockup (#1644, #1662)", () => {
     c.link().draft("sketched", "Round 1\n→ Which row?: B")
     expect(c.log).toEqual(["room"])
     expect(c.prefills).toEqual([[ROOM, "Round 1\n→ Which row?: B"]])
-    expect(c.sources).toEqual([[ROOM, { mockupId: "sketched", title: "Pricing" }]])
+    expect(c.sources).toEqual([
+      [ROOM, { mockupId: "sketched", title: "Pricing" }],
+    ])
 
     // Once it's answered, a draft goes back to the chat that changed it
     c.say(ROOM, reply("Round 1\n→ Which row?: B"))
