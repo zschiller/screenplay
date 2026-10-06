@@ -49,8 +49,7 @@ edits, never the Coordinator’s.
 The Coordinator makes nothing itself. It never works inside a sandbox, never
 edits a chat’s files, and never writes a [document](/guides/documents) or
 a [mockup](/guides/mockups). When you ask it for any of these, it sends the
-ask to the chat it’s about, and that chat’s agent does the work and
-owns what it makes. When no chat fits, it starts a new one for the ask.
+ask to the chat it’s about, and that chat’s agent does the work. When no chat fits, it starts a new one for the ask.
 
 When the ask isn’t about any chat’s code, or the canvas has no
 [repository](/guides/repositories) yet, the Coordinator starts a
@@ -76,7 +75,8 @@ reads the same as the chat’s row in the Chats menu:
 - **Starting** while the chat’s sandbox comes up;
 - **Working** while its agent runs;
 - **Needs you** when its plan waits for your approval, it asked you a
-  question, or its pull request can’t merge;
+  question, its agent stopped working on its pull request, or its pull
+  request can’t merge;
 - **Ready** once its turn ends, including a turn that ended in an error or
   that someone stopped;
 - **Stopped** when its sandbox is stopped;
@@ -184,8 +184,7 @@ your own account memory, which follows you to every canvas.
 ## Chatting with the Coordinator
 
 The Coordinator’s chat works like
-[any other chat](/guides/agent#the-composer), with a few differences. It’s
-one chat, so there are no tabs and no chat history. You can
+[any other chat](/guides/agent#the-composer), but it has no terminals. You can
 [@ mention documents](/guides/agent#mentioning-documents), point at what’s
 [selected or on screen](/guides/agent#pointing-with-the-canvas), pick its model and
 [send while it works](/guides/agent#sending-while-the-agent-works) and
@@ -209,7 +208,7 @@ where it shows as the same token with its selector and route (see
 Its tool calls show as compact rows, like any other chat’s agent. A row that
 reads a chat names it, such as **Read changes in** _Checkout_. Once a
 change to the canvas finishes, its row says what changed, such as **Renamed
-Group “Hero” to “Sign-in”**.
+group “Hero” to “Sign-in”**.
 
 | Kind    | Rows                                                                                                                                                                                                                                                            |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -20,7 +20,8 @@ Every chat has its own branch, sandbox, preview and terminals from the
 moment it starts, and it’s the only chat that changes that code. More work in
 parallel means more chats. A chat can read other chats’ code and frames, but
 never changes them. It can also [write documents](/guides/documents#documents-a-chat-writes)
-on the canvas, and edits the ones it wrote.
+on the canvas, and change any document or mockup no other chat is changing
+right now.
 
 ## Choosing a target
 
@@ -149,10 +150,10 @@ and the message waits in a **Queued** row above the composer, where you can
 ### Choosing a model
 
 The model menu sits at the bottom left of the composer and names the current
-model; its list groups models under their coding CLI. New chats start with
-the default agent and model from [Settings](/guides/settings#agent).
-Changing the model in a chat changes only that chat, and the menu shows
-**· not default** when it differs. You can switch at any point in a chat: the
+model. Its list groups models under their coding CLI (desktop) or provider
+(hosted), marks the default **Default** and checks the one in use. New chats
+start with the default agent and model from [Settings](/guides/settings#agent).
+Changing the model in a chat changes only that chat. You can switch at any point in a chat: the
 new model answers from your next message on, with the whole conversation so far.
 Switching to another coding CLI’s model starts that CLI with the conversation
 replayed to it.
@@ -225,7 +226,7 @@ marked with its name, like **Claude Code**.
 
 Instead of describing a button, point at it. Click the **crosshair** (or
 press <kbd>⌘</kbd> <kbd>E</kbd>), then click any element in one of this
-chat’s frames or in a [mockup](/guides/mockups) it drew. A token
+chat’s frames or in a [mockup](/guides/mockups) it changed last. A token
 like `⌖ a` is inserted where your cursor was, and the agent receives the
 element’s CSS selector, route, and frame, or for a mockup, which mockup it’s
 in. Hover the
@@ -302,10 +303,10 @@ agent the chat runs on. Paths are relative to the repository.
 | **Search the web**, **Fetch** _site_           | Looked something up online                                                                                                        |
 | **Read skill** _name_                          | Loaded a skill’s instructions                                                                                                     |
 | **Save skill** _name_                          | Offered a skill: a card to save it to your account or the canvas ([skills](/guides/building/skills#saving-a-skill-to-the-canvas)) |
-| **Read dev server logs**                       | Read the dev server’s recent output                                                                                               |
-| **Restart dev server**                         | Restarted the chat’s dev server                                                                                                   |
-| **Stop dev server**                            | Stopped the chat’s dev server                                                                                                     |
-| **Start dev server**                           | Started a stopped dev server again                                                                                                |
+| **Read preview logs**                          | Read the preview’s recent output                                                                                                  |
+| **Restart preview**                            | Restarted the chat’s preview                                                                                                      |
+| **Stop preview**                               | Stopped the chat’s preview                                                                                                        |
+| **Start preview**                              | Started a stopped preview again                                                                                                   |
 | **View frame**                                 | Looked at a frame’s preview, or its last capture                                                                                  |
 | **Read frame HTML**                            | Read the page in a frame as HTML                                                                                                  |
 | **Screenshot page** _page_                     | Took a screenshot of a page in the background                                                                                     |
@@ -313,7 +314,8 @@ agent the chat runs on. Paths are relative to the repository.
 | **Used** _page_, _n_ steps                     | Used a frame or mockup (expand for each step)                                                                                     |
 | **Read document**                              | Read a document on the canvas                                                                                                     |
 | **Create document** _title_                    | Wrote a [document](/guides/documents#documents-a-chat-writes)                                                                     |
-| **Rewrite document**, **Set title**            | Changed a document it wrote                                                                                                       |
+| **Rewrite document**, **Set title**            | Changed a document                                                                                                                |
+| **Append to document**                         | Added to the end of a document                                                                                                    |
 | **Create mockup** _title_                      | Drew a [mockup](/guides/mockups)                                                                                                  |
 | **Update mockup** _title_                      | Rewrote a mockup’s page                                                                                                           |
 | **Read mockup**                                | Read a mockup’s page                                                                                                              |
@@ -370,10 +372,10 @@ A few defaults are worth knowing:
   address. It can keep a screenshot in the canvas’s
   [saved files](/guides/files) to put in a document or a mockup, or for a later
   chat to open. In the hosted app it only reaches public pages; in the desktop
-  app it reaches whatever your Mac can, local dev servers included.
+  app it reaches whatever your Mac can, local previews included.
 - **The agent can drive frames and mockups.** It clicks, types, scrolls and hovers in
-  a frame to show you something or get it into a state, and you can take over
-  at any moment. On a shared canvas everyone watching the frame sees each
+  a frame to show you something or get it into a state, and you can take
+  control at any moment. On a shared canvas everyone watching the frame sees each
   step; in the desktop app it drives the frame on your own canvas. See
   [The agent driving a frame](/guides/frames#the-agent-driving-a-frame). It
   drives [mockups](/guides/mockups#the-agent-driving-a-mockup) in the browser

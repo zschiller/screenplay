@@ -1,6 +1,6 @@
 ---
 title: Desktop app
-description: How the Tauri shell packages the app as an offline, single-user macOS app.
+description: How the Tauri shell packages the app as a single-user macOS app that needs no account or Screenplay servers.
 ---
 
 # Desktop app
@@ -12,7 +12,7 @@ the [Quickstart](/guides/quickstart). This page explains how the app is built.
 The [local build](/self-hosting/configuration/local-build) and its per-seam local backends —
 [sandbox](/self-hosting/configuration/sandbox-provider), [Yjs host](/self-hosting/configuration/yjs-host),
 [blob store](/self-hosting/configuration/blob-store), database, engine — are assembled into a
-single offline desktop app by a **Tauri shell** that runs the Next app as a
+single desktop app by a **Tauri shell** that runs the Next app as a
 bundled **Node sidecar** ([#418](https://github.com/zschiller/screenplay/issues/418), [#404](https://github.com/zschiller/screenplay/issues/404)). The shell lives in
 `apps/desktop`.
 
@@ -29,7 +29,7 @@ SCREENPLAY_DESKTOP=1            # emit `output: standalone`
 NEXT_PUBLIC_SCREENPLAY_LOCAL=1  # strip the multi-user surface
 NEXT_PUBLIC_YJS_HOST=local      # local y-websocket host
 NEXT_PUBLIC_BASE_PATH=          # served at the origin root (no /app proxy)
-SANDBOX_BACKEND=local           # Branches = per-Branch git worktrees on the host
+SANDBOX_BACKEND=local           # each chat’s code is a git worktree on the host
                                 # ("worktree", the old value, still accepted)
 SCREENPLAY_DB=pglite            # embedded Postgres
 BLOB_STORE=local-fs             # thumbnails to local disk
@@ -62,7 +62,7 @@ opens:
 
 ## Secrets
 
-`ENCRYPTION_KEY` (project-preset / env-var encryption at rest) and
+`ENCRYPTION_KEY` (encrypts saved repositories, environment variable values, and account memory, files and skills lists at rest) and
 `TERMINAL_AUTH_SECRET` are deployment secrets in the hosted app. A desktop
 install has no deployment, so the shell **mints and persists them on first
 launch** next to the app data — stable across restarts, unique per install.

@@ -5,8 +5,8 @@ import { SectionHeading } from "./section-heading"
 
 const features: { title: string; body: string }[] = [
   {
-    title: "Live sandboxes",
-    body: "Every frame is a running dev server on its own branch. Click, scroll, fill in forms and switch to mobile sizes.",
+    title: "Live previews",
+    body: "Every chat runs its own live preview, and its frames show it. Click, scroll, fill in forms and switch to mobile sizes.",
   },
   {
     title: "The Coordinator",
@@ -18,7 +18,7 @@ const features: { title: string; body: string }[] = [
   },
   {
     title: "Knobs",
-    body: "Ask the agent to expose spacing, color or copy as knobs, then drag a slider to try values in a frame without another prompt. Hosted frames also get a Theme knob for light and dark.",
+    body: "Ask the agent to expose spacing, color or copy as knobs, then drag a slider to try values in a frame without another prompt. On a hosted canvas, a live frame also gets a Theme knob for light and dark.",
   },
   {
     title: "Your agents and models",

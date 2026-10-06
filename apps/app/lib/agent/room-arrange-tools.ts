@@ -87,7 +87,7 @@ export function buildArrangeTools(
               })!
             )
             return withIds(
-              `Added ${frameNames(frames)}${forWorkspace(branch)} to Group "${group.name ?? group_id}".`,
+              `Added ${frameNames(frames)}${forWorkspace(branch)} to group “${group.name ?? group_id}”.`,
               ids
             )
           }
@@ -118,7 +118,7 @@ export function buildArrangeTools(
           const group = freshOps(doc).c.iframeLayerGroups.get(created.groupId)
           const ids = group ? getGroupMembers(group).map((m) => m.id) : []
           return withIds(
-            `Created ${frameNames(frames)}${forWorkspace(branch)} in a new Group.`,
+            `Created ${frameNames(frames)}${forWorkspace(branch)} in a new group.`,
             [...ids, created.groupId]
           )
         }),
@@ -145,7 +145,7 @@ export function buildArrangeTools(
             x: Math.round(x),
             y: Math.round(y),
           })
-          return `Moved Group "${group.name ?? group_id}" to ${Math.round(x)}, ${Math.round(y)}.${overlapNote(freshOps(doc).c, group_id)}`
+          return `Moved group “${group.name ?? group_id}” to ${Math.round(x)}, ${Math.round(y)}.${overlapNote(freshOps(doc).c, group_id)}`
         }),
     }),
 
@@ -197,13 +197,13 @@ export function buildArrangeTools(
           for (const [id, { x, y }] of placed) {
             ops.patch("iframeLayerGroups", id, { x, y })
           }
-          const names = ids.map((id) => `"${groupName(c, id)}"`).join(", ")
+          const names = ids.map((id) => `“${groupName(c, id)}”`).join(", ")
           const where = {
             row: "in a row",
             column: "in a column",
             grid: "in a grid",
           }[layout]
-          return `Laid out Groups ${names} ${where}${below ? ", below the rest of the canvas" : ""}.`
+          return `Laid out groups ${names} ${where}${below ? ", below the rest of the canvas" : ""}.`
         }),
     }),
 
@@ -237,7 +237,7 @@ export function buildArrangeTools(
               height: DEFAULT_IFRAME_LAYER_HEIGHT,
             }
             const newId = ops.splitToNewGroup(ids, newGroupAnchor(c, size))
-            return withIds(`Gathered ${names} into a new Group.`, [newId])
+            return withIds(`Gathered ${names} into a new group.`, [newId])
           }
           const target = c.iframeLayerGroups.get(group_id)
           if (!target) return `Error: no Group ${group_id}.`
@@ -248,7 +248,7 @@ export function buildArrangeTools(
               index === undefined ? undefined : index + i
             )
           )
-          return `Moved ${names} into Group "${target.name ?? group_id}".${overlapNote(freshOps(doc).c, group_id)}`
+          return `Moved ${names} into group “${target.name ?? group_id}”.${overlapNote(freshOps(doc).c, group_id)}`
         }),
     }),
 
@@ -274,7 +274,7 @@ export function buildArrangeTools(
           if (!source) return `Error: no Group ${source_group_id}.`
           if (!target) return `Error: no Group ${target_group_id}.`
           ops.mergeGroups(source_group_id, target_group_id)
-          return `Merged Group "${source.name ?? source_group_id}" into "${target.name ?? target_group_id}".${overlapNote(freshOps(doc).c, target_group_id)}`
+          return `Merged group “${source.name ?? source_group_id}” into “${target.name ?? target_group_id}”.${overlapNote(freshOps(doc).c, target_group_id)}`
         }),
     }),
 
@@ -294,12 +294,12 @@ export function buildArrangeTools(
           const frame = c.iframeLayers.get(id)
           if (frame) {
             ops.patch("iframeLayers", id, { label: name })
-            return `Renamed frame "${frame.label}" to "${name}".`
+            return `Renamed frame “${frame.label}” to “${name}”.`
           }
           const group = c.iframeLayerGroups.get(id)
           if (group) {
             ops.patch("iframeLayerGroups", id, { name })
-            return `Renamed Group "${group.name ?? id}" to "${name}".`
+            return `Renamed group “${group.name ?? id}” to “${name}”.`
           }
           return `Error: no frame or Group ${id}.`
         }),
@@ -327,10 +327,10 @@ export function buildArrangeTools(
             return `Error: no frame or document ${unknown.join(", ")}. Nothing was removed.`
           }
           const names = [
-            ...frames.map((id) => `frame "${c.iframeLayers.get(id)!.label}"`),
+            ...frames.map((id) => `frame “${c.iframeLayers.get(id)!.label}”`),
             ...documents.map(
               (id) =>
-                `document "${c.markdownLayers.get(id)!.title || "Untitled"}"`
+                `document “${c.markdownLayers.get(id)!.title || "Untitled"}”`
             ),
           ]
           if (frames.length) freshOps(doc).ops.removeLayers(frames)
@@ -538,7 +538,7 @@ function overlapNote(c: RoomCollections, id: string): string {
   if (!rect) return ""
   const hit = [...rects]
     .filter(([other, r]) => other !== id && intersects(rect, r))
-    .map(([other]) => `"${groupName(c, other)}"`)
+    .map(([other]) => `“${groupName(c, other)}”`)
   return hit.length ? ` It now overlaps ${hit.join(", ")}.` : ""
 }
 
@@ -571,7 +571,7 @@ function forWorkspace(branch: BranchData | undefined): string {
 }
 
 function frameNames(frames: { label: string }[]): string {
-  const names = frames.map((f) => `"${f.label}"`).join(", ")
+  const names = frames.map((f) => `“${f.label}”`).join(", ")
   return `${frames.length === 1 ? "frame" : "frames"} ${names}`
 }
 
@@ -580,10 +580,10 @@ function memberNames(c: RoomCollections, ids: string[]): string {
   return ids
     .map((id) => {
       const frame = c.iframeLayers.get(id)
-      if (frame) return `frame "${frame.label}"`
+      if (frame) return `frame “${frame.label}”`
       const mockup = c.mockupLayers.get(id)
-      if (mockup) return `mockup "${mockup.title || "Untitled"}"`
-      return `document "${c.markdownLayers.get(id)?.title || "Untitled"}"`
+      if (mockup) return `mockup “${mockup.title || "Untitled"}”`
+      return `document “${c.markdownLayers.get(id)?.title || "Untitled"}”`
     })
     .join(", ")
 }

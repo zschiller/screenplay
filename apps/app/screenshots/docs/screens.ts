@@ -1492,7 +1492,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   screen({
     name: "workspaces-menu",
     description:
-      "The chat panel's Chats menu (#1152, #1317): the Coordinator, then every chat.",
+      "The chat panel's Chats menu (#1152, #1317): every chat, grouped by state.",
     path: ROOM,
     cookies: WITH_CHAT,
     crop: [700, 0, 580, 460],

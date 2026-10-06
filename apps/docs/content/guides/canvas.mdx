@@ -34,12 +34,15 @@ panel’s edge to resize it; the layout is remembered.
 The zoom percentage at the top right opens the zoom menu: **Zoom in**,
 **Zoom out**, **Zoom to fit**, **Zoom to 50%**, **Zoom to 100%**, **Zoom to
 200%**, and **Keyboard shortcuts** (also <kbd>?</kbd>). Zoom runs from 2% to
-1600%. Your viewport is saved with the canvas, so you come back to where you
+1600%. <kbd>⌘</kbd> <kbd>=</kbd> and <kbd>⌘</kbd> <kbd>-</kbd> step through set
+stops (2%, 5%, 10%, 25%, 50%, 75%, 100%, 150%, 200%, 300%, 400%, 600%, 800%,
+1200%, 1600%). Zoom to fit, and double-clicking a layer to zoom to it, stop at
+500%, so a small layer doesn’t fill the screen. Your viewport is saved with the canvas, so you come back to where you
 left off.
 
 The names above frames, mockups and documents stay the same size at every
-zoom. As you zoom out, a name hides only once its layer is too narrow on
-screen to fit it, so a phone frame’s name goes before a desktop frame’s, and
+zoom. As you zoom out, a name is cut short to its layer’s width, and hides
+once the layer is less than 64px wide on screen, so a phone frame’s name goes before a desktop frame’s, and
 layers of the same size always agree. A group’s name goes with its first
 layer’s.
 
@@ -71,8 +74,8 @@ time. Pressing a tool’s key again returns to **Select**.
 | **Document** | <kbd>D</kbd> | Click to drop a document, or drag to draw one                                                                    |
 | **Comment**  | <kbd>C</kbd> | <Only hosted /> Pin a comment to an element                                                                      |
 
-While the Frame or Document tool is active, every group shows a dashed
-**+** slot at its end. Click it to add the new layer to that group. Adding a
+While the Frame or Document tool is active, every group shows an empty
+outlined slot at its end. Click it to add the new layer to that group. Adding a
 layer, by clicking, dragging or using a slot, selects it and returns to
 **Select**.
 

@@ -24,5 +24,5 @@ is `/app`; change both rewrites if you pick another. Served at the root, the
 product’s own pages take precedence and the rewrites do nothing.
 
 This is how the reference deployment serves all three apps under one domain: the
-marketing `web` app owns the apex and rewrites `/app/*` to this project
+marketing `homepage` app owns the apex and rewrites `/app/*` to this project
 (`apps/homepage/vercel.json`), and this project sets `NEXT_PUBLIC_BASE_PATH=/app`.

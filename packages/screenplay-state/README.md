@@ -1,13 +1,13 @@
 # @screenplay.space/state
 
-Bridge a prototype's UI state to the parent screenplay canvas so it syncs
+Bridge a prototype's UI state to the parent Screenplay canvas so it syncs
 across every viewer in the room. The canvas persists the merged state per
-artboard via Yjs and pushes it back down into every connected client's
+frame via Yjs and pushes it back down into every connected client's
 iframe — change `currentUser` in one viewer's prototype and every other
 viewer's prototype updates too.
 
 The canvas itself doesn't render an editor for shared state today; it shows
-a tiny indicator on the route pill with the JSON in a tooltip. That's
+a `{}` next to the route in the frame’s address bar, with the JSON in a tooltip. That's
 deliberate — direct editing from the canvas may come later.
 
 The package is dev-only by design. In any build with `NODE_ENV` set to
@@ -76,7 +76,7 @@ canvas drops the old entry; treat it like an `id`.
 | Local change → other clients | Yes (via canvas + Yjs)                                         |
 | Other clients → local        | Yes when you pass `setter` (3-arg form)                        |
 | Canvas user editing          | No editor UI yet — read-only at the canvas surface             |
-| Persistence across reloads   | Yes — state lives on the artboard until cleared                |
+| Persistence across reloads   | Yes — state lives on the frame until cleared                   |
 | Frame loads or reloads       | Room's state wins; the frame's values fill only missing keys   |
 | Cross into play mode         | Yes — same protocol, same room, same Yjs                       |
 

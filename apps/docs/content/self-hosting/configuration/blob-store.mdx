@@ -73,7 +73,8 @@ store. A different backend reads whatever env vars you wire into its factory.
 
 Canvas files, the files agents save for a canvas’s members, are private: only
 members of the canvas can read them, through
-`/api/canvas-files/<canvas>/<path>`, which checks membership. Their bytes go to
+`/api/canvas-files/<canvas>/<path>`, which checks membership. Their bytes, along
+with each person’s account files and the files of every saved skill, go to
 a separate **file store** (`apps/app/lib/files`) with no public URLs, picked by
 the same `BLOB_STORE` value:
 
@@ -86,7 +87,8 @@ A Vercel Blob store’s access is set when it’s created, and the thumbnails st
 is public, so files need a second store. In the Vercel dashboard, create a Blob
 store with **private** access and connect it to the project with the env var
 prefix `PRIVATE_BLOB`; `PRIVATE_BLOB_READ_WRITE_TOKEN` is then injected. Without it,
-agents can’t save or open files, and say so when asked to.
+agents can’t save or open files, and say so when asked to, and skills can’t be
+saved.
 
 Files people attach to chat messages land in the same store. On a Vercel Blob
 store, an attachment over 4 MB uploads from the browser straight to the store

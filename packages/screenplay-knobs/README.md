@@ -1,6 +1,6 @@
 # @screenplay.space/knobs
 
-Declare interactive controls (sliders, switches, selects, color pickers, text inputs) from a prototype's own code. They show up in a popover on the screenplay canvas next to the artboard's "interact" button. Knob state syncs across viewers in real time.
+Declare interactive controls (sliders, switches, selects, color pickers, text inputs) from a prototype's own code. They show up in the frame’s Knobs popover on the Screenplay canvas and in play mode’s knobs panel. Knob state syncs across viewers in real time.
 
 The package is dev-only by design. In any build with `NODE_ENV` set to anything other than `"development"`, `useKnob` quietly returns the declared `default` and no postMessage path ever runs — no listener is attached, no declaration is published, no value is ever read or written from a parent frame. So shipping knobs in committed code is safe: even if the deployed prototype is iframed by some non-screenplay parent in production, none of the knob protocol is wired up to act on.
 
@@ -90,9 +90,7 @@ GitHub Actions (`.github/workflows/publish-knobs.yml`). Open the Actions tab,
 pick that workflow, and click **Run workflow**:
 
 - **bump** — `patch`, `minor`, `major`, `prerelease`, an explicit semver
-  (`0.2.0`), or `none` to publish the version already in `package.json`
-  (use `none` for the very first publish, since the file already says
-  `0.1.0`).
+  (`0.2.0`), or `none` to publish the version already in `package.json`.
 - **tag** — npm dist-tag. Defaults to `latest`. Use `next` / `beta` for
   pre-releases.
 

@@ -9,13 +9,13 @@ const HEAD = "From idea to code, on one canvas."
 const HEADLINES = [
   "Every idea, side by side.",
   "Ship the version that works.",
-  "Five branches. One canvas.",
-  "See every branch, live.",
+  "Five versions. One canvas.",
+  "See every version, live.",
   "Ten agents, zero tabs.",
   "Try it three ways at once.",
   "Your repo, in parallel.",
   "Pick the best one. Merge.",
-  "Branch it. See it. Ship it.",
+  "Try it. See it. Ship it.",
   "A canvas for your codebase.",
   "Mock it up in your real code.",
   "Stop guessing. Compare.",
@@ -209,7 +209,7 @@ export function HeroStage({ children }: { children: React.ReactNode }) {
       })
 
     const label = (f: Copy) => {
-      f.name.textContent = f.done.length ? EDITS[f.done[0]!]!.ws : "Main"
+      f.name.textContent = f.done.length ? EDITS[f.done[0]!]!.ws : "Home"
       const add = f.done.reduce((n, i) => n + EDITS[i]!.diff[0], 0)
       const del = f.done.reduce((n, i) => n + EDITS[i]!.diff[1], 0)
       f.diff.innerHTML = f.done.length

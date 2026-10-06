@@ -4,7 +4,8 @@ import { MemoryExcerpt } from "../excerpts/memory"
 import { measure, sectionTop } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
-const h3 = "font-heading text-[20px] leading-[1.2] font-normal tracking-[-0.03em]"
+const h3 =
+  "font-heading text-[20px] leading-[1.2] font-normal tracking-[-0.03em]"
 
 const contextItems = [
   {
@@ -17,7 +18,7 @@ const contextItems = [
   },
   {
     title: "Skills",
-    body: "Type / to use a skill from the repository, the canvas, your account or Screenplay. Chats offer to save new ones when they learn a workflow.",
+    body: "Type / to use a skill from the repository, the canvas, your account, your agent or Screenplay. Chats offer to save new ones when they learn a workflow.",
   },
   {
     title: "Attachments",

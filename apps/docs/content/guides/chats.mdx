@@ -31,13 +31,14 @@ A new chat’s frame appears on the canvas straight away, and the canvas
 zooms to it. The chat goes through **creating** and **starting** while
 it checks out the branch, runs the setup script, and starts the preview.
 To watch it happen, open **Preview** under the chat’s composer (see
-[Terminals](/guides/agent#terminals)). When the server is up, the frame shows
+[Terminals](/guides/agent#terminals)). When the preview is up, the frame shows
 the app.
 
 The agent doesn’t wait for all of that. As soon as the branch is checked out,
 it starts on your first message, reading and changing code (or sketching a
-mockup) while the setup script and preview finish. It holds off on
-installs, builds, tests and previews until the preview is running.
+mockup) while the setup script and preview finish. It leaves installing and
+starting the preview to Screenplay, and holds off on builds, tests and
+previews until the preview is running.
 
 Every chat starts on a branch of its own, so two agents never push to the
 same branch. To build on a branch that already exists, ask the Coordinator to
@@ -73,7 +74,7 @@ ask the agent in the chat.
 
 <Screenshot
   name="workspaces-menu"
-  alt="The agent panel’s Chats menu open: each chat with + and …"
+  alt="The agent panel’s Chats menu open: chats grouped by what they’re doing, each with its …"
 />
 
 The **Chats** button sits at the far right of the
@@ -90,8 +91,6 @@ Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
 
 - a **search** field that finds a chat by its title or its branch,
   including done ones;
-- **+** and **…** beside the search field, which stay there while you
-  search;
 - one row for each chat, under **Working**, **Needs you** and
   **Idle** (see [Order](#order));
 - under **No repository**, any
@@ -99,7 +98,7 @@ Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
   spinner while its agent works and an orange dot while its question waits.
 
 On a canvas with no repository the menu lists only chats with no repository,
-and **+** beside the search field starts one.
+under **Chats**. Draw a box with the Mockup tool to start one.
 
 Pick a row to open that chat; the menu closes. <kbd>Esc</kbd> or a click
 outside closes it without picking. The arrow keys move through the rows.
@@ -368,8 +367,8 @@ left on the remote.
   alt="The Delete chat dialog with the Also delete the branch on GitHub option"
 />
 
-Documents and mockups the chat made stay on the canvas. Any other chat can
-then change them, and the first one that does takes them over.
+Documents and mockups the chat made stay on the canvas, and any chat can
+still change them.
 
 ## One branch, one chat
 

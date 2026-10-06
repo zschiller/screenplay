@@ -36,11 +36,12 @@ on its assigned port, usually because the run script ignores `$PORT`.
 
 1. Edit the repository in **Canvas settings** and add the port to its **Run
    script**, for example `vite --port $PORT --strictPort`.
-2. Use **… → Restart preview** on the chat.
+2. Use **Restart preview** in the frame’s **…** › **Preview** menu (or the
+   chat’s **…** menu).
 
 See [When the preview never loads](/guides/building/dev-server#when-the-preview-never-loads).
 
-**A Turborepo dev server ignores the port.** Turborepo 2’s strict env mode
+**A Turborepo `dev` task ignores the port.** Turborepo 2’s strict env mode
 strips variables a task doesn’t declare, so `$PORT` is empty inside the task,
 and a package script that hardcodes `--port 3001` wins over the variable
 anyway. Pass the port as a flag after `--`, which works for Next.js and Vite

@@ -30,15 +30,15 @@ vercel link
 vercel env pull apps/app/.env.local   # sets VERCEL_OIDC_TOKEN (~12 h)
 ```
 
-Each chat gets a fixed **4 vCPU, 8 GB** sandbox. That’s room for the dev
-server, the agent’s edits and compiles, and the browsers behind shared frames.
+Each chat gets a fixed **4 vCPU, 8 GB** sandbox. That’s room for the
+preview, the agent’s edits and compiles, and the browsers behind shared frames.
 It doesn’t grow with the number of frames, because a new size only takes
 effect after a restart that loses every running process.
 
 ### Shared frames
 
 A hosted frame someone has made live (**Go live** in the frame’s toolbar) is
-one Chrome page running in its chat’s sandbox, next to the dev server.
+one Chrome page running in its chat’s sandbox, next to the preview.
 Every other frame is a preview in each viewer’s own browser and runs nothing in
 the sandbox. A small service in the sandbox encodes every frame as
 H.264 video at up to twice its size, 30 frames a second, and streams them
@@ -46,7 +46,7 @@ to the canvas over one WebSocket on the sandbox’s forwarded port `7682`. The
 canvas decodes it with WebCodecs. Viewers authenticate with a short-lived
 token signed with a per-sandbox key derived from `TERMINAL_AUTH_SECRET`, and
 only the person driving a frame gets a token that lets their input through.
-When Claude drives a frame, the app connects to the same service and sends
+When the agent drives a frame, the app connects to the same service and sends
 each step with its own short-lived grant; the service applies it as real
 input over the Chrome DevTools Protocol, and a person’s newer grant takes the
 frame back at once.
@@ -115,7 +115,7 @@ can’t hibernate. The chat menu offers no sandbox restart on any build, only
 **Restart preview** and **Set up again…**; a frame’s **Start** restarts a
 stopped preview.
 
-Dev servers run under portless on a per-chat port. See
+Previews run under portless on a per-chat port. See
 [Preview & ports](/guides/building/dev-server).
 
 ## Adding a provider

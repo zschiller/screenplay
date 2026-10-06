@@ -30,11 +30,11 @@ name.
 
 The **Coordinator** is the canvas’s own chat, and where the agent panel opens.
 Every canvas has exactly one, shared by everyone on it. It sees the whole
-canvas: each chat’s status, changes and pull request, and every frame and
+canvas: each chat’s status, changes and pull requests, and every frame and
 document. It arranges the canvas for you, and when you ask for a change, a
 document or a mockup it sends a message to the right chat’s agent, which
 does the work. The Coordinator makes nothing itself. It can also start new chats, open a
-chat’s pull request and remove a chat, right away.
+pull request for a chat and remove a chat, right away.
 → [The Coordinator](/guides/coordinator)
 
 ## Repository
@@ -55,8 +55,11 @@ A **chat** is one git branch of a repository, running in its own isolated
 
 - On the **desktop app**, a sandbox is a git worktree on your machine, and the
   preview runs locally on a port assigned to that chat.
-- On the **hosted app**, a sandbox is a cloud VM with its own clone of the
+- On the **hosted app**, a sandbox is a VM with its own clone of the
   repository.
+
+A chat can also have no repository. It writes documents and mockups only, and
+the Chats menu lists it under **No repository**.
 
 Each chat has a title (the agent writes it from your first message), its
 own preview, and its own agent and terminals. The **Chats**
@@ -135,8 +138,10 @@ them, and you browse or delete them in Canvas settings. → [Files](/guides/file
 
 A **skill** is a packaged set of instructions a chat loads when a task calls
 for it, like a release-notes checklist. Type <kbd>/</kbd> in any chat to pick
-one. Skills come from the chat’s repository, the canvas, your account
-and Screenplay itself, which ships a few, such as a design audit. Ask a chat to
+one. Skills come from the chat’s repository, the canvas, your account,
+your coding CLI’s own skills on desktop, and Screenplay itself, which ships a
+few, such as a design audit. When two share a name, the first in that order
+wins. Ask a chat to
 save what you worked out as a skill, and it offers a card to save it to the
 canvas or your account. → [Agent skills](/guides/building/skills)
 

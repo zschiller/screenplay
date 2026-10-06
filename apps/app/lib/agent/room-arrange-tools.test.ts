@@ -153,7 +153,7 @@ describe("remove and undo", () => {
     const original = canvasState(r.doc)
 
     const result = await r.turn()("remove", { ids: ["frame-1", "doc-1"] })
-    expect(result).toBe('Removed frame "Settings", document "Launch spec".')
+    expect(result).toBe("Removed frame “Settings”, document “Launch spec”.")
     expect(r.collections.iframeLayers.get("frame-1")).toBeUndefined()
     expect(r.collections.markdownLayers.get("doc-1")).toBeUndefined()
     // The chat that wrote the Document stays (#1314).
@@ -163,7 +163,7 @@ describe("remove and undo", () => {
 
     const undo = await r.turn()("undo_changes")
     expect(undo).toMatch(
-      /^Undid: removed frame "Settings", document "Launch spec"\.\nIds: /
+      /^Undid: removed frame “Settings”, document “Launch spec”\.\nIds: /
     )
     expect(canvasState(r.doc)).toEqual(original)
     expect(readDocumentBody(documentFragment(r.doc, "doc-1"))).toMatch(
@@ -248,7 +248,7 @@ describe("arrange tools", () => {
       routes: ["/", "/checkout"],
     })
     expect(resultLine(result)).toBe(
-      'Created frames "Home", "Checkout" for Checkout polish in a new Group.'
+      "Created frames “Home”, “Checkout” for Checkout polish in a new group."
     )
     const groupId = lastId(result)
     const group = r.collections.iframeLayerGroups.get(groupId)!
@@ -292,7 +292,7 @@ describe("arrange tools", () => {
 
     const gathered = await call("move_to_group", { ids: ["doc-1"] })
     expect(resultLine(gathered)).toBe(
-      'Gathered document "Launch spec" into a new Group.'
+      "Gathered document “Launch spec” into a new group."
     )
     const newGroup = lastId(gathered)
     expect(
@@ -364,7 +364,7 @@ describe("arrange_groups", () => {
       group_ids: ["c", "a", "b"],
       layout: "row",
     })
-    expect(row).toBe('Laid out Groups "c", "a", "b" in a row.')
+    expect(row).toBe("Laid out groups “c”, “a”, “b” in a row.")
     expect(corners(r)).toEqual([
       [700, 50],
       [1300, 50],
@@ -401,7 +401,7 @@ describe("arrange_groups", () => {
       layout: "row",
     })
     expect(result).toBe(
-      'Laid out Groups "a", "b" in a row, below the rest of the canvas.'
+      "Laid out groups “a”, “b” in a row, below the rest of the canvas."
     )
     expect(corners(r)).toEqual([
       [100, 550],
@@ -416,11 +416,11 @@ describe("arrange_groups", () => {
     const r = room()
     pile(r)
     expect(await r.turn()("move_group", { group_id: "a", x: 2000, y: 0 })).toBe(
-      'Moved Group "a" to 2000, 0.'
+      "Moved group “a” to 2000, 0."
     )
     expect(
       await r.turn()("move_group", { group_id: "a", x: 300, y: 100 })
-    ).toBe('Moved Group "a" to 300, 100. It now overlaps "b", "c".')
+    ).toBe("Moved group “a” to 300, 100. It now overlaps “b”, “c”.")
   })
 
   it("lines a grid's columns up with the widest Group in each", async () => {
@@ -456,7 +456,7 @@ describe("show_on_canvas", () => {
     const show = (ids?: string[]) =>
       r.turn()("show_on_canvas", ids ? { ids } : {})
     expect(await show(["frame-1", "group-1"])).toBe(
-      'Showed frame "Settings", Group "Checkout".'
+      "Showed frame “Settings”, group “Checkout”."
     )
     expect(await show()).toBe("Showed the whole canvas.")
     expect(await show(["nope"])).toBe(
