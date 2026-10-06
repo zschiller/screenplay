@@ -293,7 +293,7 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
       }
       // The Mockup stays on the canvas, sketching, from the moment the ask is
       // sent: the new chat's id is minted here so it can own the Mockup
-      // before the Workspace lands (which first waits on naming it). The new
+      // before the Workspace lands. The new
       // Workspace's frame lands beside the other Groups without moving the
       // camera: the Mockup is the one to watch.
       const repo = repos.find((r) => r.id === newChatRepoId)

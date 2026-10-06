@@ -333,6 +333,11 @@ class ChatStore {
    * that turn's failure can send it again.
    */
   private lastTurn = new Map<string, SendMessageOptions>()
+  /**
+   * A first message shown before it could be sent (see {@link showWaiting}),
+   * per chat, which the send it waited for takes over as its optimistic add.
+   */
+  private waiting = new Map<string, AgentMessage>()
   private listeners = new Map<string, Set<() => void>>()
   private unreadChats = new Set<string>()
   /**
@@ -554,16 +559,23 @@ class ChatStore {
       return this.sendSteer(opts)
     }
 
-    // Optimistically add the user message. Kept by reference so a refusal
-    // removes exactly this entry, even if the log moved on meanwhile.
+    // Optimistically add the user message, unless it's already showing while
+    // it waited (`showWaiting`). Kept by reference so a refusal removes
+    // exactly this entry, even if the log moved on meanwhile.
+    const shown = this.waiting.get(chatId)
+    this.waiting.delete(chatId)
+    const held = !retry && shown && state.messages.includes(shown)
     const optimistic: AgentMessage | null = retry
       ? null
-      : userTurnToMessage(sentTurn(opts))
+      : held
+        ? shown
+        : userTurnToMessage(sentTurn(opts))
     this.update(chatId, {
       error: null,
       failedSend: null,
-      messages: optimistic ? [...state.messages, optimistic] : state.messages,
-      sends: optimistic ? state.sends + 1 : state.sends,
+      messages:
+        optimistic && !held ? [...state.messages, optimistic] : state.messages,
+      sends: optimistic && !held ? state.sends + 1 : state.sends,
     })
     const dropOptimistic = () => ({
       messages: this.getOrCreate(chatId).messages.filter(
@@ -612,6 +624,22 @@ class ChatStore {
       })
       return false
     }
+  }
+
+  /**
+   * Show a chat's first message while it waits to be sent: a new chat's
+   * prompt waits for its code to be checked out. It shows as sent at once;
+   * the `sendMessage` it waits for takes it over rather than adding it again.
+   */
+  showWaiting(opts: SendMessageOptions) {
+    const { chatId } = opts
+    const state = this.getOrCreate(chatId)
+    const message = userTurnToMessage(sentTurn(opts))
+    this.waiting.set(chatId, message)
+    this.update(chatId, {
+      messages: [...state.messages, message],
+      sends: state.sends + 1,
+    })
   }
 
   /**
@@ -1287,6 +1315,7 @@ class ChatStore {
     this.states.delete(chatId)
     this.historyLoaded.delete(chatId)
     this.lastTurn.delete(chatId)
+    this.waiting.delete(chatId)
     this.unreadChats.delete(chatId)
     this.messagesEpoch.delete(chatId)
     this.appliedEventIds.delete(chatId)

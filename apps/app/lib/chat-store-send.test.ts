@@ -245,3 +245,44 @@ describe("chat-store — the sender's Canvas view", () => {
     chatStore.cleanup(chatId)
   })
 })
+
+describe("chat-store — a first message shown while it waits", () => {
+  it("shows at once, and its send takes it over without adding it again", async () => {
+    const chatId = newChat()
+    const opts = {
+      roomId: "room",
+      chatId,
+      target: { kind: "room" } as ChatTarget,
+      message: "Make it sticky",
+    }
+    chatStore.showWaiting(opts)
+    expect(chatStore.getSnapshot(chatId).messages).toMatchObject([
+      { role: "user", content: "Make it sticky" },
+    ])
+
+    stubFetch({ ok: true })
+    expect(await chatStore.sendMessage(opts)).toBe(true)
+    const state = chatStore.getSnapshot(chatId)
+    expect(state.messages).toHaveLength(1)
+    expect(state.sends).toBe(1)
+    chatStore.cleanup(chatId)
+  })
+
+  it("leaves the log as it was when its send is refused", async () => {
+    const chatId = newChat()
+    const opts = {
+      roomId: "room",
+      chatId,
+      target: { kind: "room" } as ChatTarget,
+      message: "Make it sticky",
+    }
+    chatStore.showWaiting(opts)
+    stubFetch({ ok: false, body: "down" })
+
+    expect(await chatStore.sendMessage(opts)).toBe(false)
+    const state = chatStore.getSnapshot(chatId)
+    expect(state.messages).toEqual([])
+    expect(state.failedSend).toMatchObject({ message: "Make it sticky" })
+    chatStore.cleanup(chatId)
+  })
+})

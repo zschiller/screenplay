@@ -15,8 +15,9 @@ import {
 } from "unique-names-generator"
 
 import { withBasePath } from "@/lib/base-path"
+import { deriveFallbackName } from "@/lib/agent/fallback-name"
 import { agentCanStart } from "@/lib/branch/workspace-state"
-import { chatStore } from "@/lib/chat-store"
+import { chatStore, type SendMessageOptions } from "@/lib/chat-store"
 import { dispatchPrompt } from "@/lib/chat/agent-prompt"
 import { deleteBranch } from "@/lib/github-actions"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
@@ -94,8 +95,8 @@ export interface CreateBranchOptions {
   frameId?: string
   /**
    * The id the Branch's chat gets, minted by the caller so what it places
-   * right away (a drawn Mockup, owned by this chat) needn't wait for the
-   * create, which first waits on naming the Branch.
+   * right away (a drawn Mockup, owned by this chat) is owned before the
+   * Branch exists.
    */
   chatId?: string
   /** Leave the camera and selection where they are. */
@@ -257,12 +258,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   // Prompts queued by the prompt-first create handler (createBranch) that should
   // fire as soon as the agent's sandbox transitions to `running`. Held in a ref
   // because the dispatch effect already re-runs on every `agents` change.
-  const pendingPromptsRef = useRef<
-    Map<
-      string,
-      { chatId: string; prompt: string; model: string; planMode?: boolean }
-    >
-  >(new Map())
+  const pendingPromptsRef = useRef<Map<string, SendMessageOptions>>(new Map())
 
   // Prompt-first "New Workspace" create (PRD #314). The pure planner owns the
   // decision; this handler is thin orchestration over the existing
@@ -271,10 +267,10 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
   // each resolved independently and created as its own Branch.
   //
   // Empty prompt (#323) -> a bare scratch Branch (random name, no Chat Session,
-  // nothing queued). Non-empty prompt (#324) -> the full seeded path: a Branch
-  // name derived from the prompt, a Chat Session pre-seeded with the chosen
-  // model, and the prompt queued to fire as the first message exactly once the
-  // agent can start (its code is checked out). The fired body is the Composer's Message-Markers
+  // nothing queued). Non-empty prompt (#324) -> the full seeded path: a Chat
+  // Session pre-seeded with the chosen model and labelled from the prompt, and
+  // the prompt shown in it at once and queued to fire as the first message
+  // exactly once the agent can start (its code is checked out). The fired body is the Composer's Message-Markers
   // wire text, so model, plan-mode, `@`-Layer mentions, and `/`-Skills all ride
   // through unchanged. A non-default base derives `flow:"duplicate-branch"`
   // (#325); the chosen base rides along as the source the server forks from.
@@ -295,57 +291,17 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
         specs
       )
 
-      // Mint deduped random names, never colliding with a name already assigned
-      // in this batch.
+      // Name every Branch here and now, with no model call: the chat must show
+      // at once, and its first turn names the chat, the Workspace and its
+      // branch anyway (#910). Until then a prompted chat reads as its prompt's
+      // keywords, and its branch is a deduped random name.
       const taken = new Set<string>()
-
-      // Generate prompt-derived names for every seeded row up front in one
-      // request, so identical prompts can't independently land on the same
-      // branch and clobber each other. Bare rows (and any seeded row the
-      // endpoint didn't name) fall back to a deduped random name.
-      const names = new Array<{ branch: string; label: string }>(specs.length)
-      const seededIdx = plans
-        .map((plan, i) => (plan.nameSource === "from-prompt" ? i : -1))
-        .filter((i) => i >= 0)
-
-      if (seededIdx.length > 0) {
-        let results: Array<{ branch: string; label: string }> = []
-        try {
-          const res = await fetch(withBasePath("/api/agent/generate-names"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              roomId,
-              prompts: seededIdx.map((i) => specs[i]!.prompt.trim()),
-            }),
-          })
-          if (res.ok) {
-            const data = (await res.json()) as {
-              results: Array<{ branch: string; label: string }>
-            }
-            results = data.results ?? []
-          }
-        } catch {
-          // Fall through to the per-row random fallback below.
-        }
-        seededIdx.forEach((specIndex, k) => {
-          const result = results[k]
-          const label = result?.label || "Untitled"
-          let branch: string
-          if (result?.branch && !taken.has(result.branch)) {
-            taken.add(result.branch)
-            branch = result.branch
-          } else {
-            branch = randomBranchName(taken)
-          }
-          names[specIndex] = { branch, label }
-        })
-      }
-
-      plans.forEach((_, i) => {
-        if (!names[i])
-          names[i] = { branch: randomBranchName(taken), label: "Untitled" }
-      })
+      const names = specs.map((spec, i) => ({
+        branch: randomBranchName(taken),
+        label: plans[i]!.seedChat
+          ? deriveFallbackName(spec.prompt).label
+          : "Untitled",
+      }))
 
       const dispatched: Array<{
         id: string
@@ -354,6 +310,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
         flow: "new" | "duplicate-branch"
         sourceBranch: string | undefined
         seedChat: boolean
+        chatId: string | undefined
       }> = []
 
       // Every created Branch gets its frame eagerly (#338's waiting preview):
@@ -402,12 +359,18 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           // Queue the seed prompt; the dispatch effect below fires it exactly
           // once, when the agent can start (its code is checked out).
           if (plan.firePromptOnRunning && chatId) {
-            pendingPromptsRef.current.set(id, {
+            const send: SendMessageOptions = {
+              roomId,
               chatId,
-              prompt: spec.prompt.trim(),
+              target: { kind: "agent", branchId: id, sandboxName },
+              message: spec.prompt.trim(),
+              isFirstChat: true,
               model,
               planMode: spec.planMode,
-            })
+            }
+            pendingPromptsRef.current.set(id, send)
+            // It shows in the chat as sent while it waits.
+            chatStore.showWaiting(send)
           }
 
           // The seed plan: a prompted row already has its Chat Session, so its
@@ -428,6 +391,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
             sourceBranch:
               plan.flow === "duplicate-branch" ? spec.baseBranch : undefined,
             seedChat: plan.seedChat,
+            chatId,
           })
         })
 
@@ -436,7 +400,20 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
         frameGroup = ops.createFramesForAgents(frameSpecs, { x: cx, y: cy })
       })
 
-      chatTarget.addPending(dispatched.map((d) => d.id))
+      // One prompted chat opens in the panel at once, its message showing
+      // over the setup steps, so a send never looks like it went nowhere. A
+      // bulk create, or one whose caller keeps the view (a drawn Mockup is the
+      // one to watch), selects once the Sandbox streams logs, as before.
+      const shown =
+        specs.length === 1 && !opts?.keepView ? dispatched[0] : undefined
+      if (shown?.chatId) {
+        chatTarget.selectAgentChat(shown.id, shown.chatId, {
+          expandPanel: true,
+          remember: true,
+        })
+      } else {
+        chatTarget.addPending(dispatched.map((d) => d.id))
+      }
 
       // Surface the just-created frames: select the new Group and bring it into
       // view once its frames have mounted. Zooming to the first member's DOM
@@ -511,8 +488,9 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       pendingPromptsRef.current.delete(agent.id)
       // The seed fires through the shared Agent-prompt dispatch. Its Chat
       // Session already exists (created in the same transaction as the Branch),
-      // so nothing is created; selection stays deferred to the pending-ready
-      // flow, so the dispatch must not select. Always the agent's first chat.
+      // so nothing is created, and the create already chose whether to select
+      // it, so the dispatch must not. Always the agent's first chat, and its
+      // message already shows (`showWaiting`), so the send doesn't add it again.
       dispatchPrompt(
         {
           session: null,
@@ -520,17 +498,12 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
           select: false,
           expandPanel: false,
           send: {
-            roomId,
-            chatId: queued.chatId,
+            ...queued,
             target: {
               kind: "agent",
               branchId: agent.id,
               sandboxName: agent.sandboxName,
             },
-            message: queued.prompt,
-            isFirstChat: true,
-            model: queued.model,
-            planMode: queued.planMode,
           },
         },
         {
@@ -539,7 +512,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
         }
       )
     }
-  }, [agents, ops, roomId, chatTarget])
+  }, [agents, ops, chatTarget])
 
   // Seed iframeLayers for agents whose sandbox has finished provisioning. The
   // flag is set at create time and cleared here after the first seed, so

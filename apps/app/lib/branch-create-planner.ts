@@ -5,10 +5,10 @@
  * Given the Repo's default branch and one Composer spec per Branch, it resolves
  * exactly one {@link BranchPlan} per spec. Two switches drive every field:
  *
- * 1. **Prompt presence.** An empty prompt makes a bare scratch Branch — random
- *    name, no Chat Session, no model applied, nothing fired on `running`. A
- *    non-empty prompt derives the name from the prompt, seeds a Chat Session,
- *    fires the prompt once the Sandbox is `running`, and carries the model.
+ * 1. **Prompt presence.** An empty prompt makes a bare scratch Branch — no
+ *    Chat Session, no model applied, nothing fired on `running`. A non-empty
+ *    prompt seeds a Chat Session, fires the prompt once the Sandbox is
+ *    `running`, and carries the model.
  *    Either way the Branch stays auto-named (`autoNamedBranch`), so its first
  *    turn names the Workspace and its branch (#1182): a bare Branch would
  *    otherwise read "New Workspace" for good.
@@ -18,9 +18,7 @@
  *    `/api/branch/create` contract is unchanged.
  *
  * The planner is **pure**: it performs no name generation, no network, and no
- * I/O. It only *flags* which Branches need a generated name via `nameSource`;
- * the caller resolves names (via the name-generation endpoint) and issues the
- * create requests.
+ * I/O. The caller names the Branches and issues the create requests.
  */
 
 /** One Composer's resolved inputs — the per-Branch unit the dialog produces. */
@@ -47,12 +45,6 @@ export interface RepoContext {
 }
 
 export interface BranchPlan {
-  /**
-   * Whether the Branch's name comes from a random `adjective-color-animal`
-   * generator (`"random"`) or is derived from the prompt (`"from-prompt"`).
-   * The planner only flags the source; the caller does the generation.
-   */
-  nameSource: "random" | "from-prompt"
   /**
    * The `/api/branch/create` flow: `"new"` for a fresh branch off the default,
    * `"duplicate-branch"` to fork a non-default base.
@@ -87,7 +79,6 @@ function planBranchCreation(repo: RepoContext, spec: ComposerSpec): BranchPlan {
 
   if (!hasPrompt) {
     return {
-      nameSource: "random",
       flow,
       seedChat: false,
       autoNamedBranch: true,
@@ -96,7 +87,6 @@ function planBranchCreation(repo: RepoContext, spec: ComposerSpec): BranchPlan {
   }
 
   return {
-    nameSource: "from-prompt",
     flow,
     seedChat: true,
     autoNamedBranch: true,
