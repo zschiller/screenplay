@@ -89,7 +89,6 @@ function CanvasMemberLayerImpl({
   iframeLayerGroups,
   iframeLayers,
   markdownLayers,
-  documentWorkspaces,
   workingChats,
   mockupLayers,
   selection,
@@ -141,8 +140,6 @@ function CanvasMemberLayerImpl({
   iframeLayerGroups: IframeLayerGroupData[]
   iframeLayers: IframeLayerData[]
   markdownLayers: MarkdownLayerData[]
-  /** The Workspace of the chat that last changed each Document and Mockup (#1724), by layer id. */
-  documentWorkspaces: ReadonlyMap<string, string>
   /** The chat working on each Document and Mockup right now (#1726), by layer id. */
   workingChats: ReadonlyMap<string, WorkingChat>
   mockupLayers: MockupLayerData[]
@@ -370,7 +367,7 @@ function CanvasMemberLayerImpl({
         // The group label's pill, as a switcher for the whole Group (#869).
         // Only a Group whose frames all show one Workspace names it (#1276).
         const groupSwitcherOf = (group: IframeLayerGroupData) => {
-          const shared = groupWorkspace(group, framesById, documentWorkspaces)
+          const shared = groupWorkspace(group, framesById)
           if (!shared) {
             // Frames on different Workspaces: the label names none, and
             // offers putting them all on one while hovered (#1276).
@@ -394,9 +391,6 @@ function CanvasMemberLayerImpl({
           }
           if (!shared.branchId) return { switcher }
           const workspace = workspaceOf(shared.branchId)
-          // A Group of one chat's Documents names its Workspace, with no
-          // frames for a pick to move (#1314).
-          if (shared.frames.length === 0) return workspace
           return workspace ? { ...workspace, switcher } : undefined
         }
 
@@ -408,8 +402,7 @@ function CanvasMemberLayerImpl({
           // Every frame names its own Workspace unless the group label names
           // the one they all show (#1276).
           const groupNamesWorkspace =
-            showGroupLabel &&
-            !!groupWorkspace(group, framesById, documentWorkspaces)
+            showGroupLabel && !!groupWorkspace(group, framesById)
           // The group label, worn by the Group's leftmost member. Every Layer
           // kind hands it to its Layer Shell untouched.
           const groupName =
@@ -449,7 +442,7 @@ function CanvasMemberLayerImpl({
           let dragTranslateX: number | undefined
           let dragTranslateY: number | undefined
           let dragPopped = false
-                    if (reorderPreview?.memberId === member.id) {
+          if (reorderPreview?.memberId === member.id) {
             const grab = reorderPreview.grabOffset ?? {
               x: layout.width / 2,
               y: layout.height / 2,

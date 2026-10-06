@@ -24,35 +24,25 @@ export function groupBranchId(
 
 /**
  * The Workspace a Group's label names (#1276): the one every frame in it
- * shows, and every Document a chat made in it belongs to (#1314). A Group of
- * one flow names it once and its layers leave it off; a Group of parallel
- * explorations (frames on different Workspaces, or some with none yet) names
- * none, and every layer names its own. A Document someone made by hand names
- * nothing, so it never splits the Group.
+ * shows. A Group of one flow names it once and its frames leave it off; a
+ * Group of parallel explorations (frames on different Workspaces, or some
+ * with none yet) names none, and every frame names its own. Documents and
+ * Mockups name no chat on their labels (#1724), so they never count: a Group
+ * without frames names nothing and offers no switcher.
  *
- * `null` when the label names no Workspace: its layers differ, or it has none.
- * `branchId` is unset when no frame has a Workspace yet, and the label offers
- * "Choose a chat" for all of them (#871). `frames` are the Group's frame
- * ids, which a pick from the label moves; a Group of a chat's Documents alone
- * has none.
- *
- * `documentWorkspaces` maps a Document or Mockup (#1309) to the Workspace of
- * the chat that last changed it (`layerWorkspaceIds` in `./layer-chat`): a
- * chat's Mockups count like its Documents.
+ * `null` when the label names no Workspace: its frames differ, or it has
+ * none. `branchId` is unset when no frame has a Workspace yet, and the label
+ * offers "Choose a chat" for all of them (#871). `frames` are the Group's
+ * frame ids, which a pick from the label moves.
  */
 export function groupWorkspace(
   group: Pick<IframeLayerGroupData, "members" | "iframeLayerIds">,
-  framesById: Pick<ReadonlyMap<string, FrameBranch>, "get">,
-  documentWorkspaces?: Pick<ReadonlyMap<string, string>, "get">
+  framesById: Pick<ReadonlyMap<string, FrameBranch>, "get">
 ): { branchId: string | undefined; frames: string[] } | null {
   const frames: string[] = []
   const branchIds = new Set<string | undefined>()
   for (const m of getGroupMembers(group as IframeLayerGroupData)) {
-    if (m.kind === "markdown-layer" || m.kind === "mockup-layer") {
-      const branchId = documentWorkspaces?.get(m.id)
-      if (branchId) branchIds.add(branchId)
-      continue
-    }
+    if (m.kind !== "iframe-layer") continue
     const frame = framesById.get(m.id)
     if (!frame) continue
     frames.push(m.id)
@@ -60,6 +50,5 @@ export function groupWorkspace(
   }
   if (branchIds.size !== 1) return null
   const [branchId] = branchIds
-  if (frames.length === 0 && !branchId) return null
   return { branchId, frames }
 }
