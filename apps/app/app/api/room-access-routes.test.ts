@@ -160,7 +160,6 @@ const streamBody = {
 }
 const planBody = { roomId: ROOM, chatId: "chat-1", planId: "p", approved: true }
 const stopBody = { roomId: ROOM, chatId: "chat-1" }
-const namesBody = { roomId: ROOM, prompts: ["fix the login button"] }
 const branchBody = {
   flow: "new",
   roomId: ROOM,
@@ -185,8 +184,6 @@ const routes = {
     (await import("./branch/create/route")).POST(post(body)),
   heal: async (body: unknown) =>
     (await import("./branch/heal/route")).POST(post(body)),
-  generateNames: async (body: unknown) =>
-    (await import("./agent/generate-names/route")).POST(post(body)),
 }
 
 function expectNoSideEffects() {
@@ -232,11 +229,6 @@ describe("a signed-in non-member gets a 403 and nothing runs", () => {
     expectNoSideEffects()
   })
 
-  it("naming Branches", async () => {
-    expect((await routes.generateNames(namesBody)).status).toBe(403)
-    expectNoSideEffects()
-  })
-
   it("creating a Branch", async () => {
     const res = await routes.branchCreate(branchBody)
     expect(res.status).toBe(403)
@@ -268,7 +260,6 @@ it("no session gets a 401", async () => {
   expect((await routes.stop(stopBody)).status).toBe(401)
   expect((await routes.branchCreate(branchBody)).status).toBe(401)
   expect((await routes.heal(stopBody)).status).toBe(401)
-  expect((await routes.generateNames(namesBody)).status).toBe(401)
   expectNoSideEffects()
 })
 
@@ -305,12 +296,6 @@ describe("a member is let through", () => {
       "chat-1",
       "chat-stream-end"
     )
-  })
-
-  it("names Branches", async () => {
-    const res = await routes.generateNames(namesBody)
-    expect(res.status).toBe(200)
-    expect(fx.readDoc).toHaveBeenCalledOnce()
   })
 
   it("reads a chat’s history", async () => {

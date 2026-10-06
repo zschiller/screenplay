@@ -7,9 +7,8 @@ import { runHostModel } from "./host-model"
 import { DEFAULT_MODEL, resolveLanguageModel } from "./providers"
 
 /**
- * The one-shot model transport, shared by the naming paths (the v2 naming
- * module and the batch names endpoint) and model-assisted settings detection
- * on Add project. It hides the per-backend difference behind one call so each
+ * The one-shot model transport, shared by first-message naming (the v2
+ * naming module) and model-assisted settings detection on Add project. It hides the per-backend difference behind one call so each
  * caller stays "try model → parse → fall back" (#674):
  *
  *  - **hosted** shells the configured API-key provider through the AI SDK,
