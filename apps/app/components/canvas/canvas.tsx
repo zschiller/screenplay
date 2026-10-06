@@ -764,26 +764,35 @@ export function Canvas({
   // sibling of the zoomed content inside rzpp's wrapper, so wheels, pans and
   // canvas pointer routing that start on a label behave as on the canvas.
   // rzpp attaches its wrapper in its own effect, which runs before this one.
-  const [labelLayerElement, setLabelLayerElement] =
-    useState<HTMLElement | null>(null)
+  // Its twin beneath the content holds each Layer's resting hairline
+  // (`LayerEdge` in layer-shell.tsx), so a Layer in front covers the edges
+  // behind it.
+  const [labelLayerElements, setLabelLayerElements] = useState<{
+    element: HTMLElement
+    edges: HTMLElement
+  } | null>(null)
   useEffect(() => {
     const wrapper = transformRef.current?.instance.wrapperComponent
     if (!wrapper) return
     const element = document.createElement("div")
     element.className = "canvas-label-layer"
     wrapper.appendChild(element)
-    setLabelLayerElement(element)
+    const edges = document.createElement("div")
+    edges.className = "canvas-edge-layer"
+    wrapper.prepend(edges)
+    setLabelLayerElements({ element, edges })
     return () => {
       element.remove()
-      setLabelLayerElement(null)
+      edges.remove()
+      setLabelLayerElements(null)
     }
   }, [])
   const labelLayer = useMemo(
     () =>
-      labelLayerElement
-        ? { element: labelLayerElement, camera: camera.liveCamera }
+      labelLayerElements
+        ? { ...labelLayerElements, camera: camera.liveCamera }
         : null,
-    [labelLayerElement, camera.liveCamera]
+    [labelLayerElements, camera.liveCamera]
   )
 
   // Per-frame dirty/ready bookkeeping for the thumbnail heartbeat (#474): the
