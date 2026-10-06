@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 
 import { CANVAS_COLOR, resolveCanvasColor } from "@/lib/canvas/tokens"
 
@@ -33,7 +33,7 @@ export function GroupMergeUnderlay({
 }: GroupMergeUnderlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = beginUnderlayDraw(canvas, !rects || rects.length === 0)

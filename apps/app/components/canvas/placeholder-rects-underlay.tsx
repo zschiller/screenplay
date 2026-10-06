@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 
 import { resolveCanvasColor } from "@/lib/canvas/tokens"
 
@@ -30,7 +30,7 @@ export function PlaceholderRectsUnderlay({
 }: PlaceholderRectsUnderlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = beginUnderlayDraw(canvas, rects.length === 0)

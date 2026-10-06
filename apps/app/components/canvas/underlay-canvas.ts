@@ -11,10 +11,10 @@ import { useEffect, type RefObject } from "react"
  * same, empty either way.
  */
 
-/** The grid, in CSS pixels, a bounded canvas's size rounds up to. */
-const GRID = 32
+/** The grid, in device pixels, a bounded canvas's size rounds up to. */
+const GRID = 64
 
-/** Each bounded canvas's size in CSS pixels, kept while it fits the drawing. */
+/** Each bounded canvas's size in device pixels, kept while it fits the drawing. */
 const boundedSizes = new WeakMap<
   HTMLCanvasElement,
   { width: number; height: number }
@@ -33,6 +33,11 @@ const containerSizes = new WeakMap<
  * Ready an underlay canvas to draw: sized to its container at the device pixel
  * ratio, cleared, and scaled to CSS pixels. Returns `null`, after releasing
  * the backing store, when there is nothing to draw.
+ *
+ * Sizes and positions are whole device pixels, so each canvas pixel lands on
+ * one screen pixel at any pixel ratio (page zoom makes it fractional): a canvas
+ * stretched by a fraction, or placed between device pixels, blurs and shifts
+ * its 1px lines off the edges they trace, and shifts them again as it moves.
  */
 export function beginUnderlayDraw(
   canvas: HTMLCanvasElement,
@@ -61,12 +66,20 @@ export function beginUnderlayDraw(
   const box =
     containerSizes.get(canvas) ??
     (canvas.parentElement ?? canvas).getBoundingClientRect()
+  const viewWidth = Math.round(box.width * dpr)
+  const viewHeight = Math.round(box.height * dpr)
   if (bounds) {
-    // Only the part inside the view.
-    const left = Math.max(0, Math.floor(bounds.x))
-    const top = Math.max(0, Math.floor(bounds.y))
-    const right = Math.min(box.width, Math.ceil(bounds.x + bounds.width))
-    const bottom = Math.min(box.height, Math.ceil(bounds.y + bounds.height))
+    // Only the part inside the view, in device pixels.
+    const left = Math.max(0, Math.floor(bounds.x * dpr))
+    const top = Math.max(0, Math.floor(bounds.y * dpr))
+    const right = Math.min(
+      viewWidth,
+      Math.ceil((bounds.x + bounds.width) * dpr)
+    )
+    const bottom = Math.min(
+      viewHeight,
+      Math.ceil((bounds.y + bounds.height) * dpr)
+    )
     let width = right - left
     let height = bottom - top
     if (width <= 0 || height <= 0) return beginUnderlayDraw(canvas, true)
@@ -84,21 +97,19 @@ export function beginUnderlayDraw(
       width = have.width
       height = have.height
     } else {
-      width = Math.min(box.width, Math.ceil((width * 1.25) / GRID) * GRID)
-      height = Math.min(box.height, Math.ceil((height * 1.25) / GRID) * GRID)
+      width = Math.min(viewWidth, Math.ceil((width * 1.25) / GRID) * GRID)
+      height = Math.min(viewHeight, Math.ceil((height * 1.25) / GRID) * GRID)
       boundedSizes.set(canvas, { width, height })
     }
-    const x = Math.max(0, Math.min(left, Math.floor(box.width - width)))
-    const y = Math.max(0, Math.min(top, Math.floor(box.height - height)))
+    const x = Math.max(0, Math.min(left, viewWidth - width))
+    const y = Math.max(0, Math.min(top, viewHeight - height))
     boundedCanvases.add(canvas)
-    canvas.style.left = `${x}px`
-    canvas.style.top = `${y}px`
-    canvas.style.width = `${width}px`
-    canvas.style.height = `${height}px`
-    setBackingSize(canvas, width * dpr, height * dpr)
+    canvas.style.left = `${x / dpr}px`
+    canvas.style.top = `${y / dpr}px`
+    setCanvasSize(canvas, width, height, dpr)
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.setTransform(dpr, 0, 0, dpr, -x * dpr, -y * dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, -x, -y)
     return ctx
   }
   boundedSizes.delete(canvas)
@@ -106,24 +117,26 @@ export function beginUnderlayDraw(
     canvas.style.left = ""
     canvas.style.top = ""
   }
-  canvas.style.width = `${box.width}px`
-  canvas.style.height = `${box.height}px`
-  setBackingSize(canvas, box.width * dpr, box.height * dpr)
+  setCanvasSize(canvas, viewWidth, viewHeight, dpr)
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.scale(dpr, dpr)
   return ctx
 }
 
-/** Size the backing store, only when it changes: setting it reallocates. A
- *  fractional size is floored by the canvas, so compare it floored. */
-function setBackingSize(
+/**
+ * Size a canvas to whole device pixels, its CSS size exactly that many device
+ * pixels. The backing store is set only when it changes: setting it
+ * reallocates.
+ */
+function setCanvasSize(
   canvas: HTMLCanvasElement,
   width: number,
-  height: number
+  height: number,
+  dpr: number
 ) {
-  width = Math.floor(width)
-  height = Math.floor(height)
+  canvas.style.width = `${width / dpr}px`
+  canvas.style.height = `${height / dpr}px`
   if (canvas.width !== width) canvas.width = width
   if (canvas.height !== height) canvas.height = height
 }
@@ -141,13 +154,16 @@ export function useUnderlayCanvasSize(
       const r = parent.getBoundingClientRect()
       containerSizes.set(canvas, { width: r.width, height: r.height })
       if (boundedCanvases.has(canvas)) return
-      canvas.style.width = `${r.width}px`
-      canvas.style.height = `${r.height}px`
-      // A released canvas stays released until it next draws.
-      if (canvas.width === 0 && canvas.height === 0) return
       const dpr = window.devicePixelRatio || 1
-      canvas.width = r.width * dpr
-      canvas.height = r.height * dpr
+      const width = Math.round(r.width * dpr)
+      const height = Math.round(r.height * dpr)
+      // A released canvas stays released until it next draws.
+      if (canvas.width === 0 && canvas.height === 0) {
+        canvas.style.width = `${width / dpr}px`
+        canvas.style.height = `${height / dpr}px`
+        return
+      }
+      setCanvasSize(canvas, width, height, dpr)
     })
     observer.observe(parent)
     return () => {

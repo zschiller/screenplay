@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 import type {
   GapHandle,
   IframeLayerLayoutMap,
@@ -140,7 +140,10 @@ export function SelectionOverlay({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   useUnderlayCanvasSize(canvasRef)
 
-  useEffect(() => {
+  // Drawn before the browser paints, in the same frame as the Layers it
+  // traces: a passive effect runs after the paint of a pointer-move update, so
+  // the outline would trail a dragged frame by a frame and shake.
+  useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
