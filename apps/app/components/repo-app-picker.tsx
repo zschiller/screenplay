@@ -61,7 +61,7 @@ export function RepoAppPicker({
             aria-haspopup="listbox"
             className="flex min-h-13 w-full min-w-0 items-center gap-3 rounded-lg border border-input p-2 pr-3 text-left transition-colors outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:bg-muted dark:bg-input/30 dark:hover:bg-muted"
           >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted dark:bg-input">
               <FolderIcon className="size-4" />
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
