@@ -147,19 +147,3 @@ export const LAYER_DETAIL_MIN_ZOOM = 0.25
 export function showsLayerDetail(zoom: number): boolean {
   return zoom >= LAYER_DETAIL_MIN_ZOOM - 1e-3
 }
-
-/**
- * The shortest side, in screen px, a Layer needs to keep its resize handles.
- * Handles keep a constant screen size, so on a smaller tile their hit zones
- * would swallow it and leave nothing to grab for a move. Hiding per Layer
- * rather than at one zoom keeps a big frame resizable when zoomed far out.
- */
-export const RESIZE_HANDLES_MIN_SCREEN_SIZE = 48
-
-export function showsResizeHandles(
-  width: number,
-  height: number,
-  zoom: number
-): boolean {
-  return Math.min(width, height) * zoom >= RESIZE_HANDLES_MIN_SCREEN_SIZE - 1e-3
-}

@@ -1,8 +1,12 @@
 "use client"
 
 import type { ResizeEdge } from "@/hooks/use-layer-resize"
+import { resizeGrabZones } from "@/lib/canvas/resize-handles"
 
 interface ResizeHandlesProps {
+  /** The tile's world size; with `zoom` it gives the on-screen size. */
+  width: number
+  height: number
   zoom: number
   makeHandleProps: (edge: ResizeEdge) => {
     onPointerDown: (e: React.PointerEvent) => void
@@ -10,80 +14,74 @@ interface ResizeHandlesProps {
 }
 
 /**
- * The 8 resize handles (4 edges + 4 corners) that wrap a singly-selected
+ * The 8 resize grab zones (4 edges + 4 corners) that wrap a singly-selected
  * canvas tile (iframeLayer or document). Sized in screen-pixel units so the
- * grab targets stay usable at any zoom; corners are oversized so they win
- * over the adjacent edge regions, which inset by `cornerSize` to avoid
- * overlap. Parent must be `position: relative`.
+ * grab targets stay usable at any zoom, and live at every tile size even
+ * when the drawn handles hide (`visibleResizeHandles`). On a small tile they
+ * grow outward instead of inward (`resizeGrabZones`) so its middle stays
+ * free to move it. Corners render last so they win over the adjacent edge
+ * regions, which inset by the corners' inner reach. Parent must be
+ * `position: relative`.
  */
-export function ResizeHandles({ zoom, makeHandleProps }: ResizeHandlesProps) {
-  const HANDLE = 6 // base px thickness of edge handles
-  const h = HANDLE / zoom
-  const hHalf = h / 2
-  const cornerSize = 12 / zoom
-  const cHalf = cornerSize / 2
+export function ResizeHandles({
+  width,
+  height,
+  zoom,
+  makeHandleProps,
+}: ResizeHandlesProps) {
+  const { corner, edge } = resizeGrabZones(width * zoom, height * zoom)
+  const px = (screen: number) => screen / zoom
+  // Edges run between the corners' inner reach.
+  const edgeX = { left: px(corner.x.inside), right: px(corner.x.inside) }
+  const edgeY = { top: px(corner.y.inside), bottom: px(corner.y.inside) }
+  const thickY = px(edge.y.inside + edge.y.outside)
+  const thickX = px(edge.x.inside + edge.x.outside)
+  const cornerW = px(corner.x.inside + corner.x.outside)
+  const cornerH = px(corner.y.inside + corner.y.outside)
+  const cx = -px(corner.x.outside)
+  const cy = -px(corner.y.outside)
 
   return (
     <>
       <div
         className="absolute cursor-ns-resize touch-none"
         {...makeHandleProps("n")}
-        style={{ top: -hHalf, left: cHalf, right: cHalf, height: h }}
+        style={{ top: -px(edge.y.outside), ...edgeX, height: thickY }}
       />
       <div
         className="absolute cursor-ns-resize touch-none"
         {...makeHandleProps("s")}
-        style={{ bottom: -hHalf, left: cHalf, right: cHalf, height: h }}
+        style={{ bottom: -px(edge.y.outside), ...edgeX, height: thickY }}
       />
       <div
         className="absolute cursor-ew-resize touch-none"
         {...makeHandleProps("w")}
-        style={{ left: -hHalf, top: cHalf, bottom: cHalf, width: h }}
+        style={{ left: -px(edge.x.outside), ...edgeY, width: thickX }}
       />
       <div
         className="absolute cursor-ew-resize touch-none"
         {...makeHandleProps("e")}
-        style={{ right: -hHalf, top: cHalf, bottom: cHalf, width: h }}
+        style={{ right: -px(edge.x.outside), ...edgeY, width: thickX }}
       />
       <div
         className="absolute cursor-nwse-resize touch-none"
         {...makeHandleProps("nw")}
-        style={{
-          top: -cHalf,
-          left: -cHalf,
-          width: cornerSize,
-          height: cornerSize,
-        }}
+        style={{ top: cy, left: cx, width: cornerW, height: cornerH }}
       />
       <div
         className="absolute cursor-nesw-resize touch-none"
         {...makeHandleProps("ne")}
-        style={{
-          top: -cHalf,
-          right: -cHalf,
-          width: cornerSize,
-          height: cornerSize,
-        }}
+        style={{ top: cy, right: cx, width: cornerW, height: cornerH }}
       />
       <div
         className="absolute cursor-nesw-resize touch-none"
         {...makeHandleProps("sw")}
-        style={{
-          bottom: -cHalf,
-          left: -cHalf,
-          width: cornerSize,
-          height: cornerSize,
-        }}
+        style={{ bottom: cy, left: cx, width: cornerW, height: cornerH }}
       />
       <div
         className="absolute cursor-nwse-resize touch-none"
         {...makeHandleProps("se")}
-        style={{
-          bottom: -cHalf,
-          right: -cHalf,
-          width: cornerSize,
-          height: cornerSize,
-        }}
+        style={{ bottom: cy, right: cx, width: cornerW, height: cornerH }}
       />
     </>
   )
