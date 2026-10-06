@@ -210,7 +210,11 @@ import {
 } from "./use-canvas-gesture"
 
 import { useDrawTool } from "./use-draw-tool"
-import { FrameAskCard, frameAskTarget } from "./frame-ask-card"
+import {
+  documentAskTarget,
+  FrameAskCard,
+  frameAskTarget,
+} from "./frame-ask-card"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { toast } from "sonner"
 
@@ -1809,8 +1813,9 @@ export function Canvas({
   // drifting off-axis lives on the Canvas Camera controller now (PRD #588),
   // beside the viewport transform it guards.
 
-  // The Frame and Mockup tools' ask (#1356, #1359): the Draw-and-ask module
-  // holds the open ask and routes the send; this root only renders its card.
+  // The Frame, Mockup and Document tools' ask (#1356, #1359): the Draw-and-ask
+  // module holds the open ask and routes the send; this root only renders its
+  // card.
   const drawAsk = useDrawAsk({
     ops,
     repos,
@@ -1822,6 +1827,7 @@ export function Canvas({
     setSelectedGroupIds,
     setSelectedIframeLayerIds,
     setSelectedDocumentLayerIds,
+    setEditingDocumentLayerId,
     sendPrompt: branchActions.sendPrompt,
     createBranch,
     addChatSession,
@@ -1832,6 +1838,8 @@ export function Canvas({
   const askFrameId =
     drawAsk.open?.kind === "frame" ? drawAsk.open.frameId : null
   const askMockupBox = drawAsk.open?.kind === "mockup" ? drawAsk.open.box : null
+  const askDocumentId =
+    drawAsk.open?.kind === "document" ? drawAsk.open.documentId : null
 
   // Draw tools (Document / Frame / Mockup) — the Tool Mode sibling that turns a released
   // draft into a new Layer. Owns the in-flight draft rects the SelectionOverlay
@@ -1852,6 +1860,7 @@ export function Canvas({
       setEditingDocumentLayerId,
       onFrameDrawn: drawAsk.startFromFrame,
       onMockupDrawn: drawAsk.startFromMockupBox,
+      onDocumentDrawn: drawAsk.startFromDocument,
     })
 
   // The drawn Mockup box's screen rect, from the live camera.
@@ -2573,7 +2582,10 @@ export function Canvas({
                   viewportPos={viewportPos}
                   selectedIframeLayerIds={overlaySelectedIds}
                   groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
-                  focusedIframeLayerId={focusedIframeLayerId}
+                  // An edited Document wears an interacting frame's 2px ring.
+                  focusedIframeLayerId={
+                    focusedIframeLayerId ?? editingDocumentLayerId
+                  }
                   hoveredIframeLayerId={hoveredIframeLayerId}
                   workspaceHighlightIds={workspaceHighlightIds}
                   iframeLayerLayouts={effectiveIframeLayerLayouts}
@@ -2738,6 +2750,19 @@ export function Canvas({
                     sketchChats={sketchChats}
                     defaultAnswerer={drawAsk.answerer}
                     onSubmit={drawAsk.send}
+                    onClose={drawAsk.close}
+                  />
+                ) : askDocumentId ? (
+                  <FrameAskCard
+                    key={askDocumentId}
+                    kind="document"
+                    locate={() => documentAskTarget(askDocumentId)}
+                    markdownLayers={markdownLayers}
+                    workspaces={agents}
+                    sketchChats={sketchChats}
+                    defaultAnswerer={drawAsk.answerer}
+                    onSubmit={drawAsk.send}
+                    onWriteMyself={drawAsk.writeDocument}
                     onClose={drawAsk.close}
                   />
                 ) : null}

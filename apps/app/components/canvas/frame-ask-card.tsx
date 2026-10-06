@@ -10,7 +10,11 @@ import {
   CommandItem,
   CommandList,
 } from "@workspace/ui/components/command"
-import { CaretDownIcon, PlusIcon } from "@workspace/ui/components/icons"
+import {
+  CaretDownIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+} from "@workspace/ui/components/icons"
 import { InputGroupButton } from "@workspace/ui/components/input-group"
 import { cn } from "@workspace/ui/lib/utils"
 import {
@@ -54,12 +58,16 @@ export type AskCardTarget = {
   height: number
 }
 
-/** The drawn box a card asks about: a frame, or a Mockup box (#1359). */
-export type AskCardKind = "frame" | "mockup"
+/**
+ * The drawn box a card asks about: a frame, a Mockup box (#1359), or a
+ * Document.
+ */
+export type AskCardKind = "frame" | "mockup" | "document"
 
 const QUESTION: Record<AskCardKind, string> = {
   frame: "What should this frame show?",
   mockup: "What should this mockup show?",
+  document: "What should this document say?",
 }
 
 /**
@@ -67,8 +75,17 @@ const QUESTION: Record<AskCardKind, string> = {
  * lives inside the world transform, the card in screen space.
  */
 export function frameAskTarget(frameId: string): AskCardTarget | null {
+  return layerAskTarget(`iframe-layer-${frameId}`)
+}
+
+/** Where a Document's page sits on screen, as `frameAskTarget`. */
+export function documentAskTarget(documentId: string): AskCardTarget | null {
+  return layerAskTarget(`markdown-layer-${documentId}`)
+}
+
+function layerAskTarget(elementId: string): AskCardTarget | null {
   const wrapper = document.querySelector<HTMLElement>("[data-canvas-wrapper]")
-  const frame = document.getElementById(`iframe-layer-${frameId}`)
+  const frame = document.getElementById(elementId)
   if (!wrapper || !frame) return null
   const fr = frame.getBoundingClientRect()
   const cw = wrapper.getBoundingClientRect()
@@ -93,9 +110,13 @@ export function frameAskTarget(frameId: string): AskCardTarget | null {
  * frame and sends nothing. Its last row, New chat…, turns the card into the
  * composer, carrying what was typed when no preview matched it.
  *
+ * A drawn Document's card also offers Write it myself (`onWriteMyself`): it,
+ * or Esc, opens the Document for editing instead, what was typed becoming its
+ * title.
+ *
  * Per-viewer: the canvas holds which box is asking in local state, never in
  * the room doc. Enter sends; Esc or a pointer-down outside closes it, leaving
- * a frame as it is (an unsent Mockup box goes with the card).
+ * a frame or Document as it is (an unsent Mockup box goes with the card).
  */
 export function FrameAskCard({
   kind = "frame",
@@ -107,6 +128,7 @@ export function FrameAskCard({
   previews = [],
   onShow,
   onSubmit,
+  onWriteMyself,
   onClose,
 }: {
   kind?: AskCardKind
@@ -127,12 +149,16 @@ export function FrameAskCard({
   /** Show a picked preview in the frame. */
   onShow?: (branchId: string) => void
   onSubmit: (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => void
+  /** Write it yourself instead, with what was typed so far. */
+  onWriteMyself?: (text: string) => void
   onClose: () => void
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [answerer, setAnswerer] = useState(defaultAnswerer)
   const [picking, setPicking] = useState(previews.length > 0 && !!onShow)
   const composerRef = useRef<ComposerHandle>(null)
+  // What's typed, for Write it myself to carry into the title.
+  const draftRef = useRef("")
   // Words typed into the picker that no preview matched, for the composer
   // to start from once it's mounted.
   const carriedRef = useRef("")
@@ -225,7 +251,8 @@ export function FrameAskCard({
         if (document.querySelector(`[${COMPOSER_POPUP_ATTRIBUTE}]`)) return
         e.preventDefault()
         e.stopPropagation()
-        onClose()
+        if (onWriteMyself) onWriteMyself(draftRef.current)
+        else onClose()
       }}
     >
       {picking && onShow ? (
@@ -244,6 +271,13 @@ export function FrameAskCard({
           markdownLayers={markdownLayers}
           onModelChange={() => {}}
           onSubmit={(payload) => onSubmit(payload, answerer)}
+          onChange={
+            onWriteMyself
+              ? (payload) => {
+                  draftRef.current = payload.text
+                }
+              : undefined
+          }
           focusKey={1}
           placeholder={QUESTION[kind]}
           modelSlot={
@@ -253,6 +287,18 @@ export function FrameAskCard({
               sketchChats={sketchChats}
               onChange={setAnswerer}
             />
+          }
+          beforeSend={
+            onWriteMyself && (
+              <InputGroupButton
+                size="sm"
+                className="text-foreground"
+                onClick={() => onWriteMyself(draftRef.current)}
+              >
+                <PencilSimpleIcon />
+                Write it myself
+              </InputGroupButton>
+            )
           }
           // The card is the surface: the composer's own box goes borderless.
           className="relative [&_[data-slot=input-group]]:border-transparent dark:[&_[data-slot=input-group]]:bg-transparent"

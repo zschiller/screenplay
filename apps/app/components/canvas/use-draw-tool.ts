@@ -68,6 +68,7 @@ export function useDrawTool({
   setEditingDocumentLayerId,
   onFrameDrawn,
   onMockupDrawn,
+  onDocumentDrawn,
 }: {
   documentMode: boolean
   frameMode: boolean
@@ -96,6 +97,11 @@ export function useDrawTool({
    * its ask. Nothing is created: the Mockup is only made when the ask is sent.
    */
   onMockupDrawn?: (rect: DrawnRect) => void
+  /**
+   * A drawn Document was let go: the canvas asks what it should say. Without
+   * it the new Document opens for editing, the caret in its title.
+   */
+  onDocumentDrawn?: (documentId: string) => void
 }): DrawToolController {
   const [documentDraft, setDocumentDraft] = useState<Draft | null>(null)
   const documentDraftRef = useRef<Draft | null>(null)
@@ -167,8 +173,9 @@ export function useDrawTool({
         return false
       },
       commitDraft: () => {
-        // Document-tool: release creates a new document layer. Click-without-drag
-        // uses a sensible default size; drag sets explicit bounds.
+        // Document-tool: release creates a new document layer, then asks what
+        // it should say. Click-without-drag uses a sensible default size; drag
+        // sets explicit bounds.
         if (documentDraftRef.current) {
           const d = documentDraftRef.current
           documentDraftRef.current = null
@@ -201,7 +208,8 @@ export function useDrawTool({
           toolMode.set("select")
           setSelectedIframeLayerIds(new Set())
           setSelectedDocumentLayerIds(new Set([id]))
-          setEditingDocumentLayerId(id)
+          if (onDocumentDrawn) onDocumentDrawn(id)
+          else setEditingDocumentLayerId(id)
           return true
         }
         // Frame-tool: release creates a new empty frame, then asks what it
@@ -253,6 +261,7 @@ export function useDrawTool({
       setSelectedDocumentLayerIds,
       setEditingDocumentLayerId,
       onFrameDrawn,
+      onDocumentDrawn,
     ]
   )
 
