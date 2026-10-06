@@ -419,6 +419,24 @@ describe("reduceGesture — reorder", () => {
     expect(result.intent).toBeUndefined()
   })
 
+  it("floats nothing for a label press until the pointer moves", () => {
+    const ctx = reorderCtx("a", { selectOnNoMove: true })
+    const pressed = reduceGesture(
+      { kind: "idle" },
+      {
+        type: "start",
+        start: { kind: "reorder", ctx, order: reorderOrder, meta: false },
+      }
+    )
+    expect(pressed.preview.reorder).toBeNull()
+    const moved = reduceGesture(pressed.state, {
+      type: "move",
+      cursor: { x: 51, y: 50 },
+      meta: false,
+    })
+    expect(moved.preview.reorder).toMatchObject({ memberId: "a" })
+  })
+
   it("resumes in-flow reorder after meta is released mid-drag", () => {
     // Pop out, then drop meta and move past b's center: reindex resumes.
     const result = run([

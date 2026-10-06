@@ -718,16 +718,15 @@ function RoomSidebarImpl({
                            *  Wrapped in a component so each member can own its own
                            *  `EditableText` ref — shared between Row (input) and
                            *  Menu (Rename click triggers `startEditing()`). */
-                          const renderMember = (
+                          const memberProps = (
                             member: ResolvedMember,
                             variant: "flat" | "sub"
-                          ) => (
-                            <MemberEntry
-                              member={member}
-                              variant={variant}
-                              dispatch={rowDispatchByKind[member.kind]}
-                            />
-                          )
+                          ) =>
+                            memberEntryProps(
+                              member,
+                              variant,
+                              rowDispatchByKind[member.kind]
+                            )
 
                           const isGroupDragging =
                             activeDragRow?.kind === "group-header" &&
@@ -736,13 +735,12 @@ function RoomSidebarImpl({
                             <Fragment key={group.id}>
                               <GapDrop sidebarIndex={gIdx} />
                               {groupMembers.length === 1 ? (
-                                <SortableRow
-                                  id={`flat:${group.id}`}
+                                <SortableMember
+                                  rowId={`flat:${group.id}`}
                                   groupId={group.id}
                                   className="group/menu-item group/frame-row cursor-grab active:cursor-grabbing"
-                                >
-                                  {renderMember(groupMembers[0]!, "flat")}
-                                </SortableRow>
+                                  {...memberProps(groupMembers[0]!, "flat")}
+                                />
                               ) : groupMembers.length > 1 ? (
                                 <div
                                   data-slot="sidebar-menu-item"
@@ -864,16 +862,14 @@ function RoomSidebarImpl({
                                         className="mr-0 ml-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border py-0.5 pr-0 pl-1"
                                       >
                                         {groupMembers.map((m) => (
-                                          <SortableRow
+                                          <SortableMember
                                             key={`${m.kind}:${m.id}`}
-                                            id={`member:${m.kind}:${m.id}`}
+                                            rowId={`member:${m.kind}:${m.id}`}
                                             groupId={group.id}
-                                            data-slot="sidebar-menu-sub-item"
-                                            data-sidebar="menu-sub-item"
+                                            sub
                                             className="group/menu-sub-item group/frame-row cursor-grab active:cursor-grabbing"
-                                          >
-                                            {renderMember(m, "sub")}
-                                          </SortableRow>
+                                            {...memberProps(m, "sub")}
+                                          />
                                         ))}
                                       </div>
                                     </CollapsibleContent>
@@ -907,11 +903,14 @@ function RoomSidebarImpl({
                         </span>
                       </SidebarMenuButton>
                     ) : (
-                      <MemberEntry
-                        member={activeDragRow.member}
-                        variant={activeDragRow.kind === "flat" ? "flat" : "sub"}
-                        dispatch={rowDispatchByKind[activeDragRow.member.kind]}
-                      />
+                      (() => {
+                        const entry = memberEntryProps(
+                          activeDragRow.member,
+                          activeDragRow.kind === "flat" ? "flat" : "sub",
+                          rowDispatchByKind[activeDragRow.member.kind]
+                        )
+                        return entry ? <MemberEntry {...entry} /> : null
+                      })()
                     )}
                   </div>
                 ) : null}
@@ -940,58 +939,98 @@ function WithEditableRef({
   return <>{children({ ref })}</>
 }
 
-/** Renders one layer-row's `<Row />` + `<Menu />` pair, owning the
- *  inline-rename ref shared between them. Extracted from the group
- *  dispatcher so each member gets its own hook scope. */
-function MemberEntry({
-  member,
-  variant,
-  dispatch,
-}: {
-  member: { kind: string; id: string; data: unknown }
+type RowDispatch = {
+  Row: React.ComponentType<import("./layer-rows/types").LayerRowProps<unknown>>
+  Menu: React.ComponentType<
+    import("./layer-rows/types").LayerRowMenuProps<unknown>
+  >
+  isSelected: (id: string) => boolean
+  isWorking?: (id: string) => boolean
+  onSelect: (id: string, shiftKey: boolean) => void
+  onActivate?: (id: string) => void
+  onRename: (id: string, name: string) => void
+  onRemove: (id: string) => void
+}
+
+type MemberEntryProps = {
+  item: unknown
   variant: "flat" | "sub"
-  dispatch:
-    | {
-        Row: React.ComponentType<
-          import("./layer-rows/types").LayerRowProps<unknown>
-        >
-        Menu: React.ComponentType<
-          import("./layer-rows/types").LayerRowMenuProps<unknown>
-        >
-        isSelected: (id: string) => boolean
-        isWorking?: (id: string) => boolean
-        onSelect: (id: string, shiftKey: boolean) => void
-        onActivate?: (id: string) => void
-        onRename: (id: string, name: string) => void
-        onRemove: (id: string) => void
-      }
-    | undefined
-}) {
-  const editableRef = useRef<EditableTextHandle | null>(null)
+  selected: boolean
+  working: boolean | undefined
+} & Omit<RowDispatch, "isSelected" | "isWorking">
+
+/** A member's row props, resolved: plain values a memoized row can compare,
+ *  so selecting one row doesn't re-render the others. */
+function memberEntryProps(
+  member: ResolvedMember,
+  variant: "flat" | "sub",
+  dispatch: RowDispatch | undefined
+): MemberEntryProps | null {
   if (!dispatch) return null
-  const { Row, Menu } = dispatch
+  return {
+    item: member.data,
+    variant,
+    selected: dispatch.isSelected(member.id),
+    working: dispatch.isWorking?.(member.id),
+    Row: dispatch.Row,
+    Menu: dispatch.Menu,
+    onSelect: dispatch.onSelect,
+    onActivate: dispatch.onActivate,
+    onRename: dispatch.onRename,
+    onRemove: dispatch.onRemove,
+  }
+}
+
+/** One member's `<Row />` + `<Menu />` pair, owning the inline-rename ref
+ *  shared between them. */
+function MemberEntry(entry: MemberEntryProps) {
+  const editableRef = useRef<EditableTextHandle | null>(null)
+  const { Row, Menu } = entry
   return (
     <>
       <Row
-        item={member.data}
-        variant={variant}
-        selected={dispatch.isSelected(member.id)}
-        working={dispatch.isWorking?.(member.id)}
-        onSelect={dispatch.onSelect}
-        onActivate={dispatch.onActivate}
-        onRename={dispatch.onRename}
+        item={entry.item}
+        variant={entry.variant}
+        selected={entry.selected}
+        working={entry.working}
+        onSelect={entry.onSelect}
+        onActivate={entry.onActivate}
+        onRename={entry.onRename}
         editableRef={editableRef}
       />
       <Menu
-        item={member.data}
-        isSub={variant === "sub"}
-        onRename={dispatch.onRename}
-        onRemove={dispatch.onRemove}
+        item={entry.item}
+        isSub={entry.variant === "sub"}
+        onRename={entry.onRename}
+        onRemove={entry.onRemove}
         editableRef={editableRef}
       />
     </>
   )
 }
+
+/** A member's sortable row, memoized on its resolved props. */
+const SortableMember = memo(function SortableMember({
+  rowId,
+  groupId,
+  className,
+  sub,
+  ...entry
+}: {
+  rowId: string
+  groupId: string
+  className: string
+  sub?: boolean
+} & Partial<MemberEntryProps>) {
+  const slot = sub
+    ? { "data-slot": "sidebar-menu-sub-item", "data-sidebar": "menu-sub-item" }
+    : {}
+  return (
+    <SortableRow id={rowId} groupId={groupId} className={className} {...slot}>
+      {entry.Row ? <MemberEntry {...(entry as MemberEntryProps)} /> : null}
+    </SortableRow>
+  )
+})
 
 /** A Group row (#872). Hovering it lights up its Workspace's row, and
  *  hovering that Workspace lights this row up, like a frame row's (#793). */

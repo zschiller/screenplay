@@ -1,8 +1,10 @@
 "use client"
 
 import {
+  createContext,
   memo,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -10,6 +12,8 @@ import {
   useState,
   useSyncExternalStore,
   type ComponentProps,
+  type ReactNode,
+  type RefObject,
 } from "react"
 
 import { nanoid } from "nanoid"
@@ -325,6 +329,41 @@ function LogProbe({
   }, [sandboxName])
   return null
 }
+
+/**
+ * The pan/zoom wrapper, kept out of the Canvas's renders. react-zoom-pan-pinch
+ * re-reads the wrapper's and content's size (a forced layout) whenever
+ * TransformWrapper renders with new props, and its children are new props, so
+ * every Canvas render (a selection, each step of a drag) forced a layout. The
+ * content comes in through context instead, and only the slot re-renders.
+ */
+const CanvasContentContext = createContext<ReactNode>(null)
+
+function CanvasContentSlot() {
+  return useContext(CanvasContentContext)
+}
+
+const TRANSFORM_WRAPPER_STYLE = { width: "100%", height: "100%" }
+const TRANSFORM_CONTENT_STYLE = { width: CANVAS_SIZE, height: CANVAS_SIZE }
+
+const CanvasTransform = memo(function CanvasTransform({
+  transformRef,
+  wrapperProps,
+}: {
+  transformRef: RefObject<ReactZoomPanPinchContentRef | null>
+  wrapperProps: ComponentProps<typeof TransformWrapper>
+}) {
+  return (
+    <TransformWrapper ref={transformRef} {...wrapperProps}>
+      <TransformComponent
+        wrapperStyle={TRANSFORM_WRAPPER_STYLE}
+        contentStyle={TRANSFORM_CONTENT_STYLE}
+      >
+        <CanvasContentSlot />
+      </TransformComponent>
+    </TransformWrapper>
+  )
+})
 
 /**
  * The chrome around the canvas, memoized: a drag, marquee or draw re-renders
@@ -2317,20 +2356,8 @@ export function Canvas({
                   rects={placeholderRects}
                 />
 
-                <TransformWrapper
-                  ref={transformRef}
-                  {...camera.transformWrapperProps}
-                >
-                  <TransformComponent
-                    wrapperStyle={{
-                      width: "100%",
-                      height: "100%",
-                    }}
-                    contentStyle={{
-                      width: CANVAS_SIZE,
-                      height: CANVAS_SIZE,
-                    }}
-                  >
+                <CanvasContentContext.Provider
+                  value={
                     <LiveZoomContext.Provider value={camera.liveZoom}>
                       <div
                         className="relative"
@@ -2379,7 +2406,9 @@ export function Canvas({
                             }
                             agentDomains={agentDomains}
                             agents={agents}
-                            onRestartWorkspace={memberCallbacks.onRestartWorkspace}
+                            onRestartWorkspace={
+                              memberCallbacks.onRestartWorkspace
+                            }
                             onOpenLogs={openBranchLogs}
                             onStartChat={drawAsk.startFrameChat}
                             askingIframeLayerId={askFrameId}
@@ -2416,8 +2445,13 @@ export function Canvas({
                         </MockupChatLinkProvider>
                       </div>
                     </LiveZoomContext.Provider>
-                  </TransformComponent>
-                </TransformWrapper>
+                  }
+                >
+                  <CanvasTransform
+                    transformRef={transformRef}
+                    wrapperProps={camera.transformWrapperProps}
+                  />
+                </CanvasContentContext.Provider>
 
                 {/* Comment pins live in their own screen-space layer above the
                   selection overlay so pins/popovers aren't painted over by it.
