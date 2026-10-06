@@ -911,16 +911,36 @@ export function Canvas({
   )
 
   // The Coordinator's `show_on_canvas`, in a turn this member asked for: fit
-  // the frames, documents and Groups it names, or the whole canvas.
-  const { zoomToRect: cameraZoomToRect } = camera
+  // the frames, documents and Groups it names, or the whole canvas. A layer
+  // named in this member's own sent message is selected instead, and comes
+  // into view only if it's off screen.
+  const { zoomToRect: cameraZoomToRect, revealRect: cameraRevealRect } = camera
   const iframeLayerGroupsRef = useRef(iframeLayerGroups)
+  const selectNamedLayerRef = useRef((_id: string) => {})
   useEffect(() => {
     iframeLayerGroupsRef.current = iframeLayerGroups
+    selectNamedLayerRef.current = (id) => {
+      if (iframeLayers.some((l) => l.id === id)) {
+        selection.selectIframeLayer(id, false)
+      } else if (
+        markdownLayers.some((l) => l.id === id) ||
+        mockupLayers.some((l) => l.id === id)
+      ) {
+        selection.selectDocumentLayer(id, false)
+      }
+    }
   })
   useEffect(() => {
     let timer: number | undefined
-    const unsubscribe = viewRequests.subscribe(({ chatId, ids }) => {
+    const unsubscribe = viewRequests.subscribe(({ chatId, ids, select }) => {
       if (chatId !== undefined && chatId !== roomChatId(roomId)) return
+      if (select) {
+        // The member's own click: no wait for the doc, which hasn't moved.
+        for (const id of ids) selectNamedLayerRef.current(id)
+        const layout = iframeLayerLayoutsRef.current.get(ids[0] ?? "")
+        if (layout) cameraRevealRect(layout)
+        return
+      }
       // The call's broadcast can land before the doc update that moved what
       // it names, so let the layout catch up first.
       window.clearTimeout(timer)
@@ -944,7 +964,7 @@ export function Canvas({
       unsubscribe()
       window.clearTimeout(timer)
     }
-  }, [roomId, zoomControls, cameraZoomToRect])
+  }, [roomId, zoomControls, cameraZoomToRect, cameraRevealRect])
 
   // The agent showing this member a frame (#1390): fit it in their view,
   // waiting briefly for a frame it just opened to be laid out.

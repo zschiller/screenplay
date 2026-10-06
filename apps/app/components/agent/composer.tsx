@@ -139,7 +139,7 @@ const ElementToken = Node.create({
       "span",
       mergeAttributes(HTMLAttributes, {
         "data-element-token": "",
-        class: "inline-ref font-mono",
+        class: "inline-ref",
       }),
       `${ELEMENT_TOKEN_GLYPH} ${node.attrs.label}`,
     ]

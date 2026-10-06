@@ -110,6 +110,7 @@ import {
 } from "@/lib/branch/workspace-state"
 import { parseLayerLink } from "@/lib/agent/layer-link"
 import { useMockupTitle } from "@/lib/yjs/react"
+import { viewRequests } from "@/lib/canvas/view-requests"
 import { attachmentUrl } from "@/lib/chat-attachments"
 import { SentAttachmentChip } from "@/components/agent/attachment-chip"
 import { ElementDetail } from "./element-detail"
@@ -1089,9 +1090,7 @@ function ElementHistoryToken({
   return (
     <HoverCard onOpenChange={handleOpenChange}>
       <HoverCardTrigger asChild>
-        <InlineRef kind="element" className="font-mono">
-          {children}
-        </InlineRef>
+        <InlineRef kind="element">{children}</InlineRef>
       </HoverCardTrigger>
       <HoverCardContent align="start">
         <ElementDetail
@@ -1105,13 +1104,24 @@ function ElementHistoryToken({
   )
 }
 
+/** Select a layer the member named in their own message, and bring it into
+ *  view if it's off screen. */
+function selectNamedLayer(id: string) {
+  viewRequests.emit({ ids: [id], select: true })
+}
+
 /**
  * A drawn Mockup named in a sent message, by its live title (the box is empty
- * and untitled when the message is sent; the chat titles it).
+ * and untitled when the message is sent; the chat titles it). Clicking it
+ * selects the Mockup.
  */
 function MockupRef({ id }: { id: string }) {
   const title = useMockupTitle(id)
-  return <InlineRef kind="mockup">{title || "Mockup"}</InlineRef>
+  return (
+    <InlineRef kind="mockup" onClick={() => selectNamedLayer(id)}>
+      {title || "Mockup"}
+    </InlineRef>
+  )
 }
 
 /**
@@ -1258,13 +1268,18 @@ function UserBubble({
           return <InlineRef kind="skill">{children}</InlineRef>
         }
         if (typeof href === "string" && href.startsWith("mention:")) {
-          return <InlineRef kind="document">{stripAt(children)}</InlineRef>
+          const id = href.slice("mention:".length)
+          return (
+            <InlineRef kind="document" onClick={() => selectNamedLayer(id)}>
+              {stripAt(children)}
+            </InlineRef>
+          )
         }
         // A drawn Mockup, by its live title.
         if (typeof href === "string" && href.startsWith("mockup:")) {
           return <MockupRef id={href.slice("mockup:".length)} />
         }
-        // element tokens: the crosshair + `font-mono` tag name,
+        // element tokens: the crosshair + the tag name, in the text face,
         // matching the composer token. Detail rides the footer, keyed by the
         // link's `element:<ref>`; missing (a footer-less legacy turn) → plain
         // token, no card.
@@ -1272,11 +1287,7 @@ function UserBubble({
           const refId = href.slice("element:".length)
           const detail = targetedElements.get(refId)
           if (!detail) {
-            return (
-              <InlineRef kind="element" className="font-mono">
-                {children}
-              </InlineRef>
-            )
+            return <InlineRef kind="element">{children}</InlineRef>
           }
           return (
             <ElementHistoryToken refId={refId} detail={detail}>

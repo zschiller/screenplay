@@ -14,6 +14,7 @@ import type { useAppSession } from "@/lib/auth-client"
 import {
   fitRectToViewport,
   fitScale,
+  revealRectInViewport,
   stepZoom,
   zoomAtPoint,
   type Rect,
@@ -123,6 +124,9 @@ export interface CanvasCamera {
   zoomToElement(el: HTMLElement): void
   /** Zoom to fit a world-space rect with padding (e.g. a whole Group). */
   zoomToRect(rect: Rect): void
+  /** Bring a world-space rect into view only if it isn't wholly on screen:
+   *  a pan at this zoom when it fits, else a fit. */
+  revealRect(rect: Rect): void
   /** Pan so an on-screen element sits mid-viewport, keeping the zoom. */
   centerOnElement(el: HTMLElement, inset?: { right?: number }): void
   /** Step to the next zoom stop in or out, anchored on the viewport center. */
@@ -625,6 +629,28 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     [transformRef]
   )
 
+  const revealRect = useCallback(
+    (rect: Rect) => {
+      const ref = transformRef.current
+      if (!ref) return
+      if (rect.width <= 0 || rect.height <= 0) return
+      const { positionX, positionY, scale } = ref.state
+      const t = revealRectInViewport(
+        rect,
+        { x: positionX, y: positionY, zoom: scale },
+        {
+          width:
+            ref.instance.wrapperComponent?.clientWidth ?? window.innerWidth,
+          height:
+            ref.instance.wrapperComponent?.clientHeight ?? window.innerHeight,
+        },
+        { padding: FIT_PADDING, maxZoom: FIT_ZOOM_MAX }
+      )
+      if (t) ref.setTransform(t.x, t.y, t.zoom, 300)
+    },
+    [transformRef]
+  )
+
   const centerOnElement = useCallback(
     (el: HTMLElement, inset?: { right?: number }) => {
       const ref = transformRef.current
@@ -1047,6 +1073,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     getViewportCenter,
     zoomToElement,
     zoomToRect,
+    revealRect,
     centerOnElement,
     zoomIn,
     zoomOut,

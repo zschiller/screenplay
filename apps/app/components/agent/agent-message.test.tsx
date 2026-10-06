@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { AgentMessage } from "@/lib/agent/types"
 import type { ToolCallContent } from "@/lib/agent/acp/schema"
 import { inputStore } from "@/lib/input-store"
+import { viewRequests, type ViewRequest } from "@/lib/canvas/view-requests"
 import {
   buildAttachmentsFooter,
   prependTurnMarkers,
@@ -1212,6 +1213,27 @@ describe("AgentMessageItem — inline references", () => {
     expect(
       container.querySelector("[data-inline-ref=mockup]")?.textContent
     ).toBe("Mockup")
+  })
+
+  it("selects the layer a sent message names when it's clicked", () => {
+    const requests: ViewRequest[] = []
+    const unsubscribe = viewRequests.subscribe((r) => requests.push(r))
+    const { container } = render(
+      <AgentMessageItem
+        message={{
+          role: "user",
+          content:
+            "Use [@Checkout brief](mention:doc-1).\n\nSketch it in Mockup [mockup: m-1] with update_mockup, for a 390 × 844 viewport.",
+        }}
+      />
+    )
+    fireEvent.click(container.querySelector("[data-inline-ref=mockup]")!)
+    fireEvent.click(container.querySelector("[data-inline-ref=document]")!)
+    unsubscribe()
+    expect(requests).toEqual([
+      { ids: ["m-1"], select: true },
+      { ids: ["doc-1"], select: true },
+    ])
   })
 
   it("leads a Coordinator's Workspace link with its state", () => {

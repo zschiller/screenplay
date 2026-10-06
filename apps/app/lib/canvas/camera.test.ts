@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   fitRectToViewport,
   fitScale,
+  revealRectInViewport,
   showsLayerDetail,
   stepZoom,
   unionRect,
@@ -135,5 +136,39 @@ describe("showsLayerDetail", () => {
   it("hides layer detail below a quarter zoom", () => {
     expect(showsLayerDetail(0.25)).toBe(true)
     expect(showsLayerDetail(0.1)).toBe(false)
+  })
+})
+
+describe("revealRectInViewport", () => {
+  const options = { padding: 20, maxZoom: 5 }
+  const rect: Rect = { x: 100, y: 100, width: 200, height: 100 }
+
+  it("leaves the camera alone when the rect is already on screen", () => {
+    expect(
+      revealRectInViewport(rect, { x: 0, y: 0, zoom: 1 }, viewport, options)
+    ).toBeNull()
+  })
+
+  it("pans an off-screen rect to the centre, keeping the zoom", () => {
+    expect(
+      revealRectInViewport(rect, { x: -2000, y: 0, zoom: 2 }, viewport, options)
+    ).toEqual({ x: 500 - 200 * 2, y: 400 - 150 * 2, zoom: 2 })
+  })
+
+  it("pans a partly visible rect too", () => {
+    const t = revealRectInViewport(
+      rect,
+      { x: 750, y: 0, zoom: 1 },
+      viewport,
+      options
+    )
+    expect(t).toEqual({ x: 300, y: 250, zoom: 1 })
+  })
+
+  it("fits a rect too big to show whole at the current zoom", () => {
+    const current = { x: -5000, y: 0, zoom: 8 }
+    expect(revealRectInViewport(rect, current, viewport, options)).toEqual(
+      fitRectToViewport(rect, viewport, options)
+    )
   })
 })

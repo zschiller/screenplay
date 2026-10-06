@@ -4,9 +4,12 @@
  * (`lib/chat-store.ts`) and applied by the canvas's camera
  * (`components/canvas/canvas.tsx`). `ids` names frames, documents or Groups;
  * empty means fit the whole canvas. A request with no `chatId` is this
- * member's own click, such as a question's Mockup link (#1644).
+ * member's own click, such as a question's Mockup link (#1644). With
+ * `select`, the click names one layer to select, and the camera moves only if
+ * that layer isn't already wholly on screen (a Mockup or document named in the
+ * member's own sent message).
  */
-export type ViewRequest = { chatId?: string; ids: string[] }
+export type ViewRequest = { chatId?: string; ids: string[]; select?: boolean }
 
 type Listener = (request: ViewRequest) => void
 

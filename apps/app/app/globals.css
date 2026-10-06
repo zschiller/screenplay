@@ -390,6 +390,12 @@ body {
   --chat-block-bg: var(--background);
 }
 
+/* A paragraph after a paragraph (or any block) starts half a line down, so a
+   blank line reads as a break, not a loose line (20px lines, 10px gap). */
+.chat-markdown :is(p, ul, ol, pre, blockquote, h1, h2, h3, h4, table) + p {
+  margin-top: 0.625rem;
+}
+
 .chat-markdown code::before,
 .chat-markdown code::after {
   content: none;
