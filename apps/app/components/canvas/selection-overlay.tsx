@@ -698,10 +698,15 @@ export function SelectionOverlay({
   useLayoutEffect(draw, [draw])
   useEffect(() => camera?.subscribe(draw), [camera, draw])
 
+  // Its own compositing layer (`will-change-transform`): a frame whose page composites
+  // anything (an animation, a fixed bar) gets a layer of its own in WebKit, and
+  // an un-promoted overlay is then painted into the wrapper's layer beneath it
+  // whenever WebKit's overlap test misses, so outlines and handles slip under
+  // the frame. Placed and sized in whole device pixels, so it stays crisp.
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none absolute inset-0 z-(--z-canvas-overlay)"
+      className="pointer-events-none absolute inset-0 z-(--z-canvas-overlay) will-change-transform"
       data-camera-overlay={camera ? undefined : ""}
     />
   )
