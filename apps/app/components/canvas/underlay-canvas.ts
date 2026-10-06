@@ -11,6 +11,9 @@ import { useEffect, type RefObject } from "react"
  * same, empty either way.
  */
 
+/** Underlays drawn to a part of the view (`bounds`): their size is their own. */
+const boundedCanvases = new WeakSet<HTMLCanvasElement>()
+
 /** Each underlay's container size, kept by {@link useUnderlayCanvasSize}. */
 const containerSizes = new WeakMap<
   HTMLCanvasElement,
@@ -24,7 +27,13 @@ const containerSizes = new WeakMap<
  */
 export function beginUnderlayDraw(
   canvas: HTMLCanvasElement,
-  empty: boolean
+  empty: boolean,
+  /**
+   * The area the drawing covers, in the container's CSS pixels: the canvas
+   * covers only that, so a redraw uploads that much and not the whole view.
+   * Draw in container coordinates as usual.
+   */
+  bounds?: { x: number; y: number; width: number; height: number }
 ): CanvasRenderingContext2D | null {
   if (empty) {
     if (canvas.width !== 0 || canvas.height !== 0) {
@@ -42,6 +51,31 @@ export function beginUnderlayDraw(
   const box =
     containerSizes.get(canvas) ??
     (canvas.parentElement ?? canvas).getBoundingClientRect()
+  if (bounds) {
+    // Only the part inside the view.
+    const x = Math.max(0, Math.floor(bounds.x))
+    const y = Math.max(0, Math.floor(bounds.y))
+    const width = Math.min(box.width, Math.ceil(bounds.x + bounds.width)) - x
+    const height = Math.min(box.height, Math.ceil(bounds.y + bounds.height)) - y
+    if (width <= 0 || height <= 0) return beginUnderlayDraw(canvas, true)
+    boundedCanvases.add(canvas)
+    canvas.style.left = `${x}px`
+    canvas.style.top = `${y}px`
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+      canvas.width = width * dpr
+      canvas.height = height * dpr
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.setTransform(dpr, 0, 0, dpr, -x * dpr, -y * dpr)
+    return ctx
+  }
+  if (boundedCanvases.delete(canvas)) {
+    canvas.style.left = ""
+    canvas.style.top = ""
+  }
   canvas.style.width = `${box.width}px`
   canvas.style.height = `${box.height}px`
   if (canvas.width !== box.width * dpr || canvas.height !== box.height * dpr) {
@@ -66,6 +100,7 @@ export function useUnderlayCanvasSize(
     const observer = new ResizeObserver(() => {
       const r = parent.getBoundingClientRect()
       containerSizes.set(canvas, { width: r.width, height: r.height })
+      if (boundedCanvases.has(canvas)) return
       canvas.style.width = `${r.width}px`
       canvas.style.height = `${r.height}px`
       // A released canvas stays released until it next draws.

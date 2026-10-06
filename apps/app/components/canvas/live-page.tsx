@@ -370,8 +370,53 @@ export function LivePageContent({
       />
     )
   }
-  const pointer = {
+  return <LivePageFrame page={page} iframeRef={iframeRef} />
+}
+
+/** How long a page's size waits for a resize to pause (see `useSettledSize`). */
+export const RESIZE_SETTLE_MS = 150
+
+/**
+ * The page's size, held while it keeps changing: a lone change lands at
+ * once, and a run of them (a resize drag, here or by someone else) lands when
+ * it pauses for {@link RESIZE_SETTLE_MS}. A page re-lays out and repaints at
+ * each new size, on the canvas's own thread in WebKit, so a drag that resized
+ * it on every step stuttered on a heavy page. The frame's box still follows
+ * the pointer: the page sits at its held size top left, cropped or beside
+ * its frame's background, as a streamed frame's picture does.
+ */
+function useSettledSize(width: number, height: number) {
+  const [settled, setSettled] = useState({ width, height })
+  const lastChange = useRef(-Infinity)
+  useEffect(() => {
+    if (settled.width === width && settled.height === height) return
+    const now = performance.now()
+    const quiet = now - lastChange.current > RESIZE_SETTLE_MS
+    lastChange.current = now
+    if (quiet) {
+      setSettled({ width, height })
+      return
+    }
+    const id = setTimeout(() => setSettled({ width, height }), RESIZE_SETTLE_MS)
+    return () => clearTimeout(id)
+  }, [width, height, settled])
+  return settled
+}
+
+function LivePageFrame({
+  page,
+  iframeRef,
+}: {
+  page: LivePage
+  iframeRef: RefObject<HTMLIFrameElement | null>
+}) {
+  const { source } = page
+  const settled = useSettledSize(page.width, page.height)
+  const style = {
     pointerEvents: page.takesPointer ? "auto" : "none",
+    // Offsets from the box, so a held size keeps the box's own insets.
+    width: `calc(100% + ${settled.width - page.width}px)`,
+    height: `calc(100% + ${settled.height - page.height}px)`,
   } as const
   if (source.kind === "srcdoc") {
     if (source.srcDoc === undefined) return null
@@ -382,20 +427,20 @@ export function LivePageContent({
         srcDoc={source.srcDoc}
         // Scripts only: no same-origin, forms, popups or top navigation.
         sandbox="allow-scripts"
-        className="absolute inset-0 size-full border-0 bg-white"
-        style={pointer}
+        className="absolute top-0 left-0 border-0 bg-white"
+        style={style}
         tabIndex={page.interactive ? 0 : -1}
       />
     )
   }
-  if (!source.src) return null
+  if (source.kind !== "url" || !source.src) return null
   return (
     <iframe
       ref={iframeRef}
       src={source.src}
-      className="absolute inset-0 h-full w-full border-0 bg-white dark:bg-neutral-900"
+      className="absolute top-0 left-0 border-0 bg-white dark:bg-neutral-900"
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-      style={pointer}
+      style={style}
     />
   )
 }

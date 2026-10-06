@@ -77,6 +77,13 @@ function plain<T>(map: AnyMap | undefined): T | undefined {
 export class YjsCollection<T extends Record<string, unknown>> {
   private snapshotCache: T[] | null = null
   private mapCache: ReadonlyMap<string, T> | null = null
+  /**
+   * Each entry's plain object, kept while the collection is observed and the
+   * entry doesn't change, so a snapshot after one entry changes reuses every
+   * other entry's object. Resizing one frame then leaves the other frames'
+   * records as they were, and whatever compares them by identity skips them.
+   */
+  private entryCache = new Map<string, T>()
   private listeners = new Set<() => void>()
   private observerAttached = false
 
@@ -97,8 +104,8 @@ export class YjsCollection<T extends Record<string, unknown>> {
   toArray(): T[] {
     if (this.snapshotCache) return this.snapshotCache as T[]
     const arr: T[] = []
-    this.map.forEach((entry) => {
-      const obj = plain<T>(entry)
+    this.map.forEach((entry, id) => {
+      const obj = this.entry(id, entry)
       if (obj) arr.push(obj)
     })
     this.snapshotCache = arr
@@ -109,11 +116,22 @@ export class YjsCollection<T extends Record<string, unknown>> {
     if (this.mapCache) return this.mapCache
     const m = new Map<string, T>()
     this.map.forEach((entry, id) => {
-      const obj = plain<T>(entry)
+      const obj = this.entry(id, entry)
       if (obj) m.set(id, obj)
     })
     this.mapCache = m
     return m
+  }
+
+  /** An entry's plain object: the cached one while observed (see `entryCache`). */
+  private entry(id: string, entry: AnyMap): T | undefined {
+    if (!this.observerAttached) return plain<T>(entry)
+    let obj = this.entryCache.get(id)
+    if (!obj) {
+      obj = plain<T>(entry)
+      if (obj) this.entryCache.set(id, obj)
+    }
+    return obj
   }
 
   set(id: string, value: T): void {
@@ -159,13 +177,25 @@ export class YjsCollection<T extends Record<string, unknown>> {
       if (this.listeners.size === 0 && this.observerAttached) {
         this.map.unobserveDeep(this.handleChange)
         this.observerAttached = false
+        this.entryCache.clear()
       }
     }
   }
 
-  private handleChange = () => {
+  private handleChange = (events: Array<Y.YEvent<Y.AbstractType<unknown>>>) => {
     this.snapshotCache = null
     this.mapCache = null
+    for (const event of events) {
+      if (event.target === this.map) {
+        // Entries added, removed or replaced.
+        for (const id of event.keys.keys()) this.entryCache.delete(id)
+      } else {
+        // A change inside an entry: the first step of its path is the entry.
+        const id = event.path[0]
+        if (typeof id === "string") this.entryCache.delete(id)
+        else this.entryCache.clear()
+      }
+    }
     for (const listener of this.listeners) listener()
   }
 }

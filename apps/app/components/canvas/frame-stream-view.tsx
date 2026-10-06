@@ -79,6 +79,8 @@ export function FrameStreamView({
   // The CSS size the picture on show was captured at. While a resize waits
   // for the stream, the picture keeps this size, never stretched.
   const pictureSize = useRef({ width, height })
+  /** A picture was drawn since the background was last read from it. */
+  const pictureChanged = useRef(true)
   const latest = useRef({
     width,
     height,
@@ -155,6 +157,7 @@ export function FrameStreamView({
         canvas.style.height = `${css.height}px`
       }
       canvas.getContext("2d")?.drawImage(picture, 0, 0)
+      pictureChanged.current = true
       picture.close()
       setLive(true)
     }
@@ -262,11 +265,14 @@ export function FrameStreamView({
   }, [stream, frame])
 
   // Room the picture doesn't cover yet, while the frame grows ahead of the
-  // stream, shows the page's own background: its bottom-right pixel.
+  // stream, shows the page's own background: its bottom-right pixel. Read
+  // once per picture: a read waits on the GPU, and a resize drag changes the
+  // size on every step while the picture stays put.
   useEffect(() => {
     const canvas = canvasRef.current
     const box = boxRef.current
-    if (!canvas?.width || !box) return
+    if (!canvas?.width || !box || !pictureChanged.current) return
+    pictureChanged.current = false
     const [r, g, b, a] = canvas
       .getContext("2d")!
       .getImageData(canvas.width - 1, canvas.height - 1, 1, 1).data
