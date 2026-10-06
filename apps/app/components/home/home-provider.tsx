@@ -63,6 +63,7 @@ import {
 } from "@/lib/folder-cascade"
 import { searchLibrary, type OwnerFilter } from "@/lib/home-search"
 import { useRoomThumbnailPoll } from "./use-room-thumbnail-poll"
+import { NewCanvasDialog } from "./new-canvas-dialog"
 
 export type { View }
 export type { SortKey, SortOrder }
@@ -123,7 +124,14 @@ type HomeContextValue = {
    * Create a Canvas. It lands in `folderId` when given (null = the root),
    * otherwise in the folder you're viewing.
    */
-  createRoom: (name: string, folderId?: string | null) => Promise<RoomSummary>
+  createRoom: (
+    name: string,
+    folderId?: string | null,
+    repositoryIds?: string[]
+  ) => Promise<RoomSummary>
+  /** Open the New canvas dialog (#1812), for a Canvas filed into `folderId`
+   *  (omitted = the folder you're viewing). */
+  openNewCanvas: (folderId?: string | null) => void
   renameRoom: (id: string, name: string) => Promise<void>
   removeRoom: (id: string) => Promise<void>
   /** File a Room into a folder for this user (null = drop it back to root). */
@@ -438,8 +446,12 @@ export function HomeProvider({
   )
 
   const createRoom = useCallback(
-    async (name: string, folderId?: string | null) => {
-      const room = await createRoomAction(name)
+    async (
+      name: string,
+      folderId?: string | null,
+      repositoryIds?: string[]
+    ) => {
+      const room = await createRoomAction(name, repositoryIds)
       // New canvas lands in the folder asked for, else the folder you're
       // viewing (root needs no row).
       const target =
@@ -468,6 +480,15 @@ export function HomeProvider({
     },
     [folderView, currentFolderId]
   )
+
+  // Which New canvas is open: the folder it files into, kept while it closes.
+  const [newCanvas, setNewCanvas] = useState<{
+    open: boolean
+    folderId?: string | null
+  } | null>(null)
+  const openNewCanvas = useCallback((folderId?: string | null) => {
+    setNewCanvas({ open: true, folderId })
+  }, [])
 
   const renameRoom = useCallback(async (id: string, name: string) => {
     const trimmed = name.trim() || "Untitled"
@@ -800,6 +821,7 @@ export function HomeProvider({
     order,
     setOrder,
     createRoom,
+    openNewCanvas,
     renameRoom,
     removeRoom,
     moveRoom,
@@ -824,7 +846,22 @@ export function HomeProvider({
     reorderPins,
   }
 
-  return <HomeContext.Provider value={value}>{children}</HomeContext.Provider>
+  return (
+    <HomeContext.Provider value={value}>
+      {children}
+      {/* Mounted from the first New canvas on, so it can animate closed. */}
+      {newCanvas && (
+        <NewCanvasDialog
+          open={newCanvas.open}
+          onOpenChange={(open) =>
+            setNewCanvas((prev) => (prev ? { ...prev, open } : prev))
+          }
+          folderId={newCanvas.folderId}
+          createRoom={createRoom}
+        />
+      )}
+    </HomeContext.Provider>
+  )
 }
 
 /**

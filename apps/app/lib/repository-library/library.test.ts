@@ -19,6 +19,7 @@ import {
   switchOff,
   switchOn,
   switchOnWithEnv,
+  type CanvasEnv,
   type CanvasRooms,
   type RepositoryLinkPolicy,
   type RepositoryStore,
@@ -85,10 +86,13 @@ function memoryEnv(
           .split("\n")
           .filter(Boolean)
           .map((l) => l.split("=")[0]!)
-        canvases[roomId]?.ops.patch("repos", repoId, {
+        const fields = {
           envVarNames: names.length > 0 ? names : undefined,
           envVarsDigest: digest(text),
-        })
+        }
+        if (canvases[roomId]?.collections.repos.get(repoId))
+          canvases[roomId]!.ops.patch("repos", repoId, fields)
+        return fields
       },
       digest,
     },
@@ -101,6 +105,7 @@ function setup({
   policy = desktopLinkPolicy,
   userId = "zack",
   rooms,
+  env: envOverride,
 }: {
   repositories?: RepoConfig[]
   canvases?: Record<string, ReturnType<typeof makeHarness>>
@@ -108,10 +113,14 @@ function setup({
   userId?: string
   /** In place of the canvases' own rooms. */
   rooms?: CanvasRooms
+  /** In place of the in-memory env store. */
+  env?: CanvasEnv
 } = {}) {
   let n = 0
   const store = memoryStore(repositories)
-  const { env, sets } = memoryEnv(canvases)
+  const memory = memoryEnv(canvases)
+  const env = envOverride ?? memory.env
+  const sets = memory.sets
   const library = createRepositoryLibrary({
     userId,
     store,
@@ -263,6 +272,89 @@ describe("switch on", () => {
 
     expect(id).toBe("repo-1")
     expect(saveEnv).not.toHaveBeenCalled()
+  })
+})
+
+describe("a canvas created with repositories (#1812)", () => {
+  it("switches each on, linked, credited and with its run settings", async () => {
+    const canvas = makeHarness()
+    const { library } = setup({
+      repositories: [
+        repository("web"),
+        repository("api", {
+          repoFullName: "acme/api",
+          repoName: "api",
+          devScript: "pnpm start",
+          devServerPort: 4000,
+        }),
+      ],
+      canvases: { c1: canvas },
+    })
+
+    const ids = await library.switchOnForCanvas("c1", ["web", "api"])
+
+    expect(ids).toEqual(["new-1", "new-2"])
+    expect(repoOf(canvas, "new-1")).toMatchObject({
+      repoFullName: "acme/web",
+      devScript: "pnpm dev",
+      repositoryId: "web",
+      addedBy: "zack",
+      createdAt: 101,
+    })
+    expect(repoOf(canvas, "new-2")).toMatchObject({
+      repoFullName: "acme/api",
+      devScript: "pnpm start",
+      devServerPort: 4000,
+      repositoryId: "api",
+      addedBy: "zack",
+    })
+  })
+
+  it("stores env values for the canvas before it names them", async () => {
+    const canvas = makeHarness()
+    const { library, envSets } = setup({
+      repositories: [repository("web", { envVars: "A=1\nB=2" })],
+      canvases: { c1: canvas },
+    })
+
+    await library.switchOnForCanvas("c1", ["web"])
+
+    // Stored while the canvas didn't have the repo yet.
+    expect(envSets).toEqual([["c1", "new-1", "A=1\nB=2"]])
+    expect(repoOf(canvas, "new-1")).toMatchObject({
+      envVarNames: ["A", "B"],
+      envVarsDigest: digest("A=1\nB=2"),
+    })
+  })
+
+  it("skips ids that match none of your repositories", async () => {
+    const canvas = makeHarness()
+    const { library } = setup({
+      repositories: [repository("web")],
+      canvases: { c1: canvas },
+    })
+
+    const ids = await library.switchOnForCanvas("c1", ["gone", "web", "web"])
+
+    expect(ids).toEqual(["new-1"])
+    expect(canvas.collections.repos.toArray()).toHaveLength(1)
+  })
+
+  it("fails when env values can't be stored, leaving that one off", async () => {
+    const canvas = makeHarness()
+    const { library } = setup({
+      repositories: [repository("web", { envVars: "A=1" })],
+      canvases: { c1: canvas },
+      env: {
+        write: vi.fn().mockRejectedValue(new Error("KV down")),
+        digest,
+      },
+    })
+
+    await expect(library.switchOnForCanvas("c1", ["web"])).rejects.toThrow(
+      "KV down"
+    )
+    expect(canvas.collections.repos.toArray()).toHaveLength(0)
   })
 })
 

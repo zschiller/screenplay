@@ -41,11 +41,7 @@ import { RoomTable } from "./room-table"
 import { FolderGrid } from "./folder-grid"
 import { FolderBreadcrumb } from "./folder-breadcrumb"
 import { InputDialog } from "./input-dialog"
-import {
-  NEW_CANVAS_SHORTCUT,
-  useCreateCanvas,
-  useNewCanvasShortcut,
-} from "./use-create-canvas"
+import { NEW_CANVAS_SHORTCUT, useNewCanvasShortcut } from "./use-create-canvas"
 import { LoadErrorState } from "./load-error"
 import { isLocalBuild } from "@/lib/local-mode"
 import { CanvasIcon } from "@/components/canvas-icon"
@@ -82,6 +78,7 @@ export function RoomsView({
     view,
     setView,
     createFolder,
+    openNewCanvas,
     loading,
     loadFailed,
     reload,
@@ -92,9 +89,8 @@ export function RoomsView({
   // and never replaces the page.
   const [owner, setOwner] = useState<OwnerFilter>("all")
   const results = owner !== "all" ? search("", owner) : null
-  // New canvas makes an Untitled Canvas and opens it straight away (#777).
-  const { create: createCanvas, creating } = useCreateCanvas()
-  const newCanvas = () => void createCanvas()
+  // New canvas asks for a name and Repositories first (#1812).
+  const newCanvas = () => openNewCanvas()
   useNewCanvasShortcut(newCanvas)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
@@ -154,12 +150,8 @@ export function RoomsView({
           )}
 
           <HomeToolbarTooltip label="New canvas" shortcut={NEW_CANVAS_SHORTCUT}>
-            <Button
-              aria-label="New canvas"
-              disabled={creating}
-              onClick={newCanvas}
-            >
-              {creating ? <Spinner /> : <PlusIcon />}
+            <Button aria-label="New canvas" onClick={newCanvas}>
+              <PlusIcon />
               <HomeToolbarLabel>New canvas</HomeToolbarLabel>
             </Button>
           </HomeToolbarTooltip>
@@ -213,10 +205,9 @@ export function RoomsView({
               title="This folder is empty"
               description="Create a folder or a canvas to fill it."
               onCreate={newCanvas}
-              creating={creating}
             />
           ) : (
-            <EmptyState onCreate={newCanvas} creating={creating} />
+            <EmptyState onCreate={newCanvas} />
           )
         ) : (
           <div className={cn(HOME_COLUMN, "pb-4")}>
@@ -329,13 +320,11 @@ function FilterResults({
 
 function EmptyState({
   onCreate,
-  creating,
   icon = <CanvasIcon />,
   title = "Create your first canvas",
   description = "A canvas is your space to design with live previews.",
 }: {
   onCreate: () => void
-  creating: boolean
   icon?: React.ReactNode
   title?: string
   description?: string
@@ -348,8 +337,8 @@ function EmptyState({
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button size="sm" disabled={creating} onClick={onCreate}>
-          {creating ? <Spinner /> : <PlusIcon />}
+        <Button size="sm" onClick={onCreate}>
+          <PlusIcon />
           New canvas
         </Button>
       </EmptyContent>

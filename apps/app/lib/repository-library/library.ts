@@ -1,4 +1,5 @@
 import type { RepoConfig } from "@/lib/repo-configs.types"
+import type { RepoData } from "@/lib/types"
 import type { RoomCollections } from "@/lib/yjs/schema"
 import {
   applyRepositoryEdit,
@@ -6,6 +7,7 @@ import {
   linkCanvasRepos,
   linkedRepo,
   sameRepository,
+  switchOn,
   unlinkRepository,
 } from "./canvas"
 import type { RepositoryLinkPolicy } from "./link-policy"
@@ -30,8 +32,13 @@ export interface CanvasRooms {
 /** Canvas Repos' env var values, encrypted per Canvas + Repo (#1416). */
 export interface CanvasEnv {
   /** Store a Canvas Repo's values, then record their names and digest on
-   *  it: the Canvas Repo env module's `writeCanvasRepoEnv` (#1492). */
-  write(roomId: string, repoId: string, text: string): Promise<void>
+   *  it: the Canvas Repo env module's `writeCanvasRepoEnv` (#1492). Returns
+   *  the names and digest it recorded. */
+  write(
+    roomId: string,
+    repoId: string,
+    text: string
+  ): Promise<Pick<RepoData, "envVarNames" | "envVarsDigest">>
   /** The keyed digest a Repository's values are stamped with. */
   digest(text: string): string | undefined
 }
@@ -270,6 +277,41 @@ export function createRepositoryLibrary({
         }
       }
       return stamped(next)
+    },
+
+    /**
+     * Switch Repositories on for a Canvas just created with them (#1812), in
+     * the order given, recorded as added by this person. Each one's env var
+     * values are stored for the Canvas first, so the doc never names values
+     * that weren't stored (#1476); a failed store rejects, and the caller
+     * drops the Canvas. Ids that match none of your Repositories are skipped.
+     * Returns the new Canvas Repos' ids.
+     */
+    async switchOnForCanvas(
+      roomId: string,
+      repositoryIds: string[]
+    ): Promise<string[]> {
+      const list = stamped(await store.load())
+      const ids: string[] = []
+      for (const repositoryId of new Set(repositoryIds)) {
+        const repository = list.find((r) => r.id === repositoryId)
+        if (!repository) continue
+        const { id, now } = mint()
+        const stored = repository.envVars.trim()
+          ? await env.write(roomId, id, repository.envVars)
+          : undefined
+        ids.push(
+          await rooms.mutate(roomId, (collections) =>
+            switchOn(
+              collections,
+              repository,
+              { id, createdAt: now, addedBy: userId },
+              stored
+            )
+          )
+        )
+      }
+      return ids
     },
 
     migrate: ensureMigrated,
