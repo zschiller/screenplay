@@ -40,6 +40,26 @@ function group(
 }
 
 describe("computeIframeLayerLayouts", () => {
+  it("puts every member edge on a whole world pixel", () => {
+    // WebKit snaps a box in its own space before the zoom scales it, so a
+    // fractional edge would paint away from where the overlays draw it.
+    const g = group("g1", 10.4, 62.16, [
+      { kind: "iframe-layer", id: "a" },
+      { kind: "iframe-layer", id: "b" },
+    ])
+    const layouts = computeIframeLayerLayouts(
+      [g],
+      [layer("a", 300.3, 400.5), layer("b", 150, 250)]
+    )
+    const a = layouts.get("a")!
+    const b = layouts.get("b")!
+    expect([a.x, a.y, a.width, a.height]).toEqual([10, 62, 301, 401])
+    expect([b.x, b.y]).toEqual([
+      Math.round(10.4 + 300.3 + IFRAME_LAYER_GROUP_GAP),
+      62,
+    ])
+  })
+
   it("flexes members left-to-right from the group origin with the default gap", () => {
     const g = group("g1", 100, 200, [
       { kind: "iframe-layer", id: "a" },
