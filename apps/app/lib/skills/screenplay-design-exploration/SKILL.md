@@ -50,8 +50,10 @@ the pick, and your Workspace for the build.
    the Mockup’s `mockup_id`: an option per take labelled by its letter and
    name (“B · Inline tips”), the one you’d pick marked recommended. A
    question with one take is a sign-off, asked as Looks good or Needs
-   changes. Labelled this way, a pick on the page answers the card. End your
-   turn.
+   changes. Labelled this way, the page opens on the question the card asks
+   and shows an answer given on the card. Picks on the page wait until the
+   user presses Send to chat, which sends them all in one message that
+   answers the card. End your turn.
 
 Done with a round when every take has been viewed in every theme and every
 open question has its card.

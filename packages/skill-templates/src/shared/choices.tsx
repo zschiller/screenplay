@@ -70,9 +70,9 @@ export function Choices({
 }
 
 /**
- * Under a question the chat's open card asks while a pick here can't answer
- * it (the page is live, or the agent drives it): the pick stays on the page, and this says where the
- * answer goes.
+ * Under a question the chat's open card asks while the page can't send to the
+ * chat (the page is live, or the agent drives it): the pick stays on the page,
+ * and this says where the answer goes.
  */
 export function AnswerInChat() {
   return <p className="m-0 text-sm text-muted-foreground">Answer in the chat</p>

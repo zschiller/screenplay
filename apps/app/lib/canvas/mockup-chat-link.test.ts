@@ -264,6 +264,20 @@ describe("a question about a Mockup (#1644, #1662)", () => {
     expect(c.sends).toEqual([["sketch-1", "Prices"]])
   })
 
+  it("drafts in the chat whose question is open, so sending it answers the question", () => {
+    const c = canvas()
+    c.say(ROOM, asked("q1", "sketched"))
+    c.link().draft("sketched", "Round 1\n→ Which row?: B")
+    expect(c.log).toEqual(["room"])
+    expect(c.prefills).toEqual([[ROOM, "Round 1\n→ Which row?: B"]])
+    expect(c.sources).toEqual([[ROOM, { mockupId: "sketched", title: "Pricing" }]])
+
+    // Once it's answered, a draft goes back to the chat that changed it
+    c.say(ROOM, reply("Round 1\n→ Which row?: B"))
+    c.link().draft("sketched", "Picked A")
+    expect(c.prefills.at(-1)).toEqual(["sketch-1", "Picked A"])
+  })
+
   it("doesn't answer for a chat that was deleted", () => {
     const c = canvas()
     const link = c.link()

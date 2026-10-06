@@ -300,112 +300,126 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
     await page.evaluate("document.querySelector('iframe').remove()")
   }, 20_000)
 
-  // The exploration page on a canvas (#1647): its answer answers the card the
-  // chat asked about it, and Send to chat drafts the reaction, each from a
-  // real click, as the canvas would get them.
-  it("answers the chat's card from the page's answer and drafts from Send to chat", async () => {
-    const { html, resources } = templatePage(
-      "screenplay-design-exploration",
-      "exploration-template.html"
-    )
+  /**
+   * Run an App Skill's template page as a Mockup whose chat has `question`
+   * open about it, as the canvas tells the page, and record everything the
+   * page posts to the canvas.
+   */
+  async function onCanvas(
+    skill: string,
+    path: string,
+    question: Record<string, unknown>
+  ) {
+    const { html, resources } = templatePage(skill, path)
     const doc = mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources)
-    await page.evaluate((srcdoc) => {
-      const w = window as unknown as { posted: unknown[] }
-      w.posted = []
-      const frame = document.createElement("iframe")
-      frame.setAttribute("sandbox", "allow-scripts")
-      frame.style.cssText = "width:1000px;height:800px"
-      addEventListener("message", (e) => {
-        const data = e.data
-        if (e.source !== frame.contentWindow || !data?.type) return
-        w.posted.push(data)
-        // The canvas's side: the sample data's question, still open
-        if (data.type === "screenplay:question-request")
-          frame.contentWindow!.postMessage(
-            {
-              type: "screenplay:question-apply",
-              question: {
-                id: "call-1",
-                question: "The first question",
-                options: [
-                  { label: "A: Short name" },
-                  { label: "B: Short name" },
-                ],
-                recommended: 0,
-                answer: null,
-                answerable: true,
-              },
-            },
-            "*"
-          )
-      })
-      frame.srcdoc = srcdoc
-      document.body.append(frame)
-    }, doc)
-    const frame = page.frameLocator("iframe")
-    // The answer's choice rows, under the question's options
-    await frame.getByRole("radio", { name: /^B · / }).first().click()
-    await frame.getByRole("button", { name: "Send to chat" }).click()
-    const answersAndDrafts = async () =>
-      (await page.evaluate(
-        "window.posted.filter((m) => /answer|draft/.test(m.type))"
-      )) as { type: string; text?: string }[]
-    // The draft's message can land after the click resolves.
-    await expect.poll(async () => (await answersAndDrafts()).length).toBe(2)
-    const posted = await answersAndDrafts()
-    expect(posted[0]).toEqual({
-      type: "screenplay:question-answer",
-      id: "call-1",
-      index: 1,
-    })
-    expect(posted[1]!.type).toBe("screenplay:draft")
-    expect(posted[1]!.text).toContain("→ The first question: B: Short name")
-    await page.evaluate("document.querySelector('iframe').remove()")
-  })
+    await page.evaluate(
+      ([srcdoc, question]) => {
+        const w = window as unknown as { posted: unknown[] }
+        w.posted = []
+        const frame = document.createElement("iframe")
+        frame.setAttribute("sandbox", "allow-scripts")
+        frame.style.cssText = "width:1000px;height:800px"
+        addEventListener("message", (e) => {
+          const data = e.data
+          if (e.source !== frame.contentWindow || !data?.type) return
+          w.posted.push(data)
+          // The canvas's side: the question, still open
+          if (data.type === "screenplay:question-request")
+            frame.contentWindow!.postMessage(
+              { type: "screenplay:question-apply", question },
+              "*"
+            )
+        })
+        frame.srcdoc = srcdoc as string
+        document.body.append(frame)
+      },
+      [doc, { recommended: 0, answer: null, answerable: true, ...question }]
+    )
+    return page.frameLocator("iframe")
+  }
 
-  // While a tap can't answer (a live page nobody has control of, or the agent
-  // drives it), Pick keeps the pick on the page, sends nothing and says to
-  // answer in the chat.
-  it("keeps the pick on the page while it can't answer the card", async () => {
-    const { html, resources } = templatePage(
+  const answersAndDrafts = async () =>
+    (await page.evaluate(
+      "window.posted.filter((m) => /answer|draft/.test(m.type))"
+    )) as { type: string; text?: string }[]
+
+  // Each page on a canvas: a pick waits on the page, even on the question
+  // the chat's card asks, until Send to chat drafts every pick at once in
+  // Copy's format, from a real click, as the canvas would get it.
+  it.each([
+    {
+      template: "exploration",
+      skill: "screenplay-design-exploration",
+      path: "exploration-template.html",
+      question: {
+        question: "The first question",
+        options: [{ label: "A: Short name" }, { label: "B: Short name" }],
+      },
+      picks: [/^B · /, /^Looks good/],
+      draft:
+        "Round 2\n→ The first question: B: Short name\n→ Combined: Looks good",
+    },
+    {
+      template: "audit",
+      skill: "screenplay-design-audit",
+      path: "audit-template.html",
+      question: {
+        question: "H1: The question in one line?",
+        options: [{ label: "Option A" }, { label: "Option B" }],
+      },
+      picks: [/^B · Option B/],
+      draft: "Calls:\n  H1 → B: Option B",
+    },
+    {
+      template: "decisions",
+      skill: "screenplay-design-audit",
+      path: "decisions-template.html",
+      question: {
+        question: "H1: Should the figures sell versions of one change?",
+        options: [{ label: "Versions" }, { label: "Parallel tasks" }],
+      },
+      picks: [/^Parallel tasks/],
+      draft:
+        "H1. Should the figures sell versions of one change, or parallel tasks?\n   → Parallel tasks",
+    },
+  ])(
+    "keeps the $template page’s picks until Send to chat drafts them all",
+    async ({ skill, path, question, picks, draft }) => {
+      const frame = await onCanvas(skill, path, { id: "call-1", ...question })
+      for (const name of picks) {
+        const radio = frame.getByRole("radio", { name }).first()
+        await radio.click()
+        await expect.poll(() => radio.isChecked()).toBe(true)
+      }
+      // Nothing reaches the chat before Send, not even the card's question
+      await new Promise((r) => setTimeout(r, 300))
+      expect(await answersAndDrafts()).toEqual([])
+
+      await frame.getByRole("button", { name: "Send to chat" }).click()
+      // The draft's message can land after the click resolves.
+      await expect.poll(async () => (await answersAndDrafts()).length).toBe(1)
+      const [posted] = await answersAndDrafts()
+      expect(posted!.type).toBe("screenplay:draft")
+      expect(posted!.text).toContain(draft)
+      await page.evaluate("document.querySelector('iframe').remove()")
+    },
+    20_000
+  )
+
+  // While the page can't reach the chat (a live page nobody has control of,
+  // or the agent drives it), a pick stays on the page, which says to answer
+  // in the chat.
+  it("keeps the pick on the page while it can't reach the chat", async () => {
+    const frame = await onCanvas(
       "screenplay-design-exploration",
-      "exploration-template.html"
+      "exploration-template.html",
+      {
+        id: "call-1",
+        question: "The first question",
+        options: [{ label: "A: Short name" }, { label: "B: Short name" }],
+        answerable: false,
+      }
     )
-    const doc = mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources)
-    await page.evaluate((srcdoc) => {
-      const w = window as unknown as { posted: unknown[] }
-      w.posted = []
-      const frame = document.createElement("iframe")
-      frame.setAttribute("sandbox", "allow-scripts")
-      frame.style.cssText = "width:1000px;height:800px"
-      addEventListener("message", (e) => {
-        const data = e.data
-        if (e.source !== frame.contentWindow || !data?.type) return
-        w.posted.push(data)
-        // The canvas's side: the sample data's question, still open
-        if (data.type === "screenplay:question-request")
-          frame.contentWindow!.postMessage(
-            {
-              type: "screenplay:question-apply",
-              question: {
-                id: "call-1",
-                question: "The first question",
-                options: [
-                  { label: "A: Short name" },
-                  { label: "B: Short name" },
-                ],
-                recommended: 0,
-                answer: null,
-                answerable: false,
-              },
-            },
-            "*"
-          )
-      })
-      frame.srcdoc = srcdoc
-      document.body.append(frame)
-    }, doc)
-    const frame = page.frameLocator("iframe")
     const b = frame.getByRole("radio", { name: /^B · / }).first()
     await b.click()
     await expect.poll(() => b.isChecked()).toBe(true)
@@ -413,10 +427,7 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
       .getByText("Answer in the chat")
       .filter({ visible: true })
       .waitFor()
-    const posted = (await page.evaluate(
-      "window.posted.filter((m) => /answer/.test(m.type))"
-    )) as unknown[]
-    expect(posted).toEqual([])
+    expect(await answersAndDrafts()).toEqual([])
     await page.evaluate("document.querySelector('iframe').remove()")
   }, 20_000)
 })

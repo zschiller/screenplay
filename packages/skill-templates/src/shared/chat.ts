@@ -1,8 +1,10 @@
 import * as React from "react"
 
 // On a Screenplay canvas the page is a Mockup, and the canvas gives it
-// `screenplay.draft` (#1645) and `screenplay.question` / `screenplay.answer`
-// (#1644). Published as an Artifact it has neither, and the page copies.
+// `screenplay.draft` (#1645) and `screenplay.question` (#1644). Published as
+// an Artifact it has neither, and the page copies. A pick never answers the
+// chat's card by itself: the person picks as long as they like, and Send to
+// chat drafts every pick at once, as Copy would, into the chat that asked.
 
 /** The open question card the Mockup's chat asked about this page. */
 export type CardQuestion = {
@@ -12,14 +14,13 @@ export type CardQuestion = {
   recommended: number | null
   /** Null until someone answers; `index` null when they typed an answer. */
   answer: { index: number | null } | null
-  /** False while a pick here can't reach the card (the page is live and nobody has control, or the agent drives it): answer in the chat. */
+  /** False while the page can't send to the chat (the page is live and nobody has control, or the agent drives it): answer in the chat. */
   answerable?: boolean
 }
 
 type Bridge = {
   draft?: (text: string) => boolean
   question?: (onChange: (q: CardQuestion | null) => void) => CardQuestion | null
-  answer?: (index: number) => boolean
 }
 
 const bridge = () => (window as { screenplay?: Bridge }).screenplay
@@ -34,20 +35,7 @@ export function draft(text: string) {
   return bridge()?.draft?.(text) ?? false
 }
 
-/** Answers the open question card with its option `index`, as a click on the card does. */
-export function answer(index: number) {
-  return bridge()?.answer?.(index) ?? false
-}
-
-/**
- * Whether a pick on the page answers the open card: false while the canvas
- * can't take it (the page is live and nobody has control, or the agent drives it), so the pick stays on the page.
- */
-export function canAnswer(q: CardQuestion | null): q is CardQuestion {
-  return !!q && !q.answer && q.answerable !== false
-}
-
-/** Whether the card is open but a pick here can't answer it: answer in the chat. */
+/** Whether the card is open but the page can't send to the chat: answer in the chat. */
 export function answersInChat(q: CardQuestion | null): q is CardQuestion {
   return !!q && !q.answer && q.answerable === false
 }

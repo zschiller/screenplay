@@ -13,9 +13,7 @@ import { CheckIcon, XIcon } from "@workspace/ui/components/icons"
 import { TabsContent } from "@workspace/ui/components/tabs"
 
 import {
-  answer as answerCard,
   answersInChat,
-  canAnswer,
   type CardQuestion,
   onCanvas,
   useCardQuestion,
@@ -57,7 +55,7 @@ type PickProps = {
   pick: (q: string, v: string) => void
   /** The question the chat's open card asks, once it's answered (on a canvas). */
   sent?: string
-  /** The question the chat's open card asks while a pick here can't answer it (the page is live, or the agent drives it). */
+  /** The question the chat's open card asks while the page can't send to the chat (it's live, or the agent drives it). */
   chatOnly?: string
   /** The question the chat's open card asks, until it's answered (on a canvas). */
   asked?: string
@@ -117,7 +115,8 @@ export function Exploration({
   useSharedState("note", note, setNote)
 
   // On a canvas, the chat's open card about this page asks one of the open
-  // round's questions: a pick there answers it, and its answer shows here
+  // round's questions: an answer on the card shows here. A pick here waits
+  // for Send to chat, which sends every pick at once
   const card = useCardQuestion()
   const linked = React.useMemo(() => {
     if (!card) return null
@@ -141,8 +140,6 @@ export function Exploration({
   const pick = (k: string, v: string) => {
     if (answered && linked?.q.key === k) return
     const next = picks[k] === v ? undefined : v
-    if (next && linked?.q.key === k && canAnswer(card))
-      answerCard(linked.values.indexOf(next))
     setPicks({ ...picks, [k]: next })
     if (next === "changes") setNoteOpen(true)
   }
