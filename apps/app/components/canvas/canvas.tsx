@@ -1009,6 +1009,7 @@ export function Canvas({
     activeGapHandle,
     hoveredReorderIframeLayerId,
     isLayerDragging,
+    layerGestureActive,
     resetHandleHover,
   } = useCanvasGesture(gestureInputsRef)
 
@@ -2517,10 +2518,13 @@ export function Canvas({
                   SelectionOverlay so the toolbar isn't painted over by hover
                   rings or resize handles. Children (rendered via createPortal
                   from iframe-layer) position themselves in canvas-wrapper
-                  coords via a rAF loop. */}
+                  coords via a rAF loop. Faded out while a layer is being
+                  moved, reordered or resized so nothing covers what's being
+                  dragged; opacity (not display) keeps the loop measuring, so
+                  the toolbar comes back already in place. */}
                 <div
                   id="frame-toolbar-portal"
-                  className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
+                  className={`pointer-events-none absolute inset-0 z-(--z-canvas-popovers) ${layerGestureActive ? "opacity-0" : ""}`}
                 />
 
                 {/* Portal target for the inline "Comment" bubble that appears
