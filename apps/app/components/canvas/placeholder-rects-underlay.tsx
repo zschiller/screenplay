@@ -44,7 +44,8 @@ export function PlaceholderRectsUnderlay({
     // Snap to device-pixel boundaries so 1px strokes stay crisp at any zoom
     // without jittering as the viewport pans sub-CSS-pixel amounts.
     const snap = (v: number) => Math.round(v * dpr) / dpr
-    const HALF = 0.5 / dpr
+    // Half the 1px line, so the inside stroke covers whole pixels.
+    const HALF = 0.5
 
     ctx.strokeStyle = resolveCanvasColor(canvas, "--border")
     ctx.lineWidth = 1
