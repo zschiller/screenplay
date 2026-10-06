@@ -798,42 +798,66 @@ export const INTERACTIONS: Interaction[] = [
     },
   },
   {
-    name: "frame-resize-toolbar",
+    name: "layer-gesture-toolbar",
     description:
-      "Resizing a selected frame by its bottom edge, then its corner: the floating toolbar under it hides while the edge moves and comes back in place on release.",
+      "A selected frame moved, reordered past its sibling, then resized by its bottom edge: the floating toolbar under it hides for each drag and comes back in place on release.",
     path: `/${ids.rooms.checkout}`,
     cookies: canvasPanels({ chatPct: 30 }),
     run: async (page) => {
-      await click(
-        page,
-        page
-          .locator("[data-layer-label]")
-          .filter({ hasText: "Checkout · desktop" })
-          .first()
-      )
+      const label = page
+        .locator("[data-layer-label]")
+        .filter({ hasText: "Checkout · desktop" })
+        .first()
+      await click(page, label)
       await page.waitForTimeout(1200)
-      for (const edge of ["s", "se"] as const) {
-        await step(async () => {
-          const handle = page
-            .locator(edge === "s" ? ".cursor-ns-resize" : ".cursor-nwse-resize")
-            .nth(1)
-          const box = await handle.boundingBox({ timeout: 10_000 })
-          if (!box) return
-          const x = box.x + box.width / 2
-          const y = box.y + box.height / 2
-          await page.mouse.move(x, y, { steps: 10 })
-          await page.waitForTimeout(500)
-          await page.mouse.down()
-          await page.mouse.move(x + (edge === "se" ? 80 : 0), y + 90, {
-            steps: 30,
-          })
-          await page.waitForTimeout(400)
-          await page.mouse.move(x, y, { steps: 30 })
-          await page.waitForTimeout(400)
-          await page.mouse.up()
-          await page.waitForTimeout(1400)
-        })
+      // Drag from `from` by (dx, dy) and back, pausing at the far end.
+      const dragThere = async (
+        from: { x: number; y: number },
+        dx: number,
+        dy: number
+      ) => {
+        await page.mouse.move(from.x, from.y, { steps: 10 })
+        await page.waitForTimeout(500)
+        await page.mouse.down()
+        await page.mouse.move(from.x + dx, from.y + dy, { steps: 30 })
+        await page.waitForTimeout(500)
+        await page.mouse.move(from.x, from.y, { steps: 30 })
+        await page.waitForTimeout(300)
+        await page.mouse.up()
+        await page.waitForTimeout(1400)
       }
+      // Move: drag the frame's body.
+      await step(async () => {
+        const box = await page
+          .locator(".cursor-ns-resize")
+          .nth(1)
+          .boundingBox({ timeout: 10_000 })
+        if (!box) return
+        await dragThere({ x: box.x + box.width / 2, y: box.y - 120 }, 120, 80)
+      })
+      // Reorder: drag the name label past the iPhone frame.
+      await step(async () => {
+        const box = await label.boundingBox({ timeout: 10_000 })
+        if (!box) return
+        await dragThere(
+          { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+          420,
+          0
+        )
+      })
+      // Resize: drag the bottom edge.
+      await step(async () => {
+        const box = await page
+          .locator(".cursor-ns-resize")
+          .nth(1)
+          .boundingBox({ timeout: 10_000 })
+        if (!box) return
+        await dragThere(
+          { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+          0,
+          90
+        )
+      })
     },
   },
 ]
