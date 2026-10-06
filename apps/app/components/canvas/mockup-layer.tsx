@@ -428,8 +428,6 @@ function MockupLayerImpl({
   return (
     <LayerShell
       layerId={layer.id}
-      width={layer.width}
-      height={layer.height}
       placement={placement}
       containerId={`mockup-layer-${layer.id}`}
       containerRef={containerRef}

@@ -29,6 +29,11 @@ export interface LayerPlacement {
   /** Absolute world-space position of the layer's top-left. */
   worldX: number
   worldY: number
+  /** The layer's box size, its edges on whole world pixels like `worldX/worldY`
+   *  (so up to a pixel off a fractional stored size). The Selection Overlay
+   *  and the edge underlay draw the same box. */
+  width: number
+  height: number
   /** Paint order, projected from the group's sidebar position. */
   zIndex?: number
   /** In-flow reorder translate (world px), layered on top of `worldX/worldY`.
@@ -80,9 +85,7 @@ export interface LayerShellApi {
 interface LayerShellProps {
   // ── Identity & world-space container ───────────────────────────────────────
   layerId: string
-  width: number
-  height: number
-  /** Where it sits and how dragging it moves things. */
+  /** Where it sits, its size, and how dragging it moves things. */
   placement: LayerPlacement
   /** DOM id for the container (e.g. `iframe-layer-${id}`). */
   containerId: string
@@ -154,8 +157,6 @@ interface LayerShellProps {
  */
 export function LayerShell({
   layerId,
-  width,
-  height,
   placement,
   containerId,
   containerClassName,
@@ -180,6 +181,8 @@ export function LayerShell({
   const {
     worldX,
     worldY,
+    width,
+    height,
     zIndex,
     dragTranslateX,
     dragTranslateY,

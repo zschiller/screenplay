@@ -1169,6 +1169,31 @@ describe("reduceGesture — device-resize", () => {
     expect(result.preview.resizeSnap?.snappedPresetId).toBeNull()
   })
 
+  it("commits a whole-pixel size from a drag at a fractional zoom", () => {
+    // 11 screen px at 237% is 4.64 world px: the frame grows by 5.
+    const result = run([
+      {
+        type: "start",
+        start: {
+          kind: "resize",
+          ctx: {
+            iframeLayerId: "f1",
+            edge: "s",
+            initialWidth: 402,
+            initialHeight: 874,
+          },
+        },
+      },
+      { type: "resizeMove", dw: 0, dh: 11 / 2.37, metaHeld: false, zoom: 2.37 },
+    ])
+
+    expect(result.intent).toMatchObject({
+      type: "resizeLayer",
+      width: 402,
+      height: 879,
+    })
+  })
+
   it("doesn't device-snap a single-edge drag (corner-only)", () => {
     // A pure east drag never snaps to a device size — no candidates surface.
     const result = run([

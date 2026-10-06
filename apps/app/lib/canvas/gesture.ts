@@ -717,8 +717,10 @@ function reduceResizeMove(
         zoom: event.zoom,
       })
 
-  const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, snap.width)
-  const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, snap.height)
+  // Whole pixels: a drag at a fractional zoom proposes a fractional size, and
+  // a frame's size is a device viewport.
+  const newWidth = Math.max(MIN_IFRAME_LAYER_WIDTH, Math.round(snap.width))
+  const newHeight = Math.max(MIN_IFRAME_LAYER_HEIGHT, Math.round(snap.height))
   // Measured against the last committed size, not the raw proposal — once the
   // layer hits its minimum this shrinks toward 0, so the group anchor stays
   // pinned to the un-dragged side instead of marching off with the cursor.
