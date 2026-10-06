@@ -142,15 +142,32 @@ body {
   pointer-events: none;
 }
 
-/* A Layer's resting edge (`LAYER_SURFACE_CLASS`) holds one on-screen radius
-   and hairline at every zoom: the Layer writes the live canvas zoom here and
-   the class divides by it. Not inherited, so the per-frame write mid-zoom
+/* Each Layer's resting hairline, at UI scale beneath the zoomed content
+   (`LayerEdge` in components/canvas/layer-shell.tsx). First in rzpp's
+   wrapper, so the content paints over it. */
+.canvas-edge-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* A Layer's surface (`LAYER_SURFACE_CLASS`) clips to one on-screen radius at
+   every zoom: the Layer writes the live canvas zoom here and the class
+   divides by it. Not inherited, so the per-frame write mid-zoom
    restyles only the surface element, never the Layer's content. Outside a
    canvas (play mode) it stays 1. */
 @property --layer-zoom {
   syntax: "<number>";
   inherits: false;
   initial-value: 1;
+}
+
+/* Screen-space overlays drawn from the settled camera (selection rings,
+   comment pins) hide from the first frame a zoom or pan moves the canvas;
+   see `hideCameraOverlays` in use-canvas-camera.ts. */
+[data-camera-moving] [data-camera-overlay] {
+  visibility: hidden;
 }
 
 /* GripSpinner — each dot of the Grip grid fades in/out on its own randomized
