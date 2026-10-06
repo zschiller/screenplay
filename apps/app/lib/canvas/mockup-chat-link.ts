@@ -86,6 +86,8 @@ export interface MockupChatLink {
   /**
    * The page's `screenplay.draft(text)` (#1645): the text goes in the chat's
    * composer, under a From row naming the Mockup, for the person to send.
+   * While a chat's question about the Mockup is open, that chat's composer,
+   * so sending it answers the question.
    */
   draft(mockupId: string, text: string): void
   /**
@@ -166,7 +168,11 @@ export function createMockupChatLink(deps: MockupChatLinkDeps): MockupChatLink {
     draft(mockupId, text) {
       const mockup = mockupOf(mockupId)
       if (!mockup) return
-      const chatId = openChat(mockupId)
+      const open = this.question(mockupId)
+      const chatId =
+        open && !open.answer && showChat(open.chatId)
+          ? open.chatId
+          : openChat(mockupId)
       deps.draftSource.set(chatId, { mockupId, title: mockup.title })
       input.prefill(chatId, text)
     },

@@ -4,8 +4,8 @@
 // starts on the recommendation, in grey. From 1280px it's list and detail
 // (shared/detail.tsx): every finding listed on the left, one at a time in the
 // middle, its pick pinned on the right. A bar pinned to the bottom carries
-// the tally, a note and Copy (Send to chat on a canvas, where a call the chat
-// asks about with a question card answers that card).
+// the tally, a note and Copy (Send to chat on a canvas, which drafts every
+// pick at once; a pick never answers the chat's question card by itself).
 
 import * as React from "react"
 
@@ -20,10 +20,8 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 
 import {
-  answer,
   askedId,
   answersInChat,
-  canAnswer,
   cardIndex,
   useCardQuestion,
 } from "../shared/chat.ts"
@@ -153,19 +151,11 @@ export function Audit({
       else picks[id] = v
       return { ...s, picks }
     })
-  // While the page can't answer the card (it's live, or the agent drives it), its pick stays here
+  // While the page can't send to the chat (it's live, or the agent drives it), its pick stays here
   const chatOnly = answersInChat(card) ? asked : null
-  // A call's option, chosen on the page: answers the chat's card too when
-  // it's the call the card asks about and the option is one of the card's
-  const choose = (f: Finding, v: string) => {
-    if (f.id === asked && canAnswer(card)) {
-      const labels = f.call!.options.map((o) => o.label)
-      const i = f.call!.options.findIndex((o) => o.id === v)
-      const at = i < 0 ? -1 : cardIndex(card, labels, i)
-      if (at >= 0) answer(at)
-    }
+  // A call's option, chosen on the page: it waits for Send to chat
+  const choose = (f: Finding, v: string) =>
     setState((s) => ({ ...s, picks: { ...s.picks, [f.id]: v } }))
-  }
   const label = (f: Finding, v: string) => {
     if (v === "fix") return "Fix"
     if (v === "skip") return "Skip"
@@ -394,7 +384,7 @@ function FindingCard({
   picked?: string
   pick: (id: string, v: string) => void
   choose: (f: Finding, v: string) => void
-  /** The chat's open card asks this call, and a pick here can't answer it. */
+  /** The chat's open card asks this call, and the page can't send to the chat. */
   chatOnly: boolean
   note: string
   setNote: (v: string) => void

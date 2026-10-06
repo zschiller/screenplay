@@ -3,8 +3,9 @@
 // options drawn like the chat's question card, each starting on the
 // recommendation in grey, then the PRs that run regardless. From 1280px it's
 // list and detail (shared/detail.tsx). A bar pinned to the bottom carries the
-// count, a note and Copy decisions (Send to chat on a canvas, where the
-// question the chat asks about with a question card answers that card).
+// count, a note and Copy decisions (Send to chat on a canvas, which drafts
+// every answer at once; a pick never answers the chat's question card by
+// itself).
 
 import * as React from "react"
 
@@ -14,10 +15,8 @@ import { Input } from "@workspace/ui/components/input"
 import { cn } from "@workspace/ui/lib/utils"
 
 import {
-  answer,
   askedId,
   answersInChat,
-  canAnswer,
   cardIndex,
   onCanvas,
   useCardQuestion,
@@ -132,20 +131,10 @@ export function Decisions({
         : { ...s, [asked]: { ...s[asked]!, v: `o${answeredOption}` } }
     )
   }, [asked, answeredOption])
-  // While the page can't answer the card (it's live, or the agent drives it), its pick stays here
+  // While the page can't send to the chat (it's live, or the agent drives it), its pick stays here
   const chatOnly = answersInChat(card) ? asked : null
-  // An option chosen on the page answers the card too, when it's the card's
-  const choose = (q: Q, v: string) => {
-    if (q.id === asked && canAnswer(card) && v.startsWith("o")) {
-      const at = cardIndex(
-        card,
-        q.o.map(([l]) => l),
-        +v.slice(1)
-      )
-      if (at >= 0) answer(at)
-    }
-    set(q.id, { v })
-  }
+  // An option chosen on the page: it waits for Send to chat
+  const choose = (q: Q, v: string) => set(q.id, { v })
 
   const answerText = (q: Q, s: Answer) => {
     if (s.v === "none") return "None of these"
@@ -363,7 +352,7 @@ function Question({
   a: Answer
   set: (a: Partial<Answer>) => void
   choose: (v: string) => void
-  /** The chat's open card asks this, and a pick here can't answer it. */
+  /** The chat's open card asks this, and the page can't send to the chat. */
   chatOnly: boolean
   /** The question list and detail shows */
   shown: boolean

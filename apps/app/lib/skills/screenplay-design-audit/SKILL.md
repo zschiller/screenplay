@@ -58,8 +58,10 @@ a visual fix whose look matters also gets Now and After pictures, saved with
 
 Ask each call with its own `ask_question`, passing the page’s `mockup_id`:
 start the question with the call’s tag (“H2: …”), use the page’s option
-labels and mark the one you’d pick recommended, so a pick on the page
-answers the card. End your turn.
+labels and mark the one you’d pick recommended, so the page opens on that
+call and shows an answer given on the card. Picks on the page wait until the
+user presses Send to chat, which sends them all in one message that answers
+the card. End your turn.
 
 Done when every finding has a tag and a fix, and every call is asked.
 
