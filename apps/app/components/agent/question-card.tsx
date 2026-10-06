@@ -17,6 +17,7 @@ import { parseQuestion, type QuestionAnswer } from "@/lib/agent/question"
 import { viewRequests } from "@/lib/canvas/view-requests"
 import { useMockupTitle } from "@/lib/yjs/react"
 import { InlineRef } from "./inline-ref"
+import { LayerHoverCard } from "./layer-hover-card"
 
 /**
  * A chat's question (#1312), drawn with shadcn's Questionnaire: one item, a
@@ -172,9 +173,14 @@ function MockupLine({ id }: { id: string }) {
       className="mt-1 text-sm"
     >
       On{" "}
-      <InlineRef kind="mockup" onClick={() => viewRequests.emit({ ids: [id] })}>
-        {title || "Mockup"}
-      </InlineRef>
+      <LayerHoverCard kind="mockup" id={id}>
+        <InlineRef
+          kind="mockup"
+          onClick={() => viewRequests.emit({ ids: [id] })}
+        >
+          {title || "Mockup"}
+        </InlineRef>
+      </LayerHoverCard>
     </QuestionnaireDescription>
   )
 }

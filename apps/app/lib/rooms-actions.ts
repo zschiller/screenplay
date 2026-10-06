@@ -142,6 +142,18 @@ export async function listRoomThumbnails(): Promise<RoomThumbnail[]> {
   return listRoomThumbnailsForUser(userId)
 }
 
+/**
+ * One Room's thumbnail manifest, for the canvas: a frame named in chat shows
+ * its last capture in the mention's hover card. Null before any capture.
+ */
+export async function getRoomThumbnailManifest(
+  roomId: string
+): Promise<ThumbnailManifest | null> {
+  const userId = await requireUserId()
+  await requireMember(roomId, userId)
+  return (await getRoom(roomId))?.thumbnailManifest ?? null
+}
+
 export async function renameRoom(roomId: string, name: string): Promise<void> {
   const userId = await requireUserId()
   await requireOwner(roomId, userId)
