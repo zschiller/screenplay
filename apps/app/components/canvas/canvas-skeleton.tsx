@@ -16,12 +16,16 @@ import type { PanelLayout } from "@/lib/panel-layout"
  * server render and by the room provider while the Y.Doc syncs.
  *
  * It draws the chrome the Canvas is about to paint, in the same places and at
- * the same sizes: the sidebar with its header and section labels, the top-left
- * room pill, the bottom tool pill, the top-right pill, and the chat panel when
- * the layout cookie says it's open. Only the parts that depend on the room's
- * data (the room name, the sidebar rows) are pulsing placeholders. The real
+ * the same sizes: the sidebar with its header, the top-left room pill, the
+ * bottom tool pill, the top-right pill, and the chat panel when the layout
+ * cookie says it's open. Only the parts that depend on the room's data (the
+ * room name, the sidebar's layer rows) are pulsing placeholders. The real
  * chrome fades its contents in over these, so the hand-over reads as the
  * content arriving rather than the whole window being swapped.
+ *
+ * The placeholders wait before they show ({@link Placeholder}): most loads
+ * finish first, and bars that blink in and straight out again read as a
+ * flash, not as loading.
  *
  * Mirrors `Canvas`'s markup by hand; if the chrome there moves, move it here.
  */
@@ -69,8 +73,7 @@ export function CanvasSkeleton({
             >
               <PillIcon icon={<SidebarSimpleIcon />} />
             </div>
-            <SidebarSection label="Chats" rows={2} className="pt-0" />
-            <SidebarSection label="Canvas" rows={3} />
+            <SidebarRows />
           </aside>
           <div className="w-px bg-border" />
         </>
@@ -81,11 +84,11 @@ export function CanvasSkeleton({
         <div className="absolute top-0 left-0 flex h-12 items-center pl-2">
           <Pill>
             {!showSidebar && <PillIcon icon={<SidebarSimpleIcon />} />}
-            <div className="flex h-7 items-center gap-2 px-1.5">
+            <Placeholder className="flex h-7 items-center gap-2 px-1.5">
               <Skeleton className="h-3 w-12" />
               <span className="text-xs text-muted-foreground/40">/</span>
               <Skeleton className="h-3 w-24" />
-            </div>
+            </Placeholder>
             <div className="size-7" />
           </Pill>
         </div>
@@ -93,10 +96,14 @@ export function CanvasSkeleton({
             chat-expand button while chat is closed. */}
         <div className="absolute top-0 right-0 flex h-12 items-center px-2">
           <Pill>
-            <div className="flex h-7 w-13 items-center px-1.5">
+            <Placeholder className="flex h-7 w-13 items-center px-1.5">
               <Skeleton className="h-3 w-full" />
-            </div>
-            {!isLocalBuild && <Skeleton className="ml-1 h-6 w-14" />}
+            </Placeholder>
+            {!isLocalBuild && (
+              <Placeholder className="ml-1 flex">
+                <Skeleton className="h-6 w-14" />
+              </Placeholder>
+            )}
             {!showChat && <PillIcon icon={<SidebarSimpleIcon mirrored />} />}
           </Pill>
         </div>
@@ -120,29 +127,44 @@ export function CanvasSkeleton({
   )
 }
 
-function SidebarSection({
-  label,
-  rows,
-  className,
-}: {
-  label: string
-  rows: number
-  className?: string
-}) {
+/**
+ * The sidebar's layer tree while it loads: rows at a layer row's height and
+ * inset, so the real rows land where these sat (the tree starts 10px under
+ * the header). The tree has no section
+ * labels, so neither does this.
+ */
+function SidebarRows() {
   return (
-    <div className={`flex flex-col p-2 ${className ?? ""}`}>
-      <div className="flex h-8 items-center px-2 font-mono text-xs tracking-wider text-sidebar-foreground/70 uppercase">
-        {label}
-      </div>
-      {Array.from({ length: rows }, (_, i) => (
+    <Placeholder className="flex flex-col px-2 pt-2.5 pb-2">
+      {[64, 48, 56, 40, 52].map((width, i) => (
         <div key={i} className="flex h-8 items-center gap-2 px-2">
           <Skeleton className="size-4 bg-sidebar-accent" />
           <Skeleton
             className="h-3 bg-sidebar-accent"
-            style={{ width: `${[64, 48, 56][i % 3]}%` }}
+            style={{ width: `${width}%` }}
           />
         </div>
       ))}
+    </Placeholder>
+  )
+}
+
+/**
+ * Pulsing placeholders that fade in only once the load has run for a moment.
+ * The space they hold is there from the first frame, so nothing moves.
+ */
+function Placeholder({
+  className,
+  children,
+}: {
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className={`animate-in delay-400 duration-200 fade-in-0 fill-mode-backwards ${className ?? ""}`}
+    >
+      {children}
     </div>
   )
 }
