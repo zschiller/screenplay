@@ -135,7 +135,7 @@ import { isSketchChat } from "@/lib/chat/sketch-chat"
  * that outlives the menu (the dialogs its rows and actions open, the create
  * request from the getting-started checklist); {@link ChatsMenuButton}
  * renders the button in whichever header is showing. Without a provider (the
- * prototype player's chat) the button renders nothing.
+ * play mode's chat) the button renders nothing.
  */
 
 export interface ChatsMenuProviderProps {

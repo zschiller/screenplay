@@ -34,7 +34,7 @@ import { useChatsMenu } from "./chats-menu"
  * chat header's … renders them all, and a frame's Preview and Chat submenus
  * each render their half. Wired to the
  * Chats menu's provider, which owns the dialogs they open; renders nothing
- * outside it (the prototype player's chat).
+ * outside it (play mode's chat).
  */
 export function WorkspaceMenuItems({
   branchId,
@@ -47,7 +47,7 @@ export function WorkspaceMenuItems({
   branchId: string
   /** Starts the inline rename. */
   onRename: () => void
-  /** Replaces Open in prototype player's target (a frame opens on itself). */
+  /** Replaces Open in play mode's target (a frame opens on itself). */
   onPlay?: () => void
   /** Replaces Open in browser's target (a frame deep-links its route). */
   onOpenInBrowser?: () => void

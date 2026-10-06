@@ -125,7 +125,7 @@ export const thread = pgTable(
     anchorStart: text("anchor_start"),
     anchorEnd: text("anchor_end"),
     quotedText: text("quoted_text"),
-    // Retired (#789). The prototype player's old flat feed keyed its threads
+    // Retired (#789). Play mode's old flat feed keyed its threads
     // by the Workspace's branch name. Nothing writes it now: listing a room's
     // threads places any left over on their Workspace (see
     // `lib/comment-migration.ts`).

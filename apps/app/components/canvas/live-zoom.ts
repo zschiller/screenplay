@@ -18,7 +18,7 @@ export const LiveZoomContext = createContext<LiveZoom | null>(null)
 
 /**
  * Runs `apply` with the live zoom on every transform frame while mounted, and
- * once on mount. Outside a canvas (the prototype player) it never runs. Keep
+ * once on mount. Outside a canvas (play mode) it never runs. Keep
  * `apply` to style writes on refs: it runs ~60 times a second mid-zoom.
  */
 export function useLiveZoom(apply: (zoom: number) => void) {

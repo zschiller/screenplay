@@ -154,7 +154,7 @@ describe("Workspace chat header", () => {
       .getAllByRole("menuitem")
       .map((item) => item.textContent)
     expect(items).toEqual([
-      "Open in prototype player",
+      "Open in play mode",
       "Open in browser",
       "Show all routes",
       "Restart preview",

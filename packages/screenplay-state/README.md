@@ -78,7 +78,7 @@ canvas drops the old entry; treat it like an `id`.
 | Canvas user editing          | No editor UI yet — read-only at the canvas surface             |
 | Persistence across reloads   | Yes — state lives on the artboard until cleared                |
 | Frame loads or reloads       | Room's state wins; the frame's values fill only missing keys   |
-| Cross into prototype player  | Yes — same protocol, same room, same Yjs                       |
+| Cross into play mode         | Yes — same protocol, same room, same Yjs                       |
 
 ## Share a zustand store
 
