@@ -216,12 +216,14 @@ const TitleEnterBehavior = Extension.create({
 function FormatButton({
   label,
   active,
+  disabled,
   onRun,
   children,
 }: {
   label: string
   /** Whether the format is on. Omit for an action, which has no on-state. */
   active?: boolean
+  disabled?: boolean
   onRun: () => void
   children: ReactNode
 }) {
@@ -229,6 +231,7 @@ function FormatButton({
     <FloatingToolbarButton
       label={label}
       pressed={active}
+      disabled={disabled}
       variant="ghost"
       className="aria-pressed:bg-muted aria-pressed:text-foreground dark:aria-pressed:hover:bg-muted"
       tabIndex={-1}
@@ -255,9 +258,11 @@ function FormatButton({
 function NodeTypeDropdown({
   editor,
   blockType,
+  disabled,
 }: {
   editor: Editor
   blockType: string
+  disabled?: boolean
 }) {
   const current =
     DOCUMENT_BLOCK_TYPES.find((t) => t.key === blockType) ??
@@ -265,7 +270,7 @@ function NodeTypeDropdown({
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" tabIndex={-1}>
+        <Button variant="ghost" size="sm" tabIndex={-1} disabled={disabled}>
           <span className="whitespace-nowrap">{current.label}</span>
           <CaretDownIcon />
         </Button>
@@ -812,6 +817,10 @@ function MarkdownLayerImpl({
             code: editor.isActive("code"),
             bulletList: editor.isActive("bulletList"),
             orderedList: editor.isActive("orderedList"),
+            // The title is always a heading: blocks can't change there.
+            inTitle:
+              editor.state.doc.resolve(editor.state.selection.from).index(0) ===
+              0,
             blockType: editor.isActive("heading", { level: 1 })
               ? "h1"
               : editor.isActive("heading", { level: 2 })
@@ -1121,11 +1130,13 @@ function MarkdownLayerImpl({
                     <NodeTypeDropdown
                       editor={editor}
                       blockType={activeFormats?.blockType ?? "paragraph"}
+                      disabled={activeFormats?.inTitle}
                     />
                     <FloatingToolbarSeparator />
                     <FormatButton
                       label="Bullet list"
                       active={!!activeFormats?.bulletList}
+                      disabled={activeFormats?.inTitle}
                       onRun={() =>
                         editor.chain().focus().toggleBulletList().run()
                       }
@@ -1135,6 +1146,7 @@ function MarkdownLayerImpl({
                     <FormatButton
                       label="Numbered list"
                       active={!!activeFormats?.orderedList}
+                      disabled={activeFormats?.inTitle}
                       onRun={() =>
                         editor.chain().focus().toggleOrderedList().run()
                       }
