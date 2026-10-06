@@ -14,6 +14,7 @@ import {
   acpHistoryToModelMessages,
   aiSdkChunkToAcpUpdate,
   cachedSystem,
+  layerArgStreamer,
   userModelContent,
   withConversationCacheBreakpoint,
 } from "./adapter"
@@ -175,6 +176,8 @@ export class InProcessEngine implements UsageReportingEngine {
       errored?: boolean
       finish?: PassFinish
     } = {}
+    // Names the layer a call works on while its arguments still stream.
+    const streamLayerArg = layerArgStreamer()
 
     const result = this.startStream({
       model: resolveLanguageModel(turn.model),
@@ -236,6 +239,8 @@ export class InProcessEngine implements UsageReportingEngine {
         }
         const update = aiSdkChunkToAcpUpdate(chunk)
         if (update) await sink({ kind: "session_update", update })
+        const named = streamLayerArg(chunk)
+        if (named) await sink({ kind: "session_update", update: named })
       },
 
       onError: async ({ error }) => {

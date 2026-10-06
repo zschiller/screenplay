@@ -7,6 +7,7 @@ import type {
 import type { Tool } from "ai"
 import { isMediaToolOutput } from "../image-output"
 import { toolKind } from "../tool-description"
+import { layerArgOfPartialInput, namesLayer } from "@/lib/chat/working-layer"
 import {
   repairOrphanedAcpToolCalls,
   type AcpMessageRecord,
@@ -299,6 +300,45 @@ export function aiSdkChunkToAcpUpdate(
       })
     default:
       return null
+  }
+}
+
+/**
+ * The layer a tool call works on, as soon as its streaming arguments name it
+ * (#1725). `tool-input-delta`s otherwise carry no ACP signal, so a Mockup
+ * update's id would only arrive with its whole page, at the very end. For a
+ * call that names a layer, this sends one `tool_call_update` with just the id
+ * the moment it's written out, and the chat store shows the layer as worked on
+ * from then. One per turn: it remembers the arguments streamed so far.
+ */
+export function layerArgStreamer() {
+  const open = new Map<string, { toolName: string; text: string }>()
+  return (
+    chunk: TextStreamPart<Record<string, Tool>>
+  ): SessionUpdate | null => {
+    switch (chunk.type) {
+      case "tool-input-start":
+        if (!namesLayer(chunk.toolName)) return null
+        open.set(chunk.id, { toolName: chunk.toolName, text: "" })
+        return null
+      case "tool-input-delta": {
+        const call = open.get(chunk.id)
+        if (!call) return null
+        call.text += chunk.delta
+        const rawInput = layerArgOfPartialInput(call.toolName, call.text)
+        if (!rawInput) return null
+        open.delete(chunk.id)
+        return toolCallUpdate({ toolCallId: chunk.id, rawInput })
+      }
+      case "tool-input-end":
+        open.delete(chunk.id)
+        return null
+      case "tool-call":
+        open.delete(chunk.toolCallId)
+        return null
+      default:
+        return null
+    }
   }
 }
 
