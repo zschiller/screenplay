@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import type { ReactNode, RefObject } from "react"
 
 import { useDriveFrame } from "@/components/canvas/frame-drive-relay"
@@ -373,34 +380,61 @@ export function LivePageContent({
   return <LivePageFrame page={page} iframeRef={iframeRef} />
 }
 
-/** How long a page's size waits for a resize to pause (see `useSettledSize`). */
-export const RESIZE_SETTLE_MS = 150
+/** A frame longer than this means the page is still catching up. */
+const LONG_FRAME_MS = 24
+
+/** The longest a page's size waits for a short frame while it changes. */
+const RESIZE_MAX_WAIT_MS = 100
 
 /**
- * The page's size, held while it keeps changing: a lone change lands at
- * once, and a run of them (a resize drag, here or by someone else) lands when
- * it pauses for {@link RESIZE_SETTLE_MS}. A page re-lays out and repaints at
- * each new size, on the canvas's own thread in WebKit, so a drag that resized
- * it on every step stuttered on a heavy page. The frame's box still follows
- * the pointer: the page sits at its held size top left, cropped or beside
- * its frame's background, as a streamed frame's picture does.
+ * The page's size, following a resize live: each animation frame takes the
+ * latest size. A page re-lays out and repaints at each new size, on the
+ * canvas's own thread in WebKit, so a heavy page can make a frame long; the
+ * next size then waits for a short frame, or {@link RESIZE_MAX_WAIT_MS}, so
+ * the drag itself never stalls behind the page. A light page follows every
+ * frame of the drag.
  */
-function useSettledSize(width: number, height: number) {
-  const [settled, setSettled] = useState({ width, height })
-  const lastChange = useRef(-Infinity)
+function useFollowedSize(width: number, height: number) {
+  const [shown, setShown] = useState({ width, height })
+  const target = useRef({ width, height })
+  const shownRef = useRef(shown)
+  useLayoutEffect(() => {
+    target.current = { width, height }
+    shownRef.current = shown
+  })
+  const loop = useRef<number | null>(null)
+  const lastApplied = useRef(-Infinity)
   useEffect(() => {
-    if (settled.width === width && settled.height === height) return
-    const now = performance.now()
-    const quiet = now - lastChange.current > RESIZE_SETTLE_MS
-    lastChange.current = now
-    if (quiet) {
-      setSettled({ width, height })
-      return
+    if (shown.width === width && shown.height === height) return
+    if (loop.current !== null) return
+    let lastTick = performance.now()
+    const tick = (now: number) => {
+      const frame = now - lastTick
+      lastTick = now
+      const next = target.current
+      const current = shownRef.current
+      if (next.width === current.width && next.height === current.height) {
+        loop.current = null
+        return
+      }
+      if (
+        frame < LONG_FRAME_MS ||
+        now - lastApplied.current >= RESIZE_MAX_WAIT_MS
+      ) {
+        lastApplied.current = now
+        setShown(next)
+      }
+      loop.current = requestAnimationFrame(tick)
     }
-    const id = setTimeout(() => setSettled({ width, height }), RESIZE_SETTLE_MS)
-    return () => clearTimeout(id)
-  }, [width, height, settled])
-  return settled
+    loop.current = requestAnimationFrame(tick)
+  }, [width, height, shown])
+  useEffect(
+    () => () => {
+      if (loop.current !== null) cancelAnimationFrame(loop.current)
+    },
+    []
+  )
+  return shown
 }
 
 function LivePageFrame({
@@ -411,10 +445,11 @@ function LivePageFrame({
   iframeRef: RefObject<HTMLIFrameElement | null>
 }) {
   const { source } = page
-  const settled = useSettledSize(page.width, page.height)
+  const settled = useFollowedSize(page.width, page.height)
   const style = {
     pointerEvents: page.takesPointer ? "auto" : "none",
-    // Offsets from the box, so a held size keeps the box's own insets.
+    // Offsets from the box, so a size a frame behind keeps the box's own
+    // insets.
     width: `calc(100% + ${settled.width - page.width}px)`,
     height: `calc(100% + ${settled.height - page.height}px)`,
   } as const
