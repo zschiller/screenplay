@@ -236,11 +236,16 @@ export type CanvasOps = {
   ): { layerId: string; groupId: string }
   /**
    * Show the Workspace `branchId` in the Iframe Layer with `layerId`, keeping
-   * its route and state. The Group's own Workspace moves with it only when
-   * the frame is the Group's one frame, or the Group has none yet. Whether the
-   * Group's label names a Workspace comes from its frames (`groupWorkspace`).
+   * its route and state, or moving it to `options.route` in the same write.
+   * The Group's own Workspace moves with it only when the frame is the Group's
+   * one frame, or the Group has none yet. Whether the Group's label names a
+   * Workspace comes from its frames (`groupWorkspace`).
    */
-  assignBranch(layerId: string, branchId: string): void
+  assignBranch(
+    layerId: string,
+    branchId: string,
+    options?: { route?: string }
+  ): void
   /**
    * Show the Workspace `branchId` in the whole Group `groupId` (#869): the
    * Group takes it, and so does every frame in it, each keeping its route,
@@ -535,10 +540,17 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     }
   }
 
-  function assignBranch(layerId: string, branchId: string): void {
+  function assignBranch(
+    layerId: string,
+    branchId: string,
+    options?: { route?: string }
+  ): void {
     batch(() => {
       if (!collections.iframeLayers.has(layerId)) return
-      collections.iframeLayers.update(layerId, { branchId })
+      collections.iframeLayers.update(
+        layerId,
+        options?.route ? { branchId, route: options.route } : { branchId }
+      )
       const group = collections.iframeLayerGroups
         .toArray()
         .find((g) => getGroupMembers(g).some((m) => m.id === layerId))

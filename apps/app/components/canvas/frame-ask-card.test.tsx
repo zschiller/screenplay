@@ -3,24 +3,56 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import { NEW_CHAT, NEW_SKETCH_CHAT } from "@/lib/draw-ask"
-import type { ChatSessionData } from "@/lib/types"
+import type { BranchData, ChatSessionData } from "@/lib/types"
+import { baseBranch } from "@/test/canvas/harness"
 import { FrameAskCard } from "./frame-ask-card"
 
-// The real composer is an editor; the card only needs a field to type in.
-vi.mock("@/components/agent/composer", () => ({
-  Composer: ({
-    placeholder,
-    modelSlot,
-  }: {
-    placeholder: string
-    modelSlot?: React.ReactNode
-  }) => (
-    <>
-      <textarea aria-label={placeholder} />
-      {modelSlot}
-    </>
-  ),
-}))
+// The real composer is an editor; the card only needs a field to type in,
+// and its `insertText` to see what the picker carries over.
+const { inserted } = vi.hoisted(() => ({ inserted: [] as string[] }))
+vi.mock("@/components/agent/composer", async () => {
+  const { forwardRef, useImperativeHandle } = await import("react")
+  return {
+    Composer: forwardRef(function Composer(
+      {
+        placeholder,
+        modelSlot,
+      }: { placeholder: string; modelSlot?: React.ReactNode },
+      ref
+    ) {
+      useImperativeHandle(ref, () => ({
+        insertText: (text: string) => inserted.push(text),
+      }))
+      return (
+        <>
+          <textarea aria-label={placeholder} />
+          {modelSlot}
+        </>
+      )
+    }),
+  }
+})
+// Rows need only the Branch's own status.
+vi.mock("@/hooks/use-workspace-states", async () => {
+  const { roomWorkspaceFacts, workspaceState } =
+    await import("@/lib/branch/workspace-state")
+  const room = roomWorkspaceFacts([], [])
+  return {
+    useWorkspaceStates: () => (branch: Parameters<typeof workspaceState>[0]) =>
+      workspaceState(branch, room),
+  }
+})
+
+// cmdk (the preview picker) uses scroll APIs jsdom doesn't implement, plus a
+// ResizeObserver.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver ??=
+  ResizeObserverStub as unknown as typeof ResizeObserver
+Element.prototype.scrollIntoView ??= () => {}
 
 beforeEach(() => {
   document.body.innerHTML =
@@ -95,5 +127,75 @@ describe("FrameAskCard for a drawn Mockup box (#1359)", () => {
     expect(
       screen.getByRole("button", { name: "Who answers" }).textContent
     ).toContain("Pricing sketch")
+  })
+})
+
+describe("FrameAskCard for a drawn frame with running previews", () => {
+  const previews: BranchData[] = [
+    baseBranch("b-cart", { title: "Empty cart state" }),
+    baseBranch("b-checkout", { title: "Checkout polish" }),
+  ]
+  function renderFrame(onShow = vi.fn()) {
+    inserted.length = 0
+    render(
+      <FrameAskCard
+        locate={() => ({ left: 0, top: 0, width: 390, height: 844 })}
+        markdownLayers={[]}
+        workspaces={previews}
+        defaultAnswerer={NEW_CHAT}
+        previews={previews}
+        onShow={onShow}
+        onSubmit={() => {}}
+        onClose={() => {}}
+      />
+    )
+    return onShow
+  }
+  const search = () => screen.getByPlaceholderText("Search running previews…")
+
+  it("asks which preview to show, the likely one first", () => {
+    renderFrame()
+
+    const rows = screen.getAllByRole("option").map((o) => o.textContent)
+    expect(rows[0]).toContain("Empty cart state")
+    expect(rows[1]).toContain("Checkout polish")
+    expect(rows.at(-1)).toBe("New chat…")
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  it("shows the highlighted preview on Enter", () => {
+    const onShow = renderFrame()
+
+    fireEvent.keyDown(search(), { key: "Enter" })
+
+    expect(onShow).toHaveBeenCalledWith("b-cart")
+  })
+
+  it("opens the composer from New chat…, with a new chat answering", () => {
+    renderFrame()
+
+    fireEvent.click(screen.getByRole("option", { name: "New chat…" }))
+
+    expect(
+      screen.getByRole("textbox", { name: "What should this frame show?" })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Who answers" }).textContent
+    ).toContain("New chat")
+    expect(inserted).toEqual([])
+  })
+
+  it("carries words no preview matches into the new chat’s composer", () => {
+    renderFrame()
+
+    fireEvent.change(search(), { target: { value: "A pricing page" } })
+    const row = screen.getByRole("option", {
+      name: "New chat: “A pricing page”",
+    })
+    expect(screen.getAllByRole("option")).toHaveLength(1)
+
+    fireEvent.click(row)
+
+    expect(inserted).toEqual(["A pricing page"])
   })
 })

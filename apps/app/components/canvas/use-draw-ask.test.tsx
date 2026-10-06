@@ -21,7 +21,9 @@ import {
   defaultFrameAnswerer,
   defaultNewWorkspaceRepoId,
   forMockup,
+  runningPreviews,
   withViewport,
+  workspaceRoute,
 } from "@/lib/draw-ask"
 
 import { useDrawAsk } from "./use-draw-ask"
@@ -51,6 +53,8 @@ function setup(
     selected?: { frames?: string[]; owned?: string[] }
     /** Resolves once the new Branch is named; until then nothing is created. */
     naming?: Promise<void>
+    /** The Workspace the chat panel shows. */
+    panel?: string
   } = {}
 ) {
   const { doc, ops, collections } = makeHarness()
@@ -119,7 +123,7 @@ function setup(
       sendPrompt,
       createBranch,
       addChatSession: (id, chat) => collections.chatSessions.set(id, chat),
-      chatTarget: { selectSketchChat },
+      chatTarget: { selectSketchChat, selectedAgentId: opts.panel ?? null },
       sendMessage,
       roomId: "room-1",
     })
@@ -202,6 +206,38 @@ describe("opening an ask", () => {
     expect(t.selectIframeLayer).toHaveBeenCalledWith(frameId, false)
     expect(t.hook.result.current.open).toEqual({ kind: "frame", frameId })
     expect(t.hook.result.current.answerer).toEqual({ kind: "new-chat" })
+  })
+
+  it("offers the running previews, the chat panel’s first", () => {
+    const t = setup({
+      agents: [
+        baseBranch("b1", { title: "Checkout", lastActivityAt: 30 }),
+        baseBranch("b2", { title: "Cart", lastActivityAt: 10 }),
+        baseBranch("b3", { title: "Stopped", devServerStoppedAt: 5 }),
+      ],
+      panel: "b2",
+    })
+    const frameId = t.drawFrame()
+    t.hook.rerender()
+
+    act(() => t.hook.result.current.startFromFrame(frameId))
+
+    expect(t.hook.result.current.previews.map((b) => b.id)).toEqual([
+      "b2",
+      "b1",
+    ])
+  })
+
+  it("offers no previews from Start a chat, or for a Mockup box", () => {
+    const t = setup()
+    const frameId = t.drawFrame()
+    t.hook.rerender()
+
+    act(() => t.hook.result.current.startFrameChat?.(frameId))
+    expect(t.hook.result.current.previews).toEqual([])
+
+    act(() => t.hook.result.current.startFromMockupBox(box))
+    expect(t.hook.result.current.previews).toEqual([])
   })
 
   it("closes a frame’s ask once the frame shows a Workspace", () => {
@@ -294,6 +330,66 @@ describe("sending a frame’s ask", () => {
       "Checkout isn’t running yet. Ask again once it is."
     )
     expect(t.collections.iframeLayers.get(t.frameId)?.branchId).toBe("b1")
+  })
+})
+
+describe("showing a running preview in a drawn frame", () => {
+  it("shows it at its newest frame’s route, sending nothing", () => {
+    const t = setup()
+    t.collections.iframeLayers.set("f-old", {
+      id: "f-old",
+      width: 1280,
+      height: 800,
+      label: "Frame",
+      iframeState: {},
+      branchId: "b1",
+      route: "/checkout",
+    })
+    const frameId = t.drawFrame()
+    t.hook.rerender()
+    act(() => t.hook.result.current.startFromFrame(frameId))
+
+    act(() => t.hook.result.current.show("b1"))
+
+    const frame = t.collections.iframeLayers.get(frameId)
+    expect(frame?.branchId).toBe("b1")
+    expect(frame?.route).toBe("/checkout")
+    expect(t.sendPrompt).not.toHaveBeenCalled()
+    expect(t.createBranch).not.toHaveBeenCalled()
+    expect(t.hook.result.current.open).toBeNull()
+  })
+})
+
+describe("runningPreviews", () => {
+  const pickable = [
+    baseBranch("old", { lastActivityAt: 1 }),
+    baseBranch("new", { lastActivityAt: 9 }),
+    baseBranch("mid", { createdAt: 5 }),
+    baseBranch("starting", { status: "starting" }),
+    baseBranch("stopped", { devServerStoppedAt: 3, lastActivityAt: 99 }),
+  ]
+  const ids = (preferred: (string | null)[]) =>
+    runningPreviews({ pickable, preferred }).map((b) => b.id)
+
+  it("lists running previews, newest activity first", () => {
+    expect(ids([])).toEqual(["new", "mid", "old"])
+  })
+
+  it("leads with the first preferred one that’s running", () => {
+    expect(ids([null, "stopped", "old", "mid"])).toEqual(["old", "new", "mid"])
+  })
+})
+
+describe("workspaceRoute", () => {
+  it("is the route of the Workspace’s newest frame that has one", () => {
+    const frames = [
+      { branchId: "b1", route: "/a" },
+      { branchId: "b2", route: "/b" },
+      { branchId: "b1", route: "/c" },
+      { branchId: "b1" },
+    ]
+    expect(workspaceRoute(frames, "b1")).toBe("/c")
+    expect(workspaceRoute(frames, "b3")).toBeUndefined()
   })
 })
 

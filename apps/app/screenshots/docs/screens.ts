@@ -1808,7 +1808,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
   screen({
     name: "frame-ask",
     description:
-      "A frame drawn with the Frame tool asks what it should show (#1356).",
+      "A frame drawn with the Frame tool asks which running preview to show, the likely one first.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
     crop: [300, 120, 440, 620],
@@ -1827,15 +1827,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await page.mouse.move(662, 683, { steps: 8 })
       await page.mouse.up()
       // The card takes focus a frame after it opens.
-      await sleep(page, 500)
-      await page.keyboard.type("A mobile checkout with Apple Pay")
       await sleep(page, 600)
     },
   }),
   screen({
     name: "frame-ask-answerer",
     description:
-      "With a frame selected, a drawn frame's ask goes to that frame's Workspace; the chip switches who answers (#1357).",
+      "A drawn frame's New chat…: words no running preview matches carry into the composer, a new chat answering.",
     path: ROOM,
     cookies: SIDEBAR_ONLY,
     crop: [300, 120, 440, 620],
@@ -1845,10 +1843,6 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await camera(page, VIEW.emptyLeft)
       await clickAt(page, { x: 540, y: 300 }, 300)
       await page.keyboard.press("Delete")
-      // Select the Home frame from the sidebar, then draw beside it.
-      await page.getByText("Home", { exact: true }).first().click()
-      await sleep(page, 400)
-      await camera(page, VIEW.emptyLeft)
       await page.keyboard.press("f")
       await page.mouse.move(420, 160)
       await page.mouse.down()
@@ -1856,8 +1850,10 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await page.mouse.move(662, 683, { steps: 8 })
       await page.mouse.up()
       await sleep(page, 500)
-      await page.keyboard.type("The same hero for a phone")
-      await page.getByRole("button", { name: "Who answers" }).click()
+      // Words no running preview matches turn the last row into New chat: “…”.
+      await page.keyboard.type("A mobile checkout with Apple Pay")
+      await sleep(page, 300)
+      await page.keyboard.press("Enter")
       await sleep(page, 600)
     },
   }),
