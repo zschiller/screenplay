@@ -336,7 +336,7 @@ function DocumentPreview({ body }: { body: string }) {
   return (
     <div
       data-slot="layer-preview"
-      className={`${PREVIEW_CLASS} max-h-28 [mask-image:linear-gradient(#000_70%,transparent)] px-3 py-2`}
+      className={`${PREVIEW_CLASS} max-h-28 [mask-image:linear-gradient(#000_70%,transparent)] px-3 py-2 [&_.chat-markdown>:first-child]:mt-0`}
     >
       <ChatMarkdown tone="muted" size="xs">
         {body.slice(0, 600)}
