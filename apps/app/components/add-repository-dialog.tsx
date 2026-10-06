@@ -58,6 +58,21 @@ function pickLabel(pick: RepoPickerSelection): string {
   return pick.source.repoFullName || pick.source.localPath || "this repository"
 }
 
+/** The names of the Repositories you already have of the pick's repository. */
+function repositoryNames(
+  pick: RepoPickerSelection,
+  repositories: readonly RepoConfig[]
+): string[] {
+  const fullName =
+    pick.kind === "repo" ? pick.repo.fullName : pick.source.repoFullName
+  const localPath = pick.kind === "source" ? pick.source.localPath : undefined
+  return repositories
+    .filter((r) =>
+      fullName ? r.repoFullName === fullName : r.localPath === localPath
+    )
+    .map((r) => r.name)
+}
+
 /**
  * The add-repository flow's state (issues #604, #676, #781): which screen of
  * the dialog shows, and the pick waiting in the settings stage. Held by
@@ -326,6 +341,14 @@ export function AddRepositoryDialog({
     closePicker,
     stepBack,
   } = flow
+  // The app a monorepo's Configure has chosen, held against the pick it was
+  // chosen for so a later pick never inherits it.
+  const [chosenApp, setChosenApp] = useState<{
+    pick: RepoPickerSelection
+    name: string
+  } | null>(null)
+  const appName =
+    chosenApp && chosenApp.pick === pendingPick ? chosenApp.name : undefined
   return (
     <Dialog
       open={flow.open}
@@ -362,7 +385,7 @@ export function AddRepositoryDialog({
           </DialogTitle>
           {pickerView === "settings" && pendingPick && (
             <DialogDescription>
-              {`Confirm the run settings for ${pickLabel(pendingPick)} before it’s added.`}
+              {`Confirm the run settings for ${appName ? `${appName} in ` : ""}${pickLabel(pendingPick)} before it’s added.`}
             </DialogDescription>
           )}
         </DialogHeader>
@@ -393,24 +416,32 @@ export function AddRepositoryDialog({
             // rule-based guess.
             refine={
               pendingPick.kind === "repo"
-                ? (baseline) =>
+                ? (baseline, appPath) =>
                     refineRepoSettings(
                       {
                         owner: pendingPick.repo.owner,
                         repo: pendingPick.repo.name,
                         ref: pendingPick.repo.defaultBranch,
                       },
-                      baseline
+                      baseline,
+                      appPath
                     )
                 : pendingPick.kind === "source" && pendingPick.source.localPath
-                  ? (baseline) =>
+                  ? (baseline, appPath) =>
                       refineFolderSettings(
                         {
                           localPath: pendingPick.source.localPath!,
                         },
-                        baseline
+                        baseline,
+                        appPath
                       )
                   : undefined
+            }
+            // A monorepo's apps already added read "Added" in its App
+            // picker, and the chosen one is named in the description.
+            existingNames={repositoryNames(pendingPick, repositories)}
+            onAppChange={(app) =>
+              setChosenApp(app ? { pick: pendingPick, name: app.name } : null)
             }
             // Env-field presence follows the source (#681): hosted
             // has env vars, a desktop local-folder has files-to-copy,

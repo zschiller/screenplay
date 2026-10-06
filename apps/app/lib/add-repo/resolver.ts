@@ -36,6 +36,31 @@ export type DetectedSettings = Pick<
 >
 
 /**
+ * One app detection found in a monorepo: a workspace package build-info
+ * recognized a framework in. The add modal lists these in its App picker, and
+ * picking one fills the run script and port from it.
+ */
+export interface DetectedApp {
+  /** The folder's own name ("app" for `apps/app`). */
+  name: string
+  /** Repo-relative folder, no leading slash: `apps/app`. */
+  path: string
+  /** The framework's display name ("Next.js"), or "" when unnamed. */
+  framework: string
+  devScript: string
+  devServerPort: number
+}
+
+/**
+ * What the rule-based pass returns: the settings for the repo's main app, plus
+ * every app it found. `apps` holds two or more entries only for a monorepo;
+ * the settings are then the first app's (see `sortApps`).
+ */
+export interface DetectedProject extends DetectedSettings {
+  apps: DetectedApp[]
+}
+
+/**
  * The subset of the add-modal's form that detection can seed. All strings — the
  * port is a text input — so this is the shape the merge reads and writes; the
  * component holds them in its one `RunSettingsFields` object.

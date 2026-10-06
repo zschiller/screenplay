@@ -188,8 +188,13 @@ monorepos, where each app gets its own run script.
 
 ## Monorepos
 
-A repository on a canvas previews **one** app. To work on two apps from the
-same monorepo, add it as two of your repositories with different names. For example,
-a `web` one running `pnpm --filter web dev` and a `docs` one running
-`pnpm --filter docs dev`. Use the **Agent instructions** field to tell the agent
-which folder is its app’s root.
+A repository on a canvas previews **one** app. When you add a repository that
+holds several apps, **Configure repository** opens with an **App** field
+first. It suggests the first app under `apps/` you haven’t added yet; click it
+to search the others. Picking an app fills its run script and port, names the
+repository after the app, and tells the agent which folder to work in through
+**Agent instructions**. Apps you’ve already added read **Added**.
+
+To work on two apps from the same monorepo, add the repository twice and pick a
+different app each time. Each one becomes its own repository, such as `web`
+running `pnpm --filter web dev` and `docs` running `pnpm --filter docs dev`.

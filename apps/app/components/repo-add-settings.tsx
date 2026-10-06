@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowClockwiseIcon,
   CaretRightIcon,
@@ -11,7 +11,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible"
+import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  appInstructions,
+  RepoAppPicker,
+  suggestedApp,
+} from "@/components/repo-app-picker"
 import {
   RepoDialogBody,
   RepoDialogFooter,
@@ -23,6 +29,7 @@ import {
 import {
   mergeDetectedSettings,
   type DetectableField,
+  type DetectedApp,
   type DetectedSettings,
   type ResolvedRepoSettings,
 } from "@/lib/add-repo/resolver"
@@ -48,7 +55,14 @@ const PLAIN_DETECTED: DetectedSettings = {
   devServerPort: DEFAULT_DEV_SERVER_PORT,
 }
 
-type DetectionStatus = "idle" | "detecting" | "done" | "failed"
+/**
+ * `rules` is the first, rule-based pass: the form waits behind placeholders so
+ * it appears once, already filled, instead of shifting under the cursor. The
+ * model pass that follows (`detecting`) fills in place.
+ */
+const NO_NAMES: readonly string[] = []
+
+type DetectionStatus = "idle" | "rules" | "detecting" | "done" | "failed"
 
 /**
  * The confirm-and-configure add-modal body (PRD #673), rendered inside the
@@ -69,8 +83,13 @@ type DetectionStatus = "idle" | "detecting" | "done" | "failed"
  * returns, fills only the fields the user hasn't touched. A `refine` seam then
  * has a model read the project's files and correct that first guess (a README
  * that runs `make dev`, a dev script pinned to another port, a monorepo's web
- * app), again only in untouched fields. Add is enabled throughout — detection
- * is an assist, never a gate.
+ * app), again only in untouched fields. Add is enabled once the form shows —
+ * detection is an assist, never a gate.
+ *
+ * In a monorepo the rule-based pass lists every app, and an App field leads
+ * the form. Picking an app fills its run script and port, and names the
+ * Repository and its agent instructions after it, all only where untouched;
+ * the model pass then refines the settings for that app.
  *
  * Confirm hands the resolved settings back, and the caller saves the
  * Repository (and, from a Canvas, switches it on there, #1423); Cancel adds
@@ -80,6 +99,8 @@ export function RepoAddSettings({
   detect,
   refine,
   showEnvField,
+  existingNames = NO_NAMES,
+  onAppChange,
   onConfirm,
   onCancel,
   cancelLabel = "Cancel",
@@ -94,7 +115,17 @@ export function RepoAddSettings({
    * The model-assisted second pass, handed the first pass's result (or plain
    * defaults when it found nothing). Absent when there's no source to read.
    */
-  refine?: (baseline: DetectedSettings) => Promise<DetectRepoSettingsResult>
+  refine?: (
+    baseline: DetectedSettings,
+    appPath?: string
+  ) => Promise<DetectRepoSettingsResult>
+  /**
+   * Names of this repository's Repositories you already have. An app whose
+   * name is among them reads "Added" in the App picker.
+   */
+  existingNames?: readonly string[]
+  /** The app chosen in a monorepo, so the dialog can name it. */
+  onAppChange?: (app: DetectedApp | undefined) => void
   /** Whether the source has an env-injection path — see `RepoSettingsFields`. */
   showEnvField: boolean
   onConfirm: (settings: ResolvedRepoSettings) => void
@@ -117,15 +148,24 @@ export function RepoAddSettings({
   // The advanced section, revealed by the expander (#681).
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [presetName, setPresetName] = useState("")
-  // Start in "detecting" when there's a source to detect against, so the effect
-  // never has to set that synchronously (and the indicator is up on first paint).
+  // Start in "rules" when there's a source to detect against, so the effect
+  // never has to set that synchronously (and the placeholders are up on first
+  // paint).
   const [status, setStatus] = useState<DetectionStatus>(
-    detect ? "detecting" : "idle"
+    detect ? "rules" : "idle"
   )
+  // A monorepo's apps (two or more) and the one the settings are for.
+  const [apps, setApps] = useState<DetectedApp[]>([])
+  const [app, setApp] = useState<DetectedApp>()
+  // The setup script the rules found: one per repository, whichever app.
+  const rulesSetup = useRef(PLAIN_DETECTED.setupScript)
 
   // Which detectable fields the user has touched — a ref, not state, because
   // only the (async) merge reads it and it must never trigger a re-render.
   const dirty = useRef<Partial<Record<DetectableField, boolean>>>({})
+  // Same for the two fields a chosen app names itself into.
+  const nameDirty = useRef(false)
+  const promptDirty = useRef(false)
   // Bumped per detection run so a stale result (a newer re-detect, or unmount)
   // can't apply over newer state.
   const runId = useRef(0)
@@ -134,15 +174,73 @@ export function RepoAddSettings({
   // render (which would spam detection).
   const detectRef = useRef(detect)
   const refineRef = useRef(refine)
+  const existingNamesRef = useRef(existingNames)
+  const onAppChangeRef = useRef(onAppChange)
   useEffect(() => {
     detectRef.current = detect
     refineRef.current = refine
+    existingNamesRef.current = existingNames
+    onAppChangeRef.current = onAppChange
   })
 
   const setField = useCallback(
     (field: keyof RunSettingsFields) => (value: string) => {
       if (isDetectable(field)) dirty.current[field] = true
+      if (field === "systemPrompt") promptDirty.current = true
       setFields((prev) => ({ ...prev, [field]: value }))
+    },
+    []
+  )
+
+  const changePresetName = useCallback((value: string) => {
+    nameDirty.current = true
+    setPresetName(value)
+  }, [])
+
+  /** Fill the form from an app, only where untouched. */
+  const applyApp = useCallback((next: DetectedApp) => {
+    setApp(next)
+    onAppChangeRef.current?.(next)
+    setFields((prev) => ({
+      ...prev,
+      ...mergeDetectedSettings(
+        prev,
+        settingsFor(next, rulesSetup.current),
+        dirty.current
+      ),
+      systemPrompt: promptDirty.current
+        ? prev.systemPrompt
+        : appInstructions(next),
+    }))
+    if (!nameDirty.current) setPresetName(next.name)
+  }, [])
+
+  /** The model pass: refines the rule-based `baseline`, for `appPath` if any. */
+  const runRefine = useCallback(
+    async (
+      currentRun: number,
+      baseline: DetectedSettings,
+      rulesOk: boolean,
+      appPath?: string
+    ) => {
+      const refineRun = refineRef.current
+      if (!refineRun) {
+        setStatus(rulesOk ? "done" : "failed")
+        return
+      }
+      setStatus("detecting")
+      const refined = await withTimeout(
+        refineRun(baseline, appPath),
+        REFINE_TIMEOUT_MS
+      )
+      if (currentRun !== runId.current) return
+      if (refined.ok) {
+        setFields((prev) => ({
+          ...prev,
+          ...mergeDetectedSettings(prev, refined.settings, dirty.current),
+        }))
+      }
+      setStatus(rulesOk || refined.ok ? "done" : "failed")
     },
     []
   )
@@ -152,35 +250,34 @@ export function RepoAddSettings({
     if (!run) return
     const currentRun = ++runId.current
 
-    // Rules first: fast, and fills the form while the model reads.
+    // Rules first: fast, and fills the form before the model reads.
     const result = await withTimeout(run(), DETECTION_TIMEOUT_MS)
     // A newer run (or an unmount) supersedes this one — drop the late result.
     if (currentRun !== runId.current) return
+    let baseline = PLAIN_DETECTED
+    let appPath: string | undefined
     if (result.ok) {
+      rulesSetup.current = result.settings.setupScript
+      const found = result.apps ?? []
+      const chosen =
+        found.length > 1
+          ? suggestedApp(found, addedPaths(found, existingNamesRef.current))
+          : undefined
       setFields((prev) => ({
         ...prev,
         ...mergeDetectedSettings(prev, result.settings, dirty.current),
       }))
+      if (chosen) {
+        setApps(found)
+        applyApp(chosen)
+        baseline = settingsFor(chosen, rulesSetup.current)
+        appPath = chosen.path
+      } else {
+        baseline = result.settings
+      }
     }
-
-    const refineRun = refineRef.current
-    if (!refineRun) {
-      setStatus(result.ok ? "done" : "failed")
-      return
-    }
-    const refined = await withTimeout(
-      refineRun(result.ok ? result.settings : PLAIN_DETECTED),
-      REFINE_TIMEOUT_MS
-    )
-    if (currentRun !== runId.current) return
-    if (refined.ok) {
-      setFields((prev) => ({
-        ...prev,
-        ...mergeDetectedSettings(prev, refined.settings, dirty.current),
-      }))
-    }
-    setStatus(result.ok || refined.ok ? "done" : "failed")
-  }, [])
+    await runRefine(currentRun, baseline, result.ok, appPath)
+  }, [applyApp, runRefine])
 
   // Kick off detection once as the modal opens. All state writes happen after
   // the awaited result, never synchronously in the effect body.
@@ -194,9 +291,28 @@ export function RepoAddSettings({
   }, [runDetection])
 
   const reDetect = useCallback(() => {
-    setStatus("detecting")
+    setStatus("rules")
     void runDetection()
   }, [runDetection])
+
+  // Picking another app fills from it, then has the model look at that app.
+  const chooseApp = useCallback(
+    (next: DetectedApp) => {
+      applyApp(next)
+      void runRefine(
+        ++runId.current,
+        settingsFor(next, rulesSetup.current),
+        true,
+        next.path
+      )
+    },
+    [applyApp, runRefine]
+  )
+
+  const added = useMemo(
+    () => addedPaths(apps, existingNames),
+    [apps, existingNames]
+  )
 
   const settings = parseRunSettings(fields)
 
@@ -216,15 +332,36 @@ export function RepoAddSettings({
     })
   }, [settings, envVars, presetName, onConfirm])
 
+  if (status === "rules") {
+    // Placeholders while the rules run (about a second), shaped like the form
+    // so it lands without a jump.
+    return (
+      <>
+        <DetectingLine />
+        <RepoDialogBody>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex flex-col gap-2">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ))}
+        </RepoDialogBody>
+        <RepoDialogFooter>
+          <Button variant="ghost" onClick={onCancel}>
+            {cancelLabel}
+          </Button>
+          <Button disabled>Add repository</Button>
+        </RepoDialogFooter>
+      </>
+    )
+  }
+
   return (
     <>
       {status !== "idle" && status !== "done" && (
         <div className="flex min-h-5 items-center gap-2 px-5 pb-3 text-sm text-muted-foreground">
           {status === "detecting" ? (
-            <>
-              <Spinner className="size-3.5" />
-              <span>Detecting settings…</span>
-            </>
+            <DetectingContent />
           ) : (
             <>
               <span>Couldn’t auto-detect settings.</span>
@@ -242,6 +379,15 @@ export function RepoAddSettings({
         </div>
       )}
       <RepoDialogBody>
+        {app && apps.length > 1 && (
+          <RepoAppPicker
+            id="repo-add-app"
+            apps={apps}
+            value={app}
+            addedPaths={added}
+            onChange={chooseApp}
+          />
+        )}
         <RepoSettingsFields
           idPrefix="repo-add"
           section="essential"
@@ -270,7 +416,7 @@ export function RepoAddSettings({
               envVars={envVars}
               onEnvVarsChange={setEnvVars}
               presetName={presetName}
-              onPresetNameChange={setPresetName}
+              onPresetNameChange={changePresetName}
             />
           </CollapsibleContent>
         </Collapsible>
@@ -284,6 +430,42 @@ export function RepoAddSettings({
         </Button>
       </RepoDialogFooter>
     </>
+  )
+}
+
+function DetectingLine() {
+  return (
+    <div className="flex min-h-5 items-center gap-2 px-5 pb-3 text-sm text-muted-foreground">
+      <DetectingContent />
+    </div>
+  )
+}
+
+function DetectingContent() {
+  return (
+    <>
+      <Spinner className="size-3.5" />
+      <span>Detecting settings…</span>
+    </>
+  )
+}
+
+/** An app's run settings, with the repository's one setup script. */
+function settingsFor(app: DetectedApp, setupScript: string): DetectedSettings {
+  return {
+    setupScript,
+    devScript: app.devScript,
+    devServerPort: app.devServerPort,
+  }
+}
+
+/** The apps already added: a Repository of this repository bears their name. */
+function addedPaths(
+  apps: DetectedApp[],
+  existingNames: readonly string[]
+): Set<string> {
+  return new Set(
+    apps.filter((a) => existingNames.includes(a.name)).map((a) => a.path)
   )
 }
 
