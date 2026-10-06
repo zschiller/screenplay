@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useSyncExternalStore,
+  type ReactNode,
 } from "react"
 import {
   ClockIcon,
@@ -87,10 +88,10 @@ interface AgentChatProps {
   roomId: string
   /** What this chat talks to: a Branch's sandbox, a document or the Room. */
   target: ChatTarget
-  /** The branch's sandbox is still setting up with nothing for the agent yet
-   *  (`workspaceBooting`), so the chat shows the same provisioning spinner
-   *  the terminal does rather than a live input that would error on send. */
-  booting?: boolean
+  /** The chat's code is still being set up (its setup steps), shown in place
+   *  of the transcript over a disabled composer: there's no agent to talk to
+   *  yet, and the composer is already where it will be once there is. */
+  setup?: ReactNode
   /** How the Coordinator's empty chat reads (#1182): a fresh canvas or not. */
   roomStart?: CoordinatorStart
   isFirstChat?: boolean
@@ -116,7 +117,7 @@ export function AgentChat({
   chatId,
   roomId,
   target,
-  booting,
+  setup,
   roomStart,
   isFirstChat,
   planMode,
@@ -401,20 +402,6 @@ export function AgentChat({
   // On a shared Canvas, messages and answers name who sent them.
   const senders = useChatSenders(roomId, messages)
 
-  // While the sandbox is still booting there's no agent to talk to yet — show
-  // the same provisioning spinner the terminal does (terminal-tab.tsx) instead
-  // of a live composer whose first send would just error. Mirrors the copy and
-  // Spinner so a freshly-seeded chat tab and terminal tab read identically.
-  if (booting) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center bg-background px-6 text-center text-sm text-balance text-muted-foreground">
-        <span className="flex items-center gap-2">
-          <Spinner className="size-4" /> Still setting up the code…
-        </span>
-      </div>
-    )
-  }
-
   const lastRole = messages[messages.length - 1]?.role
   // A Coordinator turn answering a wake (#897) works out of sight: like a
   // project chat's silent turn, it shows no cue until it writes a reply.
@@ -469,7 +456,9 @@ export function AgentChat({
       {/* Messages */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         <div ref={scrollContentRef} className="flex min-h-full flex-col p-4">
-          {isLoadingHistory ? (
+          {setup ? (
+            <div className="m-auto">{setup}</div>
+          ) : isLoadingHistory ? (
             <div className="m-auto flex items-center gap-1.5 text-sm text-muted-foreground">
               <Spinner className="size-3" />
               Loading chat…
@@ -607,6 +596,7 @@ export function AgentChat({
           steersWhileStreaming={steerable}
           draftKey={chatId}
           placeholder={done ? WRITE_TO_REOPEN : capabilities.placeholder}
+          disabled={!!setup}
           aboveInput={
             queued.length > 0 ? (
               <ul aria-label="Queued messages" className="mb-2 space-y-1">

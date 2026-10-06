@@ -64,6 +64,8 @@ const MOTION =
 /**
  * The closed pane's height: the footnote, tucked up under the composer (whose
  * bottom padding shrinks to 4px while the pane is closed) with room below it.
+ * Its 27px row puts the names 8px under the composer box, the gap the box
+ * keeps from the panel's edges, with 13px below.
  */
 const FOOTNOTE_PX = 36
 
@@ -150,7 +152,9 @@ function StopOrRunButton({ devServer }: { devServer: DevServer }) {
       disabled={pending}
       onClick={action}
     >
-      {running ? <SquareIcon /> : <PlayIcon />}
+      {/* Filled, as the composer's Stop: an outline square reads as a
+          checkbox at the app's light icon weight. */}
+      {running ? <SquareIcon weight="fill" /> : <PlayIcon weight="fill" />}
       {running ? "Stop" : "Run"}
     </Button>
   )
@@ -356,9 +360,12 @@ export function TerminalPane({
                     className={cn(
                       "flex w-max items-center pr-2 transition-[height,padding,gap]",
                       MOTION,
+                      // Closed, the first dot sits on the panel's 16px edge,
+                      // 8px in from the composer box (7px + the tab's 8px
+                      // padding and 1px border).
                       open
                         ? "h-10 gap-1 py-[3px] pl-[15px]"
-                        : "h-6 gap-0.5 pl-2"
+                        : "h-[27px] gap-0.5 pl-[7px]"
                     )}
                   >
                     {terminals.map((terminal, i) => (
@@ -396,12 +403,13 @@ export function TerminalPane({
                   </div>
                 </ScrollArea>
               </TabsList>
-              {/* Closed, this row matches the footnote names' 24px line. */}
+              {/* Closed, this row matches the footnote names' line, and Stop's
+                  word ends on the panel's 16px edge (its 10px padding + 6px). */}
               <div
                 className={cn(
-                  "flex shrink-0 items-center gap-0.5 self-start pr-4 pl-1 transition-[height]",
+                  "flex shrink-0 items-center gap-0.5 self-start pl-1 transition-[height,padding]",
                   MOTION,
-                  open ? "h-10" : "h-6"
+                  open ? "h-10 pr-4" : "h-[26px] pr-1.5"
                 )}
               >
                 {/* Stop or Run shows in both modes (#1342); closed, it slides

@@ -3,7 +3,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useRef,
   useState,
   type ReactNode,
@@ -17,6 +16,7 @@ import {
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { useChatsMenu } from "@/components/agent/chats-menu"
+import { useElapsed } from "@/hooks/use-elapsed"
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import { workspaceDetails } from "@/lib/branch/workspace-details"
 import { formatElapsed } from "@/lib/branch/workspace-state"
@@ -219,18 +219,6 @@ function WorkspaceHoverDetail({
       )}
     </>
   )
-}
-
-/** Milliseconds since `key` last changed, ticking once a second. */
-function useElapsed(key: string): number {
-  const [now, setNow] = useState(() => Date.now())
-  const [start, setStart] = useState(() => ({ key, at: now }))
-  if (start.key !== key) setStart({ key, at: now })
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [])
-  return now - start.at
 }
 
 function ProgressText({ step }: { step: string }) {
