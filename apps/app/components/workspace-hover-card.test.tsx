@@ -34,7 +34,10 @@ vi.mock("@/components/agent/chats-menu", () => ({
   useChatsMenu: () => chats.value,
 }))
 
-import { WorkspaceHoverCard } from "./workspace-hover-card"
+import {
+  WORKSPACE_HOVER_CARD_DELAY_MS,
+  WorkspaceHoverCard,
+} from "./workspace-hover-card"
 
 class ResizeObserverStub {
   observe() {}
@@ -60,10 +63,24 @@ function hoverCard(props: { openChat?: boolean } = {}) {
   fireEvent.pointerEnter(screen.getByText("Checkout polish"), {
     pointerType: "mouse",
   })
-  act(() => vi.advanceTimersByTime(600))
+  act(() => vi.advanceTimersByTime(WORKSPACE_HOVER_CARD_DELAY_MS))
 }
 
 describe("WorkspaceHoverCard", () => {
+  it("stays shut while the pointer only passes over", () => {
+    vi.useFakeTimers()
+    render(
+      <WorkspaceHoverCard branchId="b1">
+        <a href="#ws">Checkout polish</a>
+      </WorkspaceHoverCard>
+    )
+    fireEvent.pointerEnter(screen.getByText("Checkout polish"), {
+      pointerType: "mouse",
+    })
+    act(() => vi.advanceTimersByTime(600))
+    expect(screen.queryByText("acme/storefront")).toBeNull()
+  })
+
   it("opens the Workspace's chat from Open chat, and closes", () => {
     const onSelectWorkspace = vi.fn()
     chats.value = { onSelectWorkspace }

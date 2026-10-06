@@ -30,6 +30,13 @@ const stop = (e: SyntheticEvent) => e.stopPropagation()
 /** Closes the enclosing Workspace hover card, e.g. when a click opens a popover over it. */
 const CloseHoverCardContext = createContext<() => void>(() => {})
 
+/**
+ * How long the pointer rests on a Workspace before its card opens. Long
+ * enough that sweeping across rows and labels on the way somewhere else
+ * opens nothing; a card is for a deliberate pause.
+ */
+export const WORKSPACE_HOVER_CARD_DELAY_MS = 800
+
 export function useCloseWorkspaceHoverCard(): () => void {
   return useContext(CloseHoverCardContext)
 }
@@ -86,7 +93,7 @@ export function WorkspaceHoverCard({
       <HoverCard
         open={open && !suppressed}
         onOpenChange={(next) => setOpen(next && !suppressed && !menuOpen())}
-        openDelay={500}
+        openDelay={WORKSPACE_HOVER_CARD_DELAY_MS}
       >
         <HoverCardTrigger ref={triggerRef} asChild onPointerDown={close}>
           {children}
