@@ -2454,6 +2454,7 @@ export function Canvas({
                   sends it to the agent (#417). */}
                 <div
                   className="pointer-events-none absolute inset-0 z-(--z-canvas-annotations)"
+                  data-camera-overlay=""
                   style={{
                     transformOrigin: "0 0",
                     transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,

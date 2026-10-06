@@ -153,6 +153,13 @@ body {
   initial-value: 1;
 }
 
+/* Screen-space overlays drawn from the settled camera (selection rings,
+   comment pins) hide from the first frame a zoom or pan moves the canvas;
+   see `hideCameraOverlays` in use-canvas-camera.ts. */
+[data-camera-moving] [data-camera-overlay] {
+  visibility: hidden;
+}
+
 /* GripSpinner — each dot of the Grip grid fades in/out on its own randomized
    cadence to signal a running agent. See components/grip-spinner.tsx. */
 @keyframes grip-dot-twinkle {

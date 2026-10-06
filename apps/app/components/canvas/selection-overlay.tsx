@@ -704,6 +704,7 @@ export function SelectionOverlay({
     <canvas
       ref={canvasRef}
       className="pointer-events-none absolute inset-0 z-(--z-canvas-overlay)"
+      data-camera-overlay=""
       style={hidden ? { visibility: "hidden" } : undefined}
     />
   )

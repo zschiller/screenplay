@@ -1,11 +1,13 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type RefObject,
 } from "react"
+import { flushSync } from "react-dom"
 import type { ReactZoomPanPinchContentRef } from "react-zoom-pan-pinch"
 
 import type { useAppSession } from "@/lib/auth-client"
@@ -324,6 +326,20 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     []
   )
 
+  // The screen-space overlays hide while the camera moves (`isZooming` /
+  // `isPanning`), but that state lands a React render after the first moved
+  // frame, so for one frame they'd sit where the layers were. The camera hides
+  // them itself, in the same task as the first transform, through
+  // `data-camera-moving` on the wrapper (globals.css); they show again in the
+  // commit that carries the settled viewport, never before it.
+  const hideCameraOverlays = useCallback(() => {
+    canvasWrapperRef.current?.setAttribute("data-camera-moving", "")
+  }, [canvasWrapperRef])
+  useLayoutEffect(() => {
+    if (isZooming || isPanning) return
+    canvasWrapperRef.current?.removeAttribute("data-camera-moving")
+  }, [isZooming, isPanning, canvasWrapperRef])
+
   const flushCameraSync = useCallback(
     (vp: ViewportData) => {
       setZoom(vp.zoom)
@@ -402,8 +418,9 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   const beginZoom = useCallback(() => {
     if (zoomingRef.current) return
     zoomingRef.current = true
+    hideCameraOverlays()
     setIsZooming(true)
-  }, [])
+  }, [hideCameraOverlays])
 
   // --- Pan defer (mirror of the zoom defer above) ---
   // A pan keeps `scale` constant, so the layers just glide imperatively under
@@ -439,8 +456,9 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   const beginPan = useCallback(() => {
     if (panningRef.current) return
     panningRef.current = true
+    hideCameraOverlays()
     setIsPanning(true)
-  }, [])
+  }, [hideCameraOverlays])
 
   useEffect(
     () => () => {
@@ -921,6 +939,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     beginZoom()
   }, [breakFollow, beginZoom])
 
+  const wasAnimatingRef = useRef(false)
   const onTransform = useCallback(
     (
       _ref: ReactZoomPanPinchContentRef,
@@ -949,10 +968,17 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       }
       // One-shot / animated programmatic moves (zoomToElement, follow, restore):
       // not flagged as an interactive pan, so keep the overlays visible and sync
-      // them to the moving layers, throttled to ~60Hz.
-      flushCameraSyncThrottled(vp)
+      // them to the moving layers. Each step of an rzpp animation (and its last,
+      // which clears `isAnimating`) runs in its own animation frame, so render
+      // the overlays in that frame: a deferred render would draw them a frame
+      // behind the layers, and they'd trail and jitter along the move.
+      const animating = _ref.instance.isAnimating
+      const animationStep = animating || wasAnimatingRef.current
+      wasAnimatingRef.current = animating
+      if (animationStep) flushSync(() => flushCameraSync(vp))
+      else flushCameraSyncThrottled(vp)
     },
-    [flushCameraSyncThrottled, endZoom, endPan, setLiveCamera]
+    [flushCameraSync, flushCameraSyncThrottled, endZoom, endPan, setLiveCamera]
   )
 
   const transformWrapperProps = useMemo<CameraTransformWrapperProps>(
