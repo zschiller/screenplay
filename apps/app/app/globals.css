@@ -157,6 +157,17 @@ body {
   --label-promote: ;
 }
 
+/* A Layer's resting edge (`LAYER_SURFACE_CLASS`) holds one on-screen radius
+   and hairline at every zoom: the Layer writes the live canvas zoom here and
+   the class divides by it. Not inherited, so the per-frame write mid-zoom
+   restyles only the surface element, never the Layer's content. Outside a
+   canvas (play mode) it stays 1. */
+@property --layer-zoom {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+
 /* GripSpinner — each dot of the Grip grid fades in/out on its own randomized
    cadence to signal a running agent. See components/grip-spinner.tsx. */
 @keyframes grip-dot-twinkle {

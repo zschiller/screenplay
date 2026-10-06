@@ -8,6 +8,7 @@ import {
   shouldSelectOnPointerDown,
 } from "@/lib/canvas/layer-shell"
 import { showsResizeHandles } from "@/lib/canvas/camera"
+import { useLiveZoom } from "./live-zoom"
 import { LayerTitleBar } from "./layer-title-bar"
 import { ResizeHandles } from "./resize-handles"
 import type { GroupLabelValue } from "./group-label"
@@ -16,8 +17,22 @@ import type { GroupLabelValue } from "./group-label"
  * The resting edge every Layer's surface wears: one radius and one hairline, so
  * an unselected frame and an unselected Document read as the same kind of
  * object on the canvas. Selection is drawn over it by the Selection Overlay.
+ * Both hold a steady UI size (6px, 1px on screen) at every zoom, like the
+ * selection ring: the element wearing the class calls `useLayerSurface`.
  */
-export const LAYER_SURFACE_CLASS = "rounded-md ring-1 ring-foreground/10"
+export const LAYER_SURFACE_CLASS =
+  "rounded-[calc(6px/var(--layer-zoom))] ring-[length:calc(1px/var(--layer-zoom))] ring-foreground/10"
+
+/**
+ * Keeps `LAYER_SURFACE_CLASS` on `ref` at UI size: writes the live canvas zoom
+ * into the surface's own `--layer-zoom` (registered non-inheriting in
+ * globals.css) on every transform frame, with no React render.
+ */
+export function useLayerSurface(ref: React.RefObject<HTMLElement | null>) {
+  useLiveZoom((zoom) => {
+    ref.current?.style.setProperty("--layer-zoom", String(zoom))
+  })
+}
 
 /** Move callback shared by `onMoveGroup` / `onMoveSelected`. */
 type Mover = (
