@@ -371,24 +371,24 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     label: subject("name", "code"),
   },
   read_dev_server_logs: {
-    verb: "Read dev server logs",
+    verb: "Read preview logs",
     icon: "logs",
     kind: "other",
     output: "log",
   },
   start_dev_server: {
-    verb: "Start dev server",
+    verb: "Start preview",
     icon: "play",
     kind: "other",
     output: "log",
   },
   restart_dev_server: {
-    verb: "Restart dev server",
+    verb: "Restart preview",
     icon: "restart",
     kind: "other",
     output: "log",
   },
-  stop_dev_server: { verb: "Stop dev server", icon: "stop", kind: "other" },
+  stop_dev_server: { verb: "Stop preview", icon: "stop", kind: "other" },
   // Other Workspaces' code (#1315).
   read_code_file: {
     verb: "Read code",

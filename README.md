@@ -34,7 +34,7 @@ reads your code first, so whatever it makes fits your app.
   stays current as things change.
 - **Sketch it.** Mockups made with your own components, styles and copy.
   Compare a few takes before anything gets built.
-- **Build it.** The change runs live on a branch of its own, right beside the
+- **Build it.** The change runs live in a preview of its own, right beside the
   other versions.
 - **Ship it.** Open a pull request for the version you keep.
 
@@ -53,7 +53,7 @@ knows.
     <td width="50%" valign="top">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/screenshots/plan-card.dark.webp">
-        <img alt="An approved plan card in a workspace chat, listing the steps the agent will take" src="apps/docs/public/screenshots/plan-card.light.webp">
+        <img alt="An approved plan card in a chat, listing the steps the agent will take" src="apps/docs/public/screenshots/plan-card.light.webp">
       </picture>
       <p><strong>Review the plan first.</strong> Turn on Plan and the agent investigates, then presents its approach for you to approve before any code changes.</p>
     </td>
@@ -62,29 +62,29 @@ knows.
     <td width="50%" valign="top">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/screenshots/play-agent.dark.webp">
-        <img alt="Play mode: a workspace’s app full screen with its chat docked on the right" src="apps/docs/public/screenshots/play-agent.light.webp">
+        <img alt="Play mode: a chat’s app full screen with its chat docked on the right" src="apps/docs/public/screenshots/play-agent.light.webp">
       </picture>
-      <p><strong>Try it full screen.</strong> Play mode opens any workspace as a clickable prototype, with its chat docked alongside.</p>
+      <p><strong>Try it full screen.</strong> Play mode opens any chat’s app as a clickable prototype, with its chat docked alongside.</p>
     </td>
     <td width="50%" valign="top">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/screenshots/play-knobs.dark.webp">
-        <img alt="The Knobs panel over a preview, with colour, slider, text, switch and select controls" src="apps/docs/public/screenshots/play-knobs.light.webp">
+        <img alt="The Knobs panel over a preview, with color, slider, text, switch and tabs controls" src="apps/docs/public/screenshots/play-knobs.light.webp">
       </picture>
-      <p><strong>Tweak without code.</strong> Knobs your app declares become live controls on the canvas and in play mode, so you can try colours, copy and layouts with no rebuild.</p>
+      <p><strong>Tweak without code.</strong> Knobs your app declares become live controls on the canvas and in play mode, so you can try colors, copy and layouts with no rebuild.</p>
     </td>
   </tr>
 </table>
 
 ## Two ways to run it
 
-|                | Desktop app                                                                      | Self-hosted web app                                                                                       |
-| -------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **For**        | One person on a Mac with Apple silicon                                           | A team, on infrastructure you deploy                                                                      |
-| **Workspaces** | Git worktrees on your machine                                                    | Cloud sandbox VMs                                                                                         |
-| **Agent**      | Claude Code, Codex or OpenCode, with the login and subscription you already have | The built-in agent, on Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint |
-| **Together**   | Single user                                                                      | Shared canvases, live cursors, comments and live frames                                                   |
-| **Start**      | [Quickstart](https://screenplay.space/docs/guides/quickstart)                    | [Self-hosting guide](https://screenplay.space/docs/self-hosting)                                          |
+|                  | Desktop app                                                                      | Hosted app (you deploy it)                                                                                |
+| ---------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **For**          | One person on a Mac with Apple silicon                                           | A team, on infrastructure you deploy                                                                      |
+| **Chats run in** | Git worktrees on your machine                                                    | A sandbox VM per chat                                                                                     |
+| **Agent**        | Claude Code, Codex or OpenCode, with the login and subscription you already have | The built-in agent, on Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint |
+| **Together**     | Single user                                                                      | Shared canvases, live cursors, comments and live frames                                                   |
+| **Start**        | [Quickstart](https://screenplay.space/docs/guides/quickstart)                    | [Self-hosting guide](https://screenplay.space/docs/self-hosting)                                          |
 
 Both are the same product, built from this repository.
 
@@ -92,7 +92,7 @@ Both are the same product, built from this repository.
 
 You need Node.js 20 or newer, pnpm 9 and git. The local build runs the full
 product with no external services (embedded Postgres, a local Yjs server, and
-workspaces as git worktrees), plus a coding CLI such as Claude Code for the
+each chat’s code as a git worktree), plus a coding CLI such as Claude Code for the
 agent.
 
 ```bash

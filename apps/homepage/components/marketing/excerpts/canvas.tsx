@@ -6,6 +6,8 @@ import {
   CaretRightIcon,
   ChatsIcon,
   CircleIcon,
+  ClipboardTextIcon,
+  CrosshairIcon,
   DotsThreeIcon,
   FileTextIcon,
   FrameCornersIcon,
@@ -469,6 +471,12 @@ function Coordinator() {
             Opus 5.5
             <CaretDownIcon className="size-3 text-muted-foreground" />
           </span>
+          {/* The Coordinator plans and targets elements too (#1755). */}
+          <span className="flex items-center gap-1 [&_svg]:size-3.5">
+            <ClipboardTextIcon />
+            Plan
+          </span>
+          <CrosshairIcon className="size-3.5 text-muted-foreground" />
           <span className="ml-auto flex gap-0.5">
             <Tool>
               <PaperclipIcon className="text-muted-foreground" />

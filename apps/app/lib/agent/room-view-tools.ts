@@ -41,15 +41,15 @@ export function buildViewTools(readDoc: RoomToolPorts["readDoc"]): ToolSet {
   })
 }
 
-/** A frame, document or Group by name, the way tool results name them. */
+/** A frame, document or group by name, the way tool results name them. */
 function describe(c: RoomCollections, id: string): string | null {
   const frame = c.iframeLayers.get(id)
-  if (frame) return `frame "${frame.label}"`
+  if (frame) return `frame “${frame.label}”`
   const document = c.markdownLayers.get(id)
-  if (document) return `document "${document.title || "Untitled"}"`
+  if (document) return `document “${document.title || "Untitled"}”`
   const group = c.iframeLayerGroups.get(id)
   if (group && getGroupMembers(group).length > 0) {
-    return `Group "${group.name ?? id}"`
+    return `group “${group.name ?? id}”`
   }
   return null
 }

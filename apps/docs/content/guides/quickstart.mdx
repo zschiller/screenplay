@@ -24,7 +24,7 @@ change running in it.
   the latest release. There’s no build for Intel Macs.
 - **A coding CLI** such as [Claude Code](https://code.claude.com) or Codex.
   Screenplay can install it for you during setup.
-- **A git repository** with a dev server: a local clone, or one on GitHub. A
+- **A git repository** with an app that runs locally: a local clone, or one on GitHub. A
   plain folder that isn’t a git checkout won’t work. If the repository has a
   `package.json` with a `dev` script, you’re set.
 
@@ -42,7 +42,7 @@ steps:
    sign-in. Once it’s signed in, click **Use _CLI_**.
 2. **Connect GitHub.** This one is optional. It lets you browse your
    repositories and open pull requests from Screenplay. **Sign in to GitHub**
-   uses the `gh` CLI (**Install GitHub CLI and connect** if you don’t have
+   uses the `gh` CLI (**Install and connect** if you don’t have
    it). Click **Skip** to add repositories by local folder or clone URL
    instead. You can connect later in [Settings](/guides/settings).
 
@@ -76,7 +76,7 @@ canvas. It goes straight to choosing one:
 
 <Screenshot
   name="add-project-menu"
-  alt="The Add repository menu with Open folder and Open GitHub repository"
+  alt="The New repository menu with Open folder and Open GitHub repository"
 />
 
 Screenplay detects your setup and run scripts and shows them for review in
@@ -96,9 +96,9 @@ which asks what should change. Describe it:
 > a small “Trusted by 4,000+ product teams” line under the buttons.
 
 Your first ask starts your first **chat**, straight away, with no plan
-to approve: a fresh branch checked out in its own worktree, with its preview
-running and a frame on the canvas showing it. The ask runs as soon as its app
-is up. The Coordinator shows it as a card, and the panel stays
+to approve: its own worktree, and a frame on the canvas for its preview. The
+agent starts as soon as the code is checked out, while the install and the
+preview finish in the background. The Coordinator shows it as a card, and the panel stays
 with the Coordinator so you can keep asking from one place while the frame
 updates.
 

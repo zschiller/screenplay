@@ -62,8 +62,8 @@ TERMINAL_AUTH_SECRET=<openssl rand -hex 32>
 | `LIVEBLOCKS_SECRET_KEY` | If Liveblocks | Server-side Liveblocks key for the default Yjs host. It never reaches the browser. See [Yjs host](/self-hosting/configuration/yjs-host). |
 | `LIVEBLOCKS_WEBHOOK_SECRET` | Optional | Signing secret for a Liveblocks `ydocUpdated` webhook pointed at `/api/liveblocks/webhook`. With it, canvas thumbnails refresh even when nobody has the canvas open (for example while the agent works). Without it, thumbnails refresh from open clients. |
 | `PUBLIC_BLOB_READ_WRITE_TOKEN` | If Vercel Blob | Token for the **public** Vercel Blob store that holds thumbnails. Connect a Blob store with public access to the project with the env var prefix `PUBLIC_BLOB` and it’s injected automatically; run `vercel env pull` to use it locally. See [Blob store](/self-hosting/configuration/blob-store). |
-| `PRIVATE_BLOB_READ_WRITE_TOKEN` | If Vercel Blob | Token for a second, **private** Vercel Blob store that holds canvas files, the files agents save for a canvas’s members. The thumbnails store is public and a store’s access can’t be changed, so files need their own. Create a Blob store with private access and connect it with the env var prefix `PRIVATE_BLOB`. Without it, agents can’t save or open files. See [Blob store](/self-hosting/configuration/blob-store#file-store). |
-| `ENCRYPTION_KEY` | Yes | 64 hex characters. Encrypts project environment variables and presets at rest. |
+| `PRIVATE_BLOB_READ_WRITE_TOKEN` | If Vercel Blob | Token for a second, **private** Vercel Blob store that holds canvas files, account files and saved skills. The thumbnails store is public and a store’s access can’t be changed, so files need their own. Create a Blob store with private access and connect it with the env var prefix `PRIVATE_BLOB`. Without it, agents can’t save or open files, and skills can’t be saved. See [Blob store](/self-hosting/configuration/blob-store#file-store). |
+| `ENCRYPTION_KEY` | Yes | 64 hex characters. Encrypts saved repositories, environment variable values, and account memory, files and skills lists at rest. |
 
 ## Agent
 
@@ -147,7 +147,7 @@ leaves them all unset.
 | `NEXT_PUBLIC_YJS_HOST` | Optional | `local`: in-process y-websocket server. Inlined at build time. |
 | `BLOB_STORE` | Optional | `local-fs`: thumbnails and canvas files on local disk. |
 | `AGENT_ENGINE` | Optional | `external`: the agent is an installed coding CLI over ACP. |
-| `SCREENPLAY_ACP_HARNESS` | Optional | With `AGENT_ENGINE=external`, the coding CLI a chat uses when it hasn’t picked one: `claude-code` or `codex`. Default: `claude-code`. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
+| `SCREENPLAY_ACP_HARNESS` | Optional | With `AGENT_ENGINE=external`, the coding CLI a chat uses when it hasn’t picked one: `claude-code`, `codex`, `opencode-gateway` or `opencode-compat`. Default: `claude-code`. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
 | `THUMBNAIL_CAPTURER` | Optional | `tauri-webview`: capture thumbnails in the desktop webview. |
 
 ## Desktop build

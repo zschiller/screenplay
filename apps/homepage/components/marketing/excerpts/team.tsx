@@ -15,9 +15,9 @@ import { edge, floating, Tool } from "./canvas"
 
 /** Presence colours from the app's palette, with the dark ink it picks. */
 export const people = [
-  { initials: "M", color: "#81C784" },
-  { initials: "S", color: "#64B5F6" },
-  { initials: "J", color: "#FFB74D" },
+  { initials: "M", color: "#10EB62" },
+  { initials: "S", color: "#49A9FF" },
+  { initials: "J", color: "#FF8506" },
 ] as const
 
 /** A facepile avatar: 24px, an initial on the person's presence colour. */

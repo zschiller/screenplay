@@ -81,19 +81,20 @@ export function ArchitectureDiagram() {
 
 /** concepts.mdx: what a canvas holds. */
 export function ConceptsDiagram() {
-  const canvas = box(0, 0, 672, 328)
+  const canvas = box(0, 0, 672, 396)
   const coordinator = box(16, 44, 640, SIZE.pair)
   const repo = box(16, 132, 328, 180)
   const workspace = box(32, 188, 288, SIZE.pair)
   const layersX = 360
   const frame = box(layersX, 188, 296, SIZE.pair)
   const doc = box(layersX, 256, 296, SIZE.pair)
+  const mockup = box(layersX, 324, 296, SIZE.pair)
   const handoffX = 296
   return (
     <Diagram
       width={672}
-      height={328}
-      label="A canvas has one Coordinator, which sends work to each chat’s agent. It also holds repositories, each with its chats, and layers: frames, which preview a chat’s dev server, and documents."
+      height={396}
+      label="A canvas has one Coordinator, which sends work to each chat’s agent. It also holds repositories, each with its chats, and layers: frames, which preview a chat’s app, documents and mockups."
     >
       <Node b={canvas} title="Canvas" tone="group" heading />
       <Node
@@ -124,15 +125,16 @@ export function ConceptsDiagram() {
       <Note x={workspace.x} y={276} text="A repository can have many." />
 
       <Label x={layersX} y={156} text="Layers on the canvas" />
-      <Node
-        b={frame}
-        title="Frame"
-        sub="a live preview of a chat’s dev server"
-      />
+      <Node b={frame} title="Frame" sub="a live preview of a chat’s app" />
       <Node
         b={doc}
         title="Document"
         sub="a rich-text page the agent can read and write"
+      />
+      <Node
+        b={mockup}
+        title="Mockup"
+        sub="a page a chat draws to show a design option"
       />
       <Edge
         points={[frame.left, [workspace.right[0] + 8, frame.left[1]]]}

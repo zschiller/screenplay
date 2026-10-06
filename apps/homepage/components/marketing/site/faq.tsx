@@ -6,7 +6,7 @@ import { SectionHeading } from "./section-heading"
 const faqs = [
   {
     q: "What is Screenplay?",
-    a: "A canvas where coding agents plan, mock up and build from your own repository. Each version of a change runs live on a branch of its own, side by side with the others, and you open a pull request for the one you keep.",
+    a: "A canvas where coding agents plan, mock up and build from your own repository. Each version of a change runs live in its own sandbox, side by side with the others, and you open a pull request for the one you keep.",
   },
   {
     q: "Which agents does it work with?",
@@ -18,7 +18,7 @@ const faqs = [
   },
   {
     q: "What do I need for the Mac app?",
-    a: "A Mac with Apple Silicon, Claude Code, Codex or OpenCode installed and signed in, and a project with a dev server. There’s no build for Intel Macs, Windows or Linux; on those, use a hosted deployment in the browser.",
+    a: "A Mac with Apple Silicon, Claude Code, Codex or OpenCode installed and signed in, and a project that runs a local preview. There’s no build for Intel Macs, Windows or Linux; on those, use a hosted deployment in the browser.",
   },
   {
     q: "Do I need GitHub?",
@@ -30,7 +30,7 @@ const faqs = [
   },
   {
     q: "Do I need to change my app?",
-    a: "No. Anything with a dev server works, as long as it listens on the port Screenplay gives it. For knobs or state shared between viewers, add the two small npm packages. They do nothing in production builds.",
+    a: "No. Anything that runs a local preview works, as long as it listens on the port Screenplay gives it. For knobs or state shared between viewers, add the two small npm packages. They do nothing in production builds.",
   },
   {
     q: "What does hosting it take?",

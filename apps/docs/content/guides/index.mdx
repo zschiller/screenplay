@@ -9,7 +9,7 @@ import { Cards } from "nextra/components"
 
 **Screenplay is a canvas for building software with coding agents.** Ask the
 [Coordinator](/guides/coordinator) for a change. It hands the work to
-a chat’s agent, and you watch the app change in a live frame. Every branch
+a chat’s agent, and you watch the app change in a live frame. Every chat
 gets its own environment, and its running app appears as real, clickable
 previews on an infinite canvas.
 
@@ -48,9 +48,9 @@ spatially:
     and the agent is the coding CLI you already use (Claude Code, Codex, …),
     signed in with your own account.
   </Cards.Card>
-  <Cards.Card title="Self-hosted app" href="/self-hosting" arrow>
-    A multi-user deployment. Each chat runs in a cloud sandbox VM, the agent
-    runs on your model provider keys, and teammates share canvases, cursors, and
+  <Cards.Card title="Hosted app" href="/self-hosting" arrow>
+    A multi-user deployment. Each chat runs in a sandbox VM, the agent runs on
+    your model provider keys, and teammates share canvases, cursors, and
     comments.
   </Cards.Card>
 </Cards>
@@ -60,13 +60,14 @@ few places where they differ.
 
 ## Privacy and data
 
-**On the desktop app, your work stays on your Mac.** Canvases, chats and
+**On the desktop app, there’s no account and no Screenplay server.** Canvases, chats and
 thumbnails are stored in the app’s data folder under
 `~/Library/Application Support`, and each chat’s code is a git worktree under
 `~/.screenplay/worktrees`. Chats run through the coding
 CLI you signed in to, so your code and prompts go only to that CLI’s provider,
-under your own account. A GitHub token you connect is kept in the macOS
-Keychain. Screenplay itself sends no analytics.
+under your own account. GitHub access uses the `gh` CLI’s own sign-in;
+Screenplay doesn’t keep a GitHub token of its own. Screenplay itself sends no
+analytics.
 
 **On the hosted app, the data lives in the services you deploy it with.** The
 database holds users, canvases, comments, chat history and encrypted settings;

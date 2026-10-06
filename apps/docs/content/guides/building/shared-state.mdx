@@ -51,8 +51,9 @@ export function BillingToggle() {
 }
 ```
 
-This is the demo app’s pricing page. Flip the toggle in one frame and every
-frame on `/pricing` flips with it.
+This is the demo app’s pricing page. Flip the toggle in a frame and that
+frame flips for everyone viewing the canvas. Other frames of `/pricing` keep
+their own value.
 
 ## Publish only
 
@@ -141,10 +142,10 @@ when you ask for a page that remembers what people clicked.
 - State is kept with the frame across reloads and carries into
   [play mode](/guides/play-mode). Keep keys stable, like `id`s: renaming a key
   drops the old entry.
-- **The room’s state wins when a frame loads.** A frame that loads or reloads
-  first asks the canvas for the room’s state and waits for the answer before
-  publishing, so its initial values don’t overwrite what other viewers picked.
-  Keys the room doesn’t have yet take the frame’s value. If the canvas doesn’t
+- **The canvas’s copy wins when a frame loads.** A frame that loads or reloads
+  first asks the canvas for the state saved with that frame and waits for the
+  answer before publishing, so its initial values don’t overwrite what other
+  viewers picked. Keys the canvas doesn’t have yet take the frame’s value. If the canvas doesn’t
   answer within half a second, the frame publishes anyway.
 - Like knobs, it’s **development-only** and does nothing outside a Screenplay
   frame, so it’s safe to ship. It works in Vite and other bundlers with no

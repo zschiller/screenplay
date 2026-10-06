@@ -1,7 +1,9 @@
 # Screenplay desktop shell
 
-The Tauri shell that turns the per-seam local backends into a single offline
-desktop app (issue #418, PRD #404). It wraps the Next app — run as a bundled
+The Tauri shell that turns the per-seam local backends into a single
+self-contained desktop app (issue #418, PRD #404): no account and no
+Screenplay servers, though the agent CLI still talks to its own model
+provider. It wraps the Next app — run as a bundled
 **Node sidecar** — in a native window, and owns the sidecar's lifecycle.
 
 ## How it works
@@ -10,6 +12,8 @@ desktop app (issue #418, PRD #404). It wraps the Next app — run as a bundled
 Tauri shell (Rust)                         Node sidecar (Next standalone)
 ─────────────────                          ──────────────────────────────
 pick free 127.0.0.1 port  ───PORT────────▶ next start (server.js)
+                                            (packaged builds; debug
+                                            builds run next dev)
 mint/persist secrets      ───env─────────▶ ENCRYPTION_KEY, *_SECRET
 inject desktop profile    ───env─────────▶ SANDBOX_BACKEND=local,
                                             SCREENPLAY_DB=pglite,
@@ -42,7 +46,7 @@ control server (thumbnails) ◀──POST /thumbnail── TauriWebviewCapturer
 
 ## Building the sidecar
 
-`next build --output=standalone` traces a self-contained tree but leaves four
+`next build --output=standalone` traces a self-contained tree but leaves five
 things out, which `scripts/build-sidecar.mjs` folds back in before packing:
 
 1. `.next/static` + `public` — not copied by standalone (the CDN serves them
@@ -52,6 +56,8 @@ things out, which `scripts/build-sidecar.mjs` folds back in before packing:
 3. `node-pty`'s native `prebuilds/<platform>/pty.node` — a dynamically-loaded
    `.node` the tracer doesn't follow; the terminal transport crashes without it.
 4. the `node` binary itself.
+5. the `portless` package — spawned as a CLI, never imported, so tracing
+   misses it; the local backend runs every preview under it.
 
 The tree is packed as **`sidecar.tar.gz`**, not shipped as a directory: Next's
 traced `node_modules` keeps ~275 pnpm peer-dependency symlinks, and Tauri's
@@ -62,7 +68,9 @@ shell extracts it once, version-stamped, into the app cache dir on first launch.
 
 ```bash
 pnpm --filter desktop build:sidecar   # next build → src-tauri/resources/sidecar.tar.gz
-pnpm --filter desktop dev             # tauri dev (rebuild sidecar first)
+pnpm --filter desktop dev             # tauri dev; runs apps/app’s next dev live
+                                      # (SCREENPLAY_BUNDLED_SIDECAR=1 after build:sidecar
+                                      # to test the packaged sidecar)
 pnpm --filter desktop build           # build:sidecar + tauri build → Screenplay.app
 ```
 
@@ -78,7 +86,7 @@ per-PR build check: a full sidecar + Tauri build needs a macOS runner (10x
 billed minutes), which isn't worth paying for until the app is release-ready.
 The build is exercised when a release is cut:
 
-- **`pnpm --filter desktop release <patch|minor|major|X.Y.Z>`**
+- **`pnpm --filter desktop release <patch|minor|major|none|X.Y.Z>`**
   (`scripts/release.mjs`), run on a Mac: bumps the version across
   `package.json` / `tauri.conf.json` / `Cargo.toml`, builds a **Developer
   ID-signed and notarized dmg**, verifies it with Gatekeeper, then commits the
