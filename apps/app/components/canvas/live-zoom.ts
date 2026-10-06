@@ -34,3 +34,13 @@ export function useLiveZoom(apply: (zoom: number) => void) {
     return live.subscribe(run)
   }, [live])
 }
+
+/**
+ * The canvas camera as it moves, frame by frame: rzpp's position (in px,
+ * relative to the canvas viewport) and scale. Like {@link LiveZoom}, but it
+ * also notifies on pans, for screen-space chrome that follows the content.
+ */
+export interface LiveCamera {
+  subscribe(listener: () => void): () => void
+  get(): { x: number; y: number; zoom: number }
+}

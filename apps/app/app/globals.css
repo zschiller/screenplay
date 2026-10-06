@@ -131,30 +131,15 @@ body {
   transform: none !important;
 }
 
-/* Hide frame labels while a zoom is in flight. They counter-scale with the
-   live `zoom`, which the camera defers during a zoom (perf), so they'd balloon
-   and snap on settle. `data-zooming` is toggled on the content wrapper by the
-   canvas; see use-canvas-camera.ts `isZooming`. */
-[data-zooming] .canvas-frame-label {
-  visibility: hidden;
-}
-
-/* Frame-label GPU promotion — fixes intermittent WebKit blur on zoom.
-   `translateZ(0)` lifts each label onto its own compositor layer so its
-   constant-size text stays crisp against the zoomed content (see
-   layer-title-bar.tsx). But WebKit only re-rasterizes that backing store when it
-   detects a scale change, and the label's counter-scale keeps its on-screen size
-   constant — so after a zoom WebKit can keep whatever texture it happened to
-   bake mid-gesture, leaving the label blurry (intermittently, per WebKit's
-   raster heuristics). On zoom-settle the canvas sets `data-zoom-settling` for a
-   couple of frames: dropping the promotion de-composites the label so it
-   re-paints inline at native resolution, then the default rule restores it and
-   WebKit captures a fresh, crisp backing store at the resting scale. */
-.canvas-frame-label {
-  --label-promote: translateZ(0);
-}
-[data-zoom-settling] .canvas-frame-label {
-  --label-promote: ;
+/* The screen-space layer Layer labels draw in, at UI scale above the zoomed
+   content (components/canvas/label-layer.ts). Only the labels take the
+   pointer; the rest passes through to the canvas beneath. */
+.canvas-label-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 /* A Layer's resting edge (`LAYER_SURFACE_CLASS`) holds one on-screen radius

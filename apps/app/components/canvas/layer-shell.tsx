@@ -335,6 +335,11 @@ export function LayerShell({
     [groupLabel]
   )
 
+  const dragging = dragTranslateX != null || dragTranslateY != null
+  // Dragged/popped layer floats above its siblings; otherwise paint order
+  // follows the group's sidebar position. Its label follows suit.
+  const paintOrder = dragPopped || dragging ? 9999 : zIndex
+
   return (
     <div
       ref={containerRef}
@@ -349,28 +354,22 @@ export function LayerShell({
         // content (iframe element / TipTap editor) is never unmounted.
         left: worldX,
         top: worldY,
-        transform:
-          dragTranslateX != null || dragTranslateY != null
-            ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
-            : undefined,
-        // Dragged/popped layer floats above its siblings; otherwise paint order
-        // follows the group's sidebar position.
-        zIndex:
-          dragPopped || dragTranslateX != null || dragTranslateY != null
-            ? 9999
-            : zIndex,
+        transform: dragging
+          ? `translate(${dragTranslateX ?? 0}px, ${dragTranslateY ?? 0}px)`
+          : undefined,
+        zIndex: paintOrder,
         // The lifted layer is non-interactive so drop hit-testing falls through
         // to whatever sits beneath the cursor.
-        pointerEvents:
-          dragPopped || dragTranslateX != null || dragTranslateY != null
-            ? "none"
-            : "auto",
+        pointerEvents: dragPopped || dragging ? "none" : "auto",
       }}
       {...containerProps}
     >
       <LayerTitleBar
         layerId={layerId}
         layerWidth={width}
+        worldX={worldX}
+        worldY={worldY}
+        zIndex={paintOrder}
         zoom={zoom}
         hidden={labelHidden}
         dragHandlers={titleDragDisabled ? undefined : dragHandlers}
