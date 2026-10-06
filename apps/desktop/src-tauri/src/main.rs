@@ -12,6 +12,7 @@
 mod dialog;
 mod drive_input;
 mod secrets;
+mod sharp_frames;
 mod sidecar;
 mod thumbnail;
 
@@ -145,6 +146,7 @@ fn boot(handle: tauri::AppHandle) {
     match result {
         Ok(port) => {
             eprintln!("[shell] sidecar healthy in {:?}", started.elapsed());
+            sharp_frames::apply(&window);
             let url = format!("http://127.0.0.1:{port}/");
             if let Ok(parsed) = url.parse() {
                 if let Err(e) = window.navigate(parsed) {
