@@ -1129,9 +1129,17 @@ function previewFor(state: GestureState): GesturePreview {
     }
   }
   if (state.kind === "reorder") {
+    // Pressing a name label may only be a click that selects: until the
+    // pointer moves, nothing floats (and the canvas doesn't switch to the
+    // grabbing cursor, which restyles everything on it).
+    const pressed =
+      state.ctx.selectOnNoMove &&
+      !state.popped &&
+      state.cursor.x === state.ctx.startCanvas.x &&
+      state.cursor.y === state.ctx.startCanvas.y
     return {
       gapOverride: null,
-      reorder: reorderPreviewOf(state),
+      reorder: pressed ? null : reorderPreviewOf(state),
       snapGuides: [],
       mergeRects: null,
       marqueeRect: null,

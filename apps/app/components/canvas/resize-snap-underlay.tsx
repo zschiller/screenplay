@@ -58,53 +58,72 @@ export function ResizeSnapUnderlay({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = beginUnderlayDraw(
-      canvas,
-      !iframeLayerRect || candidates.length === 0
-    )
-    if (!ctx || !iframeLayerRect) return
-
-    // Non-snapped candidates draw as silent gray ghosts. The snapped target is
-    // NOT drawn here — the live SelectionOverlay rect already sits exactly on it
-    // (the iframeLayer is patched to the snapped size) and turns red itself, so
-    // a ghost here would just double up on that rect.
-    const ghostColor = resolveCanvasColor(canvas, "--border")
 
     const toScreen = (x: number, y: number) => ({
       x: x * zoom + viewportPos.x,
       y: y * zoom + viewportPos.y,
     })
 
-    // Anchor in world space — the corner of the iframeLayer that's *not* moving.
-    const ax =
-      anchor === "tl" || anchor === "bl"
-        ? iframeLayerRect.x
-        : iframeLayerRect.x + iframeLayerRect.width
-    const ay =
-      anchor === "tl" || anchor === "tr"
-        ? iframeLayerRect.y
-        : iframeLayerRect.y + iframeLayerRect.height
+    // Non-snapped candidates draw as silent gray ghosts. The snapped target is
+    // NOT drawn here — the live SelectionOverlay rect already sits exactly on it
+    // (the iframeLayer is patched to the snapped size) and turns red itself, so
+    // a ghost here would just double up on that rect.
+    // Brightest (closest) candidate paints last so it sits on top. Each
+    // ghost's screen rect, so the canvas covers only the ghosts: it redraws
+    // on every resize step.
+    const ghosts: {
+      alpha: number
+      l: number
+      t: number
+      r: number
+      b: number
+    }[] = []
+    if (iframeLayerRect) {
+      // Anchor in world space — the corner of the iframeLayer that's *not* moving.
+      const ax =
+        anchor === "tl" || anchor === "bl"
+          ? iframeLayerRect.x
+          : iframeLayerRect.x + iframeLayerRect.width
+      const ay =
+        anchor === "tl" || anchor === "tr"
+          ? iframeLayerRect.y
+          : iframeLayerRect.y + iframeLayerRect.height
+      const sorted = [...candidates].sort((a, b) => b.distancePx - a.distancePx)
+      for (const c of sorted) {
+        // Skip the snapped target — the live red selection rect already marks it.
+        if (snappedPresetId === c.preset.id) continue
+        const { x, y } = rectFromAnchor(
+          anchor,
+          ax,
+          ay,
+          c.ghostWidth,
+          c.ghostHeight
+        )
+        const tl = toScreen(x, y)
+        const br = toScreen(x + c.ghostWidth, y + c.ghostHeight)
+        ghosts.push({
+          alpha: c.alpha,
+          l: Math.round(tl.x),
+          t: Math.round(tl.y),
+          r: Math.round(br.x),
+          b: Math.round(br.y),
+        })
+      }
+    }
+    // The outside strokes reach a pixel past each rect.
+    const left = Math.min(...ghosts.map((g) => g.l)) - 1
+    const top = Math.min(...ghosts.map((g) => g.t)) - 1
+    const ctx = beginUnderlayDraw(canvas, ghosts.length === 0, {
+      x: left,
+      y: top,
+      width: Math.max(...ghosts.map((g) => g.r)) + 1 - left,
+      height: Math.max(...ghosts.map((g) => g.b)) + 1 - top,
+    })
+    if (!ctx) return
 
-    // Brightest (closest) candidate paints last so it sits on top.
-    const sorted = [...candidates].sort((a, b) => b.distancePx - a.distancePx)
-
-    for (const c of sorted) {
-      const { x, y } = rectFromAnchor(
-        anchor,
-        ax,
-        ay,
-        c.ghostWidth,
-        c.ghostHeight
-      )
-      const tl = toScreen(x, y)
-      const br = toScreen(x + c.ghostWidth, y + c.ghostHeight)
-      const l = Math.round(tl.x)
-      const t = Math.round(tl.y)
-      const r = Math.round(br.x)
-      const b = Math.round(br.y)
-      // Skip the snapped target — the live red selection rect already marks it.
-      if (snappedPresetId === c.preset.id) continue
-      ctx.globalAlpha = c.alpha
+    const ghostColor = resolveCanvasColor(canvas, "--border")
+    for (const { alpha, l, t, r, b } of ghosts) {
+      ctx.globalAlpha = alpha
       ctx.strokeStyle = ghostColor
       ctx.lineWidth = 1
       // Match SelectionOverlay's outside-stroke convention so a snapped ghost

@@ -297,7 +297,12 @@ function useAwarenessSnapshot<T>(
    * per-frame viewport broadcast during a pan — don't churn the peer snapshot
    * (and everything memoized on it) ~60x/s. Must be a stable reference.
    */
-  isRelevant?: (changed: number[], selfId: number) => boolean
+  isRelevant?: (changed: number[], selfId: number) => boolean,
+  /**
+   * Optional equality on rebuilt values: an equal result keeps the previous
+   * snapshot, so subscribers re-render only when what they read changed.
+   */
+  isEqual?: (a: T, b: T) => boolean
 ): T {
   const awareness = useAwareness()
   const cacheRef = useRef<T | typeof EMPTY>(EMPTY)
@@ -326,16 +331,21 @@ function useAwarenessSnapshot<T>(
     [awareness, isRelevant]
   )
 
+  const lastSelectRef = useRef(select)
   const getSnapshot = useCallback(() => {
     if (
       cacheRef.current === EMPTY ||
-      lastVersionSeenRef.current !== versionRef.current
+      lastVersionSeenRef.current !== versionRef.current ||
+      lastSelectRef.current !== select
     ) {
-      cacheRef.current = select(awareness)
+      lastSelectRef.current = select
+      const next = select(awareness)
+      if (cacheRef.current === EMPTY || !isEqual?.(cacheRef.current as T, next))
+        cacheRef.current = next
       lastVersionSeenRef.current = versionRef.current
     }
     return cacheRef.current as T
-  }, [awareness, select])
+  }, [awareness, select, isEqual])
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
@@ -374,8 +384,114 @@ export function useOtherPresences(): Array<{
   return useAwarenessSnapshot(SELECT_OTHERS, OTHERS_RELEVANT)
 }
 
+/**
+ * A peer's presence without the fields that change on every move (pointer,
+ * viewport, cursor-chat message): identity, colour and selection.
+ */
+export type PeerPresence = Omit<
+  CanvasPresence,
+  "pointer" | "viewport" | "message"
+>
+
+const sameIds = (a: string[] | undefined, b: string[] | undefined) => {
+  if (a === b) return true
+  if (!a || !b || a.length !== b.length) return false
+  return a.every((id, i) => id === b[i])
+}
+
+const samePeer = (a: PeerPresence, b: PeerPresence) =>
+  a.identity.id === b.identity.id &&
+  a.identity.name === b.identity.name &&
+  a.identity.avatar === b.identity.avatar &&
+  a.color === b.color &&
+  sameIds(a.selectedIframeLayerIds, b.selectedIframeLayerIds) &&
+  sameIds(a.groupSelectedIframeLayerIds, b.groupSelectedIframeLayerIds)
+
+type Peers = Array<{ clientId: number; presence: PeerPresence }>
+
+const SAME_PEERS = (a: Peers, b: Peers) =>
+  a.length === b.length &&
+  a.every(
+    (p, i) =>
+      p.clientId === b[i]!.clientId && samePeer(p.presence, b[i]!.presence)
+  )
+
+/**
+ * Other peers' identity, colour and selection. Unlike `useOtherPresences`, a
+ * peer's cursor moving or canvas panning doesn't change it, so what reads it
+ * doesn't re-render on every remote move. The `presence` objects keep their
+ * pointer and viewport from when the snapshot was taken: don't read them.
+ */
+export function useOtherPeers(): Peers {
+  return useAwarenessSnapshot(SELECT_OTHERS, OTHERS_RELEVANT, SAME_PEERS)
+}
+
+/**
+ * The viewport of the peer with this client id, `undefined` once they're
+ * gone, or `null` when not following anyone.
+ */
+export function usePeerViewport(
+  clientId: number | null
+): CanvasPresence["viewport"] | null | undefined {
+  const select = useCallback(
+    (a: AwarenessLike) => {
+      if (clientId === null) return null
+      const state = a.getStates().get(clientId) as
+        Partial<CanvasPresence> | undefined
+      return state?.identity ? state.viewport : undefined
+    },
+    [clientId]
+  )
+  return useAwarenessSnapshot(select, OTHERS_RELEVANT, SAME_VIEWPORT)
+}
+
+const SAME_VIEWPORT = (
+  a: CanvasPresence["viewport"] | null | undefined,
+  b: CanvasPresence["viewport"] | null | undefined
+) => a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.zoom === b.zoom)
+
 export function useSelfPresence(): CanvasPresence | null {
   return useAwarenessSnapshot(SELECT_SELF)
+}
+
+/** The local user's name, avatar and colour, plus their cursor-chat message. */
+export type SelfIdentity = {
+  name: string
+  avatar: string | undefined
+  color: string
+  message: string | null
+}
+
+const SELECT_SELF_IDENTITY = (a: AwarenessLike): SelfIdentity | null => {
+  const self = SELECT_SELF(a)
+  if (!self) return null
+  return {
+    name: self.identity.name,
+    avatar: self.identity.avatar,
+    color: self.color,
+    message: self.message ?? null,
+  }
+}
+
+const SAME_SELF_IDENTITY = (a: SelfIdentity | null, b: SelfIdentity | null) =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.name === b.name &&
+    a.avatar === b.avatar &&
+    a.color === b.color &&
+    a.message === b.message)
+
+/**
+ * The local user's identity, without the pointer and viewport that change on
+ * every move: our own cursor moves and pans don't re-render what reads this.
+ */
+export function useSelfIdentity(): SelfIdentity | null {
+  return useAwarenessSnapshot(
+    SELECT_SELF_IDENTITY,
+    undefined,
+    SAME_SELF_IDENTITY
+  )
 }
 
 /**

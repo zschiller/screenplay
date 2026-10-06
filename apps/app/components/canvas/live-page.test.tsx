@@ -85,6 +85,7 @@ interface HarnessProps {
   dimmed?: boolean
   spaceHeld?: boolean
   zoom?: number
+  width?: number
   onHover?: (id: string, rect: unknown) => void
   onSelect?: (id: string, shiftKey: boolean) => void
   onFocus?: (id: string | null) => void
@@ -101,6 +102,7 @@ function Harness({
   dimmed,
   spaceHeld = false,
   zoom = 1,
+  width = 400,
   onHover,
   onSelect = () => {},
   onFocus,
@@ -115,7 +117,7 @@ function Harness({
     interactive: focused,
     driver,
     zoom,
-    width: 400,
+    width,
     height: 300,
     iframeRef,
     bodyRef,
@@ -381,5 +383,28 @@ describe("livePageChrome", () => {
     expect(
       livePageChrome({ driver: { kind: "you" }, focused: true }).resizable
     ).toBe(false)
+  })
+})
+
+describe("LivePageContent while resizing", () => {
+  const widthOf = () =>
+    (document.querySelector("iframe") as HTMLIFrameElement).style.width
+
+  it("resizes the page at once, then holds it until a run of sizes pauses", () => {
+    vi.useFakeTimers()
+    try {
+      const source = SOURCES.frame
+      const { rerender } = render(<Harness source={source} />)
+      expect(widthOf()).toBe("calc(100% + 0px)")
+      rerender(<Harness source={source} width={410} />)
+      expect(widthOf()).toBe("calc(100% + 0px)")
+      rerender(<Harness source={source} width={420} />)
+      rerender(<Harness source={source} width={430} />)
+      expect(widthOf()).toBe("calc(100% - 20px)")
+      act(() => vi.advanceTimersByTime(150))
+      expect(widthOf()).toBe("calc(100% + 0px)")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

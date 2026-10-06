@@ -36,6 +36,40 @@ const resolved = new Map<string, string>()
  * property's raw value — a theme switch changes the raw value and misses.
  */
 export function resolveCanvasColor(el: HTMLElement, varName: string): string {
+  // Overlays redraw on every pointer move, and reading a computed style then
+  // forces a style pass over whatever the move just changed. The value only
+  // changes with the theme, so each element's answer is kept until the root's
+  // classes or style (where the theme lives) or the colour scheme change.
+  watchTheme()
+  let byVar = perElement.get(el)
+  if (!byVar) perElement.set(el, (byVar = new Map()))
+  const known = byVar.get(varName)
+  if (known) return known
+  const color = resolveUncached(el, varName)
+  // Unset (not yet styled) isn't kept: the next draw asks again.
+  if (color !== "transparent") byVar.set(varName, color)
+  return color
+}
+
+let perElement = new WeakMap<HTMLElement, Map<string, string>>()
+let watching = false
+
+function watchTheme() {
+  if (watching || typeof MutationObserver === "undefined") return
+  watching = true
+  const forget = () => {
+    perElement = new WeakMap()
+  }
+  new MutationObserver(forget).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class", "style", "data-theme"],
+  })
+  window
+    .matchMedia?.("(prefers-color-scheme: dark)")
+    .addEventListener?.("change", forget)
+}
+
+function resolveUncached(el: HTMLElement, varName: string): string {
   const raw = getComputedStyle(el).getPropertyValue(varName).trim()
   if (!raw) return "transparent"
   const hit = resolved.get(raw)

@@ -73,6 +73,14 @@ describe("StableProps", () => {
     expect(second.element).not.toBe(first.element)
   })
 
+  it("passes refs through, so writes and reads reach the real one", () => {
+    const stable = new StableProps()
+    const ref: { current: number | null } = { current: null }
+    expect(stable.value("a", { ref }).ref).toBe(ref)
+    ref.current = 1
+    expect(stable.value("a", { ref }).ref).toBe(ref)
+  })
+
   it("drops a key that a render skipped", () => {
     const stable = new StableProps()
     const first = stable.value("a", { x: { y: 1 } })

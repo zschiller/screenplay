@@ -1,7 +1,10 @@
 "use client"
 
 import {
+  createContext,
+  memo,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -9,6 +12,8 @@ import {
   useState,
   useSyncExternalStore,
   type ComponentProps,
+  type ReactNode,
+  type RefObject,
 } from "react"
 
 import { nanoid } from "nanoid"
@@ -26,10 +31,10 @@ import {
   useChatSessions,
   useMarkdownLayers,
   useMockupLayers,
-  useOtherPresences,
+  useOtherPeers,
   useRoomCollections,
   useSavedViewport,
-  useSelfPresence,
+  useSelfIdentity,
   useSetPresence,
   useMemories,
   useCanvasFiles,
@@ -325,6 +330,52 @@ function LogProbe({
   return null
 }
 
+/**
+ * The pan/zoom wrapper, kept out of the Canvas's renders. react-zoom-pan-pinch
+ * re-reads the wrapper's and content's size (a forced layout) whenever
+ * TransformWrapper renders with new props, and its children are new props, so
+ * every Canvas render (a selection, each step of a drag) forced a layout. The
+ * content comes in through context instead, and only the slot re-renders.
+ */
+const CanvasContentContext = createContext<ReactNode>(null)
+
+function CanvasContentSlot() {
+  return useContext(CanvasContentContext)
+}
+
+const TRANSFORM_WRAPPER_STYLE = { width: "100%", height: "100%" }
+const TRANSFORM_CONTENT_STYLE = { width: CANVAS_SIZE, height: CANVAS_SIZE }
+
+const CanvasTransform = memo(function CanvasTransform({
+  transformRef,
+  wrapperProps,
+}: {
+  transformRef: RefObject<ReactZoomPanPinchContentRef | null>
+  wrapperProps: ComponentProps<typeof TransformWrapper>
+}) {
+  return (
+    <TransformWrapper ref={transformRef} {...wrapperProps}>
+      <TransformComponent
+        wrapperStyle={TRANSFORM_WRAPPER_STYLE}
+        contentStyle={TRANSFORM_CONTENT_STYLE}
+      >
+        <CanvasContentSlot />
+      </TransformComponent>
+    </TransformWrapper>
+  )
+})
+
+/**
+ * The chrome around the canvas, memoized: a drag, marquee or draw re-renders
+ * the Canvas on every pointer move, and these take props kept stable by
+ * `chromeStable`, so they skip those renders.
+ */
+const ChatPanelHostMemo = memo(ChatPanelHost)
+const CanvasTopBarMemo = memo(CanvasTopBar)
+const ShortcutSheetMemo = memo(ShortcutSheet)
+const CanvasZoomMenuMemo = memo(CanvasZoomMenu)
+const CanvasToolbarMemo = memo(CanvasToolbar)
+
 export function Canvas({
   roomId,
   roomName,
@@ -402,8 +453,8 @@ export function Canvas({
   // pointer/route callbacks below) and driven by the Canvas Camera controller.
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
   const setPresence = useSetPresence()
-  const self = useSelfPresence()
-  const others = useOtherPresences()
+  const self = useSelfIdentity()
+  const others = useOtherPeers()
   const { data: session } = useAppSession()
   const userId = session?.user.id
   const history = useYjsHistory()
@@ -545,13 +596,14 @@ export function Canvas({
 
   // Awareness mirrors the Interaction controller's cursor-chat verbs read: the
   // latest self pointer (where '/' anchors the bubble) and message (null =
-  // closed). Mirrored from `self` after commit (the effect below) so the verbs
-  // and the Escape resolver read them without re-binding. Declared here, ahead
+  // closed). The pointer is written by the pointer handlers below and the
+  // message mirrored from `self` after commit, so the verbs and the Escape
+  // resolver read them without re-binding (and the Canvas doesn't re-render on
+  // our own cursor moves). Declared here, ahead
   // of the controller that consumes them, so no ordering cycle is introduced.
   const selfPointerRef = useRef<{ x: number; y: number } | null>(null)
   const selfMessageRef = useRef<string | null>(null)
   useEffect(() => {
-    selfPointerRef.current = self?.pointer ?? null
     selfMessageRef.current = self?.message ?? null
   })
 
@@ -689,7 +741,6 @@ export function Canvas({
     session,
     saveViewport,
     savedViewport,
-    others,
     overlaySelectedIds,
     groupSelectedIframeLayerIds,
     focusedIframeLayerId,
@@ -1828,7 +1879,8 @@ export function Canvas({
       const relY = e.clientY - rect.top
       const canvasX = (relX - positionX) / scale
       const canvasY = (relY - positionY) / scale
-      setPresence({ pointer: { x: canvasX, y: canvasY } })
+      selfPointerRef.current = { x: canvasX, y: canvasY }
+      setPresence({ pointer: selfPointerRef.current })
 
       // Hit-test for hover highlight. Suppressed while a reorder or layer
       // drag is active so the dragged iframeLayer sweeping over its siblings
@@ -1861,6 +1913,7 @@ export function Canvas({
   )
 
   const handlePointerLeave = useCallback(() => {
+    selfPointerRef.current = null
     setPresence({ pointer: null })
     setHoveredIframeLayerId(null)
     resetHandleHover()
@@ -1895,7 +1948,7 @@ export function Canvas({
   // members (drives the group label). First writer wins if two users overlap.
   //
   // Memoized on `others` so a pan — which rebroadcasts our own viewport ~60x/s
-  // but leaves the peer set untouched (see `useOtherPresences`) — doesn't
+  // but leaves the peer set untouched (see `useOtherPeers`) — doesn't
   // rebuild these and re-render the memoized member layer every frame.
   const {
     othersSelections,
@@ -2031,6 +2084,13 @@ export function Canvas({
   // the memoized sidebar skips the canvas's re-render on every pointer move of
   // a drag, marquee or draw.
   const [sidebarStable] = useState(() => new StableProps())
+  const [chromeStable] = useState(() => new StableProps())
+  // The layers' Workspace verbs, which are rebuilt whenever the Workspaces or
+  // layers change (on every step of a drag).
+  const memberCallbacks = chromeStable.value("member", {
+    onRestartWorkspace: branchActions.startWorkspace,
+    onAskForKnob: handleAskForKnob,
+  })
   const sidebarFooterActions = sidebarStable.value("footer", {
     onShowCoordinator: () => {
       chatTarget.showRoomChat()
@@ -2296,20 +2356,8 @@ export function Canvas({
                   rects={placeholderRects}
                 />
 
-                <TransformWrapper
-                  ref={transformRef}
-                  {...camera.transformWrapperProps}
-                >
-                  <TransformComponent
-                    wrapperStyle={{
-                      width: "100%",
-                      height: "100%",
-                    }}
-                    contentStyle={{
-                      width: CANVAS_SIZE,
-                      height: CANVAS_SIZE,
-                    }}
-                  >
+                <CanvasContentContext.Provider
+                  value={
                     <LiveZoomContext.Provider value={camera.liveZoom}>
                       <div
                         className="relative"
@@ -2335,7 +2383,7 @@ export function Canvas({
                             selection={selection}
                             onIframeWheel={camera.handleIframeWheel}
                             reference={reference}
-                            gesturePreview={gesturePreview}
+                            reorderPreview={gesturePreview.reorder}
                             gestureLayerHandlers={gestureLayerHandlers}
                             effectiveIframeLayerLayouts={
                               effectiveIframeLayerLayouts
@@ -2358,7 +2406,9 @@ export function Canvas({
                             }
                             agentDomains={agentDomains}
                             agents={agents}
-                            onRestartWorkspace={branchActions.startWorkspace}
+                            onRestartWorkspace={
+                              memberCallbacks.onRestartWorkspace
+                            }
                             onOpenLogs={openBranchLogs}
                             onStartChat={drawAsk.startFrameChat}
                             askingIframeLayerId={askFrameId}
@@ -2368,7 +2418,7 @@ export function Canvas({
                             commentMode={commentMode}
                             pickActive={targeting.pickActive}
                             dimmedIframeLayerIds={targeting.dimmedIds}
-                            selfName={self?.identity.name || "Anonymous"}
+                            selfName={self?.name || "Anonymous"}
                             selfColor={self?.color || "#888888"}
                             editingDocumentLayerId={editingDocumentLayerId}
                             setEditingDocumentLayerId={
@@ -2386,7 +2436,7 @@ export function Canvas({
                             removeMockup={removeMockup}
                             removeDocument={removeDocument}
                             handlePlayIframeLayer={handlePlayIframeLayer}
-                            onAskForKnob={handleAskForKnob}
+                            onAskForKnob={memberCallbacks.onAskForKnob}
                             handleCaptureReadyChange={handleCaptureReadyChange}
                             handleCaptureDirty={handleCaptureDirty}
                             layerMutations={layerMutations}
@@ -2395,8 +2445,13 @@ export function Canvas({
                         </MockupChatLinkProvider>
                       </div>
                     </LiveZoomContext.Provider>
-                  </TransformComponent>
-                </TransformWrapper>
+                  }
+                >
+                  <CanvasTransform
+                    transformRef={transformRef}
+                    wrapperProps={camera.transformWrapperProps}
+                  />
+                </CanvasContentContext.Provider>
 
                 {/* Comment pins live in their own screen-space layer above the
                   selection overlay so pins/popovers aren't painted over by it.
@@ -2572,24 +2627,26 @@ export function Canvas({
                   data-tauri-drag-region
                   className="absolute top-0 right-0 left-0 z-(--z-canvas-chrome) h-12"
                 />
-                <CanvasTopBar
-                  roomId={roomId}
-                  isOwner={isOwner}
-                  sharedWithCount={sharedWithCount}
-                  parentFolder={parentFolder}
-                  currentRoomName={currentRoomName}
-                  onRoomRename={handleRoomRename}
-                  sidebarCollapsed={sidebarCollapsed}
-                  trafficLightsPresent={trafficLightsPresent}
-                  sidebarPanelRef={sidebarPanelRef}
-                  roomNameEditableRef={roomNameEditableRef}
-                  pendingRoomRenameRef={pendingRoomRenameRef}
-                  onRoomMenuCloseAutoFocus={onRoomMenuCloseAutoFocus}
-                  deleteDialogOpen={deleteDialogOpen}
-                  onDeleteDialogOpenChange={setDeleteDialogOpen}
-                  onOpenSettings={() => setCanvasSettingsOpen(true)}
-                  stopRoomDevServers={stopRoomDevServers}
-                  flushLayout={flushLayout}
+                <CanvasTopBarMemo
+                  {...chromeStable.value("topBar", {
+                    roomId,
+                    isOwner,
+                    sharedWithCount,
+                    parentFolder,
+                    currentRoomName,
+                    onRoomRename: handleRoomRename,
+                    sidebarCollapsed,
+                    trafficLightsPresent,
+                    sidebarPanelRef,
+                    roomNameEditableRef,
+                    pendingRoomRenameRef,
+                    onRoomMenuCloseAutoFocus,
+                    deleteDialogOpen,
+                    onDeleteDialogOpenChange: setDeleteDialogOpen,
+                    onOpenSettings: () => setCanvasSettingsOpen(true),
+                    stopRoomDevServers,
+                    flushLayout,
+                  })}
                 />
                 <AddRepositoryDialog
                   flow={addRepository}
@@ -2623,9 +2680,11 @@ export function Canvas({
                   files={canvasFiles}
                   skills={canvasSkills}
                 />
-                <CanvasToolbar
-                  toolMode={toolMode}
-                  onClearMode={reference.clearMode}
+                <CanvasToolbarMemo
+                  {...chromeStable.value("toolbar", {
+                    toolMode,
+                    onClearMode: reference.clearMode,
+                  })}
                 />
                 {askFrameId ? (
                   <FrameAskCard
@@ -2651,9 +2710,11 @@ export function Canvas({
                     onClose={drawAsk.close}
                   />
                 ) : null}
-                <ShortcutSheet
-                  open={shortcutSheetOpen}
-                  onOpenChange={setShortcutSheetOpen}
+                <ShortcutSheetMemo
+                  {...chromeStable.value("shortcuts", {
+                    open: shortcutSheetOpen,
+                    onOpenChange: setShortcutSheetOpen,
+                  })}
                 />
                 {/* The top-right pill, mirroring the breadcrumb pill (32px, 24px
                 controls): the zoom menu (always), then the people controls
@@ -2665,13 +2726,15 @@ export function Canvas({
                     className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <CanvasZoomMenu
-                      liveZoomPercent={camera.liveZoomPercent}
-                      onZoomIn={zoomControls.zoomIn}
-                      onZoomOut={zoomControls.zoomOut}
-                      onZoomTo={cameraZoomTo}
-                      onZoomToFit={zoomControls.zoomToFit}
-                      onOpenShortcuts={openShortcutSheet}
+                    <CanvasZoomMenuMemo
+                      {...chromeStable.value("zoomMenu", {
+                        liveZoomPercent: camera.liveZoomPercent,
+                        onZoomIn: zoomControls.zoomIn,
+                        onZoomOut: zoomControls.zoomOut,
+                        onZoomTo: cameraZoomTo,
+                        onZoomToFit: zoomControls.zoomToFit,
+                        onOpenShortcuts: openShortcutSheet,
+                      })}
                     />
                     {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
@@ -2758,19 +2821,21 @@ export function Canvas({
               inert={chatCollapsed}
               onResize={(size) => setChatCollapsed(size.inPixels === 0)}
             >
-              <ChatPanelHost
-                chatTarget={chatTarget}
-                tabPool={tabPool}
-                chatSessions={chatSessions}
-                localTerminals={terminalTabs.tabs}
-                roomId={roomId}
-                diffStats={diffStats}
-                branchPrs={branchPrs}
-                chatPanelRef={chatPanelRef}
-                onUpdateChatSession={updateChatSession}
-                onSetBranchPr={setBranchPr}
-                logsRequest={logsRequest}
-                devServerControls={devServerControls}
+              <ChatPanelHostMemo
+                {...chromeStable.value("chat", {
+                  chatTarget,
+                  tabPool,
+                  chatSessions,
+                  localTerminals: terminalTabs.tabs,
+                  roomId,
+                  diffStats,
+                  branchPrs,
+                  chatPanelRef,
+                  onUpdateChatSession: updateChatSession,
+                  onSetBranchPr: setBranchPr,
+                  logsRequest,
+                  devServerControls,
+                })}
               />
             </ResizablePanel>
           </ResizablePanelGroup>

@@ -14,14 +14,14 @@ import { useState } from "react"
  *  - **Plain objects and arrays** are compared by value (their functions
  *    stubbed the same way) and the previous one is returned when equal.
  *
- * Anything else (class instances, Maps, Sets, React elements) keeps its own
- * identity. Keys name an item and a prop path (`frame-1.placement.onMove`), so
+ * Anything else (class instances, Maps, Sets, React elements, refs) keeps
+ * its own identity. Keys name an item and a prop path (`frame-1.placement.onMove`), so
  * two items never share a stub. A list calls {@link StableProps.sweep} once per
  * render after its last {@link StableProps.value} to drop the entries of items
  * that are gone.
  */
 export class StableProps {
-  private roots = new Map<string, Root>()
+  private roots = new Map<string, Node>()
   private seen = new Set<string>()
 
   /** `value` stabilized under `key` (see the class comment). */
@@ -29,10 +29,10 @@ export class StableProps {
     this.seen.add(key)
     let root = this.roots.get(key)
     if (!root) {
-      root = { latest: new Map(), stubs: new Map(), values: new Map() }
+      root = newNode()
       this.roots.set(key, root)
     }
-    return stable(root, "", value) as T
+    return stable(root, value) as T
   }
 
   /** Forget every key not used since the previous sweep. */
@@ -45,44 +45,99 @@ export class StableProps {
 
 type Fn = (...args: never[]) => unknown
 
-/** One key's stubs and values, by prop path. */
-interface Root {
-  latest: Map<string, Fn>
-  stubs: Map<string, Fn>
-  /** The last value in and the stable value out. */
-  values: Map<string, { input: unknown; output: unknown }>
+/**
+ * One prop path's state: its stub and the latest function, or the last value
+ * in and the stable value out, and its children by key. A tree rather than a
+ * map of path strings, so a render builds no strings.
+ */
+interface Node {
+  latest: Fn | undefined
+  stub: Fn | undefined
+  input: unknown
+  output: unknown
+  /** The key count of `output`, when it's a plain object. */
+  keyCount: number
+  children: Map<string | number, Node> | undefined
 }
 
-function stable(root: Root, path: string, value: unknown): unknown {
-  if (typeof value === "function") return stub(root, path, value as Fn)
-  const isArray = Array.isArray(value)
-  if (!isArray && !isPlainObject(value)) return value
-  const last = root.values.get(path)
-  // The same object as last time holds the same values and functions.
-  if (last?.input === value) return last.output
-  const next = isArray
-    ? value.map((item, i) => stable(root, `${path}.${i}`, item))
-    : Object.fromEntries(
-        Object.entries(value as Record<string, unknown>).map(([k, v]) => [
-          k,
-          stable(root, `${path}.${k}`, v),
-        ])
-      )
-  const output =
-    last !== undefined && shallowEqual(last.output, next) ? last.output : next
-  root.values.set(path, { input: value, output })
-  return output
-}
-
-function stub(root: Root, path: string, f: Fn): Fn {
-  root.latest.set(path, f)
-  let s = root.stubs.get(path)
-  if (!s) {
-    const latest = root.latest
-    s = (...args: never[]) => latest.get(path)?.(...args)
-    root.stubs.set(path, s)
+function newNode(): Node {
+  return {
+    latest: undefined,
+    stub: undefined,
+    input: undefined,
+    output: undefined,
+    keyCount: -1,
+    children: undefined,
   }
-  return s
+}
+
+function childOf(node: Node, key: string | number): Node {
+  node.children ??= new Map()
+  let child = node.children.get(key)
+  if (!child) {
+    child = newNode()
+    node.children.set(key, child)
+  }
+  return child
+}
+
+function stable(node: Node, value: unknown): unknown {
+  if (typeof value === "function") return stub(node, value as Fn)
+  if (Array.isArray(value)) {
+    // The same array as last time holds the same values and functions.
+    if (node.input === value) return node.output
+    const last = node.output
+    const prev =
+      Array.isArray(last) && last.length === value.length ? last : null
+    // Built only once an item differs: an equal array allocates nothing.
+    let out: unknown[] | null = prev ? null : []
+    for (let i = 0; i < value.length; i++) {
+      const item = stable(childOf(node, i), value[i])
+      if (out) out.push(item)
+      else if (!Object.is(item, prev![i])) {
+        out = prev!.slice(0, i)
+        out.push(item)
+      }
+    }
+    node.input = value
+    node.output = out ?? prev
+    node.keyCount = -1
+    return node.output
+  }
+  if (!isPlainObject(value)) return value
+  if (node.input === value) return node.output
+  const last = node.output
+  const keys = Object.keys(value)
+  const prev =
+    node.keyCount === keys.length &&
+    isPlainObject(last) &&
+    keys.every((k) => Object.hasOwn(last, k))
+      ? last
+      : null
+  let out: Record<string, unknown> | null = prev ? null : {}
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i]!
+    const v = stable(childOf(node, k), value[k])
+    if (out) out[k] = v
+    else if (!Object.is(v, prev![k])) {
+      out = {}
+      for (let j = 0; j < i; j++) out[keys[j]!] = prev![keys[j]!]
+      out[k] = v
+    }
+  }
+  node.input = value
+  node.output = out ?? prev
+  node.keyCount = keys.length
+  return node.output
+}
+
+function stub(node: Node, f: Fn): Fn {
+  node.latest = f
+  if (!node.stub) {
+    const n = node
+    node.stub = (...args: never[]) => n.latest?.(...args)
+  }
+  return node.stub
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -91,19 +146,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   // compares: leave them be.
   if ("$$typeof" in value) return false
   const proto = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
-}
-
-function shallowEqual(a: unknown, b: unknown): boolean {
-  if (Object.is(a, b)) return true
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false
-    return a.every((item, i) => Object.is(item, b[i]))
-  }
-  if (!isPlainObject(a) || !isPlainObject(b)) return false
-  const keys = Object.keys(a)
-  if (keys.length !== Object.keys(b).length) return false
-  return keys.every((k) => Object.hasOwn(b, k) && Object.is(a[k], b[k]))
+  if (proto !== Object.prototype && proto !== null) return false
+  // A ref (`{ current }`) is read and written through its own identity: a
+  // copy would freeze what it pointed at.
+  for (const key in value) if (key !== "current") return true
+  return !("current" in value)
 }
 
 /**

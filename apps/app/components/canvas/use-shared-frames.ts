@@ -22,7 +22,7 @@ import {
   type LiveFrame,
 } from "@/lib/frame-stream/live-frames"
 import { seedLocalFrame } from "@/lib/frame-stream/seed"
-import type { CanvasPresence } from "@/lib/yjs/react"
+import type { PeerPresence } from "@/lib/yjs/react"
 import type { YjsCollection } from "@/lib/yjs/schema"
 import type { BranchData, IframeLayerData, MockupLayerData } from "@/lib/types"
 
@@ -92,7 +92,7 @@ export function useSharedFrames({
   /** This viewer's user id; null until the session loads. */
   viewerId: string | null
   /** Other people's awareness states: who else is on a live frame. */
-  others: ReadonlyArray<{ presence: CanvasPresence }>
+  others: ReadonlyArray<{ presence: PeerPresence }>
   /** The Room's Frame Control records: the agent's control keeps a frame
    *  live. */
   frameControl: YjsCollection<FrameControlRecord>
