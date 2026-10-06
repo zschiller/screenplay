@@ -797,6 +797,69 @@ export const INTERACTIONS: Interaction[] = [
       await page.waitForTimeout(1500)
     },
   },
+  {
+    name: "layer-gesture-toolbar",
+    description:
+      "A selected frame moved, reordered past its sibling, then resized by its bottom edge: the floating toolbar under it hides for each drag and comes back in place on release.",
+    path: `/${ids.rooms.checkout}`,
+    cookies: canvasPanels({ chatPct: 30 }),
+    run: async (page) => {
+      const label = page
+        .locator("[data-layer-label]")
+        .filter({ hasText: "Checkout · desktop" })
+        .first()
+      await click(page, label)
+      await page.waitForTimeout(1200)
+      // Drag from `from` by (dx, dy) and back, pausing at the far end.
+      const dragThere = async (
+        from: { x: number; y: number },
+        dx: number,
+        dy: number
+      ) => {
+        await page.mouse.move(from.x, from.y, { steps: 10 })
+        await page.waitForTimeout(500)
+        await page.mouse.down()
+        await page.mouse.move(from.x + dx, from.y + dy, { steps: 30 })
+        await page.waitForTimeout(500)
+        await page.mouse.move(from.x, from.y, { steps: 30 })
+        await page.waitForTimeout(300)
+        await page.mouse.up()
+        await page.waitForTimeout(1400)
+      }
+      // Move: drag the frame's body.
+      await step(async () => {
+        const box = await page
+          .locator(".cursor-ns-resize")
+          .nth(1)
+          .boundingBox({ timeout: 10_000 })
+        if (!box) return
+        await dragThere({ x: box.x + box.width / 2, y: box.y - 120 }, 120, 80)
+      })
+      // Reorder: drag the name label past the iPhone frame.
+      await step(async () => {
+        const box = await label.boundingBox({ timeout: 10_000 })
+        if (!box) return
+        await dragThere(
+          { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+          420,
+          0
+        )
+      })
+      // Resize: drag the bottom edge.
+      await step(async () => {
+        const box = await page
+          .locator(".cursor-ns-resize")
+          .nth(1)
+          .boundingBox({ timeout: 10_000 })
+        if (!box) return
+        await dragThere(
+          { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+          0,
+          90
+        )
+      })
+    },
+  },
 ]
 
 /**

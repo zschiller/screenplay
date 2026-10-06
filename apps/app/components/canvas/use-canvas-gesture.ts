@@ -756,6 +756,10 @@ export function useCanvasGesture(
     activeGapHandle,
     hoveredReorderIframeLayerId,
     isLayerDragging,
+    /** True while a Layer is being moved, reordered or resized — the canvas
+     *  hides the floating toolbars over it until the gesture ends. */
+    layerGestureActive:
+      moveGestureActive || !!preview.reorder || !!preview.resizeSnap,
     resetHandleHover,
     handlers: {
       onPointerDownCapture,
