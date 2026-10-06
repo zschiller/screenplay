@@ -140,7 +140,7 @@ export function unionRect(rects: Iterable<Rect>): Rect | null {
 
 /**
  * Below this zoom, Layer labels drop their menus and tag, keeping the name and
- * chat (see `hiddenLayerLabels`, `LabelChat`).
+ * chat (see `showsLayerLabel`, `LabelChat`).
  */
 export const LAYER_DETAIL_MIN_ZOOM = 0.25
 

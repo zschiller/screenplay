@@ -72,8 +72,6 @@ interface MockupLayerProps {
    */
   workingChat?: WorkingChat
   zoom: number
-  /** The Canvas hides this Layer's label (see `hiddenLayerLabels`). */
-  labelHidden?: boolean
   selected: boolean
   multiSelected: boolean
   spaceHeld: boolean
@@ -220,7 +218,6 @@ function MockupLayerImpl({
   layer,
   workingChat,
   zoom,
-  labelHidden,
   selected,
   multiSelected,
   spaceHeld,
@@ -440,7 +437,6 @@ function MockupLayerImpl({
       containerClassName="absolute flex flex-col bg-background"
       containerProps={{ "data-mockup-layer": "" }}
       zoom={zoom}
-      labelHidden={labelHidden}
       selected={selected}
       groupSelected={groupSelected}
       multiSelected={multiSelected}
