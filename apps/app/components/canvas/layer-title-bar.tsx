@@ -128,14 +128,21 @@ export function LayerTitleBar({
           hidden && "invisible"
         )}
         style={{
-          // No GPU promotion (`translateZ(0)`, `will-change`). On WebKit a
-          // composited label sits wherever its counter-scale lands, usually
-          // between device pixels, and the compositor samples it there: the
-          // text goes soft, and shimmers as a pan or zoom moves it through
-          // fractions of a pixel. It also composites the frame it sits on,
-          // softening that frame's border. Painted inline with the content,
-          // the text snaps to whole pixels and stays crisp at every zoom.
-          transform: `scale(${1 / zoom})`,
+          // `--label-promote` resolves to `translateZ(0)`, which lifts the label
+          // onto its own GPU layer so WebKit rasterizes this constant-size text at
+          // native resolution. Without it the label inherits the zoomed content
+          // layer's downsampled raster and turns unreadably blurry when zoomed in
+          // (WebKit only — Chrome re-rasterizes sharp). The label is tiny, so its
+          // own layer is cheap and hits no texture-size limit, unlike the 10000px
+          // content layer.
+          //
+          // The promotion is driven by a CSS var (not hard-coded) so the canvas
+          // can momentarily drop it on zoom-settle (`[data-zoom-settling]` in
+          // globals.css): the label's counter-scale keeps its on-screen size
+          // constant, so WebKit sees no scale change and reuses whatever texture
+          // it baked mid-gesture — often blurry. De-composing and re-composing on
+          // settle forces a fresh raster at the resting scale. See globals.css.
+          transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
           transformOrigin: "bottom left",
           maxWidth: groupWidth * zoom,
           width: tag ? layerWidth * zoom : undefined,

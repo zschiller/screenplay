@@ -761,6 +761,34 @@ export function Canvas({
   const isZooming = camera.isZooming
   const followingConnectionId = camera.followingConnectionId
 
+  // Frame-label re-raster on zoom-settle (fixes intermittent WebKit blur). The
+  // labels are GPU-promoted (`translateZ(0)`) to stay crisp against the zoomed
+  // content, but WebKit reuses the mid-gesture texture because their
+  // counter-scale leaves their on-screen size unchanged — no scale-change signal
+  // to re-raster. For two frames after a zoom ends we flag `data-zoom-settling`,
+  // which drops the promotion (globals.css) so each label de-composites, paints
+  // inline crisp at the resting scale, then re-composites into a fresh backing
+  // store. A layout effect flips it on before paint so no stale frame shows.
+  const wasZoomingRef = useRef(false)
+  const [zoomSettling, setZoomSettling] = useState(false)
+  useLayoutEffect(() => {
+    if (isZooming) {
+      wasZoomingRef.current = true
+      return
+    }
+    if (!wasZoomingRef.current) return
+    wasZoomingRef.current = false
+    setZoomSettling(true)
+    let inner = 0
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setZoomSettling(false))
+    })
+    return () => {
+      cancelAnimationFrame(outer)
+      cancelAnimationFrame(inner)
+    }
+  }, [isZooming])
+
   // Per-frame dirty/ready bookkeeping for the thumbnail heartbeat (#474): the
   // Iframe Layers report their ready/HMR transitions into this tracker, and the
   // heartbeat POSTs only the dirty subset. One instance per mounted Canvas.
@@ -2339,6 +2367,10 @@ export function Canvas({
                         // balloon/snap during a zoom — cheaper to hide than thread
                         // `isZooming` down through every layer.
                         data-zooming={isZooming || undefined}
+                        // For two frames after a zoom settles, drop each label's GPU
+                        // promotion so WebKit re-rasterizes it crisp at the resting
+                        // scale (see globals.css `.canvas-frame-label`).
+                        data-zoom-settling={zoomSettling || undefined}
                       >
                         <MockupChatLinkProvider value={mockupChatLink}>
                           <CanvasMemberLayer
