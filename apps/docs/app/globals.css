@@ -202,7 +202,7 @@ html.dark article .nextra-card > p {
   --sp-accent: oklch(0.965 0 0);
   --sp-fg: oklch(0 0 0);
   --sp-muted-fg: oklch(0.556 0 0);
-  --sp-info: oklch(0.56 0.259 326);
+  --sp-info: oklch(0.579 0.267 326);
   backdrop-filter: none;
   background: var(--sp-popover);
   border-color: var(--sp-border);
@@ -546,10 +546,10 @@ html.dark .nextra-callout {
   height: 1lh;
 }
 .sp-callout-info {
-  color: oklch(0.56 0.259 326);
+  color: oklch(0.579 0.267 326);
 }
 .sp-callout-warning {
-  color: oklch(0.6 0.139 60);
+  color: oklch(0.552 0.128 60);
 }
 html.dark .sp-callout-info {
   color: oklch(0.667 0.295 322.15);

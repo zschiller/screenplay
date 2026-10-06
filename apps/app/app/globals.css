@@ -62,7 +62,7 @@
 :root,
 .dark .inverted {
   --canvas-selection: oklch(0.667 0.295 322.15);
-  --canvas-selection-fill: oklch(0.72 0.284 330);
+  --canvas-selection-fill: oklch(0.684 0.254 330);
   --canvas-snap: oklch(0.66 0.225 27);
   --canvas-inspect: oklch(0.66 0.198 293);
   --canvas-highlight: oklch(0.66 0.198 293);
@@ -82,7 +82,7 @@
 .dark,
 :root:not(.dark) .inverted {
   --canvas-selection: oklch(0.667 0.295 322.15);
-  --canvas-selection-fill: oklch(0.72 0.284 330);
+  --canvas-selection-fill: oklch(0.684 0.254 330);
   --canvas-snap: oklch(0.66 0.225 27);
   --canvas-inspect: oklch(0.66 0.198 293);
   --canvas-highlight: oklch(0.66 0.198 293);
