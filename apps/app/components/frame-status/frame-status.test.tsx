@@ -62,6 +62,57 @@ describe("FrameStatus on the canvas (I17)", () => {
   })
 })
 
+describe("FrameStatus dropping what doesn't fit", () => {
+  // jsdom has no layout: give each part its UI size.
+  const SIZES: Record<string, [number, number]> = {
+    "frame-status-block": [320, 140],
+    "empty-description": [320, 40],
+    "empty-content": [140, 28],
+    "empty-title": [160, 24],
+    "empty-icon": [32, 32],
+  }
+  const size = (el: HTMLElement, i: 0 | 1) =>
+    SIZES[el.dataset.slot ?? ""]?.[i] ?? 0
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(
+    function (this: HTMLElement) {
+      return size(this, 0)
+    }
+  )
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
+    function (this: HTMLElement) {
+      return size(this, 1)
+    }
+  )
+
+  const shown = (zoom: number) => {
+    const { container } = render(
+      <FrameStatus
+        stage="stopped"
+        onStart={vi.fn()}
+        zoom={zoom}
+        frameWidth={1440}
+        frameHeight={900}
+      />
+    )
+    return ["empty-icon", "empty-title", "empty-description", "empty-content"]
+      .filter((slot) => {
+        const el = container.querySelector<HTMLElement>(`[data-slot=${slot}]`)
+        return el && !el.hidden && !el.closest<HTMLElement>("[style*=hidden]")
+      })
+      .map((slot) => slot.replace("empty-", ""))
+  }
+
+  // The parts carry the hiding themselves, not a rule keyed on the block's
+  // tier, which the desktop app's WebKit didn't restyle as the zoom changed.
+  it("hides the parts on the parts as the frame shrinks on screen", () => {
+    expect(shown(1)).toEqual(["icon", "title", "description", "content"])
+    expect(shown(0.2)).toEqual(["icon", "title", "content"])
+    expect(shown(0.15)).toEqual(["icon", "title"])
+    expect(shown(0.1)).toEqual(["icon"])
+    expect(shown(0.02)).toEqual([])
+  })
+})
+
 describe("statusTier", () => {
   // A block 320 × 180: 40 of description, 40 of buttons, a 32px icon.
   const parts: StatusParts = {

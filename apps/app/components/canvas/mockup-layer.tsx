@@ -23,7 +23,6 @@ import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
   STATUS_BLOCK,
-  STATUS_HIDE,
   useStatusFit,
 } from "@/components/frame-status/status-fit"
 import {
@@ -575,10 +574,8 @@ function MockupSketching({
           <EmptyMedia variant="icon" className="mb-1">
             <GripSpinner className="text-muted-foreground" />
           </EmptyMedia>
-          <EmptyTitle className={STATUS_HIDE.title}>Sketching</EmptyTitle>
-          <EmptyDescription className={STATUS_HIDE.description}>
-            The chat is drawing this page.
-          </EmptyDescription>
+          <EmptyTitle>Sketching</EmptyTitle>
+          <EmptyDescription>The chat is drawing this page.</EmptyDescription>
         </EmptyHeader>
       </div>
     </Empty>
