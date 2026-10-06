@@ -22,6 +22,7 @@ import {
 import { decideRoomDeletion } from "@/lib/room-deletion"
 import { openRoom } from "@/lib/room-access"
 import { leaveRoom, teardownRoom } from "@/lib/room-teardown"
+import { library as repositoryLibrary } from "@/lib/repository-library/server"
 import { yjsHost } from "@/lib/yjs-host"
 import { isLocalBuild } from "@/lib/local-mode"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
@@ -62,7 +63,16 @@ export type CollaboratorInfo = {
   isOwner: boolean
 }
 
-export async function createRoom(name: string): Promise<RoomSummary> {
+/**
+ * Create a Canvas named `name` (blank = “Untitled”), with your Repositories
+ * `repositoryIds` switched on (#1812) before it's returned, so it opens with
+ * them already in its doc. A Repository that fails to switch on fails the
+ * create and takes the Canvas with it, so no half-made Canvas is left on home.
+ */
+export async function createRoom(
+  name: string,
+  repositoryIds: string[] = []
+): Promise<RoomSummary> {
   const userId = await requireUserId()
   const trimmed = name.trim() || "Untitled"
   const id = nanoid(10)
@@ -70,6 +80,17 @@ export async function createRoom(name: string): Promise<RoomSummary> {
   const room = await createRoomRecord({ id, name: trimmed, ownerId: userId })
 
   await yjsHost.ensureRoom({ roomId: id, ownerId: userId, name: trimmed })
+
+  if (repositoryIds.length > 0) {
+    try {
+      await (await repositoryLibrary()).switchOnForCanvas(id, repositoryIds)
+    } catch (err) {
+      await teardownRoom(await openRoom(id)).catch((teardownErr) =>
+        console.error(`Couldn’t remove canvas ${id}`, teardownErr)
+      )
+      throw err
+    }
+  }
 
   return {
     id: room.id,

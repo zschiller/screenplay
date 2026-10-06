@@ -877,6 +877,24 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: (page) => openCardMenu(page, "Marketing", "Folder actions"),
   }),
   screen({
+    name: "home-new-canvas",
+    description: "New canvas: a name and your Repositories, one ticked.",
+    path: "/files",
+    focus: DIALOG,
+    pad: 0,
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "New canvas" })
+        .first()
+        .click({ timeout: 15_000 })
+      const repository = page.getByRole("checkbox").first()
+      await repository.waitFor({ timeout: 15_000 })
+      await page.getByLabel("Name").fill("Pricing page refresh")
+      await repository.click()
+      await sleep(page, 300)
+    },
+  }),
+  screen({
     name: "home-search",
     description: "Home search's results popover under the sidebar field.",
     path: "/files",

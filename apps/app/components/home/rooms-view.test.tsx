@@ -13,6 +13,7 @@ import { RoomsView } from "./rooms-view"
 import { SidebarSearch } from "./sidebar-search"
 import type { FolderSummary } from "@/lib/folders-actions"
 import type { RoomSummary } from "@/lib/rooms-actions"
+import type { RepoConfig } from "@/lib/repo-configs.types"
 import { DEFAULT_VIEW_PREFS, withView, type View } from "@/lib/home-view-prefs"
 
 // The server-action modules the provider/view import bind the server-only db,
@@ -20,7 +21,9 @@ import { DEFAULT_VIEW_PREFS, withView, type View } from "@/lib/home-view-prefs"
 // client-only; the folder-create flow only needs `createFolder`.
 const createFolder = vi.fn<(name: string) => Promise<FolderSummary>>()
 const renameFolder = vi.fn<(id: string, name: string) => Promise<void>>()
-const createRoom = vi.fn<(name: string) => Promise<RoomSummary>>()
+const createRoom =
+  vi.fn<(name: string, repositoryIds?: string[]) => Promise<RoomSummary>>()
+const listRepositories = vi.fn<() => Promise<RepoConfig[]>>()
 const placeRoom =
   vi.fn<(roomId: string, folderId: string | null) => Promise<void>>()
 const push = vi.fn<(href: string) => void>()
@@ -32,10 +35,14 @@ vi.mock("@/lib/folders-actions", () => ({
     placeRoom(roomId, folderId),
 }))
 vi.mock("@/lib/rooms-actions", () => ({
-  createRoom: (name: string) => createRoom(name),
+  createRoom: (name: string, repositoryIds?: string[]) =>
+    createRoom(name, repositoryIds),
   deleteRoom: vi.fn(),
   renameRoom: vi.fn(),
   listRooms: vi.fn().mockResolvedValue([]),
+}))
+vi.mock("@/lib/repository-library/actions", () => ({
+  listRepositories: () => listRepositories(),
 }))
 vi.mock("@/lib/yjs-host/client", () => ({ prewarmRoom: vi.fn() }))
 vi.mock("next/navigation", () => ({
@@ -63,6 +70,7 @@ afterEach(() => {
   createFolder.mockReset()
   renameFolder.mockReset()
   createRoom.mockReset()
+  listRepositories.mockReset()
   placeRoom.mockReset()
   push.mockReset()
 })
@@ -227,8 +235,29 @@ describe("RoomsView — grid and table offer the same Canvas actions", () => {
   )
 })
 
-describe("RoomsView — New canvas opens without a dialog (#777)", () => {
+describe("RoomsView — the New canvas dialog (#1812)", () => {
   const untitled: RoomSummary = { ...room, id: "r-new", name: "Untitled" }
+  const repository = (
+    id: string,
+    repoFullName: string,
+    overrides: Partial<RepoConfig> = {}
+  ): RepoConfig => ({
+    id,
+    name: "",
+    repoFullName,
+    repoOwner: repoFullName.split("/")[0]!,
+    repoName: repoFullName.split("/")[1]!,
+    defaultBranch: "main",
+    cloneUrl: `https://github.com/${repoFullName}.git`,
+    private: true,
+    setupScript: "pnpm install",
+    devScript: "pnpm dev",
+    devServerPort: 3000,
+    envVars: "",
+    createdAt: 1,
+    updatedAt: 1,
+    ...overrides,
+  })
 
   function renderFolder(folderId: string | null, folders: FolderSummary[]) {
     return render(
@@ -244,30 +273,129 @@ describe("RoomsView — New canvas opens without a dialog (#777)", () => {
     )
   }
 
-  it("creates an Untitled Canvas and opens it", async () => {
+  async function openDialog() {
+    fireEvent.click(screen.getAllByRole("button", { name: "New canvas" })[0]!)
+    return screen.findByRole("dialog")
+  }
+
+  const submit = (dialog: HTMLElement) =>
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Create canvas" })
+    )
+
+  it("asks for a name first, focused, and a blank one makes Untitled", async () => {
+    listRepositories.mockResolvedValue([])
     createRoom.mockResolvedValue(untitled)
     renderFolder(null, [])
 
-    fireEvent.click(screen.getAllByRole("button", { name: "New canvas" })[0]!)
+    const dialog = await openDialog()
+    const name = within(dialog).getByLabelText("Name")
+    expect(document.activeElement).toBe(name)
+    expect(createRoom).not.toHaveBeenCalled()
+
+    submit(dialog)
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
-    expect(createRoom).toHaveBeenCalledWith("Untitled")
-    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(createRoom).toHaveBeenCalledWith("", [])
     // Created at the root, so there's nothing to file.
     expect(placeRoom).not.toHaveBeenCalled()
   })
 
+  it("creates with the typed name and the ticked repositories, on Enter", async () => {
+    listRepositories.mockResolvedValue([
+      repository("cfg-store", "acme/storefront"),
+      repository("cfg-web", "acme/web", {
+        setupScript: "npm ci",
+        devScript: "npm run dev",
+      }),
+      repository("cfg-ds", "acme/design-system"),
+    ])
+    createRoom.mockResolvedValue({ ...untitled, name: "Checkout redesign" })
+    renderFolder(null, [])
+
+    const dialog = await openDialog()
+    // Each Repository is a labelled checkbox, nothing ticked, with its
+    // commands under its name.
+    const web = await within(dialog).findByRole("checkbox", {
+      name: /acme\/web/,
+    })
+    expect(within(dialog).getByText("npm ci · npm run dev")).not.toBeNull()
+    expect(
+      within(dialog)
+        .getAllByRole("checkbox")
+        .map((c) => c.getAttribute("aria-checked"))
+    ).toEqual(["false", "false", "false"])
+
+    fireEvent.click(web)
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", { name: /storefront/ })
+    )
+    const name = within(dialog).getByLabelText("Name")
+    fireEvent.change(name, { target: { value: "Checkout redesign" } })
+    fireEvent.submit(name.closest("form")!)
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
+    // In the list's order, not the order they were ticked.
+    expect(createRoom).toHaveBeenCalledWith("Checkout redesign", [
+      "cfg-store",
+      "cfg-web",
+    ])
+  })
+
+  it("says why the list is empty when you have no repositories", async () => {
+    listRepositories.mockResolvedValue([])
+    renderFolder(null, [])
+
+    const dialog = await openDialog()
+
+    expect(
+      await within(dialog).findByText(
+        /No repositories yet\. Add one to preview/
+      )
+    ).not.toBeNull()
+    expect(within(dialog).queryByRole("checkbox")).toBeNull()
+  })
+
+  it("Cancel makes nothing", async () => {
+    listRepositories.mockResolvedValue([])
+    renderFolder(null, [])
+
+    const dialog = await openDialog()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(createRoom).not.toHaveBeenCalled()
+  })
+
+  it("a double submit makes one canvas", async () => {
+    listRepositories.mockResolvedValue([])
+    let resolve!: (room: RoomSummary) => void
+    createRoom.mockReturnValue(new Promise((r) => (resolve = r)))
+    renderFolder(null, [])
+
+    const dialog = await openDialog()
+    const form = within(dialog).getByLabelText("Name").closest("form")!
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+    resolve(untitled)
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
+    expect(createRoom).toHaveBeenCalledTimes(1)
+  })
+
   it("files the new Canvas into the folder you're viewing", async () => {
+    listRepositories.mockResolvedValue([])
     createRoom.mockResolvedValue(untitled)
     renderFolder("f1", [])
 
-    fireEvent.click(screen.getAllByRole("button", { name: "New canvas" })[0]!)
+    submit(await openDialog())
 
     await waitFor(() => expect(placeRoom).toHaveBeenCalledWith("r-new", "f1"))
     await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
   })
 
   it("creates inside a folder from that folder's menu", async () => {
+    listRepositories.mockResolvedValue([])
     createRoom.mockResolvedValue(untitled)
     renderFolder(null, [folder({ id: "f2", name: "Specs" })])
 
@@ -276,37 +404,47 @@ describe("RoomsView — New canvas opens without a dialog (#777)", () => {
       ctrlKey: false,
     })
     fireEvent.click(await screen.findByRole("menuitem", { name: "New canvas" }))
+    submit(await screen.findByRole("dialog"))
 
     await waitFor(() => expect(placeRoom).toHaveBeenCalledWith("r-new", "f2"))
     await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
   })
 
-  it("creates from the N key, but not while typing", async () => {
-    createRoom.mockResolvedValue(untitled)
+  it("opens from the N key, but not while typing", async () => {
+    listRepositories.mockResolvedValue([])
     renderFolder(null, [])
 
     const input = document.createElement("input")
     document.body.appendChild(input)
     fireEvent.keyDown(input, { key: "n" })
-    expect(createRoom).not.toHaveBeenCalled()
     input.remove()
-
     fireEvent.keyDown(document.body, { key: "n", metaKey: true })
-    expect(createRoom).not.toHaveBeenCalled()
+    expect(screen.queryByRole("dialog")).toBeNull()
 
     fireEvent.keyDown(document.body, { key: "n" })
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/r-new"))
-    expect(createRoom).toHaveBeenCalledTimes(1)
+    expect(await screen.findByRole("dialog")).not.toBeNull()
+    expect(createRoom).not.toHaveBeenCalled()
   })
 
-  it("stays on home when the create fails", async () => {
+  it("keeps the dialog with an error when the create fails", async () => {
+    listRepositories.mockResolvedValue([])
     createRoom.mockRejectedValue(new Error("boom"))
+    vi.spyOn(console, "error").mockImplementation(() => {})
     renderFolder(null, [])
 
-    const button = screen.getAllByRole("button", { name: "New canvas" })[0]!
-    fireEvent.click(button)
+    const dialog = await openDialog()
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: { value: "Checkout" },
+    })
+    submit(dialog)
 
-    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false))
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(
+      "Couldn’t create the canvas. Try again."
+    )
+    expect(screen.getByRole("dialog")).toBe(dialog)
+    expect(
+      (within(dialog).getByLabelText("Name") as HTMLInputElement).value
+    ).toBe("Checkout")
     expect(push).not.toHaveBeenCalled()
   })
 })

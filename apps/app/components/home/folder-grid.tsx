@@ -6,7 +6,6 @@ import { DotsThreeIcon, FolderIcon } from "@workspace/ui/components/icons"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import { FolderActionMenu } from "./folder-action-menu"
-import { useCreateCanvas } from "./use-create-canvas"
 import { InputDialog } from "./input-dialog"
 import { MoveToDialog } from "./move-to-dialog"
 import { useFolderDragDrop } from "./file-dnd"
@@ -128,8 +127,8 @@ function FolderCard({
     isPinned,
     pinFolder,
     unpin,
+    openNewCanvas,
   } = useHome()
-  const { create: createCanvas } = useCreateCanvas()
   const pinned = isPinned("folder", folder.id)
   const [renameOpen, setRenameOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -165,7 +164,7 @@ function FolderCard({
         }
         menu={
           <FolderActionMenu
-            onNewCanvas={() => void createCanvas(folder.id)}
+            onNewCanvas={() => openNewCanvas(folder.id)}
             onRename={() => setRenameOpen(true)}
             onMove={() => setMoveOpen(true)}
             onDelete={() => setDeleteOpen(true)}

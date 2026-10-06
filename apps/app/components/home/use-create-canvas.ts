@@ -2,42 +2,58 @@
 
 import { useCallback, useEffect, useRef, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
 import { prewarmRoom } from "@/lib/yjs-host/client"
 import { isInOverlay, isTextEntry } from "@/lib/canvas/key-target"
-import { useHome } from "./home-provider"
+import type { RoomSummary } from "@/lib/rooms-actions"
+
+/** What the New canvas dialog creates (#1812). */
+export type NewCanvasInput = {
+  name: string
+  /** Your Repositories to switch on as it's created. */
+  repositoryIds: string[]
+  /** The folder to file it into; omitted = the folder you're viewing. */
+  folderId?: string | null
+}
 
 /**
- * New canvas without a dialog (#777): create an "Untitled" Canvas and open
- * it. It's renamed from its breadcrumb like any other Canvas.
+ * Create a Canvas from the New canvas dialog (#1812) and open it.
  *
- * `create(folderId)` files the Canvas into that folder; with no argument it
- * lands in the folder you're viewing, like every other create on home. One
- * create runs at a time, so a double click or a held key makes one Canvas.
+ * One create runs at a time, so a double click or a held Enter makes one
+ * Canvas. `onError` runs when the create fails, so the dialog can say so and
+ * stay open; `creating` stays on until the Canvas route renders.
  */
-export function useCreateCanvas() {
+export function useCreateCanvas(
+  createRoom: (
+    name: string,
+    folderId?: string | null,
+    repositoryIds?: string[]
+  ) => Promise<RoomSummary>
+) {
   const router = useRouter()
-  const { createRoom } = useHome()
   // The create and the navigation run as one transition, so home stays as it
-  // was (the button's spinner up) until the Canvas route renders, then swaps
+  // was (the dialog's spinner up) until the Canvas route renders, then swaps
   // in one go. Updating the list first flashed the new tile, which from an
   // empty state turned the page into a grid before the Canvas opened.
   const [creating, startCreating] = useTransition()
   const busy = useRef(false)
 
   const create = useCallback(
-    (folderId?: string | null) => {
+    (
+      { name, repositoryIds, folderId }: NewCanvasInput,
+      onError: () => void
+    ) => {
       if (busy.current) return
       busy.current = true
       startCreating(async () => {
         try {
-          const room = await createRoom("Untitled", folderId)
+          const room = await createRoom(name, folderId, repositoryIds)
           // Open the connection before navigating so the new canvas renders
           // synced on its first frame rather than flashing the sync gate.
           prewarmRoom(room.id)
           startCreating(() => router.push(`/${room.id}`))
-        } catch {
-          toast.error("Couldn’t create the canvas. Try again.")
+        } catch (err) {
+          console.error(err)
+          onError()
         }
       })
     },
@@ -54,7 +70,7 @@ export function useCreateCanvas() {
 }
 
 /**
- * Press N anywhere on home to make a new Canvas, unless you're typing or a
+ * Press N anywhere on home to open New canvas, unless you're typing or a
  * dialog or menu has focus.
  */
 export function useNewCanvasShortcut(onCreate: () => void) {
