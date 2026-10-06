@@ -127,12 +127,10 @@ export function GroupLabel({ workspace, menu, ...props }: GroupLabelProps) {
     />
   )
   if (!workspace) {
-    if (!menuButton)
-      return (
-        <GroupName {...props} editableRef={editableRef} className="mb-0.5" />
-      )
+    // As tall as a row that names a chat, so every Group's name sits at the
+    // same height above its layers.
     return (
-      <div className="mb-0.5 flex max-w-full min-w-0 items-center gap-2">
+      <div className="mb-0.5 flex min-h-5 max-w-full min-w-0 items-center gap-2">
         <GroupName {...props} editableRef={editableRef} />
         {menuButton}
       </div>

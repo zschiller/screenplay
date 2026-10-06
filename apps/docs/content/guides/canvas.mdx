@@ -144,8 +144,11 @@ chat instead.
 To show a flow from another chat, click the group’s chat and pick one
 from the list (for a group named Checkout, it reads **Show Checkout from…**).
 Every frame in the group moves, each keeping its route, state and size.
-Documents in the group are unaffected. The switch is one undo step, and
-everyone on the canvas sees it at once.
+Documents and mockups in the group are unaffected. The switch is one undo
+step, and everyone on the canvas sees it at once.
+
+Only frames decide a group’s chat: documents and mockups don’t count, so a
+group without frames names no chat and has nothing to switch.
 
 A group whose frames have no chat yet shows **Choose a chat** after
 its name instead, and its frames show **No chat**, with **Start a chat** to

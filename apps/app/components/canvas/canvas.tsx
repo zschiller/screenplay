@@ -2366,7 +2366,6 @@ export function Canvas({
                               iframeLayerGroups={iframeLayerGroups}
                               iframeLayers={iframeLayers}
                               markdownLayers={markdownLayers}
-                              documentWorkspaces={documentWorkspaces}
                               workingChats={workingChats}
                               mockupLayers={mockupLayers}
                               selection={selection}

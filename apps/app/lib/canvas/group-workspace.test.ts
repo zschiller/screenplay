@@ -150,73 +150,40 @@ describe("groupWorkspace", () => {
   it("names none for a Group of Documents", () => {
     expect(groupWorkspace(group(), moreFrames)).toBeNull()
   })
-
-  // #1314: a Document a chat made counts as showing the chat's Workspace.
-  describe("with chat-made Documents", () => {
-    it("names the Workspace when the Document's chat is the frames'", () => {
-      const docs = new Map([["doc", "ws-1"]])
-      expect(groupWorkspace(group("a", "a2"), moreFrames, docs)).toEqual({
-        branchId: "ws-1",
-        frames: ["a", "a2"],
-      })
-    })
-
-    it("names none when the Document's chat is another Workspace's", () => {
-      const docs = new Map([["doc", "ws-2"]])
-      expect(groupWorkspace(group("a", "a2"), moreFrames, docs)).toBeNull()
-    })
-
-    it("names the chat's Workspace on a Group of its Documents alone", () => {
-      const docs = new Map([["doc", "ws-1"]])
-      expect(groupWorkspace(group(), moreFrames, docs)).toEqual({
-        branchId: "ws-1",
-        frames: [],
-      })
-    })
-
-    it("lets a hand-made Document leave the label alone", () => {
-      expect(groupWorkspace(group("a"), moreFrames, new Map())).toEqual({
-        branchId: "ws-1",
-        frames: ["a"],
-      })
-    })
-  })
 })
 
-describe("the label rule with Mockups (#1309)", () => {
-  // Each chat-made Mockup's Workspace, as for a Document.
-  const owned = new Map([
-    ["m1", "ws-1"],
-    ["m1b", "ws-1"],
-    ["m2", "ws-2"],
-  ])
+// #1724: Documents and Mockups name no chat, so only frames decide.
+describe("the label rule with chat-made Documents and Mockups", () => {
   const group = (...members: [string, string][]) => ({
     members: members.map(([kind, id]) => ({
-      kind: kind as "iframe-layer" | "mockup-layer",
+      kind: kind as "iframe-layer" | "mockup-layer" | "markdown-layer",
       id,
     })),
   })
 
-  it("names the Workspace when the Mockups' chat is on it", () => {
-    const g = group(["iframe-layer", "a"], ["mockup-layer", "m1"])
-    expect(groupWorkspace(g, frames, owned)?.branchId).toBe("ws-1")
-  })
-
-  it("names none when a Mockup's chat is on another Workspace", () => {
-    const g = group(["iframe-layer", "a"], ["mockup-layer", "m2"])
-    expect(groupWorkspace(g, frames, owned)).toBeNull()
-  })
-
-  it("names the Workspace on a Group of one chat's Mockups", () => {
-    const g = group(["mockup-layer", "m1"], ["mockup-layer", "m1b"])
-    expect(groupWorkspace(g, frames, owned)).toEqual({
+  it("names the frames' Workspace beside Mockups and Documents", () => {
+    const g = group(
+      ["iframe-layer", "a"],
+      ["mockup-layer", "m1"],
+      ["markdown-layer", "doc"]
+    )
+    expect(groupWorkspace(g, frames)).toEqual({
       branchId: "ws-1",
-      frames: [],
+      frames: ["a"],
     })
   })
 
-  it("ignores a Mockup whose chat is gone", () => {
-    const g = group(["iframe-layer", "a"], ["mockup-layer", "orphan"])
-    expect(groupWorkspace(g, frames, owned)?.branchId).toBe("ws-1")
+  it("names none and offers no switcher on a Group of Mockups", () => {
+    const g = group(["mockup-layer", "m1"], ["mockup-layer", "m1b"])
+    expect(groupWorkspace(g, frames)).toBeNull()
+  })
+
+  it("decides a mixed Group by its frames alone", () => {
+    const g = group(
+      ["iframe-layer", "a"],
+      ["iframe-layer", "b"],
+      ["mockup-layer", "m1"]
+    )
+    expect(groupWorkspace(g, frames)).toBeNull()
   })
 })
