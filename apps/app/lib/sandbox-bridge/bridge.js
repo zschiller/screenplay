@@ -1923,39 +1923,120 @@
   // Fit becomes a no-op. Walking elements and taking the union of their
   // viewport-relative rects (plus current scroll) gives the actual content
   // bounds, regardless of viewport size.
+  //
+  // Content sized to the viewport (min-h-screen, h-screen, 100vh, a height:
+  // 100% chain from html) is as tall as the frame whatever it holds, so a
+  // footer below or inside it measures at the frame's height or past it:
+  // the frame then never shrinks, or grows by the footer on every measure.
+  // Those elements are let go to their content's height for the measure, and
+  // put back before anything paints.
   function contentSize() {
+    const sx = window.scrollX || 0
+    const sy = window.scrollY || 0
+    const released = releaseViewportHeights()
+    try {
+      return measureContent(sx, sy)
+    } finally {
+      restoreViewportHeights(released)
+      keepScroll(sx, sy)
+    }
+  }
+
+  // Letting a box go can shorten the document under the scroll position.
+  function keepScroll(sx, sy) {
+    if (window.scrollX !== sx || window.scrollY !== sy) scrollTo(sx, sy)
+  }
+
+  // Replaced elements keep their own size; only boxes stretched to the
+  // viewport are let go.
+  const KEEPS_HEIGHT =
+    /^(IMG|VIDEO|CANVAS|IFRAME|EMBED|OBJECT|svg|INPUT|TEXTAREA|SELECT)$/
+
+  function releaseViewportHeights() {
+    const vh = window.innerHeight
+    const released = []
+    if (!vh) return released
+    const tall = (value) => Math.abs(parseFloat(value) - vh) < 1
+    const els = [document.documentElement].concat(
+      Array.prototype.slice.call(document.getElementsByTagName("*"))
+    )
+    for (let i = 0; i < els.length; i++) {
+      const el = els[i]
+      if (!el.style || KEEPS_HEIGHT.test(el.tagName)) continue
+      const cs = window.getComputedStyle(el)
+      if (cs.display === "none" || cs.position === "fixed") continue
+      const minHeight = tall(cs.minHeight)
+      const height = tall(cs.height)
+      if (!minHeight && !height) continue
+      released.push({
+        el: el,
+        minHeight: el.style.getPropertyValue("min-height"),
+        minHeightPriority: el.style.getPropertyPriority("min-height"),
+        height: el.style.getPropertyValue("height"),
+        heightPriority: el.style.getPropertyPriority("height"),
+        hadStyle: el.hasAttribute("style"),
+      })
+      if (minHeight) el.style.setProperty("min-height", "0px", "important")
+      if (height) el.style.setProperty("height", "auto", "important")
+    }
+    return released
+  }
+
+  // Puts back what releaseViewportHeights let go, unless the page has since
+  // set that property itself.
+  function restoreViewportHeights(released) {
+    for (let i = released.length - 1; i >= 0; i--) {
+      const r = released[i]
+      const style = r.el.style
+      if (style.getPropertyPriority("min-height") === "important")
+        style.setProperty("min-height", r.minHeight, r.minHeightPriority)
+      if (style.getPropertyPriority("height") === "important")
+        style.setProperty("height", r.height, r.heightPriority)
+      if (!r.hadStyle && !style.length) {
+        // Chrome writes the attribute back from the style lazily: read it
+        // first, or the removal comes back as style="".
+        r.el.getAttribute("style")
+        r.el.removeAttribute("style")
+      }
+    }
+  }
+
+  function measureContent(sx, sy) {
     const body = document.body
+    if (!body) return { width: 0, height: 0 }
     let width = 0
     let height = 0
-    if (body) {
-      const sx = window.scrollX || 0
-      const sy = window.scrollY || 0
-      const all = body.getElementsByTagName("*")
-      for (let i = 0; i < all.length; i++) {
-        const el = all[i]
-        const cs = window.getComputedStyle(el)
-        // Fixed elements stick to the viewport rather than contributing
-        // to scrollable content; including them would inflate the size
-        // by scrollY whenever the page is scrolled.
-        if (cs.position === "fixed" || cs.display === "none") continue
-        const r = el.getBoundingClientRect()
-        if (r.width === 0 && r.height === 0) continue
-        const right = r.right + sx
-        const bottom = r.bottom + sy
-        if (right > width) width = right
-        if (bottom > height) height = bottom
-      }
-      // Fallback for empty/odd documents.
-      if (width <= 0) width = body.scrollWidth || 0
-      if (height <= 0) height = body.scrollHeight || 0
+    const all = body.getElementsByTagName("*")
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i]
+      const cs = window.getComputedStyle(el)
+      // Fixed elements stick to the viewport rather than contributing
+      // to scrollable content; including them would inflate the size
+      // by scrollY whenever the page is scrolled.
+      if (cs.position === "fixed" || cs.display === "none") continue
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 && r.height === 0) continue
+      const right = r.right + sx
+      const bottom = r.bottom + sy
+      if (right > width) width = right
+      if (bottom > height) height = bottom
     }
+    // Fallback for empty/odd documents.
+    if (width <= 0) width = body.scrollWidth || 0
+    if (height <= 0) height = body.scrollHeight || 0
     return { width: width, height: height }
   }
 
   // Fit to content left on: report the content's size as it changes, so the
   // canvas can keep the frame's height on it. A change that only the
   // viewport's height made (the canvas just resized the frame) isn't
-  // reported: content sized in vh would otherwise grow the frame forever.
+  // measured again.
+  //
+  // Boxes sized to the viewport stay let go to their content's height while
+  // it's on. A frame that fits its content has no screen height to fill, and
+  // a footer after a min-h-screen block would otherwise sit just below the
+  // frame at any height. They're found again on each measure, from the
+  // page's own styles, and put back when it's turned off.
   let contentWatch = null
   function watchContentSize(on) {
     if (!on) {
@@ -1969,6 +2050,7 @@
     let lastReported = null
     let mutated = true
     let timer = null
+    let released = []
     function measure() {
       timer = null
       const viewportOnly =
@@ -1979,7 +2061,14 @@
       lastWidth = window.innerWidth
       lastHeight = window.innerHeight
       if (viewportOnly && lastReported !== null) return
-      const size = contentSize()
+      const sx = window.scrollX || 0
+      const sy = window.scrollY || 0
+      restoreViewportHeights(released)
+      released = releaseViewportHeights()
+      const size = measureContent(sx, sy)
+      keepScroll(sx, sy)
+      // The measure's own style changes aren't the page changing.
+      mutations.takeRecords()
       const height = Math.ceil(size.height)
       if (height === lastReported) return
       lastReported = height
@@ -2012,6 +2101,7 @@
       stop() {
         if (timer) clearTimeout(timer)
         mutations.disconnect()
+        restoreViewportHeights(released)
         if (resizes) resizes.disconnect()
         window.removeEventListener("resize", schedule)
         window.removeEventListener("load", schedule)
