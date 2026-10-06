@@ -71,9 +71,16 @@ export function useCanvasAnchoredPortal({
           canvasWrapper.getBoundingClientRect()
         )
         target.style.transform = `translate(${x}px, ${y}px)`
+        // Opacity hides the whole element in one paint. Visibility alone
+        // isn't enough: it inherits into children, and a child with a
+        // `transition-all` (every Button) animates it, so the buttons
+        // outlast the bar they sit on. Visibility still takes it out of
+        // hit-testing.
         const visibility = hidden ? "hidden" : ""
-        if (target.style.visibility !== visibility)
+        if (target.style.visibility !== visibility) {
           target.style.visibility = visibility
+          target.style.opacity = hidden ? "0" : ""
+        }
       }
       rafId = requestAnimationFrame(tick)
     }
