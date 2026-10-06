@@ -1,5 +1,6 @@
 "use client"
 
+import { createContext, useContext } from "react"
 import {
   SidebarMenuButton,
   SidebarMenuSubButton,
@@ -24,7 +25,7 @@ import type { LayerRowMenuProps, LayerRowProps } from "./types"
 
 /** Per-row props the iframeLayer renderer needs that the generic
  *  contract doesn't carry — used to look up the Branch for the branch
- *  badge. The sidebar passes them in through a closure. */
+ *  badge. The sidebar provides them through {@link IframeLayerRowExtras}. */
 export interface IframeLayerRowExtraProps {
   /** Branches indexed by id, for fast branch-badge lookup. */
   branchesById: ReadonlyMap<string, BranchData>
@@ -33,115 +34,122 @@ export interface IframeLayerRowExtraProps {
   framesNamedByGroup: ReadonlySet<string>
 }
 
-export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
-  function IframeLayerRow({
-    item,
-    variant,
-    selected,
-    onSelect,
-    onActivate,
-    onRename,
-    editableRef,
-  }: LayerRowProps<IframeLayerData>) {
-    const branch = item.branchId
-      ? extras.branchesById.get(item.branchId)
-      : undefined
-    const Icon = iframeLayerKind.Icon
-    const label = iframeLayerKind.getLabel(item)
-    // A Group of one's row names its Workspace; a row inside a Group names it
-    // unless the Group's row names the one all its frames show (#1276).
-    const showWorkspace =
-      variant === "flat" || !extras.framesNamedByGroup.has(item.id)
-    const workspace = showWorkspace ? frameWorkspaceOf(branch) : undefined
-    const workspaceMention = workspace ? (
-      // Names win: the Workspace takes only the room the name leaves.
-      <span className="flex min-w-10 flex-1 basis-0 text-sm text-muted-foreground">
-        <CompactWorkspaceMention workspace={workspace} layout="row" />
-      </span>
-    ) : null
+/**
+ * The sidebar's {@link IframeLayerRowExtraProps}. A context, not a component
+ * built around them, so a Group or Workspace edit re-renders the rows instead
+ * of remounting every one of them.
+ */
+export const IframeLayerRowExtras = createContext<IframeLayerRowExtraProps>({
+  branchesById: new Map(),
+  framesNamedByGroup: new Set(),
+})
 
-    // Hovering this row lights up its Workspace in the sidebar; hovering the
-    // Workspace lights up this row (#793). The highlight is the row's own
-    // hover background.
-    const branchId = item.branchId ?? undefined
-    const isHighlighted = useIsFrameHighlighted(branchId)
-    const hoverProps = useWorkspaceHoverProps(branchId, "frame")
-    const highlightClass = isHighlighted
-      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-      : undefined
+export function IframeLayerRow({
+  item,
+  variant,
+  selected,
+  onSelect,
+  onActivate,
+  onRename,
+  editableRef,
+}: LayerRowProps<IframeLayerData>) {
+  const extras = useContext(IframeLayerRowExtras)
+  const branch = item.branchId
+    ? extras.branchesById.get(item.branchId)
+    : undefined
+  const Icon = iframeLayerKind.Icon
+  const label = iframeLayerKind.getLabel(item)
+  // A Group of one's row names its Workspace; a row inside a Group names it
+  // unless the Group's row names the one all its frames show (#1276).
+  const showWorkspace =
+    variant === "flat" || !extras.framesNamedByGroup.has(item.id)
+  const workspace = showWorkspace ? frameWorkspaceOf(branch) : undefined
+  const workspaceMention = workspace ? (
+    // Names win: the Workspace takes only the room the name leaves.
+    <span className="flex min-w-10 flex-1 basis-0 text-sm text-muted-foreground">
+      <CompactWorkspaceMention workspace={workspace} layout="row" />
+    </span>
+  ) : null
 
-    const nameEditable = (
-      <EditableText
-        ref={editableRef}
-        as="span"
-        value={label}
-        onCommit={(next) => onRename(item.id, next)}
-        placeholder="Untitled"
-        tabIndex={-1}
-        className="min-w-0"
-        viewClassName="truncate"
-        editClassName={cn(
-          editableTextFieldClass,
-          "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
-        )}
-      />
-    )
+  // Hovering this row lights up its Workspace in the sidebar; hovering the
+  // Workspace lights up this row (#793). The highlight is the row's own
+  // hover background.
+  const branchId = item.branchId ?? undefined
+  const isHighlighted = useIsFrameHighlighted(branchId)
+  const hoverProps = useWorkspaceHoverProps(branchId, "frame")
+  const highlightClass = isHighlighted
+    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+    : undefined
 
-    if (variant === "flat") {
-      return (
-        <SidebarMenuButton
-          {...hoverProps}
-          className={cn(
-            "w-full !transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible",
-            frameRowButtonClass,
-            highlightClass
-          )}
-          isActive={selected}
-          onClick={(e) => {
-            e.stopPropagation()
-            onSelect(item.id, e.shiftKey)
-          }}
-          onKeyDown={(e) => renameOnF2(e, editableRef)}
-          onDoubleClick={(e) => {
-            e.stopPropagation()
-            onActivate?.(item.id)
-          }}
-        >
-          <Icon className="shrink-0 text-sidebar-foreground/70" />
-          {nameEditable}
-          {workspaceMention}
-        </SidebarMenuButton>
-      )
-    }
+  const nameEditable = (
+    <EditableText
+      ref={editableRef}
+      as="span"
+      value={label}
+      onCommit={(next) => onRename(item.id, next)}
+      placeholder="Untitled"
+      tabIndex={-1}
+      className="min-w-0"
+      viewClassName="truncate"
+      editClassName={cn(
+        editableTextFieldClass,
+        "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
+      )}
+    />
+  )
+
+  if (variant === "flat") {
     return (
-      <SidebarMenuSubButton asChild isActive={selected}>
-        <button
-          type="button"
-          {...hoverProps}
-          className={cn(
-            "w-full cursor-pointer !transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible",
-            frameRowButtonClass,
-            highlightClass
-          )}
-          onClick={(e) => {
-            e.stopPropagation()
-            onSelect(item.id, e.shiftKey)
-          }}
-          onKeyDown={(e) => renameOnF2(e, editableRef)}
-          onDoubleClick={(e) => {
-            e.stopPropagation()
-            onActivate?.(item.id)
-          }}
-        >
-          <Icon className="shrink-0 text-sidebar-foreground/70" />
-          {nameEditable}
-          {workspaceMention}
-        </button>
-      </SidebarMenuSubButton>
+      <SidebarMenuButton
+        {...hoverProps}
+        className={cn(
+          "w-full !transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible",
+          frameRowButtonClass,
+          highlightClass
+        )}
+        isActive={selected}
+        onClick={(e) => {
+          e.stopPropagation()
+          onSelect(item.id, e.shiftKey)
+        }}
+        onKeyDown={(e) => renameOnF2(e, editableRef)}
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          onActivate?.(item.id)
+        }}
+      >
+        <Icon className="shrink-0 text-sidebar-foreground/70" />
+        {nameEditable}
+        {workspaceMention}
+      </SidebarMenuButton>
     )
   }
-  IframeLayerRow.displayName = "IframeLayerRow"
-  return IframeLayerRow
+  return (
+    <SidebarMenuSubButton asChild isActive={selected}>
+      <button
+        type="button"
+        {...hoverProps}
+        className={cn(
+          "w-full cursor-pointer !transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible",
+          frameRowButtonClass,
+          highlightClass
+        )}
+        onClick={(e) => {
+          e.stopPropagation()
+          onSelect(item.id, e.shiftKey)
+        }}
+        onKeyDown={(e) => renameOnF2(e, editableRef)}
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          onActivate?.(item.id)
+        }}
+      >
+        <Icon className="shrink-0 text-sidebar-foreground/70" />
+        {nameEditable}
+        {workspaceMention}
+      </button>
+    </SidebarMenuSubButton>
+  )
 }
 
 export function IframeLayerRowMenu({

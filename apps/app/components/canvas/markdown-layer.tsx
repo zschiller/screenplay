@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -387,7 +388,7 @@ interface MarkdownLayerProps {
  * focus, the inline-comment bubble, outside-click blur, and doc-scroll wheel
  * handling.
  */
-export function MarkdownLayer({
+function MarkdownLayerImpl({
   layer,
   zoom,
   labelHidden,
@@ -1224,3 +1225,10 @@ export function MarkdownLayer({
     </LayerShell>
   )
 }
+
+/**
+ * Memoized: the canvas re-renders its member list on every pointer move of a
+ * drag, marquee or draw, and `CanvasMemberLayer` keeps each Document's props
+ * identical unless they change, so only the Documents that changed render.
+ */
+export const MarkdownLayer = memo(MarkdownLayerImpl)

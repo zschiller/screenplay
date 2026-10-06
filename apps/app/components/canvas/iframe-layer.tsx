@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { ArrowLeftIcon, ArrowRightIcon } from "@workspace/ui/components/icons"
 import {
@@ -293,7 +293,7 @@ interface IframeLayerProps {
   placement: LayerPlacement
 }
 
-export function IframeLayer({
+function IframeLayerImpl({
   iframeLayer,
   zoom,
   labelHidden,
@@ -1093,3 +1093,10 @@ export function IframeLayer({
     </LayerShell>
   )
 }
+
+/**
+ * Memoized: the canvas re-renders its member list on every pointer move of a
+ * drag, marquee or draw, and `CanvasMemberLayer` keeps each frame's props
+ * identical unless they change, so only the frames that changed render.
+ */
+export const IframeLayer = memo(IframeLayerImpl)

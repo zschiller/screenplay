@@ -1,6 +1,12 @@
 "use client"
 
-import { memo, useCallback, useMemo } from "react"
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type ComponentProps,
+} from "react"
 import { toast } from "sonner"
 
 import { getGroupMembers } from "@/lib/canvas/layout"
@@ -20,6 +26,7 @@ import type {
   RepoData,
 } from "@/lib/types"
 import { openPreviewInBrowser } from "@/lib/open-preview"
+import { StableProps } from "@/lib/canvas/stable-props"
 
 import { IframeLayer } from "./iframe-layer"
 import { MarkdownLayer } from "./markdown-layer"
@@ -220,6 +227,10 @@ function CanvasMemberLayerImpl({
    */
   groupActions: GroupActions
 }) {
+  // Each member's props, kept identical across renders that don't change
+  // them so its memoized Layer skips the render (a marquee or a drag
+  // re-renders this list on every pointer move).
+  const [stable] = useState(() => new StableProps())
   // Alias the controller state/verbs to the local names the JSX reads, so the
   // flat-member render below stays a verbatim move from `canvas.tsx`.
   const renameIframeLayerGroup = groupActions.renameIframeLayerGroup
@@ -368,7 +379,7 @@ function CanvasMemberLayerImpl({
           return workspace ? { ...workspace, switcher } : undefined
         }
 
-        return entries.map(({ member, group }) => {
+        const rendered = entries.map(({ member, group }) => {
           const members = getGroupMembers(group)
           const index = members.findIndex((m) => m.id === member.id)
           const groupSelected = selectedGroupIds.has(group.id)
@@ -464,34 +475,36 @@ function CanvasMemberLayerImpl({
             return (
               <MarkdownLayer
                 key={doc.id}
-                layer={doc}
-                zoom={zoom}
-                labelHidden={labelsHidden.has(doc.id)}
-                selected={selectedDocumentLayerIds.has(doc.id)}
-                multiSelected={multiSelected}
-                editing={editingDocumentLayerId === doc.id}
-                spaceHeld={spaceHeld}
-                userName={selfName}
-                userColor={selfColor}
-                placement={placement}
-                remoteSelectedColor={remoteSelectedColor}
-                groupLabel={groupLabel}
-                // Named even when the group label names its Workspace, so
-                // the Group shows which layer the chat is on (#1726).
-                workingChat={workingChats.get(doc.id)}
-                groupSelected={groupSelected}
-                onSelect={handleDocumentLayerSelect}
-                onResize={layerMutations.resizeDocument}
-                onTitleChange={layerMutations.setTitleCache}
-                onRename={layerMutations.setTitle}
-                onRemove={removeDocument}
-                onStartEdit={setEditingDocumentLayerId}
-                onStopEdit={() => setEditingDocumentLayerId(null)}
-                onEditorReady={reference.onDocumentEditorReady}
-                commentMode={commentMode}
-                onStartInlineComment={reference.startInlineComment}
-                onSelectInlineThread={reference.setActiveThread}
-                onReplyInChat={reference.replyInChat}
+                {...stable.value(`doc:${doc.id}`, {
+                  layer: doc,
+                  zoom,
+                  labelHidden: labelsHidden.has(doc.id),
+                  selected: selectedDocumentLayerIds.has(doc.id),
+                  multiSelected,
+                  editing: editingDocumentLayerId === doc.id,
+                  spaceHeld,
+                  userName: selfName,
+                  userColor: selfColor,
+                  placement,
+                  remoteSelectedColor,
+                  groupLabel,
+                  // Named even when the group label names its Workspace, so
+                  // the Group shows which layer the chat is on (#1726).
+                  workingChat: workingChats.get(doc.id),
+                  groupSelected,
+                  onSelect: handleDocumentLayerSelect,
+                  onResize: layerMutations.resizeDocument,
+                  onTitleChange: layerMutations.setTitleCache,
+                  onRename: layerMutations.setTitle,
+                  onRemove: removeDocument,
+                  onStartEdit: setEditingDocumentLayerId,
+                  onStopEdit: () => setEditingDocumentLayerId(null),
+                  onEditorReady: reference.onDocumentEditorReady,
+                  commentMode,
+                  onStartInlineComment: reference.startInlineComment,
+                  onSelectInlineThread: reference.setActiveThread,
+                  onReplyInChat: reference.replyInChat,
+                } satisfies ComponentProps<typeof MarkdownLayer>)}
               />
             )
           }
@@ -511,50 +524,50 @@ function CanvasMemberLayerImpl({
                 // Going live or ending it starts the view afresh, as on a
                 // frame.
                 key={mockupStream ? `${mockup.id}:live` : mockup.id}
-                layer={mockup}
-                // Named even when the group label names its Workspace (#1726).
-                workingChat={workingChats.get(mockup.id)}
-                zoom={zoom}
-                labelHidden={labelsHidden.has(mockup.id)}
-                // Mockups share the Document selection Set.
-                selected={selectedDocumentLayerIds.has(mockup.id)}
-                multiSelected={multiSelected}
-                spaceHeld={spaceHeld}
-                placement={placement}
-                remoteSelectedColor={remoteSelectedColor}
-                groupLabel={groupLabel}
-                groupSelected={groupSelected}
-                onSelect={handleDocumentLayerSelect}
-                onResize={gestureLayerHandlers.onResize}
-                onResizeStart={gestureLayerHandlers.onResizeStart}
-                onResizeEnd={gestureLayerHandlers.onResizeEnd}
-                onSetSize={layerMutations.setMockupSize}
-                onSetFitToContent={layerMutations.setFitToContent}
-                onFollowContentHeight={layerMutations.followContentHeight}
-                onRename={layerMutations.renameMockup}
-                onDuplicate={groupActions.duplicateMockup}
-                onRemove={removeMockup}
-                pickActive={pickActive}
-                dimmed={dimmedIframeLayerIds.has(mockup.id)}
-                onHover={reference.setInspectHover}
-                onDomReady={reference.onIframeLayerDomReady}
-                onCaptureReadyChange={handleCaptureReadyChange}
-                onCaptureDirty={handleCaptureDirty}
-                writes={layerMutations.mockupPage}
-                focused={focusedIframeLayerId === mockup.id}
-                driver={frameControl.driverOf(mockup.id)}
-                askedForControl={frameControl.askedFor(mockup.id)}
-                controlRequests={frameControl.requestsOf(mockup.id)}
-                onGrantControl={frameControl.grant}
-                onDeclineControl={frameControl.decline}
-                onControlActivity={frameControl.active}
-                sharedStream={mockupStream}
-                live={mockupLive.live}
-                liveDriver={frameControl.liveDriverOf(mockup.id)}
-                liveUnavailable={!liveWorkspace}
-                liveStarting={goLive.pendingIds.has(mockup.id)}
-                onToggleLive={
-                  sharedFrames.mockupsGoLive
+                {...stable.value(`mockup:${mockup.id}`, {
+                  layer: mockup,
+                  // Named even when the group label names its Workspace (#1726).
+                  workingChat: workingChats.get(mockup.id),
+                  zoom,
+                  labelHidden: labelsHidden.has(mockup.id),
+                  // Mockups share the Document selection Set.
+                  selected: selectedDocumentLayerIds.has(mockup.id),
+                  multiSelected,
+                  spaceHeld,
+                  placement,
+                  remoteSelectedColor,
+                  groupLabel,
+                  groupSelected,
+                  onSelect: handleDocumentLayerSelect,
+                  onResize: gestureLayerHandlers.onResize,
+                  onResizeStart: gestureLayerHandlers.onResizeStart,
+                  onResizeEnd: gestureLayerHandlers.onResizeEnd,
+                  onSetSize: layerMutations.setMockupSize,
+                  onSetFitToContent: layerMutations.setFitToContent,
+                  onFollowContentHeight: layerMutations.followContentHeight,
+                  onRename: layerMutations.renameMockup,
+                  onDuplicate: groupActions.duplicateMockup,
+                  onRemove: removeMockup,
+                  pickActive,
+                  dimmed: dimmedIframeLayerIds.has(mockup.id),
+                  onHover: reference.setInspectHover,
+                  onDomReady: reference.onIframeLayerDomReady,
+                  onCaptureReadyChange: handleCaptureReadyChange,
+                  onCaptureDirty: handleCaptureDirty,
+                  writes: layerMutations.mockupPage,
+                  focused: focusedIframeLayerId === mockup.id,
+                  driver: frameControl.driverOf(mockup.id),
+                  askedForControl: frameControl.askedFor(mockup.id),
+                  controlRequests: frameControl.requestsOf(mockup.id),
+                  onGrantControl: frameControl.grant,
+                  onDeclineControl: frameControl.decline,
+                  onControlActivity: frameControl.active,
+                  sharedStream: mockupStream,
+                  live: mockupLive.live,
+                  liveDriver: frameControl.liveDriverOf(mockup.id),
+                  liveUnavailable: !liveWorkspace,
+                  liveStarting: goLive.pendingIds.has(mockup.id),
+                  onToggleLive: sharedFrames.mockupsGoLive
                     ? () => {
                         const stream = sharedFrames.streamOf(liveWorkspace)
                         if (!stream) return
@@ -565,13 +578,13 @@ function CanvasMemberLayerImpl({
                           workspace: agents.find((a) => a.id === liveWorkspace),
                         })
                       }
-                    : undefined
-                }
-                onScrollChange={layerMutations.updateMockupScroll}
-                onColorSchemeChange={layerMutations.updateMockupColorScheme}
-                onFocus={focusPage}
-                commentMode={commentMode}
-                onWheel={onIframeWheel}
+                    : undefined,
+                  onScrollChange: layerMutations.updateMockupScroll,
+                  onColorSchemeChange: layerMutations.updateMockupColorScheme,
+                  onFocus: focusPage,
+                  commentMode,
+                  onWheel: onIframeWheel,
+                } satisfies ComponentProps<typeof MockupLayer>)}
               />
             )
           }
@@ -619,15 +632,15 @@ function CanvasMemberLayerImpl({
               // Going live or ending it starts the view afresh: a new stream
               // view, or a new iframe.
               key={stream ? `${iframeLayer.id}:live` : iframeLayer.id}
-              iframeLayer={{
-                ...iframeLayer,
-                iframeUrl: agentInfo?.previewDomain,
-              }}
-              sharedStream={stream}
-              live={live.live}
-              liveDriver={frameControl.liveDriverOf(iframeLayer.id)}
-              onToggleLive={
-                liveStream
+              {...stable.value(`frame:${iframeLayer.id}`, {
+                iframeLayer: {
+                  ...iframeLayer,
+                  iframeUrl: agentInfo?.previewDomain,
+                },
+                sharedStream: stream,
+                live: live.live,
+                liveDriver: frameControl.liveDriverOf(iframeLayer.id),
+                onToggleLive: liveStream
                   ? () =>
                       goLive.toggle({
                         id: iframeLayer.id,
@@ -635,76 +648,77 @@ function CanvasMemberLayerImpl({
                         stream: liveStream,
                         workspace: assignedAgent,
                       })
-                  : undefined
-              }
-              liveStarting={goLive.pendingIds.has(iframeLayer.id)}
-              zoom={zoom}
-              labelHidden={labelsHidden.has(iframeLayer.id)}
-              focused={focusedIframeLayerId === iframeLayer.id}
-              createFlow={createFlowIframeLayerId === iframeLayer.id}
-              selected={selectedIframeLayerIds.has(iframeLayer.id)}
-              driver={frameControl.driverOf(iframeLayer.id)}
-              askedForControl={frameControl.askedFor(iframeLayer.id)}
-              controlRequests={frameControl.requestsOf(iframeLayer.id)}
-              onGrantControl={frameControl.grant}
-              onDeclineControl={frameControl.decline}
-              onControlActivity={frameControl.active}
-              onFocus={focusPage}
-              onToggleCreateFlow={(id) => {
-                setCreateFlowIframeLayerId(id)
-                if (id !== null) setFocusedIframeLayerId(null)
-              }}
-              onSelect={handleIframeLayerSelect}
-              onResize={gestureLayerHandlers.onResize}
-              onResizeStart={gestureLayerHandlers.onResizeStart}
-              onResizeEnd={gestureLayerHandlers.onResizeEnd}
-              onRemove={removeIframeLayer}
-              onRename={layerMutations.rename}
-              onStateChanged={layerMutations.updateState}
-              onRouteChange={layerMutations.updateRoute}
-              onScrollChange={layerMutations.updateScroll}
-              writes={layerMutations.framePage}
-              onColorSchemeChange={layerMutations.updateColorScheme}
-              onPlay={iframeLayer.branchId ? handlePlayIframeLayer : undefined}
-              onOpenInBrowser={openInBrowser}
-              onDuplicate={() =>
-                groupActions.duplicateIframeLayer(iframeLayer.id)
-              }
-              onAskForKnob={
-                iframeLayer.branchId
+                  : undefined,
+                liveStarting: goLive.pendingIds.has(iframeLayer.id),
+                zoom,
+                labelHidden: labelsHidden.has(iframeLayer.id),
+                focused: focusedIframeLayerId === iframeLayer.id,
+                createFlow: createFlowIframeLayerId === iframeLayer.id,
+                selected: selectedIframeLayerIds.has(iframeLayer.id),
+                driver: frameControl.driverOf(iframeLayer.id),
+                askedForControl: frameControl.askedFor(iframeLayer.id),
+                controlRequests: frameControl.requestsOf(iframeLayer.id),
+                onGrantControl: frameControl.grant,
+                onDeclineControl: frameControl.decline,
+                onControlActivity: frameControl.active,
+                onFocus: focusPage,
+                onToggleCreateFlow: (id) => {
+                  setCreateFlowIframeLayerId(id)
+                  if (id !== null) setFocusedIframeLayerId(null)
+                },
+                onSelect: handleIframeLayerSelect,
+                onResize: gestureLayerHandlers.onResize,
+                onResizeStart: gestureLayerHandlers.onResizeStart,
+                onResizeEnd: gestureLayerHandlers.onResizeEnd,
+                onRemove: removeIframeLayer,
+                onRename: layerMutations.rename,
+                onStateChanged: layerMutations.updateState,
+                onRouteChange: layerMutations.updateRoute,
+                onScrollChange: layerMutations.updateScroll,
+                writes: layerMutations.framePage,
+                onColorSchemeChange: layerMutations.updateColorScheme,
+                onPlay: iframeLayer.branchId
+                  ? handlePlayIframeLayer
+                  : undefined,
+                onOpenInBrowser: openInBrowser,
+                onDuplicate: () =>
+                  groupActions.duplicateIframeLayer(iframeLayer.id),
+                onAskForKnob: iframeLayer.branchId
                   ? () => onAskForKnob(iframeLayer.branchId!)
-                  : undefined
-              }
-              onSetFitToContent={layerMutations.setFitToContent}
-              onFollowContentHeight={layerMutations.followContentHeight}
-              onSetSize={layerMutations.setFrameSize}
-              multiSelected={multiSelected}
-              spaceHeld={spaceHeld}
-              commentMode={commentMode}
-              pickActive={pickActive}
-              dimmed={dimmedIframeLayerIds.has(iframeLayer.id)}
-              onHover={reference.setInspectHover}
-              onWheel={onIframeWheel}
-              onDomReady={reference.onIframeLayerDomReady}
-              onCaptureReadyChange={handleCaptureReadyChange}
-              onCaptureDirty={handleCaptureDirty}
-              workspace={assignedAgent}
-              onRestartWorkspace={onRestartWorkspace}
-              onOpenLogs={onOpenLogs}
-              onStartChat={iframeLayer.branchId ? undefined : onStartChat}
-              asking={askingIframeLayerId === iframeLayer.id}
-              assignableBranches={agents}
-              onAssignBranch={layerMutations.assignAgent}
-              discoveredRoutes={agentInfo?.discoveredRoutes}
-              onSelectRoute={layerMutations.updateRoute}
-              remoteSelectedColor={remoteSelectedColor}
-              groupLabel={groupLabel}
-              showWorkspace={!groupNamesWorkspace}
-              groupSelected={groupSelected}
-              placement={placement}
+                  : undefined,
+                onSetFitToContent: layerMutations.setFitToContent,
+                onFollowContentHeight: layerMutations.followContentHeight,
+                onSetSize: layerMutations.setFrameSize,
+                multiSelected,
+                spaceHeld,
+                commentMode,
+                pickActive,
+                dimmed: dimmedIframeLayerIds.has(iframeLayer.id),
+                onHover: reference.setInspectHover,
+                onWheel: onIframeWheel,
+                onDomReady: reference.onIframeLayerDomReady,
+                onCaptureReadyChange: handleCaptureReadyChange,
+                onCaptureDirty: handleCaptureDirty,
+                workspace: assignedAgent,
+                onRestartWorkspace,
+                onOpenLogs,
+                onStartChat: iframeLayer.branchId ? undefined : onStartChat,
+                asking: askingIframeLayerId === iframeLayer.id,
+                assignableBranches: agents,
+                onAssignBranch: layerMutations.assignAgent,
+                discoveredRoutes: agentInfo?.discoveredRoutes,
+                onSelectRoute: layerMutations.updateRoute,
+                remoteSelectedColor,
+                groupLabel,
+                showWorkspace: !groupNamesWorkspace,
+                groupSelected,
+                placement,
+              } satisfies ComponentProps<typeof IframeLayer>)}
             />
           )
         })
+        stable.sweep()
+        return rendered
       })()}
 
       {/* Trailing add-member placeholder click targets — one per group while

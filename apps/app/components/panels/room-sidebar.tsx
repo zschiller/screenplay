@@ -3,6 +3,7 @@
 import {
   createContext,
   Fragment,
+  memo,
   useCallback,
   useContext,
   useLayoutEffect,
@@ -92,7 +93,8 @@ import {
 } from "@/lib/sidebar-drop"
 import {
   IframeLayerRowMenu,
-  makeIframeLayerRow,
+  IframeLayerRow,
+  IframeLayerRowExtras,
 } from "@/components/panels/layer-rows/iframe-layer-row"
 import { renameOnF2 } from "@/components/panels/layer-rows/rename-key"
 import { ROW_BUTTON_SELECTOR } from "@/components/panels/layer-rows/row-focus"
@@ -321,6 +323,9 @@ function GapDrop({ sidebarIndex }: { sidebarIndex: number }) {
   )
 }
 
+/** A Group as the sidebar lists it: everything but where it sits. */
+export type SidebarLayerGroup = Omit<IframeLayerGroupData, "x" | "y">
+
 interface RoomSidebarProps {
   /** The canvas's Workspaces: group and frame rows name theirs. */
   branches: BranchData[]
@@ -330,7 +335,9 @@ interface RoomSidebarProps {
   markdownLayers: MarkdownLayerData[]
   mockupLayers: MockupLayerData[]
   /** Already sorted by sidebarOrder. */
-  iframeLayerGroups: IframeLayerGroupData[]
+  /** The Groups, in sidebar order. The sidebar never places a Group, so it
+   *  takes them without their position: moving one doesn't re-render it. */
+  iframeLayerGroups: SidebarLayerGroup[]
   selectedIframeLayerIds: Set<string>
   selectedGroupIds: Set<string>
   /** Selected Markdown and Mockup Layers (they share one selection Set). */
@@ -367,7 +374,7 @@ interface RoomSidebarProps {
  * it, and nothing else. The Workspaces list lives in the chat panel's
  * Chats menu (#1152).
  */
-export function RoomSidebar({
+function RoomSidebarImpl({
   branches,
   iframeLayers,
   markdownLayers,
@@ -438,15 +445,22 @@ export function RoomSidebar({
       m.set(g.id, groupWorkspace(g, iframeLayersById)?.branchId)
     return m
   }, [iframeLayerGroups, iframeLayersById])
-  const framesNamedByGroup = useMemo(() => {
-    const ids = new Set<string>()
+  // Keyed by its ids so moving a Group, which rewrites every Group, leaves the
+  // frame rows alone.
+  const framesNamedByGroupKey = useMemo(() => {
+    const ids: string[] = []
     for (const g of iframeLayerGroups)
       if (groupBranchById.get(g.id))
-        for (const member of getGroupMembers(g)) ids.add(member.id)
-    return ids
+        for (const member of getGroupMembers(g)) ids.push(member.id)
+    return ids.join("\n")
   }, [iframeLayerGroups, groupBranchById])
-  const IframeLayerRow = useMemo(
-    () => makeIframeLayerRow({ branchesById, framesNamedByGroup }),
+  const framesNamedByGroup = useMemo(
+    () =>
+      new Set(framesNamedByGroupKey ? framesNamedByGroupKey.split("\n") : []),
+    [framesNamedByGroupKey]
+  )
+  const iframeLayerRowExtras = useMemo(
+    () => ({ branchesById, framesNamedByGroup }),
     [branchesById, framesNamedByGroup]
   )
   type AnyRowDispatcher = {
@@ -641,258 +655,265 @@ export function RoomSidebar({
   )
 
   return (
-    <TooltipProvider>
-      {/* Children fade in over the loading skeleton's matching sidebar
+    <IframeLayerRowExtras.Provider value={iframeLayerRowExtras}>
+      <TooltipProvider>
+        {/* Children fade in over the loading skeleton's matching sidebar
           (#735); the panel background itself is already there. */}
-      <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground select-none [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0">
-        <div
-          data-tauri-drag-region
-          className="flex h-12 items-center justify-end px-4 pr-3"
-        >
-          <IconButton
-            label="Hide sidebar"
-            shortcut="⌘B"
-            tooltipSide="right"
-            className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent"
-            onClick={onCollapseSidebar}
+        <SidebarProvider className="flex h-full flex-col bg-sidebar text-sidebar-foreground select-none [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0">
+          <div
+            data-tauri-drag-region
+            className="flex h-12 items-center justify-end px-4 pr-3"
           >
-            <SidebarSimpleIcon />
-          </IconButton>
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-          <DndContext
-            // Stable id keeps dnd-kit's a11y `aria-describedby` deterministic
-            // across SSR/hydration (see file-dnd.tsx for the full rationale).
-            id="room-sidebar-canvases"
-            sensors={sensors}
-            collisionDetection={canvasCollision}
-            onDragStart={handleDragStart}
-            onDragMove={handleDragMove}
-            onDragEnd={handleDragEnd}
-            onDragCancel={handleDragCancel}
-          >
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <DropHintContext.Provider value={dropHint}>
-                  <SortableContext
-                    items={sortableIds}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="flex w-full min-w-0 flex-col gap-0">
-                      {iframeLayerGroups.map((group, gIdx) => {
-                        // Resolve the group's members again here so the JSX can
-                        // branch on count. `flattenedRows` is the source of
-                        // truth for sortable IDs and overlay lookups; this
-                        // local resolution drives the JSX shape (flat vs
-                        // header + children).
-                        const groupMembers = getGroupMembers(group)
-                          .map(resolveMember)
-                          .filter((m) => m !== undefined)
+            <IconButton
+              label="Hide sidebar"
+              shortcut="⌘B"
+              tooltipSide="right"
+              className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent"
+              onClick={onCollapseSidebar}
+            >
+              <SidebarSimpleIcon />
+            </IconButton>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+            <DndContext
+              // Stable id keeps dnd-kit's a11y `aria-describedby` deterministic
+              // across SSR/hydration (see file-dnd.tsx for the full rationale).
+              id="room-sidebar-canvases"
+              sensors={sensors}
+              collisionDetection={canvasCollision}
+              onDragStart={handleDragStart}
+              onDragMove={handleDragMove}
+              onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
+            >
+              <SidebarGroup>
+                <SidebarGroupContent>
+                  <DropHintContext.Provider value={dropHint}>
+                    <SortableContext
+                      items={sortableIds}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="flex w-full min-w-0 flex-col gap-0">
+                        {iframeLayerGroups.map((group, gIdx) => {
+                          // Resolve the group's members again here so the JSX can
+                          // branch on count. `flattenedRows` is the source of
+                          // truth for sortable IDs and overlay lookups; this
+                          // local resolution drives the JSX shape (flat vs
+                          // header + children).
+                          const groupMembers = getGroupMembers(group)
+                            .map(resolveMember)
+                            .filter((m) => m !== undefined)
 
-                        /** Render `<Row />` + `<Menu />` for a single member by
-                         *  looking up the kind in `rowDispatchByKind`. New layer
-                         *  kinds plug in by adding an entry to that map up top.
-                         *  Wrapped in a component so each member can own its own
-                         *  `EditableText` ref — shared between Row (input) and
-                         *  Menu (Rename click triggers `startEditing()`). */
-                        const renderMember = (
-                          member: ResolvedMember,
-                          variant: "flat" | "sub"
-                        ) => (
-                          <MemberEntry
-                            member={member}
-                            variant={variant}
-                            dispatch={rowDispatchByKind[member.kind]}
-                          />
-                        )
+                          /** Render `<Row />` + `<Menu />` for a single member by
+                           *  looking up the kind in `rowDispatchByKind`. New layer
+                           *  kinds plug in by adding an entry to that map up top.
+                           *  Wrapped in a component so each member can own its own
+                           *  `EditableText` ref — shared between Row (input) and
+                           *  Menu (Rename click triggers `startEditing()`). */
+                          const renderMember = (
+                            member: ResolvedMember,
+                            variant: "flat" | "sub"
+                          ) => (
+                            <MemberEntry
+                              member={member}
+                              variant={variant}
+                              dispatch={rowDispatchByKind[member.kind]}
+                            />
+                          )
 
-                        const isGroupDragging =
-                          activeDragRow?.kind === "group-header" &&
-                          activeDragRow.groupId === group.id
-                        return (
-                          <Fragment key={group.id}>
-                            <GapDrop sidebarIndex={gIdx} />
-                            {groupMembers.length === 1 ? (
-                              <SortableRow
-                                id={`flat:${group.id}`}
-                                groupId={group.id}
-                                className="group/menu-item group/frame-row cursor-grab active:cursor-grabbing"
-                              >
-                                {renderMember(groupMembers[0]!, "flat")}
-                              </SortableRow>
-                            ) : groupMembers.length > 1 ? (
-                              <div
-                                data-slot="sidebar-menu-item"
-                                data-sidebar="menu-item"
-                                className="group/menu-item relative flex flex-col"
-                                style={
-                                  isGroupDragging ? { opacity: 0 } : undefined
-                                }
-                              >
-                                <Collapsible
-                                  defaultOpen
-                                  className="group/frame-collapsible flex flex-col"
+                          const isGroupDragging =
+                            activeDragRow?.kind === "group-header" &&
+                            activeDragRow.groupId === group.id
+                          return (
+                            <Fragment key={group.id}>
+                              <GapDrop sidebarIndex={gIdx} />
+                              {groupMembers.length === 1 ? (
+                                <SortableRow
+                                  id={`flat:${group.id}`}
+                                  groupId={group.id}
+                                  className="group/menu-item group/frame-row cursor-grab active:cursor-grabbing"
                                 >
-                                  <WithEditableRef>
-                                    {({ ref: groupNameRef }) => (
-                                      <SortableRow
-                                        id={`group:${group.id}`}
-                                        groupId={group.id}
-                                        className="group/frame-group-row cursor-grab active:cursor-grabbing"
-                                      >
-                                        <GroupRowButton
-                                          branchId={groupBranchById.get(
-                                            group.id
-                                          )}
-                                          className={cn(
-                                            frameGroupRowButtonClass,
-                                            "!transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible"
-                                          )}
-                                          isActive={selectedGroupIds.has(
-                                            group.id
-                                          )}
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            onSelectGroup(group.id, e.shiftKey)
-                                          }}
-                                          onDoubleClick={(e) => {
-                                            e.stopPropagation()
-                                            onZoomToGroup(group.id)
-                                          }}
-                                          onKeyDown={(e) =>
-                                            renameOnF2(e, groupNameRef)
-                                          }
+                                  {renderMember(groupMembers[0]!, "flat")}
+                                </SortableRow>
+                              ) : groupMembers.length > 1 ? (
+                                <div
+                                  data-slot="sidebar-menu-item"
+                                  data-sidebar="menu-item"
+                                  className="group/menu-item relative flex flex-col"
+                                  style={
+                                    isGroupDragging ? { opacity: 0 } : undefined
+                                  }
+                                >
+                                  <Collapsible
+                                    defaultOpen
+                                    className="group/frame-collapsible flex flex-col"
+                                  >
+                                    <WithEditableRef>
+                                      {({ ref: groupNameRef }) => (
+                                        <SortableRow
+                                          id={`group:${group.id}`}
+                                          groupId={group.id}
+                                          className="group/frame-group-row cursor-grab active:cursor-grabbing"
                                         >
-                                          <CollapsibleTrigger
-                                            asChild
-                                            onClick={(e) => e.stopPropagation()}
-                                            onDoubleClick={(e) =>
+                                          <GroupRowButton
+                                            branchId={groupBranchById.get(
+                                              group.id
+                                            )}
+                                            className={cn(
+                                              frameGroupRowButtonClass,
+                                              "!transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible"
+                                            )}
+                                            isActive={selectedGroupIds.has(
+                                              group.id
+                                            )}
+                                            onClick={(e) => {
                                               e.stopPropagation()
+                                              onSelectGroup(
+                                                group.id,
+                                                e.shiftKey
+                                              )
+                                            }}
+                                            onDoubleClick={(e) => {
+                                              e.stopPropagation()
+                                              onZoomToGroup(group.id)
+                                            }}
+                                            onKeyDown={(e) =>
+                                              renameOnF2(e, groupNameRef)
                                             }
                                           >
-                                            <span className="relative shrink-0">
-                                              <FolderIcon className="block text-sidebar-foreground/70 group-hover/frame-group-row:hidden group-data-[state=open]/frame-collapsible:hidden" />
-                                              <FolderOpenIcon className="hidden text-sidebar-foreground/70 group-hover/frame-group-row:!hidden group-data-[state=open]/frame-collapsible:block" />
-                                              <CaretRightIcon className="hidden cursor-pointer text-sidebar-foreground/70 transition-transform group-hover/frame-group-row:!block group-data-[state=open]/frame-collapsible:rotate-90" />
-                                            </span>
-                                          </CollapsibleTrigger>
-                                          <EditableText
-                                            ref={groupNameRef}
-                                            as="span"
-                                            value={group.name ?? ""}
-                                            onCommit={(next) =>
-                                              onRenameIframeLayerGroup(
-                                                group.id,
-                                                next
-                                              )
-                                            }
-                                            placeholder="Group"
-                                            tabIndex={-1}
-                                            className="min-w-0 font-medium text-sidebar-foreground/70"
-                                            viewClassName="truncate"
-                                            editClassName={cn(
-                                              editableTextFieldClass,
-                                              "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
-                                            )}
-                                          />
-                                          {(() => {
-                                            const id = groupBranchById.get(
-                                              group.id
-                                            )
-                                            const branch = id
-                                              ? branchesById.get(id)
-                                              : undefined
-                                            const workspace =
-                                              frameWorkspaceOf(branch)
-                                            return workspace ? (
-                                              // Names win: the Workspace takes only the room the name leaves.
-                                              <span className="flex min-w-10 flex-1 basis-0 text-sm font-normal text-muted-foreground">
-                                                <CompactWorkspaceMention
-                                                  workspace={workspace}
-                                                  layout="row"
-                                                />
+                                            <CollapsibleTrigger
+                                              asChild
+                                              onClick={(e) =>
+                                                e.stopPropagation()
+                                              }
+                                              onDoubleClick={(e) =>
+                                                e.stopPropagation()
+                                              }
+                                            >
+                                              <span className="relative shrink-0">
+                                                <FolderIcon className="block text-sidebar-foreground/70 group-hover/frame-group-row:hidden group-data-[state=open]/frame-collapsible:hidden" />
+                                                <FolderOpenIcon className="hidden text-sidebar-foreground/70 group-hover/frame-group-row:!hidden group-data-[state=open]/frame-collapsible:block" />
+                                                <CaretRightIcon className="hidden cursor-pointer text-sidebar-foreground/70 transition-transform group-hover/frame-group-row:!block group-data-[state=open]/frame-collapsible:rotate-90" />
                                               </span>
-                                            ) : null
-                                          })()}
-                                        </GroupRowButton>
-                                        <LayerMenu
-                                          placement="row"
-                                          layerId={group.id}
-                                          actions={groupLayerMenu(() =>
-                                            onRemoveIframeLayerGroup(group.id)
-                                          )}
-                                          onRename={() =>
-                                            groupNameRef.current?.startEditing()
-                                          }
-                                          className={frameGroupRowActionClass}
-                                        />
-                                      </SortableRow>
-                                    )}
-                                  </WithEditableRef>
-                                  <CollapsibleContent>
-                                    <div
-                                      data-slot="sidebar-menu-sub"
-                                      data-sidebar="menu-sub"
-                                      className="mr-0 ml-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border py-0.5 pr-0 pl-1"
-                                    >
-                                      {groupMembers.map((m) => (
-                                        <SortableRow
-                                          key={`${m.kind}:${m.id}`}
-                                          id={`member:${m.kind}:${m.id}`}
-                                          groupId={group.id}
-                                          data-slot="sidebar-menu-sub-item"
-                                          data-sidebar="menu-sub-item"
-                                          className="group/menu-sub-item group/frame-row cursor-grab active:cursor-grabbing"
-                                        >
-                                          {renderMember(m, "sub")}
+                                            </CollapsibleTrigger>
+                                            <EditableText
+                                              ref={groupNameRef}
+                                              as="span"
+                                              value={group.name ?? ""}
+                                              onCommit={(next) =>
+                                                onRenameIframeLayerGroup(
+                                                  group.id,
+                                                  next
+                                                )
+                                              }
+                                              placeholder="Group"
+                                              tabIndex={-1}
+                                              className="min-w-0 font-medium text-sidebar-foreground/70"
+                                              viewClassName="truncate"
+                                              editClassName={cn(
+                                                editableTextFieldClass,
+                                                "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
+                                              )}
+                                            />
+                                            {(() => {
+                                              const id = groupBranchById.get(
+                                                group.id
+                                              )
+                                              const branch = id
+                                                ? branchesById.get(id)
+                                                : undefined
+                                              const workspace =
+                                                frameWorkspaceOf(branch)
+                                              return workspace ? (
+                                                // Names win: the Workspace takes only the room the name leaves.
+                                                <span className="flex min-w-10 flex-1 basis-0 text-sm font-normal text-muted-foreground">
+                                                  <CompactWorkspaceMention
+                                                    workspace={workspace}
+                                                    layout="row"
+                                                  />
+                                                </span>
+                                              ) : null
+                                            })()}
+                                          </GroupRowButton>
+                                          <LayerMenu
+                                            placement="row"
+                                            layerId={group.id}
+                                            actions={groupLayerMenu(() =>
+                                              onRemoveIframeLayerGroup(group.id)
+                                            )}
+                                            onRename={() =>
+                                              groupNameRef.current?.startEditing()
+                                            }
+                                            className={frameGroupRowActionClass}
+                                          />
                                         </SortableRow>
-                                      ))}
-                                    </div>
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              </div>
-                            ) : null}
-                          </Fragment>
-                        )
-                      })}
-                      <GapDrop sidebarIndex={iframeLayerGroups.length} />
+                                      )}
+                                    </WithEditableRef>
+                                    <CollapsibleContent>
+                                      <div
+                                        data-slot="sidebar-menu-sub"
+                                        data-sidebar="menu-sub"
+                                        className="mr-0 ml-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border py-0.5 pr-0 pl-1"
+                                      >
+                                        {groupMembers.map((m) => (
+                                          <SortableRow
+                                            key={`${m.kind}:${m.id}`}
+                                            id={`member:${m.kind}:${m.id}`}
+                                            groupId={group.id}
+                                            data-slot="sidebar-menu-sub-item"
+                                            data-sidebar="menu-sub-item"
+                                            className="group/menu-sub-item group/frame-row cursor-grab active:cursor-grabbing"
+                                          >
+                                            {renderMember(m, "sub")}
+                                          </SortableRow>
+                                        ))}
+                                      </div>
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                </div>
+                              ) : null}
+                            </Fragment>
+                          )
+                        })}
+                        <GapDrop sidebarIndex={iframeLayerGroups.length} />
+                      </div>
+                    </SortableContext>
+                  </DropHintContext.Provider>
+                  {iframeLayerGroups.length === 0 && (
+                    <div className="py-8 text-center text-sm text-balance text-sidebar-foreground/50">
+                      Nothing on the canvas yet
                     </div>
-                  </SortableContext>
-                </DropHintContext.Provider>
-                {iframeLayerGroups.length === 0 && (
-                  <div className="py-8 text-center text-sm text-balance text-sidebar-foreground/50">
-                    Nothing on the canvas yet
-                  </div>
-                )}
-              </SidebarGroupContent>
-            </SidebarGroup>
-            <DragOverlay dropAnimation={null}>
-              {activeDragRow ? (
-                <div className="rounded-md bg-sidebar opacity-95 shadow-lg ring-1 ring-sidebar-border">
-                  {activeDragRow.kind === "group-header" ? (
-                    <SidebarMenuButton className="!pr-2">
-                      <FolderIcon className="text-sidebar-foreground/70" />
-                      <span className="truncate font-medium text-sidebar-foreground/70">
-                        {iframeLayerGroups.find(
-                          (g) => g.id === activeDragRow.groupId
-                        )?.name ?? "Group"}
-                      </span>
-                    </SidebarMenuButton>
-                  ) : (
-                    <MemberEntry
-                      member={activeDragRow.member}
-                      variant={activeDragRow.kind === "flat" ? "flat" : "sub"}
-                      dispatch={rowDispatchByKind[activeDragRow.member.kind]}
-                    />
                   )}
-                </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        </div>
-        {footer && <div className="shrink-0 p-2">{footer}</div>}
-      </SidebarProvider>
-    </TooltipProvider>
+                </SidebarGroupContent>
+              </SidebarGroup>
+              <DragOverlay dropAnimation={null}>
+                {activeDragRow ? (
+                  <div className="rounded-md bg-sidebar opacity-95 shadow-lg ring-1 ring-sidebar-border">
+                    {activeDragRow.kind === "group-header" ? (
+                      <SidebarMenuButton className="!pr-2">
+                        <FolderIcon className="text-sidebar-foreground/70" />
+                        <span className="truncate font-medium text-sidebar-foreground/70">
+                          {iframeLayerGroups.find(
+                            (g) => g.id === activeDragRow.groupId
+                          )?.name ?? "Group"}
+                        </span>
+                      </SidebarMenuButton>
+                    ) : (
+                      <MemberEntry
+                        member={activeDragRow.member}
+                        variant={activeDragRow.kind === "flat" ? "flat" : "sub"}
+                        dispatch={rowDispatchByKind[activeDragRow.member.kind]}
+                      />
+                    )}
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          </div>
+          {footer && <div className="shrink-0 p-2">{footer}</div>}
+        </SidebarProvider>
+      </TooltipProvider>
+    </IframeLayerRowExtras.Provider>
   )
 }
 
@@ -986,3 +1007,10 @@ function GroupRowButton({
     />
   )
 }
+
+/**
+ * Memoized: the canvas re-renders on every pointer move of a drag, marquee or
+ * draw, and passes the sidebar props that keep their identity until they
+ * change, so the rows render only when what they show does.
+ */
+export const RoomSidebar = memo(RoomSidebarImpl)
