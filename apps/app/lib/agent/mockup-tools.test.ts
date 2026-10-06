@@ -364,6 +364,44 @@ describe("holding a Mockup (#1725)", () => {
     })
   })
 
+  it("holds a Mockup this chat reads", async () => {
+    const { run, ops, collections } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>theirs</p>",
+      title: "Theirs",
+      width: 400,
+      height: 300,
+      lastChangedByChatId: "chat-2",
+    })!
+
+    await run("read_mockup", { mockup_id: mockupId })
+
+    expect(
+      collections.chatSessions.get("chat-1")?.workingLayers?.[mockupId]
+    ).toEqual(expect.any(Number))
+    expect(collections.mockupLayers.get(mockupId)?.lastChangedByChatId).toBe(
+      "chat-2"
+    )
+  })
+
+  it("reads a Mockup another chat holds, without taking it", async () => {
+    const { run, ops, collections } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>theirs</p>",
+      title: "Theirs",
+      width: 400,
+      height: 300,
+    })!
+    heldByOther(collections, mockupId)
+
+    expect(await run("read_mockup", { mockup_id: mockupId })).toBe(
+      ["# Theirs", "", "<p>theirs</p>"].join("\n")
+    )
+    expect(collections.chatSessions.get("chat-1")?.workingLayers).toBe(
+      undefined
+    )
+  })
+
   it("leaves the earliest holder in charge when two chats list it", async () => {
     const { run, doc, ops, collections } = chatTools()
     const { mockupId } = ops.createMockup({

@@ -187,3 +187,81 @@ describe("InProcessEngine over the real AI SDK loop", () => {
     ])
   })
 })
+
+describe("InProcessEngine naming the layer a call works on (#1725)", () => {
+  it("sends the Mockup id while the page is still streaming", async () => {
+    const input = '{"mockup_id": "mock-1", "html": "<p>A long page</p>"}'
+    const updateStep = convertArrayToReadableStream([
+      { type: "stream-start" as const, warnings: [] },
+      {
+        type: "tool-input-start" as const,
+        id: "u1",
+        toolName: "update_mockup",
+      },
+      ...[input.slice(0, 30), input.slice(30)].map((delta) => ({
+        type: "tool-input-delta" as const,
+        id: "u1",
+        delta,
+      })),
+      { type: "tool-input-end" as const, id: "u1" },
+      {
+        type: "tool-call" as const,
+        toolCallId: "u1",
+        toolName: "update_mockup",
+        input,
+      },
+      {
+        type: "finish" as const,
+        finishReason: { unified: "tool-calls" as const, raw: undefined },
+        usage,
+      },
+    ])
+    let call = 0
+    const model = new MockLanguageModelV4({
+      doStream: async () =>
+        call++ === 0 ? { stream: updateStep } : stepStream({ text: "done" }),
+    })
+    const engine = new InProcessEngine((config) =>
+      streamText({ ...config, model })
+    )
+    const updates: string[] = []
+    await engine.run(
+      {
+        chatId: "c",
+        runId: "r",
+        roomId: "rm",
+        systemPrompt: "SYS",
+        model: "anthropic:test",
+        history: [{ role: "user", content: [textBlock("start")] }],
+        tools: {
+          update_mockup: tool({
+            inputSchema: jsonSchema<{ mockup_id: string; html: string }>({
+              type: "object",
+            }),
+            execute: async () => "Updated",
+          }),
+        },
+        takeSteers: async () => [],
+      },
+      (u) => {
+        if (u.kind !== "session_update") return
+        const up = u.update as {
+          sessionUpdate: string
+          status?: string
+          rawInput?: unknown
+        }
+        updates.push(
+          `${up.sessionUpdate} ${up.status ?? "-"} ${JSON.stringify(up.rawInput ?? null)}`
+        )
+      },
+      new AbortController().signal
+    )
+
+    // The id arrives on its own, before the whole input does.
+    expect(updates.slice(0, 3)).toEqual([
+      "tool_call pending null",
+      'tool_call_update - {"mockup_id":"mock-1"}',
+      `tool_call_update in_progress ${JSON.stringify(JSON.parse(input))}`,
+    ])
+  })
+})

@@ -118,14 +118,40 @@ describe("chat-store — the layers a turn is changing (#1725)", () => {
     chatStore.cleanup(chatId)
   })
 
-  it("ignores calls that change no Mockup or Document", () => {
+  it("adds a Mockup the call reads", () => {
+    const chatId = running()
+    update(
+      chatId,
+      toolCallStart({
+        toolCallId: "t1",
+        title: "mcp__screenplay__read_mockup",
+        rawInput: { mockup_id: "mock-1" },
+      })
+    )
+    expect(working(chatId)).toEqual(["mock-1"])
+    chatStore.cleanup(chatId)
+  })
+
+  it("adds a layer from the id alone, while the rest still streams", () => {
+    const chatId = running()
+    update(chatId, toolCallStart({ toolCallId: "t1", title: "update_mockup" }))
+    // What the in-process Engine sends once the id is written out.
+    update(
+      chatId,
+      toolCallUpdate({ toolCallId: "t1", rawInput: { mockup_id: "mock-1" } })
+    )
+    expect(working(chatId)).toEqual(["mock-1"])
+    chatStore.cleanup(chatId)
+  })
+
+  it("ignores calls that work on no Mockup or Document", () => {
     const chatId = running()
     update(
       chatId,
       toolCallStart({
         toolCallId: "t1",
         title: "read_mockup",
-        rawInput: { mockup_id: "mock-1" },
+        rawInput: {},
       })
     )
     update(

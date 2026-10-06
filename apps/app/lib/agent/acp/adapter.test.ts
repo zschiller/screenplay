@@ -5,6 +5,7 @@ import {
   agentChunksToRecord,
   aiSdkChunkToAcpUpdate,
   cachedSystem,
+  layerArgStreamer,
   thoughtChunksToRecord,
   toolKindFor,
   toolOutputToContent,
@@ -442,6 +443,46 @@ describe("aiSdkChunkToAcpUpdate (streamText chunk → ACP update)", () => {
       id: "t1",
     } as unknown as TextStreamPart<Record<string, Tool>>
     expect(aiSdkChunkToAcpUpdate(chunk)).toBeNull()
+  })
+})
+
+describe("layerArgStreamer (the layer a call names while its input streams)", () => {
+  const part = (p: Record<string, unknown>) =>
+    p as unknown as TextStreamPart<Record<string, Tool>>
+  const start = (id: string, toolName: string) =>
+    part({ type: "tool-input-start", id, toolName })
+  const delta = (id: string, text: string) =>
+    part({ type: "tool-input-delta", id, delta: text })
+
+  it("sends the id once, as soon as it’s written out", () => {
+    const stream = layerArgStreamer()
+    expect(stream(start("c1", "update_mockup"))).toBeNull()
+    expect(stream(delta("c1", '{"mockup_id": "mo'))).toBeNull()
+    expect(stream(delta("c1", 'ck-1", "html": "<p>'))).toEqual({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "c1",
+      rawInput: { mockup_id: "mock-1" },
+    })
+    expect(stream(delta("c1", "more page</p>"))).toBeNull()
+  })
+
+  it("keeps calls apart and ignores tools that name no layer", () => {
+    const stream = layerArgStreamer()
+    stream(start("c1", "read_mockup"))
+    stream(start("c2", "write_file"))
+    expect(stream(delta("c2", '{"mockup_id": "x", '))).toBeNull()
+    expect(stream(delta("c1", '{"mockup_id": "mock-2"}'))).toMatchObject({
+      toolCallId: "c1",
+      rawInput: { mockup_id: "mock-2" },
+    })
+  })
+
+  it("forgets a call whose input ended without naming one", () => {
+    const stream = layerArgStreamer()
+    stream(start("c1", "read_mockup"))
+    stream(delta("c1", "{"))
+    stream(part({ type: "tool-input-end", id: "c1" }))
+    expect(stream(delta("c1", '"mockup_id": "late"'))).toBeNull()
   })
 })
 

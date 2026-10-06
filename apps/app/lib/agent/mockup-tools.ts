@@ -19,9 +19,10 @@ import { holdLayer } from "@/lib/agent/layer-hold"
  * Mockup Layer, rewrite any Mockup on the canvas (#1724), and read any
  * Mockup's page back (#1313), e.g. to build a picked take. Each create or
  * update records the chat as the Mockup's `lastChangedByChatId`, which its
- * Knobs Ask and drafts go to (`lib/canvas/layer-chat`), and holds the Mockup
- * for the rest of the turn: another chat's update is refused meanwhile
- * (#1725, `layer-hold.ts`).
+ * Knobs Ask and drafts go to (`lib/canvas/layer-chat`). Each create, update
+ * or read of one Mockup holds it for the rest of the turn, which shows on it as
+ * the chat working: another chat's update is refused meanwhile (#1725,
+ * `layer-hold.ts`).
  *
  * Writes go through the turn's `room.mutateDoc` and Canvas Operations, so a
  * Mockup lands exactly as one a member's client would write. They read through
@@ -155,9 +156,13 @@ export function buildMockupTools(ctx: MockupToolContext) {
             ...own.map((m) => `- ${m.id}: ${m.title}`),
           ].join("\n")
         }
-        const found = await ctx.room.readDoc(({ mockupLayers, doc }) => {
-          const mockup = mockupLayers.get(mockup_id)
+        const found = await ctx.room.mutateDoc(({ doc }) => {
+          const collections = createRoomCollections(doc)
+          const mockup = collections.mockupLayers.get(mockup_id)
           if (!mockup) return null
+          // Reading shows on the Mockup as work too, and holds it like a
+          // change would; a read never waits on another chat's hold.
+          holdLayer(collections, ctx.chatId, mockup_id)
           return {
             title: mockup.title,
             html: mockupHtml(doc, mockup_id).toString(),
