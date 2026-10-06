@@ -209,8 +209,10 @@ export function SelectionOverlay({
       // sub-CSS-pixel amounts. Rounding to whole CSS pixels would produce
       // visible 1px jitter as the viewport position crosses each integer.
       const snap = (v: number) => Math.round(v * dpr) / dpr
-      // Offset to put a 1px stroke between two device pixels.
-      const HALF = 0.5 / dpr
+      // Half the 1px line: a stroke's path runs down its middle, so a 1px line
+      // offset by this from a snapped edge covers exactly the pixels beside
+      // that edge (two device pixels on Retina), not a smear straddling it.
+      const HALF = 0.5
 
       // Outside-stroke convention shared by every selection rect: the 1px line
       // sits just outside the snapped world-space bounds.
