@@ -73,6 +73,9 @@
   --canvas-frame-body: oklch(1 0 0);
   /* Each Layer's resting hairline (layer-edges-underlay.tsx). */
   --canvas-layer-edge: oklch(0 0 0 / 10%);
+  /* The pixel grid past 400% zoom (pixel-grid-overlay.tsx). Mid grey, so it
+     reads on light and dark pages alike, like Figma's. */
+  --canvas-pixel-grid: oklch(0.6 0 0 / 30%);
 
   --z-canvas-overlay: 10;
   --z-canvas-annotations: 20;
@@ -92,6 +95,7 @@
   --canvas-plane: oklch(0.07 0 0);
   --canvas-frame-body: oklch(0.205 0 0);
   --canvas-layer-edge: oklch(1 0 0 / 10%);
+  --canvas-pixel-grid: oklch(0.6 0 0 / 30%);
 }
 
 @theme inline {

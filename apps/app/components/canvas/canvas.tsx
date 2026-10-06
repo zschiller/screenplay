@@ -83,6 +83,7 @@ import { renameRoom } from "@/lib/rooms-actions"
 
 import { SelectionOverlay } from "./selection-overlay"
 import { LayerEdgesUnderlay } from "./layer-edges-underlay"
+import { PixelGridOverlay } from "./pixel-grid-overlay"
 
 import { Comments } from "./comments"
 
@@ -2472,6 +2473,10 @@ export function Canvas({
                     wrapperProps={camera.transformWrapperProps}
                   />
                 </CanvasContentContext.Provider>
+
+                {/* The pixel grid when zoomed far in: over the content, under
+                the labels and the selection. */}
+                <PixelGridOverlay camera={camera.liveCamera} />
 
                 {/* Comment pins live in their own screen-space layer above the
                   selection overlay so pins/popovers aren't painted over by it.

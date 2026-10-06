@@ -23,6 +23,8 @@ export const CANVAS_COLOR = {
   frameBody: "--canvas-frame-body",
   /** Each Layer's resting hairline, drawn beneath the content. */
   layerEdge: "--canvas-layer-edge",
+  /** The pixel grid's lines, drawn over the content when zoomed far in. */
+  pixelGrid: "--canvas-pixel-grid",
 } as const
 
 export type CanvasColorToken = (typeof CANVAS_COLOR)[keyof typeof CANVAS_COLOR]
