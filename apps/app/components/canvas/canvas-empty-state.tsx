@@ -26,6 +26,7 @@ import {
 } from "@workspace/ui/components/tooltip"
 
 import { AddRepositoryTrigger } from "@/components/add-repository-dialog"
+import { repoListTitle, type RepoNaming } from "@/lib/repo-identity"
 
 import { NO_REPOSITORY_HINT } from "./canvas-toolbar"
 import type { ToolModeController } from "./use-tool-mode"
@@ -51,16 +52,24 @@ const ON_PLANE = "bg-foreground/[0.06] dark:bg-muted"
  * to the picker (#1182). With no repository yet, Add a frame is off and its
  * tooltip says to add one first, the same as the toolbar's Frame button.
  *
+ * A canvas with repositories (#1814) drops the Add a repository row, since
+ * Canvas settings is where its repositories change, and its description names
+ * them, so a person knows what a frame will preview.
+ *
  * Floats over the canvas in screen space and is pointer-transparent except for
  * its buttons, so panning and marquee still work around it. The Canvas stops
  * rendering it once any Layer exists.
  */
 export function CanvasEmptyState({
   toolMode,
+  repos,
 }: {
   toolMode: ToolModeController
+  /** The canvas's Canvas Repos. */
+  repos: readonly RepoNaming[]
 }) {
   const { frameMode, mockupMode, documentMode } = toolMode
+  const hasRepos = repos.length > 0
 
   if (frameMode || mockupMode || documentMode) {
     return (
@@ -91,11 +100,7 @@ export function CanvasEmptyState({
             <LayoutIcon />
           </EmptyMedia>
           <EmptyTitle>This canvas is empty</EmptyTitle>
-          <EmptyDescription>
-            Frames preview a chat’s code, mockups sketch a page before it’s
-            built, documents hold notes and specs, and a repository holds the
-            code they run.
-          </EmptyDescription>
+          <EmptyDescription>{emptyCanvasDescription(repos)}</EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="pointer-events-auto w-56 gap-1">
           {toolMode.frameAvailable ? (
@@ -137,13 +142,30 @@ export function CanvasEmptyState({
             shortcut="D"
             onClick={() => toolMode.set("document")}
           />
-          <AddRepositoryTrigger>
-            <EmptyAction icon={<FolderPlusIcon />} label="Add a repository" />
-          </AddRepositoryTrigger>
+          {!hasRepos && (
+            <AddRepositoryTrigger>
+              <EmptyAction icon={<FolderPlusIcon />} label="Add a repository" />
+            </AddRepositoryTrigger>
+          )}
         </EmptyContent>
       </Empty>
     </div>
   )
+}
+
+const LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" })
+
+/**
+ * The empty canvas's description. With repositories it names each one the way
+ * a repository list row does (`owner/name`), once, joined as a list: “a”, “a
+ * and b”, “a, b, and c”.
+ */
+export function emptyCanvasDescription(repos: readonly RepoNaming[]): string {
+  if (repos.length === 0) {
+    return "Frames preview a chat’s code, mockups sketch a page before it’s built, documents hold notes and specs, and a repository holds the code they run."
+  }
+  const names = [...new Set(repos.map((r) => repoListTitle(r).heading))]
+  return `Frames preview ${LIST.format(names)}, mockups sketch a page before it’s built, and documents hold notes and specs.`
 }
 
 function EmptyAction({
