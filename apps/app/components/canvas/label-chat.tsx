@@ -26,13 +26,14 @@ const LABEL_CHAT_MIN_WIDTH = 40
 /**
  * A label row's chat, after the name. Names win: it gives up its width first,
  * and hides where the name and the chat at its narrowest don't both fit (see
- * `useLabelChatHidden`), at any zoom.
+ * `useLabelChatHidden`), at any zoom. While the row's name is being renamed
+ * it gives up all of it, so the field keeps the name's width.
  */
 export function LabelChat({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-label-chat=""
-      className="flex min-w-10 shrink-[1000000] [[data-chat-hidden]>&]:hidden"
+      className="flex min-w-10 shrink-[1000000] [[data-chat-hidden]>&]:hidden [:has([data-editable-text=editing])>&]:min-w-0 [:has([data-editable-text=editing])>&]:overflow-hidden"
     >
       {children}
     </div>
