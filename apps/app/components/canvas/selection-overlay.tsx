@@ -6,7 +6,10 @@ import type {
   IframeLayerLayoutMap,
   ReorderHandle,
 } from "@/lib/canvas/layout"
-import { showsResizeHandles } from "@/lib/canvas/camera"
+import {
+  RESIZE_HANDLE_SIZE,
+  visibleResizeHandles,
+} from "@/lib/canvas/resize-handles"
 import type { SnapGuide } from "@/lib/canvas/snap"
 import { measureDraw } from "@/lib/canvas/draw-bounds"
 import { CANVAS_COLOR, resolveCanvasColor } from "@/lib/canvas/tokens"
@@ -159,7 +162,6 @@ export function SelectionOverlay({
     // snap colour.
     const selectionColor = isResizeSnapped ? snapColor : primaryColor
     const bgColor = resolveCanvasColor(canvas, "--background")
-    const HANDLE_SIZE = 8
 
     // Everything below draws in container CSS pixels. It runs twice: once to
     // measure the area it touches, then on the canvas sized to that area.
@@ -174,19 +176,21 @@ export function SelectionOverlay({
       ) => {
         const mx = snap((l + r) / 2)
         const my = snap((t + b) / 2)
-        const hs = HANDLE_SIZE
+        const hs = RESIZE_HANDLE_SIZE
         const hh = hs / 2
-        const handles = [
-          [l, t],
-          [r, t],
-          [l, b],
-          [r, b],
-          [mx, t],
-          [mx, b],
-          [l, my],
-          [r, my],
-        ]
-        for (const [hx, hy] of handles) {
+        const at = {
+          nw: [l, t],
+          ne: [r, t],
+          sw: [l, b],
+          se: [r, b],
+          n: [mx, t],
+          s: [mx, b],
+          w: [l, my],
+          e: [r, my],
+        }
+        // Only the drawing hides; the grab zones stay live at any size.
+        for (const edge of visibleResizeHandles(r - l, b - t)) {
+          const [hx, hy] = at[edge]
           ctx.fillStyle = bgColor
           ctx.fillRect(hx - hh, hy - hh, hs, hs)
           ctx.strokeStyle = color
@@ -372,13 +376,7 @@ export function SelectionOverlay({
       ) {
         const id = selectedIframeLayerIds.values().next().value as string
         const edges = frameEdges.get(id)
-        const layout = iframeLayerLayouts.get(id)
-        // Same per-Layer rule as the grab zones in the Layer Shell.
-        if (
-          edges &&
-          layout &&
-          showsResizeHandles(layout.width, layout.height, zoom)
-        ) {
+        if (edges) {
           const { l, t, r, b } = edges
           drawHandles(l, t, r, b, selectionColor)
         }
@@ -548,11 +546,7 @@ export function SelectionOverlay({
           ctx.fillStyle = resolveCanvasColor(canvas, CANVAS_COLOR.frameBody)
           ctx.fillRect(l, t, r - l, bo - t)
           strokeWorldRect(l, t, r, bo)
-          const w = Math.abs(frameDraft.currentX - frameDraft.startX)
-          const h = Math.abs(frameDraft.currentY - frameDraft.startY)
-          if (showsResizeHandles(w, h, zoom)) {
-            drawHandles(l, t, r, bo, primaryColor)
-          }
+          drawHandles(l, t, r, bo, primaryColor)
         } else {
           ctx.setLineDash([4, 4])
           ctx.strokeStyle = primaryColor
