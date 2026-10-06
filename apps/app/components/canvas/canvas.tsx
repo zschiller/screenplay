@@ -82,6 +82,7 @@ import { canRevealEnv } from "@/lib/repo-env/names"
 import { renameRoom } from "@/lib/rooms-actions"
 
 import { SelectionOverlay } from "./selection-overlay"
+import { LayerEdgesUnderlay } from "./layer-edges-underlay"
 
 import { Comments } from "./comments"
 
@@ -1072,6 +1073,26 @@ export function Canvas({
     ]
   )
   const effectiveIframeLayerLayouts = canvasLayout.layouts
+  // While popped, `effectiveIframeLayerLayouts` already places the dragged
+  // frame at `cursor - grab`, so no extra shift is needed for the selection
+  // overlay or the edge underlay (which read from that same map). Only the
+  // in-flow reorder case needs a translation delta layered on top of the raw
+  // flex slot.
+  const reorderDragShift = useMemo(() => {
+    const reorderPreview = gesturePreview.reorder
+    if (!reorderPreview || reorderPreview.popped) return null
+    const layout = iframeLayerLayouts.get(reorderPreview.memberId)
+    if (!layout) return null
+    const grab = reorderPreview.grabOffset ?? {
+      x: layout.width / 2,
+      y: layout.height / 2,
+    }
+    return {
+      iframeLayerId: reorderPreview.memberId,
+      dx: reorderPreview.cursor.x - grab.x - layout.x,
+      dy: 0,
+    }
+  }, [gesturePreview.reorder, iframeLayerLayouts])
   const sortedIframeLayerGroups = useMemo(() => {
     return [...iframeLayerGroups].sort((a, b) => {
       const ao = a.sidebarOrder ?? Number.MAX_SAFE_INTEGER
@@ -2353,6 +2374,13 @@ export function Canvas({
                   rects={placeholderRects}
                 />
 
+                {/* Every Layer's resting hairline, beneath the content. */}
+                <LayerEdgesUnderlay
+                  layouts={effectiveIframeLayerLayouts}
+                  dragShift={reorderDragShift}
+                  camera={camera.liveCamera}
+                />
+
                 <CanvasContentContext.Provider
                   value={
                     <LiveZoomContext.Provider value={camera.liveZoom}>
@@ -2535,29 +2563,7 @@ export function Canvas({
                   gapHandles={gapHandles}
                   reorderHandles={reorderHandles}
                   hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
-                  reorderDragShift={(() => {
-                    // While popped, `effectiveIframeLayerLayouts` already
-                    // places the dragged frame at `cursor - grab`, so no extra
-                    // shift is needed for the selection overlay (which reads
-                    // from that same map). Only the in-flow reorder case
-                    // needs a translation delta layered on top of the raw
-                    // flex slot.
-                    const reorderPreview = gesturePreview.reorder
-                    if (!reorderPreview || reorderPreview.popped) return null
-                    const layout = iframeLayerLayouts.get(
-                      reorderPreview.memberId
-                    )
-                    if (!layout) return null
-                    const grab = reorderPreview.grabOffset ?? {
-                      x: layout.width / 2,
-                      y: layout.height / 2,
-                    }
-                    return {
-                      iframeLayerId: reorderPreview.memberId,
-                      dx: reorderPreview.cursor.x - grab.x - layout.x,
-                      dy: 0,
-                    }
-                  })()}
+                  reorderDragShift={reorderDragShift}
                   marquee={gesturePreview.marqueeRect}
                   frameDraft={
                     frameDraft ??
