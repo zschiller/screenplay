@@ -24,7 +24,6 @@ import {
   serializeSkill,
   skillMarkersToPills,
 } from "@/lib/agent/message-markers"
-import { forMockup } from "@/lib/draw-ask"
 
 describe("prependTurnMarkers", () => {
   it("renders plan before branch", () => {
@@ -418,12 +417,12 @@ describe("elementMarkersToPills", () => {
 })
 
 describe("mockupMarkersToRefs", () => {
-  it("names a drawn Mockup’s ask by the Mockup, without the agent’s wording", () => {
+  it("names an older drawn Mockup’s ask by the Mockup, without the agent’s wording", () => {
     expect(
-      mockupMarkersToRefs(forMockup("", "m-2", { width: 402, height: 874 }))
-    ).toBe(
-      "Sketch it in [Mockup](mockup:m-2), for the iPhone 17 Pro screen (402 × 874)."
-    )
+      mockupMarkersToRefs(
+        "Sketch it in Mockup [mockup: m-2] with update_mockup, for a 402 × 874 viewport."
+      )
+    ).toBe("Sketch it in [Mockup](mockup:m-2), for a 402 × 874 viewport.")
   })
 
   it("rewrites a bare marker too", () => {

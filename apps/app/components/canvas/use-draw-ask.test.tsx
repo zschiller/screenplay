@@ -27,6 +27,9 @@ import {
   workspaceRoute,
 } from "@/lib/draw-ask"
 
+import { buildOutgoingTurn } from "@/lib/agent/outgoing-turn"
+import { projectUserTurn } from "@/lib/agent/user-turn"
+
 import { useDrawAsk } from "./use-draw-ask"
 
 afterEach(() => {
@@ -286,7 +289,7 @@ describe("sending a frame’s ask", () => {
     expect(t.collections.iframeLayers.get(t.frameId)?.branchId).toBe("b1")
     expect(t.sendPrompt).toHaveBeenCalledWith(
       "b1",
-      "A checkout page\n\nThe box was drawn by hand at about 390 × 840, phone width. Take that as a loose hint, not a spec."
+      "A checkout page\n\n---\n\nDrawn box: the sender drew a frame on the canvas to ask this. It was drawn by hand at about 390 × 840, phone width, so take the size as a loose hint, not a spec."
     )
     expect(t.createBranch).not.toHaveBeenCalled()
     expect(t.hook.result.current.open).toBeNull()
@@ -308,7 +311,7 @@ describe("sending a frame’s ask", () => {
           baseBranch: "main",
           model: "model-x",
           prompt:
-            "A checkout page\n\nThe box was drawn by hand at about 390 × 840, phone width. Take that as a loose hint, not a spec.",
+            "A checkout page\n\n---\n\nDrawn box: the sender drew a frame on the canvas to ask this. It was drawn by hand at about 390 × 840, phone width, so take the size as a loose hint, not a spec.",
         },
       ],
       { frameId: t.frameId }
@@ -433,7 +436,7 @@ describe("sending a Mockup box’s ask", () => {
     const mockup = expectEmptyMockup(t, "c1")
     expect(t.sendPrompt).toHaveBeenCalledWith(
       "b1",
-      `An empty cart\n\nSketch it in Mockup [mockup: ${mockup.id}] with update_mockup. The box was drawn by hand at about 390 × 600, phone width. Take that as a loose hint, not a spec.`
+      `An empty cart\n\n---\n\nDrawn box: the sender drew Mockup [mockup: ${mockup.id}] on the canvas for this; sketch it there with update_mockup. It was drawn by hand at about 390 × 600, phone width, so take the size as a loose hint, not a spec.`
     )
   })
 
@@ -475,7 +478,7 @@ describe("sending a Mockup box’s ask", () => {
       roomId: "room-1",
       chatId: "s1",
       target: { kind: "sketch", chatId: "s1" },
-      message: `An empty cart\n\nSketch it in Mockup [mockup: ${mockup.id}] with update_mockup. The box was drawn by hand at about 390 × 600, phone width. Take that as a loose hint, not a spec.`,
+      message: `An empty cart\n\n---\n\nDrawn box: the sender drew Mockup [mockup: ${mockup.id}] on the canvas for this; sketch it there with update_mockup. It was drawn by hand at about 390 × 600, phone width, so take the size as a loose hint, not a spec.`,
       model: "own-model",
     })
   })
@@ -544,61 +547,53 @@ describe("defaultNewWorkspaceRepoId", () => {
 
 describe("sizeHint", () => {
   it("names a device preset the box lands on exactly", () => {
-    expect(sizeHint({ width: 402, height: 874 })).toEqual({
-      device: true,
-      text: "the iPhone 17 Pro screen (402 × 874)",
-    })
-    expect(sizeHint({ width: 1280.2, height: 799.6 })).toEqual({
-      device: true,
-      text: "the Laptop screen (1280 × 800)",
-    })
+    expect(sizeHint({ width: 402, height: 874 })).toBe(
+      "It is sized as the iPhone 17 Pro screen (402 × 874)."
+    )
+    expect(sizeHint({ width: 1280.2, height: 799.6 })).toBe(
+      "It is sized as the Laptop screen (1280 × 800)."
+    )
   })
 
   it("names a phone or tablet preset turned to landscape", () => {
-    expect(sizeHint({ width: 1133, height: 744 }).text).toBe(
-      "the iPad mini (A17 Pro) screen in landscape (1133 × 744)"
+    expect(sizeHint({ width: 1133, height: 744 })).toBe(
+      "It is sized as the iPad mini (A17 Pro) screen in landscape (1133 × 744)."
     )
   })
 
   it("keeps a desktop preset to its own orientation", () => {
-    expect(sizeHint({ width: 800, height: 1280 }).device).toBe(false)
+    expect(sizeHint({ width: 800, height: 1280 })).toContain("drawn by hand")
   })
 
   it("rounds a hand-drawn size and calls it a loose hint", () => {
-    expect(sizeHint({ width: 613, height: 437 })).toEqual({
-      device: false,
-      text: "The box was drawn by hand at about 610 × 440, tablet width. Take that as a loose hint, not a spec.",
-    })
-  })
-
-  it("gives a hand-drawn box its width class", () => {
-    expect(sizeHint({ width: 388, height: 700 }).text).toContain("phone width")
-    expect(sizeHint({ width: 1100, height: 700 }).text).toContain(
-      "desktop width"
+    expect(sizeHint({ width: 613, height: 437 })).toBe(
+      "It was drawn by hand at about 610 × 440, tablet width, so take the size as a loose hint, not a spec."
     )
   })
 
+  it("gives a hand-drawn box its width class", () => {
+    expect(sizeHint({ width: 388, height: 700 })).toContain("phone width")
+    expect(sizeHint({ width: 1100, height: 700 })).toContain("desktop width")
+  })
+
   it("never rounds a tiny box down to nothing", () => {
-    expect(sizeHint({ width: 3, height: 4 }).text).toContain("about 10 × 10")
+    expect(sizeHint({ width: 3, height: 4 })).toContain("about 10 × 10")
   })
 })
 
 describe("withViewport", () => {
-  it("adds a hand-drawn size as a loose hint after the prompt", () => {
-    expect(withViewport("A checkout page", { width: 390, height: 844 })).toBe(
-      "A checkout page\n\nThe box was drawn by hand at about 390 × 840, phone width. Take that as a loose hint, not a spec."
+  it("adds the size as a footer only the model reads", () => {
+    expect(withViewport(" A checkout page ", { width: 390, height: 844 })).toBe(
+      "A checkout page\n\n---\n\nDrawn box: the sender drew a frame on the canvas to ask this. It was drawn by hand at about 390 × 840, phone width, so take the size as a loose hint, not a spec."
     )
   })
 
-  it("names the device when the box is one", () => {
-    expect(withViewport("x", { width: 402.4, height: 873.6 })).toBe(
-      "x\n\nFor the iPhone 17 Pro screen (402 × 874)."
-    )
-  })
-
-  it("never states the size as a viewport to build for", () => {
-    expect(withViewport("x", { width: 517, height: 333 })).not.toMatch(
-      /viewport/
+  it("shows only what was typed", () => {
+    const wire = withViewport("A checkout page", { width: 402, height: 874 })
+    expect(wire).toContain("iPhone 17 Pro screen (402 × 874)")
+    expect(projectUserTurn(wire).body).toBe("A checkout page")
+    expect(buildOutgoingTurn({ message: wire }).turn.body).toBe(
+      "A checkout page"
     )
   })
 })
@@ -673,16 +668,18 @@ describe("defaultFrameAnswerer", () => {
 })
 
 describe("forMockup", () => {
-  it("names the drawn Mockup and its loose size after what was typed", () => {
-    expect(forMockup(" An empty cart ", "m-1", { width: 390.4, height: 844 }))
+  it("names the drawn Mockup and its size in a footer after what was typed", () => {
+    expect(forMockup(" An empty cart ", "m-1", { width: 1280, height: 800 }))
       .toBe(`An empty cart
 
-Sketch it in Mockup [mockup: m-1] with update_mockup. The box was drawn by hand at about 390 × 840, phone width. Take that as a loose hint, not a spec.`)
+---
+
+Drawn box: the sender drew Mockup [mockup: m-1] on the canvas for this; sketch it there with update_mockup. It is sized as the Laptop screen (1280 × 800).`)
   })
 
-  it("still names the Mockup, and a clicked box's device, when nothing was typed", () => {
-    expect(forMockup("", "m-1", { width: 1280, height: 800 })).toBe(
-      "Sketch it in Mockup [mockup: m-1] with update_mockup, for the Laptop screen (1280 × 800)."
-    )
+  it("shows only what was typed", () => {
+    const wire = forMockup("An empty cart", "m-1", { width: 390, height: 600 })
+    expect(projectUserTurn(wire).body).toBe("An empty cart")
+    expect(buildOutgoingTurn({ message: wire }).turn.body).toBe("An empty cart")
   })
 })

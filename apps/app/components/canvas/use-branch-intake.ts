@@ -16,6 +16,7 @@ import {
 
 import { withBasePath } from "@/lib/base-path"
 import { deriveFallbackName } from "@/lib/agent/fallback-name"
+import { stripDrawnBoxFooter } from "@/lib/agent/message-markers"
 import { agentCanStart } from "@/lib/branch/workspace-state"
 import { chatStore, type SendMessageOptions } from "@/lib/chat-store"
 import { dispatchPrompt } from "@/lib/chat/agent-prompt"
@@ -299,7 +300,7 @@ export function useBranchIntake(deps: BranchIntakeDeps): BranchIntake {
       const names = specs.map((spec, i) => ({
         branch: randomBranchName(taken),
         label: plans[i]!.seedChat
-          ? deriveFallbackName(spec.prompt).label
+          ? deriveFallbackName(stripDrawnBoxFooter(spec.prompt)).label
           : "Untitled",
       }))
 
