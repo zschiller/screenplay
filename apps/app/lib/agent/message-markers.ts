@@ -242,7 +242,7 @@ const MOCKUP_MARKER_RE = /\[mockup:\s*([^\]\s]+)\](?!\()/g
  * reference link form `[Mockup](mockup:<id>)` (mirroring
  * `elementMarkersToPills`), dropping forMockup's "Mockup … with update_mockup"
  * wording around it, so "Sketch it in Mockup [mockup: m-1] with
- * update_mockup, for …" reads "Sketch it in [Mockup](mockup:m-1), for …". The
+ * update_mockup. The box …" reads "Sketch it in [Mockup](mockup:m-1). The box …". The
  * renderer swaps in the Mockup's live title; `Mockup` is only the fallback.
  */
 export function mockupMarkersToRefs(body: string): string {

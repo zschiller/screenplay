@@ -1,5 +1,6 @@
 import { sortForSidebar } from "@/lib/sidebar-order"
 import { layerChats } from "@/lib/canvas/layer-chat"
+import { IFRAME_LAYER_SIZE_PRESETS } from "@/lib/iframe-layer-sizes"
 import type {
   BranchData,
   ChatSessionData,
@@ -29,14 +30,55 @@ export function defaultNewWorkspaceRepoId(
 }
 
 /**
- * The prompt a drawn frame's ask card sends: what was typed, then the frame's
- * size as the viewport, so a phone-sized box gets a mobile take.
+ * What a drawn box's size tells the agent. A box that lands exactly on a
+ * device preset (a click makes the default one) names that screen. Anything
+ * else was dragged by hand, so it's rough: the size comes rounded, with only
+ * its width class, as a loose hint the agent shouldn't build the answer
+ * around. What was typed decides when it says otherwise.
+ */
+export function sizeHint(size: { width: number; height: number }): {
+  device: boolean
+  text: string
+} {
+  const width = Math.round(size.width)
+  const height = Math.round(size.height)
+  for (const preset of IFRAME_LAYER_SIZE_PRESETS) {
+    if (preset.width === width && preset.height === height) {
+      return {
+        device: true,
+        text: `the ${preset.label} screen (${width} × ${height})`,
+      }
+    }
+    if (
+      preset.category !== "Desktop" &&
+      preset.width === height &&
+      preset.height === width
+    ) {
+      return {
+        device: true,
+        text: `the ${preset.label} screen in landscape (${width} × ${height})`,
+      }
+    }
+  }
+  const rough = (n: number) => Math.max(10, Math.round(n / 10) * 10)
+  const widthClass = width < 600 ? "phone" : width < 1024 ? "tablet" : "desktop"
+  return {
+    device: false,
+    text: `The box was drawn by hand at about ${rough(width)} × ${rough(height)}, ${widthClass} width. Take that as a loose hint, not a spec.`,
+  }
+}
+
+/**
+ * The prompt a drawn frame's ask card sends: what was typed, then its size
+ * hint (`sizeHint`), so a phone-sized box still gets a mobile take without
+ * the first reply dwelling on a size nobody chose on purpose.
  */
 export function withViewport(
   prompt: string,
   size: { width: number; height: number }
 ): string {
-  const viewport = `For a ${Math.round(size.width)} × ${Math.round(size.height)} viewport.`
+  const hint = sizeHint(size)
+  const viewport = hint.device ? `For ${hint.text}.` : hint.text
   const text = prompt.trim()
   return text ? `${text}\n\n${viewport}` : viewport
 }
@@ -72,7 +114,7 @@ export function emptyMockup(mockup: DrawnMockup, chatId: string) {
 
 /**
  * The prompt a drawn Mockup box's ask sends (#1359): what was typed, then which
- * Mockup to fill and its size as the viewport. The Mockup already exists, empty
+ * Mockup to fill and its size hint (`sizeHint`). The Mockup already exists, empty
  * and last changed by the answering chat, so the chat writes it with `update_mockup`.
  * The `[mockup: <id>]` marker names it the way the system prompt describes.
  */
@@ -81,7 +123,10 @@ export function forMockup(
   mockupId: string,
   size: { width: number; height: number }
 ): string {
-  const target = `Sketch it in Mockup [mockup: ${mockupId}] with update_mockup, for a ${Math.round(size.width)} × ${Math.round(size.height)} viewport.`
+  const hint = sizeHint(size)
+  const target = hint.device
+    ? `Sketch it in Mockup [mockup: ${mockupId}] with update_mockup, for ${hint.text}.`
+    : `Sketch it in Mockup [mockup: ${mockupId}] with update_mockup. ${hint.text}`
   const text = prompt.trim()
   return text ? `${text}\n\n${target}` : target
 }

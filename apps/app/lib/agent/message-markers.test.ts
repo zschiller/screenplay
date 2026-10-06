@@ -420,8 +420,10 @@ describe("elementMarkersToPills", () => {
 describe("mockupMarkersToRefs", () => {
   it("names a drawn Mockup’s ask by the Mockup, without the agent’s wording", () => {
     expect(
-      mockupMarkersToRefs(forMockup("", "m-2", { width: 390, height: 844 }))
-    ).toBe("Sketch it in [Mockup](mockup:m-2), for a 390 × 844 viewport.")
+      mockupMarkersToRefs(forMockup("", "m-2", { width: 402, height: 874 }))
+    ).toBe(
+      "Sketch it in [Mockup](mockup:m-2), for the iPhone 17 Pro screen (402 × 874)."
+    )
   })
 
   it("rewrites a bare marker too", () => {
