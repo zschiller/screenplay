@@ -135,6 +135,9 @@ export function SelectionOverlay({
   isResizeSnapped,
 }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  // The container's size as the observer below last saw it: reading the box
+  // on every draw would force a layout on every pointer move of a resize.
+  const sizeRef = useRef<{ width: number; height: number } | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -144,7 +147,7 @@ export function SelectionOverlay({
     if (!ctx) return
 
     const dpr = window.devicePixelRatio || 1
-    const rect = canvas.getBoundingClientRect()
+    const rect = sizeRef.current ?? canvas.getBoundingClientRect()
     const w = rect.width
     const h = rect.height
 
@@ -705,6 +708,7 @@ export function SelectionOverlay({
     const observer = new ResizeObserver(() => {
       const dpr = window.devicePixelRatio || 1
       const r = parent.getBoundingClientRect()
+      sizeRef.current = { width: r.width, height: r.height }
       canvas.width = r.width * dpr
       canvas.height = r.height * dpr
       canvas.style.width = `${r.width}px`

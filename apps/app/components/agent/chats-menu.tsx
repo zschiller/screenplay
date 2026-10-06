@@ -99,6 +99,7 @@ import { isLocalBuild } from "@/lib/local-mode"
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
 
 import { sortForSidebar } from "@/lib/sidebar-order"
+import { useStableValue } from "@/lib/canvas/stable-props"
 
 import type {
   BranchData,
@@ -370,26 +371,70 @@ export function ChatsMenuProvider({
     [flatBranches, stateOf, sketchChats, sketchLineOf]
   )
 
-  const value: ChatsMenuValue = {
-    ...props,
-    open,
-    setOpen,
-    sortedRepos,
-    reposById,
-    activeBranches,
-    doneBranches,
-    sketchChats,
-    needsYou,
-    stateOf,
-    sketchLineOf,
-    pendingBranchIds,
+  // The value keeps its identity until something in it changes, so the menus
+  // that read it (one per Layer) skip the canvas's re-render on every pointer
+  // move of a drag or resize. Its actions call the latest.
+  const {
+    userId,
+    roomId,
+    repos: _repos,
+    branches: _branches,
+    diffStats,
+    branchPrs,
+    ...handlers
+  } = props
+  const actions = useStableValue({
+    ...handlers,
     askDelete,
     askRecreate,
     askDeleteSketchChat,
-    renameRequest,
     requestRename,
     clearRenameRequest,
-  }
+  })
+  const value: ChatsMenuValue = useMemo(
+    () => ({
+      ...actions,
+      userId,
+      roomId,
+      repos,
+      branches,
+      diffStats,
+      branchPrs,
+      open,
+      setOpen,
+      sortedRepos,
+      reposById,
+      activeBranches,
+      doneBranches,
+      sketchChats,
+      needsYou,
+      stateOf,
+      sketchLineOf,
+      pendingBranchIds,
+      renameRequest,
+    }),
+    [
+      actions,
+      userId,
+      roomId,
+      repos,
+      branches,
+      diffStats,
+      branchPrs,
+      open,
+      setOpen,
+      sortedRepos,
+      reposById,
+      activeBranches,
+      doneBranches,
+      sketchChats,
+      needsYou,
+      stateOf,
+      sketchLineOf,
+      pendingBranchIds,
+      renameRequest,
+    ]
+  )
   const deleteSketchChat = pendingDeleteSketchId
     ? sketchChats.find((c) => c.id === pendingDeleteSketchId)
     : undefined

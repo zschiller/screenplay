@@ -70,7 +70,6 @@ import type {
   IframeLayerData,
   IframeLayerGroupData,
   MarkdownLayerData,
-  MockupLayerData,
   GroupMember,
 } from "@/lib/types"
 import { getGroupMembers } from "@/lib/canvas/layout"
@@ -326,14 +325,23 @@ function GapDrop({ sidebarIndex }: { sidebarIndex: number }) {
 /** A Group as the sidebar lists it: everything but where it sits. */
 export type SidebarLayerGroup = Omit<IframeLayerGroupData, "x" | "y">
 
+/** A frame as the sidebar lists it. */
+export type SidebarFrame = Pick<
+  IframeLayerData,
+  "id" | "branchId" | "label" | "route"
+>
+
+/** A Document or Mockup as the sidebar lists it. */
+export type SidebarTitledLayer = Pick<MarkdownLayerData, "id" | "title">
+
 interface RoomSidebarProps {
   /** The canvas's Workspaces: group and frame rows name theirs. */
   branches: BranchData[]
-  iframeLayers: Array<
-    Pick<IframeLayerData, "id" | "branchId" | "label" | "route">
-  >
-  markdownLayers: MarkdownLayerData[]
-  mockupLayers: MockupLayerData[]
+  /** The layers by what their rows show, without their size or page state:
+   *  resizing or scrolling one doesn't re-render the sidebar. */
+  iframeLayers: SidebarFrame[]
+  markdownLayers: SidebarTitledLayer[]
+  mockupLayers: SidebarTitledLayer[]
   /** Already sorted by sidebarOrder. */
   /** The Groups, in sidebar order. The sidebar never places a Group, so it
    *  takes them without their position: moving one doesn't re-render it. */

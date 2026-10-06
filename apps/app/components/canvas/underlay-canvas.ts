@@ -11,6 +11,12 @@ import { useEffect, type RefObject } from "react"
  * same, empty either way.
  */
 
+/** Each underlay's container size, kept by {@link useUnderlayCanvasSize}. */
+const containerSizes = new WeakMap<
+  HTMLCanvasElement,
+  { width: number; height: number }
+>()
+
 /**
  * Ready an underlay canvas to draw: sized to its container at the device pixel
  * ratio, cleared, and scaled to CSS pixels. Returns `null`, after releasing
@@ -31,7 +37,11 @@ export function beginUnderlayDraw(
   if (!ctx) return null
   const dpr = window.devicePixelRatio || 1
   // The container, not the canvas: a released canvas has no size of its own.
-  const box = (canvas.parentElement ?? canvas).getBoundingClientRect()
+  // The observer's last size when it has one: reading the box here would
+  // force a layout on every pointer move of a resize, mid-reflow.
+  const box =
+    containerSizes.get(canvas) ??
+    (canvas.parentElement ?? canvas).getBoundingClientRect()
   canvas.style.width = `${box.width}px`
   canvas.style.height = `${box.height}px`
   if (canvas.width !== box.width * dpr || canvas.height !== box.height * dpr) {
@@ -55,6 +65,7 @@ export function useUnderlayCanvasSize(
     if (!parent) return
     const observer = new ResizeObserver(() => {
       const r = parent.getBoundingClientRect()
+      containerSizes.set(canvas, { width: r.width, height: r.height })
       canvas.style.width = `${r.width}px`
       canvas.style.height = `${r.height}px`
       // A released canvas stays released until it next draws.
@@ -64,6 +75,9 @@ export function useUnderlayCanvasSize(
       canvas.height = r.height * dpr
     })
     observer.observe(parent)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      containerSizes.delete(canvas)
+    }
   }, [canvasRef])
 }
