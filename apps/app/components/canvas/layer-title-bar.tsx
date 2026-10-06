@@ -18,6 +18,7 @@ import {
 } from "@workspace/ui/components/editable-text"
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import { showsLayerDetail } from "@/lib/canvas/camera"
+import { showsLayerLabel } from "@/lib/canvas/layer-labels"
 import { GroupLabel, type GroupLabelValue } from "./group-label"
 import { LabelFitContext, useLabelChatHidden } from "./label-chat"
 import {
@@ -42,8 +43,6 @@ interface LayerTitleBarProps {
   /** Paint order among labels, the Layer's own. */
   zIndex?: number
   zoom: number
-  /** Hides the bar, kept mounted so measurements and rename state survive. */
-  hidden?: boolean
   /** Base move-drag handlers (translate the parent group). Pass `undefined`
    *  to detach all gesture handling (e.g. while a frame is in interactive
    *  mode or the user holds space to pan). */
@@ -102,7 +101,6 @@ export function LayerTitleBar({
   worldY,
   zIndex,
   zoom,
-  hidden,
   dragHandlers,
   onRequestReorderDrag,
   groupLabel,
@@ -181,6 +179,10 @@ export function LayerTitleBar({
     const left = snapToDevicePixel(x + (g.worldX + g.dx) * z, dpr)
     const bottom = snapToDevicePixel(y + (g.worldY + g.dy) * z, dpr)
     bar.style.transform = `translate(${left}px, ${bottom - LABEL_GAP}px) translateY(-100%)`
+    // Hidden, not unmounted, so measurements and rename state survive. Set
+    // from the live zoom, so a label goes as its Layer passes the width, not
+    // once the zoom settles.
+    bar.style.visibility = showsLayerLabel(g.layerWidth, z) ? "" : "hidden"
     bar.style.maxWidth = `${g.groupWidth * z}px`
     bar.style.width = g.tag ? `${g.layerWidth * z}px` : ""
     if (rowsRef.current)
@@ -210,7 +212,7 @@ export function LayerTitleBar({
           // With a tag the bar spans the layer so the tag sits at its right
           // edge; only its contents take the pointer, not the gap between them.
           tag ? "pointer-events-none" : "pointer-events-auto",
-          hidden && "invisible"
+          inline && !showsLayerLabel(layerWidth, zoom) && "invisible"
         )}
         style={
           inline

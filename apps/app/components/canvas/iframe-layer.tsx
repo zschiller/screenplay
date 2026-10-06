@@ -118,8 +118,6 @@ const NOBODY_DRIVES: FrameDriverView = { kind: "none" }
 interface IframeLayerProps {
   iframeLayer: IframeLayerData
   zoom: number
-  /** The Canvas hides this Layer's label (see `hiddenLayerLabels`). */
-  labelHidden?: boolean
   focused: boolean
   /** Who drives the frame (#1387). Someone else driving it shows their mark on
    *  Interact, the title-line tag, and no resize handles. */
@@ -297,7 +295,6 @@ interface IframeLayerProps {
 function IframeLayerImpl({
   iframeLayer,
   zoom,
-  labelHidden,
   focused,
   driver = NOBODY_DRIVES,
   askedForControl,
@@ -875,7 +872,6 @@ function IframeLayerImpl({
       containerRef={frameRef}
       containerProps={{ "data-iframe-layer": "" }}
       zoom={zoom}
-      labelHidden={labelHidden}
       selected={selected}
       groupSelected={groupSelected}
       multiSelected={multiSelected}

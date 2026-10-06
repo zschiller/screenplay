@@ -39,12 +39,7 @@ import type { LayerMutations } from "./use-layer-mutations"
 import type { GroupActions } from "./use-group-actions"
 import { frameWorkspaceOf } from "./frame-nav"
 import type { WorkingChat } from "./working-chat"
-import {
-  hiddenGroupLabels,
-  hiddenLayerLabels,
-  type LabelledGroup,
-  widthAcross,
-} from "@/lib/canvas/layer-labels"
+import { widthAcross } from "@/lib/canvas/layer-labels"
 import type { FrameControl } from "./use-frame-control"
 import type { SharedFrames } from "./use-shared-frames"
 import { useGoLive } from "./use-go-live"
@@ -262,23 +257,6 @@ function CanvasMemberLayerImpl({
     frameControl.interact(id)
     setCreateFlowIframeLayerId(null)
   }
-  const labelsHidden = useMemo(
-    () => hiddenLayerLabels(effectiveIframeLayerLayouts.values(), zoom),
-    [effectiveIframeLayerLayouts, zoom]
-  )
-  const groupLabelsHidden = useMemo(() => {
-    const labelled = new Map<string, LabelledGroup>()
-    for (const group of iframeLayerGroups) {
-      const members = getGroupMembers(group)
-      if (members.length > 1)
-        labelled.set(group.id, { memberIds: members.map((m) => m.id) })
-    }
-    return hiddenGroupLabels(
-      effectiveIframeLayerLayouts.values(),
-      labelled,
-      zoom
-    )
-  }, [iframeLayerGroups, effectiveIframeLayerLayouts, zoom])
   // Going live (#1520): the toggle spins until the first picture, and a
   // failure turns the frame back off and says why.
   const liveIds = useMemo(
@@ -406,7 +384,7 @@ function CanvasMemberLayerImpl({
           // The group label, worn by the Group's leftmost member. Every Layer
           // kind hands it to its Layer Shell untouched.
           const groupName =
-            index === 0 && showGroupLabel && !groupLabelsHidden.has(group.id)
+            index === 0 && showGroupLabel
               ? groupDisplayNames.get(group.id)
               : undefined
           const groupLabel: GroupLabelValue | undefined = groupName
@@ -492,7 +470,6 @@ function CanvasMemberLayerImpl({
                 {...stable.value(`doc:${doc.id}`, {
                   layer: doc,
                   zoom,
-                  labelHidden: labelsHidden.has(doc.id),
                   selected: selectedDocumentLayerIds.has(doc.id),
                   multiSelected,
                   editing: editingDocumentLayerId === doc.id,
@@ -543,7 +520,6 @@ function CanvasMemberLayerImpl({
                   // Named even when the group label names its Workspace (#1726).
                   workingChat: workingChats.get(mockup.id),
                   zoom,
-                  labelHidden: labelsHidden.has(mockup.id),
                   // Mockups share the Document selection Set.
                   selected: selectedDocumentLayerIds.has(mockup.id),
                   multiSelected,
@@ -665,7 +641,6 @@ function CanvasMemberLayerImpl({
                   : undefined,
                 liveStarting: goLive.pendingIds.has(iframeLayer.id),
                 zoom,
-                labelHidden: labelsHidden.has(iframeLayer.id),
                 focused: focusedIframeLayerId === iframeLayer.id,
                 createFlow: createFlowIframeLayerId === iframeLayer.id,
                 selected: selectedIframeLayerIds.has(iframeLayer.id),
