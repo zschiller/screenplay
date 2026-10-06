@@ -76,6 +76,7 @@ import { GlobeIcon as GlobeBase } from "@phosphor-icons/react/dist/ssr/Globe"
 import { ImageIcon as ImageBase } from "@phosphor-icons/react/dist/ssr/Image"
 import { InfoIcon as InfoBase } from "@phosphor-icons/react/dist/ssr/Info"
 import { FrameCornersIcon as FrameCornersBase } from "@phosphor-icons/react/dist/ssr/FrameCorners"
+import { KeyboardIcon as KeyboardBase } from "@phosphor-icons/react/dist/ssr/Keyboard"
 import { LayoutIcon as LayoutBase } from "@phosphor-icons/react/dist/ssr/Layout"
 import { LightbulbIcon as LightbulbBase } from "@phosphor-icons/react/dist/ssr/Lightbulb"
 import { LinkSimpleHorizontalIcon as LinkSimpleHorizontalBase } from "@phosphor-icons/react/dist/ssr/LinkSimpleHorizontal"
@@ -385,6 +386,7 @@ export const GlobeIcon = phosphor(GlobeBase, "ph-globe")
 export const ImageIcon = phosphor(ImageBase, "ph-image")
 export const InfoIcon = phosphor(InfoBase, "ph-info")
 export const FrameCornersIcon = phosphor(FrameCornersBase, "ph-frame-corners")
+export const KeyboardIcon = phosphor(KeyboardBase, "ph-keyboard")
 export const LayoutIcon = phosphor(LayoutBase, "ph-layout")
 export const LightbulbIcon = phosphor(LightbulbBase, "ph-lightbulb")
 export const LinkSimpleHorizontalIcon = phosphor(

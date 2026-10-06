@@ -32,9 +32,12 @@ export function workingLayerOf(call: {
 
 /**
  * The argument that names the layer, per tool that works on one: the updates,
- * and reading a Mockup, which shows on it as work too.
+ * reading a Mockup, which shows on it as work too, and `start_editing`, which
+ * names it before the update's page is written (on a harness that reports
+ * arguments only once they're whole, the update names it only at the end).
  */
 export const LAYER_ARGS: Readonly<Record<string, string>> = {
+  start_editing: "layer_id",
   update_mockup: "mockup_id",
   read_mockup: "mockup_id",
   replace_document_body: "document_id",

@@ -144,6 +144,34 @@ describe("chat-store — the layers a turn is changing (#1725)", () => {
     chatStore.cleanup(chatId)
   })
 
+  it("adds the layer a harness’s start_editing names, before the update’s page", () => {
+    const chatId = running()
+    // Claude Code reports a call with empty arguments when it starts, and
+    // refines it with the whole arguments once they're written.
+    update(
+      chatId,
+      toolCallStart({
+        toolCallId: "t1",
+        title: "mcp__screenplay__start_editing",
+        rawInput: {},
+      })
+    )
+    update(
+      chatId,
+      toolCallUpdate({ toolCallId: "t1", rawInput: { layer_id: "mock-1" } })
+    )
+    update(
+      chatId,
+      toolCallStart({
+        toolCallId: "t2",
+        title: "mcp__screenplay__update_mockup",
+        rawInput: {},
+      })
+    )
+    expect(working(chatId)).toEqual(["mock-1"])
+    chatStore.cleanup(chatId)
+  })
+
   it("ignores calls that work on no Mockup or Document", () => {
     const chatId = running()
     update(

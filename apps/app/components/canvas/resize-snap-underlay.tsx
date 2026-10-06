@@ -1,12 +1,7 @@
 "use client"
 
 import { useLayoutEffect, useRef } from "react"
-import { type Icon, MonitorIcon } from "@workspace/ui/components/icons"
 import type { AnchorCorner, SnapCandidate } from "@/lib/canvas/snap"
-import {
-  IFRAME_LAYER_SIZE_CATEGORY_ICONS,
-  type IframeLayerSizeCategory,
-} from "@/lib/iframe-layer-sizes"
 import { rectFromAnchor } from "@/lib/canvas/snap"
 import { resolveCanvasColor } from "@/lib/canvas/tokens"
 
@@ -30,9 +25,6 @@ interface ResizeSnapUnderlayProps {
   snappedPresetId: string | null
 }
 
-const CATEGORY_LABEL_ICON: Record<IframeLayerSizeCategory, Icon> =
-  IFRAME_LAYER_SIZE_CATEGORY_ICONS
-
 /**
  * Zoom-independent screen-space underlay shown while the user resizes an
  * iframeLayer from a corner. Renders before the TransformWrapper in DOM order so
@@ -41,8 +33,9 @@ const CATEGORY_LABEL_ICON: Record<IframeLayerSizeCategory, Icon> =
  *
  * Outlines: 1px crisp at any zoom (drawn on a screen-space canvas using the
  * same toScreen() trick as SelectionOverlay).
- * Snapped target: its rect is NOT drawn here (the live SelectionOverlay rect
- * already covers it and turns red); only its label is shown at the lower-right.
+ * Snapped target: nothing is drawn here (the live SelectionOverlay rect
+ * already covers it and turns red); its label is the ResizeSnapLabel, above the
+ * frames.
  * Non-snapped candidates fade in/out as silent gray ghosts.
  */
 export function ResizeSnapUnderlay({
@@ -137,62 +130,9 @@ export function ResizeSnapUnderlay({
 
   useUnderlayCanvasSize(canvasRef)
 
-  // Snapped-only label — non-snapped candidates show as silent outlines.
-  const snapped = snappedPresetId
-    ? (candidates.find((c) => c.preset.id === snappedPresetId) ?? null)
-    : null
-  let snappedLabelPos: { screenX: number; screenY: number } | null = null
-  if (snapped && iframeLayerRect) {
-    const ax =
-      anchor === "tl" || anchor === "bl"
-        ? iframeLayerRect.x
-        : iframeLayerRect.x + iframeLayerRect.width
-    const ay =
-      anchor === "tl" || anchor === "tr"
-        ? iframeLayerRect.y
-        : iframeLayerRect.y + iframeLayerRect.height
-    const { x, y } = rectFromAnchor(
-      anchor,
-      ax,
-      ay,
-      snapped.ghostWidth,
-      snapped.ghostHeight
-    )
-    snappedLabelPos = {
-      screenX: (x + snapped.ghostWidth) * zoom + viewportPos.x,
-      screenY: (y + snapped.ghostHeight) * zoom + viewportPos.y,
-    }
-  }
-
   return (
     <div className="pointer-events-none absolute inset-0">
       <canvas ref={canvasRef} className="absolute inset-0" />
-      {snapped &&
-        snappedLabelPos &&
-        (() => {
-          const Icon =
-            CATEGORY_LABEL_ICON[snapped.preset.category] ?? MonitorIcon
-          const orientationSuffix =
-            snapped.orientation === "landscape" ? " · Landscape" : ""
-          const dimensions = `${Math.round(snapped.ghostWidth)} × ${Math.round(snapped.ghostHeight)}`
-          return (
-            <div
-              className="absolute flex items-center gap-1 text-xs leading-none font-semibold whitespace-nowrap text-canvas-snap"
-              style={{
-                left: snappedLabelPos.screenX,
-                top: snappedLabelPos.screenY,
-                transform: "translate(-100%, 4px)",
-              }}
-            >
-              <Icon className="size-3" />
-              <span>
-                {snapped.preset.label}
-                {orientationSuffix}{" "}
-                <span className="opacity-70">{dimensions}</span>
-              </span>
-            </div>
-          )
-        })()}
     </div>
   )
 }

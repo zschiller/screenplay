@@ -14,14 +14,14 @@ import {
 import { MenuKeys as Keys } from "@/components/menu-keys"
 
 import { ZOOM_MAX, ZOOM_MIN } from "@/lib/constants"
-import { SHORTCUT_SHEET_KEY, ZOOM_SHORTCUTS } from "@/lib/canvas/shortcuts"
+import { ZOOM_SHORTCUTS } from "@/lib/canvas/shortcuts"
 
 import type { CanvasCamera } from "./use-canvas-camera"
 
 /**
  * The top bar's zoom menu (#734), after Figma's: the live zoom percentage as a
- * plain menu button, opening zoom in / out / fit, the fixed 50 / 100 / 200%
- * stops, and the shortcut sheet. Each item is a thin dispatch into the Canvas
+ * plain menu button, opening zoom in / out / fit and the fixed 50 / 100 / 200%
+ * stops. Each item is a thin dispatch into the Canvas
  * Camera verbs the canvas passes in; the key hints read the same
  * {@link ZOOM_SHORTCUTS} the keyboard matches on.
  */
@@ -31,7 +31,6 @@ export function CanvasZoomMenu({
   onZoomOut,
   onZoomTo,
   onZoomToFit,
-  onOpenShortcuts,
 }: {
   /** The camera's live readout, so the percent tracks a zoom mid-gesture. */
   liveZoomPercent: CanvasCamera["liveZoomPercent"]
@@ -39,7 +38,6 @@ export function CanvasZoomMenu({
   onZoomOut: () => void
   onZoomTo: (scale: number) => void
   onZoomToFit: () => void
-  onOpenShortcuts: () => void
 }) {
   const percent = useSyncExternalStore(
     liveZoomPercent.subscribe,
@@ -96,11 +94,6 @@ export function CanvasZoomMenu({
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onZoomTo(2)}>
           Zoom to 200%
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onOpenShortcuts}>
-          Keyboard shortcuts
-          <Keys keys={[SHORTCUT_SHEET_KEY]} />
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

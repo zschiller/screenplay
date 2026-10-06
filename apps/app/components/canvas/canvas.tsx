@@ -218,6 +218,7 @@ import { useGestureIntent } from "./use-gesture-intent"
 
 import { useFrameActions } from "./use-frame-actions"
 
+import { ResizeSnapLabel } from "./resize-snap-label"
 import { ResizeSnapUnderlay } from "./resize-snap-underlay"
 
 import { GroupMergeUnderlay } from "./group-merge-underlay"
@@ -1095,6 +1096,28 @@ export function Canvas({
     ]
   )
   const effectiveIframeLayerLayouts = canvasLayout.layouts
+  // The device-snap ghosts (beneath the frames) and the snapped device's label
+  // (above them) both read the resizing frame's rect, its anchor corner and
+  // the candidate sizes.
+  const resizeSnap = gesturePreview.resizeSnap
+  const resizeSnapLayout = resizeSnap
+    ? effectiveIframeLayerLayouts.get(resizeSnap.iframeLayerId)
+    : undefined
+  const resizeSnapProps = {
+    zoom,
+    viewportPos,
+    iframeLayerRect: resizeSnapLayout
+      ? {
+          x: resizeSnapLayout.x,
+          y: resizeSnapLayout.y,
+          width: resizeSnapLayout.width,
+          height: resizeSnapLayout.height,
+        }
+      : null,
+    anchor: resizeSnap?.anchor ?? "tl",
+    candidates: resizeSnap?.candidates ?? [],
+    snappedPresetId: resizeSnap?.snappedPresetId ?? null,
+  }
   // While popped, `effectiveIframeLayerLayouts` already places the dragged
   // frame at `cursor - grab`, so no extra shift is needed for the selection
   // overlay or the edge underlay (which read from that same map). Only the
@@ -2356,30 +2379,9 @@ export function Canvas({
                 so the iframeLayer iframes paint on top — the parts of each ghost
                 that extend past the active iframeLayer remain visible. Same
                 screen-space canvas approach as SelectionOverlay so the 1px
-                outlines stay crisp at any zoom. */}
-                <ResizeSnapUnderlay
-                  zoom={zoom}
-                  viewportPos={viewportPos}
-                  iframeLayerRect={(() => {
-                    const resizeSnap = gesturePreview.resizeSnap
-                    if (!resizeSnap) return null
-                    const layout = effectiveIframeLayerLayouts.get(
-                      resizeSnap.iframeLayerId
-                    )
-                    if (!layout) return null
-                    return {
-                      x: layout.x,
-                      y: layout.y,
-                      width: layout.width,
-                      height: layout.height,
-                    }
-                  })()}
-                  anchor={gesturePreview.resizeSnap?.anchor ?? "tl"}
-                  candidates={gesturePreview.resizeSnap?.candidates ?? []}
-                  snappedPresetId={
-                    gesturePreview.resizeSnap?.snappedPresetId ?? null
-                  }
-                />
+                outlines stay crisp at any zoom. The snapped device's label is
+                ResizeSnapLabel, above the frames. */}
+                <ResizeSnapUnderlay {...resizeSnapProps} />
 
                 <GroupMergeUnderlay
                   zoom={zoom}
@@ -2629,6 +2631,9 @@ export function Canvas({
                   })()}
                   highlightRect={targeting.highlightRect}
                 />
+                {/* The snapped device's name, beside the red selection rect and
+                above every frame, so a neighbouring frame can't cover it. */}
+                <ResizeSnapLabel {...resizeSnapProps} />
                 <Cursors viewport={{ ...viewportPos, zoom }} />
                 {chatAnchor && self?.message != null ? (
                   <CursorChat
@@ -2669,6 +2674,7 @@ export function Canvas({
                     deleteDialogOpen,
                     onDeleteDialogOpenChange: setDeleteDialogOpen,
                     onOpenSettings: () => setCanvasSettingsOpen(true),
+                    onOpenShortcuts: openShortcutSheet,
                     stopRoomDevServers,
                     flushLayout,
                   })}
@@ -2758,7 +2764,6 @@ export function Canvas({
                         onZoomOut: zoomControls.zoomOut,
                         onZoomTo: cameraZoomTo,
                         onZoomToFit: zoomControls.zoomToFit,
-                        onOpenShortcuts: openShortcutSheet,
                       })}
                     />
                     {/* Following other users' viewports and sharing are part of
