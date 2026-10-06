@@ -127,6 +127,26 @@ describe("chat-store — queueing during a run that can't steer (#802)", () => {
     chatStore.cleanup(chatId)
   })
 
+  it("counts a queued message as this chat’s send once it goes", () => {
+    const chatId = newChat()
+    stubFetch({ ok: true }, { ok: true })
+    void send(chatId, "Make it sticky")
+    expect(chatStore.getSnapshot(chatId).sends).toBe(1)
+    startUnsteerableRun(chatId)
+
+    void send(chatId, "Then the cart")
+    // Waiting in the queue, it isn't in the chat yet.
+    expect(chatStore.getSnapshot(chatId).sends).toBe(1)
+
+    chatStore.handleBroadcastEvent({
+      type: "chat-stream-end",
+      chatId,
+      id: nextId(),
+    })
+    expect(chatStore.getSnapshot(chatId).sends).toBe(2)
+    chatStore.cleanup(chatId)
+  })
+
   it("never sends a queued message that was cancelled", () => {
     const chatId = newChat()
     const fetchMock = stubFetch({ ok: true })
