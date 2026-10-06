@@ -92,7 +92,8 @@ interface AgentChatProps {
   target: ChatTarget
   /** The chat's code is still being set up (its setup steps), shown in place
    *  of the transcript over a disabled composer: there's no agent to talk to
-   *  yet, and the composer is already where it will be once there is. */
+   *  yet, and the composer is already where it will be once there is. A
+   *  message already sent shows above the steps. */
   setup?: ReactNode
   /** How the Coordinator's empty chat reads (#1182): a fresh canvas or not. */
   roomStart?: CoordinatorStart
@@ -483,7 +484,7 @@ export function AgentChat({
       <SkillIndexContext.Provider value={skills}>
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
           <div ref={scrollContentRef} className="flex min-h-full flex-col p-4">
-            {setup ? (
+            {setup && messages.length === 0 ? (
               <div className="m-auto">{setup}</div>
             ) : isLoadingHistory ? (
               <div className="m-auto flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -537,6 +538,9 @@ export function AgentChat({
                   any text streams (and between tool calls) it says "Thinking…";
                   once the assistant is writing, the grid alone trails the
                   message, so the reply never looks finished while it grows. */}
+                {/* A message sent before the code was ready waits above the
+                  setup steps, where the agent's reply will come. */}
+                {setup}
                 {isStreaming && !quietWake && (
                   <div
                     role="status"

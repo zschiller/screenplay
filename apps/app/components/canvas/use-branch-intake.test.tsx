@@ -17,6 +17,7 @@ vi.mock("@/lib/sandbox/lifecycle", () => ({ deleteSandboxes }))
 vi.mock("@/lib/sandbox/git", () => ({ renameAgentBranch: vi.fn() }))
 vi.mock("sonner", () => ({ toast }))
 
+import { chatStore } from "@/lib/chat-store"
 import { useBranchIntake } from "./use-branch-intake"
 
 afterEach(() => {
@@ -50,7 +51,8 @@ function mountIntake(
 
   const clearIfSelected = vi.fn()
   const addPending = vi.fn()
-  const chatTarget = { clearIfSelected, addPending }
+  const selectAgentChat = vi.fn()
+  const chatTarget = { clearIfSelected, addPending, selectAgentChat }
 
   const { result } = renderHook(() =>
     useBranchIntake({
@@ -68,7 +70,7 @@ function mountIntake(
     })
   )
 
-  return { collections, result, clearIfSelected, addPending }
+  return { collections, result, clearIfSelected, addPending, selectAgentChat }
 }
 
 describe("removeBranch — local teardown vs. the remote branch", () => {
@@ -235,5 +237,71 @@ describe("create requests the server refuses (#791)", () => {
       roomId: "room-1",
       retry: true,
     })
+  })
+})
+
+describe("a prompted create shows its chat at once", () => {
+  const fetchMock = vi.fn()
+  beforeEach(() => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("lands the chat with its message showing, and waits on no model", async () => {
+    const { collections, result, selectAgentChat, addPending } = mountIntake()
+    const prompt = "Make the order summary sticky on mobile"
+
+    // Nothing is awaited before the Workspace lands: the create is in the
+    // doc as soon as the call returns, before any request answers.
+    act(() => {
+      void result.current.createBranch(
+        "repo-1",
+        [{ baseBranch: "main", model: "sonnet", prompt }],
+        { frameId: "frame-1" }
+      )
+    })
+
+    const created = collections.branches
+      .toArray()
+      .find((b) => b.id !== "branch-1")!
+    const chat = collections.chatSessions
+      .toArray()
+      .find((c) => c.branchId === created.id)!
+    expect(created).toMatchObject({ status: "creating" })
+    expect(chat.label).toBe("Make order summary sticky")
+
+    // The panel opens on the chat, the message already in it.
+    expect(selectAgentChat).toHaveBeenCalledWith(created.id, chat.id, {
+      expandPanel: true,
+      remember: true,
+    })
+    expect(addPending).not.toHaveBeenCalled()
+    expect(chatStore.getSnapshot(chat.id).messages).toMatchObject([
+      { role: "user", content: prompt },
+    ])
+
+    // Provisioning was asked for straight away; no naming call came first.
+    const urls = fetchMock.mock.calls.map(([url]) => String(url))
+    expect(urls).toEqual([expect.stringContaining("/api/branch/create")])
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string)
+    expect(body).toMatchObject({ branchId: created.id, branch: created.ref })
+    chatStore.cleanup(chat.id)
+  })
+
+  it("leaves a drawn Mockup's create unselected until it's ready", async () => {
+    const { result, selectAgentChat, addPending } = mountIntake()
+    await act(async () => {
+      await result.current.createBranch(
+        "repo-1",
+        [{ baseBranch: "main", model: "sonnet", prompt: "Sketch a receipt" }],
+        { chatId: "mockup-chat", keepView: true }
+      )
+    })
+    expect(selectAgentChat).not.toHaveBeenCalled()
+    expect(addPending).toHaveBeenCalledOnce()
+    chatStore.cleanup("mockup-chat")
   })
 })

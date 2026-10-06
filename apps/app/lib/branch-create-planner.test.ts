@@ -16,11 +16,10 @@ const spec = (overrides: Partial<ComposerSpec> = {}): ComposerSpec => ({
 })
 
 describe("planBranchCreations", () => {
-  it("resolves an empty prompt to a bare, random-named, no-model Branch its first turn names", () => {
+  it("resolves an empty prompt to a bare, no-model Branch its first turn names", () => {
     const [plan] = planBranchCreations(repo, [spec({ prompt: "" })])
 
     expect(plan).toEqual({
-      nameSource: "random",
       flow: "new",
       seedChat: false,
       autoNamedBranch: true,
@@ -32,19 +31,17 @@ describe("planBranchCreations", () => {
   it("treats a whitespace-only prompt as empty", () => {
     const [plan] = planBranchCreations(repo, [spec({ prompt: "   \n\t " })])
 
-    expect(plan!.nameSource).toBe("random")
     expect(plan!.seedChat).toBe(false)
     expect(plan!.firePromptOnRunning).toBe(false)
     expect(plan!.model).toBeUndefined()
   })
 
-  it("resolves a non-empty prompt to a seeded, prompt-named Branch carrying the model", () => {
+  it("resolves a non-empty prompt to a seeded Branch carrying the model", () => {
     const [plan] = planBranchCreations(repo, [
       spec({ prompt: "add a settings page", model: "claude-sonnet-4-6" }),
     ])
 
     expect(plan).toEqual({
-      nameSource: "from-prompt",
       flow: "new",
       seedChat: true,
       autoNamedBranch: true,
@@ -58,7 +55,6 @@ describe("planBranchCreations", () => {
       spec({ prompt: "  real work  " }),
     ])
 
-    expect(plan!.nameSource).toBe("from-prompt")
     expect(plan!.seedChat).toBe(true)
   })
 
@@ -123,14 +119,12 @@ describe("planBranchCreations", () => {
 
     expect(plans).toEqual([
       {
-        nameSource: "random",
         flow: "new",
         seedChat: false,
         autoNamedBranch: true,
         firePromptOnRunning: false,
       },
       {
-        nameSource: "from-prompt",
         flow: "duplicate-branch",
         seedChat: true,
         autoNamedBranch: true,
@@ -138,7 +132,6 @@ describe("planBranchCreations", () => {
         model: "claude-sonnet-4-6",
       },
       {
-        nameSource: "from-prompt",
         flow: "new",
         seedChat: true,
         autoNamedBranch: true,
