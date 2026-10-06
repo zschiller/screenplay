@@ -1,0 +1,448 @@
+before/document-100-frac-dark.png
+  L: 010101x7 1a1b1bx1 131414x1 000000x7
+  T: 010101x5 1a1b1bx2 000000x9
+  D: 010101x5 020202x1 1a1b1bx1 010101x1 000000x4
+before/document-100-frac-light.png
+  L: f7f7f7x7 dededex1 e6e6e6x1 ffffffx7
+  T: f7f7f7x5 dededex2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fcfcfcx1 ffffffx4
+before/document-100-int-dark.png
+  L: 010101x6 1a1b1bx2 000000x8
+  T: 010101x6 1a1b1bx2 000000x8
+  D: 010101x5 040404x1 1a1b1bx1 000000x5
+before/document-100-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/document-1600-frac-dark.png
+  L: 010101x7 1a1b1bx1 131313x1 000000x7
+  T: 010101x5 1a1b1bx2 000000x9
+  D: 010101x5 020202x1 1a1b1bx1 010101x1 000000x4
+before/document-1600-frac-light.png
+  L: f7f7f7x7 dededex1 e6e6e6x1 ffffffx7
+  T: f7f7f7x5 dededex2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fcfcfcx1 ffffffx4
+before/document-1600-int-dark.png
+  L: 010101x6 1a1b1bx2 000000x8
+  T: 010101x6 1a1b1bx2 000000x8
+  D: 010101x5 040404x1 1a1b1bx1 000000x5
+before/document-1600-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/document-300-frac-dark.png
+  L: 010101x7 1a1b1bx1 131414x1 000000x7
+  T: 010101x5 1a1b1bx2 000000x9
+  D: 010101x5 020202x1 1a1b1bx1 010101x1 000000x4
+before/document-300-frac-light.png
+  L: f7f7f7x7 dededex1 e6e6e6x1 ffffffx7
+  T: f7f7f7x5 dededex2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fcfcfcx1 ffffffx4
+before/document-300-int-dark.png
+  L: 010101x6 1a1b1bx2 000000x8
+  T: 010101x6 1a1b1bx2 000000x8
+  D: 010101x5 040404x1 1a1b1bx1 000000x5
+before/document-300-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/document-800-frac-dark.png
+  L: 010101x7 1a1b1bx1 131414x1 000000x7
+  T: 010101x5 1a1b1bx2 000000x9
+  D: 010101x5 020202x1 1a1b1bx1 010101x1 000000x4
+before/document-800-frac-light.png
+  L: f7f7f7x7 dededex1 e6e6e6x1 ffffffx7
+  T: f7f7f7x5 dededex2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fcfcfcx1 ffffffx4
+before/document-800-int-dark.png
+  L: 010101x6 1a1b1bx2 000000x8
+  T: 010101x6 1a1b1bx2 000000x8
+  D: 010101x5 040404x1 1a1b1bx1 000000x5
+before/document-800-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/frame-100-frac-dark.png
+  L: 010101x7 1a1b1bx1 18191ax1 0b1120x7
+  T: 010101x5 1a1b1bx2 0b0d14x1 0b1120x8
+  D: 010101x5 020202x1 1a1b1bx1 0c111ex1 0b1120x4
+before/frame-100-frac-light.png
+  L: f7f7f7x7 dededex2 ffffffx7
+  T: f7f7f7x5 dededex2 fcfcfcx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fefefex1 ffffffx4
+before/frame-100-int-dark.png
+  L: 010101x6 1a1b1bx2 0b1120x8
+  T: 010101x6 1a1b1bx2 0b1120x8
+  D: 010101x5 040404x1 1a1b1bx1 0b111fx1 0b1120x4
+before/frame-100-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/frame-1600-frac-dark.png
+  L: 010101x7 1a1b1bx1 18191ax1 0b1120x7
+  T: 010101x5 1a1b1bx2 0b0d14x1 0b1120x8
+  D: 010101x5 020202x1 1a1b1bx1 0c111ex1 0b1120x4
+before/frame-1600-frac-light.png
+  L: f7f7f7x7 dededex2 ffffffx7
+  T: f7f7f7x5 dededex2 fcfcfcx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fefefex1 ffffffx4
+before/frame-1600-int-dark.png
+  L: 010101x6 1a1b1bx2 0b1120x8
+  T: 010101x6 1a1b1bx2 0b1120x8
+  D: 010101x5 040404x1 1a1b1bx1 0b111fx1 0b1120x4
+before/frame-1600-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/frame-300-frac-dark.png
+  L: 010101x7 1a1b1bx1 18191ax1 0b1120x7
+  T: 010101x5 1a1b1bx2 0b0d14x1 0b1120x8
+  D: 010101x5 020202x1 1a1b1bx1 0c111ex1 0b1120x4
+before/frame-300-frac-light.png
+  L: f7f7f7x7 dededex2 ffffffx7
+  T: f7f7f7x5 dededex2 fcfcfcx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fefefex1 ffffffx4
+before/frame-300-int-dark.png
+  L: 010101x6 1a1b1bx2 0b1120x8
+  T: 010101x6 1a1b1bx2 0b1120x8
+  D: 010101x5 040404x1 1a1b1bx1 0b111fx1 0b1120x4
+before/frame-300-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/frame-800-frac-dark.png
+  L: 010101x7 1a1b1bx1 18191ax1 0b1120x7
+  T: 010101x5 1a1b1bx2 0b0d14x1 0b1120x8
+  D: 010101x5 020202x1 1a1b1bx1 0c111ex1 0b1120x4
+before/frame-800-frac-light.png
+  L: f7f7f7x7 dededex2 ffffffx7
+  T: f7f7f7x5 dededex2 fcfcfcx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fefefex1 ffffffx4
+before/frame-800-int-dark.png
+  L: 010101x6 1a1b1bx2 0b1120x8
+  T: 010101x6 1a1b1bx2 0b1120x8
+  D: 010101x5 040404x1 1a1b1bx1 0b111fx1 0b1120x4
+before/frame-800-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/mockup-100-frac-dark.png
+  L: 010101x7 1a1b1bx1 232424x1 ffffffx7
+  T: 010101x5 1a1b1bx2 d8d8d8x1 ffffffx8
+  D: 010101x5 020202x1 1a1b1bx1 fdfdfdx1 ffffffx4
+before/mockup-100-frac-light.png
+  L: f7f7f7x7 dededex2 ffffffx7
+  T: f7f7f7x5 dededex2 fcfcfcx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fefefex1 ffffffx4
+before/mockup-100-int-dark.png
+  L: 010101x6 1a1b1bx2 ffffffx8
+  T: 010101x6 1a1b1bx2 ffffffx8
+  D: 010101x5 040404x1 1a1b1bx1 fefefex1 ffffffx4
+before/mockup-100-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/mockup-1600-frac-dark.png
+  L: 010101x7 1a1b1bx1 232424x1 ffffffx7
+  T: 010101x5 1a1b1bx2 d9d9d9x1 ffffffx8
+  D: 010101x5 020202x1 1a1b1bx1 fdfdfdx1 ffffffx4
+before/mockup-1600-frac-light.png
+  L: f7f7f7x7 dededex2 ffffffx7
+  T: f7f7f7x5 dededex2 fcfcfcx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fefefex1 ffffffx4
+before/mockup-1600-int-dark.png
+  L: 010101x6 1a1b1bx2 ffffffx8
+  T: 010101x6 1a1b1bx2 ffffffx8
+  D: 010101x5 040404x1 1a1b1bx1 fefefex1 ffffffx4
+before/mockup-1600-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/mockup-300-frac-dark.png
+  L: 010101x7 1a1b1bx1 232424x1 ffffffx7
+  T: 010101x5 1a1b1bx2 d8d8d8x1 ffffffx8
+  D: 010101x5 020202x1 1a1b1bx1 fefefex1 ffffffx4
+before/mockup-300-frac-light.png
+  L: f7f7f7x7 dededex2 ffffffx7
+  T: f7f7f7x5 dededex2 fcfcfcx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fefefex1 ffffffx4
+before/mockup-300-int-dark.png
+  L: 010101x6 1a1b1bx2 ffffffx8
+  T: 010101x6 1a1b1bx2 ffffffx8
+  D: 010101x5 040404x1 1a1b1bx1 fefefex1 ffffffx4
+before/mockup-300-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/mockup-800-frac-dark.png
+  L: 010101x7 1a1b1bx1 232424x1 ffffffx7
+  T: 010101x5 1a1b1bx2 d9d9d9x1 ffffffx8
+  D: 010101x5 020202x1 1a1b1bx1 fdfdfdx1 ffffffx4
+before/mockup-800-frac-light.png
+  L: f7f7f7x7 dededex2 ffffffx7
+  T: f7f7f7x5 dededex2 fcfcfcx1 ffffffx8
+  D: f7f7f7x5 f6f6f6x1 dededex1 fefefex1 ffffffx4
+before/mockup-800-int-dark.png
+  L: 010101x6 1a1b1bx2 ffffffx8
+  T: 010101x6 1a1b1bx2 ffffffx8
+  D: 010101x5 040404x1 1a1b1bx1 fefefex1 ffffffx4
+before/mockup-800-int-light.png
+  L: f7f7f7x6 dededex2 ffffffx8
+  T: f7f7f7x6 dededex2 ffffffx8
+  D: f7f7f7x5 f4f4f4x1 dededex1 fefefex1 ffffffx4
+before/selected-mobile-1600-frac-dark.png
+  L: 010101x7 e12afbx2 0b1120x7
+  T: 010101x5 e12afbx2 0b0d14x1 0b1120x8
+  D: e12afbx1 000000x10 e12afbx1
+before/selected-mobile-1600-frac-light.png
+  L: f7f7f7x7 e12afbx2 ffffffx7
+  T: f7f7f7x5 e12afbx2 fcfcfcx1 ffffffx8
+  D: e12afbx1 ffffffx10 e12afbx1
+before/selected-mobile-1600-int-dark.png
+  L: 010101x6 e12afbx2 0b1120x8
+  T: 010101x6 e12afbx2 0b1120x8
+  D: 000000x12
+before/selected-mobile-1600-int-light.png
+  L: f7f7f7x6 e12afbx2 ffffffx8
+  T: f7f7f7x6 e12afbx2 ffffffx8
+  D: ffffffx12
+before/selected-mobile-400-frac-dark.png
+  L: 010101x7 e12afbx2 0b1120x7
+  T: 010101x5 e12afbx2 0b0d14x1 0b1120x8
+  D: e12afbx1 000000x10 e12afbx1
+before/selected-mobile-400-frac-light.png
+  L: f7f7f7x7 e12afbx2 ffffffx7
+  T: f7f7f7x5 e12afbx2 fcfcfcx1 ffffffx8
+  D: e12afbx1 ffffffx10 e12afbx1
+before/selected-mobile-400-int-dark.png
+  L: 010101x6 e12afbx2 0b1120x8
+  T: 010101x6 e12afbx2 0b1120x8
+  D: 000000x12
+before/selected-mobile-400-int-light.png
+  L: f7f7f7x6 e12afbx2 ffffffx8
+  T: f7f7f7x6 e12afbx2 ffffffx8
+  D: ffffffx12
+after/document-100-frac-dark.png
+  L: 010101x7 1a1a1ax1 131313x1 000000x7
+  T: 010101x5 1a1a1ax2 000000x9
+  D: 010101x5 1a1a1ax1 131313x1 000000x5
+after/document-100-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e7e7e7x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e7e7e7x1 ffffffx5
+after/document-100-int-dark.png
+  L: 010101x6 1a1a1ax2 000000x8
+  T: 010101x6 1a1a1ax2 000000x8
+  D: 010101x4 1a1a1ax2 000000x6
+after/document-100-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/document-1600-frac-dark.png
+  L: 010101x7 1a1a1ax1 131313x1 000000x7
+  T: 010101x5 1a1a1ax2 000000x9
+  D: 010101x5 1a1a1ax1 131313x1 000000x5
+after/document-1600-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e7e7e7x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e7e7e7x1 ffffffx5
+after/document-1600-int-dark.png
+  L: 010101x6 1a1a1ax2 000000x8
+  T: 010101x6 1a1a1ax2 000000x8
+  D: 010101x4 1a1a1ax2 000000x6
+after/document-1600-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/document-300-frac-dark.png
+  L: 010101x7 1a1a1ax1 131313x1 000000x7
+  T: 010101x5 1a1a1ax2 000000x9
+  D: 010101x5 1a1a1ax1 131313x1 000000x5
+after/document-300-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e7e7e7x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e7e7e7x1 ffffffx5
+after/document-300-int-dark.png
+  L: 010101x6 1a1a1ax2 000000x8
+  T: 010101x6 1a1a1ax2 000000x8
+  D: 010101x4 1a1a1ax2 000000x6
+after/document-300-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/document-800-frac-dark.png
+  L: 010101x7 1a1a1ax1 131313x1 000000x7
+  T: 010101x5 1a1a1ax2 000000x9
+  D: 010101x5 1a1a1ax1 131313x1 000000x5
+after/document-800-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e7e7e7x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e7e7e7x1 ffffffx5
+after/document-800-int-dark.png
+  L: 010101x6 1a1a1ax2 000000x8
+  T: 010101x6 1a1a1ax2 000000x8
+  D: 010101x4 1a1a1ax2 000000x6
+after/document-800-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/frame-100-frac-dark.png
+  L: 010101x7 1a1a1ax1 181819x1 0b1120x7
+  T: 010101x5 1a1a1ax2 0c0f18x1 0b1120x8
+  D: 010101x5 1a1a1ax1 181819x1 0b1120x5
+after/frame-100-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e3e3e3x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e3e3e3x1 ffffffx5
+after/frame-100-int-dark.png
+  L: 010101x6 1a1a1ax2 0b1120x8
+  T: 010101x6 1a1a1ax2 0b1120x8
+  D: 010101x4 1a1a1ax2 0b1120x6
+after/frame-100-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/frame-1600-frac-dark.png
+  L: 010101x7 1a1a1ax1 181819x1 0b1120x7
+  T: 010101x5 1a1a1ax2 0c0f18x1 0b1120x8
+  D: 010101x5 1a1a1ax1 181819x1 0b1120x5
+after/frame-1600-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e3e3e3x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e3e3e3x1 ffffffx5
+after/frame-1600-int-dark.png
+  L: 010101x6 1a1a1ax2 0b1120x8
+  T: 010101x6 1a1a1ax2 0b1120x8
+  D: 010101x4 1a1a1ax2 0b1120x6
+after/frame-1600-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/frame-300-frac-dark.png
+  L: 010101x7 1a1a1ax1 181819x1 0b1120x7
+  T: 010101x5 1a1a1ax2 0c0f18x1 0b1120x8
+  D: 010101x5 1a1a1ax1 181819x1 0b1120x5
+after/frame-300-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e3e3e3x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e3e3e3x1 ffffffx5
+after/frame-300-int-dark.png
+  L: 010101x6 1a1a1ax2 0b1120x8
+  T: 010101x6 1a1a1ax2 0b1120x8
+  D: 010101x4 1a1a1ax2 0b1120x6
+after/frame-300-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/frame-800-frac-dark.png
+  L: 010101x7 1a1a1ax1 181819x1 0b1120x7
+  T: 010101x5 1a1a1ax2 0c0f18x1 0b1120x8
+  D: 010101x5 1a1a1ax1 181819x1 0b1120x5
+after/frame-800-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e3e3e3x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e3e3e3x1 ffffffx5
+after/frame-800-int-dark.png
+  L: 010101x6 1a1a1ax2 0b1120x8
+  T: 010101x6 1a1a1ax2 0b1120x8
+  D: 010101x4 1a1a1ax2 0b1120x6
+after/frame-800-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/mockup-100-frac-dark.png
+  L: 010101x7 1a1a1ax1 444444x1 ffffffx7
+  T: 010101x5 1a1a1ax2 efefefx1 ffffffx8
+  D: 010101x5 1a1a1ax1 444444x1 ffffffx5
+after/mockup-100-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e3e3e3x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e3e3e3x1 ffffffx5
+after/mockup-100-int-dark.png
+  L: 010101x6 1a1a1ax2 ffffffx8
+  T: 010101x6 1a1a1ax2 ffffffx8
+  D: 010101x4 1a1a1ax2 ffffffx6
+after/mockup-100-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/mockup-1600-frac-dark.png
+  L: 010101x7 1a1a1ax1 444444x1 ffffffx7
+  T: 010101x5 1a1a1ax2 efefefx1 ffffffx8
+  D: 010101x5 1a1a1ax1 444444x1 ffffffx5
+after/mockup-1600-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e3e3e3x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e3e3e3x1 ffffffx5
+after/mockup-1600-int-dark.png
+  L: 010101x6 1a1a1ax2 ffffffx8
+  T: 010101x6 1a1a1ax2 ffffffx8
+  D: 010101x4 1a1a1ax2 ffffffx6
+after/mockup-1600-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/mockup-300-frac-dark.png
+  L: 010101x7 1a1a1ax1 414141x1 ffffffx7
+  T: 010101x5 1a1a1ax2 efefefx1 ffffffx8
+  D: 010101x5 1a1a1ax1 414141x1 ffffffx5
+after/mockup-300-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e2e2e2x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e2e2e2x1 ffffffx5
+after/mockup-300-int-dark.png
+  L: 010101x6 1a1a1ax2 ffffffx8
+  T: 010101x6 1a1a1ax2 ffffffx8
+  D: 010101x4 1a1a1ax2 ffffffx6
+after/mockup-300-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/mockup-800-frac-dark.png
+  L: 010101x7 1a1a1ax1 414141x1 ffffffx7
+  T: 010101x5 1a1a1ax2 efefefx1 ffffffx8
+  D: 010101x5 1a1a1ax1 414141x1 ffffffx5
+after/mockup-800-frac-light.png
+  L: f7f7f7x7 dfdfdfx1 e2e2e2x1 ffffffx7
+  T: f7f7f7x5 dfdfdfx2 fdfdfdx1 ffffffx8
+  D: f7f7f7x5 dfdfdfx1 e2e2e2x1 ffffffx5
+after/mockup-800-int-dark.png
+  L: 010101x6 1a1a1ax2 ffffffx8
+  T: 010101x6 1a1a1ax2 ffffffx8
+  D: 010101x4 1a1a1ax2 ffffffx6
+after/mockup-800-int-light.png
+  L: f7f7f7x6 dfdfdfx2 ffffffx8
+  T: f7f7f7x6 dfdfdfx2 ffffffx8
+  D: f7f7f7x4 dfdfdfx2 ffffffx6
+after/selected-mobile-1600-frac-dark.png
+  L: 010101x7 e12afbx2 0b1120x7
+  T: 010101x5 e12afbx2 0c0f18x1 0b1120x8
+  D: e12afbx1 000000x10 e12afbx1
+after/selected-mobile-1600-frac-light.png
+  L: f7f7f7x7 e12afbx2 ffffffx7
+  T: f7f7f7x5 e12afbx2 fdfdfdx1 ffffffx8
+  D: e12afbx1 ffffffx10 e12afbx1
+after/selected-mobile-1600-int-dark.png
+  L: 010101x6 e12afbx2 0b1120x8
+  T: 010101x6 e12afbx2 0b1120x8
+  D: 000000x12
+after/selected-mobile-1600-int-light.png
+  L: f7f7f7x6 e12afbx2 ffffffx8
+  T: f7f7f7x6 e12afbx2 ffffffx8
+  D: ffffffx12
+after/selected-mobile-400-frac-dark.png
+  L: 010101x7 e12afbx2 0b1120x7
+  T: 010101x5 e12afbx2 0c0f18x1 0b1120x8
+  D: e12afbx1 000000x10 e12afbx1
+after/selected-mobile-400-frac-light.png
+  L: f7f7f7x7 e12afbx2 ffffffx7
+  T: f7f7f7x5 e12afbx2 fdfdfdx1 ffffffx8
+  D: e12afbx1 ffffffx10 e12afbx1
+after/selected-mobile-400-int-dark.png
+  L: 010101x6 e12afbx2 0b1120x8
+  T: 010101x6 e12afbx2 0b1120x8
+  D: 000000x12
+after/selected-mobile-400-int-light.png
+  L: f7f7f7x6 e12afbx2 ffffffx8
+  T: f7f7f7x6 e12afbx2 ffffffx8
+  D: ffffffx12
