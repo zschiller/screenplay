@@ -2647,7 +2647,7 @@ export function Canvas({
                 ) : null}
                 {/* A drawn Mockup box asking what to show already took the click. */}
                 {isCanvasEmpty && !askMockupBox && (
-                  <CanvasEmptyState toolMode={toolMode} />
+                  <CanvasEmptyState toolMode={toolMode} repos={repos} />
                 )}
                 {/* Window-drag strip: spans the full toolbar height across the top
                 of the canvas, in the chrome layer but BEHIND the floating pills
