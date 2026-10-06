@@ -10,7 +10,7 @@ import { createFluid } from "../../homepage/components/marketing/site/fluid"
  * Built into dist/launch by scripts/build-launch.mjs.
  */
 
-// The stage, in CSS px.
+// The stage, in CSS px, before it is fitted to the grain.
 const BOX = 40
 // The fluid's cell size, in CSS px.
 const G = 2
@@ -75,15 +75,23 @@ function noise(x: number, y: number) {
 }
 
 // One grain per 3 device pixels on retina screens, 2 elsewhere, as the hero.
+// The stage is a whole, even number of CSS px (42 on retina, 40 elsewhere),
+// so centring it in the window lands on whole pixels, and the ring turns about
+// the middle of the grain grid, a corner between four grains. Rounding 40px to
+// 27 grains of 1.5px had made the stage 40.5px, with the ring drawn about its
+// 20px mark, a quarter pixel off the middle.
 const cell = Math.min(window.devicePixelRatio || 1, 2) >= 2 ? 1.5 : 2
-const cols = Math.round(BOX / cell)
+let cols = Math.round(BOX / cell)
+while ((cols * cell) % 2) cols++
+// The ring's centre, in CSS px from the stage's corner.
+const MID = (cols * cell) / 2
 const size = `${cols * cell}px`
 stage.style.width = stage.style.height = size
 canvas.width = canvas.height = cols
 canvas.style.width = canvas.style.height = size
 const img = ctx.createImageData(cols, cols)
 
-const gw = Math.ceil(BOX / G) + 2
+const gw = Math.ceil((cols * cell) / G) + 2
 const fluid = createFluid(gw, gw)
 
 let ink = [0, 0, 0]
@@ -107,8 +115,8 @@ function stir(t: number) {
   for (let n = 1; n <= splats; n++) {
     const a = from + ((to - from) * n) / splats
     fluid.splat(
-      (BOX / 2 + Math.cos(a) * ORBIT) / G,
-      (BOX / 2 + Math.sin(a) * ORBIT) / G,
+      (MID + Math.cos(a) * ORBIT) / G,
+      (MID + Math.sin(a) * ORBIT) / G,
       (-Math.sin(a) * PUSH) / splats,
       (Math.cos(a) * PUSH) / splats,
       REACH,
@@ -133,11 +141,11 @@ function draw(t: number, blend: number) {
   const s = t / 1000
   for (let r = 0, i = 0; r < cols; r++) {
     const py = r * cell + cell / 2
-    const dy = py - BOX / 2
+    const dy = py - MID
     for (let c = 0; c < cols; c++, i++) {
       const o = i * 4
       const px = c * cell + cell / 2
-      const dx = px - BOX / 2
+      const dx = px - MID
       // Across the ring: solid along its middle, thinning to clear at its
       // edges. Along it: solid at the head, thinning to clear at the tail.
       const across = 1 - Math.abs(Math.hypot(dx, dy) - ORBIT) / HALF_WIDTH
