@@ -230,9 +230,9 @@ export function elementMarkersToPills(body: string): string {
   )
 }
 
-// The `[mockup: <id>]` marker a drawn Mockup box's ask names its Mockup with
-// (`forMockup` in lib/draw-ask.ts), with the sentence around it that's only
-// for the agent. Not a markdown link, so it must not be followed by `(`; the
+// The `[mockup: <id>]` marker a drawn Mockup box's ask named its Mockup with
+// before it moved into the drawn-box footer, with the sentence around it
+// that's only for the agent. Not a markdown link, so it must not be followed by `(`; the
 // id is a nanoid and holds no `]`.
 const MOCKUP_ASK_RE = /Mockup \[mockup:\s*([^\]\s]+)\] with update_mockup/g
 const MOCKUP_MARKER_RE = /\[mockup:\s*([^\]\s]+)\](?!\()/g
@@ -507,6 +507,33 @@ export function buildDraftedOnFooter(
 }
 
 /**
+ * The canonical token that opens the drawn-box footer, shared by the build
+ * side (`buildDrawnBoxFooter`) and the strip side (`parseUserMessage`).
+ */
+export const DRAWN_BOX_FOOTER_TOKEN = "Drawn box:"
+
+/**
+ * Build the drawn-box footer: the frame or Mockup box a canvas ask was drawn
+ * as, and what its size means (`forMockup` / `withViewport` in
+ * lib/draw-ask.ts). One line, only the model reads it: the person typed the
+ * ask, not this.
+ */
+export function buildDrawnBoxFooter(line: string): string {
+  return ["", "", "---", "", `${DRAWN_BOX_FOOTER_TOKEN} ${line}`].join("\n")
+}
+
+// The drawn-box footer is one line.
+const DRAWN_BOX_FOOTER_RE = new RegExp(
+  `\\n\\n---\\n\\n${DRAWN_BOX_FOOTER_TOKEN}[^\\n]*`,
+  "g"
+)
+
+/** A message without its drawn-box footer, as the person wrote it. */
+export function stripDrawnBoxFooter(message: string): string {
+  return message.replace(DRAWN_BOX_FOOTER_RE, "")
+}
+
+/**
  * Prepend the server turn prefixes to a user message body: PR event, wake,
  * delegation, then plan, then branch. Each prefix is emitted only when its input is
  * present, so a turn with no marker returns `body` unchanged.
@@ -669,6 +696,7 @@ export function parseUserMessage(wire: string): ParsedUserMessage {
   body = body.replace(CANVAS_VIEW_FOOTER_RE, "")
   body = body.replace(ATTACHMENTS_FOOTER_RE, "")
   body = body.replace(DRAFTED_ON_FOOTER_RE, "")
+  body = stripDrawnBoxFooter(body)
   const hadReferencedDocs = REFERENCED_DOCS_FOOTER_RE.test(body)
   const hadTargetedElements = TARGETED_ELEMENTS_FOOTER_RE.test(body)
   if (hadReferencedDocs) {

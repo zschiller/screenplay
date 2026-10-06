@@ -6,6 +6,7 @@ import {
   buildDraftedOnFooter,
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
+  stripDrawnBoxFooter,
   type CanvasView,
   type MessageAttachment,
   type ReferencedDoc,
@@ -78,7 +79,8 @@ export function buildOutgoingTurn({
       buildCanvasViewFooter(canvasView ?? null) +
       buildDraftedOnFooter(draftedOn ?? null),
     turn: {
-      body,
+      // A drawn box's ask carries its footer in the message itself.
+      body: stripDrawnBoxFooter(body),
       ...(targetedElements.length > 0 ? { targetedElements } : {}),
       ...(attachments.length > 0 ? { attachments } : {}),
     },
