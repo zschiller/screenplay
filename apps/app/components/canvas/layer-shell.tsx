@@ -7,7 +7,6 @@ import {
   shouldMoveSelection,
   shouldSelectOnPointerDown,
 } from "@/lib/canvas/layer-shell"
-import { showsResizeHandles } from "@/lib/canvas/camera"
 import { LayerTitleBar } from "./layer-title-bar"
 import { ResizeHandles } from "./resize-handles"
 import type { GroupLabelValue } from "./group-label"
@@ -374,14 +373,15 @@ export function LayerShell({
         children(api)
       }
 
-      {/* Resize handles — only when singly selected, and hidden while the
-          tile is too small on screen for their constant-size hit zones. */}
-      {selected &&
-        !multiSelected &&
-        resizable &&
-        showsResizeHandles(width, height, zoom) && (
-          <ResizeHandles zoom={zoom} makeHandleProps={makeHandleProps} />
-        )}
+      {/* Resize grab zones — whenever singly selected, at any size. */}
+      {selected && !multiSelected && resizable && (
+        <ResizeHandles
+          width={width}
+          height={height}
+          zoom={zoom}
+          makeHandleProps={makeHandleProps}
+        />
+      )}
     </div>
   )
 }
