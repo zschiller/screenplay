@@ -72,6 +72,8 @@ const page = (body: string) => `<!doctype html><html><head>
 </head><body>${body}<div id="tall"></div></body></html>`
 
 const pages = new Map<string, string>()
+// Paths the stand-in dev server answers late, in ms.
+const slow = new Map<string, number>()
 let devServer: http.Server
 let service: ChildProcess | null = null
 let port = 0
@@ -168,8 +170,14 @@ async function load(html: string) {
 beforeAll(async () => {
   if (!HAS_STACK) return
   devServer = http.createServer((req, res) => {
-    res.writeHead(200, { "content-type": "text/html" })
-    res.end(pages.get((req.url ?? "/").split("?")[0]!) ?? page("<p>start</p>"))
+    const path = (req.url ?? "/").split("?")[0]!
+    setTimeout(
+      () => {
+        res.writeHead(200, { "content-type": "text/html" })
+        res.end(pages.get(path) ?? page("<p>start</p>"))
+      },
+      slow.get(path) ?? 0
+    )
   })
   await new Promise<void>((r) => devServer.listen(0, "127.0.0.1", r))
   const origin = `http://127.0.0.1:${(devServer.address() as AddressInfo).port}`
@@ -304,6 +312,8 @@ describe.skipIf(!HAS_STACK)("hosted Frame Drive", () => {
   it("is seen live by a second person watching the frame", async () => {
     await load(`<a href="/next-page" id="go">Next page</a>`)
     pages.set("/next-page", page(`<p id="out">arrived</p>`))
+    // The old page is still there to answer while the next one loads.
+    slow.set("/next-page", 500)
     const ben = await connect("ben")
     ben.send({ t: "watch", frame: FRAME, route, ...SIZE })
     await waitUntil(() => ben.videos > 0)
