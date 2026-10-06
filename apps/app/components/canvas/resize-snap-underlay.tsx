@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 import { type Icon, MonitorIcon } from "@workspace/ui/components/icons"
 import type { AnchorCorner, SnapCandidate } from "@/lib/canvas/snap"
 import {
@@ -55,7 +55,7 @@ export function ResizeSnapUnderlay({
 }: ResizeSnapUnderlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
