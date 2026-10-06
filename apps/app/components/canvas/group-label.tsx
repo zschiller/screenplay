@@ -353,8 +353,8 @@ function GroupName({
     if (onRename) {
       // Match the frame-label structure exactly: EditableText as a direct
       // child of a `flex items-center` row. `items-center` masks the vertical
-      // shift from `py-0.5 -my-0.5`, and `flex-1` gives the editable a stable
-      // slot to scroll inside.
+      // shift from `py-0.5 -my-0.5`. The field doesn't shrink to the row, so
+      // it keeps the whole name's width when the Group is narrow on screen.
       return (
         <div
           className={cn("flex max-w-full min-w-0 items-center", className)}
@@ -375,7 +375,7 @@ function GroupName({
             viewClassName="truncate cursor-grab active:cursor-grabbing"
             editClassName={cn(
               editableTextFieldClass,
-              "-mx-0.5 -my-0.5 min-w-0 flex-1 px-0.5 py-0.5"
+              "-mx-0.5 -my-0.5 shrink-0 px-0.5 py-0.5"
             )}
           />
         </div>
