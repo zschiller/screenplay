@@ -16,7 +16,7 @@ function doublePress(el: HTMLElement) {
   fireEvent.pointerDown(el, { button: 0 })
 }
 
-function renderBar(isOwner: boolean) {
+function renderBar(isOwner: boolean, onOpenShortcuts = vi.fn()) {
   render(
     <CanvasTopBar
       roomId="r1"
@@ -34,6 +34,7 @@ function renderBar(isOwner: boolean) {
       deleteDialogOpen={false}
       onDeleteDialogOpenChange={vi.fn()}
       onOpenSettings={vi.fn()}
+      onOpenShortcuts={onOpenShortcuts}
       stopRoomDevServers={vi.fn()}
       flushLayout={() => Promise.resolve()}
     />
@@ -51,5 +52,21 @@ describe("CanvasTopBar", () => {
     renderBar(false)
     doublePress(screen.getByText("Checkout flow"))
     expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  it("opens the shortcut sheet from the canvas menu, owner or not", () => {
+    for (const isOwner of [true, false]) {
+      const onOpenShortcuts = vi.fn()
+      renderBar(isOwner, onOpenShortcuts)
+      fireEvent.pointerDown(
+        screen.getByRole("button", { name: "Canvas options" }),
+        { button: 0, pointerType: "mouse" }
+      )
+      const item = screen.getByRole("menuitem", { name: /Keyboard shortcuts/ })
+      expect(item.textContent).toContain("?")
+      fireEvent.click(item)
+      expect(onOpenShortcuts).toHaveBeenCalledTimes(1)
+      cleanup()
+    }
   })
 })

@@ -2654,6 +2654,7 @@ export function Canvas({
                     deleteDialogOpen,
                     onDeleteDialogOpenChange: setDeleteDialogOpen,
                     onOpenSettings: () => setCanvasSettingsOpen(true),
+                    onOpenShortcuts: openShortcutSheet,
                     stopRoomDevServers,
                     flushLayout,
                   })}
@@ -2743,7 +2744,6 @@ export function Canvas({
                         onZoomOut: zoomControls.zoomOut,
                         onZoomTo: cameraZoomTo,
                         onZoomToFit: zoomControls.zoomToFit,
-                        onOpenShortcuts: openShortcutSheet,
                       })}
                     />
                     {/* Following other users' viewports and sharing are part of

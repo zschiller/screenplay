@@ -53,6 +53,7 @@ function renderCanvas() {
         deleteDialogOpen={false}
         onDeleteDialogOpenChange={vi.fn()}
         onOpenSettings={vi.fn()}
+        onOpenShortcuts={vi.fn()}
         stopRoomDevServers={vi.fn()}
         flushLayout={() => Promise.resolve()}
       />
