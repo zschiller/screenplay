@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ComponentProps,
 } from "react"
 
 import { nanoid } from "nanoid"
@@ -98,7 +99,11 @@ import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 
 import { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 
-import { RoomSidebar } from "@/components/panels/room-sidebar"
+import {
+  RoomSidebar,
+  type SidebarLayerGroup,
+} from "@/components/panels/room-sidebar"
+import { StableProps } from "@/lib/canvas/stable-props"
 
 import { useBranchPrs } from "@/hooks/use-branch-prs"
 
@@ -2011,6 +2016,64 @@ export function Canvas({
     writePanelLayout("canvas-layout", layout)
   }, [])
 
+  // The sidebar's props, identical across renders that don't change them, so
+  // the memoized sidebar skips the canvas's re-render on every pointer move of
+  // a drag, marquee or draw.
+  const [sidebarStable] = useState(() => new StableProps())
+  const sidebarFooterActions = sidebarStable.value("footer", {
+    onShowCoordinator: () => {
+      chatTarget.showRoomChat()
+      chatTarget.expandPanel()
+    },
+    onOpenWorkspace: (id: string) => chatTarget.selectAgent(id),
+    onDismiss: clearGettingStartedCanvas,
+  })
+  const sidebarFooter = useMemo(
+    () =>
+      showGettingStarted ? (
+        <GettingStartedChecklist
+          progress={gettingStarted}
+          {...sidebarFooterActions}
+        />
+      ) : null,
+    [showGettingStarted, gettingStarted, sidebarFooterActions]
+  )
+  const sidebarGroups = useMemo(
+    () =>
+      sortedIframeLayerGroups.map(
+        ({ x: _x, y: _y, ...group }): SidebarLayerGroup => group
+      ),
+    [sortedIframeLayerGroups]
+  )
+  const sidebarProps = sidebarStable.value("sidebar", {
+    branches: agents,
+    iframeLayers,
+    markdownLayers,
+    mockupLayers,
+    iframeLayerGroups: sidebarGroups,
+    selectedIframeLayerIds,
+    selectedGroupIds,
+    selectedDocumentLayerIds,
+    onSelectGroup: handleGroupSelect,
+    onZoomToGroup: handleZoomToGroup,
+    onSelectDocument: handleDocumentLayerSelect,
+    onZoomToDocument: handleZoomToDocument,
+    onRenameDocument: layerMutations.setTitle,
+    onRemoveDocument: removeDocument,
+    onZoomToMockup: handleZoomToMockup,
+    onRenameMockup: layerMutations.renameMockup,
+    onRemoveMockup: removeMockup,
+    onSelectIframeLayer: handleIframeLayerSelect,
+    onZoomToIframeLayer: handleSelectIframeLayer,
+    onRenameIframeLayer: layerMutations.rename,
+    onRemoveIframeLayer: removeIframeLayer,
+    onReorderIframeLayerGroups: reorderIframeLayerGroups,
+    onMoveMember: moveMember,
+    onRenameIframeLayerGroup: renameIframeLayerGroup,
+    onRemoveIframeLayerGroup: removeIframeLayerGroup,
+    onCollapseSidebar: () => sidebarPanelRef.current?.collapse(),
+    footer: sidebarFooter,
+  } satisfies ComponentProps<typeof RoomSidebar>)
   return (
     <>
       {/* The agent drives this canvas's frames and mockups on the Mac
@@ -2102,47 +2165,7 @@ export function Canvas({
                 }
               }}
             >
-              <RoomSidebar
-                branches={agents}
-                iframeLayers={iframeLayers}
-                markdownLayers={markdownLayers}
-                mockupLayers={mockupLayers}
-                iframeLayerGroups={sortedIframeLayerGroups}
-                selectedIframeLayerIds={selectedIframeLayerIds}
-                selectedGroupIds={selectedGroupIds}
-                selectedDocumentLayerIds={selectedDocumentLayerIds}
-                onSelectGroup={handleGroupSelect}
-                onZoomToGroup={handleZoomToGroup}
-                onSelectDocument={handleDocumentLayerSelect}
-                onZoomToDocument={handleZoomToDocument}
-                onRenameDocument={layerMutations.setTitle}
-                onRemoveDocument={removeDocument}
-                onZoomToMockup={handleZoomToMockup}
-                onRenameMockup={layerMutations.renameMockup}
-                onRemoveMockup={removeMockup}
-                onSelectIframeLayer={handleIframeLayerSelect}
-                onZoomToIframeLayer={handleSelectIframeLayer}
-                onRenameIframeLayer={layerMutations.rename}
-                onRemoveIframeLayer={removeIframeLayer}
-                onReorderIframeLayerGroups={reorderIframeLayerGroups}
-                onMoveMember={moveMember}
-                onRenameIframeLayerGroup={renameIframeLayerGroup}
-                onRemoveIframeLayerGroup={removeIframeLayerGroup}
-                onCollapseSidebar={() => sidebarPanelRef.current?.collapse()}
-                footer={
-                  showGettingStarted ? (
-                    <GettingStartedChecklist
-                      progress={gettingStarted}
-                      onShowCoordinator={() => {
-                        chatTarget.showRoomChat()
-                        chatTarget.expandPanel()
-                      }}
-                      onOpenWorkspace={(id) => chatTarget.selectAgent(id)}
-                      onDismiss={clearGettingStartedCanvas}
-                    />
-                  ) : null
-                }
-              />
+              <RoomSidebar {...sidebarProps} />
             </ResizablePanel>
             <ResizableHandle className="focus-visible:ring-0" />
 

@@ -235,17 +235,19 @@ export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
       nextIframeLayerIds: ReadonlySet<string>,
       nextDocumentLayerIds: ReadonlySet<string>
     ) => {
-      setGroupIds(new Set())
-      setIframeLayerIds(new Set(nextIframeLayerIds))
-      setDocumentLayerIds(new Set(nextDocumentLayerIds))
+      // A marquee re-selects on every pointer move. A selection that comes
+      // out the same keeps its Set, so nothing that reads it re-renders.
+      setGroupIds(keepIfSame(new Set()))
+      setIframeLayerIds(keepIfSame(new Set(nextIframeLayerIds)))
+      setDocumentLayerIds(keepIfSame(new Set(nextDocumentLayerIds)))
     },
     []
   )
 
   const clear = useCallback(() => {
-    setIframeLayerIds(new Set())
-    setGroupIds(new Set())
-    setDocumentLayerIds(new Set())
+    setIframeLayerIds(keepIfSame(new Set()))
+    setGroupIds(keepIfSame(new Set()))
+    setDocumentLayerIds(keepIfSame(new Set()))
   }, [])
 
   const deleteSelected = useCallback((): boolean => {
@@ -375,4 +377,12 @@ export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
       setDocumentLayerIds,
     ]
   )
+}
+
+/** A state update to `next`, keeping the current Set when it has the same ids. */
+function keepIfSame(next: Set<string>) {
+  return (prev: Set<string>) =>
+    prev.size === next.size && [...prev].every((id) => next.has(id))
+      ? prev
+      : next
 }

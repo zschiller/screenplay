@@ -36,6 +36,7 @@ import { FloatingToolbarButton } from "@workspace/ui/components/floating-toolbar
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { SidebarMenuAction } from "@workspace/ui/components/sidebar"
 import { cn } from "@workspace/ui/lib/utils"
+import { StableProps } from "@/lib/canvas/stable-props"
 import { useChatsMenu } from "@/components/agent/chats-menu"
 import {
   WorkspaceMenuItems,
@@ -455,9 +456,14 @@ export function LayerMenuProvider({ children }: { children: ReactNode }) {
 /** Publishes a Layer's menu for its sidebar row while the Layer is mounted. */
 export function useRegisterLayerMenu(id: string, actions: LayerMenuActions) {
   const registry = useContext(LayerMenuRegistryContext)
+  // A Layer rebuilds its actions every render. Publishing each copy would
+  // wake every row subscribed to the registry, so publish one that keeps its
+  // identity until a label or option changes; its callbacks call the latest.
+  const [stable] = useState(() => new StableProps())
+  const published = stable.value("menu", actions)
   useEffect(() => {
-    registry.set(id, actions)
-  })
+    registry.set(id, published)
+  }, [registry, id, published])
   useEffect(() => () => registry.set(id, undefined), [registry, id])
 }
 

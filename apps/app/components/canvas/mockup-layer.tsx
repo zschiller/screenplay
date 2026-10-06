@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTheme } from "next-themes"
 import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
@@ -217,7 +217,7 @@ const ignoreLive = () => {}
  * An empty page is a Mockup someone drew and sent to a chat (#1359) that the
  * chat hasn't filled yet, so it shows the model at work (the 9-dot).
  */
-export function MockupLayer({
+function MockupLayerImpl({
   layer,
   workingChat,
   zoom,
@@ -588,3 +588,10 @@ function MockupSketching({
     </Empty>
   )
 }
+
+/**
+ * Memoized: the canvas re-renders its member list on every pointer move of a
+ * drag, marquee or draw, and `CanvasMemberLayer` keeps each Mockup's props
+ * identical unless they change, so only the Mockups that changed render.
+ */
+export const MockupLayer = memo(MockupLayerImpl)

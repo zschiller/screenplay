@@ -10,6 +10,8 @@ import {
 import { rectFromAnchor } from "@/lib/canvas/snap"
 import { resolveCanvasColor } from "@/lib/canvas/tokens"
 
+import { beginUnderlayDraw, useUnderlayCanvasSize } from "./underlay-canvas"
+
 interface ResizeSnapUnderlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
@@ -56,26 +58,11 @@ export function ResizeSnapUnderlay({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    const dpr = window.devicePixelRatio || 1
-    const rect = canvas.getBoundingClientRect()
-    const w = rect.width
-    const h = rect.height
-
-    if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-      canvas.width = w * dpr
-      canvas.height = h * dpr
-    }
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.scale(dpr, dpr)
-
-    if (!iframeLayerRect || candidates.length === 0) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0)
-      return
-    }
+    const ctx = beginUnderlayDraw(
+      canvas,
+      !iframeLayerRect || candidates.length === 0
+    )
+    if (!ctx || !iframeLayerRect) return
 
     // Non-snapped candidates draw as silent gray ghosts. The snapped target is
     // NOT drawn here — the live SelectionOverlay rect already sits exactly on it
@@ -129,23 +116,7 @@ export function ResizeSnapUnderlay({
     ctx.setTransform(1, 0, 0, 1, 0, 0)
   }, [zoom, viewportPos, iframeLayerRect, anchor, candidates, snappedPresetId])
 
-  // Keep canvas sized to its container.
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const parent = canvas.parentElement
-    if (!parent) return
-    const observer = new ResizeObserver(() => {
-      const dpr = window.devicePixelRatio || 1
-      const r = parent.getBoundingClientRect()
-      canvas.width = r.width * dpr
-      canvas.height = r.height * dpr
-      canvas.style.width = `${r.width}px`
-      canvas.style.height = `${r.height}px`
-    })
-    observer.observe(parent)
-    return () => observer.disconnect()
-  }, [])
+  useUnderlayCanvasSize(canvasRef)
 
   // Snapped-only label — non-snapped candidates show as silent outlines.
   const snapped = snappedPresetId

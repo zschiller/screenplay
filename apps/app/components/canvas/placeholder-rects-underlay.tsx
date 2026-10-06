@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react"
 
 import { resolveCanvasColor } from "@/lib/canvas/tokens"
 
+import { beginUnderlayDraw, useUnderlayCanvasSize } from "./underlay-canvas"
+
 interface PlaceholderRectsUnderlayProps {
   zoom: number
   viewportPos: { x: number; y: number }
@@ -31,23 +33,9 @@ export function PlaceholderRectsUnderlay({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext("2d")
+    const ctx = beginUnderlayDraw(canvas, rects.length === 0)
     if (!ctx) return
-
     const dpr = window.devicePixelRatio || 1
-    const r = canvas.getBoundingClientRect()
-    if (canvas.width !== r.width * dpr || canvas.height !== r.height * dpr) {
-      canvas.width = r.width * dpr
-      canvas.height = r.height * dpr
-    }
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.scale(dpr, dpr)
-
-    if (rects.length === 0) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0)
-      return
-    }
 
     const toScreen = (x: number, y: number) => ({
       x: x * zoom + viewportPos.x,
@@ -73,22 +61,7 @@ export function PlaceholderRectsUnderlay({
     ctx.setTransform(1, 0, 0, 1, 0, 0)
   }, [zoom, viewportPos, rects])
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const parent = canvas.parentElement
-    if (!parent) return
-    const observer = new ResizeObserver(() => {
-      const dpr = window.devicePixelRatio || 1
-      const r = parent.getBoundingClientRect()
-      canvas.width = r.width * dpr
-      canvas.height = r.height * dpr
-      canvas.style.width = `${r.width}px`
-      canvas.style.height = `${r.height}px`
-    })
-    observer.observe(parent)
-    return () => observer.disconnect()
-  }, [])
+  useUnderlayCanvasSize(canvasRef)
 
   return (
     <div className="pointer-events-none absolute inset-0">

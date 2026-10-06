@@ -26,7 +26,9 @@ export function groupGap(group: IframeLayerGroupData): number {
  * read, but we still defensive-default here so utilities are safe to call
  * before the migration has flushed.
  */
-export function getGroupMembers(group: IframeLayerGroupData): GroupMember[] {
+export function getGroupMembers(
+  group: Pick<IframeLayerGroupData, "members" | "iframeLayerIds">
+): GroupMember[] {
   if (group.members && group.members.length > 0) return group.members
   if (group.iframeLayerIds && group.iframeLayerIds.length > 0) {
     return group.iframeLayerIds.map((id) => ({
