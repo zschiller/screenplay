@@ -6,6 +6,7 @@ import { Scenes } from "@/components/marketing/site/scenes"
 import { Memory } from "@/components/marketing/site/memory"
 import { SelfHosting } from "@/components/marketing/site/self-hosting"
 import { Features } from "@/components/marketing/site/features"
+import { OpenSource } from "@/components/marketing/site/open-source"
 import { Faq } from "@/components/marketing/site/faq"
 import { CTA } from "@/components/marketing/site/cta"
 
@@ -20,6 +21,7 @@ export default function HomePage() {
         <Memory />
         <SelfHosting />
         <Features />
+        <OpenSource />
         <Faq />
         <CTA />
       </main>
