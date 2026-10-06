@@ -70,6 +70,11 @@ export type ChatState = {
    * the Chat Session, where it holds them; empty when no run is going.
    */
   workingLayers: Readonly<Record<string, number>>
+  /**
+   * How many messages this client has sent into the chat, typed or sent from
+   * the queue, so the chat can take each of its own sends to the bottom.
+   */
+  sends: number
 }
 
 /** A Steer the agent hasn't taken yet (#1190). */
@@ -258,6 +263,7 @@ const DEFAULT_STATE: ChatState = {
   returnedSteers: [],
   runStart: null,
   workingLayers: {},
+  sends: 0,
 }
 
 async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
@@ -557,6 +563,7 @@ class ChatStore {
       error: null,
       failedSend: null,
       messages: optimistic ? [...state.messages, optimistic] : state.messages,
+      sends: optimistic ? state.sends + 1 : state.sends,
     })
     const dropOptimistic = () => ({
       messages: this.getOrCreate(chatId).messages.filter(
@@ -619,6 +626,7 @@ class ChatStore {
     this.update(chatId, {
       error: null,
       failedSend: null,
+      sends: this.getOrCreate(chatId).sends + 1,
       pendingSteers: [
         ...this.getOrCreate(chatId).pendingSteers,
         {

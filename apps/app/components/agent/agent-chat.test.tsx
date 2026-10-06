@@ -3,9 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import type { ChatTarget } from "@/lib/chat/chat-target"
 
+// How many messages the chat has sent; a test bumps it to send one.
+const chat = vi.hoisted(() => ({ sends: 0 }))
+
 // An empty, loaded chat: the empty state and the Composer are all there is.
 vi.mock("@/hooks/use-agent-chat", () => ({
   useAgentChat: () => ({
+    sends: chat.sends,
     messages: [],
     isStreaming: false,
     runStart: null,
@@ -61,6 +65,7 @@ import { AgentChat } from "./agent-chat"
 
 afterEach(() => {
   cleanup()
+  chat.sends = 0
   useSkillIndex.mockClear()
 })
 
@@ -152,5 +157,29 @@ describe("AgentChat — affordances per Chat Target", () => {
     expect(
       screen.queryByRole("button", { name: "What’s on this canvas?" })
     ).toBeNull()
+  })
+})
+
+describe("AgentChat — scrolling on send", () => {
+  it("takes the chat to the bottom on each send, queued ones too, even scrolled up", () => {
+    const target: ChatTarget = { kind: "room" }
+    const chatAt = () => (
+      <AgentChat
+        chatId="chat-room"
+        roomId="room-1"
+        target={target}
+        onPlanModeChange={vi.fn()}
+      />
+    )
+    const { container, rerender } = render(chatAt())
+    const list = container.querySelector<HTMLElement>(".overflow-y-auto")!
+    // jsdom has no layout: a tall transcript, read from the top.
+    Object.defineProperty(list, "scrollHeight", { value: 2000 })
+    list.scrollTop = 0
+
+    // A queued message going out when the run ends is a send like any other.
+    chat.sends = 1
+    rerender(chatAt())
+    expect(list.scrollTop).toBe(2000)
   })
 })

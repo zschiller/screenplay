@@ -124,6 +124,7 @@ export function useAgentChat({
     // A chat steers only once its running turn said it can (#1250).
     steerable: state.steerable === true,
     returnedSteers: state.returnedSteers,
+    sends: state.sends,
     sendMessage,
     stopMessage,
     retryFailedSend,

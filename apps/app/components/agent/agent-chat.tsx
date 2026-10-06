@@ -138,6 +138,7 @@ export function AgentChat({
     pendingSteers,
     steerable,
     returnedSteers,
+    sends,
     sendMessage,
     stopMessage,
     retryFailedSend,
@@ -161,6 +162,7 @@ export function AgentChat({
   const { model: effectiveModel } = useModelCatalog(model)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
+  const pinToBottomRef = useRef<() => void>(() => {})
   const composerRef = useRef<ComposerHandle>(null)
 
   const markdownLayers = useMarkdownLayers()
@@ -254,7 +256,12 @@ export function AgentChat({
     })
     observer.observe(content)
     observer.observe(container)
+    pinToBottomRef.current = () => {
+      stick = true
+      container.scrollTop = container.scrollHeight
+    }
     return () => {
+      pinToBottomRef.current = () => {}
       observer.disconnect()
       container.removeEventListener("wheel", onWheel)
       container.removeEventListener("touchstart", onTouchStart)
@@ -262,6 +269,13 @@ export function AgentChat({
       container.removeEventListener("scroll", onScroll)
     }
   }, [])
+
+  // Each message this chat sends, typed or sent from the queue when a run
+  // ends, takes the chat to the bottom and follows from there, even when the
+  // user had scrolled up to read.
+  useEffect(() => {
+    if (sends > 0) pinToBottomRef.current()
+  }, [sends])
 
   // Picking a model here changes only this chat, from its next turn on (the
   // server re-reads the model every turn); the default lives in Settings.
