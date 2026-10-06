@@ -21,13 +21,10 @@ interface FollowingToolbarProps {
 const AVATAR_BUTTON_CLASS =
   "relative size-auto rounded-full border-0 p-0 ring-2 ring-background transition-shadow hover:bg-transparent hover:ring-foreground/20 dark:hover:bg-transparent"
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase()
+// One letter, as Figma's stack shows: with the avatars overlapping, a second
+// letter was covered by the avatar beside it.
+function getInitial(name: string) {
+  return (name.trim()[0] ?? "?").toUpperCase()
 }
 
 export function FollowingToolbar({
@@ -38,7 +35,7 @@ export function FollowingToolbar({
   const self = useSelfIdentity()
 
   return (
-    <div className="ml-0.5 flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
+    <div className="ml-0.5 flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-1">
       {self && (
         <IconButton
           label={`${self.name || "You"} (you)`}
@@ -51,9 +48,9 @@ export function FollowingToolbar({
             <AvatarFallback
               aria-hidden
               style={{ backgroundColor: self.color }}
-              className="text-xs font-medium text-white"
+              className={`text-xs font-medium ${presenceInkClass(self.color)}`}
             >
-              {getInitials(self.name || "?")}
+              {getInitial(self.name || "?")}
             </AvatarFallback>
           </Avatar>
         </IconButton>
@@ -90,7 +87,7 @@ export function FollowingToolbar({
                 style={{ backgroundColor: presence.color }}
                 className={`text-xs font-medium ${presenceInkClass(presence.color)}`}
               >
-                {getInitials(name)}
+                {getInitial(name)}
               </AvatarFallback>
             </Avatar>
             {isFollowing && (

@@ -41,7 +41,7 @@ export function CursorChat({
       style={{ left: screenX, top: screenY }}
     >
       <div
-        className="pointer-events-auto mt-1 ml-3 flex items-center rounded-2xl rounded-tl-none px-2.5 py-1 shadow-md"
+        className="pointer-events-auto mt-1 ml-3 flex items-center rounded px-2 py-1"
         style={{ backgroundColor: color }}
       >
         <input
@@ -64,8 +64,8 @@ export function CursorChat({
           onBlur={onClose}
           className={
             presenceInk(color) === "dark"
-              ? "w-48 bg-transparent text-xs text-neutral-950 outline-none placeholder:text-neutral-950/60"
-              : "w-48 bg-transparent text-xs text-white outline-none placeholder:text-white/70"
+              ? "w-56 bg-transparent text-sm text-black outline-none placeholder:text-black/60"
+              : "w-56 bg-transparent text-sm text-white outline-none placeholder:text-white/70"
           }
         />
       </div>

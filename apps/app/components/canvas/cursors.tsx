@@ -27,31 +27,39 @@ export function Cursors({ viewport }: CursorsProps) {
             className="pointer-events-none absolute z-(--z-canvas-presence)"
             style={{ left: screenX, top: screenY }}
           >
+            {/* An outline in the page colour, rather than a shadow, keeps
+                the pointer readable over any frame. */}
             <svg
               width="16"
               height="20"
               viewBox="0 0 16 20"
               fill="none"
-              style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }}
+              className="overflow-visible"
             >
               <path
                 d="M0.928711 0.0737305L15.0713 11.3833L8.20055 11.8235L4.56463 19.0005L0.928711 0.0737305Z"
                 fill={presence.color}
+                stroke="var(--background)"
+                strokeWidth={1.5}
+                strokeLinejoin="round"
+                paintOrder="stroke"
               />
             </svg>
             {message !== null ? (
+              // The name tag grows into the message: the name stays a 12px
+              // label, the message is a sentence at 13px.
               <div
-                className={`mt-1 ml-3 max-w-xs rounded-2xl rounded-tl-none px-2.5 py-1 text-xs shadow-md ${ink}`}
+                className={`mt-1 ml-3 w-max max-w-60 rounded px-2 py-1 ${ink}`}
                 style={{ backgroundColor: presence.color }}
               >
-                <div className="text-xs font-medium opacity-80">{name}</div>
-                <div className="leading-snug break-words whitespace-pre-wrap">
+                <div className="text-xs font-medium">{name}</div>
+                <div className="text-sm leading-snug break-words whitespace-pre-wrap">
                   {message || " "}
                 </div>
               </div>
             ) : (
               <span
-                className={`mt-1 ml-3 rounded px-1.5 py-0.5 text-xs whitespace-nowrap ${ink}`}
+                className={`mt-1 ml-3 block w-max rounded px-1.5 py-0.5 text-xs whitespace-nowrap ${ink}`}
                 style={{ backgroundColor: presence.color }}
               >
                 {name}

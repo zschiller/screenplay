@@ -21,7 +21,7 @@ describe("presenceInk", () => {
   })
 
   it("maps each ink to a text class", () => {
-    expect(presenceInkClass("#FFB74D")).toBe("text-neutral-950")
+    expect(presenceInkClass("#FFB74D")).toBe("text-black")
     expect(presenceInkClass("#1e3a8a")).toBe("text-white")
   })
 })
