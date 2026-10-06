@@ -17,41 +17,46 @@ view, so hot reload, client-side routing, and app state all work as normal.
 
 - A new chat gets a frame automatically once its preview is up.
 - The **Frame** tool (<kbd>F</kbd>) drops a 1280×800 frame where you click,
-  or draws one where you drag. As you let go, the frame asks what it should
-  show. Type what to build and press <kbd>Enter</kbd> (<kbd>Shift</kbd>
-  <kbd>Enter</kbd> for a new line). The frame’s size is sent along as the
-  viewport, so a phone-sized frame gets a mobile layout. A frame shows a chat’s
-  code, and that needs a repository, so on a canvas with no
-  [repository](/guides/repositories) the Frame tool is off until you add one.
-- The chip beside **Send** says who answers. With nothing selected it’s
-  **New chat**: a new chat starts on it, and its code boots in that
-  frame. If you had a frame, mockup or document selected when you drew, it’s
-  that layer’s chat instead: the frame shows that chat’s code, and your
-  message goes to that chat, as if you’d sent it there (see
+  or draws one where you drag. As you let go, the frame asks which running
+  preview to show, the likely one first: the chat of the frame, mockup or
+  document you had selected when you drew, else the chat open in the chat
+  panel, else the one you worked in last. <kbd>Enter</kbd> shows it; type to
+  find another. The frame opens on the route that chat’s newest frame shows,
+  at the size you drew, so a phone-sized frame shows its mobile layout.
+  Nothing is sent.
+
+  <Screenshot
+    name="frame-ask"
+    alt="A frame just drawn, listing the running previews to show in it, the likely one highlighted, with New chat… as the last row"
+  />
+
+- To build something new in the frame instead, pick **New chat…**, the last
+  row, and say what the frame should show. <kbd>Enter</kbd> sends it
+  (<kbd>Shift</kbd> <kbd>Enter</kbd> for a new line). If you had typed words
+  no preview matches, the row reads **New chat: “…”** and your words come
+  along. A new chat starts on it, its code boots in that frame, and the
+  frame’s size is sent along as the viewport. The chip beside **Send** says
+  who answers; click it to ask an existing chat instead, which shows that
+  chat in the frame and sends your message to it (see
   [Sending while the agent works](/guides/agent#sending-while-the-agent-works)).
-  Click the chip to switch between **New chat** and any other chat.
 
   <Screenshot
     name="frame-ask-answerer"
-    alt="A frame drawn with the Home frame selected: the chip names the Home frame’s chat, and its menu lists New chat and every chat"
+    alt="The frame’s ask after New chat…: what should this frame show, with the typed words and the New chat chip beside Send"
   />
 
+- With no preview running, the frame asks what it should show straight
+  away. A frame shows a chat’s code, and that needs a repository, so on a
+  canvas with no [repository](/guides/repositories) the Frame tool is off
+  until you add one.
 - Press <kbd>Esc</kbd> or click elsewhere to skip the question. The frame
-  stays and shows **No chat**. Click **Start a chat** in it to ask again,
-  or pick a chat for it from its title (**Choose a chat**).
+  stays and shows **No chat**. Click **Start a chat** in it to ask what to
+  build, or pick a chat for it from its title (**Choose a chat**).
 
-  <ScreenshotRow>
-    <Screenshot
-      name="frame-ask"
-      caption="Just drawn: what should it show?"
-      alt="A frame just drawn, asking what it should show, with the New chat chip beside the Send button"
-    />
-    <Screenshot
-      name="frame-unanswered"
-      caption="Skipped: no chat yet."
-      alt="A frame with no chat, offering Start a chat"
-    />
-  </ScreenshotRow>
+  <Screenshot
+    name="frame-unanswered"
+    alt="A frame with no chat, offering Start a chat"
+  />
 
 - **Show all routes** in the chat menu (a frame’s **Preview → Add frames for
   all routes**) adds a group with a frame for

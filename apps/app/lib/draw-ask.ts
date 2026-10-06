@@ -155,3 +155,44 @@ export function defaultFrameAnswerer(input: {
     return NEW_CHAT
   return { kind: "workspace", branchId }
 }
+
+/**
+ * The running previews a drawn frame offers to show, the likely one first:
+ * Workspaces whose preview is up (running, its dev server not stopped), the
+ * first of `preferred` that's among them leading (the selection's, then the
+ * chat panel's), the rest newest activity first. Drawing a frame usually
+ * means "show me a preview that's already running", so the frame's ask opens
+ * on this list, with a new chat one row away.
+ */
+export function runningPreviews(input: {
+  /** The Workspaces a frame can show (`pickableWorkspaces`). */
+  pickable: readonly BranchData[]
+  /** Workspace ids to lead with, in order; the first that's running wins. */
+  preferred: readonly (string | null | undefined)[]
+}): BranchData[] {
+  const running = input.pickable
+    .filter((b) => b.status === "running" && !b.devServerStoppedAt)
+    .sort(
+      (a, b) =>
+        (b.lastActivityAt ?? b.createdAt) - (a.lastActivityAt ?? a.createdAt)
+    )
+  const lead = input.preferred
+    .map((id) => running.find((b) => b.id === id))
+    .find((b) => b !== undefined)
+  return lead ? [lead, ...running.filter((b) => b !== lead)] : running
+}
+
+/**
+ * The route a frame shows when it picks up an existing Workspace: the one its
+ * newest frame shows, so the new view opens where that chat is working.
+ */
+export function workspaceRoute(
+  frames: readonly Pick<IframeLayerData, "branchId" | "route">[],
+  branchId: string
+): string | undefined {
+  for (let i = frames.length - 1; i >= 0; i--) {
+    const frame = frames[i]!
+    if (frame.branchId === branchId && frame.route) return frame.route
+  }
+  return undefined
+}

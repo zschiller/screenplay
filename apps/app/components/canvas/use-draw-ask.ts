@@ -21,7 +21,9 @@ import {
   forMockup,
   NEW_CHAT,
   NEW_SKETCH_CHAT,
+  runningPreviews,
   withViewport,
+  workspaceRoute,
   type DrawnMockup,
   type FrameAnswerer,
 } from "@/lib/draw-ask"
@@ -68,7 +70,8 @@ export interface DrawAskDeps {
     opts?: CreateBranchOptions
   ) => Promise<void>
   addChatSession: (chatId: string, chat: ChatSessionData) => void
-  chatTarget: Pick<ChatTarget, "selectSketchChat">
+  /** The chat panel's Workspace leads the running previews after the selection's. */
+  chatTarget: Pick<ChatTarget, "selectSketchChat" | "selectedAgentId">
   /** `chatStore.sendMessage`, for a chat with no repository. */
   sendMessage: (opts: SendMessageOptions) => unknown
   roomId: string
@@ -82,6 +85,12 @@ export interface DrawAsk {
    * hands its pick to `send`.
    */
   answerer: FrameAnswerer
+  /**
+   * The running previews a drawn frame's ask offers first, the likely one
+   * leading (`runningPreviews`). Empty for a Mockup box, for Start a chat,
+   * and when none is running: the ask is then the composer alone.
+   */
+  previews: BranchData[]
   /** A frame was drawn. Opens only when there's a Repo for a new chat. */
   startFromFrame: (frameId: string) => void
   /** A Mockup box was drawn. */
@@ -91,6 +100,11 @@ export interface DrawAsk {
    * Absent with no Repo for a new chat to start in.
    */
   startFrameChat?: (frameId: string) => void
+  /**
+   * Show a running preview in the drawn frame, at the route its newest frame
+   * shows, and close. Nothing is sent.
+   */
+  show: (branchId: string) => void
   /** Send what was typed to `answerer`, and close. */
   send: (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => void
   close: () => void
@@ -129,6 +143,7 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
   } = deps
   const [ask, setAsk] = useState<OpenAsk | null>(null)
   const [answerer, setAnswerer] = useState<FrameAnswerer>(NEW_CHAT)
+  const [previews, setPreviews] = useState<BranchData[]>([])
 
   const newChatRepoId = useMemo(
     () => defaultNewWorkspaceRepoId(repos, agents),
@@ -156,10 +171,20 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
   const startFromFrame = useCallback(
     (frameId: string) => {
       if (!newChatRepoId) return
-      setAnswerer(answererFromSelection())
+      const picked = answererFromSelection()
+      setAnswerer(picked)
+      setPreviews(
+        runningPreviews({
+          pickable: pickableWorkspaces(agents),
+          preferred: [
+            picked.kind === "workspace" ? picked.branchId : null,
+            chatTarget.selectedAgentId,
+          ],
+        })
+      )
       setAsk({ kind: "frame", frameId })
     },
-    [newChatRepoId, answererFromSelection]
+    [newChatRepoId, answererFromSelection, agents, chatTarget.selectedAgentId]
   )
 
   // With no repository there are no Workspaces, so a chat with none answers.
@@ -169,6 +194,7 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
       setAnswerer(
         newChatRepoId || picked.kind === "sketch" ? picked : NEW_SKETCH_CHAT
       )
+      setPreviews([])
       setAsk({ kind: "mockup", box })
     },
     [newChatRepoId, answererFromSelection]
@@ -181,6 +207,7 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     (frameId: string) => {
       selectIframeLayer(frameId, false)
       setAnswerer(NEW_CHAT)
+      setPreviews([])
       setAsk({ kind: "frame", frameId })
     },
     [selectIframeLayer]
@@ -189,6 +216,7 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
   const close = useCallback(() => {
     setAsk(null)
     setAnswerer(NEW_CHAT)
+    setPreviews([])
   }, [])
 
   // A Workspace still starting has no agent to ask yet.
@@ -303,6 +331,18 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     return frame && !frame.branchId ? ask : null
   }, [ask, iframeLayers])
 
+  const show = useCallback(
+    (branchId: string) => {
+      const frameId = open?.kind === "frame" ? open.frameId : null
+      close()
+      if (!frameId) return
+      ops.assignBranch(frameId, branchId, {
+        route: workspaceRoute(iframeLayers, branchId),
+      })
+    },
+    [open, close, ops, iframeLayers]
+  )
+
   const send = useCallback(
     (payload: ComposerSubmitPayload, to: FrameAnswerer) => {
       close()
@@ -318,9 +358,11 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
   return {
     open,
     answerer,
+    previews,
     startFromFrame,
     startFromMockupBox,
     startFrameChat: newChatRepoId ? startFrameChat : undefined,
+    show,
     send,
     close,
   }

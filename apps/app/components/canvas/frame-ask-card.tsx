@@ -3,8 +3,17 @@
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
-import { CaretDownIcon } from "@workspace/ui/components/icons"
+import {
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@workspace/ui/components/command"
+import { CaretDownIcon, PlusIcon } from "@workspace/ui/components/icons"
 import { InputGroupButton } from "@workspace/ui/components/input-group"
+import { cn } from "@workspace/ui/lib/utils"
 import {
   Popover,
   PopoverContent,
@@ -13,14 +22,18 @@ import {
 
 import {
   Composer,
+  type ComposerHandle,
   type ComposerSubmitPayload,
 } from "@/components/agent/composer"
+import { WorkspaceMention } from "@/components/workspace-mention"
+import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import { NEW_CHAT, NEW_SKETCH_CHAT, type FrameAnswerer } from "@/lib/draw-ask"
 import type {
   BranchData,
   ChatSessionData,
   MarkdownLayerData,
 } from "@/lib/types"
+import { workspaceLabel } from "@/lib/workspace-label"
 import { WorkspaceCommandList, WorkspaceName } from "./workspace-list"
 
 /** Keeps the card clear of the canvas edges and the bottom tool toolbar. */
@@ -75,6 +88,11 @@ export function frameAskTarget(frameId: string): AskCardTarget | null {
  * starting from the default the canvas worked out from the selection. A new
  * chat's turn uses the default model; a Workspace's chat keeps its own.
  *
+ * A drawn frame with running previews to offer asks which to show first
+ * (`previews`, the likely one leading and highlighted): Enter shows it in the
+ * frame and sends nothing. Its last row, New chat…, turns the card into the
+ * composer, carrying what was typed when no preview matched it.
+ *
  * Per-viewer: the canvas holds which box is asking in local state, never in
  * the room doc. Enter sends; Esc or a pointer-down outside closes it, leaving
  * a frame as it is (an unsent Mockup box goes with the card).
@@ -86,6 +104,8 @@ export function FrameAskCard({
   workspaces,
   sketchChats,
   defaultAnswerer,
+  previews = [],
+  onShow,
   onSubmit,
   onClose,
 }: {
@@ -102,11 +122,25 @@ export function FrameAskCard({
    */
   sketchChats?: ChatSessionData[]
   defaultAnswerer: FrameAnswerer
+  /** Running previews to offer before the composer, the likely one first. */
+  previews?: BranchData[]
+  /** Show a picked preview in the frame. */
+  onShow?: (branchId: string) => void
   onSubmit: (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => void
   onClose: () => void
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [answerer, setAnswerer] = useState(defaultAnswerer)
+  const [picking, setPicking] = useState(previews.length > 0 && !!onShow)
+  const composerRef = useRef<ComposerHandle>(null)
+  // Words typed into the picker that no preview matched, for the composer
+  // to start from once it's mounted.
+  const carriedRef = useRef("")
+  useEffect(() => {
+    if (picking || !carriedRef.current) return
+    composerRef.current?.insertText(carriedRef.current)
+    carriedRef.current = ""
+  }, [picking])
   const onCloseRef = useRef(onClose)
   const locateRef = useRef(locate)
   useEffect(() => {
@@ -115,11 +149,14 @@ export function FrameAskCard({
   })
 
   // Centre the card on the box every frame, the way the frame bar follows its
-  // frame. Hidden until the box is up and the card is placed.
+  // frame. Hidden until the box is up and the card is placed. Centred on the
+  // height it first shows at, so its top stays put as the preview list
+  // filters or turns into the composer.
   useEffect(() => {
     const wrapper = document.querySelector<HTMLElement>("[data-canvas-wrapper]")
     if (!wrapper) return
     let rafId = 0
+    let centredHeight = 0
     const tick = () => {
       const box = locateRef.current()
       const card = cardRef.current
@@ -127,8 +164,9 @@ export function FrameAskCard({
         const cw = wrapper.getBoundingClientRect()
         const w = card.offsetWidth
         const h = card.offsetHeight
+        centredHeight ||= h
         const x = box.left + (box.width - w) / 2
-        const y = box.top + (box.height - h) / 2
+        const y = box.top + (box.height - centredHeight) / 2
         const clampedX = Math.max(INSET, Math.min(x, cw.width - w - INSET))
         const clampedY = Math.max(
           INSET,
@@ -172,7 +210,10 @@ export function FrameAskCard({
       ref={cardRef}
       role="dialog"
       aria-label={QUESTION[kind]}
-      className="invisible absolute top-0 left-0 block w-88 max-w-[calc(100%-1rem)] p-1"
+      className={cn(
+        "invisible absolute top-0 left-0 block w-88 max-w-[calc(100%-1rem)]",
+        picking ? "p-0" : "p-1"
+      )}
       // React bubbles a portal's events up its owner tree, through the
       // canvas's gesture handlers; the card is not the canvas.
       onPointerDown={(e) => e.stopPropagation()}
@@ -187,25 +228,117 @@ export function FrameAskCard({
         onClose()
       }}
     >
-      <Composer
-        markdownLayers={markdownLayers}
-        onModelChange={() => {}}
-        onSubmit={(payload) => onSubmit(payload, answerer)}
-        focusKey={1}
-        placeholder={QUESTION[kind]}
-        modelSlot={
-          <AnswererChip
-            answerer={answerer}
-            workspaces={workspaces}
-            sketchChats={sketchChats}
-            onChange={setAnswerer}
-          />
-        }
-        // The card is the surface: the composer's own box goes borderless.
-        className="relative [&_[data-slot=input-group]]:border-transparent dark:[&_[data-slot=input-group]]:bg-transparent"
-      />
+      {picking && onShow ? (
+        <PreviewPicker
+          previews={previews}
+          onShow={onShow}
+          onNewChat={(text) => {
+            setAnswerer(NEW_CHAT)
+            carriedRef.current = text
+            setPicking(false)
+          }}
+        />
+      ) : (
+        <Composer
+          ref={composerRef}
+          markdownLayers={markdownLayers}
+          onModelChange={() => {}}
+          onSubmit={(payload) => onSubmit(payload, answerer)}
+          focusKey={1}
+          placeholder={QUESTION[kind]}
+          modelSlot={
+            <AnswererChip
+              answerer={answerer}
+              workspaces={workspaces}
+              sketchChats={sketchChats}
+              onChange={setAnswerer}
+            />
+          }
+          // The card is the surface: the composer's own box goes borderless.
+          className="relative [&_[data-slot=input-group]]:border-transparent dark:[&_[data-slot=input-group]]:bg-transparent"
+        />
+      )}
     </FloatingToolbar>,
     portal
+  )
+}
+
+/**
+ * The running previews a drawn frame offers: a search over them, the likely one first so Enter shows it,
+ * then New chat… on its own row. Typing filters by name; with nothing
+ * matching, the row carries the words into the composer as the new chat's
+ * first message (`New chat: “…”`).
+ */
+function PreviewPicker({
+  previews,
+  onShow,
+  onNewChat,
+}: {
+  previews: BranchData[]
+  onShow: (branchId: string) => void
+  /** Open the composer, with what was typed when nothing matched it. */
+  onNewChat: (text: string) => void
+}) {
+  const stateOf = useWorkspaceStates()
+  const [query, setQuery] = useState("")
+  // The card stays hidden until it's placed on the frame, and a hidden field
+  // can't take focus: focus the search once it shows.
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    let rafId = 0
+    const focusWhenShown = () => {
+      const input = inputRef.current
+      if (!input) return
+      if (getComputedStyle(input).visibility === "hidden") {
+        rafId = requestAnimationFrame(focusWhenShown)
+        return
+      }
+      input.focus()
+    }
+    rafId = requestAnimationFrame(focusWhenShown)
+    return () => cancelAnimationFrame(rafId)
+  }, [])
+  const typed = query.trim()
+  const q = typed.toLowerCase()
+  const matches = q
+    ? previews.filter((b) =>
+        `${workspaceLabel(b)} ${b.ref}`.toLowerCase().includes(q)
+      )
+    : previews
+  const carry = matches.length === 0 ? typed : ""
+  return (
+    <Command shouldFilter={false} loop className="bg-transparent">
+      <CommandInput
+        ref={inputRef}
+        value={query}
+        onValueChange={setQuery}
+        placeholder="Search running previews…"
+      />
+      <CommandList>
+        {matches.length > 0 && (
+          <CommandGroup>
+            {matches.map((b) => (
+              <CommandItem
+                key={b.id}
+                value={b.id}
+                onSelect={() => onShow(b.id)}
+              >
+                <WorkspaceMention branch={b} state={stateOf(b)} />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {matches.length > 0 && <CommandSeparator />}
+        <CommandGroup>
+          <CommandItem value="new-chat" onSelect={() => onNewChat(carry)}>
+            <PlusIcon className="text-muted-foreground" />
+            <span className="flex-1 truncate">
+              {carry ? `New chat: “${carry}”` : "New chat…"}
+            </span>
+          </CommandItem>
+        </CommandGroup>
+      </CommandList>
+    </Command>
   )
 }
 

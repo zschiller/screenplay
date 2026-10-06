@@ -2581,6 +2581,8 @@ export function Canvas({
                     markdownLayers={markdownLayers}
                     workspaces={agents}
                     defaultAnswerer={drawAsk.answerer}
+                    previews={drawAsk.previews}
+                    onShow={drawAsk.show}
                     onSubmit={drawAsk.send}
                     onClose={drawAsk.close}
                   />
