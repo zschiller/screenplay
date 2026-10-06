@@ -24,6 +24,7 @@ import { workspaceLabel } from "@/lib/workspace-label"
 import { frameWorkspaceOf, type FrameWorkspace } from "./frame-nav"
 import { WorkspaceChooser } from "./group-label"
 import { LayerMenu, type LayerMenuActions } from "./layer-menu"
+import { LabelChat } from "./label-chat"
 import { LayerLabelRow } from "./layer-title-bar"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
@@ -77,13 +78,13 @@ export function IframeLayerLabel({
   const workspace = frameWorkspaceOf(
     branchId ? assignableBranches?.find((a) => a.id === branchId) : undefined
   )
-  let trailing: React.ReactNode = null
+  let chat: React.ReactNode = null
   if (!showWorkspace) {
     // The Group's label names the Workspace (or offers one for every frame);
     // hovering this frame's name offers "Choose chat" for just this frame,
     // like a mixed Group's label does for all of them (#1276).
     if (onAssignBranch) {
-      trailing = (
+      chat = (
         <WorkspaceChooser
           switcher={{
             branches: assignableBranches ?? [],
@@ -101,7 +102,7 @@ export function IframeLayerLabel({
   } else if (!workspace) {
     // An unassigned frame offers the list, as its body does.
     if (onAssignBranch) {
-      trailing = (
+      chat = (
         <BranchPicker
           assignableBranches={assignableBranches ?? []}
           onAssignBranch={onAssignBranch}
@@ -109,7 +110,7 @@ export function IframeLayerLabel({
       )
     }
   } else {
-    trailing = onAssignBranch ? (
+    chat = onAssignBranch ? (
       <BranchPicker
         workspace={workspace}
         assignableBranches={assignableBranches ?? []}
@@ -124,6 +125,7 @@ export function IframeLayerLabel({
       </MaybeWorkspaceHoverCard>
     )
   }
+  const trailing = chat && <LabelChat>{chat}</LabelChat>
   return (
     <LayerLabelRow
       title={label}

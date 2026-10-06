@@ -29,7 +29,7 @@ describe("hiddenLayerLabels", () => {
   })
 
   it("hides a far-out name that would sit on the frame above it", () => {
-    // 18px at 10% is 180 world units; the row below starts 100 under "top".
+    // 20px at 10% is 200 world units; the row below starts 100 under "top".
     const layouts = [frame("top", 0, 0), frame("below", 0, 900)]
     expect(hiddenLayerLabels(layouts, 0.1)).toEqual(new Set(["below"]))
     // At detail zoom labels keep their place.
@@ -55,8 +55,8 @@ describe("hiddenGroupLabels", () => {
   })
 
   it("hides it far out where it would sit on the frame above", () => {
-    // Name and group label take 36px: 360 world units at 10%. The name alone
-    // (180) clears the 300 gap; with the group label it doesn't.
+    // Name and group label take 42px: 420 world units at 10%. The name alone
+    // (200) clears the 300 gap; with the group label it doesn't.
     const layouts = [frame("top", 0, 0), frame("a", 0, 1100)]
     expect(hiddenGroupLabels(layouts, leaders, 0.1)).toEqual(new Set(["g"]))
     expect(hiddenLayerLabels(layouts, 0.1).size).toBe(0)

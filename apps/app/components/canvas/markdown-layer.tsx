@@ -86,6 +86,7 @@ import {
 import { MODEL_IMAGE_TYPES } from "@/lib/files/attachments"
 import { baseName } from "@/lib/files/paths"
 import { toast } from "sonner"
+import { LabelChat } from "@/components/canvas/label-chat"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
   LayerMenu,
@@ -1013,7 +1014,11 @@ export function MarkdownLayer({
           trailing={
             (workingChat || showMenu) && (
               <>
-                {workingChat && <WorkingChatMention chat={workingChat} />}
+                {workingChat && (
+                  <LabelChat>
+                    <WorkingChatMention chat={workingChat} />
+                  </LabelChat>
+                )}
                 {showMenu && (
                   <LayerMenu
                     placement="label"

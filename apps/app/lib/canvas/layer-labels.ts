@@ -11,22 +11,22 @@ type Rect = { x: number; y: number; width: number; height: number }
 export const LAYER_LABEL_MIN_SCREEN_WIDTH = 64
 
 /**
- * On-screen height a compact label needs clear above its Layer: the 4px gap
- * and the 12px text, leaving out the row's empty leading on top.
+ * On-screen height a name needs clear above its Layer: the 4px gap and the
+ * 20px row its chat sets, leaving out the row's empty leading on top.
  */
-const COMPACT_LABEL_SCREEN_HEIGHT = 18
+const LAYER_LABEL_SCREEN_HEIGHT = 20
 
 /**
  * On-screen height a group label adds above its leftmost member's name: the
- * 16px line and its 2px gap.
+ * 20px row its chat sets and its 2px gap.
  */
-const GROUP_LABEL_SCREEN_HEIGHT = 18
+const GROUP_LABEL_SCREEN_HEIGHT = 22
 
 /**
- * The Layers whose labels hide at `zoom`. Far out (below the detail zoom) a
- * label is just the Layer's name, and it also hides where it would sit on top
- * of another Layer, so tightly stacked rows don't print names over the frames
- * above them.
+ * The Layers whose labels hide at `zoom`: where the Layer is too narrow on
+ * screen, and far out (below the detail zoom) also where the label would sit
+ * on top of another Layer, so tightly stacked rows don't print names over the
+ * frames above them.
  */
 export function hiddenLayerLabels(
   layouts: Iterable<Rect & { id: string }>,
@@ -35,8 +35,7 @@ export function hiddenLayerLabels(
   const rects = [...layouts]
   const hidden = new Set<string>()
   for (const r of rects) {
-    if (!fitsLabel(r, rects, zoom, COMPACT_LABEL_SCREEN_HEIGHT))
-      hidden.add(r.id)
+    if (!fitsLabel(r, rects, zoom, LAYER_LABEL_SCREEN_HEIGHT)) hidden.add(r.id)
   }
   return hidden
 }
@@ -62,7 +61,7 @@ export function hiddenGroupLabels(
         r,
         rects,
         zoom,
-        COMPACT_LABEL_SCREEN_HEIGHT + GROUP_LABEL_SCREEN_HEIGHT
+        LAYER_LABEL_SCREEN_HEIGHT + GROUP_LABEL_SCREEN_HEIGHT
       )
     ) {
       hidden.add(groupId)

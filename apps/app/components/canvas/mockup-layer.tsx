@@ -20,6 +20,7 @@ import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
 import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
+import { LabelChat } from "@/components/canvas/label-chat"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
   STATUS_BLOCK,
@@ -463,7 +464,13 @@ export function MockupLayer({
           color={remoteSelectedColor}
           onSelectLayer={api.deferSelect}
           onRename={(next) => onRename(layer.id, next)}
-          trailing={workingChat && <WorkingChatMention chat={workingChat} />}
+          trailing={
+            workingChat && (
+              <LabelChat>
+                <WorkingChatMention chat={workingChat} />
+              </LabelChat>
+            )
+          }
         />
       )}
     >
