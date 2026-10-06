@@ -18,7 +18,7 @@ import { isFixtureWorld } from "@/lib/fixture-world"
 export type FixtureFault =
   /** The home layout's server-side Canvas/Folder/Pin load fails. */
   | "home-load"
-  /** Settings lists no Project presets, so the presets empty state shows. */
+  /** No saved Repositories, so Settings’ and New canvas’s empty states show. */
   | "no-presets"
 
 const COOKIE_NAME = "screenplay_fixture_fault"

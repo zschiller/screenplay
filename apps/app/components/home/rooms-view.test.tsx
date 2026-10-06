@@ -45,6 +45,39 @@ vi.mock("@/lib/repository-library/actions", () => ({
   listRepositories: () => listRepositories(),
 }))
 vi.mock("@/lib/yjs-host/client", () => ({ prewarmRoom: vi.fn() }))
+// The add-repository flow's state and New repository button are real; its
+// dialog (the GitHub picker and Configure) is a stand-in that adds a
+// Repository or backs out, so the New canvas dialog's side is what's tested.
+const addedRepository = vi.fn<() => RepoConfig>()
+vi.mock("@/components/add-repository-dialog", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/components/add-repository-dialog")>()
+  return {
+    ...actual,
+    AddRepositoryDialog: ({
+      flow,
+      onAdded,
+    }: React.ComponentProps<typeof actual.AddRepositoryDialog>) =>
+      flow.open ? (
+        <div role="dialog" aria-label="Open GitHub repository">
+          <button
+            type="button"
+            onClick={() => {
+              const repository = addedRepository()
+              flow.closePicker()
+              onAdded(repository, [...listedAfterAdd(), repository])
+            }}
+          >
+            Add repository
+          </button>
+          <button type="button" onClick={flow.closePicker}>
+            Back
+          </button>
+        </div>
+      ) : null,
+  }
+})
+const listedAfterAdd = vi.fn<() => RepoConfig[]>(() => [])
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
   usePathname: () => "/files",
@@ -71,6 +104,9 @@ afterEach(() => {
   renameFolder.mockReset()
   createRoom.mockReset()
   listRepositories.mockReset()
+  addedRepository.mockReset()
+  listedAfterAdd.mockReset()
+  listedAfterAdd.mockReturnValue([])
   placeRoom.mockReset()
   push.mockReset()
 })
@@ -424,6 +460,95 @@ describe("RoomsView — the New canvas dialog (#1812)", () => {
     fireEvent.keyDown(document.body, { key: "n" })
     expect(await screen.findByRole("dialog")).not.toBeNull()
     expect(createRoom).not.toHaveBeenCalled()
+  })
+
+  it("offers New repository in the empty box, and comes back with it ticked", async () => {
+    listRepositories.mockResolvedValue([])
+    addedRepository.mockReturnValue(repository("cfg-web", "acme/web"))
+    createRoom.mockResolvedValue({ ...untitled, name: "Checkout" })
+    renderFolder(null, [])
+
+    const dialog = await openDialog()
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: { value: "Checkout" },
+    })
+    // On the web, straight to the GitHub picker; never the form's submit.
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "New repository" })
+    )
+    expect(createRoom).not.toHaveBeenCalled()
+    const picker = await screen.findByRole("dialog", {
+      name: "Open GitHub repository",
+    })
+    fireEvent.click(
+      within(picker).getByRole("button", { name: "Add repository" })
+    )
+
+    const web = await within(dialog).findByRole("checkbox", {
+      name: /acme\/web/,
+    })
+    expect(web.getAttribute("aria-checked")).toBe("true")
+    expect(
+      (within(dialog).getByLabelText("Name") as HTMLInputElement).value
+    ).toBe("Checkout")
+
+    submit(dialog)
+    await waitFor(() =>
+      expect(createRoom).toHaveBeenCalledWith("Checkout", ["cfg-web"])
+    )
+  })
+
+  it("adds under the list, keeping the ticks, and backing out changes nothing", async () => {
+    const store = repository("cfg-store", "acme/storefront")
+    listRepositories.mockResolvedValue([store])
+    listedAfterAdd.mockReturnValue([store])
+    addedRepository.mockReturnValue(repository("cfg-ds", "acme/design-system"))
+    renderFolder(null, [])
+
+    const dialog = await openDialog()
+    fireEvent.click(
+      await within(dialog).findByRole("checkbox", { name: /storefront/ })
+    )
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: { value: "Checkout" },
+    })
+
+    const newRepository = within(dialog).getByRole("button", {
+      name: "New repository",
+    })
+    fireEvent.click(newRepository)
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Open GitHub repository" })
+      ).getByRole("button", { name: "Back" })
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Open GitHub repository" })
+      ).toBeNull()
+    )
+    expect(
+      within(dialog)
+        .getAllByRole("checkbox")
+        .map((c) => c.getAttribute("aria-checked"))
+    ).toEqual(["true"])
+    expect(
+      (within(dialog).getByLabelText("Name") as HTMLInputElement).value
+    ).toBe("Checkout")
+
+    fireEvent.click(newRepository)
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Open GitHub repository" })
+      ).getByRole("button", { name: "Add repository" })
+    )
+    await waitFor(() =>
+      expect(
+        within(dialog)
+          .getAllByRole("checkbox")
+          .map((c) => c.getAttribute("aria-checked"))
+      ).toEqual(["true", "true"])
+    )
   })
 
   it("keeps the dialog with an error when the create fails", async () => {
