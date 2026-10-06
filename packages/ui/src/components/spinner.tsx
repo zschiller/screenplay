@@ -8,17 +8,20 @@ import { CircleNotchIcon } from "@workspace/ui/components/icons"
  * (`apps/app/components/grip-spinner.tsx`) for that, so the grid alone means
  * "the model is working".
  *
- * It turns as one flat glyph about the middle of its own box:
+ * The ring turns inside a still svg: the spin is on the glyph's path, about
+ * the middle of the view box, not on the svg's own box.
  *
+ * - Spinning the box makes WebKit (the desktop app) give it a layer of its
+ *   own. Wherever the box doesn't land on a whole device pixel, which is most
+ *   places it sits beside or centred with text, WebKit grows that layer to the
+ *   pixel grid and pivots it a device pixel away from the drawing, so the ring
+ *   orbits its middle by up to 0.8px. Pinning the pivot, `will-change` and a
+ *   spinning wrapper all leave that layer in place; a path gets no layer.
+ * - The path's `origin-center` is the view box's middle (SVG's default
+ *   `transform-box`), which is the ring's. Don't set `fill-box`: the notch
+ *   makes the glyph's own box off-centre.
  * - The weight is pinned to Regular, the weight every spinner size (16px and
- *   under) shows anyway, so the spinner is one plain svg. An unpinned icon
- *   carries both weights as a nested svg and is a size container, which are
- *   the likeliest reasons the desktop app's WebKit turned it about a point
- *   off its middle, so it wobbled as it spun.
- * - The pivot is the border box's centre, named outright rather than left to
- *   the engine's SVG default (`view-box`), and the spin runs on its own layer,
- *   so the engine turns one drawn image instead of redrawing it at each
- *   angle and snapping it to the pixel grid.
+ *   under) shows anyway, so the glyph is one path directly under the svg.
  */
 function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
   return (
@@ -27,7 +30,7 @@ function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
       aria-label="Loading"
       weight="regular"
       className={cn(
-        "size-4 origin-center animate-spin will-change-transform [transform-box:border-box]",
+        "size-4 [&>path]:origin-center [&>path]:animate-spin",
         className
       )}
       {...props}
