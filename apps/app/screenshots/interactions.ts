@@ -728,7 +728,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     name: "play-boot",
     description:
-      "The prototype player follows its Workspace from booting to the live page.",
+      "Play mode follows its Workspace from booting to the live page.",
     path: `/play/${ids.rooms.frameStates}/${ids.branches.framesLive}?iframe-layer=layer-frames-live`,
     beforeNavigate: resetBootWorkspace,
     run: (page) => bootWorkspace(page),

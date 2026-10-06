@@ -281,7 +281,7 @@ describe("BranchOverflowMenuContent rendering", () => {
   it("groups a ready Workspace with the player first", () => {
     renderMenu()
     expect(menuLabels()).toEqual([
-      "Open in prototype player",
+      "Open in play mode",
       "Open in browser",
       "Show all routes",
       "Restart preview",
@@ -329,7 +329,7 @@ describe("BranchOverflowMenuContent rendering", () => {
     const labels = menuLabels()
     expect(labels[0]).toBe("Create pull request")
     expect(labels.filter((l) => l === "Create pull request")).toHaveLength(1)
-    expect(labels[1]).toBe("Open in prototype player")
+    expect(labels[1]).toBe("Open in play mode")
   })
 
   it("lists the open PR under Pull requests and doesn't offer to create another", () => {
@@ -599,7 +599,7 @@ describe("A frame's halves", () => {
     const onOpenLogs = vi.fn()
     renderMenu({}, { part: "preview", onOpenLogs, hasChanges: true })
     expect(menuLabels()).toEqual([
-      "Open in prototype player",
+      "Open in play mode",
       "Open in browser",
       "Add frames for all routes",
       "Open logs",

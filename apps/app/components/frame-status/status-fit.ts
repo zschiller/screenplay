@@ -99,7 +99,7 @@ function measure(block: HTMLElement): StatusParts | null {
  * only when `contentKey` changes, since the block lays out at a fixed width,
  * or on the next zoom if the block had no layout then.
  *
- * Without a layer size (the prototype player) the block shows whole at 1:1.
+ * Without a layer size (play mode) the block shows whole at 1:1.
  */
 export function useStatusFit(
   blockRef: RefObject<HTMLElement | null>,

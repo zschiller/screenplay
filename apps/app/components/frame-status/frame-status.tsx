@@ -78,7 +78,7 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
 
 /**
  * The one status screen a frame shows in place of its preview (issue #731), on
- * the canvas and in the prototype player alike: which stage the Workspace is
+ * the canvas and in play mode alike: which stage the Workspace is
  * at, and on a failure, the way out.
  *
  * Progress uses the shared `Spinner`; the 9-dot `GripSpinner` is for LLM

@@ -159,7 +159,7 @@ export interface WorkspaceMenuLeadInput {
  * The one action that leads the Workspace menu, from its state: Retry (Set
  * up again) when setup failed, Mark as done once its PR has merged and the agent is idle,
  * Create pull request when nothing blocks it (it keeps the lead while it
- * runs), otherwise the prototype player. Its PRs have their own group. A
+ * runs), otherwise play mode. Its PRs have their own group. A
  * Workspace that's still being set up (or stopped, until its PR merges) has no
  * lead: nothing in it works yet. A Done one leads with Reopen (#976).
  */
@@ -306,7 +306,7 @@ export function BranchOverflowMenuItems({
         onClick={() => onPlay(branch.id)}
       >
         <PlayIcon />
-        Open in prototype player
+        Open in play mode
       </DropdownMenuItem>
     ),
     // Pop the branch's live preview into a real browser tab, outside the

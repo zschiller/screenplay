@@ -9,7 +9,7 @@ import { useRoomCollections } from "@/lib/yjs/react"
 
 /**
  * Workspace Start (`startWorkspace` in `lib/branch/recovery`) bound to the
- * room's live doc, for surfaces outside the canvas — the prototype player's
+ * room's live doc, for surfaces outside the canvas — play mode's
  * Retry / Start on a failed or stopped Workspace (issue #731). The canvas runs
  * the same verb through `useBranchActions`.
  */
