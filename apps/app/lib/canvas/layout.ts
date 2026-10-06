@@ -87,6 +87,23 @@ export type IframeLayerLayout = GroupMemberLayout
 export type IframeLayerLayoutMap = ReadonlyMap<string, GroupMemberLayout>
 
 /**
+ * A member's box with its edges on whole world pixels. WebKit snaps a box to
+ * pixels in its own space, before the canvas zoom scales it, so a fractional
+ * edge would paint up to half a pixel times the zoom away from where the
+ * selection and edge canvases draw it.
+ */
+function wholePixelRect(x: number, y: number, width: number, height: number) {
+  const left = Math.round(x)
+  const top = Math.round(y)
+  return {
+    x: left,
+    y: top,
+    width: Math.round(x + width) - left,
+    height: Math.round(y + height) - top,
+  }
+}
+
+/**
  * Compute world-space rects for every group member, given the parent groups
  * and the underlying iframeLayer / document collections. Members inside a group
  * are flexed left-to-right with the group's gap between them; the group's
@@ -123,10 +140,7 @@ export function computeIframeLayerLayouts(
         groupId: group.id,
         index: i,
         isLast: i === last,
-        x: cursorX,
-        y: group.y,
-        width: size.width,
-        height: size.height,
+        ...wholePixelRect(cursorX, group.y, size.width, size.height),
       })
       cursorX += size.width + gap
     }
@@ -350,8 +364,12 @@ export function computeEffectiveLayouts(
   const grab = drag.grabOffset ?? { x: popped.width / 2, y: popped.height / 2 }
   result.set(drag.memberId, {
     ...popped,
-    x: drag.cursor.x - grab.x,
-    y: drag.cursor.y - grab.y,
+    ...wholePixelRect(
+      drag.cursor.x - grab.x,
+      drag.cursor.y - grab.y,
+      popped.width,
+      popped.height
+    ),
   })
 
   // Reflow the source group's remaining members to close the gap.
@@ -370,10 +388,7 @@ export function computeEffectiveLayouts(
       groupId: sourceGroup.id,
       index: i,
       isLast: i === remainingMembers.length - 1,
-      x: cursorX,
-      y: sourceGroup.y,
-      width: size.width,
-      height: size.height,
+      ...wholePixelRect(cursorX, sourceGroup.y, size.width, size.height),
     })
     cursorX += size.width + gap
   }
