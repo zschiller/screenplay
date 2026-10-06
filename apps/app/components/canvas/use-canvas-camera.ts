@@ -16,7 +16,13 @@ import {
   zoomAtPoint,
   type Rect,
 } from "@/lib/canvas/camera"
-import { CANVAS_SIZE, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "@/lib/constants"
+import {
+  CANVAS_SIZE,
+  FIT_ZOOM_MAX,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_STEP,
+} from "@/lib/constants"
 import { isFixtureWorld } from "@/lib/fixture-world"
 import type { CanvasPresence } from "@/lib/yjs/react"
 import type { ViewportData } from "@/lib/types"
@@ -554,7 +560,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
         el.offsetWidth,
         el.offsetHeight,
         { width: wrapperW, height: wrapperH },
-        { padding: FIT_PADDING, maxZoom: ZOOM_MAX }
+        { padding: FIT_PADDING, maxZoom: FIT_ZOOM_MAX }
       )
       ref.zoomToElement(el, scale, 300)
     },
@@ -573,7 +579,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       const t = fitRectToViewport(
         rect,
         { width: wrapperW, height: wrapperH },
-        { padding: FIT_PADDING, maxZoom: ZOOM_MAX }
+        { padding: FIT_PADDING, maxZoom: FIT_ZOOM_MAX }
       )
       ref.setTransform(t.x, t.y, t.zoom, 300)
     },

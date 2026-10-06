@@ -8,9 +8,11 @@ import {
   stepZoom,
   unionRect,
   zoomAtPoint,
+  ZOOM_LEVELS,
   type Rect,
   type ViewportSize,
 } from "@/lib/canvas/camera"
+import { ZOOM_MAX, ZOOM_MIN } from "@/lib/constants"
 
 // Plain fixtures — no live transform, no DOM. The zoom-to-fit math is pure
 // geometry: a rect + a viewport size + padding/clamps in, a transform out. These
@@ -93,8 +95,13 @@ describe("stepZoom", () => {
   })
 
   it("stays at the ends", () => {
-    expect(stepZoom(5, 1)).toBe(5)
-    expect(stepZoom(0.1, -1)).toBe(0.1)
+    expect(stepZoom(16, 1)).toBe(16)
+    expect(stepZoom(0.02, -1)).toBe(0.02)
+  })
+
+  it("spans the whole zoom range", () => {
+    expect(ZOOM_LEVELS[0]).toBe(ZOOM_MIN)
+    expect(ZOOM_LEVELS.at(-1)).toBe(ZOOM_MAX)
   })
 })
 
