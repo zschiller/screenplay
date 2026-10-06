@@ -346,12 +346,12 @@ export function LayerTitleText({
         style={colorStyle}
         className={cn("min-w-0 text-xs font-medium", colorClass)}
         // Clip the read-only label inside the row's max-width. The field
-        // doesn't shrink: it keeps the whole name's width and runs past the
-        // row (and the Layer, when zoomed out far) while you type.
+        // starts at the name's width and stays inside the row (the Layer's
+        // on-screen width); the row's chat gives up its room first.
         viewClassName="cursor-grab truncate active:cursor-grabbing"
         editClassName={cn(
           editableTextFieldClass,
-          "-mx-0.5 -my-0.5 shrink-0 px-0.5 py-0.5"
+          "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
         )}
       />
     )
