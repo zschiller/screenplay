@@ -54,6 +54,7 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { IconButton, Shortcut } from "@workspace/ui/components/icon-button"
+import { cn } from "@workspace/ui/lib/utils"
 import {
   deriveElementLabel,
   serializeElement,
@@ -530,6 +531,12 @@ export interface ComposerProps {
   modelSlot?: ReactNode
   /** Placeholder shown while the draft is empty. */
   placeholder?: string
+  /**
+   * Shown but not usable: nothing can be typed, attached, chosen or sent. A
+   * chat whose code is still being set up keeps its composer in place this
+   * way, so nothing moves when it turns live.
+   */
+  disabled?: boolean
   /** Outer container className. Defaults to the chat input frame. */
   className?: string
   /**
@@ -600,6 +607,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       hideSend = false,
       modelSlot,
       placeholder = "Ask the agent…",
+      disabled = false,
       className = "relative border-t border-border p-2",
       onPickElement,
       targetEligible = true,
@@ -910,6 +918,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       },
     })
 
+    // Disabled, the draft can't change; the buttons go with the fieldset.
+    useEffect(() => {
+      if (editor && !editor.isDestroyed) editor.setEditable(!disabled)
+    }, [editor, disabled])
+
     // `noAgents`: the catalog has loaded but is empty — on the desktop backend
     // this means no coding CLI was detected (the seam returned nothing). Surface
     // an actionable empty state and disable send rather than a dead dropdown.
@@ -945,7 +958,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     const queuesMessage = isStreaming && !steersWhileStreaming
 
     const handleSubmit = useCallback(() => {
-      if (!editor || sendBlocked) return
+      if (!editor || sendBlocked || disabled) return
       // No coding agent backs this chat — block send (Enter, too, not just the
       // disabled button) so a typed turn can't fire into a dead chat.
       if (noAgents) return
@@ -985,6 +998,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
       model,
       allowEmptySubmit,
       noAgents,
+      disabled,
       setAttached,
     ])
 
@@ -1018,6 +1032,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
 
     const addFiles = useCallback(
       (files: File[]) => {
+        if (disabled) return
         if (!attach) {
           toast("Files can be attached in a chat, not here.")
           return
@@ -1064,7 +1079,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
         }
         editor?.commands.focus()
       },
-      [attach, editor, updateAttached]
+      [attach, disabled, editor, updateAttached]
     )
     useEffect(() => {
       addFilesRef.current = addFiles
@@ -1075,7 +1090,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
     // A drop the composer or its editor already took is left alone, as is
     // one while the composer is out of sight (a closed panel).
     useEffect(() => {
-      if (!attach) return undefined
+      if (!attach || disabled) return undefined
       const shown = () =>
         (editorContainerRef.current?.getClientRects().length ?? 0) > 0
       const onDragOver = (e: DragEvent) => {
@@ -1107,7 +1122,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
         window.removeEventListener("drop", onDrop)
         window.removeEventListener("dragend", onDragEnd)
       }
-    }, [attach])
+    }, [attach, disabled])
 
     const removeAttached = useCallback(
       (id: string) => {
@@ -1257,7 +1272,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
         // text: the editor's own drop handles one dropped on it first. With
         // no attach port, the drop is taken only to say why it isn't.
         onDragOver={(e) => {
-          if (attach || !e.dataTransfer.types.includes("Files")) return
+          if ((attach && !disabled) || !e.dataTransfer.types.includes("Files"))
+            return
           e.preventDefault()
           e.dataTransfer.dropEffect = "none"
         }}
@@ -1266,230 +1282,241 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
           const files = droppedFiles(e.dataTransfer)
           if (files.length === 0) return
           e.preventDefault()
-          addFiles(files)
+          if (!disabled) addFiles(files)
         }}
       >
         {aboveInput}
-        <InputGroup
-          data-dragging={dragging || undefined}
-          className="has-disabled:bg-transparent has-disabled:opacity-100 data-dragging:border-ring dark:has-disabled:bg-input/30"
-        >
-          {dragging && (
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] bg-background"
-            >
-              <div className="flex size-full items-center justify-center gap-2 rounded-[inherit] text-sm font-medium text-foreground dark:bg-input/30">
-                <PaperclipIcon className="size-4 text-muted-foreground" />
-                Drop files to attach
-              </div>
-            </div>
-          )}
-          {(inputHeader || hasAttachments) && (
-            <InputGroupAddon align="block-start" className="flex-col">
-              {inputHeader}
-              {hasAttachments && (
-                <div
-                  aria-label="Attachments"
-                  className="flex w-full flex-wrap gap-1.5"
-                >
-                  {attached.map((a) => (
-                    <ComposerAttachmentChip
-                      key={a.id}
-                      name={a.name}
-                      mediaType={a.mediaType}
-                      uploading={!a.attachment}
-                      onRemove={() => removeAttached(a.id)}
-                    />
-                  ))}
+        {/* A disabled fieldset disables every control inside it; `contents`
+            keeps it out of the layout. */}
+        <fieldset disabled={disabled} className="contents">
+          <InputGroup
+            data-dragging={dragging || undefined}
+            className="has-disabled:bg-transparent has-disabled:opacity-100 data-dragging:border-ring dark:has-disabled:bg-input/30"
+          >
+            {dragging && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] bg-background"
+              >
+                <div className="flex size-full items-center justify-center gap-2 rounded-[inherit] text-sm font-medium text-foreground dark:bg-input/30">
+                  <PaperclipIcon className="size-4 text-muted-foreground" />
+                  Drop files to attach
                 </div>
-              )}
-            </InputGroupAddon>
-          )}
-          <EmptyAwarePlaceholder editor={editor} text={placeholder} />
-          <EditorContent editor={editor} className="w-full" />
-          <InputGroupAddon align="block-end" className="gap-0.5">
-            {modelsStatus === "failed" ? (
-              <span className="flex items-center gap-1 pl-0.75 text-sm text-muted-foreground">
-                Couldn’t load models.
-                <InputGroupButton
-                  size="sm"
-                  className="text-foreground"
-                  onClick={retryModels}
-                >
-                  Retry
-                </InputGroupButton>
-              </span>
-            ) : noAgents ? (
-              <span className="pl-0.75 text-sm text-muted-foreground">
-                {isLocalBuild ? (
-                  <>
-                    No coding agent found. Install Claude Code or Codex in{" "}
-                    <Link
-                      href="/settings?section=coding-agents"
-                      className="text-foreground underline"
-                    >
-                      Settings
-                    </Link>
-                    .
-                  </>
-                ) : (
-                  "No models are set up on this server yet."
+              </div>
+            )}
+            {(inputHeader || hasAttachments) && (
+              <InputGroupAddon align="block-start" className="flex-col">
+                {inputHeader}
+                {hasAttachments && (
+                  <div
+                    aria-label="Attachments"
+                    className="flex w-full flex-wrap gap-1.5"
+                  >
+                    {attached.map((a) => (
+                      <ComposerAttachmentChip
+                        key={a.id}
+                        name={a.name}
+                        mediaType={a.mediaType}
+                        uploading={!a.attachment}
+                        onRemove={() => removeAttached(a.id)}
+                      />
+                    ))}
+                  </div>
                 )}
-              </span>
-            ) : modelSlot ? (
-              modelSlot
-            ) : (
-              <DropdownMenu>
+              </InputGroupAddon>
+            )}
+            <EmptyAwarePlaceholder
+              editor={editor}
+              text={placeholder}
+              className={cn(disabled && "opacity-50")}
+            />
+            <EditorContent
+              editor={editor}
+              className={cn("w-full", disabled && "opacity-50")}
+            />
+            <InputGroupAddon align="block-end" className="gap-0.5">
+              {modelsStatus === "failed" ? (
+                <span className="flex items-center gap-1 pl-0.75 text-sm text-muted-foreground">
+                  Couldn’t load models.
+                  <InputGroupButton
+                    size="sm"
+                    className="text-foreground"
+                    onClick={retryModels}
+                  >
+                    Retry
+                  </InputGroupButton>
+                </span>
+              ) : noAgents ? (
+                <span className="pl-0.75 text-sm text-muted-foreground">
+                  {isLocalBuild ? (
+                    <>
+                      No coding agent found. Install Claude Code or Codex in{" "}
+                      <Link
+                        href="/settings?section=coding-agents"
+                        className="text-foreground underline"
+                      >
+                        Settings
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    "No models are set up on this server yet."
+                  )}
+                </span>
+              ) : modelSlot ? (
+                modelSlot
+              ) : (
+                <DropdownMenu>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="-ml-1.5 inline-flex">
+                          <DropdownMenuTrigger asChild>
+                            <InputGroupButton
+                              size="sm"
+                              className="text-foreground"
+                            >
+                              {currentModelLabel}
+                              <CaretDownIcon />
+                            </InputGroupButton>
+                          </DropdownMenuTrigger>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Change model</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <DropdownMenuContent align="start">
+                    {models.length === 0 ? (
+                      <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
+                    ) : (
+                      modelGroups.map((group, idx) => (
+                        <div key={group.key}>
+                          {idx > 0 && <DropdownMenuSeparator />}
+                          <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+                          {group.models.map((m) => (
+                            <DropdownMenuItem
+                              key={m.id}
+                              onSelect={() => onModelChange(m.id)}
+                            >
+                              <span className="flex-1">{m.label}</span>
+                              {m.id === defaultModel && (
+                                <span className="text-sm text-muted-foreground">
+                                  Default
+                                </span>
+                              )}
+                              {m.id === model && (
+                                <CheckIcon className="size-3.5" />
+                              )}
+                            </DropdownMenuItem>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {onPlanModeChange && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="-ml-1.5 inline-flex">
-                        <DropdownMenuTrigger asChild>
-                          <InputGroupButton
-                            size="sm"
-                            className="text-foreground"
-                          >
-                            {currentModelLabel}
-                            <CaretDownIcon />
-                          </InputGroupButton>
-                        </DropdownMenuTrigger>
-                      </span>
+                      <InputGroupButton
+                        size="sm"
+                        variant={planMode ? "secondary" : "ghost"}
+                        onClick={() => onPlanModeChange(!planMode)}
+                        aria-pressed={!!planMode}
+                        className="text-foreground"
+                      >
+                        <ClipboardTextIcon />
+                        Plan
+                      </InputGroupButton>
                     </TooltipTrigger>
-                    <TooltipContent side="top">Change model</TooltipContent>
+                    <TooltipContent side="top">
+                      {planMode ? "Plan mode enabled" : "Enable plan mode"}
+                    </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <DropdownMenuContent align="start">
-                  {models.length === 0 ? (
-                    <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
-                  ) : (
-                    modelGroups.map((group, idx) => (
-                      <div key={group.key}>
-                        {idx > 0 && <DropdownMenuSeparator />}
-                        <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
-                        {group.models.map((m) => (
-                          <DropdownMenuItem
-                            key={m.id}
-                            onSelect={() => onModelChange(m.id)}
-                          >
-                            <span className="flex-1">{m.label}</span>
-                            {m.id === defaultModel && (
-                              <span className="text-sm text-muted-foreground">
-                                Default
-                              </span>
-                            )}
-                            {m.id === model && (
-                              <CheckIcon className="size-3.5" />
-                            )}
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                    ))
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {onPlanModeChange && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <InputGroupButton
-                      size="sm"
-                      variant={planMode ? "secondary" : "ghost"}
-                      onClick={() => onPlanModeChange(!planMode)}
-                      aria-pressed={!!planMode}
-                      className="text-foreground"
+              )}
+              {onPickElement && (
+                <IconButton
+                  label="Target an element"
+                  shortcut="⌘E"
+                  hint={targetEligible ? undefined : targetHint}
+                  disabled={noAgents || !targetEligible}
+                  onClick={triggerPick}
+                >
+                  <CrosshairIcon />
+                </IconButton>
+              )}
+              {attach && (
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={ATTACHMENT_ACCEPT}
+                  hidden
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? [])
+                    // Picking the same file again still fires a change.
+                    e.target.value = ""
+                    if (files.length > 0) addFiles(files)
+                  }}
+                />
+              )}
+              {(attach || !hideSend) && (
+                <span className="ml-auto inline-flex gap-0.5">
+                  {attach && (
+                    <IconButton
+                      label="Attach files"
+                      onClick={() => fileInputRef.current?.click()}
                     >
-                      <ClipboardTextIcon />
-                      Plan
-                    </InputGroupButton>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    {planMode ? "Plan mode enabled" : "Enable plan mode"}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            {onPickElement && (
-              <IconButton
-                label="Target an element"
-                shortcut="⌘E"
-                hint={targetEligible ? undefined : targetHint}
-                disabled={noAgents || !targetEligible}
-                onClick={triggerPick}
-              >
-                <CrosshairIcon />
-              </IconButton>
-            )}
-            {attach && (
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept={ATTACHMENT_ACCEPT}
-                hidden
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? [])
-                  // Picking the same file again still fires a change.
-                  e.target.value = ""
-                  if (files.length > 0) addFiles(files)
-                }}
-              />
-            )}
-            {(attach || !hideSend) && (
-              <span className="ml-auto inline-flex gap-0.5">
-                {attach && (
-                  <IconButton
-                    label="Attach files"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <PaperclipIcon />
-                  </IconButton>
-                )}
-                {hideSend ? null : isStreaming &&
-                  onStop &&
-                  !(queueWhileStreaming && (hasContent || hasAttachments)) ? (
-                  <IconButton label="Stop" variant="default" onClick={onStop}>
-                    <SquareIcon weight="fill" />
-                  </IconButton>
-                ) : (
-                  <IconButton
-                    label={queuesMessage ? "Queue message" : "Send"}
-                    shortcut={submitMode === "enter" ? "↵" : "⌘↵"}
-                    hint={
-                      noAgents ? (
-                        "No coding agent detected"
-                      ) : uploading ? (
-                        "Sends once the files are attached"
-                      ) : queuesMessage ? (
-                        "Sends when the agent finishes"
-                      ) : (
-                        <span className="flex items-center gap-1.5">
-                          New line
-                          <Shortcut
-                            keys={
-                              submitMode === "enter" || onEnter ? "⇧↵" : "↵"
-                            }
-                          />
-                        </span>
-                      )
-                    }
-                    variant="default"
-                    disabled={
-                      (!hasContent && !hasAttachments && !allowEmptySubmit) ||
-                      sendBlocked ||
-                      noAgents ||
-                      uploading
-                    }
-                    onClick={handleSubmit}
-                  >
-                    <ArrowUpIcon />
-                  </IconButton>
-                )}
-              </span>
-            )}
-          </InputGroupAddon>
-        </InputGroup>
+                      <PaperclipIcon />
+                    </IconButton>
+                  )}
+                  {hideSend ? null : isStreaming &&
+                    onStop &&
+                    !(queueWhileStreaming && (hasContent || hasAttachments)) ? (
+                    <IconButton label="Stop" variant="default" onClick={onStop}>
+                      <SquareIcon weight="fill" />
+                    </IconButton>
+                  ) : (
+                    <IconButton
+                      label={queuesMessage ? "Queue message" : "Send"}
+                      shortcut={submitMode === "enter" ? "↵" : "⌘↵"}
+                      hint={
+                        noAgents ? (
+                          "No coding agent detected"
+                        ) : uploading ? (
+                          "Sends once the files are attached"
+                        ) : queuesMessage ? (
+                          "Sends when the agent finishes"
+                        ) : (
+                          <span className="flex items-center gap-1.5">
+                            New line
+                            <Shortcut
+                              keys={
+                                submitMode === "enter" || onEnter ? "⇧↵" : "↵"
+                              }
+                            />
+                          </span>
+                        )
+                      }
+                      variant="default"
+                      disabled={
+                        (!hasContent && !hasAttachments && !allowEmptySubmit) ||
+                        sendBlocked ||
+                        noAgents ||
+                        uploading
+                      }
+                      onClick={handleSubmit}
+                    >
+                      <ArrowUpIcon />
+                    </IconButton>
+                  )}
+                </span>
+              )}
+            </InputGroupAddon>
+          </InputGroup>
+        </fieldset>
       </div>
     )
   }
@@ -1514,9 +1541,11 @@ function droppedFiles(data: DataTransfer | null | undefined): File[] {
 function EmptyAwarePlaceholder({
   editor,
   text,
+  className,
 }: {
   editor: Editor | null
   text: string
+  className?: string
 }) {
   const [empty, setEmpty] = useState(true)
 
@@ -1542,7 +1571,12 @@ function EmptyAwarePlaceholder({
 
   if (!empty) return null
   return (
-    <div className="pointer-events-none absolute top-0 left-0 py-2.5 pr-2.5 pl-3.25 text-sm text-muted-foreground">
+    <div
+      className={cn(
+        "pointer-events-none absolute top-0 left-0 py-2.5 pr-2.5 pl-3.25 text-sm text-muted-foreground",
+        className
+      )}
+    >
       {text}
     </div>
   )

@@ -61,7 +61,7 @@ function port() {
   return { attach, finish }
 }
 
-function renderComposer(attach?: ComposerAttachmentPort) {
+function renderComposer(attach?: ComposerAttachmentPort, disabled = false) {
   const onSubmit = vi.fn<(payload: ComposerSubmitPayload) => void>()
   const { container } = render(
     <Composer
@@ -69,6 +69,7 @@ function renderComposer(attach?: ComposerAttachmentPort) {
       onModelChange={vi.fn()}
       onSubmit={onSubmit}
       attach={attach}
+      disabled={disabled}
     />
   )
   const composer = container.querySelector<HTMLElement>("[data-slot=composer]")!
@@ -261,5 +262,21 @@ describe("Composer attachments (#1525)", () => {
     })
     expect(screen.queryByText("Drop files to attach")).toBeNull()
     vi.restoreAllMocks()
+  })
+
+  it("takes no files and no input while disabled", () => {
+    const { attach } = port()
+    const { drop, composer } = renderComposer(attach, true)
+    drop(file("shot.png", "image/png"))
+    expect(attach.upload).not.toHaveBeenCalled()
+    expect(chips()).toHaveLength(0)
+    expect(toast).not.toHaveBeenCalled()
+    expect(send().hasAttribute("disabled")).toBe(true)
+    expect(
+      screen.getByRole("button", { name: "Attach files" }).matches(":disabled")
+    ).toBe(true)
+    expect(
+      composer.querySelector(".tiptap")?.getAttribute("contenteditable")
+    ).toBe("false")
   })
 })

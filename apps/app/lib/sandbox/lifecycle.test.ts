@@ -626,6 +626,7 @@ describe("recreateSandbox", () => {
       sandboxName: "sandbox-a",
       ghToken: undefined,
       envVars: "",
+      onStatus: expect.any(Function),
       onCodeReady: expect.any(Function),
     })
     expect(result).toEqual({

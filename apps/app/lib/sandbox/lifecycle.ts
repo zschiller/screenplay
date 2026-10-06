@@ -618,6 +618,9 @@ export async function recreateSandbox(
     // repo clones fine without it.
     ghToken: (await getGitHubToken().catch(() => null)) ?? undefined,
     envVars: stored ?? (previous ? serializeEnvVars(previous) : ""),
+    // The step it's on, so the chat's setup steps follow along.
+    onStatus: (statusMessage) =>
+      markSetupStep(branchId ? { roomId, branchId } : undefined, statusMessage),
     onCodeReady: () =>
       markCodeReady(branchId ? { roomId, branchId } : undefined),
   })
@@ -627,6 +630,24 @@ export async function recreateSandbox(
 export interface CodeReadyTarget {
   roomId: string
   branchId: string
+}
+
+/**
+ * Write the step a recreating Workspace is on (`statusMessage`), as a new
+ * one's provisioning does. Best-effort, and only while it's still `starting`.
+ */
+async function markSetupStep(
+  target: CodeReadyTarget | undefined,
+  statusMessage: string
+): Promise<void> {
+  if (!target) return
+  try {
+    const room = await openRoom(target.roomId)
+    await room.mutateDoc(({ branches }) => {
+      if (branches.get(target.branchId)?.status !== "starting") return
+      branches.update(target.branchId, { statusMessage })
+    })
+  } catch {}
 }
 
 /**

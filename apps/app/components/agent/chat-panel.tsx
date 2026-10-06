@@ -30,6 +30,7 @@ import { ChatDoneProvider } from "./marked-done-card"
 import { ChatPanelHeader } from "./chat-panel-header"
 import { CoordinatorChat } from "./coordinator-chat"
 import { ChatsMenuButton, useChatsMenu } from "./chats-menu"
+import { SetupSteps } from "./setup-steps"
 import { TerminalPane, type DevServerControls } from "./terminal-pane"
 import { useTerminalPaneController } from "./use-terminal-pane-controller"
 import { WorkspaceHeaderTitle } from "./workspace-menu"
@@ -47,6 +48,7 @@ import { ROOM_CHAT_LABEL, roomChatId } from "@/lib/chat/room-chat"
 import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
 import { workspaceBooting } from "@/lib/branch/workspace-state"
+import { setupProgress } from "@/lib/branch/setup-steps"
 
 /** A Workspace target: its chat over the Terminal Pane. */
 type WorkspaceTarget = Extract<ChatPanelTarget, { kind: "agent" }>
@@ -296,6 +298,9 @@ function WorkspaceChatPanel({
   const isAgentBusy = workspaceBooting(agent)
   // Reopen from a Marked done card (#1705), as the Chats menu's Reopen.
   const chatsMenu = useChatsMenu()
+  // While its code is set up, the chat shows the steps over a disabled
+  // composer; a failed step offers the Chats menu's Retry.
+  const setup = setupProgress(agent)
 
   // First chat for this Workspace — drives auto branch/chat naming.
   const isFirstChat = (chat: ChatSessionData) =>
@@ -318,7 +323,19 @@ function WorkspaceChatPanel({
           chatId={chat.id}
           roomId={roomId}
           target={chatTarget}
-          booting={workspaceBooting(agent)}
+          setup={
+            setup && (
+              <SetupSteps
+                progress={setup}
+                onRetry={
+                  chatsMenu
+                    ? () => chatsMenu.onRetryBranch(agent.id)
+                    : undefined
+                }
+                onOpenLogs={() => openPaneOn(DEV_SERVER_TERMINAL_ID)}
+              />
+            )
+          }
           isFirstChat={isFirstChat(chat)}
           planMode={chat.planMode}
           onPlanModeChange={(pm) => onPlanModeChange(chat.id, pm)}
