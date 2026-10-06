@@ -9,7 +9,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@workspace/ui/components/command"
 import { CaretDownIcon, PlusIcon } from "@workspace/ui/components/icons"
 import { InputGroupButton } from "@workspace/ui/components/input-group"
@@ -25,6 +24,7 @@ import {
   type ComposerHandle,
   type ComposerSubmitPayload,
 } from "@/components/agent/composer"
+import { ScrollHairline, useScrollEdges } from "@/components/scroll-hairline"
 import { WorkspaceMention } from "@/components/workspace-mention"
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
 import { NEW_CHAT, NEW_SKETCH_CHAT, type FrameAnswerer } from "@/lib/draw-ask"
@@ -268,6 +268,11 @@ export function FrameAskCard({
  * then New chat… on its own row. Typing filters by name; with nothing
  * matching, the row carries the words into the composer as the new chat's
  * first message (`New chat: “…”`).
+ *
+ * Only the previews scroll; New chat… stays pinned under them, still inside
+ * the `CommandList` because cmdk's arrow keys only reach items there. The
+ * hairlines under the search and above New chat… show only while previews
+ * are scrolled under them, and every gap is 4px, a menu's density.
  */
 function PreviewPicker({
   previews,
@@ -306,30 +311,46 @@ function PreviewPicker({
       )
     : previews
   const carry = matches.length === 0 ? typed : ""
+  const { attach, onScroll, above, below } = useScrollEdges()
   return (
-    <Command shouldFilter={false} loop className="bg-transparent">
+    <Command
+      shouldFilter={false}
+      loop
+      className="bg-transparent p-0 [&_[data-slot=command-input-wrapper]]:p-1"
+    >
       <CommandInput
         ref={inputRef}
         value={query}
         onValueChange={setQuery}
         placeholder="Search running previews…"
       />
-      <CommandList>
+      <CommandList className="max-h-none overflow-visible">
         {matches.length > 0 && (
-          <CommandGroup>
-            {matches.map((b) => (
-              <CommandItem
-                key={b.id}
-                value={b.id}
-                onSelect={() => onShow(b.id)}
-              >
-                <WorkspaceMention branch={b} state={stateOf(b)} />
-              </CommandItem>
-            ))}
-          </CommandGroup>
+          <div className="relative">
+            <ScrollHairline shown={above} />
+            <div
+              ref={attach}
+              onScroll={onScroll}
+              className="no-scrollbar max-h-72 overflow-y-auto px-1 pb-0.5"
+            >
+              <CommandGroup className="p-0">
+                {matches.map((b) => (
+                  <CommandItem
+                    key={b.id}
+                    value={b.id}
+                    onSelect={() => onShow(b.id)}
+                  >
+                    <WorkspaceMention branch={b} state={stateOf(b)} />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </div>
+            <ScrollHairline shown={below} edge="bottom" />
+          </div>
         )}
-        {matches.length > 0 && <CommandSeparator />}
-        <CommandGroup>
+        <CommandGroup
+          className={cn("p-1", matches.length > 0 ? "pt-0.5" : "pt-0")}
+        >
           <CommandItem value="new-chat" onSelect={() => onNewChat(carry)}>
             <PlusIcon className="text-muted-foreground" />
             <span className="flex-1 truncate">
