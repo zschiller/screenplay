@@ -16,6 +16,7 @@ import {
   zoomAtPoint,
   type Rect,
 } from "@/lib/canvas/camera"
+import { pickPresenceColor } from "@/lib/canvas/presence-colors"
 import {
   CANVAS_SIZE,
   FIT_ZOOM_MAX,
@@ -464,17 +465,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   useEffect(() => {
     if (!session?.user) return
     if (!colorRef.current) {
-      const palette = [
-        "#E57373",
-        "#64B5F6",
-        "#81C784",
-        "#FFB74D",
-        "#BA68C8",
-        "#4DD0E1",
-        "#FF8A65",
-        "#A1887F",
-      ]
-      colorRef.current = palette[Math.floor(Math.random() * palette.length)]!
+      colorRef.current = pickPresenceColor()
     }
     setPresence({
       identity: {

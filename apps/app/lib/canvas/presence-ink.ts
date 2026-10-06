@@ -3,7 +3,7 @@
  *
  * Presence colours are picked from a palette of mid-to-light swatches, so white
  * text — the old default — falls below 2:1 on most of them. This picks
- * whichever of white or near-black ink has the higher WCAG contrast against the
+ * whichever of white or black ink has the higher WCAG contrast against the
  * swatch. Returns `"light"` (white ink) for anything it can't parse, matching
  * the previous behaviour.
  */
@@ -12,12 +12,11 @@ export type PresenceInk = "light" | "dark"
 /** Tailwind text classes for each ink, so call sites stay free of literals. */
 export const PRESENCE_INK_CLASS: Record<PresenceInk, string> = {
   light: "text-white",
-  dark: "text-neutral-950",
+  dark: "text-black",
 }
 
-// neutral-950 (oklch(0.145 0 0)) is ~#0a0a0a; its luminance is what dark ink
-// is measured with.
-const DARK_INK_LUMINANCE = relativeLuminance([10, 10, 10])
+// Dark ink is black, as on every Signal fill.
+const DARK_INK_LUMINANCE = relativeLuminance([0, 0, 0])
 
 export function presenceInk(color: string): PresenceInk {
   const rgb = parseColor(color)
