@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, type Ref } from "react"
+import { useMemo, useRef, type Ref } from "react"
 import { cn } from "@workspace/ui/lib/utils"
 import {
   EditableText,
@@ -10,6 +10,7 @@ import {
 import type { LayerDragHandlers } from "@/hooks/use-layer-drag"
 import { showsLayerDetail } from "@/lib/canvas/camera"
 import { GroupLabel, type GroupLabelValue } from "./group-label"
+import { LabelFitContext, useLabelChatHidden } from "./label-chat"
 
 interface LayerTitleBarProps {
   /** Identifies which layer to lift when the user starts a reorder gesture
@@ -87,9 +88,19 @@ export function LayerTitleBar({
   children,
   tag,
 }: LayerTitleBarProps) {
-  // Far out, a label is just the Layer's name: the group label's Workspace
-  // and the name's accessories would crowd the rows of Layers above.
+  // Far out, a label drops its menus and tag. Its chat stays wherever it
+  // fits (see `LabelChat`).
   const compact = !showsLayerDetail(zoom)
+  const labelFit = useMemo(
+    () => ({ width: layerWidth * zoom, compact }),
+    [layerWidth, zoom, compact]
+  )
+  // A group label runs the Group's width; the Layer's own rows run its own.
+  const groupWidth = Math.max(layerWidth, groupLabel?.width ?? 0)
+  const groupFit = useMemo(
+    () => ({ width: groupWidth * zoom, compact }),
+    [groupWidth, zoom, compact]
+  )
   // Compose the caller's base move-drag handlers with the reorder-request
   // hook. Pointerdown first asks the canvas to lift this layer into a
   // reorder drag (multi-member groups capture the gesture); for single-
@@ -107,79 +118,87 @@ export function LayerTitleBar({
   }, [dragHandlers, onRequestReorderDrag, layerId])
 
   return (
-    <div
-      className={cn(
-        "canvas-frame-label group/title-bar absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap",
-        // With a tag the bar spans the layer so the tag sits at its right
-        // edge; only its contents take the pointer, not the gap between them.
-        tag && "pointer-events-none",
-        hidden && "invisible"
-      )}
-      style={{
-        // `--label-promote` resolves to `translateZ(0)`, which lifts the label
-        // onto its own GPU layer so WebKit rasterizes this constant-size text at
-        // native resolution. Without it the label inherits the zoomed content
-        // layer's downsampled raster and turns unreadably blurry when zoomed in
-        // (WebKit only — Chrome re-rasterizes sharp). The label is tiny, so its
-        // own layer is cheap and hits no texture-size limit, unlike the 10000px
-        // content layer.
-        //
-        // The promotion is driven by a CSS var (not hard-coded) so the canvas
-        // can momentarily drop it on zoom-settle (`[data-zoom-settling]` in
-        // globals.css): the label's counter-scale keeps its on-screen size
-        // constant, so WebKit sees no scale change and reuses whatever texture
-        // it baked mid-gesture — often blurry. De-composing and re-composing on
-        // settle forces a fresh raster at the resting scale. See globals.css.
-        transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
-        transformOrigin: "bottom left",
-        maxWidth: layerWidth * zoom,
-        width: tag ? layerWidth * zoom : undefined,
-        marginBottom: 4 / zoom,
-      }}
-      data-compact={compact ? "" : undefined}
-      {...labelDragHandlers}
-    >
-      {groupLabel && !reorderDragPopped && (
-        <div
-          className="pointer-events-auto"
-          style={
-            reorderDragTranslateX != null || reorderDragTranslateY != null
-              ? {
-                  // The outer layer container is `translate(dx, dy)` in world
-                  // units; this label sits inside a `scale(1/zoom)` wrapper,
-                  // so its own local px need to be multiplied by `zoom` to
-                  // produce the same world-space distance.
-                  transform: `translate(${-(reorderDragTranslateX ?? 0) * zoom}px, ${-(reorderDragTranslateY ?? 0) * zoom}px)`,
-                }
-              : undefined
-          }
-        >
-          <GroupLabel
-            label={groupLabel.label}
-            // Far out a group label is just the Group's name, like a Layer's.
-            workspace={compact ? undefined : groupLabel.workspace}
-            groupSelected={groupSelected}
-            color={groupLabel.remoteSelectedColor}
-            onSelectGroup={groupLabel.onSelect}
-            onRename={groupLabel.onRename}
-            menu={compact ? undefined : groupLabel.menu}
-            dragHandlers={groupLabelDragHandlers}
-          />
-        </div>
-      )}
-      {tag ? (
-        <div className="flex w-full items-end gap-2">
-          <div className="flex min-w-0 flex-1 flex-col items-start *:pointer-events-auto">
+    <LabelFitContext.Provider value={labelFit}>
+      <div
+        className={cn(
+          "canvas-frame-label group/title-bar absolute bottom-full left-0 flex flex-col items-start whitespace-nowrap",
+          // With a tag the bar spans the layer so the tag sits at its right
+          // edge; only its contents take the pointer, not the gap between them.
+          tag && "pointer-events-none",
+          hidden && "invisible"
+        )}
+        style={{
+          // `--label-promote` resolves to `translateZ(0)`, which lifts the label
+          // onto its own GPU layer so WebKit rasterizes this constant-size text at
+          // native resolution. Without it the label inherits the zoomed content
+          // layer's downsampled raster and turns unreadably blurry when zoomed in
+          // (WebKit only — Chrome re-rasterizes sharp). The label is tiny, so its
+          // own layer is cheap and hits no texture-size limit, unlike the 10000px
+          // content layer.
+          //
+          // The promotion is driven by a CSS var (not hard-coded) so the canvas
+          // can momentarily drop it on zoom-settle (`[data-zoom-settling]` in
+          // globals.css): the label's counter-scale keeps its on-screen size
+          // constant, so WebKit sees no scale change and reuses whatever texture
+          // it baked mid-gesture — often blurry. De-composing and re-composing on
+          // settle forces a fresh raster at the resting scale. See globals.css.
+          transform: `scale(${1 / zoom}) var(--label-promote, translateZ(0))`,
+          transformOrigin: "bottom left",
+          maxWidth: groupWidth * zoom,
+          width: tag ? layerWidth * zoom : undefined,
+          marginBottom: 4 / zoom,
+        }}
+        data-compact={compact ? "" : undefined}
+        {...labelDragHandlers}
+      >
+        {groupLabel && !reorderDragPopped && (
+          <div
+            className="pointer-events-auto"
+            style={{
+              maxWidth: groupWidth * zoom,
+              // The outer layer container is `translate(dx, dy)` in world
+              // units; this label sits inside a `scale(1/zoom)` wrapper, so
+              // its own local px need to be multiplied by `zoom` to produce
+              // the same world-space distance.
+              transform:
+                reorderDragTranslateX != null || reorderDragTranslateY != null
+                  ? `translate(${-(reorderDragTranslateX ?? 0) * zoom}px, ${-(reorderDragTranslateY ?? 0) * zoom}px)`
+                  : undefined,
+            }}
+          >
+            <LabelFitContext.Provider value={groupFit}>
+              <GroupLabel
+                label={groupLabel.label}
+                workspace={groupLabel.workspace}
+                groupSelected={groupSelected}
+                color={groupLabel.remoteSelectedColor}
+                onSelectGroup={groupLabel.onSelect}
+                onRename={groupLabel.onRename}
+                menu={compact ? undefined : groupLabel.menu}
+                dragHandlers={groupLabelDragHandlers}
+              />
+            </LabelFitContext.Provider>
+          </div>
+        )}
+        {tag ? (
+          <div className="flex w-full items-end gap-2">
+            <div className="flex min-w-0 flex-1 flex-col items-start *:pointer-events-auto">
+              {children}
+            </div>
+            <div className="pointer-events-auto shrink-0 group-data-compact/title-bar:hidden">
+              {tag}
+            </div>
+          </div>
+        ) : (
+          <div
+            className="flex flex-col items-start"
+            style={{ maxWidth: layerWidth * zoom }}
+          >
             {children}
           </div>
-          <div className="pointer-events-auto shrink-0 group-data-compact/title-bar:hidden">
-            {tag}
-          </div>
-        </div>
-      ) : (
-        children
-      )}
-    </div>
+        )}
+      </div>
+    </LabelFitContext.Provider>
   )
 }
 
@@ -275,9 +294,9 @@ export function LayerTitleText({
 }
 
 interface LayerLabelRowProps extends LayerTitleTextProps {
-  /** Content before the name (a frame's branch picker). */
+  /** Content before the name. */
   leading?: React.ReactNode
-  /** Content after the name (a frame's route picker). */
+  /** Content after the name: its `LabelChat`, then its menu. */
   trailing?: React.ReactNode
   style?: React.CSSProperties
 }
@@ -296,23 +315,18 @@ export function LayerLabelRow({
   style,
   ...titleProps
 }: LayerLabelRowProps) {
+  const rowRef = useRef<HTMLDivElement>(null)
+  const chatHidden = useLabelChatHidden(rowRef)
   return (
     <div
-      className="group/layer-label flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible"
+      ref={rowRef}
+      className="group/layer-label flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible has-[[data-label-chat]]:min-h-5"
       style={style}
+      data-chat-hidden={chatHidden ? "" : undefined}
     >
-      {leading && <AccessorySlot>{leading}</AccessorySlot>}
+      {leading}
       <LayerTitleText {...titleProps} />
-      {trailing && <AccessorySlot>{trailing}</AccessorySlot>}
-    </div>
-  )
-}
-
-/** A name's accessory, dropped while the title bar is compact (far out). */
-function AccessorySlot({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="contents group-data-compact/title-bar:hidden">
-      {children}
+      {trailing}
     </div>
   )
 }

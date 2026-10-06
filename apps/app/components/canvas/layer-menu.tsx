@@ -338,6 +338,8 @@ export function LayerMenu(
               type="button"
               className={cn(
                 "inline-flex h-[18px] shrink-0 cursor-pointer items-center text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground data-[state=open]:text-foreground",
+                // Far out a label keeps its name and chat, not its menu.
+                "group-data-compact/title-bar:hidden",
                 className
               )}
               // Pressing it opens the menu; it doesn't select, drag or reorder.

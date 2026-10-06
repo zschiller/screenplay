@@ -19,6 +19,7 @@ import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { useWorkspaceHoverProps } from "@/lib/workspace-hover-store"
 import type { FrameWorkspace } from "./frame-nav"
+import { LabelChat, useLabelChatHidden } from "./label-chat"
 import { LayerMenu, type LayerMenuActions } from "./layer-menu"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
 
@@ -63,6 +64,9 @@ export type GroupWorkspace =
  */
 export interface GroupLabelValue {
   label: string
+  /** Canvas units from the leftmost member's left edge to the Group's right
+   *  edge: the room the label has. */
+  width?: number
   /** The Workspace every member shows (#1276); unset when they differ. */
   workspace?: GroupWorkspace
   /** A remote user's selection colour for the Group. */
@@ -111,6 +115,8 @@ export function GroupLabel({ workspace, menu, ...props }: GroupLabelProps) {
   // Hovering the Workspace lights up its Workspace in the sidebar (#872).
   const hoverProps = useWorkspaceHoverProps(workspace?.branchId, "group")
   const editableRef = useRef<EditableTextHandle>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const chatHidden = useLabelChatHidden(rowRef)
   const menuButton = menu && (
     <LayerMenu
       placement="label"
@@ -133,44 +139,50 @@ export function GroupLabel({ workspace, menu, ...props }: GroupLabelProps) {
     )
   }
   return (
-    <div className="group/group-label mb-0.5 flex max-w-full min-w-0 items-center gap-2">
+    <div
+      ref={rowRef}
+      className="group/group-label mb-0.5 flex min-h-5 max-w-full min-w-0 items-center gap-2"
+      data-chat-hidden={chatHidden ? "" : undefined}
+    >
       <GroupName {...props} editableRef={editableRef} />
-      {"mixed" in workspace ? (
-        <WorkspaceChooser
-          switcher={workspace.switcher}
-          title="Choose chat"
-          placeholder={`Show ${props.label} from…`}
-          // Only on hover, so a Group of explorations stays quiet. Hidden but
-          // holding its place, so hovering the spot where it appears shows it.
-          className="invisible min-w-0 group-hover/group-label:visible group-hover/group-label:min-w-10 data-[state=open]:visible data-[state=open]:min-w-10"
-        />
-      ) : workspace.branchId === undefined ? (
-        <WorkspaceChooser switcher={workspace.switcher} />
-      ) : workspace.switcher ? (
-        <GroupWorkspaceSwitcher
-          label={props.label}
-          workspace={workspace}
-          switcher={workspace.switcher}
-          hoverProps={hoverProps}
-        />
-      ) : (
-        // Names win: the Workspace gives up its width first. Pressing it
-        // selects the Group, like its name, rather than reordering the member.
-        <WorkspaceHoverCard branchId={workspace.branchId} side="bottom">
-          <span
-            data-slot="group-workspace"
-            className="flex min-w-10 shrink-[100] text-xs text-muted-foreground"
-            {...hoverProps}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return
-              e.stopPropagation()
-              props.onSelectGroup?.(e.shiftKey)
-            }}
-          >
-            <CompactWorkspaceMention workspace={workspace} />
-          </span>
-        </WorkspaceHoverCard>
-      )}
+      <LabelChat>
+        {"mixed" in workspace ? (
+          <WorkspaceChooser
+            switcher={workspace.switcher}
+            title="Choose chat"
+            placeholder={`Show ${props.label} from…`}
+            // Only on hover, so a Group of explorations stays quiet. Hidden but
+            // holding its place, so hovering the spot where it appears shows it.
+            className="invisible min-w-0 group-hover/group-label:visible group-hover/group-label:min-w-10 data-[state=open]:visible data-[state=open]:min-w-10"
+          />
+        ) : workspace.branchId === undefined ? (
+          <WorkspaceChooser switcher={workspace.switcher} />
+        ) : workspace.switcher ? (
+          <GroupWorkspaceSwitcher
+            label={props.label}
+            workspace={workspace}
+            switcher={workspace.switcher}
+            hoverProps={hoverProps}
+          />
+        ) : (
+          // Names win: the Workspace gives up its width first. Pressing it
+          // selects the Group, like its name, rather than reordering the member.
+          <WorkspaceHoverCard branchId={workspace.branchId} side="bottom">
+            <span
+              data-slot="group-workspace"
+              className="flex min-w-10 shrink-[100] text-xs text-muted-foreground"
+              {...hoverProps}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return
+                e.stopPropagation()
+                props.onSelectGroup?.(e.shiftKey)
+              }}
+            >
+              <CompactWorkspaceMention workspace={workspace} />
+            </span>
+          </WorkspaceHoverCard>
+        )}
+      </LabelChat>
       {menuButton}
     </div>
   )
