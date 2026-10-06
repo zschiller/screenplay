@@ -966,8 +966,6 @@ function MarkdownLayerImpl({
   return (
     <LayerShell
       layerId={layer.id}
-      width={layer.width}
-      height={layer.height}
       placement={placement}
       containerId={`markdown-layer-${layer.id}`}
       // No overflow-hidden on the root — the group label sits above the tile

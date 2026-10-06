@@ -689,8 +689,12 @@ describe.skipIf(!HAS_STACK)("frame stream service", () => {
     // The service lived through it (cleaning up the dead browser's profile
     // once crashed it, #1419).
     expect(service.exitCode).toBeNull()
-    expect(requests.slice(requestsBefore)).toContain("/store")
-    expect(routeOf(a, "f1")?.path).toBe("/store")
+    // "live" comes once the frame host page has loaded; the app's page loads
+    // in its iframe after that, so wait for the request rather than assume it.
+    await a.waitFor(() =>
+      requests.slice(requestsBefore).includes("/store") ? true : undefined
+    )
+    await a.waitFor(() => routeOf(a, "f1")?.path === "/store" || undefined)
   }, 40_000)
 
   it("relays the bridge: reads to whoever asked, room changes through the primary", async () => {

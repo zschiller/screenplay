@@ -449,6 +449,8 @@ function CanvasMemberLayerImpl({
           const placement: LayerPlacement = {
             worldX: layout.x,
             worldY: layout.y,
+            width: layout.width,
+            height: layout.height,
             zIndex: groupZIndex.get(group.id),
             dragTranslateX,
             dragTranslateY,

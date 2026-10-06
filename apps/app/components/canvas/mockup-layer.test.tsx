@@ -84,6 +84,8 @@ function renderMockup(
         placement={{
           worldX: 0,
           worldY: 0,
+          width: LAYER.width,
+          height: LAYER.height,
           onMoveGroup: noop,
           onMoveSelected: noop,
         }}

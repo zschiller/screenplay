@@ -858,8 +858,6 @@ function IframeLayerImpl({
   return (
     <LayerShell
       layerId={iframeLayer.id}
-      width={iframeLayer.width}
-      height={iframeLayer.height}
       placement={placement}
       containerId={`iframe-layer-${iframeLayer.id}`}
       containerClassName="absolute"

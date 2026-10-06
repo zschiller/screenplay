@@ -48,6 +48,18 @@ function setup(armed: ToolMode) {
 }
 
 describe("useDrawTool frame release", () => {
+  it("draws a whole-pixel frame from a drag at a fractional zoom", () => {
+    const { hook, addFrame } = setup("frame")
+    const { drawTool } = hook.result.current.draw
+    act(() => {
+      drawTool.beginDraft({ x: 100.4, y: 200.7 })
+      drawTool.updateDraft({ x: 778.78, y: 881.78 })
+      drawTool.commitDraft()
+    })
+
+    expect(addFrame).toHaveBeenCalledWith(100, 201, 678, 681)
+  })
+
   it("asks for the frame it drew, at the drawn rect, back on Select", () => {
     const { hook, addFrame, onFrameDrawn } = setup("frame")
     const { drawTool } = hook.result.current.draw
