@@ -192,7 +192,12 @@ export function useDrawTool({
             w = Math.max(200, Math.abs(dx))
             h = Math.max(120, Math.abs(dy))
           }
-          const id = addDocumentLayer(x, y, w, h)
+          const id = addDocumentLayer(
+            Math.round(x),
+            Math.round(y),
+            Math.round(w),
+            Math.round(h)
+          )
           toolMode.set("select")
           setSelectedIframeLayerIds(new Set())
           setSelectedDocumentLayerIds(new Set([id]))
@@ -288,7 +293,8 @@ export function useDrawTool({
 
 /**
  * The box a released draft stands for: the dragged rect, or on a click (under
- * 3px of travel) the default size centred on the click.
+ * 3px of travel) the default size centred on the click. Whole world pixels
+ * either way: a drag at a fractional zoom lands between them.
  */
 function drawnRect(
   d: Draft,
@@ -298,16 +304,16 @@ function drawnRect(
   const dy = d.currentY - d.startY
   if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
     return {
-      x: d.startX - fallback.width / 2,
-      y: d.startY - fallback.height / 2,
+      x: Math.round(d.startX - fallback.width / 2),
+      y: Math.round(d.startY - fallback.height / 2),
       width: fallback.width,
       height: fallback.height,
     }
   }
   return {
-    x: Math.min(d.startX, d.currentX),
-    y: Math.min(d.startY, d.currentY),
-    width: Math.abs(dx),
-    height: Math.abs(dy),
+    x: Math.round(Math.min(d.startX, d.currentX)),
+    y: Math.round(Math.min(d.startY, d.currentY)),
+    width: Math.round(Math.abs(dx)),
+    height: Math.round(Math.abs(dy)),
   }
 }
