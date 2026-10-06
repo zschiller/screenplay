@@ -116,13 +116,13 @@ export function LayerTitleBar({
   // fits (see `LabelChat`).
   const compact = !showsLayerDetail(zoom)
   const labelFit = useMemo(
-    () => ({ width: layerWidth * zoom, compact }),
+    () => ({ width: layerWidth, zoom, compact }),
     [layerWidth, zoom, compact]
   )
   // A group label runs the Group's width; the Layer's own rows run its own.
   const groupWidth = Math.max(layerWidth, groupLabel?.width ?? 0)
   const groupFit = useMemo(
-    () => ({ width: groupWidth * zoom, compact }),
+    () => ({ width: groupWidth, zoom, compact }),
     [groupWidth, zoom, compact]
   )
   // Compose the caller's base move-drag handlers with the reorder-request
@@ -376,7 +376,6 @@ interface LayerLabelRowProps extends LayerTitleTextProps {
   leading?: React.ReactNode
   /** Content after the name: its `LabelChat`, then its menu. */
   trailing?: React.ReactNode
-  style?: React.CSSProperties
 }
 
 /**
@@ -390,7 +389,6 @@ interface LayerLabelRowProps extends LayerTitleTextProps {
 export function LayerLabelRow({
   leading,
   trailing,
-  style,
   ...titleProps
 }: LayerLabelRowProps) {
   const rowRef = useRef<HTMLDivElement>(null)
@@ -399,7 +397,6 @@ export function LayerLabelRow({
     <div
       ref={rowRef}
       className="group/layer-label flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible has-[[data-label-chat]]:min-h-5"
-      style={style}
       data-chat-hidden={chatHidden ? "" : undefined}
     >
       {leading}

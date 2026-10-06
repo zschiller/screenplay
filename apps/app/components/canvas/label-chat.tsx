@@ -7,13 +7,16 @@ import {
   useState,
   type RefObject,
 } from "react"
+import { LabelLayerContext } from "./label-layer"
 
 /**
- * What a Layer's label rows fit in: the Layer's on-screen width, and whether
+ * What a Layer's label rows fit in: the Layer's width in canvas units, the
+ * deferred zoom (for a label off the canvas, with no live camera), and whether
  * the label is compact (far out, menus hidden).
  */
 export const LabelFitContext = createContext({
   width: Infinity,
+  zoom: 1,
   compact: false,
 })
 
@@ -44,11 +47,12 @@ export function LabelChat({ children }: { children: React.ReactNode }) {
 export function useLabelChatHidden(
   rowRef: RefObject<HTMLElement | null>
 ): boolean {
-  const { width: available, compact } = useContext(LabelFitContext)
+  const { width, zoom, compact } = useContext(LabelFitContext)
+  const labelLayer = useContext(LabelLayerContext)
   const [needed, setNeeded] = useState(0)
-  // Labels keep one screen size, so zooming changes only `available`. The rest
-  // is measured when the row changes size (a font loading), content (a
-  // rename, a menu showing) or goes compact (its menu hiding).
+  // Labels keep one screen size, so zooming changes only the room they have.
+  // The rest is measured when the row changes size (a font loading), content
+  // (a rename, a menu showing) or goes compact (its menu hiding).
   useLayoutEffect(() => {
     const row = rowRef.current
     if (!row) return
@@ -63,7 +67,19 @@ export function useLabelChatHidden(
       edits.disconnect()
     }
   }, [rowRef, compact])
-  return needed > available + 0.5
+  const [hidden, setHidden] = useState(false)
+  // On the canvas the room follows the live camera, like the label's own
+  // position and width, so the chat goes as the Layer narrows mid-zoom, not
+  // once the zoom settles. State changes only when the answer flips.
+  useLayoutEffect(() => {
+    const update = () => {
+      const z = labelLayer ? labelLayer.camera.get().zoom : zoom
+      setHidden(needed > width * z + 0.5)
+    }
+    update()
+    return labelLayer?.camera.subscribe(update)
+  }, [labelLayer, needed, width, zoom])
+  return hidden
 }
 
 /**

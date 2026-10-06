@@ -2538,12 +2538,10 @@ export function Canvas({
                   className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
                 />
 
-                {/* `hidden` mid-zoom and mid-pan — it reads the deferred zoom/
-                viewportPos, so it would lag the canvas and snap on settle.
-                Passed as a prop (not a wrapper) because the canvas sizes itself
-                from its parent. */}
+                {/* Follows the live camera, so it stays on its Layers through
+                a pan or zoom. */}
                 <SelectionOverlay
-                  hidden={isCameraMoving}
+                  camera={camera.liveCamera}
                   zoom={zoom}
                   viewportPos={viewportPos}
                   selectedIframeLayerIds={overlaySelectedIds}

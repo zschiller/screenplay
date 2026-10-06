@@ -1,6 +1,6 @@
 "use client"
 
-import { useLayoutEffect, useRef } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react"
 import type {
   GapHandle,
   IframeLayerLayoutMap,
@@ -14,6 +14,7 @@ import type { SnapGuide } from "@/lib/canvas/snap"
 import { measureDraw } from "@/lib/canvas/draw-bounds"
 import { CANVAS_COLOR, resolveCanvasColor } from "@/lib/canvas/tokens"
 
+import type { LiveCamera } from "./live-zoom"
 import { beginUnderlayDraw, useUnderlayCanvasSize } from "./underlay-canvas"
 
 interface OtherSelection {
@@ -27,9 +28,10 @@ interface OtherSelection {
 }
 
 interface SelectionOverlayProps {
-  /** Hide the overlay (e.g. during an active zoom) without unmounting, so the
-   *  canvas keeps its parent-measured size and redraws instantly when shown. */
-  hidden?: boolean
+  /** The camera frame by frame. With it the overlay redraws on every frame
+   *  of a pan or zoom, like the labels and Layer edges, instead of drawing
+   *  from the deferred `zoom` / `viewportPos`. */
+  camera?: LiveCamera
   zoom: number
   viewportPos: { x: number; y: number }
   selectedIframeLayerIds: Set<string>
@@ -116,9 +118,9 @@ interface SelectionOverlayProps {
 }
 
 export function SelectionOverlay({
-  hidden,
-  zoom,
-  viewportPos,
+  camera,
+  zoom: settledZoom,
+  viewportPos: settledViewportPos,
   selectedIframeLayerIds,
   groupSelectedIframeLayerIds,
   focusedIframeLayerId,
@@ -146,9 +148,12 @@ export function SelectionOverlay({
   // Drawn before the browser paints, in the same frame as the Layers it
   // traces: a passive effect runs after the paint of a pointer-move update, so
   // the outline would trail a dragged frame by a frame and shake.
-  useLayoutEffect(() => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    const live = camera?.get()
+    const zoom = live?.zoom ?? settledZoom
+    const viewportPos = live ?? settledViewportPos
 
     const dpr = window.devicePixelRatio || 1
 
@@ -666,8 +671,9 @@ export function SelectionOverlay({
     const ctx = beginUnderlayDraw(canvas, !bounds, bounds ?? undefined)
     if (ctx) paint(ctx)
   }, [
-    zoom,
-    viewportPos,
+    camera,
+    settledZoom,
+    settledViewportPos,
     selectedIframeLayerIds,
     groupSelectedIframeLayerIds,
     focusedIframeLayerId,
@@ -689,13 +695,14 @@ export function SelectionOverlay({
     snapGuides,
     isResizeSnapped,
   ])
+  useLayoutEffect(draw, [draw])
+  useEffect(() => camera?.subscribe(draw), [camera, draw])
 
   return (
     <canvas
       ref={canvasRef}
       className="pointer-events-none absolute inset-0 z-(--z-canvas-overlay)"
-      data-camera-overlay=""
-      style={hidden ? { visibility: "hidden" } : undefined}
+      data-camera-overlay={camera ? undefined : ""}
     />
   )
 }
