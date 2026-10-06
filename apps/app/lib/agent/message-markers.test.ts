@@ -452,7 +452,7 @@ describe("buildTargetedElementsFooter", () => {
     expect(footer).toContain(
       "- el-m1: mockup m1 — body > main > button (mockup: Option A (draft)) [layer: m1]"
     )
-    expect(footer).toContain("read its page with read_mockup")
+    expect(footer).toContain("names it as `mockup <id>`")
     expect(parseTargetedElementsFooter(footer)).toEqual([element])
   })
 

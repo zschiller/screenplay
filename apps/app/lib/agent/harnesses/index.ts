@@ -71,12 +71,19 @@ export function harnessAcpAdapter(
  * `mcp__<server>__<tool>`, OpenCode's `<server>_<tool>`) gets them exactly.
  * Any other namespaces MCP tools in ways that vary by version (Codex's
  * `screenplay/<tool>` titles aren't what its model calls), so its prompt
- * keeps the bare names and says where they come from.
+ * keeps the bare names and says where they come from. Either way the note
+ * covers the bare names skills and tool descriptions use.
  */
 export function harnessToolNaming(key: string, server: string): ToolNaming {
   const mcpToolName = harnessAcpAdapter(key)?.mcpToolName
   if (mcpToolName) {
-    return { name: (tool) => mcpToolName(server, tool), harness: true }
+    return {
+      name: (tool) => mcpToolName(server, tool),
+      harness: true,
+      // Skills, tool descriptions and message footers are shared by every
+      // Engine, so they name a tool bare: say what to call it by here.
+      note: `Skills, tool descriptions and notes on messages name Screenplay’s own tools by their bare names. Call each one as the MCP server \`${server}\` serves it: \`${mcpToolName(server, "<tool>")}\`.`,
+    }
   }
   return {
     name: (tool) => tool,

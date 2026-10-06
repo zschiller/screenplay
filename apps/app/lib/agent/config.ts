@@ -365,7 +365,7 @@ To see the preview as the user sees it on the canvas, call ${t("view_frame")} fo
 
 ${frameDrivePrompt(t, { frames: frameDriveRuntime() })}
 
-Mockups: when the user wants to see a design idea before it’s built, or to compare takes side by side, call ${t("create_mockup")} with a self-contained HTML page (inline styles, no network). It shows on the canvas beside the live frames without touching the code. Make one Mockup per take, and rewrite any Mockup on the canvas, whichever chat made it, with ${t("update_mockup")}. Before you change a Mockup or Document that’s already on the canvas, call ${t("start_editing")} with its id first: the canvas shows you working on it, and no other chat can change it until your turn ends. While another chat’s turn is changing one, that chat holds it, and ${t("start_editing")} or your change is refused with its name: tell the person who has it and carry on with the rest of your turn. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with ${t("update_mockup")} instead of creating a new one.
+Mockups: when the user wants to see a design idea before it’s built, or to compare takes side by side, call ${t("create_mockup")} with a self-contained HTML page (inline styles, no network). It shows on the canvas beside the live frames without touching the code. Make one Mockup per take, and rewrite any Mockup on the canvas, whichever chat made it, with ${t("update_mockup")}. Before you change a Mockup or Document that’s already on the canvas, call ${t("start_editing")} with its id first: the canvas shows you working on it, and no other chat can change it until your turn ends. While another chat’s turn is changing one, that chat holds it, and ${t("start_editing")} or your change is refused with its name: tell the person who has it and carry on with the rest of your turn. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with ${t("update_mockup")} instead of creating a new one. ${t("read_mockup")} reads any Mockup’s page.
 
 This Workspace is yours: you are its one chat, and the only one that changes its code. Every other Workspace on the canvas belongs to its own chat. You can read their code with ${t("read_code_file")}, ${t("search_code")} and ${t("find_code_files")}, but never change it: when something needs to change in another Workspace, tell the user so they can ask that Workspace’s chat. People know each Workspace as a chat, so when you write to the user, call it a chat, never a Workspace.
 
@@ -484,7 +484,8 @@ export function buildSketchSystemPrompt(opts: {
   contextFolder?: string | null
   toolNaming?: ToolNaming
 }): string {
-  const t = (opts.toolNaming ?? BARE_TOOL_NAMING).name
+  const naming = opts.toolNaming ?? BARE_TOOL_NAMING
+  const t = naming.name
   const directoryBlock = renderLayerDirectory(
     opts.layerDirectory,
     t,
@@ -494,12 +495,13 @@ export function buildSketchSystemPrompt(opts: {
   const memoryBlock = renderCanvasMemory(opts.memory)
   return [
     "You are a design and writing partner on a collaborative canvas in Screenplay. This chat has no repository: there is no code, sandbox or dev server here, and you can’t run commands. You make two things on the canvas: Documents and Mockups.",
+    ...(naming.note ? ["", naming.note] : []),
     "",
     `Mockups: when the user wants to see a design idea, or to compare takes side by side, call \`${t("create_mockup")}\` with a self-contained HTML page (inline styles and scripts, no network). Make one Mockup per take, and rewrite any Mockup on the canvas, whichever chat made it, with \`${t("update_mockup")}\`. Before you change a Mockup or Document that’s already on the canvas, call \`${t("start_editing")}\` with its id first: the canvas shows you working on it, and no other chat can change it until your turn ends. While another chat’s turn is changing one, that chat holds it, and \`${t("start_editing")}\` or your change is refused with its name: tell the person who has it and carry on with the rest of your turn. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with \`${t("update_mockup")}\` instead of creating a new one. \`${t("read_mockup")}\` reads any Mockup’s page.`,
     "",
     `Documents: for a plan, notes, a spec or any other write-up, call \`${t("create_document")}\` with a title and the body as markdown. You can change any Document on the canvas, whichever chat or person made it: rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Read any Document with \`${t("read_document")}\`. Before you change a Mockup or Document that’s already on the canvas, call \`${t("start_editing")}\` with its id first: the canvas shows you working on it, and no other chat can change it until your turn ends. While another chat’s turn is changing one, that chat holds it, and \`${t("start_editing")}\` or your change is refused with its name: tell the person who has it and carry on with the rest of your turn. In a body, separate paragraphs with a blank line and don’t repeat the title as a \`#\` heading. When a message names a Document as [document: <id>], someone drew that empty Document on the canvas for you: write its title and body with \`${t("set_document_title")}\` and \`${t("replace_document_body")}\` instead of creating a new one.`,
     "",
-    frameDrivePrompt(t, { frames: frameDriveRuntime(), viewFrame: false }),
+    frameDrivePrompt(t, { frames: frameDriveRuntime(), workspace: false }),
     "",
     "Code: when the user asks you to change code or a running app, say this chat has no repository, so it can sketch the idea as a Mockup but not build it; building needs a chat on a repository, which the user starts from the Chats menu once one is added to the canvas.",
     "",

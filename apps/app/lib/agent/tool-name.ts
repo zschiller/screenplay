@@ -31,8 +31,9 @@ export interface ToolNaming {
   /** The name the model calls a Screenplay tool by. */
   name(tool: string): string
   /**
-   * A line for the prompt when the harness's names can't be rendered exactly:
-   * it says which MCP server the named tools come from.
+   * A line for a harness's prompt saying which MCP server Screenplay's tools
+   * come from, and so what the bare names in skills, tool descriptions and
+   * message footers are called there.
    */
   note?: string
   /**

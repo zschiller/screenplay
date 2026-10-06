@@ -25,7 +25,7 @@ global its page already has.
    `dependencies`, install it first, so a fresh clone still builds:
 
    ```
-   run_command "npm" ["install", "--save", "@screenplay.space/state"]
+   npm install --save @screenplay.space/state
    ```
 
 2. Find the state that already exists: the `useState`, `useReducer`, store

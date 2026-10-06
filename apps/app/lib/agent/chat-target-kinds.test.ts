@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import type { ToolSet } from "ai"
+import { asSchema, type ToolSet } from "ai"
 
 // The agent kind enumerates Skills from its sandbox and the room kind lists
 // the member's Terminal Tabs from the database; neither matters to memory.
@@ -75,7 +75,16 @@ import { sketchChatTarget } from "@/lib/agent/sketch-chat-target"
 import { toolsetOn, turnToolset, type ChatTools } from "@/lib/agent/toolset"
 import { harnessToolNaming } from "@/lib/agent/harnesses"
 import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
-import { PLAN_MODE_MARKER } from "@/lib/agent/message-markers"
+import {
+  PLAN_MODE_MARKER,
+  buildAttachmentsFooter,
+  buildDraftedOnFooter,
+  buildReferencedDocsFooter,
+  buildTargetedElementsFooter,
+} from "@/lib/agent/message-markers"
+import { forMockup } from "@/lib/draw-ask"
+import { appSkillSource } from "@/lib/skills"
+import { sketchAppSkills } from "@/lib/agent/sketch-tools"
 import { addMemory, readMemory } from "@/lib/memory/canvas"
 import { addAccountMemory, readAccountMemory } from "@/lib/memory/account"
 import { kvAccountMemoryStore } from "@/lib/memory/account-store"
@@ -1462,9 +1471,12 @@ describe("sketchChatTarget (a chat with no repository)", () => {
 /**
  * A prompt names tools only through its turn's toolset (#1487): naming one
  * the turn doesn't have throws, and no tool name is written into a prompt by
- * hand past that check.
+ * hand past that check. The rest of what the model reads names tools by hand:
+ * its tools' descriptions, the App Skills it can load and the footers on its
+ * messages. A tool named there that the turn doesn't have sends the model
+ * calling a tool that isn't there, so each is checked on every Engine too.
  */
-describe("every kind’s prompt names only tools its turn has", () => {
+describe("everything a kind’s model reads names only tools its turn has", () => {
   const room: RoomDoc = {
     roomId: "room-1",
     readDoc: async () => {
@@ -1478,9 +1490,32 @@ describe("every kind’s prompt names only tools its turn has", () => {
   const layerDirectory = {
     documents: [{ id: "doc-1", title: "Plan", lastChangedByChatId: "chat-1" }],
   }
+  /** Footers any chat's messages can carry. */
+  const everyChatFooters = [
+    buildTargetedElementsFooter([
+      {
+        ref: "el-1",
+        route: "mockup m1",
+        selector: "main > button",
+        frameLabel: "Option A",
+        layerKind: "mockup",
+      },
+    ]),
+    buildAttachmentsFooter([
+      { path: "uploads/a.png", mediaType: "image/png", size: 1 },
+    ]),
+    buildReferencedDocsFooter([{ id: "doc-1", title: "Plan" }]),
+  ]
+  /** Footers only a chat that makes Mockups gets: a page's draft and a box. */
+  const mockupChatFooters = [
+    buildDraftedOnFooter({ id: "m1", title: "Option A" }),
+    forMockup("Sketch it", "m1", { width: 400, height: 300 }),
+  ]
   const kinds = [
     {
       kind: "Workspace",
+      appSkills: appSkillSource(),
+      footers: [...everyChatFooters, ...mockupChatFooters],
       tools: () =>
         workspaceChatTarget.tools(room, {
           sandboxName: "sb-1",
@@ -1508,6 +1543,8 @@ describe("every kind’s prompt names only tools its turn has", () => {
     },
     {
       kind: "Coordinator",
+      appSkills: appSkillSource("coordinator"),
+      footers: everyChatFooters,
       tools: () => roomChatTarget.tools(room, { userId: "user-1" }),
       prompt: (naming: ToolNaming) =>
         roomChatTarget.buildSystemPrompt(
@@ -1525,6 +1562,8 @@ describe("every kind’s prompt names only tools its turn has", () => {
     },
     {
       kind: "Sketch",
+      appSkills: sketchAppSkills,
+      footers: [...everyChatFooters, ...mockupChatFooters],
       tools: () =>
         sketchChatTarget.tools(room, { chatId: "chat-1", userId: "user-1" }),
       prompt: (naming: ToolNaming) =>
@@ -1553,19 +1592,44 @@ describe("every kind’s prompt names only tools its turn has", () => {
     kinds.flatMap(({ tools }) => Object.keys(inProcess(tools())))
   )
 
-  for (const { kind, tools, prompt } of kinds) {
+  /** Each tool's description and its arguments' descriptions. */
+  const toolTexts = (toolset: ToolSet): Promise<[string, string][]> =>
+    Promise.all(
+      Object.entries(toolset).map(
+        async ([name, t]): Promise<[string, string]> => [
+          `${name}’s description`,
+          `${t.description ?? ""}\n${JSON.stringify(await asSchema(t.inputSchema).jsonSchema)}`,
+        ]
+      )
+    )
+
+  for (const { kind, tools, prompt, appSkills, footers } of kinds) {
     for (const [engine, naming] of engines) {
-      it(`a ${kind} chat ${engine}`, () => {
+      it(`a ${kind} chat ${engine}`, async () => {
         const toolset = turnToolset(tools(), naming)
-        const text = prompt(toolset.naming)
-        const has = Object.keys(toolset.tools)
-        // Multi-word names only: `rename`, `grep` and the like are words too.
-        for (const name of everyTool) {
-          if (!name.includes("_") || has.includes(name)) continue
-          expect(text).not.toMatch(
-            new RegExp(`(?<![a-z0-9])${name}(?![a-z0-9_])`)
-          )
+        const texts: [string, string][] = [
+          ["its prompt", prompt(toolset.naming)],
+          ...(await toolTexts(toolset.tools)),
+          ...appSkills
+            .index()
+            .map((s): [string, string] => [
+              `the ${s.name} skill`,
+              appSkills.read(s.name) ?? "",
+            ]),
+          ...footers.map((f): [string, string] => ["a message footer", f]),
+        ]
+        const has = new Set(Object.keys(toolset.tools))
+        const named: string[] = []
+        for (const [where, text] of texts) {
+          // Multi-word names only: `rename`, `grep` and the like are words too.
+          for (const name of everyTool) {
+            if (!name.includes("_") || has.has(name)) continue
+            if (new RegExp(`(?<![a-z0-9_])${name}(?![a-z0-9_])`).test(text)) {
+              named.push(`${where} names ${name}`)
+            }
+          }
         }
+        expect(named).toEqual([])
       })
     }
   }

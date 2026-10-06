@@ -21,7 +21,7 @@ Workspace uses the `@screenplay.space/knobs` package; a **Mockup** uses the
    `dependencies`, install it first, so a fresh clone still builds:
 
    ```
-   run_command "npm" ["install", "--save", "@screenplay.space/knobs"]
+   npm install --save @screenplay.space/knobs
    ```
 
 2. Call `useKnob` on every render with the same definition; it returns the
