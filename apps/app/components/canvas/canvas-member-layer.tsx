@@ -95,7 +95,7 @@ function CanvasMemberLayerImpl({
   selection,
   onIframeWheel,
   reference,
-  gesturePreview,
+  reorderPreview,
   gestureLayerHandlers,
   effectiveIframeLayerLayouts,
   iframeLayerLayouts,
@@ -153,7 +153,9 @@ function CanvasMemberLayerImpl({
    *  frame (the camera object is recreated each render). */
   onIframeWheel: CanvasCamera["handleIframeWheel"]
   reference: ElementReference
-  gesturePreview: GesturePreview
+  /** The live reorder (a frame dragged within its Group), or null. Only
+   *  that part of the gesture preview: the rest changes on every move. */
+  reorderPreview: GesturePreview["reorder"]
   gestureLayerHandlers: GestureLayerHandlers
   effectiveIframeLayerLayouts: IframeLayerLayoutMap
   iframeLayerLayouts: IframeLayerLayoutMap
@@ -447,8 +449,7 @@ function CanvasMemberLayerImpl({
           let dragTranslateX: number | undefined
           let dragTranslateY: number | undefined
           let dragPopped = false
-          const reorderPreview = gesturePreview.reorder
-          if (reorderPreview?.memberId === member.id) {
+                    if (reorderPreview?.memberId === member.id) {
             const grab = reorderPreview.grabOffset ?? {
               x: layout.width / 2,
               y: layout.height / 2,

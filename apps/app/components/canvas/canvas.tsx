@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -324,6 +325,17 @@ function LogProbe({
   }, [sandboxName])
   return null
 }
+
+/**
+ * The chrome around the canvas, memoized: a drag, marquee or draw re-renders
+ * the Canvas on every pointer move, and these take props kept stable by
+ * `chromeStable`, so they skip those renders.
+ */
+const ChatPanelHostMemo = memo(ChatPanelHost)
+const CanvasTopBarMemo = memo(CanvasTopBar)
+const ShortcutSheetMemo = memo(ShortcutSheet)
+const CanvasZoomMenuMemo = memo(CanvasZoomMenu)
+const CanvasToolbarMemo = memo(CanvasToolbar)
 
 export function Canvas({
   roomId,
@@ -2033,6 +2045,13 @@ export function Canvas({
   // the memoized sidebar skips the canvas's re-render on every pointer move of
   // a drag, marquee or draw.
   const [sidebarStable] = useState(() => new StableProps())
+  const [chromeStable] = useState(() => new StableProps())
+  // The layers' Workspace verbs, which are rebuilt whenever the Workspaces or
+  // layers change (on every step of a drag).
+  const memberCallbacks = chromeStable.value("member", {
+    onRestartWorkspace: branchActions.startWorkspace,
+    onAskForKnob: handleAskForKnob,
+  })
   const sidebarFooterActions = sidebarStable.value("footer", {
     onShowCoordinator: () => {
       chatTarget.showRoomChat()
@@ -2337,7 +2356,7 @@ export function Canvas({
                             selection={selection}
                             onIframeWheel={camera.handleIframeWheel}
                             reference={reference}
-                            gesturePreview={gesturePreview}
+                            reorderPreview={gesturePreview.reorder}
                             gestureLayerHandlers={gestureLayerHandlers}
                             effectiveIframeLayerLayouts={
                               effectiveIframeLayerLayouts
@@ -2360,7 +2379,7 @@ export function Canvas({
                             }
                             agentDomains={agentDomains}
                             agents={agents}
-                            onRestartWorkspace={branchActions.startWorkspace}
+                            onRestartWorkspace={memberCallbacks.onRestartWorkspace}
                             onOpenLogs={openBranchLogs}
                             onStartChat={drawAsk.startFrameChat}
                             askingIframeLayerId={askFrameId}
@@ -2388,7 +2407,7 @@ export function Canvas({
                             removeMockup={removeMockup}
                             removeDocument={removeDocument}
                             handlePlayIframeLayer={handlePlayIframeLayer}
-                            onAskForKnob={handleAskForKnob}
+                            onAskForKnob={memberCallbacks.onAskForKnob}
                             handleCaptureReadyChange={handleCaptureReadyChange}
                             handleCaptureDirty={handleCaptureDirty}
                             layerMutations={layerMutations}
@@ -2574,24 +2593,26 @@ export function Canvas({
                   data-tauri-drag-region
                   className="absolute top-0 right-0 left-0 z-(--z-canvas-chrome) h-12"
                 />
-                <CanvasTopBar
-                  roomId={roomId}
-                  isOwner={isOwner}
-                  sharedWithCount={sharedWithCount}
-                  parentFolder={parentFolder}
-                  currentRoomName={currentRoomName}
-                  onRoomRename={handleRoomRename}
-                  sidebarCollapsed={sidebarCollapsed}
-                  trafficLightsPresent={trafficLightsPresent}
-                  sidebarPanelRef={sidebarPanelRef}
-                  roomNameEditableRef={roomNameEditableRef}
-                  pendingRoomRenameRef={pendingRoomRenameRef}
-                  onRoomMenuCloseAutoFocus={onRoomMenuCloseAutoFocus}
-                  deleteDialogOpen={deleteDialogOpen}
-                  onDeleteDialogOpenChange={setDeleteDialogOpen}
-                  onOpenSettings={() => setCanvasSettingsOpen(true)}
-                  stopRoomDevServers={stopRoomDevServers}
-                  flushLayout={flushLayout}
+                <CanvasTopBarMemo
+                  {...chromeStable.value("topBar", {
+                    roomId,
+                    isOwner,
+                    sharedWithCount,
+                    parentFolder,
+                    currentRoomName,
+                    onRoomRename: handleRoomRename,
+                    sidebarCollapsed,
+                    trafficLightsPresent,
+                    sidebarPanelRef,
+                    roomNameEditableRef,
+                    pendingRoomRenameRef,
+                    onRoomMenuCloseAutoFocus,
+                    deleteDialogOpen,
+                    onDeleteDialogOpenChange: setDeleteDialogOpen,
+                    onOpenSettings: () => setCanvasSettingsOpen(true),
+                    stopRoomDevServers,
+                    flushLayout,
+                  })}
                 />
                 <AddRepositoryDialog
                   flow={addRepository}
@@ -2625,9 +2646,11 @@ export function Canvas({
                   files={canvasFiles}
                   skills={canvasSkills}
                 />
-                <CanvasToolbar
-                  toolMode={toolMode}
-                  onClearMode={reference.clearMode}
+                <CanvasToolbarMemo
+                  {...chromeStable.value("toolbar", {
+                    toolMode,
+                    onClearMode: reference.clearMode,
+                  })}
                 />
                 {askFrameId ? (
                   <FrameAskCard
@@ -2653,9 +2676,11 @@ export function Canvas({
                     onClose={drawAsk.close}
                   />
                 ) : null}
-                <ShortcutSheet
-                  open={shortcutSheetOpen}
-                  onOpenChange={setShortcutSheetOpen}
+                <ShortcutSheetMemo
+                  {...chromeStable.value("shortcuts", {
+                    open: shortcutSheetOpen,
+                    onOpenChange: setShortcutSheetOpen,
+                  })}
                 />
                 {/* The top-right pill, mirroring the breadcrumb pill (32px, 24px
                 controls): the zoom menu (always), then the people controls
@@ -2667,13 +2692,15 @@ export function Canvas({
                     className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <CanvasZoomMenu
-                      liveZoomPercent={camera.liveZoomPercent}
-                      onZoomIn={zoomControls.zoomIn}
-                      onZoomOut={zoomControls.zoomOut}
-                      onZoomTo={cameraZoomTo}
-                      onZoomToFit={zoomControls.zoomToFit}
-                      onOpenShortcuts={openShortcutSheet}
+                    <CanvasZoomMenuMemo
+                      {...chromeStable.value("zoomMenu", {
+                        liveZoomPercent: camera.liveZoomPercent,
+                        onZoomIn: zoomControls.zoomIn,
+                        onZoomOut: zoomControls.zoomOut,
+                        onZoomTo: cameraZoomTo,
+                        onZoomToFit: zoomControls.zoomToFit,
+                        onOpenShortcuts: openShortcutSheet,
+                      })}
                     />
                     {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
@@ -2760,19 +2787,21 @@ export function Canvas({
               inert={chatCollapsed}
               onResize={(size) => setChatCollapsed(size.inPixels === 0)}
             >
-              <ChatPanelHost
-                chatTarget={chatTarget}
-                tabPool={tabPool}
-                chatSessions={chatSessions}
-                localTerminals={terminalTabs.tabs}
-                roomId={roomId}
-                diffStats={diffStats}
-                branchPrs={branchPrs}
-                chatPanelRef={chatPanelRef}
-                onUpdateChatSession={updateChatSession}
-                onSetBranchPr={setBranchPr}
-                logsRequest={logsRequest}
-                devServerControls={devServerControls}
+              <ChatPanelHostMemo
+                {...chromeStable.value("chat", {
+                  chatTarget,
+                  tabPool,
+                  chatSessions,
+                  localTerminals: terminalTabs.tabs,
+                  roomId,
+                  diffStats,
+                  branchPrs,
+                  chatPanelRef,
+                  onUpdateChatSession: updateChatSession,
+                  onSetBranchPr: setBranchPr,
+                  logsRequest,
+                  devServerControls,
+                })}
               />
             </ResizablePanel>
           </ResizablePanelGroup>

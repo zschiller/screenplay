@@ -14,8 +14,8 @@ import { useState } from "react"
  *  - **Plain objects and arrays** are compared by value (their functions
  *    stubbed the same way) and the previous one is returned when equal.
  *
- * Anything else (class instances, Maps, Sets, React elements) keeps its own
- * identity. Keys name an item and a prop path (`frame-1.placement.onMove`), so
+ * Anything else (class instances, Maps, Sets, React elements, refs) keeps
+ * its own identity. Keys name an item and a prop path (`frame-1.placement.onMove`), so
  * two items never share a stub. A list calls {@link StableProps.sweep} once per
  * render after its last {@link StableProps.value} to drop the entries of items
  * that are gone.
@@ -146,7 +146,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   // compares: leave them be.
   if ("$$typeof" in value) return false
   const proto = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
+  if (proto !== Object.prototype && proto !== null) return false
+  // A ref (`{ current }`) is read and written through its own identity: a
+  // copy would freeze what it pointed at.
+  for (const key in value) if (key !== "current") return true
+  return !("current" in value)
 }
 
 /**

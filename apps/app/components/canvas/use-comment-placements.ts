@@ -71,6 +71,9 @@ export function useCommentPlacements({
   const [docPlacements, setDocPlacements] = useState<
     ReadonlyMap<string, Placement>
   >(() => new Map())
+  // What each was last set to, read by the measuring frames below.
+  const framePlacementsRef = useRef(framePlacements)
+  const docPlacementsRef = useRef(docPlacements)
 
   const frames = useMemo(() => {
     const m = new Map<string, PlacementFrame>()
@@ -195,7 +198,11 @@ export function useCommentPlacements({
           })
         )
       }
-      setFramePlacements((prev) => (samePlacements(prev, next) ? prev : next))
+      // Compared here, not in an updater: an updater makes React re-render
+      // the Canvas to find out nothing changed, on every frame of a drag.
+      if (samePlacements(framePlacementsRef.current, next)) return
+      framePlacementsRef.current = next
+      setFramePlacements(next)
     }
 
     function loop() {
@@ -217,12 +224,12 @@ export function useCommentPlacements({
   // doc that's gone, is detached.
   useEffect(() => {
     // Measured on the next frame, once the doc tiles have laid out.
-    const raf = requestAnimationFrame(() =>
-      setDocPlacements((prev) => {
-        const next = placeDocThreads()
-        return samePlacements(prev, next) ? prev : next
-      })
-    )
+    const raf = requestAnimationFrame(() => {
+      const next = placeDocThreads()
+      if (samePlacements(docPlacementsRef.current, next)) return
+      docPlacementsRef.current = next
+      setDocPlacements(next)
+    })
     return () => cancelAnimationFrame(raf)
 
     function placeDocThreads() {
