@@ -167,43 +167,6 @@ describe("createPgliteDb", () => {
     expect(hit?.key).toBe("lock")
   })
 
-  it("rolls back an interactive transaction atomically (the batch→transaction swap)", async () => {
-    const db = shared.db
-
-    await seedUser(db)
-    await db.insert(room).values({ id: "r1", name: "Canvas", ownerId: "u1" })
-    await db.insert(agentChat).values({
-      id: "c1",
-      roomId: "r1",
-      sandboxName: "sb1",
-      model: "claude",
-      systemPrompt: "be helpful",
-    })
-    await db.insert(agentRun).values({ id: "run1", chatId: "c1" })
-
-    // An update followed by a duplicate-PK insert inside one transaction: the
-    // insert throws, and the preceding update must roll back with it — exactly
-    // the all-or-nothing guarantee pauseForPlan/resolvePlan rely on.
-    await db.insert(agentRun).values({ id: "dup", chatId: "c1" })
-    await expect(
-      db.transaction(async (tx) => {
-        await tx
-          .update(agentRun)
-          .set({ status: "paused_for_plan" })
-          .where(eq(agentRun.id, "run1"))
-        // Collides with the existing "dup" primary key → aborts the txn.
-        await tx.insert(agentRun).values({ id: "dup", chatId: "c1" })
-      })
-    ).rejects.toThrow()
-
-    const [row] = await db
-      .select()
-      .from(agentRun)
-      .where(eq(agentRun.id, "run1"))
-    // The update was rolled back: status is still the default "running".
-    expect(row?.status).toBe("running")
-  })
-
   it("re-running migrations on the same data dir is idempotent and durable", async () => {
     const dataDir = await freshDataDir()
 

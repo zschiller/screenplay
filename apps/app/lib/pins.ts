@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, eq, or, sql } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import { appendPosition, densePositions } from "@/lib/pin-order"
 
@@ -143,19 +143,26 @@ export async function reorderPins(opts: {
   const positioned = densePositions(
     opts.ordered.map((p) => `${p.kind}:${p.targetId}`)
   )
-  await db.transaction(async (tx) => {
-    for (let i = 0; i < opts.ordered.length; i++) {
-      const { kind, targetId } = opts.ordered[i]
-      const targetColumn =
-        kind === "room" ? schema.pin.roomId : schema.pin.folderId
-      await tx
-        .update(schema.pin)
-        .set({ position: positioned[i].position })
-        .where(
-          and(eq(schema.pin.userId, opts.userId), eq(targetColumn, targetId))
-        )
-    }
-  })
+  if (opts.ordered.length === 0) return listPinsForUser(opts.userId)
+  // One UPDATE with a CASE per pin, so the new order lands whole or not at all
+  // (hosted neon-http has no transactions).
+  const target = (kind: PinKind, targetId: string) =>
+    eq(kind === "room" ? schema.pin.roomId : schema.pin.folderId, targetId)
+  const cases = opts.ordered.map(
+    ({ kind, targetId }, i) =>
+      sql`when ${target(kind, targetId)} then ${positioned[i].position}::integer`
+  )
+  await db
+    .update(schema.pin)
+    .set({
+      position: sql`case ${sql.join(cases, sql` `)} else ${schema.pin.position} end`,
+    })
+    .where(
+      and(
+        eq(schema.pin.userId, opts.userId),
+        or(...opts.ordered.map((p) => target(p.kind, p.targetId)))
+      )
+    )
   return listPinsForUser(opts.userId)
 }
 
