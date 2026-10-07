@@ -5,12 +5,14 @@ import type { ToolNaming } from "@/lib/agent/tool-name"
 import { claudeCodeHarness } from "./claude-code"
 import { codexHarness } from "./codex"
 import { opencodeCompatHarness, opencodeGatewayHarness } from "./opencode"
+import { isValidHarnessKey } from "./model-id"
 import { BROKERED_VALUE } from "./types"
 import type {
   AcpAdapter,
   Harness,
   HarnessOwnSkills,
   HarnessSelection,
+  HostHarness,
   SkippedHarness,
 } from "./types"
 
@@ -19,6 +21,7 @@ export type {
   AcpAdapter,
   Harness,
   HarnessOwnSkills,
+  HostHarness,
   HarnessSelection,
   SkippedHarness,
 } from "./types"
@@ -50,6 +53,65 @@ const HARNESSES_BY_KEY = new Map<string, Harness>(
 )
 
 /**
+ * Where the host's configured Coding CLIs live once set: on `globalThis`, so
+ * the one call at start reaches every server bundle that reads the catalog.
+ */
+const CONFIGURED_KEY = Symbol.for("screenplay.hostCodingClis")
+
+type ConfiguredHost = typeof globalThis & {
+  [CONFIGURED_KEY]?: HostHarness[]
+}
+
+/**
+ * Set the Coding CLIs this host offers (spec #1923, #1926), in the order the
+ * model menu lists them, replacing the built-in catalog on the host. `null`
+ * goes back to the catalog. The Headless config picks them; the Mac app and
+ * Hosted never call it, so their lists are unchanged. Throws on a key the
+ * model-id codec can't carry or a key named twice, so a bad config refuses to
+ * start rather than half-working.
+ */
+export function setHostHarnesses(harnesses: HostHarness[] | null): void {
+  if (harnesses) {
+    const seen = new Set<string>()
+    for (const { key } of harnesses) {
+      if (!isValidHarnessKey(key)) {
+        throw new Error(
+          `Coding CLI key "${key}" must be non-empty and contain no comma or colon.`
+        )
+      }
+      if (seen.has(key)) {
+        throw new Error(`Coding CLI key "${key}" is used more than once.`)
+      }
+      seen.add(key)
+    }
+  }
+  const host = globalThis as ConfiguredHost
+  if (harnesses) host[CONFIGURED_KEY] = harnesses
+  else delete host[CONFIGURED_KEY]
+}
+
+function configuredHarnesses(): HostHarness[] | undefined {
+  return (globalThis as ConfiguredHost)[CONFIGURED_KEY]
+}
+
+/**
+ * The CLIs the host can run: the configured Coding CLIs when the host set them
+ * ({@link setHostHarnesses}), else the whole catalog (the Mac app). The desktop
+ * Harness Availability resolver and Harness Setup read it on every call, so a
+ * configuration set at start is what they list.
+ */
+export function hostCatalog(): HostHarness[] {
+  return configuredHarnesses() ?? HARNESSES
+}
+
+/** The host descriptor for `key`: the configured CLIs, else the catalog. */
+function harnessByKey(key: string): HostHarness | undefined {
+  const configured = configuredHarnesses()
+  if (configured) return configured.find((h) => h.key === key)
+  return HARNESSES_BY_KEY.get(key)
+}
+
+/**
  * The ACP adapter spawn argv for harness `key`, or `null` when `key` names no
  * catalog entry or names a terminal-only harness (one whose descriptor carries
  * no `acpAdapter`). Reads the *one* catalog entry — there is no separate adapter
@@ -61,7 +123,7 @@ export function harnessAcpAdapter(
   key: string | null | undefined
 ): AcpAdapter | null {
   if (!key) return null
-  return HARNESSES_BY_KEY.get(key)?.acpAdapter ?? null
+  return harnessByKey(key)?.acpAdapter ?? null
 }
 
 /**
@@ -100,7 +162,7 @@ export function harnessOwnSkills(
   key: string | null | undefined
 ): HarnessOwnSkills | null {
   if (!key) return null
-  return HARNESSES_BY_KEY.get(key)?.ownSkills ?? null
+  return harnessByKey(key)?.ownSkills ?? null
 }
 
 /**
@@ -111,7 +173,7 @@ export function harnessOwnSkills(
  * a plain shell rather than failing.
  */
 export function harnessLaunchArgv(key: string): string[] | null {
-  return HARNESSES_BY_KEY.get(key)?.launchArgv ?? null
+  return harnessByKey(key)?.launchArgv ?? null
 }
 
 /**
@@ -211,7 +273,7 @@ export function buildBrokeredEnv(harnesses: Harness[]): Record<string, string> {
  */
 export function resolveLaunchArgv(
   harnessKey: string | null | undefined,
-  installable: Harness[]
+  installable: HostHarness[]
 ): string[] {
   if (!harnessKey) return []
   const harness = installable.find((h) => h.key === harnessKey)
