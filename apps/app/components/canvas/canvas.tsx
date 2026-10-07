@@ -1291,7 +1291,8 @@ export function Canvas({
   )
 
   // A tile dragged out of the chat and dropped on the canvas (#1887): a view
-  // where it was dropped, selected once it's laid out.
+  // where it was dropped, selected once it's laid out. The camera stays put:
+  // the person chose the spot.
   const dropFile = useCallback(
     async (
       fileId: string,
@@ -1304,7 +1305,7 @@ export function Canvas({
         if (performance.now() >= deadline) return
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
-      showLayersRef.current([placed.viewId], { select: true })
+      selectNamedLayerRef.current(placed.viewId)
     },
     [ops]
   )
