@@ -139,20 +139,29 @@ jobs:
         uses: actions/checkout@v4
 
       # The browser tests run a real Xvfb, Chrome, ffmpeg and xte, as a
-      # Workspace Sandbox does (#1392). The runner ships Chrome; apt adds the
-      # rest (~30s). It doesn't need the workspace, so it starts here in the
-      # background, alongside Setup, and "Wait for the browser stack" below
-      # holds the tests until it's done.
+      # Workspace Sandbox does (#1392). The runner ships Chrome and Xvfb;
+      # browser-stack.sh adds the rest. It doesn't need the workspace, so it
+      # starts here in the background, alongside Setup, and "Wait for the
+      # browser stack" below holds the tests until it's done. Its packages
+      # are cached per runner image, so most runs install them with no
+      # network: an apt mirror that stalled used to hold the job until the
+      # wait timed out.
+      - name: Read the runner image
+        id: image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the browser stack's packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/browser-debs
+          key: browser-debs-${{ steps.image.outputs.version }}-${{ hashFiles('.github/scripts/browser-stack.sh') }}
+
       - name: Start the browser stack
         run: |
-          cd "$RUNNER_TEMP"
           nohup bash -c '
-            command -v Xvfb >/dev/null && command -v ffmpeg >/dev/null && command -v xte >/dev/null || {
-              sudo apt-get update &&
-              sudo apt-get install -y --no-install-recommends xvfb ffmpeg xautomation
-            }
-            echo $? > install.tmp && mv install.tmp install.status
-          ' > install.log 2>&1 &
+            .github/scripts/browser-stack.sh "$RUNNER_TEMP/browser-debs"
+            echo $? > "$RUNNER_TEMP/install.tmp" && mv "$RUNNER_TEMP/install.tmp" "$RUNNER_TEMP/install.status"
+          ' > "$RUNNER_TEMP/install.log" 2>&1 &
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -165,13 +174,15 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-browser-
 
-      # Prints the install's log and fails if it did.
+      # Follows the install's log as it runs, so a stall shows where, and
+      # fails if the install did.
       - name: Wait for the browser stack
         timeout-minutes: 5
         run: |
           cd "$RUNNER_TEMP"
+          tail -n +1 -f install.log & tail=$!
           until [ -f install.status ]; do sleep 1; done
-          cat install.log
+          sleep 1; kill $tail
           [ "$(cat install.status)" = 0 ] || { echo "::error::Installing the browser stack failed"; exit 1; }
 
       # A runner's first Chrome launch reads its install from a cold disk and
