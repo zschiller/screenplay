@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server"
 import { getGitHubToken } from "@/lib/auth-helpers"
-import { buildIdentity } from "@/lib/capabilities"
+import { githubAccess } from "@/lib/github-access"
 import {
   startBranchProvisioning,
   type BranchProvisionRequest,
@@ -30,12 +30,12 @@ export async function POST(request: Request) {
     )
   }
 
-  // The hosted build can't do anything without a token (branches are created
-  // via the GitHub API and clones are token-authed). The local build can: git
-  // rides host auth and branches are created locally when no token resolves
-  // (PRD #428), so a missing token must not block creation there.
+  // Brokered git (Hosted) can't do anything without a token: branches are
+  // created via the GitHub API and clones are token-authed. Host git can: it
+  // rides the host's own auth and branches are created locally when no token
+  // resolves (PRD #428), so a missing token must not block creation there.
   const ghToken = (await getGitHubToken()) ?? undefined
-  if (!ghToken && buildIdentity === "account") {
+  if (!ghToken && githubAccess.git.kind === "brokered") {
     return NextResponse.json(
       { error: "Sign in with GitHub again to start this chat." },
       { status: 401 }

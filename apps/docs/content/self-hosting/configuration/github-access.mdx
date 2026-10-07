@@ -1,0 +1,94 @@
+---
+title: GitHub access
+description: Which GitHub a Screenplay server talks to and with whose credentials, and the built-ins for Hosted, the Mac app, a company gh wrapper and GitHub Enterprise.
+---
+
+# GitHub access
+
+Every GitHub call Screenplay makes, and every push from a chat, needs to know
+which GitHub to talk to and whose credentials to use. **GitHub access**
+decides both. It’s a small interface in `apps/app/lib/github-access/` with two
+built-ins:
+
+| Built-in        | Token for API calls                    | Git in a chat                                  | For                                           |
+| --------------- | -------------------------------------- | ---------------------------------------------- | --------------------------------------------- |
+| `oauth-account` | each person’s GitHub sign-in           | brokered: each person’s token, commits as them | Hosted (the default there)                    |
+| `gh-cli`        | `gh auth token`, or a wrapper’s output | the machine’s own git credentials and identity | The Mac app (the default there), your own box |
+
+Repositories, pull requests, links and API calls all use the GitHub host it
+names, so a GitHub Enterprise host works everywhere.
+
+## The interface
+
+```ts
+interface GitHubAccess {
+  // REST base, e.g. "https://api.github.com" or "https://ghe.corp.example/api/v3".
+  readonly apiUrl: string
+  // Web base, e.g. "https://github.com". Recognises remotes and builds clone URLs.
+  readonly webUrl: string
+  // A token for the server's own API calls for this person, or null (GitHub features stay off).
+  apiToken(userId: string): Promise<string | null>
+  // How git inside a chat signs in and authors commits.
+  readonly git:
+    | { kind: "host" }
+    | {
+        kind: "brokered"
+        token(userId: string): Promise<string | null>
+        identity(
+          userId: string
+        ): Promise<{ name: string; email: string } | null>
+      }
+}
+```
+
+With `host`, Screenplay leaves git alone: it installs no credential helper,
+rewrites no remote and sets no author, so pushes and commits are whoever the
+machine’s git is signed in as. With `brokered`, it hands git the person’s
+token for each command and sets them as author and committer.
+
+## Built-ins
+
+Each built-in takes its options as `{ use: "<id>", …options }`.
+
+### `oauth-account`
+
+Hosted’s behaviour. The token is the one saved when the person signed in with
+GitHub.
+
+| Option   | Default                  |               |
+| -------- | ------------------------ | ------------- |
+| `apiUrl` | `https://api.github.com` | The REST base |
+| `webUrl` | `https://github.com`     | The web base  |
+
+### `gh-cli`
+
+The Mac app’s behaviour. The token is whatever `gh auth token` prints, and git
+uses the machine’s own credentials. On a company box, point it at a wrapper
+command and your GitHub Enterprise host:
+
+```jsonc
+{
+  "use": "gh-cli",
+  "command": "corp-gh",
+  "hostname": "ghe.corp.example",
+}
+```
+
+| Option     | Default          |                                                                                      |
+| ---------- | ---------------- | ------------------------------------------------------------------------------------ |
+| `command`  | `gh`             | The command to run instead of `gh`: a name, or a list of words like `["corp", "gh"]` |
+| `hostname` | gh’s own default | The GitHub host. Adds `--hostname` to every `gh` call                                |
+| `apiUrl`   | from `hostname`  | Overrides the REST base                                                              |
+| `webUrl`   | from `hostname`  | Overrides the web base                                                               |
+
+The URLs come from the hostname: `github.com` uses `https://api.github.com`,
+a `*.ghe.com` host uses `https://api.<host>`, and any other host is GitHub
+Enterprise Server at `https://<host>/api/v3`. Git still needs to be able to
+push to that host on its own, for example after `gh auth setup-git`.
+
+## Picking one
+
+The server builds one as it loads, with `selectGitHubAccess()`: `oauth-account`
+when people sign in with GitHub, and `gh-cli` with its defaults when the host is
+the only writer. `selectGitHubAccess()` refuses an unknown id, or an option it
+doesn’t recognise, with a message naming it.
