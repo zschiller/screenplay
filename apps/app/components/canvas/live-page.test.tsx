@@ -89,6 +89,7 @@ interface HarnessProps {
   onHover?: (id: string, rect: unknown) => void
   onSelect?: (id: string, shiftKey: boolean) => void
   onFocus?: (id: string | null) => void
+  onOpen?: () => void
 }
 
 /** A layer as small as can be: the page, its overlay and its bar. */
@@ -106,6 +107,7 @@ function Harness({
   onHover,
   onSelect = () => {},
   onFocus,
+  onOpen,
 }: HarnessProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -137,6 +139,7 @@ function Harness({
           onHover={onHover}
           onSelect={onSelect}
           onFocus={onFocus}
+          onOpen={onOpen}
         />
       </div>
       <LivePageControls page={page} focused={focused} onFocus={onFocus} />
@@ -185,6 +188,15 @@ describe.each(["frame", "mockup"] as const)("a %s's live page", (kind) => {
       fireEvent.doubleClick(overlay()!)
       expect(onSelect).toHaveBeenCalledWith("page-1", false)
       expect(onFocus).toHaveBeenCalledWith("page-1")
+    })
+
+    it("opens the page instead when the layer says where (#1885)", () => {
+      const onFocus = vi.fn()
+      const onOpen = vi.fn()
+      render(<Harness source={source} onFocus={onFocus} onOpen={onOpen} />)
+      fireEvent.doubleClick(overlay()!)
+      expect(onOpen).toHaveBeenCalledOnce()
+      expect(onFocus).not.toHaveBeenCalled()
     })
 
     it("leaves the double-click to a comment or a pick", () => {

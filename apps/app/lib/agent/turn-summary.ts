@@ -9,6 +9,7 @@ import { isNoReply } from "@/lib/agent/coordinator-wake"
 import { isQuestionCall } from "@/lib/agent/question"
 import { PROPOSE_PLAN_TOOL } from "@/lib/agent/coordinator-plan"
 import { bareToolName } from "@/lib/agent/tool-name"
+import { deliveredFiles } from "@/lib/agent/delivered-files"
 
 type ToolCallMessage = Extract<AgentMessage, { role: "tool_call" }>
 
@@ -24,6 +25,13 @@ export type TranscriptItem =
       index: number
       steps: GroupedMessage[]
       summary: TurnSummary
+    }
+  | {
+      kind: "files"
+      /** The turn's first entry's flat index, for a stable React key. */
+      index: number
+      /** The Documents and Mockups the turn delivered (#1885), in order. */
+      ids: string[]
     }
 
 export interface TurnSummary {
@@ -83,7 +91,9 @@ function startsCards(turn: GroupedMessage[], i: number): boolean {
  * visible, as do plans, errors and the stopped marker: the summary sits where
  * the turn begins, then those follow in their original order. Workspace task
  * rows (chat cards) stay visible too, with the message just before them that
- * started them, and a turn whose only calls are task rows stays flat.
+ * started them, and a turn whose only calls are task rows stays flat. The
+ * Documents and Mockups the turn delivered follow its answer as one `files`
+ * item, the reply's tiles (#1885).
  *
  * A turn still streaming renders flat, so a run in progress shows its live
  * steps. With `liveFrom`, the index where the running turn began, that is
@@ -144,6 +154,12 @@ export function foldFinishedTurns(
       for (const entry of turn) items.push({ kind: "message", entry })
       return
     }
+    // The files the turn delivered show as tiles under its answer (#1885).
+    const delivered = deliveredFiles(turn.map((e) => e.message))
+    const files: TranscriptItem[] =
+      delivered.length > 0
+        ? [{ kind: "files", index: turn[0]!.index, ids: delivered }]
+        : []
 
     let answer = -1
     turn.forEach((e, i) => {
@@ -162,7 +178,11 @@ export function foldFinishedTurns(
       steps,
       summary: summarizeSteps(steps),
     })
-    for (const entry of shown) items.push({ kind: "message", entry })
+    for (const entry of shown) {
+      items.push({ kind: "message", entry })
+      if (entry === turn[answer]) items.push(...files.splice(0))
+    }
+    items.push(...files)
   })
   return items
 }

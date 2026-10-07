@@ -112,7 +112,11 @@ import {
   roomWorkspaceFacts,
   workspaceState,
 } from "@/lib/branch/workspace-state"
-import { parseLayerLink } from "@/lib/agent/layer-link"
+import { parseLayerLink, type LayerLinkKind } from "@/lib/agent/layer-link"
+import { fileModal } from "@/lib/canvas/file-modal"
+import { fileIdOf } from "@/lib/yjs/file-views"
+import { useOptionalYjs } from "@/lib/yjs/context"
+import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { useMockupTitle } from "@/lib/yjs/react"
 import { viewRequests } from "@/lib/canvas/view-requests"
 import { attachmentUrl } from "@/lib/chat-attachments"
@@ -1373,8 +1377,37 @@ function UserBubble({
  * shows it on the canvas. Anywhere else they read as references that do
  * nothing.
  */
+/**
+ * A click on a frame, Document or Mockup a reply names. A frame shows on the
+ * canvas, in the Coordinator's panel. A Document or Mockup with a view on the
+ * canvas selects that view (or, in the Coordinator's panel, shows it); one
+ * with no view opens in the file modal (#1885). A deleted one does nothing.
+ */
+function showNamedLayer(
+  collections: RoomCollections | null,
+  layer: { kind: LayerLinkKind; id: string },
+  onShow: ((layerId: string) => void) | undefined
+) {
+  if (layer.kind === "frame" || !collections) return onShow?.(layer.id)
+  const fileId = fileIdOf(collections, layer.id)
+  if (!fileId) return
+  const views =
+    layer.kind === "mockup"
+      ? collections.mockupLayers
+      : collections.markdownLayers
+  const viewId = views.has(layer.id) ? layer.id : views.viewIdsOf(fileId)[0]
+  if (!viewId) return fileModal.open(fileId)
+  if (onShow) onShow(viewId)
+  else viewRequests.emit({ ids: [viewId], select: true })
+}
+
 function AssistantMessage({ content }: { content: string }) {
   const tasks = useWorkspaceTasks()
+  const doc = useOptionalYjs()?.doc
+  const collections = useMemo(
+    () => (doc ? getRoomCollections(doc) : null),
+    [doc]
+  )
   const facts = useMemo(
     () =>
       tasks &&
@@ -1387,11 +1420,17 @@ function AssistantMessage({ content }: { content: string }) {
         const layer = typeof href === "string" ? parseLayerLink(href) : null
         if (layer) {
           const onShow = tasks?.onShow
+          const clickable =
+            !!onShow || (layer.kind !== "frame" && !!collections)
           return (
             <LayerHoverCard kind={layer.kind} id={layer.id}>
               <InlineRef
                 kind={layer.kind}
-                onClick={onShow && (() => onShow(layer.id))}
+                onClick={
+                  clickable
+                    ? () => showNamedLayer(collections, layer, onShow)
+                    : undefined
+                }
               >
                 {children}
               </InlineRef>
@@ -1430,7 +1469,7 @@ function AssistantMessage({ content }: { content: string }) {
         )
       },
     }),
-    [tasks, facts]
+    [tasks, facts, collections]
   )
   return (
     <ChatMarkdown

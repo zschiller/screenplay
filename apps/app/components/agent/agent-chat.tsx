@@ -28,6 +28,7 @@ import {
   TaskGroup,
   TurnSummaryRow,
 } from "./agent-message"
+import { FileTiles } from "./file-tiles"
 import {
   foldFrameDrives,
   groupToolCalls,
@@ -523,6 +524,8 @@ export function AgentChat({
                     >
                       {item.steps.map((entry) => renderEntry(entry))}
                     </TurnSummaryRow>
+                  ) : item.kind === "files" ? (
+                    <FileTiles key={`files-${item.index}`} ids={item.ids} />
                   ) : item.kind === "task-rows" ? (
                     <div
                       key={`tasks-${item.entries[0].index}`}

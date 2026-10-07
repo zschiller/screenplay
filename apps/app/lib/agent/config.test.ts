@@ -203,7 +203,7 @@ describe("buildAgentSystemPrompt — Documents (#1314)", () => {
     })
     expect(prompt).toContain("call `create_document`")
     expect(prompt).toContain(
-      "You can change any Document on the canvas, whichever chat or person made it"
+      "You can change any Document, on the canvas or not, whichever chat or person made it"
     )
   })
 

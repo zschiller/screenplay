@@ -438,6 +438,7 @@ describe("a Workspace chat’s MCP route", () => {
       "create_mockup",
       "update_mockup",
       "read_mockup",
+      "add_to_canvas",
       "start_editing",
       "read_code_file",
       "search_code",

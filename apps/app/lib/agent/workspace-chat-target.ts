@@ -24,6 +24,7 @@ import { chatFrameReadTools } from "./frame-read-ports"
 import { chatPageScreenshotTools } from "./page-screenshot-ports"
 import { buildDocumentTools } from "./document-tools"
 import { buildMockupTools } from "./mockup-tools"
+import { buildPlaceTools } from "./place-tools"
 import { senderPageOf } from "./sender-page"
 import { buildLayerHoldTools } from "./layer-hold"
 import { otherWorkspacesCodeReadTools } from "./code-read-tools"
@@ -207,6 +208,7 @@ export const workspaceChatTarget: ChatTargetSpec<
           senderPage: senderPageOf(chatId),
         }),
         ...buildMockupTools({ room, chatId, senderPage: senderPageOf(chatId) }),
+        ...buildPlaceTools({ room, chatId, senderPage: senderPageOf(chatId) }),
         ...buildLayerHoldTools({ room, chatId }),
         // Read-only access to the other Workspaces' code (#1315).
         ...otherWorkspacesCodeReadTools({ room, sandboxName }),

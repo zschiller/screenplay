@@ -1,12 +1,12 @@
 ---
 title: Mockups
-description: Self-contained design pages a chat sketches on the canvas, next to the running app, on their own, or in a box you draw.
+description: Self-contained design pages a chat sketches in its reply or on the canvas, next to the running app, on their own, or in a box you draw.
 ---
 
 # Mockups
 
-A mockup is a single self-contained page a chat draws on the canvas to show
-a design idea. It doesn’t wait for a preview, so it appears the moment it’s written.
+A mockup is a single self-contained page a chat makes to show a design idea.
+It doesn’t wait for a preview, so it appears the moment it’s written.
 Mockups let you compare a few options side by side with the running app
 before anything is built.
 
@@ -51,9 +51,27 @@ click’s 1280×800, names that screen.
   alt="A mockup box just drawn, asking what it should show, with the New chat chip beside the Send button"
 />
 
+## In the chat
+
+Every mockup a chat makes or changes shows in its reply as a square tile, two
+to a row: a preview of the page on top, and its icon and name under it. Click
+a tile to open the mockup in a window over the canvas, at its full size
+whatever the canvas zoom, with the page running, so its knobs, links and picks
+work as they do on the canvas.
+
+The chat decides whether a mockup also goes on the canvas. A take meant to
+sit beside the running app goes on the canvas; a page meant to be used at full
+size, like a page of options to pick from, stays in the chat. To put one on the
+canvas yourself, open it and choose **Add to canvas** from **⋯** in its title
+row: the window closes and the mockup lands beside the chat’s other layers,
+selected, with the canvas following it. Or ask the chat to put it there.
+
+A name the chat writes in its reply opens the window for a mockup that isn’t
+on the canvas, and selects the mockup on the canvas for one that is.
+
 ## Where mockups sit
 
-A mockup you drew stays where you drew it. Mockups a chat makes on its own
+A mockup you drew stays where you drew it. Mockups a chat puts on the canvas
 land here:
 
 - **Beside a frame.** A chat’s first mockup joins the group of its
@@ -113,9 +131,11 @@ mockup’s height on its whole page while you set the width. You can turn it on
 before the chat has written the page, and the height follows once it has.
 
 Clicking a mockup selects it rather than using the page. To click through
-it, press **Interact** under the selected mockup or double-click it, as on a
+it, press **Interact** under the selected mockup, as on a
 [frame](/guides/frames): the page takes your clicks, scrolls and typing,
-and <kbd>Esc</kbd> or a click outside the mockup returns to the canvas. A
+and <kbd>Esc</kbd> or a click outside the mockup returns to the canvas.
+Double-clicking a mockup opens it in a window at its full size, the same
+window as its [tile in the chat](#in-the-chat). A
 mockup has no address bar or reload. Mockups aren’t chat targets. A chat
 writes every mockup’s page, including the ones you draw.
 
@@ -274,7 +294,7 @@ chat on a repository or a [chat with no repository](/guides/agent#chats-with-no-
 </ScreenshotRow>
 
 - **You can take over at any moment.** Click the Interact button (its tooltip
-  says **Click to take control**) or double-click the mockup, and the agent stops at
+  says **Click to take control**), and the agent stops at
   once and asks before it carries on.
 
 In the browser, the agent’s clicks and keys on your own copy are simulated

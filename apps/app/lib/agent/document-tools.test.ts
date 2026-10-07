@@ -345,3 +345,31 @@ describe("files and views (#1883)", () => {
     expect(read).toContain("One body.")
   })
 })
+
+describe("Documents off the canvas (#1885)", () => {
+  it("makes a Document with no view when it isn’t placed, and edits it", async () => {
+    const { collections, run } = setup()
+
+    const out = await run("create_document", {
+      title: "Answer",
+      content: "First line.",
+      place: false,
+    })
+    const fileId = /id ([^)]+)\)/.exec(out)![1]!
+
+    expect(out).toContain("not on the canvas")
+    expect(collections.markdownLayers.has(fileId)).toBe(false)
+    expect(collections.layerFiles.get(fileId)).toMatchObject({
+      kind: "document",
+      title: "Answer",
+      lastChangedByChatId: "chat-1",
+    })
+    await run("append_to_document_body", {
+      document_id: fileId,
+      content: "Second line.",
+    })
+    const read = await run("read_document", { id: fileId })
+    expect(read).toContain("First line.")
+    expect(read).toContain("Second line.")
+  })
+})

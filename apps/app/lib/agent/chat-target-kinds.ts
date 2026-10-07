@@ -20,6 +20,7 @@ import { accountSkills } from "@/lib/skills/account"
 import type { SavedSkills } from "@/lib/skills/saved"
 import type { SkillSources } from "@/lib/skills/sources"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
+import { createRoomCollections } from "@/lib/yjs/schema"
 
 /**
  * The seam every chat target kind fills: a Branch's Workspace
@@ -221,16 +222,27 @@ export async function loadLayerDirectory(
 ): Promise<LayerDirectory> {
   return (
     (await room
-      .readDoc(({ markdownLayers }) => ({
-        documents: markdownLayers.toArray().map((d) => {
-          const chatId = lastChangedBy(d)
-          return {
-            id: d.id,
-            title: d.title,
-            ...(chatId ? { lastChangedByChatId: chatId } : {}),
-          }
-        }),
-      }))
+      .readDoc(({ doc }) => {
+        // One line per file, placed or not (#1885), from a fresh view: a
+        // cached collection can read stale on the server.
+        const c = createRoomCollections(doc)
+        return {
+          documents: c.layerFiles
+            .toArray()
+            .filter((f) => f.kind === "document")
+            .map((f) => {
+              const chatId = lastChangedBy(f)
+              return {
+                id: f.id,
+                title: f.title,
+                ...(chatId ? { lastChangedByChatId: chatId } : {}),
+                ...(c.markdownLayers.viewIdsOf(f.id).length === 0
+                  ? { placed: false }
+                  : {}),
+              }
+            }),
+        }
+      })
       .catch(() => null)) ?? { documents: [] }
   )
 }

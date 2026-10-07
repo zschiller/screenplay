@@ -20,6 +20,7 @@ import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { useMockupHtml } from "@/lib/yjs/react"
 import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
+import { fileModal } from "@/lib/canvas/file-modal"
 import { LabelChat } from "@/components/canvas/label-chat"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
@@ -196,7 +197,8 @@ const ignoreLive = () => {}
  * (`mockupSrcDoc`) keeps it from loading anything from the network. There is
  * no address bar or reload. A transparent overlay sits over the page so a
  * press selects and drags the mockup like any other layer; Interact (the
- * toolbar button, or a double-click) lifts it so the page takes the pointer.
+ * toolbar button) lifts it so the page takes the pointer, and a double-click
+ * opens the Mockup at 100% in the file modal (#1885).
  *
  * Ahead of its own scripts the page runs the frames' DOM bridge and the knobs
  * and shared-state runtimes (`MOCKUP_RUNTIME_JS`), so its chat can target an
@@ -261,9 +263,11 @@ function MockupLayerImpl({
   onCaptureReadyChange,
   onCaptureDirty,
 }: MockupLayerProps) {
-  const html = useMockupHtml(layer.id)
+  // The page is the file's, which every view of it shows.
+  const fileId = layer.fileId ?? layer.id
+  const html = useMockupHtml(fileId)
   const runtime = useMockupRuntime()
-  const resources = useMockupRefs(layer.id, html)
+  const resources = useMockupRefs(fileId, html)
   const containerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -544,6 +548,9 @@ function MockupLayerImpl({
             onHover={onHover}
             onSelect={onSelect}
             onFocus={onFocus}
+            // The page at 100%, its UI scale (#1885); Interact stays on the
+            // bar.
+            onOpen={() => fileModal.open(layer.fileId ?? layer.id)}
           />
         </div>
       )}
