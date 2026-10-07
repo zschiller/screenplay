@@ -44,6 +44,17 @@ control server (thumbnails) ◀──POST /thumbnail── TauriWebviewCapturer
 - **Clean shutdown**: the `Child` is parked in Tauri managed state and
   killed + reaped on `RunEvent::ExitRequested` (no orphaned sidecar).
 
+## Launch speed
+
+Launch is time the user watches the loading screen, so check these before adding work anywhere on the boot path:
+
+- **Tauri’s `setup` runs before the window paints.** Anything slow there delays the loading screen itself; that’s why the sidecar boots on its own thread (`boot` in `main.rs`).
+- **The desktop build doesn’t preload routes.** Next normally loads every route’s server bundle before answering its first request, which held `/api/health` back; `apps/app/next.config.mjs` sets `experimental.preloadEntriesOnStart: false` for the desktop build, and each route loads on first use.
+- **The first-run gate runs on every hard load.** The root layout (`apps/app/app/layout.tsx`) reads the gate’s state server-side through `getLocalSetupGateStatus` (`apps/app/lib/local-setup/gate-status.ts`): harness readiness and `readLocalGitHubTokenSource()`. Keep it local; never add a network call such as `gh api user`.
+- **Where the time goes** (warm boot, measured on a Linux standalone build when launch was last tuned, from about 1.5s to 0.95s): roughly 0.3s Next startup, 0.4s opening PGlite, the rest module loading plus Yjs and the terminal servers. A fresh PGlite adds about 2s on the first run, and the first launch after an install also unpacks the sidecar.
+
+To measure without a Mac, build the sidecar’s Next app with `desktop.env`, copy node-pty’s `pty.node` and `.next/static` into the standalone tree (as `build-sidecar.mjs` does), then time from spawning `server.js` to the first 200 from `/api/health`.
+
 ## Building the sidecar
 
 `next build --output=standalone` traces a self-contained tree but leaves five
