@@ -9,6 +9,11 @@ import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { holdLayer } from "@/lib/agent/layer-hold"
+import {
+  PAGE_PARAM_DESCRIPTION,
+  pickLayerPage,
+  type SenderPage,
+} from "@/lib/agent/layer-page"
 import { documentFragment, setFragmentTitle } from "@/lib/yjs/fragment-text"
 import { mentionMarkdownNames } from "@/lib/mention-kinds"
 import {
@@ -35,6 +40,11 @@ export interface DocumentToolContext {
   room: RoomDoc
   /** The chat the tools act for: what the Documents it changes record. */
   chatId: string
+  /**
+   * The page the turn's sender is on (#1842), where a new Document lands
+   * unless it names one. Without it, the first page.
+   */
+  senderPage?: SenderPage
 }
 
 /** A new Document's size, as a click with the Document tool makes it. */
@@ -68,26 +78,36 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
   const tools = {
     create_document: tool({
       description:
-        "Create a Document on the canvas, beside this chat’s other frames and Documents. Any chat can change it later, as you can change any Document on the canvas that no other chat is changing right now. `content` is its body as CommonMark markdown (don’t repeat the title as a `#` heading). Returns its id.",
-      inputSchema: jsonSchema<{ title?: string; content?: string }>({
+        "Create a Document on the canvas, on the sender’s page (or the page you name), beside this chat’s other frames and Documents there. Any chat can change it later, as you can change any Document on the canvas that no other chat is changing right now. `content` is its body as CommonMark markdown (don’t repeat the title as a `#` heading). Returns its id.",
+      inputSchema: jsonSchema<{
+        title?: string
+        content?: string
+        page?: string
+      }>({
         type: "object",
         properties: {
           title: { type: "string" },
           content: { type: "string" },
+          page: { type: "string", description: PAGE_PARAM_DESCRIPTION },
         },
       }),
-      execute: async ({ title, content }) =>
-        ctx.room.mutateDoc(({ doc }) => {
+      execute: async ({ title, content, page }) => {
+        const senderPageId = await ctx.senderPage?.()
+        return ctx.room.mutateDoc(({ doc }) => {
           const c = createRoomCollections(doc)
+          const picked = pickLayerPage(c, page, senderPageId)
+          if ("error" in picked) return picked.error
+          const ops = createCanvasOps(c, { currentPageId: () => picked.pageId })
+          // Placed beside the chat's Groups on that page, clear of the others
+          // there: other pages' Groups don't share its plane.
           const anchor = placeNewGroupBeside(
-            c.iframeLayerGroups.toArray(),
+            ops.groupsOnPage(),
             c.iframeLayers.toArray(),
             sizedLayersOf(c),
             chatGroups(c, ctx.chatId),
             DOCUMENT_SIZE.width,
             DOCUMENT_SIZE.height
           )
-          const ops = createCanvasOps(c)
           let docId = ""
           ops.batch(() => {
             docId = ops.createDocument(anchor, DOCUMENT_SIZE, {
@@ -102,7 +122,8 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
             }
           })
           return `Created document "${title || "Untitled"}" (id ${docId}).`
-        }),
+        })
+      },
     }),
 
     replace_document_body: tool({

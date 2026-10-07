@@ -262,6 +262,9 @@ The user’s messages may reference docs that live on the canvas (separate from 
 What "this" means:
 ${canvasViewPrompt}
 
+Pages:
+${chatPagesPrompt(t)}
+
 Writing Documents:
 When the user asks for a plan, notes, a spec or any other write-up, put it in a Document on the canvas rather than a file in the project: call \`${t("create_document")}\` with a title and the body as markdown. You can change any Document on the canvas, whichever chat or person made it, and any chat can change yours: rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Read any Document with \`${t("read_document")}\` first. Before you change a Mockup or Document that’s already on the canvas, call \`${t("start_editing")}\` with its id first: the canvas shows you working on it, and no other chat can change it until your turn ends. While another chat’s turn is changing one, that chat holds it, and \`${t("start_editing")}\` or your change is refused with its name: tell the person who has it and carry on with the rest of your turn. In a body, separate paragraphs with a blank line and don’t repeat the title as a \`#\` heading. When a message names a Document as [document: <id>], someone drew that empty Document on the canvas for you: write its title and body with \`${t("set_document_title")}\` and \`${t("replace_document_body")}\` instead of creating a new one.`
 }
@@ -338,6 +341,14 @@ To read or search the repository’s issues and pull requests and their comments
  * Shared by the Workspace and Coordinator prompts.
  */
 const canvasViewPrompt = `A user message may end with a \`${CANVAS_VIEW_FOOTER_TOKEN}\` footer listing, with ids, what its sender had selected on the canvas and what was on their screen when they sent it. The user doesn’t see it. When they say "this", "that", "these" or "here" without naming it, they mean their selection first, then what was on their screen, the first listed taking the most of it. Several people can share a chat and each sees their own canvas, so read the footer of the message you’re answering, which names its sender; an earlier message’s footer is what its sender saw back then. It is a snapshot from when they sent it. When neither the selection nor the screen settles what they mean, ask.`
+
+/**
+ * How a chat (not the Coordinator) works with a canvas's pages (#1842): new
+ * layers on the sender's page or one it names; editing pages is the
+ * Coordinator's alone, so two chats never fight over them.
+ */
+const chatPagesPrompt = (t: ToolNaming["name"]) =>
+  `A canvas can have several pages, each with its own layers. On a canvas with more than one, the \`${CANVAS_VIEW_FOOTER_TOKEN}\` footer names the page its sender was on, and \`${t("read_document")}\` and \`${t("read_mockup")}\` say which page a layer is on. \`${t("create_mockup")}\` and \`${t("create_document")}\` put a new one on that sender’s page, beside your other layers there; pass \`page\` with an existing page’s name only when the person asks for that page. You can’t create, rename, delete or reorder pages, or move layers between them: when asked to, say that’s the Coordinator’s job.`
 
 /**
  * How the Workspace agent handles a PR event that woke it (#1703): fix and
@@ -500,6 +511,8 @@ export function buildSketchSystemPrompt(opts: {
     `Mockups: when the user wants to see a design idea, or to compare takes side by side, call \`${t("create_mockup")}\` with a self-contained HTML page (inline styles and scripts, no network). Make one Mockup per take, and rewrite any Mockup on the canvas, whichever chat made it, with \`${t("update_mockup")}\`. Before you change a Mockup or Document that’s already on the canvas, call \`${t("start_editing")}\` with its id first: the canvas shows you working on it, and no other chat can change it until your turn ends. While another chat’s turn is changing one, that chat holds it, and \`${t("start_editing")}\` or your change is refused with its name: tell the person who has it and carry on with the rest of your turn. When a message names a Mockup as [mockup: <id>], someone drew that empty box on the canvas for you: write its page (and a title) with \`${t("update_mockup")}\` instead of creating a new one. \`${t("read_mockup")}\` reads any Mockup’s page.`,
     "",
     `Documents: for a plan, notes, a spec or any other write-up, call \`${t("create_document")}\` with a title and the body as markdown. You can change any Document on the canvas, whichever chat or person made it: rewrite one with \`${t("replace_document_body")}\`, add to it with \`${t("append_to_document_body")}\`, and retitle it with \`${t("set_document_title")}\`. Read any Document with \`${t("read_document")}\`. Before you change a Mockup or Document that’s already on the canvas, call \`${t("start_editing")}\` with its id first: the canvas shows you working on it, and no other chat can change it until your turn ends. While another chat’s turn is changing one, that chat holds it, and \`${t("start_editing")}\` or your change is refused with its name: tell the person who has it and carry on with the rest of your turn. In a body, separate paragraphs with a blank line and don’t repeat the title as a \`#\` heading. When a message names a Document as [document: <id>], someone drew that empty Document on the canvas for you: write its title and body with \`${t("set_document_title")}\` and \`${t("replace_document_body")}\` instead of creating a new one.`,
+    "",
+    `Pages: ${chatPagesPrompt(t)}`,
     "",
     frameDrivePrompt(t, { frames: frameDriveRuntime(), workspace: false }),
     "",

@@ -15,6 +15,7 @@ import {
   type AcpToolCallRecord,
 } from "@/lib/agent/acp/record"
 import type { RunStatus } from "@/lib/agent/run-state"
+import { blockText } from "@/lib/agent/acp/schema"
 
 export async function upsertChat(params: {
   chatId: string
@@ -182,6 +183,25 @@ export async function loadAcpHistory(
     .where(eq(agentMessage.chatId, chatId))
     .orderBy(asc(agentMessage.createdAt))
   return rows.map((r) => r.message as AcpMessageRecord)
+}
+
+/**
+ * The text of a chat's latest user message as sent, footers included: the
+ * one the running turn answers (or its latest Steer). `null` when it has
+ * none.
+ */
+export async function latestUserMessageText(
+  chatId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ message: agentMessage.message })
+    .from(agentMessage)
+    .where(and(eq(agentMessage.chatId, chatId), eq(agentMessage.role, "user")))
+    .orderBy(desc(agentMessage.createdAt))
+    .limit(1)
+  const record = row?.message as AcpMessageRecord | undefined
+  if (record?.role !== "user") return null
+  return record.content.map(blockText).join("")
 }
 
 /**

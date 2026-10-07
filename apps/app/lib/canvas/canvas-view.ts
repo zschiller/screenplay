@@ -90,6 +90,8 @@ export interface CanvasViewRecords {
  */
 export function describeCanvasView(input: {
   sender?: string
+  /** The page they're on, on a canvas with more than one (#1842). */
+  page?: { id: string; name: string }
   selectedGroupIds: Iterable<string>
   selectedLayerIds: Iterable<string>
   onScreenIds: Iterable<string>
@@ -125,6 +127,7 @@ export function describeCanvasView(input: {
     [...new Set(ids)].map(item).filter((i): i is CanvasViewItem => i !== null)
   return {
     ...(input.sender ? { sender: input.sender } : {}),
+    ...(input.page ? { page: input.page } : {}),
     selected: [...groups, ...named(input.selectedLayerIds)].slice(
       0,
       CANVAS_VIEW_LIMIT

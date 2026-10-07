@@ -24,6 +24,7 @@ import { chatFrameReadTools } from "./frame-read-ports"
 import { chatPageScreenshotTools } from "./page-screenshot-ports"
 import { buildDocumentTools } from "./document-tools"
 import { buildMockupTools } from "./mockup-tools"
+import { senderPageOf } from "./sender-page"
 import { buildLayerHoldTools } from "./layer-hold"
 import { otherWorkspacesCodeReadTools } from "./code-read-tools"
 import { buildLayerReadTools } from "./layer-read-tools"
@@ -196,8 +197,14 @@ export const workspaceChatTarget: ChatTargetSpec<
         // Driving a frame: your own on the Mac (#1389), the shared one on
         // hosted (#1396).
         ...chatFrameDriveTools(sandbox),
-        ...buildDocumentTools({ room, chatId }),
-        ...buildMockupTools({ room, chatId }),
+        // New ones land on the sender's page, or a page the agent names
+        // (#1842).
+        ...buildDocumentTools({
+          room,
+          chatId,
+          senderPage: senderPageOf(chatId),
+        }),
+        ...buildMockupTools({ room, chatId, senderPage: senderPageOf(chatId) }),
         ...buildLayerHoldTools({ room, chatId }),
         // Read-only access to the other Workspaces' code (#1315).
         ...otherWorkspacesCodeReadTools({ room, sandboxName }),

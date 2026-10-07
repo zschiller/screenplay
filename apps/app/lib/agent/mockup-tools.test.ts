@@ -12,7 +12,7 @@ import {
 } from "@/test/canvas/harness"
 
 /** A chat's Mockup tools over a canvas harness, as the agent route builds them. */
-function chatTools(chatId = "chat-1") {
+function chatTools(chatId = "chat-1", senderPage?: () => string | undefined) {
   const h = makeHarness()
   const room = {
     roomId: "room-1",
@@ -28,7 +28,11 @@ function chatTools(chatId = "chat-1") {
     "chat-2",
     baseChat("chat-2", { label: "Other" })
   )
-  const tools = buildMockupTools({ room, chatId })
+  const tools = buildMockupTools({
+    room,
+    chatId,
+    ...(senderPage ? { senderPage: async () => senderPage() } : {}),
+  })
   const run = <K extends keyof typeof tools>(
     name: K,
     input: Parameters<NonNullable<(typeof tools)[K]["execute"]>>[0]
@@ -423,5 +427,140 @@ describe("holding a Mockup (#1725)", () => {
 
     expect(out).toContain("Other is changing this right now")
     expect(mockupHtml(doc, mockupId).toString()).toBe("<p>theirs</p>")
+  })
+})
+
+describe("pages (#1842)", () => {
+  /** A canvas with "Page 1" and "Explorations", the sender on `page`. */
+  function onPages() {
+    const sender = { page: "page-2" as string | undefined }
+    const t = chatTools("chat-1", () => sender.page)
+    t.collections.pages.set("page-1", {
+      id: "page-1",
+      name: "Page 1",
+      order: 0,
+    })
+    t.collections.pages.set("page-2", {
+      id: "page-2",
+      name: "Explorations",
+      order: 1,
+    })
+    const pageOf = (mockupId: string) =>
+      t.collections.iframeLayerGroups
+        .toArray()
+        .find((g) => g.members.some((m) => m.id === mockupId))?.pageId
+    return { ...t, sender, pageOf }
+  }
+
+  it("lands on the sender’s page", async () => {
+    const { run, pageOf } = onPages()
+
+    const id = idIn(
+      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+    )
+
+    expect(pageOf(id)).toBe("page-2")
+  })
+
+  it("lands on the first page when no message names one", async () => {
+    const { run, pageOf, sender } = onPages()
+    sender.page = undefined
+
+    const id = idIn(
+      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+    )
+
+    expect(pageOf(id)).toBe("page-1")
+  })
+
+  it("lands on a page it names, by name or id", async () => {
+    const { run, pageOf } = onPages()
+
+    const byName = idIn(
+      await run("create_mockup", {
+        title: "A",
+        html: "<p>A</p>",
+        page: "page 1",
+      })
+    )
+    const byId = idIn(
+      await run("create_mockup", {
+        title: "B",
+        html: "<p>B</p>",
+        page: "page-2",
+      })
+    )
+
+    expect(pageOf(byName)).toBe("page-1")
+    expect(pageOf(byId)).toBe("page-2")
+  })
+
+  it("lists the pages for a name no page has, and draws nothing", async () => {
+    const { run, collections } = onPages()
+
+    const out = await run("create_mockup", {
+      title: "A",
+      html: "<p>A</p>",
+      page: "Archive",
+    })
+
+    expect(out).toContain('no page "Archive"')
+    expect(out).toContain('"Page 1" (page-1), "Explorations" (page-2)')
+    expect(collections.mockupLayers.toArray()).toEqual([])
+  })
+
+  it("sits beside the chat’s Mockups and frames only on that page", async () => {
+    const { run, collections, pageOf, sender } = onPages()
+    collections.iframeLayers.set(
+      "frame-1",
+      baseLayer("frame-1", { branchId: "ws-1" })
+    )
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "frame-1" }])
+    sender.page = "page-1"
+    const first = idIn(
+      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+    )
+    sender.page = "page-2"
+
+    const second = idIn(
+      await run("create_mockup", { title: "B", html: "<p>B</p>" })
+    )
+    const third = idIn(
+      await run("create_mockup", { title: "C", html: "<p>C</p>" })
+    )
+
+    expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
+      { kind: "iframe-layer", id: "frame-1" },
+      { kind: "mockup-layer", id: first },
+    ])
+    expect(pageOf(second)).toBe("page-2")
+    const onSecondPage = collections.iframeLayerGroups
+      .toArray()
+      .filter((g) => g.pageId === "page-2")
+    expect(onSecondPage).toHaveLength(1)
+    expect(onSecondPage[0]!.members.map((m) => m.id)).toEqual([second, third])
+  })
+
+  it("reads say which page a Mockup is on", async () => {
+    const { run } = onPages()
+    const id = idIn(
+      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+    )
+
+    expect(await run("read_mockup", {})).toContain(
+      `- ${id}: A (page "Explorations")`
+    )
+    expect(await run("read_mockup", { mockup_id: id })).toMatch(
+      /^Page: "Explorations"\n\n# A\n/
+    )
+  })
+
+  it("says nothing of pages on a one-page canvas", async () => {
+    const { run } = chatTools()
+    const id = idIn(
+      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+    )
+
+    expect(await run("read_mockup", { mockup_id: id })).toMatch(/^# A\n/)
   })
 })

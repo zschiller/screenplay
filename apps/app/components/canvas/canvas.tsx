@@ -669,6 +669,10 @@ export function Canvas({
       workspaceTitles,
     },
     sender: session?.user.name,
+    // Named only once there's a choice of page: a one-page canvas's chats
+    // read as before.
+    page:
+      pages.length > 1 ? pages.find((p) => p.id === currentPageId) : undefined,
   })
 
   // Awareness mirrors the Interaction controller's cursor-chat verbs read: the

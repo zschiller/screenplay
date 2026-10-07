@@ -13,6 +13,13 @@ import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { holdLayer } from "@/lib/agent/layer-hold"
+import {
+  layerPageName,
+  PAGE_PARAM_DESCRIPTION,
+  pickLayerPage,
+  type SenderPage,
+} from "@/lib/agent/layer-page"
+import { groupsOnPage, orderedPages } from "@/lib/canvas/pages"
 
 /**
  * A chat's Mockup tools (#1309): write a static HTML page onto the canvas as a
@@ -34,6 +41,11 @@ export interface MockupToolContext {
   room: RoomDoc
   /** The chat whose turn this is: what the Mockups it changes record. */
   chatId: string
+  /**
+   * The page the turn's sender is on (#1842), where a new Mockup lands unless
+   * it names one. Without it, the first page.
+   */
+  senderPage?: SenderPage
 }
 
 /** Longest page a Mockup takes, in characters: it lives in the Room doc. */
@@ -50,7 +62,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
   const tools = {
     create_mockup: tool({
       description:
-        "Draw a Mockup on the canvas: a static HTML page shown beside the live frames, for sketching a design idea without building it. It needs no dev server and appears at once, next to this chat’s other Mockups, or else in the Group of this Workspace’s frames. Make one Mockup per take so they sit side by side. Returns the Mockup’s id, which update_mockup takes.",
+        "Draw a Mockup on the canvas: a static HTML page shown beside the live frames, for sketching a design idea without building it. It needs no dev server and appears at once on the sender’s page (or the page you name), next to this chat’s other Mockups there, or else in the Group of this Workspace’s frames there. Make one Mockup per take so they sit side by side. Returns the Mockup’s id, which update_mockup takes.",
       inputSchema: z.object({
         title: z
           .string()
@@ -76,21 +88,28 @@ export function buildMockupTools(ctx: MockupToolContext) {
           .describe(
             `Height in canvas pixels (default ${DEFAULT_IFRAME_LAYER_HEIGHT})`
           ),
+        page: z.string().optional().describe(PAGE_PARAM_DESCRIPTION),
       }),
-      execute: async ({ title, html, width, height }) => {
+      execute: async ({ title, html, width, height, page }) => {
+        const senderPageId = await ctx.senderPage?.()
         const created = await ctx.room.mutateDoc(({ doc }) => {
           const collections = createRoomCollections(doc)
-          const made = createCanvasOps(collections).createMockup({
+          const picked = pickLayerPage(collections, page, senderPageId)
+          if ("error" in picked) return picked
+          const made = createCanvasOps(collections, {
+            currentPageId: () => picked.pageId,
+          }).createMockup({
             html,
             title,
             width: width ?? DEFAULT_IFRAME_LAYER_WIDTH,
             height: height ?? DEFAULT_IFRAME_LAYER_HEIGHT,
             lastChangedByChatId: ctx.chatId,
-            groupId: mockupGroupFor(collections, ctx.chatId),
+            groupId: mockupGroupFor(collections, ctx.chatId, picked.pageId),
           })
           if (made) holdLayer(collections, ctx.chatId, made.mockupId)
           return made
         })
+        if (created && "error" in created) return created.error
         if (!created) return "The Mockup couldn’t be placed. Try again."
         return `Created Mockup "${title}" (id ${created.mockupId}).`
       },
@@ -142,18 +161,25 @@ export function buildMockupTools(ctx: MockupToolContext) {
       }),
       execute: async ({ mockup_id }) => {
         if (mockup_id === undefined) {
-          const own = await ctx.room.readDoc(({ mockupLayers }) =>
-            mockupLayers
+          const own = await ctx.room.readDoc((c) =>
+            c.mockupLayers
               .toArray()
               .filter((m) => lastChangedBy(m) === ctx.chatId)
-              .map((m) => ({ id: m.id, title: m.title }))
+              .map((m) => ({
+                id: m.id,
+                title: m.title,
+                page: layerPageName(c, { kind: "mockup-layer", id: m.id }),
+              }))
           )
           if (own.length === 0) {
             return "No Mockup was changed last by this chat. Pass a mockup_id to read any Mockup on the canvas."
           }
           return [
             "Mockups this chat changed last:",
-            ...own.map((m) => `- ${m.id}: ${m.title}`),
+            ...own.map(
+              (m) =>
+                `- ${m.id}: ${m.title}` + (m.page ? ` (page "${m.page}")` : "")
+            ),
           ].join("\n")
         }
         const found = await ctx.room.mutateDoc(({ doc }) => {
@@ -165,11 +191,20 @@ export function buildMockupTools(ctx: MockupToolContext) {
           holdLayer(collections, ctx.chatId, mockup_id)
           return {
             title: mockup.title,
+            page: layerPageName(collections, {
+              kind: "mockup-layer",
+              id: mockup_id,
+            }),
             html: mockupHtml(doc, mockup_id).toString(),
           }
         })
         if (!found) return `There’s no Mockup ${mockup_id}.`
-        return [`# ${found.title}`, "", found.html || "(empty page)"].join("\n")
+        return [
+          ...(found.page ? [`Page: "${found.page}"`, ""] : []),
+          `# ${found.title}`,
+          "",
+          found.html || "(empty page)",
+        ].join("\n")
       },
     }),
   }
@@ -182,27 +217,31 @@ export function buildMockupTools(ctx: MockupToolContext) {
 }
 
 /**
- * Where a chat's new Mockup lands: beside the latest Mockup it changed, else in the Group
- * of its Workspace's first frame, else (`undefined`) in a new Group beside the
- * others.
+ * Where a chat's new Mockup lands on page `pageId`: beside the latest Mockup
+ * it changed there, else in the Group of its Workspace's first frame there,
+ * else (`undefined`) in a new Group beside the others on that page.
  */
 export function mockupGroupFor(
   collections: RoomCollections,
-  chatId: string
+  chatId: string,
+  pageId: string
 ): string | undefined {
-  const groups = collections.iframeLayerGroups.toArray()
+  const groups = groupsOnPage(
+    collections.iframeLayerGroups.toArray(),
+    orderedPages(collections.pages.toArray()),
+    pageId
+  )
   const groupOf = (kind: string, ids: Set<string>) =>
     groups.find((g) =>
       getGroupMembers(g).some((m) => m.kind === kind && ids.has(m.id))
     )?.id
-  const own = collections.mockupLayers
+  const latest = collections.mockupLayers
     .toArray()
     .filter((m) => lastChangedBy(m) === chatId)
-  const latest = own.at(-1)
-  if (latest) {
-    const id = groupOf("mockup-layer", new Set([latest.id]))
-    if (id) return id
-  }
+    .map((m) => groupOf("mockup-layer", new Set([m.id])))
+    .filter((id) => id !== undefined)
+    .at(-1)
+  if (latest) return latest
   const branchId = collections.chatSessions.get(chatId)?.branchId
   if (!branchId) return undefined
   const frames = new Set(
