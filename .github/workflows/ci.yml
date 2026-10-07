@@ -5,7 +5,7 @@ name: CI
 # deploys don't provide — Vercel only runs `next build`, so without this a
 # broken test could merge and ship unnoticed.
 #
-# The jobs run side by side: typecheck and lint, the app's unit tests in three
+# The jobs run side by side: typecheck, lint, the app's unit tests in three
 # shards, and the browser tests (`*.browser.test.ts`, a real Chrome, Xvfb and ffmpeg)
 # on a runner of their own so they aren't starved by the rest. `test` is the
 # one check that says whether all of them passed.
@@ -60,14 +60,32 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      # The repo's ESLint rules (the sparkle icon ban, React hooks rules) only
-      # hold if something runs them. An error fails the job; warnings don't.
-      - name: Lint
-        run: pnpm lint
-
       # Every package's tests but the app's, which the jobs below run.
       - name: Test packages
         run: pnpm turbo run test --filter='!app'
+
+  # The repo's ESLint rules (the sparkle icon ban, React hooks rules) only
+  # hold if something runs them. An error fails the job; warnings don't.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-lint-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-lint-
+
+      - name: Lint
+        run: pnpm lint
 
   unit:
     runs-on: ubuntu-latest
@@ -159,7 +177,7 @@ jobs:
   # The one check to require: green only when every job above is.
   test:
     if: always()
-    needs: [typecheck, unit, browser]
+    needs: [typecheck, lint, unit, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
