@@ -6,6 +6,7 @@ import {
   memo,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -44,7 +45,6 @@ import {
 import {
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenuButton,
   SidebarProvider,
 } from "@workspace/ui/components/sidebar"
@@ -86,6 +86,7 @@ import {
 } from "@/components/canvas/move-to-page"
 import {
   PAGE_DROP_PREFIX,
+  PAGES_COLLAPSED_HEIGHT,
   PagesSection,
   pagesPanelHeight,
   type PagesSectionProps,
@@ -416,6 +417,27 @@ interface RoomSidebarProps {
 /** How many page rows the Pages panel grows to fit before it scrolls. */
 const MAX_FITTED_PAGE_ROWS = 5
 
+/** How long the Pages panel takes to fold or unfold (Tailwind's duration-200). */
+const PAGES_FOLD_MS = 200
+
+const PAGES_OPEN_KEY = "screenplay:pages-open"
+
+function readPagesOpen(): boolean {
+  try {
+    return window.localStorage.getItem(PAGES_OPEN_KEY) !== "false"
+  } catch {
+    return true
+  }
+}
+
+function writePagesOpen(open: boolean) {
+  try {
+    window.localStorage.setItem(PAGES_OPEN_KEY, String(open))
+  } catch {
+    // Private windows and blocked storage: it just isn't remembered.
+  }
+}
+
 /**
  * The canvas's left sidebar: its pages, and the groups, frames and documents
  * on the current one, and nothing else. The Workspaces list lives in the chat panel's
@@ -456,17 +478,60 @@ function RoomSidebarImpl({
   footer,
 }: RoomSidebarProps) {
   // The Pages panel fits its rows (up to five) until someone drags the
-  // divider; from then on it keeps the height they gave it.
+  // divider; from then on it keeps the height they gave it. Its heading folds
+  // it to just the heading, which each person's browser remembers.
   const pagesPanelRef = useRef<PanelImperativeHandle>(null)
   const pagesSizedByHandRef = useRef(false)
+  // The hand-given height to unfold back to.
+  const pagesHandHeightRef = useRef<number | null>(null)
   const fittedPageRows = Math.min(pages.length, MAX_FITTED_PAGE_ROWS)
+  const [pagesOpen, setPagesOpen] = useState(readPagesOpen)
+  // While the panel folds or unfolds, both panels animate their size.
+  const [pagesFolding, setPagesFolding] = useState(false)
+  const foldTimerRef = useRef<number | undefined>(undefined)
   const [pagesDefaultSize] = useState(
-    () => `${pagesPanelHeight(fittedPageRows)}px`
+    () =>
+      `${pagesOpen ? pagesPanelHeight(fittedPageRows) : PAGES_COLLAPSED_HEIGHT}px`
   )
   useLayoutEffect(() => {
-    if (pagesSizedByHandRef.current) return
-    pagesPanelRef.current?.resize(`${pagesPanelHeight(fittedPageRows)}px`)
-  }, [fittedPageRows])
+    const panel = pagesPanelRef.current
+    if (!panel) return
+    if (!pagesOpen) {
+      if (!panel.isCollapsed()) panel.collapse()
+      return
+    }
+    if (pagesSizedByHandRef.current) {
+      if (pagesHandHeightRef.current === null) return
+      panel.resize(`${pagesHandHeightRef.current}px`)
+      pagesHandHeightRef.current = null
+      return
+    }
+    panel.resize(`${pagesPanelHeight(fittedPageRows)}px`)
+  }, [pagesOpen, fittedPageRows])
+  useEffect(() => () => window.clearTimeout(foldTimerRef.current), [])
+  // Dragged past its last row, the panel would fold; it stops at one row
+  // instead, as before the heading folded it. A drag can't be overridden
+  // mid-way, so that waits for the pointer to lift.
+  const pagesDraggingRef = useRef(false)
+  const unfoldDraggedPages = useCallback(() => {
+    const panel = pagesPanelRef.current
+    if (pagesDraggingRef.current || !panel?.isCollapsed()) return
+    panel.resize(`${pagesPanelHeight(1)}px`)
+  }, [])
+  const onPagesOpenChange = useCallback((open: boolean) => {
+    const panel = pagesPanelRef.current
+    if (!open && panel && pagesSizedByHandRef.current) {
+      pagesHandHeightRef.current = panel.getSize().inPixels
+    }
+    setPagesOpen(open)
+    writePagesOpen(open)
+    setPagesFolding(true)
+    window.clearTimeout(foldTimerRef.current)
+    foldTimerRef.current = window.setTimeout(
+      () => setPagesFolding(false),
+      PAGES_FOLD_MS + 50
+    )
+  }, [])
 
   const iframeLayersById = useMemo(() => {
     const m = new Map<string, RoomSidebarProps["iframeLayers"][number]>()
@@ -772,7 +837,11 @@ function RoomSidebarImpl({
           >
             <ResizablePanelGroup
               orientation="vertical"
-              className="min-h-0 flex-1"
+              className={cn(
+                "min-h-0 flex-1",
+                pagesFolding &&
+                  "[&>[data-panel]]:transition-[flex-grow] [&>[data-panel]]:duration-200 [&>[data-panel]]:ease-out motion-reduce:[&>[data-panel]]:transition-none"
+              )}
             >
               <ResizablePanel
                 id="pages"
@@ -780,7 +849,18 @@ function RoomSidebarImpl({
                 defaultSize={pagesDefaultSize}
                 minSize={`${pagesPanelHeight(1)}px`}
                 maxSize="70%"
+                // Folded by its heading only: the divider is off while folded,
+                // and dragging it up stops at one row, as before.
+                collapsible
+                collapsedSize={`${PAGES_COLLAPSED_HEIGHT}px`}
+                onResize={() => {
+                  if (pagesOpen) unfoldDraggedPages()
+                }}
                 groupResizeBehavior="preserve-pixel-size"
+                // The rows clip as the panel folds, never scroll.
+                className={cn(
+                  (!pagesOpen || pagesFolding) && "!overflow-hidden"
+                )}
               >
                 <PagesSection
                   pages={pages}
@@ -788,21 +868,33 @@ function RoomSidebarImpl({
                   onSelectPage={onSelectPage}
                   onAddPage={onAddPage}
                   onRenamePage={onRenamePage}
+                  open={pagesOpen}
+                  onOpenChange={onPagesOpenChange}
                 />
               </ResizablePanel>
               <ResizableHandle
                 aria-label="Resize pages"
+                disabled={!pagesOpen}
                 className="bg-sidebar-border focus-visible:ring-0"
                 onPointerDown={() => {
+                  if (!pagesOpen) return
                   pagesSizedByHandRef.current = true
+                  pagesDraggingRef.current = true
+                  window.addEventListener(
+                    "pointerup",
+                    () => {
+                      pagesDraggingRef.current = false
+                      unfoldDraggedPages()
+                    },
+                    { once: true }
+                  )
                 }}
                 onKeyDown={() => {
-                  pagesSizedByHandRef.current = true
+                  if (pagesOpen) pagesSizedByHandRef.current = true
                 }}
               />
               <ResizablePanel id="layers" minSize="80px">
                 <SidebarGroup>
-                  <SidebarGroupLabel>Layers</SidebarGroupLabel>
                   <SidebarGroupContent>
                     <DropHintContext.Provider value={dropHint}>
                       <SortableContext

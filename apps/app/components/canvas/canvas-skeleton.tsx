@@ -130,8 +130,8 @@ export function CanvasSkeleton({
 
 /**
  * The sidebar while it loads: the Pages section with one row, its divider,
- * then the Layers label and rows at a layer row's height and inset, so the
- * real ones land where these sat (#1835).
+ * then layer rows at a layer row's height and inset, so the real ones land
+ * where these sat (#1835).
  */
 function SidebarRows() {
   return (
@@ -144,7 +144,6 @@ function SidebarRows() {
       </div>
       <div className="h-px bg-sidebar-border" />
       <div className="flex flex-col p-2">
-        <SidebarGroupLabel>Layers</SidebarGroupLabel>
         <LayerRows />
       </div>
     </>

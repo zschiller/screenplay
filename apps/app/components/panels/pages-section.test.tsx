@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
 import * as Y from "yjs"
 import {
   Awareness,
@@ -42,6 +49,9 @@ const PAGES: PageData[] = [
 
 let awareness = new Awareness(new Y.Doc())
 
+/** The page rows, apart from the heading, which also names the current page. */
+const pageList = () => within(screen.getByRole("list", { name: "Pages" }))
+
 function renderSection(
   overrides: Partial<React.ComponentProps<typeof PagesSection>> = {}
 ) {
@@ -52,6 +62,8 @@ function renderSection(
     onSelectPage: vi.fn(),
     onAddPage: vi.fn(() => "p2"),
     onRenamePage: vi.fn(),
+    open: true,
+    onOpenChange: vi.fn(),
     ...overrides,
   }
   render(
@@ -74,13 +86,13 @@ describe("PagesSection (#1835)", () => {
     const rows = screen.getAllByRole("listitem").map((li) => li.textContent)
     expect(rows).toEqual(["Homepage", "Pricing"])
     expect(
-      screen
+      pageList()
         .getByText("Homepage")
         .closest("button")
         ?.getAttribute("aria-current")
     ).toBe("page")
     expect(
-      screen
+      pageList()
         .getByText("Pricing")
         .closest("button")
         ?.hasAttribute("aria-current")
@@ -89,7 +101,7 @@ describe("PagesSection (#1835)", () => {
 
   it("switches page on click", () => {
     const props = renderSection()
-    fireEvent.click(screen.getByText("Pricing"))
+    fireEvent.click(pageList().getByText("Pricing"))
     expect(props.onSelectPage).toHaveBeenCalledWith("p2")
   })
 
@@ -131,7 +143,7 @@ function join(name: string, pageId?: string) {
 }
 
 const peopleOn = (name: string) =>
-  screen
+  pageList()
     .getByText(name)
     .closest("button")
     ?.querySelector("[role=img]")
@@ -165,5 +177,39 @@ describe("PagesSection people (#1840)", () => {
     )
     expect(peopleOn("Pricing")).toBeNull()
     expect(peopleOn("Homepage")).toBe("Maya")
+  })
+})
+
+describe("PagesSection folding", () => {
+  const heading = () => screen.getByRole("button", { expanded: true })
+
+  it("folds and unfolds from its heading", () => {
+    const props = renderSection()
+    fireEvent.click(heading())
+    expect(props.onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it("names the current page in the heading once folded", () => {
+    renderSection({ open: false, currentPageId: "p2" })
+    const toggle = screen.getByRole("button", { expanded: false })
+    expect(toggle.getAttribute("aria-controls")).toBe(
+      screen.getByRole("list", { hidden: true }).id
+    )
+    expect(
+      within(toggle)
+        .getAllByText(/./)
+        .find((el) => el.getAttribute("aria-hidden") === "false")?.textContent
+    ).toBe("Pricing")
+    // The rows are out of reach while folded.
+    expect(
+      screen.getByRole("list", { hidden: true }).hasAttribute("inert")
+    ).toBe(true)
+  })
+
+  it("unfolds when a page is added while folded", () => {
+    const props = renderSection({ open: false })
+    fireEvent.click(screen.getByRole("button", { name: "New page" }))
+    expect(props.onOpenChange).toHaveBeenCalledWith(true)
+    expect(props.onAddPage).toHaveBeenCalled()
   })
 })
