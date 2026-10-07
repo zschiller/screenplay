@@ -520,7 +520,7 @@ export interface ComposerProps {
    */
   aboveInput?: ReactNode
   /**
-   * Rendered inside the input box, above the text: chat puts a Reply in chat
+   * Rendered inside the input box, above the text: chat puts a Quote in chat
    * quote here (#1243) so it reads as part of the message being written.
    */
   inputHeader?: ReactNode

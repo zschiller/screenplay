@@ -1707,7 +1707,7 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await sleep(page, 1200)
       await page.mouse.click(at.x, at.y, { clickCount: 3 })
       await sleep(page, 1000)
-      await page.getByRole("button", { name: "Reply in chat" }).click()
+      await page.getByRole("button", { name: "Quote in chat" }).click()
       // The composer takes focus on the next frame.
       await sleep(page, 500)
       await page.keyboard.type("Is this still blocking the launch?")

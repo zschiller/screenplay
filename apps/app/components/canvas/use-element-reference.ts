@@ -93,7 +93,7 @@ export interface ElementReference {
   /** Reset comment-mode sub-state on a tool-mode switch (composer + hover). */
   clearMode: () => void
   /**
-   * Reply in chat (#1243): quote a Document passage into the composer of the
+   * Quote in chat (#1243): quote a Document passage into the composer of the
    * chat that last changed the Document, shown in the panel (#1724), or, for
    * a Document no chat changed, of the chat the panel is showing, opening the
    * panel when it's collapsed. Nothing is sent; the quote rides the next

@@ -18,7 +18,7 @@ import type { UserTurn } from "@/lib/agent/user-turn"
  * Outgoing Turn (#1497): the one place a message this client sends becomes
  * both its wire text and the turn the chat shows for it, the send-side mirror
  * of the {@link projectUserTurn} projection. Every hidden marker a send adds
- * (the Composer's footers, the Reply in chat quote, the Canvas view, the
+ * (the Composer's footers, the Quote in chat quote, the Canvas view, the
  * Mockup a page drafted it on) is
  * appended here and nowhere else, so a new one is a single edit beside its
  * stripper in `parseUserMessage`, and `turn` is always exactly what the
@@ -39,7 +39,7 @@ export interface OutgoingTurnParts {
    * for the `Attached files:` footer and the message's chips.
    */
   attachments?: MessageAttachment[]
-  /** A passage quoted by Reply in chat (#1243): it leads the body. */
+  /** A passage quoted by Quote in chat (#1243): it leads the body. */
   quote?: ChatQuote | null
   /**
    * The sender's selection and screen when they sent it (#1414), for the

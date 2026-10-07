@@ -463,7 +463,7 @@ export type MarkdownLayerData = {
   title: string
   /**
    * The chat that last made or changed this Document with its tools (#1724),
-   * which gets its Send to agent and Reply in chat (`lib/canvas/layer-chat`).
+   * which gets its Send to agent and Quote in chat (`lib/canvas/layer-chat`).
    * Unset for a Document a person made by hand that no chat changed since.
    */
   lastChangedByChatId?: string

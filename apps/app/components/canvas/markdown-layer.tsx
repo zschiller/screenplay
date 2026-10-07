@@ -12,13 +12,13 @@ import {
 import { createPortal } from "react-dom"
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import {
-  ArrowRightIcon,
   CaretDownIcon,
   ChatIcon,
   CheckIcon,
   CodeIcon,
   ImageIcon,
   PencilSimpleIcon,
+  QuotesIcon,
   TextBIcon,
   TextItalicIcon,
   TextStrikethroughIcon,
@@ -215,6 +215,7 @@ function FormatButton({
   label,
   active,
   disabled,
+  shortcut,
   onRun,
   children,
 }: {
@@ -222,12 +223,15 @@ function FormatButton({
   /** Whether the format is on. Omit for an action, which has no on-state. */
   active?: boolean
   disabled?: boolean
+  /** Shortcut shown in the tooltip, one `Kbd` per key. */
+  shortcut?: string
   onRun: () => void
   children: ReactNode
 }) {
   return (
     <FloatingToolbarButton
       label={label}
+      shortcut={shortcut}
       pressed={active}
       disabled={disabled}
       variant="ghost"
@@ -341,7 +345,7 @@ interface MarkdownLayerProps {
   onStartInlineComment?: (draft: InlineCommentDraft) => void
   /** User clicked an existing inline-comment highlight inside the doc. */
   onSelectInlineThread?: (threadId: string) => void
-  /** User clicked Reply in chat on a non-empty selection (#1243). */
+  /** User clicked Quote in chat on a non-empty selection (#1243). */
   onReplyInChat?: (quote: ChatQuote) => void
   /**
    * Where the doc sits and how dragging it moves things. Layers render as
@@ -504,6 +508,9 @@ function MarkdownLayerImpl({
     top: number
   } | null>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
+  // Quote in chat, for the selection bar's button and ⌘L: true when it
+  // quoted something. Set once the editor exists (below).
+  const quoteInChatRef = useRef<() => boolean>(() => false)
 
   // Portal target lives outside the world transform so the bubble can sit
   // above the SelectionOverlay (popovers-layer sibling vs. the TransformWrapper's
@@ -631,10 +638,44 @@ function MarkdownLayerImpl({
           class:
             "tiptap tiptap-document prose prose-sm prose-neutral dark:prose-invert max-w-none focus:outline-none",
         },
+        handleKeyDown(_view, event) {
+          // ⌘L is Quote in chat, as the selection bar's tooltip says.
+          if (
+            (event.metaKey || event.ctrlKey) &&
+            !event.shiftKey &&
+            !event.altKey &&
+            event.key.toLowerCase() === "l"
+          ) {
+            return quoteInChatRef.current()
+          }
+          return false
+        },
       },
     },
     [fragment, provider, imageOptions]
   )
+
+  useEffect(() => {
+    quoteInChatRef.current = () => {
+      if (!editor || !onReplyInChat) return false
+      const { from, to, empty } = editor.state.selection
+      // The bar never shows over the title, so neither does the shortcut.
+      if (empty || editor.state.doc.resolve(from).index(0) === 0) return false
+      const doc = editor.state.doc
+      onReplyInChat({
+        documentId: layer.id,
+        documentTitle: layer.title || null,
+        quotedText: getQuotedText(doc, from, to),
+        ...getLineNumbers(doc, from, to),
+      })
+      // Typing now belongs to the chat, never the selection, even before its
+      // composer is ready. The toolbar goes too, as it does for Comment, so it
+      // doesn't sit over the Document while you type.
+      editor.commands.blur()
+      setBubbleAnchor(null)
+      return true
+    }
+  })
 
   // The `/` menu's and the Image button's picks: hold the place, then open
   // the file chooser (Upload image) or the picker (Image from files).
@@ -1173,7 +1214,7 @@ function MarkdownLayerImpl({
               // Each button fires on mousedown (not click) with preventDefault so
               // running a format command never blurs the editor or collapses the
               // selection before the command lands — see FormatButton. It holds
-              // only what styles a passage, Comment and Reply in chat; block
+              // only what styles a passage, Comment and Quote in chat; block
               // controls are in the bar under the page.
               <div
                 ref={bubbleRef}
@@ -1232,26 +1273,11 @@ function MarkdownLayerImpl({
                   )}
                   {onReplyInChat && (
                     <FormatButton
-                      label="Reply in chat"
-                      onRun={() => {
-                        const { from, to, empty } = editor.state.selection
-                        if (empty) return
-                        const doc = editor.state.doc
-                        onReplyInChat({
-                          documentId: layer.id,
-                          documentTitle: layer.title || null,
-                          quotedText: getQuotedText(doc, from, to),
-                          ...getLineNumbers(doc, from, to),
-                        })
-                        // Typing now belongs to the chat, never the
-                        // selection, even before its composer is ready. The
-                        // toolbar goes too, as it does for Comment, so it
-                        // doesn't sit over the Document while you type.
-                        editor.commands.blur()
-                        setBubbleAnchor(null)
-                      }}
+                      label="Quote in chat"
+                      shortcut="⌘L"
+                      onRun={() => quoteInChatRef.current()}
                     >
-                      <ArrowRightIcon />
+                      <QuotesIcon />
                     </FormatButton>
                   )}
                 </FloatingToolbar>

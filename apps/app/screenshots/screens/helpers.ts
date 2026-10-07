@@ -1047,7 +1047,7 @@ export function fixtureCheckouts(): { checkout: string; plain: string } {
   return { checkout, plain }
 }
 
-/** Reply in chat (#1243) from the Checkout brief into the Checkout polish chat. */
+/** Quote in chat (#1243) from the Checkout brief into the Checkout polish chat. */
 export async function replyInChatFromBrief(page: Page): Promise<void> {
   await openChatTab(page, "Checkout polish")
   // The Checkout brief, clear of the chat panel. The hosted build has no
@@ -1074,7 +1074,7 @@ export async function replyInChatFromBrief(page: Page): Promise<void> {
   await page.keyboard.press("Shift+Home")
   await page
     .locator("#inline-comment-bubble-portal")
-    .getByRole("button", { name: "Reply in chat" })
+    .getByRole("button", { name: "Quote in chat" })
     .click({ timeout: 15_000 })
   // The composer takes focus on the next frame, or once it mounts when the
   // hosted Workspace is still starting its sandbox.

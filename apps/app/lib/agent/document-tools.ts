@@ -20,7 +20,7 @@ import {
  * A chat's Document tools (#1314): it creates Documents, and edits any
  * Document on the canvas, whoever made it (#1724). Each create or edit records
  * the chat as the Document's `lastChangedByChatId`, which its Send to agent
- * and Reply in chat go to (`lib/canvas/layer-chat`), and holds the Document
+ * and Quote in chat go to (`lib/canvas/layer-chat`), and holds the Document
  * for the rest of the turn: another chat's edit is refused meanwhile (#1725,
  * `layer-hold.ts`). Reading any Document is
  * the shared `read_document` (`layer-read-tools.ts`), which every chat has.

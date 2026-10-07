@@ -7,7 +7,7 @@ import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
  * change any of them with its tools, and each agent create or update records
  * the chat as the layer's `lastChangedByChatId`. While a chat's turn is
  * changing a layer, that chat holds it (#1725): no other chat may change it
- * until the turn ends. Reply in chat, Send to agent, the Knobs Ask,
+ * until the turn ends. Quote in chat, Send to agent, the Knobs Ask,
  * Draw-and-ask, a live Mockup's borrowed Workspace and the Workspace grouping
  * all go to the holder, else the last changer. A layer from before then reads
  * the chat that made it (`ownerChatId`). A layer someone made by hand, or
