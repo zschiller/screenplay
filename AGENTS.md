@@ -1,9 +1,20 @@
 ## Agent skills
 
-- **Issue tracker**: read before filing, reading or linking GitHub issues; dependencies are always native blocking edges. See `docs/agents/issue-tracker.md`.
-- **Triage labels**: the five triage roles and their label strings. See `docs/agents/triage-labels.md`.
-- **Domain docs**: `CONTEXT-MAP.md` and per-context `CONTEXT.md` files. See `docs/agents/domain.md`.
-- **Product docs**: read before any PR that changes what a user sees or configures, or any UI, homepage or docs copy. See `docs/agents/product-docs.md`.
+### Issue tracker
+
+Issues and specs are tracked as GitHub issues (github.com/zschiller/screenplay), managed via the `gh` CLI. Dependencies between issues are always GitHub native blocking edges ("blocked by"), never prose alone. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles, each mapped to its default label string (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context layout: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` files. See `docs/agents/domain.md`.
+
+### Product docs
+
+User and self-hosting docs in `apps/docs/content`: read before a PR that changes what a user sees or configures, or touches UI, homepage or docs copy. See `docs/agents/product-docs.md`.
 
 <!-- BEGIN:turborepo-agent-rules -->
 
