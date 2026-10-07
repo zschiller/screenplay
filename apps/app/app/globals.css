@@ -4,7 +4,7 @@
 /* Type (#1005, #1077): Instrument Sans is the UI face, Unbounded sets the
    titles that use `font-heading` (dialogs, empty states, page titles) at the
    `text-title-*` sizes from the shared package. Both
-   come from `next/font` in app/layout.tsx; code, terminal and section labels
+   come from app/fonts/fonts.css; code, terminal and section labels
    stay on `font-mono` (Geist Mono). Overrides the shared package's Geist
    defaults, which the marketing site still uses. */
 @theme inline {

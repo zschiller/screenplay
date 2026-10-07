@@ -193,9 +193,9 @@ export function useTerminalPane({
       // Match the app's theme + monospace font so the terminal reads as native
       // chrome rather than a foreign embedded page.
       const styles = getComputedStyle(host)
-      // `next/font` resolves `--font-mono` to a two-font list — the real Geist
-      // face plus a *proportional* `size-adjust`ed system fallback that is NOT
-      // monospace. Take only the real Geist face (the first token) and append
+      // `app/fonts/fonts.css` sets `--font-mono` to a two-font list — the real
+      // Geist face plus a *proportional* `size-adjust`ed system fallback that is
+      // NOT monospace. Take only the real Geist face (the first token) and append
       // genuine monospace generics, so any glyph Geist can't supply still falls
       // back to a fixed-width font rather than that proportional fallback.
       const monoFamily = styles
@@ -218,7 +218,7 @@ export function useTerminalPane({
       // monospace fallback.
       const primaryFamily = fontFamily.split(",")[0]?.trim()
 
-      // Geist Mono is loaded asynchronously (`next/font`, `font-display: swap`).
+      // Geist Mono is loaded asynchronously (`font-display: swap`).
       // xterm measures the character cell exactly once, at `open()`, and never
       // re-measures — so if the font isn't ready yet it locks in the fallback's
       // metrics. That single wrong measurement skews every monospace assumption:
