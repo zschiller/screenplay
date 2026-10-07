@@ -82,3 +82,10 @@ apps/docs/public/_pagefind
 # A PR's own screenshot screens: written for its before/after, never committed.
 apps/app/screenshots/screens/scratch/*
 !apps/app/screenshots/screens/scratch/README.md
+
+# A company's own extensions, and the registries generated from them
+# (apps/app/lib/extensions/codegen.mjs). Forks that commit theirs delete the
+# first two lines.
+apps/app/extensions/*
+!apps/app/extensions/README.md
+apps/app/lib/extensions/*.generated.ts

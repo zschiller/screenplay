@@ -1,0 +1,144 @@
+---
+title: Extensions
+description: Add your own implementation of an interface in a git-ignored folder, and pick it in the config file.
+---
+
+# Extensions
+
+Some parts of Screenplay differ from one company’s setup to the next. Each of
+those parts sits behind a small **interface** with built-in implementations
+that ship in the repo. An **extension** adds your own implementation of one or
+more interfaces. You add it as files in one folder, so you never edit a shared
+file and upstream syncs never conflict. A **config file** then picks an
+implementation for each interface and gives its options.
+
+The interfaces an extension can implement are listed in
+`apps/app/lib/extensions/interfaces.ts`, and each one’s page describes its
+built-ins and options.
+
+## The extensions folder
+
+Extensions live in `apps/app/extensions/`, which is git-ignored apart from its
+README. Each folder in it is one extension, and the folder name is its id
+(lowercase letters, digits and dashes). An extension folder holds:
+
+- `server.ts`, which default-exports the extension’s implementations
+- `client.tsx` (optional, `"use client"`), which default-exports browser pieces
+  for interfaces that have them
+- `package.json` (optional), only when the extension needs its own
+  dependencies
+
+`next build`, `next dev`, `next start` and `pnpm typecheck` all scan the folder
+and write a registry of what they find. Under `next dev`, an extension you add
+or remove shows up without a restart. An empty or missing folder builds as
+usual.
+
+## Writing an implementation
+
+`server.ts` lists implementations by interface, then by name. Each one has an
+options schema, written with [Zod](https://zod.dev), and a `create` function
+that builds it from the options once, when the server starts:
+
+```ts
+// apps/app/extensions/acme/server.ts
+import { z } from "zod"
+
+import {
+  defineImplementation,
+  defineServerExtension,
+} from "@/lib/extensions/types"
+
+export default defineServerExtension({
+  implementations: {
+    // The interface's key, as in interfaces.ts and the config file.
+    someInterface: {
+      okta: defineImplementation({
+        options: z.object({ header: z.string() }),
+        create: ({ header }, ctx) => {
+          ctx.log(`reading ${header}`)
+          return {/* the interface's members */}
+        },
+      }),
+    },
+  },
+})
+```
+
+The config file names this implementation `acme/okta`. `create` gets a context
+with a folder the implementation may keep files in (`ctx.dataFolder`) and a
+`ctx.log` that prefixes each line with the implementation’s id.
+
+`pnpm typecheck` fails when an implementation doesn’t match its interface, so a
+mistake shows up before the server runs. Extension files are compiled as app
+source, so `@/…` imports and the app’s own dependencies work.
+
+### Extensions with their own dependencies
+
+An extension that needs a package the app doesn’t have becomes a small pnpm
+package of its own: add a `package.json` to its folder that declares the
+dependency, and run `pnpm install`. This changes `pnpm-lock.yaml`, so a box that uses one installs
+without `--frozen-lockfile`. If the extension uses React, declare `react` as a
+peer dependency so it shares the app’s copy.
+
+A dependency with native code or WASM also needs an entry in
+`serverExternalPackages` in `apps/app/next.config.mjs`.
+
+### Keeping extensions in a fork
+
+To commit your extensions in a fork instead, delete the
+`apps/app/extensions/*` line from the repo’s `.gitignore`. Nothing else
+changes.
+
+### Turbo
+
+Turbo skips git-ignored files when it decides whether a task’s cache is still
+good. `apps/app/turbo.jsonc` lists the extensions folder as an input to
+`build` and `typecheck`, so changing or breaking an extension reruns them.
+
+## The config file
+
+The config file is JSON with comments, named `screenplay.config.jsonc` by
+convention and kept in your data folder. `SCREENPLAY_CONFIG` names its path.
+Without it, every interface uses its default built-in.
+
+Each interface is a field holding `{ "use": "<id>", …options }`. Built-in ids
+are bare; extension ids are `<extension>/<name>`. An interface that takes
+several implementations at once holds a list of them instead.
+
+```jsonc
+{
+  // Relative paths are relative to this file’s folder.
+  "dataFolder": ".",
+
+  "someInterface": { "use": "acme/okta", "header": "X-Corp-User-Email" },
+}
+```
+
+The file also holds these settings:
+
+| Field | Description |
+| --- | --- |
+| `dataFolder` | Where Screenplay keeps its data. Default: the config file’s folder. |
+| `listeners.host.port` | The port of the host’s own listener, which only listens on `127.0.0.1`. |
+| `listeners.viewers` | Network listeners for viewers: a list of `{ "name", "address", "port" }`. |
+| `outboundProxy.url` | The outbound proxy server requests go through, like `http://proxy.corp:3128`. |
+| `outboundProxy.noProxy` | Hosts that skip the proxy. |
+| `outboundProxy.caFile` | A PEM file of the certificate authorities the proxy uses. |
+
+<Callout type="info">
+  The listener and proxy settings are checked now and used by Headless, the
+  server mode that’s being built for running Screenplay on your own machine.
+</Callout>
+
+### Checking the file
+
+The server reads the file once when it starts and checks every field: the
+settings above, each interface’s `use`, and each implementation’s own options.
+Unknown fields are refused too, so a typo can’t be silently ignored. When
+anything is wrong, the server doesn’t start and prints each bad field:
+
+```
+/srv/screenplay/screenplay.config.jsonc isn’t valid, so Screenplay won’t start:
+  listeners.host.port: Invalid input: expected number, received string
+  someInterface.heder: not a setting Screenplay knows
+```

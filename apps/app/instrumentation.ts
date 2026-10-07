@@ -19,6 +19,8 @@
  *    daemon. It exists only on the local sandbox backend; the hosted (Vercel)
  *    build skips it and keeps the ttyd/`domain(port)` path. The dynamic import
  *    keeps node-pty/`ws` out of the hosted build's graph.
+ *  - **Config file.** Checks the config file (`lib/extensions/config.ts`)
+ *    first and refuses to start when it's wrong.
  *  - **PR Watch tick.** In the local desktop build, looks at every canvas with
  *    an open PR once a minute (#1702), so PR events reach chats with no canvas
  *    open. The hosted build runs the same tick from Vercel Cron instead
@@ -28,6 +30,11 @@ export async function register(): Promise<void> {
   // Only the Node.js server runtime touches these seams / holds a long-lived
   // WebSocket server (no edge usage).
   if (process.env.NEXT_RUNTIME !== "nodejs") return
+
+  // A bad config file (`SCREENPLAY_CONFIG`) refuses start with a message naming
+  // each field, before anything below reads it. No file: nothing to check.
+  const { checkConfigAtStart } = await import("@/lib/extensions/start")
+  checkConfigAtStart()
 
   // Desktop only: exit if the Tauri shell that spawned us goes away, so a
   // Ctrl-C / hot-reload / crash of the shell can't leave this sidecar orphaned

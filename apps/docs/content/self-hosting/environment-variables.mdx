@@ -129,6 +129,7 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 | --- | --- | --- |
 | `NEXT_PUBLIC_BASE_PATH` | Optional | Serve the app under a path prefix such as `/app`. It’s inlined at build time. See [Mount path](/self-hosting/configuration/mount-path). |
 | `PORT` | Optional | The port the app listens on. Local URLs and the local WebSocket servers’ origin check use it. Default: `3000`. |
+| `SCREENPLAY_CONFIG` | Optional | Path of the config file that picks an implementation for each interface, usually `screenplay.config.jsonc` in your data folder. A bad file stops the server from starting. See [Extensions](/self-hosting/configuration/extensions#the-config-file). |
 | `CHROMIUM_PATH` | Optional | Chromium binary for thumbnail capture outside Vercel. Defaults to Puppeteer’s bundled browser. |
 
 ## Build switches
