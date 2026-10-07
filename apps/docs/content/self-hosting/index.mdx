@@ -1,20 +1,24 @@
 ---
 title: Self-hosting overview
-description: What a hosted Screenplay deployment is made of, and the order to set it up in.
+description: The three ways to run Screenplay, what a hosted deployment is made of, and the order to set it up in.
 ---
 
 import { Steps } from "nextra/components"
 
 # Self-hosting
 
-The hosted build of Screenplay is a multi-user Next.js app. People sign in
-with GitHub, share canvases, and each chat runs in its own cloud sandbox
-VM. This section covers deploying it.
+There are three ways to run Screenplay:
 
-<Callout type="info">
-  Only need it for yourself? The [desktop app](/guides/quickstart) needs no
-  services at all. It swaps every backend below for a local one.
-</Callout>
+| | Who writes | Where it runs | Needs |
+| --- | --- | --- | --- |
+| **Hosted** | Everyone who signs in with GitHub | A Next.js deployment, a cloud sandbox per chat | The services below |
+| **Desktop app** | You | Your Mac | Nothing: [download it](/guides/quickstart) |
+| **[Headless](/self-hosting/headless)** | You, the host, over an SSH tunnel | A Linux machine you control, run from a clone | Node, git, a coding CLI and `gh` on that machine |
+
+The desktop app and Headless swap every backend below for a local one. The
+rest of this page covers deploying Hosted: a multi-user Next.js app where
+people sign in with GitHub, share canvases, and each chat runs in its own cloud
+sandbox VM.
 
 ## How it fits together
 

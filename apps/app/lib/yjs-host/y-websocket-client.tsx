@@ -8,7 +8,9 @@ import {
 } from "react"
 import { WebsocketProvider } from "y-websocket"
 import * as Y from "yjs"
+import { WS_ROUTES } from "@/headless/ws-routes.mjs"
 import { withBasePath } from "@/lib/base-path"
+import { hostTunnel } from "@/lib/capabilities"
 import {
   YjsConnectionProvider,
   type AwarenessLike,
@@ -24,6 +26,12 @@ import {
  * syncs against it. Mirrors `liveblocks-client.tsx`'s sync-gate behaviour.
  */
 export function websocketUrl(): string {
+  // Headless: the host listener carries the socket under a path on the app's
+  // own origin, so the host's tunnel needs no port of its own for it.
+  if (hostTunnel && typeof window !== "undefined") {
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws"
+    return `${scheme}://${window.location.host}${WS_ROUTES.yjs}`
+  }
   // `NEXT_PUBLIC_YJS_WS_PORT` is inlined at build; default matches the
   // server's default port. Use the page host so it works whether the webview
   // loads from `localhost` or `127.0.0.1`.

@@ -62,7 +62,13 @@ async function typecheck(name: string, server: string) {
     path.join(root, "tsconfig.json"),
     JSON.stringify({
       extends: path.join(appDir, "tsconfig.json"),
-      compilerOptions: { noEmit: true, incremental: false, plugins: [] },
+      compilerOptions: {
+        noEmit: true,
+        incremental: false,
+        plugins: [],
+        // The interfaces' types reach Node's (a Coding CLI's process runner).
+        types: ["node"],
+      },
       include: [],
       files: [
         path.join(root, "server-only.d.ts"),

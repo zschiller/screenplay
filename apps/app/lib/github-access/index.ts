@@ -58,15 +58,46 @@ export function selectGitHubAccess(
   return factory(options)
 }
 
+/** One per process, on `globalThis`, so every server bundle Next builds sees it. */
+const KEY = Symbol.for("screenplay.githubAccess")
+type Host = { [KEY]?: GitHubAccess }
+
+function current(): GitHubAccess {
+  return ((globalThis as Host)[KEY] ??= selectGitHubAccess(
+    defaultGitHubAccessChoice()
+  ))
+}
+
 /**
- * This server's GitHub access. A single read at module load, like the sandbox
- * provider: every caller asks this, never the build or the sandbox backend.
+ * Pick this server's GitHub access, once, as the server starts: what the
+ * config file names (`lib/extensions/apply.ts`). Unset, it's the default
+ * choice above.
  */
-export const githubAccess: GitHubAccess = selectGitHubAccess(
-  defaultGitHubAccessChoice()
-)
+export function setGitHubAccess(access: GitHubAccess): void {
+  ;(globalThis as Host)[KEY] = access
+}
+
+/**
+ * This server's GitHub access: every caller asks this, never the build or the
+ * sandbox backend. Each member reads whatever the server picked at start.
+ */
+export const githubAccess: GitHubAccess = {
+  get id() {
+    return current().id
+  },
+  get apiUrl() {
+    return current().apiUrl
+  },
+  get webUrl() {
+    return current().webUrl
+  },
+  apiToken: (userId) => current().apiToken(userId),
+  get git() {
+    return current().git
+  },
+}
 
 /** The `gh` CLI behind this server's access, when it's `gh-cli`. */
 export function hostGhCli() {
-  return ghCliOf(githubAccess)
+  return ghCliOf(current())
 }

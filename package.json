@@ -5,6 +5,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
+    "headless": "pnpm --filter app headless",
     "lint": "turbo lint",
     "format": "turbo format",
     "format:check": "prettier --check \"{apps,packages}/**/*.{ts,tsx}\"",

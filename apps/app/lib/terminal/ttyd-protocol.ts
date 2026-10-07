@@ -205,7 +205,12 @@ export function terminalWebSocketUrl(
   httpUrl: string,
   commandArgs: string[] = []
 ): string {
-  const url = new URL(httpUrl)
+  // A path (the Headless host listener's terminal route) is on the page's
+  // own origin.
+  const url = new URL(
+    httpUrl,
+    typeof window !== "undefined" ? window.location.href : undefined
+  )
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
   url.pathname = `${url.pathname.replace(/\/$/, "")}/ws`
   for (const arg of commandArgs) url.searchParams.append("arg", arg)

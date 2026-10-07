@@ -2,7 +2,8 @@ import "server-only"
 
 import { serverExtensions } from "@extensions/server"
 
-import { INTERFACES, type ServerInterfaces } from "./interfaces"
+import { INTERFACES } from "./built-ins"
+import type { ServerInterfaces } from "./interfaces"
 import type { AnyOptions, Implementation, ServerExtension } from "./types"
 
 export type InterfaceKey = keyof ServerInterfaces

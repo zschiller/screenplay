@@ -8,13 +8,15 @@ import { Badge } from "@workspace/ui/components/badge"
 export function Only({
   desktop,
   hosted,
+  headless,
 }: {
   desktop?: boolean
   hosted?: boolean
+  headless?: boolean
 }) {
   return (
     <Badge variant="outline" className="sp-only">
-      {desktop ? "Desktop" : hosted ? "Hosted" : null}
+      {desktop ? "Desktop" : hosted ? "Hosted" : headless ? "Headless" : null}
     </Badge>
   )
 }

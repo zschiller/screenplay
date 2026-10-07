@@ -6,10 +6,12 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
+import { hostTunnel } from "@/lib/capabilities"
 import { getPreviewExposure } from "@/lib/preview-exposure"
 import { devServerEnv } from "@/lib/sandbox/local/host-env"
 import { acquireRepo, type RepoSource } from "@/lib/sandbox/local/worktree"
 import { PortAllocator } from "@/lib/sandbox/port-allocator"
+import { addHostRoute, removeHostRoute } from "@/lib/sandbox/portless"
 import type {
   SandboxCommandResult,
   SandboxCreateOptions,
@@ -307,7 +309,9 @@ export class LocalSandboxProvider implements SandboxProvider {
     }
     for (const logical of meta.browserPorts ?? []) {
       const hostPort = meta.portMap[String(logical)]
-      if (hostPort !== undefined) await getPreviewExposure().release(hostPort)
+      if (hostPort === undefined) continue
+      await getPreviewExposure().release(hostPort)
+      if (hostTunnel) await removeHostRoute(hostPort)
     }
     for (const logical of Object.keys(meta.portMap)) {
       this.ports.release(portKey(name, Number(logical)))
@@ -549,8 +553,26 @@ function makeInstance(
     },
     // A browser-facing port goes out through the preview exposure; `loopback`
     // (the Mac app) answers `http://localhost:<hostPort>`, as `domain` does.
+    // On Headless the host's own frames go through portless instead (#1930):
+    // the configured exposure is for viewers, so it still runs, but its
+    // origin and sign-in aren't what the host loads.
     async expose(port: number) {
-      const exposed = await getPreviewExposure().expose(forwarded(port))
+      const bound = forwarded(port)
+      if (hostTunnel) {
+        await getPreviewExposure()
+          .expose(bound)
+          .catch((err: unknown) =>
+            console.warn(
+              `[preview-exposure] exposing port ${bound} for viewers failed: ${
+                err instanceof Error ? err.message : String(err)
+              }`
+            )
+          )
+        const browserOrigin = await addHostRoute(bound)
+        await onExposed?.(String(port), browserOrigin)
+        return { browserOrigin }
+      }
+      const exposed = await getPreviewExposure().expose(bound)
       await onExposed?.(String(port), exposed.browserOrigin)
       return exposed
     },

@@ -72,3 +72,80 @@ export async function lookupStableDevUrl(
   const route = routes.find((r) => r.port === devPort)
   return route ? formatUrl(route.hostname, proxyPort, tls) : null
 }
+
+/** The portless name a preview listener on `port` is routed under. */
+export function hostRouteName(port: number): string {
+  return `screenplay-${port}`
+}
+
+/** Runs the portless CLI; a stand-in in tests. */
+export type PortlessRunner = (args: string[]) => Promise<void>
+
+const runPortless: PortlessRunner = async (args) => {
+  const { execFile } = await import("node:child_process")
+  const { promisify } = await import("node:util")
+  await promisify(execFile)(process.execPath, [portlessCliPath(), ...args], {
+    timeout: 30_000,
+  })
+}
+
+/**
+ * Route `http://screenplay-<port>.localhost:1355` to a preview listener on this
+ * machine, for the host's own frames on Headless (#1930): the host tunnels the
+ * host listener and portless's proxy, never the preview ports themselves, and
+ * never sees a company proxy's sign-in. Starts the proxy daemon if it isn't up
+ * (idempotent, as before every dev script launch) and registers a static
+ * alias; `--force` makes a rerun after a restart replace the old route.
+ * Returns the origin the alias is served at.
+ */
+export async function addHostRoute(
+  port: number,
+  run: PortlessRunner = runPortless
+): Promise<string> {
+  await run([
+    "proxy",
+    "start",
+    "--no-tls",
+    "--port",
+    String(PORTLESS_PROXY_PORT),
+  ])
+  const name = hostRouteName(port)
+  await run(["alias", name, String(port), "--force"])
+  return hostRouteOrigin(name)
+}
+
+/** Remove {@link addHostRoute}'s alias. Best-effort: never throws. */
+export async function removeHostRoute(
+  port: number,
+  run: PortlessRunner = runPortless
+): Promise<void> {
+  try {
+    await run(["alias", "--remove", hostRouteName(port)])
+  } catch {
+    // Already gone, or portless state was cleaned: nothing to undo.
+  }
+}
+
+/**
+ * The origin a portless name is served at: the running daemon's port and TLS
+ * from its state dir, so a host's own daemon (say on 443 with HTTPS) is used
+ * as it is; else the unprivileged daemon this app starts.
+ */
+function hostRouteOrigin(name: string): string {
+  const dir = portlessStateDir()
+  let proxyPort = PORTLESS_PROXY_PORT
+  try {
+    const read = parseInt(
+      readFileSync(path.join(dir, "proxy.port"), "utf8").trim(),
+      10
+    )
+    if (!Number.isNaN(read)) proxyPort = read
+  } catch {
+    // No state yet: the daemon this app starts.
+  }
+  const tls = existsSync(path.join(dir, "proxy.tls"))
+  const scheme = tls ? "https" : "http"
+  const defaultPort = tls ? 443 : 80
+  const suffix = proxyPort === defaultPort ? "" : `:${proxyPort}`
+  return `${scheme}://${name}.localhost${suffix}`
+}

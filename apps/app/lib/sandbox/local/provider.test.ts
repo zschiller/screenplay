@@ -3,7 +3,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   loopbackExposure,
@@ -21,6 +21,28 @@ import {
   stopDevAndProxy,
 } from "@/lib/sandbox/provision-internals"
 import type { SandboxCreateOptions } from "@/lib/sandbox/types"
+
+// Headless's host tunnel (#1930) is a build constant; these tests flip it.
+let tunnel = false
+vi.mock("@/lib/capabilities", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/capabilities")>()),
+  get hostTunnel() {
+    return tunnel
+  },
+}))
+// The portless CLI, recorded instead of run.
+const routes = new Map<number, string>()
+vi.mock("@/lib/sandbox/portless", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/sandbox/portless")>()),
+  addHostRoute: async (port: number) => {
+    const origin = `http://screenplay-${port}.localhost:1355`
+    routes.set(port, origin)
+    return origin
+  },
+  removeHostRoute: async (port: number) => {
+    routes.delete(port)
+  },
+}))
 
 // Run git in a directory, failing loudly so a botched fixture is obvious.
 function git(cwd: string, args: string[]): Promise<string> {
@@ -852,5 +874,89 @@ describe("LocalSandboxProvider on loopback (the Mac app)", () => {
       browserOrigin: a.domain(4000),
     })
     expect(a.domain(4000)).toBe(`http://localhost:${a.hostPort(4000)}`)
+  })
+})
+
+describe("LocalSandboxProvider on Headless (host frames through portless)", () => {
+  const exposedOpts = (name: string, revision = "main") =>
+    createOpts(name, sourceRepo, {
+      source: { type: "git", url: sourceRepo, revision },
+      browserPorts: [4000],
+    })
+  let from: number
+  let exposedForViewers: number[]
+
+  beforeEach(() => {
+    tunnel = true
+    routes.clear()
+    from = 48000 + Math.floor(Math.random() * 400) * 5
+    exposedForViewers = []
+    const urls = urlTemplateExposure({
+      origin: "https://{port}-box.corp.example",
+      signInUrl: "https://{port}-box.corp.example/",
+      bindHost: "127.0.0.1",
+      ports: { from, to: from + 4 },
+    })
+    setPreviewExposure({
+      ...urls,
+      expose: async (port) => {
+        exposedForViewers.push(port)
+        return urls.expose(port)
+      },
+    })
+  })
+
+  afterEach(() => {
+    tunnel = false
+    setPreviewExposure(loopbackExposure())
+  })
+
+  it("loads the host's frame at a portless URL, never the proxy's, even with url-template", async () => {
+    const a = await provider.create(exposedOpts("branch-a"))
+
+    expect(await a.expose(4000)).toEqual({
+      browserOrigin: `http://screenplay-${from}.localhost:1355`,
+    })
+    // The configured exposure still runs, for viewers.
+    expect(exposedForViewers).toEqual([from])
+    expect(routes.get(from)).toBe(`http://screenplay-${from}.localhost:1355`)
+    // The server maps the portless URL back to the listener.
+    expect(
+      await provider.internalUrlFor(
+        `http://screenplay-${from}.localhost:1355/pricing`
+      )
+    ).toBe(`http://127.0.0.1:${from}/pricing`)
+  })
+
+  it("removes the portless route when the chat is deleted", async () => {
+    const a = await provider.create(exposedOpts("branch-a"))
+    await a.expose(4000)
+    await a.delete()
+    expect(routes.has(from)).toBe(false)
+  })
+
+  it("brings the same frame URL back after a restart", async () => {
+    const a = await provider.create(exposedOpts("branch-a"))
+    const before = await a.expose(4000)
+    routes.clear()
+
+    // A restarted server: a fresh provider over the same data folder.
+    const restarted = new LocalSandboxProvider(root)
+    const again = await restarted.get({ name: "branch-a" })
+    expect(await again.expose(4000)).toEqual(before)
+    expect(routes.get(from)).toBe(before.browserOrigin)
+  })
+
+  it("still loads the host's frame when exposing for viewers fails", async () => {
+    setPreviewExposure({
+      ...loopbackExposure({ ports: { from, to: from + 4 } }),
+      expose: async () => {
+        throw new Error("corp-expose: not signed in")
+      },
+    })
+    const a = await provider.create(exposedOpts("branch-a"))
+    expect((await a.expose(4000)).browserOrigin).toBe(
+      `http://screenplay-${from}.localhost:1355`
+    )
   })
 })
