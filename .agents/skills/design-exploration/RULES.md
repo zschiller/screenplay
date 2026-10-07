@@ -6,10 +6,11 @@ Reference for step 1 of [`design-exploration`](SKILL.md) and stage 0 of [`design
 
 Read these in order. When two sources disagree, the newer one wins.
 
-1. **Memory**: the owner's design rules, rejected directions, and "don't re-raise" lists. These are usually the newest.
-2. **Agent docs**: `AGENTS.md`, `CLAUDE.md`, `CONTEXT.md`, and any `docs/` pages they point to.
-3. **Design system**: the component library (search for `components.json`, a `packages/ui` or `design-system` package, or a Storybook), the tokens or theme file (CSS custom properties, `tailwind.config.*`, a `theme.ts`), and the fonts the app loads.
-4. **The product itself**: the patterns main already uses where no doc says otherwise. Two uses of a pattern make it a convention.
+1. **Design guide**: the repo's own guide to its design rules and rejected directions, usually reached from `AGENTS.md` (in Screenplay, [`docs/design/README.md`](../../../docs/design/README.md)). When it exists it is the main source, and its rejected list is the "don't re-raise" list.
+2. **Memory**: rules, rejections and picks the owner gave since the guide was last updated. These are usually the newest.
+3. **Agent docs**: `AGENTS.md`, `CLAUDE.md`, `CONTEXT.md`, and any other `docs/` pages they point to.
+4. **Design system**: the component library (search for `components.json`, a `packages/ui` or `design-system` package, or a Storybook), the tokens or theme file (CSS custom properties, `tailwind.config.*`, a `theme.ts`), and the fonts the app loads.
+5. **The product itself**: the patterns main already uses where no doc says otherwise. Two uses of a pattern make it a convention.
 
 ## What to collect
 
