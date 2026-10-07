@@ -143,7 +143,12 @@ import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
 
 import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
-import { groupsOnPage, resolvePageId } from "@/lib/canvas/pages"
+import {
+  PAGE_PARAM,
+  groupsOnPage,
+  pageAfterDelete,
+  resolvePageId,
+} from "@/lib/canvas/pages"
 import { openPageId, pageViewport } from "@/lib/canvas/page-views"
 
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
@@ -403,6 +408,7 @@ export function Canvas({
   initialLayout,
   initialThreads,
   initialTerminalTabs,
+  initialPageId,
 }: {
   roomId: string
   roomName: string
@@ -415,6 +421,8 @@ export function Canvas({
   initialLayout?: PanelLayout
   initialThreads?: ThreadWithComments[]
   initialTerminalTabs?: TerminalTabRecord[]
+  /** The page a page link (#1836) opens on, from its `?page=`. */
+  initialPageId?: string
 }) {
   const [currentRoomName, setCurrentRoomName] = useState(roomName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -484,13 +492,42 @@ export function Canvas({
   // Groups render; new Layers land on it (the ops read it through the ref).
   const pages = usePages()
   // Each member's own view of each page (#1838): the canvas opens on the
-  // page they were on last, settled once their id is known.
+  // page a link names (#1836), else the page they were on last, settled once
+  // their id is known.
   const pageViews = usePageViews()
   const [opened, setOpened] = useState<{ userId: string; pageId: string }>()
   if (userId && opened?.userId !== userId)
-    setOpened({ userId, pageId: openPageId(pageViews, pages, userId) })
+    setOpened({
+      userId,
+      pageId: openPageId(pageViews, pages, userId, initialPageId),
+    })
   const [pickedPageId, setPickedPageId] = useState<string>()
+  // A deleted page (#1836) sends whoever was on it to the page above it in
+  // the list as it was (below, if it was first).
+  const [shownPages, setShownPages] = useState(pages)
+  if (shownPages !== pages) {
+    setShownPages(pages)
+    const onPageId = pickedPageId ?? opened?.pageId
+    if (
+      onPageId &&
+      !pages.some((p) => p.id === onPageId) &&
+      shownPages.some((p) => p.id === onPageId)
+    )
+      setPickedPageId(pageAfterDelete(shownPages, pages, onPageId))
+  }
   const currentPageId = resolvePageId(pages, pickedPageId ?? opened?.pageId)
+  // The address names the page you're on (#1836), so copying it links to
+  // that page; a canvas with one page leaves it out. Written once the page
+  // the canvas opens on is settled, so it never overwrites a linked page.
+  const multiPage = pages.length > 1
+  useEffect(() => {
+    if (!opened) return
+    const url = new URL(window.location.href)
+    if (multiPage) url.searchParams.set(PAGE_PARAM, currentPageId)
+    else url.searchParams.delete(PAGE_PARAM)
+    if (url.href !== window.location.href)
+      window.history.replaceState(window.history.state, "", url)
+  }, [opened, multiPage, currentPageId])
   const currentPageIdRef = useRef(currentPageId)
   useLayoutEffect(() => {
     currentPageIdRef.current = currentPageId
@@ -991,6 +1028,20 @@ export function Canvas({
     switchPage(pageId)
     return pageId
   }, [ops, switchPage])
+  const duplicatePage = useCallback(
+    (pageId: string) => {
+      const copy = ops.duplicatePage(pageId)
+      if (copy) switchPage(copy)
+    },
+    [ops, switchPage]
+  )
+  // No confirm and no toast: ⌘Z brings the page back (#1836).
+  const deletePage = useCallback(
+    (pageId: string) => {
+      ops.deletePage(pageId)
+    },
+    [ops]
+  )
   const { jumpTo: cameraJumpTo } = camera
   const shownPageIdRef = useRef(currentPageId)
   useLayoutEffect(() => {
@@ -2401,6 +2452,9 @@ export function Canvas({
     onSelectPage: switchPage,
     onAddPage: addPage,
     onRenamePage: ops.renamePage,
+    onReorderPages: ops.reorderPages,
+    onDuplicatePage: duplicatePage,
+    onDeletePage: deletePage,
     footer: sidebarFooter,
   } satisfies ComponentProps<typeof RoomSidebar>)
   return (

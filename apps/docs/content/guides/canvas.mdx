@@ -212,6 +212,15 @@ chats and Coordinator are shared by every page. Every canvas starts with
   on the first page.
 - Layers on other pages aren’t drawn, so a big canvas stays quick. Their chats
   and previews keep running.
+- Double-click a page to rename it. Drag pages to reorder them.
+- A page’s **…** (or right-click) has **Rename**, **Duplicate** and
+  **Delete**. Duplicate copies the page and every layer on it just below.
+- The canvas’s address names the page you’re on, so copying it links
+  straight to that page.
+- Delete removes the page and its layers at once, with no confirm;
+  <kbd>⌘</kbd> <kbd>Z</kbd> brings them back. Anyone on a deleted page moves
+  to the page above it. Chats whose frames were on it keep running. A
+  canvas’s last page can’t be deleted.
 - Drag the line between the pages and the layers to give either more room.
 - Click **Pages** to fold the list away. Folded, the heading shows the page
   you’re on; click it to open the list again. Your browser remembers which
@@ -253,7 +262,8 @@ each frame row ends with its own chat instead.
 
 <kbd>⌘</kbd> <kbd>Z</kbd> and <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd> undo and
 redo your own canvas changes: moving, resizing, adding, deleting and renaming
-frames, documents and groups, and adding and renaming pages. A frame’s page, its route and scroll, isn’t part
+frames, documents and groups, and adding, renaming, reordering, duplicating
+and deleting pages. A frame’s page, its route and scroll, isn’t part
 of undo. Your ⌘Z never undoes someone else’s changes or the Coordinator’s.
 
 Deleting a frame, document or group happens at once, whether from the layers

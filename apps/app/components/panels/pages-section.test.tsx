@@ -64,6 +64,9 @@ function renderSection(
     onRenamePage: vi.fn(),
     open: true,
     onOpenChange: vi.fn(),
+    onReorderPages: vi.fn(),
+    onDuplicatePage: vi.fn(),
+    onDeletePage: vi.fn(),
     ...overrides,
   }
   render(
@@ -80,7 +83,7 @@ function renderSection(
   return props
 }
 
-describe("PagesSection (#1835)", () => {
+describe("PagesSection (#1835, #1836)", () => {
   it("lists every page and marks the current one", () => {
     renderSection()
     const rows = screen.getAllByRole("listitem").map((li) => li.textContent)
@@ -116,6 +119,35 @@ describe("PagesSection (#1835)", () => {
     fireEvent.input(field!)
     fireEvent.keyDown(field!, { key: "Enter" })
     expect(props.onRenamePage).toHaveBeenCalledWith("p2", "Explorations")
+  })
+
+  function openMenu(row: string) {
+    const item = within(screen.getByRole("list")).getByText(row).closest("li")!
+    fireEvent.contextMenu(item)
+    return screen.getByRole("menu")
+  }
+
+  it("a page’s ⋯ menu, opened by right-click, duplicates and deletes", () => {
+    const props = renderSection()
+    const menu = openMenu("Pricing")
+    expect(
+      [...menu.querySelectorAll("[role=menuitem]")].map((i) => i.textContent)
+    ).toEqual(["Rename", "Duplicate", "Delete"])
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }))
+    expect(props.onDuplicatePage).toHaveBeenCalledWith("p2")
+    openMenu("Pricing")
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }))
+    expect(props.onDeletePage).toHaveBeenCalledWith("p2")
+  })
+
+  it("turns Delete off on the last page", () => {
+    const props = renderSection({ pages: [PAGES[0]!] })
+    openMenu("Homepage")
+    const remove = screen.getByRole("menuitem", { name: "Delete" })
+    expect(remove.getAttribute("aria-disabled")).toBe("true")
+    fireEvent.click(remove)
+    expect(props.onDeletePage).not.toHaveBeenCalled()
   })
 })
 
@@ -191,7 +223,9 @@ describe("PagesSection folding", () => {
 
   it("names the current page in the heading once folded", () => {
     renderSection({ open: false, currentPageId: "p2" })
-    const toggle = screen.getByRole("button", { expanded: false })
+    const toggle = screen
+      .getAllByRole("button", { expanded: false })
+      .find((el) => el.dataset.sidebar === "group-label")!
     expect(toggle.getAttribute("aria-controls")).toBe(
       screen.getByRole("list", { hidden: true }).id
     )

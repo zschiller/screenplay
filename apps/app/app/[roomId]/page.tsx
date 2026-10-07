@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 import { Canvas } from "@/components/canvas/canvas"
 import { CanvasSkeleton } from "@/components/canvas/canvas-skeleton"
+import { PAGE_PARAM } from "@/lib/canvas/pages"
 import { getUserId } from "@/lib/auth-helpers"
 import { listThreads } from "@/lib/comments"
 import { getRoomParentFolderForUser } from "@/lib/folders"
@@ -32,10 +33,14 @@ export async function generateMetadata({
 
 export default async function RoomPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ roomId: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { roomId } = await params
+  // A page link (#1836) opens the canvas on that page.
+  const linkedPage = (await searchParams)[PAGE_PARAM]
 
   const userId = await getUserId()
   if (!userId) redirect(`/sign-in?redirect=/${roomId}`)
@@ -98,6 +103,7 @@ export default async function RoomPage({
         initialLayout={initialLayout}
         initialThreads={initialThreads}
         initialTerminalTabs={initialTerminalTabs}
+        initialPageId={typeof linkedPage === "string" ? linkedPage : undefined}
       />
     </YjsRoomProvider>
   )

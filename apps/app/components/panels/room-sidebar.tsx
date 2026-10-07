@@ -410,6 +410,9 @@ interface RoomSidebarProps {
   onSelectPage: PagesSectionProps["onSelectPage"]
   onAddPage: PagesSectionProps["onAddPage"]
   onRenamePage: PagesSectionProps["onRenamePage"]
+  onReorderPages: PagesSectionProps["onReorderPages"]
+  onDuplicatePage: PagesSectionProps["onDuplicatePage"]
+  onDeletePage: PagesSectionProps["onDeletePage"]
   /** Pinned under the layers (the getting-started checklist, #780). */
   footer?: React.ReactNode
 }
@@ -475,6 +478,9 @@ function RoomSidebarImpl({
   onSelectPage,
   onAddPage,
   onRenamePage,
+  onReorderPages,
+  onDuplicatePage,
+  onDeletePage,
   footer,
 }: RoomSidebarProps) {
   // The Pages panel fits its rows (up to five) until someone drags the
@@ -870,6 +876,9 @@ function RoomSidebarImpl({
                   onRenamePage={onRenamePage}
                   open={pagesOpen}
                   onOpenChange={onPagesOpenChange}
+                  onReorderPages={onReorderPages}
+                  onDuplicatePage={onDuplicatePage}
+                  onDeletePage={onDeletePage}
                 />
               </ResizablePanel>
               <ResizableHandle

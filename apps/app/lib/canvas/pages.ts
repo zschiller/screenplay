@@ -67,3 +67,27 @@ export function nextPageName(pages: readonly PageData[]): string {
   }
   return `Page ${max + 1}`
 }
+
+/**
+ * Where someone looking at page `goneId` goes once it's deleted (#1836): the
+ * nearest page above it in `before` (the list as it was) that's still in
+ * `after`, else the nearest below, else the first page.
+ */
+export function pageAfterDelete(
+  before: readonly PageData[],
+  after: readonly PageData[],
+  goneId: string
+): string {
+  const remaining = new Set(after.map((p) => p.id))
+  const index = before.findIndex((p) => p.id === goneId)
+  if (index >= 0) {
+    for (let i = index - 1; i >= 0; i--)
+      if (remaining.has(before[i]!.id)) return before[i]!.id
+    for (let i = index + 1; i < before.length; i++)
+      if (remaining.has(before[i]!.id)) return before[i]!.id
+  }
+  return after[0]?.id ?? FIRST_PAGE_ID
+}
+
+/** The query param a link to a page carries (#1836): `/{roomId}?page=…`. */
+export const PAGE_PARAM = "page"
