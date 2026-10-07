@@ -4,8 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
-import { ScrollArea } from "@workspace/ui/components/scroll-area"
-import { ScrollHairline, useScrollEdges } from "@/components/scroll-hairline"
+import { DialogScrollBody } from "@/components/scroll-hairline"
 
 /**
  * The chrome the repository dialogs share (N5): Settings' Edit and
@@ -47,25 +46,17 @@ export function RepoDialogHeader({
  * scroll up, and above the footer while more fields lie below.
  */
 export function RepoDialogBody({ children }: { children: React.ReactNode }) {
-  const { attach, onScroll, above, below } = useScrollEdges()
-
   return (
-    <div className="relative">
-      <ScrollHairline shown={above} />
-      {/* The max-height must land on the Radix viewport itself: shadcn
-          hardcodes h-full on it, so a max-h on the outer ScrollArea never
-          creates a scroll boundary (shadcn #296). Scroll doesn't bubble, so
-          the viewport's is caught on the way down. */}
-      <ScrollArea
-        ref={attach}
-        orientation="vertical"
-        onScrollCapture={onScroll}
-        className="[&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
-      >
-        <div className="flex flex-col gap-5 px-5 pb-5">{children}</div>
-      </ScrollArea>
-      <ScrollHairline shown={below} edge="bottom" />
-    </div>
+    // The max-height must land on the Radix viewport itself: shadcn hardcodes
+    // h-full on it, so a max-h on the outer ScrollArea never creates a scroll
+    // boundary (shadcn #296).
+    <DialogScrollBody
+      footer
+      scrollArea="[&>[data-slot=scroll-area-viewport]]:max-h-[60vh]"
+      className="flex flex-col gap-5 px-5 pb-5"
+    >
+      {children}
+    </DialogScrollBody>
   )
 }
 

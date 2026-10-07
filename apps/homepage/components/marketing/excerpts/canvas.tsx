@@ -65,7 +65,7 @@ const DOTS = [5, 12, 19].flatMap((cy) => [5, 12, 19].map((cx) => [cx, cy]))
 
 /**
  * A Workspace's state glyph: the ring when it's ready, the twinkling 3×3 grid
- * while its agent works (the app's GripSpinner).
+ * while its agent works (the app's AgentActivityDots).
  */
 export function WorkspaceGlyph({
   state = "ready",
@@ -79,7 +79,7 @@ export function WorkspaceGlyph({
   }
   // HTML spans masked to a dot rather than SVG circles: browsers animate their
   // opacity off the main thread, so the hero's cursor sim can't stall the
-  // shimmer (as in the app's GripSpinner).
+  // shimmer (as in the app's AgentActivityDots).
   return (
     <span
       aria-hidden
@@ -88,7 +88,7 @@ export function WorkspaceGlyph({
       {DOTS.map(([cx, cy], i) => (
         <span
           key={i}
-          className="grip-dot absolute inset-0 bg-current"
+          className="agent-dot absolute inset-0 bg-current"
           style={{
             mask: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='${cx}' cy='${cy}' r='2'/%3E%3C/svg%3E") 0 0 / 100% 100%`,
             animationDelay: `${-((i * 7) % 9) * 0.21}s`,

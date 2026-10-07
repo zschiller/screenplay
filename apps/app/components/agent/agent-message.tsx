@@ -62,7 +62,7 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 import { toast } from "sonner"
-import { GripSpinner } from "@/components/grip-spinner"
+import { AgentActivityDots } from "@/components/agent-activity-dots"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import type { AgentMessage } from "@/lib/agent/types"
@@ -708,7 +708,7 @@ export function TaskGroup({
         icon={
           anyRunning ? (
             // A running Task is a subagent at work: LLM activity, so the grid.
-            <GripSpinner className="size-4 shrink-0" />
+            <AgentActivityDots className="size-4 shrink-0" />
           ) : anyFailed ? (
             <WarningCircleIcon
               aria-label="Failed"

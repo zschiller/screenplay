@@ -20,7 +20,7 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { GripSpinner } from "@/components/grip-spinner"
+import { AgentActivityDots } from "@/components/agent-activity-dots"
 import { useNow } from "@/hooks/use-now"
 import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
 import { isWithAgent, shortCommit } from "@/lib/comments-agent"
@@ -573,7 +573,7 @@ export function AgentStatusChip({
         </>
       ) : status === "working" ? (
         <>
-          <GripSpinner className="size-3" />
+          <AgentActivityDots className="size-3" />
           {besideAgent ? "Working" : "Agent working"}
         </>
       ) : (

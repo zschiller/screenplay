@@ -165,8 +165,11 @@ function DropdownMenuRadioItem({
   )
 }
 
-// A mono caps group label. Anything else (an account header) passes
-// `font-sans tracking-normal normal-case`.
+/**
+ * A group's heading, in the mono uppercase face of every group label (Select,
+ * Command, the sidebar). Anything else at the top of a menu (the account
+ * menu's photo, name and email) is a plain `div`, not a restyled label.
+ */
 function DropdownMenuLabel({
   className,
   inset,

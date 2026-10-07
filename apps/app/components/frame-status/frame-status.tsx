@@ -81,7 +81,7 @@ const COPY: Record<FrameStage, { title: string; description: string }> = {
  * the canvas and in play mode alike: which stage the Workspace is
  * at, and on a failure, the way out.
  *
- * Progress uses the shared `Spinner`; the 9-dot `GripSpinner` is for LLM
+ * Progress uses the shared `Spinner`; the 9-dot `AgentActivityDots` is for LLM
  * activity only. The root is pointer-transparent so a frame on the canvas still
  * drags and selects through it; only the buttons take the pointer.
  *

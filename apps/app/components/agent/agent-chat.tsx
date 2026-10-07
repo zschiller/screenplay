@@ -17,7 +17,7 @@ import {
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
-import { GripSpinner } from "@/components/grip-spinner"
+import { AgentActivityDots } from "@/components/agent-activity-dots"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import { chatStore, sentTurn } from "@/lib/chat-store"
 import { describeSendError } from "@/lib/agent/chat-errors"
@@ -547,7 +547,7 @@ export function AgentChat({
                     data-testid="run-in-progress"
                     className="flex items-center gap-1.5 text-sm text-muted-foreground"
                   >
-                    <GripSpinner className="size-4" />
+                    <AgentActivityDots className="size-4" />
                     {lastRole === "assistant" ? (
                       <span className="sr-only">Responding…</span>
                     ) : (

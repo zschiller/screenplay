@@ -123,11 +123,14 @@ describe("PagesSection (#1835, #1836)", () => {
 
   function openMenu(row: string) {
     const item = within(screen.getByRole("list")).getByText(row).closest("li")!
-    fireEvent.contextMenu(item)
+    fireEvent.pointerDown(
+      within(item).getByRole("button", { name: "Page options" }),
+      { button: 0, ctrlKey: false }
+    )
     return screen.getByRole("menu")
   }
 
-  it("a page’s ⋯ menu, opened by right-click, duplicates and deletes", () => {
+  it("a page’s ⋯ menu duplicates and deletes", () => {
     const props = renderSection()
     const menu = openMenu("Pricing")
     expect(
@@ -139,6 +142,15 @@ describe("PagesSection (#1835, #1836)", () => {
     openMenu("Pricing")
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }))
     expect(props.onDeletePage).toHaveBeenCalledWith("p2")
+  })
+
+  it("does nothing special on right-click", () => {
+    renderSection()
+    const item = within(screen.getByRole("list"))
+      .getByText("Pricing")
+      .closest("li")!
+    expect(fireEvent.contextMenu(item)).toBe(true)
+    expect(screen.queryByRole("menu")).toBeNull()
   })
 
   it("turns Delete off on the last page", () => {
