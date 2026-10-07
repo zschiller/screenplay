@@ -270,6 +270,9 @@ export type CanvasPresence = {
   // Figma-style cursor chat. Absent or `null` while the user isn't chatting;
   // an empty string while the bubble is open but nothing has been typed yet.
   message?: string | null
+  // The canvas page (#1840) this user is looking at. Absent from clients
+  // from before pages, which show the first page.
+  pageId?: string
 }
 
 function useAwareness(): AwarenessLike {
@@ -418,6 +421,7 @@ const samePeer = (a: PeerPresence, b: PeerPresence) =>
   a.identity.name === b.identity.name &&
   a.identity.avatar === b.identity.avatar &&
   a.color === b.color &&
+  a.pageId === b.pageId &&
   sameIds(a.selectedIframeLayerIds, b.selectedIframeLayerIds) &&
   sameIds(a.groupSelectedIframeLayerIds, b.groupSelectedIframeLayerIds)
 
@@ -431,7 +435,7 @@ const SAME_PEERS = (a: Peers, b: Peers) =>
   )
 
 /**
- * Other peers' identity, colour and selection. Unlike `useOtherPresences`, a
+ * Other peers' identity, colour, page and selection. Unlike `useOtherPresences`, a
  * peer's cursor moving or canvas panning doesn't change it, so what reads it
  * doesn't re-render on every remote move. The `presence` objects keep their
  * pointer and viewport from when the snapshot was taken: don't read them.
@@ -440,29 +444,40 @@ export function useOtherPeers(): Peers {
   return useAwarenessSnapshot(SELECT_OTHERS, OTHERS_RELEVANT, SAME_PEERS)
 }
 
+/** Where a followed peer is looking: their page and viewport. */
+export type PeerView = Pick<CanvasPresence, "viewport" | "pageId">
+
 /**
- * The viewport of the peer with this client id, `undefined` once they're
- * gone, or `null` when not following anyone.
+ * The page and viewport of the peer with this client id, `undefined` once
+ * they're gone, or `null` when not following anyone.
  */
-export function usePeerViewport(
+export function usePeerView(
   clientId: number | null
-): CanvasPresence["viewport"] | null | undefined {
+): PeerView | null | undefined {
   const select = useCallback(
-    (a: AwarenessLike) => {
+    (a: AwarenessLike): PeerView | null | undefined => {
       if (clientId === null) return null
       const state = a.getStates().get(clientId) as
         Partial<CanvasPresence> | undefined
-      return state?.identity ? state.viewport : undefined
+      if (!state?.identity || !state.viewport) return undefined
+      return { viewport: state.viewport, pageId: state.pageId }
     },
     [clientId]
   )
-  return useAwarenessSnapshot(select, OTHERS_RELEVANT, SAME_VIEWPORT)
+  return useAwarenessSnapshot(select, OTHERS_RELEVANT, SAME_VIEW)
 }
 
-const SAME_VIEWPORT = (
-  a: CanvasPresence["viewport"] | null | undefined,
-  b: CanvasPresence["viewport"] | null | undefined
-) => a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.zoom === b.zoom)
+const SAME_VIEW = (
+  a: PeerView | null | undefined,
+  b: PeerView | null | undefined
+) =>
+  a === b ||
+  (!!a &&
+    !!b &&
+    a.pageId === b.pageId &&
+    a.viewport.x === b.viewport.x &&
+    a.viewport.y === b.viewport.y &&
+    a.viewport.zoom === b.viewport.zoom)
 
 export function useSelfPresence(): CanvasPresence | null {
   return useAwarenessSnapshot(SELECT_SELF)

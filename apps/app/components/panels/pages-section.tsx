@@ -20,7 +20,9 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 
 import { renameOnF2 } from "@/components/panels/layer-rows/rename-key"
+import { PagePeople, usePeopleByPage } from "@/components/panels/page-people"
 import type { PageData } from "@/lib/types"
+import type { PeerPresence } from "@/lib/yjs/react"
 
 /** One row's height, and the section's chrome around its rows (the label
  *  row plus the group's padding), for sizing the Pages panel. */
@@ -50,7 +52,8 @@ export type PagesSectionProps = {
  * The left sidebar's Pages section (#1835): every page of the canvas, the
  * current one active. Click switches; + adds “Page N” and opens its name in
  * the inline rename field, where Enter commits, as in every inline rename.
- * A layer row dragged onto another page's row moves there (#1837).
+ * A layer row dragged onto another page's row moves there (#1837). A row
+ * ends in the avatars of the other people on that page (#1840).
  */
 export const PagesSection = memo(function PagesSection({
   pages,
@@ -61,6 +64,7 @@ export const PagesSection = memo(function PagesSection({
 }: PagesSectionProps) {
   // The page just added, whose name opens for renaming once its row is in.
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const peopleByPage = usePeopleByPage(pages)
   return (
     <SidebarGroup data-sidebar-pages>
       <div className="flex items-center justify-between">
@@ -80,6 +84,7 @@ export const PagesSection = memo(function PagesSection({
             key={page.id}
             page={page}
             current={page.id === currentPageId}
+            people={peopleByPage.get(page.id)}
             renameOnMount={page.id === renamingId}
             onRenameStarted={() => setRenamingId(null)}
             onSelect={onSelectPage}
@@ -94,6 +99,7 @@ export const PagesSection = memo(function PagesSection({
 function PageRow({
   page,
   current,
+  people,
   renameOnMount,
   onRenameStarted,
   onSelect,
@@ -101,6 +107,7 @@ function PageRow({
 }: {
   page: PageData
   current: boolean
+  people: readonly PeerPresence[] | undefined
   renameOnMount: boolean
   onRenameStarted: () => void
   onSelect: (pageId: string) => void
@@ -144,6 +151,7 @@ function PageRow({
             "-mx-0.5 -my-0.5 min-w-0 px-0.5 py-0.5"
           )}
         />
+        {people ? <PagePeople people={people} /> : null}
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
