@@ -6,6 +6,7 @@ import {
   SidebarSimpleIcon,
 } from "@workspace/ui/components/icons"
 
+import { SidebarGroupLabel } from "@workspace/ui/components/sidebar"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
 import { isLocalBuild } from "@/lib/local-mode"
@@ -128,14 +129,31 @@ export function CanvasSkeleton({
 }
 
 /**
- * The sidebar's layer tree while it loads: rows at a layer row's height and
- * inset, so the real rows land where these sat (the tree starts 10px under
- * the header). The tree has no section
- * labels, so neither does this.
+ * The sidebar while it loads: the Pages section with one row, its divider,
+ * then the Layers label and rows at a layer row's height and inset, so the
+ * real ones land where these sat (#1835).
  */
 function SidebarRows() {
   return (
-    <Placeholder className="flex flex-col px-2 pt-2.5 pb-2">
+    <>
+      <div className="flex flex-col p-2">
+        <SidebarGroupLabel>Pages</SidebarGroupLabel>
+        <Placeholder className="flex h-8 items-center px-2">
+          <Skeleton className="h-3 w-16 bg-sidebar-accent" />
+        </Placeholder>
+      </div>
+      <div className="h-px bg-sidebar-border" />
+      <div className="flex flex-col p-2">
+        <SidebarGroupLabel>Layers</SidebarGroupLabel>
+        <LayerRows />
+      </div>
+    </>
+  )
+}
+
+function LayerRows() {
+  return (
+    <Placeholder className="flex flex-col">
       {[64, 48, 56, 40, 52].map((width, i) => (
         <div key={i} className="flex h-8 items-center gap-2 px-2">
           <Skeleton className="size-4 bg-sidebar-accent" />

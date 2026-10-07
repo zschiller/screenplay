@@ -453,6 +453,13 @@ function northwindRoom(
       repos: [repo],
       branches,
       iframeLayers,
+      // Its Layers are on the first page (no Group names one); the others
+      // show the Pages list in the sidebar (#1835).
+      pages: [
+        { id: "page-1", name: "Site", order: 0 },
+        { id: "page-explorations", name: "Explorations", order: 1 },
+        { id: "page-archive", name: "Archive", order: 2 },
+      ],
       markdownLayers: [
         {
           id: l.checklist,

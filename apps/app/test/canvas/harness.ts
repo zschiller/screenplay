@@ -1,5 +1,9 @@
 import * as Y from "yjs"
-import { createCanvasOps, type CanvasOps } from "@/lib/canvas/ops"
+import {
+  createCanvasOps,
+  type CanvasOps,
+  type CanvasOpsOptions,
+} from "@/lib/canvas/ops"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import type {
   BranchData,
@@ -17,7 +21,7 @@ import type {
  * against a plain document. Slices 3–5 (#158–#160) reuse this and the
  * invariant sweep below.
  */
-export function makeHarness(): {
+export function makeHarness(options?: CanvasOpsOptions): {
   doc: Y.Doc
   collections: RoomCollections
   ops: CanvasOps
@@ -37,7 +41,7 @@ export function makeHarness(): {
       ;(value as { observe(cb: () => void): () => void }).observe(() => {})
     }
   }
-  const ops = createCanvasOps(collections)
+  const ops = createCanvasOps(collections, options)
   return { doc, collections, ops }
 }
 

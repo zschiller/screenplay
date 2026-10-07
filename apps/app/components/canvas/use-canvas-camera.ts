@@ -137,6 +137,12 @@ export interface CanvasCamera {
   /** Fit a world-space rect (the whole canvas's content); with nothing to fit,
    *  return to 100% at the canvas center. */
   zoomToFit(rect: Rect | null): void
+  /**
+   * Put the camera at `viewport` at once, or, with none, fit `rect` (100% at
+   * the canvas center when there's nothing to fit), with no animation:
+   * switching pages (#1835) cuts to the other page's view.
+   */
+  jumpTo(viewport: ViewportData | null, rect: Rect | null): void
   /** Forwarded wheel from inside an interactive iframe (cursor-centered zoom). */
   handleIframeWheel(iframeLayerId: string, w: WheelForward): void
   /** The `TransformWrapper` props this controller owns. */
@@ -471,20 +477,29 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     []
   )
 
+  // Move the camera at once and sync everything that reads it.
+  const setCameraNow = useCallback(
+    (viewport: ViewportData) => {
+      const ref = transformRef.current
+      if (!ref) return
+      ref.setTransform(viewport.x, viewport.y, viewport.zoom, 0)
+      setZoom(viewport.zoom)
+      setLiveCamera(viewport)
+      setViewportPos({ x: viewport.x, y: viewport.y })
+      setPresence({ viewport })
+    },
+    [transformRef, setPresence, setLiveCamera]
+  )
+
   // Restore the saved viewport once it arrives (covers the case where the
   // synced viewport lands after TransformWrapper's onInit already fired).
   useEffect(() => {
     if (viewportRestoredRef.current) return
     if (!savedViewport) return
-    const ref = transformRef.current
-    if (!ref) return
+    if (!transformRef.current) return
     viewportRestoredRef.current = true
-    ref.setTransform(savedViewport.x, savedViewport.y, savedViewport.zoom, 0)
-    setZoom(savedViewport.zoom)
-    setLiveCamera(savedViewport)
-    setViewportPos({ x: savedViewport.x, y: savedViewport.y })
-    setPresence({ viewport: savedViewport })
-  }, [transformRef, savedViewport, setPresence, setLiveCamera])
+    setCameraNow(savedViewport)
+  }, [transformRef, savedViewport, setCameraNow])
 
   // The screenshot harness frames one Canvas several ways, so in the Fixture
   // World build it moves the camera through this handle instead of re-seeding
@@ -719,6 +734,36 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
       ref.setTransform(w / 2 - CANVAS_SIZE / 2, h / 2 - CANVAS_SIZE / 2, 1, 200)
     },
     [transformRef, breakFollow, zoomToRect]
+  )
+
+  const jumpTo = useCallback(
+    (viewport: ViewportData | null, rect: Rect | null) => {
+      const ref = transformRef.current
+      if (!ref) return
+      // A page switch is the person's own move: the saved viewport that
+      // lands later mustn't take it back.
+      viewportRestoredRef.current = true
+      if (viewport) return setCameraNow(viewport)
+      const wrapper = ref.instance.wrapperComponent
+      const size = {
+        width: wrapper?.clientWidth ?? window.innerWidth,
+        height: wrapper?.clientHeight ?? window.innerHeight,
+      }
+      if (rect && rect.width > 0 && rect.height > 0) {
+        return setCameraNow(
+          fitRectToViewport(rect, size, {
+            padding: FIT_PADDING,
+            maxZoom: FIT_ZOOM_MAX,
+          })
+        )
+      }
+      setCameraNow({
+        x: size.width / 2 - CANVAS_SIZE / 2,
+        y: size.height / 2 - CANVAS_SIZE / 2,
+        zoom: 1,
+      })
+    },
+    [transformRef, setCameraNow]
   )
 
   // --- Follow another user's viewport ---
@@ -1079,6 +1124,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     zoomOut,
     zoomTo,
     zoomToFit,
+    jumpTo,
     handleIframeWheel,
     transformWrapperProps,
   }

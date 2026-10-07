@@ -14,8 +14,8 @@ import { COLLECTION_KEYS } from "@/lib/yjs/schema"
  *   Everything that arrives from sync carries the provider as its origin, so
  *   another member's edits and the Coordinator's (it edits the server's copy,
  *   `lib/agent/room-arrange-tools.ts`) are never undone by someone's ⌘Z.
- * - Only edits to frames, documents, mockups, Groups and memory entries. A transaction
- *   that only writes chat sessions or plans (run status, titles) is skipped,
+ * - Only edits to frames, documents, mockups, Groups, pages and memory
+ *   entries. A transaction that only writes chat sessions or plans (run status, titles) is skipped,
  *   and so is one that touches repositories or Workspaces: those have
  *   server-side effects Undo can't reverse, so they keep their confirms.
  * - Not the fields a running prototype reports on its frame or Mockup (route,
@@ -54,6 +54,7 @@ const EDITABLE_KEYS = [
   COLLECTION_KEYS.markdownLayers,
   COLLECTION_KEYS.mockupLayers,
   COLLECTION_KEYS.memories,
+  COLLECTION_KEYS.pages,
 ] as const
 
 /** Collections whose writes make a transaction not undoable at all. */

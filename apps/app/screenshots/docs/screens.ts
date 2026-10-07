@@ -1080,6 +1080,13 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: (page) => camera(page, VIEW.overview),
   }),
   screen({
+    name: "canvas-pages",
+    description: "The sidebar’s Pages list, above the current page’s layers.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    focus: ["[data-sidebar-pages]"],
+  }),
+  screen({
     name: "canvas-mockups",
     ...onCanvas(["[data-layer-id]"]),
     description:

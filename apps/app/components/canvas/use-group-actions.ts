@@ -316,9 +316,10 @@ export function useGroupActions({
           (m) => !(m.kind === member.kind && m.id === member.id)
         ).length === 0
       const { cx, cy } = getViewportCenter()
-      const groupsForPlacement = allGroups.filter(
-        (g) => g.id !== sourceGroup.id || !sourceWillEmpty
-      )
+      // Placed beside this page's Groups only (#1835).
+      const groupsForPlacement = ops
+        .groupsOnPage()
+        .filter((g) => g.id !== sourceGroup.id || !sourceWillEmpty)
       const { x, y } = placeNewIframeLayerGroup(
         groupsForPlacement,
         collections.iframeLayers.toArray(),

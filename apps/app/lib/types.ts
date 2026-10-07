@@ -447,6 +447,19 @@ export type IframeLayerGroupData = {
    * to the leftmost frame's for Groups that predate it.
    */
   branchId?: string
+  /**
+   * The Page this Group is on (#1835). Unset, or naming a Page that's gone,
+   * means the first Page: read it through `groupPageId`.
+   */
+  pageId?: string
+}
+
+/** A Page of the canvas (#1835): an ordered, named partition of its Groups. */
+export type PageData = {
+  id: string
+  name: string
+  /** Position in the Pages list. Lower values come first. */
+  order: number
 }
 
 /**

@@ -10,6 +10,7 @@ import {
 } from "react"
 import * as Y from "yjs"
 import { createCanvasUndo, type CanvasUndo } from "@/lib/canvas/undo"
+import { orderedPages } from "@/lib/canvas/pages"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
 import {
   useOptionalYjs,
@@ -34,6 +35,7 @@ import type {
   FileEntryData,
   MemoryData,
   MockupLayerData,
+  PageData,
   PlanData,
   ViewportData,
   RepoData,
@@ -72,6 +74,12 @@ export function useIframeLayers(): Array<IframeLayerData> {
 
 export function useIframeLayerGroups(): Array<IframeLayerGroupData> {
   return useCollectionArray(useRoomCollections().iframeLayerGroups)
+}
+
+/** The canvas's Pages in list order (#1835); never empty. */
+export function usePages(): PageData[] {
+  const records = useCollectionArray(useRoomCollections().pages)
+  return useMemo(() => orderedPages(records), [records])
 }
 
 export function useMarkdownLayers(): Array<MarkdownLayerData> {

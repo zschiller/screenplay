@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -31,6 +32,7 @@ import {
   useMarkdownLayers,
   useMockupLayers,
   useOtherPeers,
+  usePages,
   useRoomCollections,
   useSavedViewport,
   useSelfIdentity,
@@ -135,6 +137,7 @@ import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
 
 import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
+import { groupsOnPage, resolvePageId } from "@/lib/canvas/pages"
 
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
 
@@ -469,7 +472,25 @@ export function Canvas({
   // Canvas Operations seam (#157): the single transaction entry point + the
   // generic single-field `patch`. Trivial single-field writes below go through
   // `ops.patch`; the meaning-bearing verbs land in slices 3–5.
-  const ops = useMemo(() => createCanvasOps(collections), [collections])
+  // The canvas's Pages (#1835) and the one this person is looking at: client
+  // state, falling back to the first page when theirs is gone. Only its
+  // Groups render; new Layers land on it (the ops read it through the ref).
+  const pages = usePages()
+  const [pickedPageId, setPickedPageId] = useState<string>()
+  const currentPageId = resolvePageId(pages, pickedPageId)
+  const currentPageIdRef = useRef(currentPageId)
+  const onFirstPageRef = useRef(true)
+  useLayoutEffect(() => {
+    currentPageIdRef.current = currentPageId
+    onFirstPageRef.current = currentPageId === pages[0]!.id
+  })
+  const ops = useMemo(
+    () =>
+      createCanvasOps(collections, {
+        currentPageId: () => currentPageIdRef.current,
+      }),
+    [collections]
+  )
 
   // Chat Session Writes controller (PRD #588): the single small owner of the
   // thin add / update / remove Chat Session Canvas Operation wrappers (ADR
@@ -486,15 +507,20 @@ export function Canvas({
   // out and renders this view, while their records stay in the Room doc.
   const allIframeLayers = useIframeLayers()
   const allIframeLayerGroups = useIframeLayerGroups()
-  const { iframeLayers, groups: iframeLayerGroups } = useMemo(
-    () =>
-      hideDoneWorkspaceFrames({
-        groups: allIframeLayerGroups,
-        iframeLayers: allIframeLayers,
-        branches: agents,
-      }),
-    [allIframeLayerGroups, allIframeLayers, agents]
-  )
+  // Layers on other Pages (#1835) leave it too: only the current page's
+  // Groups lay out and render, so their frames unmount (chats and previews
+  // keep running).
+  const { iframeLayers, groups: iframeLayerGroups } = useMemo(() => {
+    const view = hideDoneWorkspaceFrames({
+      groups: allIframeLayerGroups,
+      iframeLayers: allIframeLayers,
+      branches: agents,
+    })
+    return {
+      iframeLayers: view.iframeLayers,
+      groups: groupsOnPage(view.groups, pages, currentPageId),
+    }
+  }, [allIframeLayerGroups, allIframeLayers, agents, pages, currentPageId])
   const markdownLayers = useMarkdownLayers()
   const mockupLayers = useMockupLayers()
   // Every non-frame layer, as the one list the layout helpers size.
@@ -532,8 +558,11 @@ export function Canvas({
     (id: string) => removeDocumentLayers([id]),
     [removeDocumentLayers]
   )
+  // The saved viewport is where the canvas opens, on its first page, so a
+  // view of another page (#1835) isn't saved over it.
   const saveViewport = useCallback(
     (vp: ViewportData) => {
+      if (!onFirstPageRef.current) return
       ops.saveViewport(vp)
     },
     [ops]
@@ -853,6 +882,43 @@ export function Canvas({
   // Ref mirror so callbacks that only need the current snapshot (e.g.
   // `requestReorderDrag` computing the cursor's grab offset) can read it
   // without re-binding on every layout change.
+  // Switching pages (#1835). Each page keeps the view this person left it at
+  // during this visit; a page they haven't been on yet opens fitted to its
+  // content, and an empty one at 100%. Selection doesn't carry across.
+  const pageViewsRef = useRef(new Map<string, ViewportData>())
+  const { clear: clearSelection } = selection
+  const switchPage = useCallback(
+    (pageId: string) => {
+      const from = currentPageIdRef.current
+      if (pageId === from) return
+      const state = transformRef.current?.state
+      if (state)
+        pageViewsRef.current.set(from, {
+          x: state.positionX,
+          y: state.positionY,
+          zoom: state.scale,
+        })
+      clearSelection()
+      setPickedPageId(pageId)
+    },
+    [clearSelection]
+  )
+  const addPage = useCallback(() => {
+    const pageId = ops.createPage()
+    switchPage(pageId)
+    return pageId
+  }, [ops, switchPage])
+  const { jumpTo: cameraJumpTo } = camera
+  const shownPageIdRef = useRef(currentPageId)
+  useLayoutEffect(() => {
+    if (shownPageIdRef.current === currentPageId) return
+    shownPageIdRef.current = currentPageId
+    cameraJumpTo(
+      pageViewsRef.current.get(currentPageId) ?? null,
+      unionRect(iframeLayerLayouts.values())
+    )
+  }, [currentPageId, iframeLayerLayouts, cameraJumpTo])
+
   const iframeLayerLayoutsRef = useRef(iframeLayerLayouts)
   useEffect(() => {
     iframeLayerLayoutsRef.current = iframeLayerLayouts
@@ -1371,7 +1437,8 @@ export function Canvas({
   // per render) so the per-group content/member sizes are computed once per drag,
   // matching the cost profile of the old inline `handleLayerGroupDragStart`.
   const buildMoveAssembly = useCallback(() => {
-    const allGroups = collections.iframeLayerGroups.toArray()
+    // Only this page's Groups: one on another page is never a merge target.
+    const allGroups = ops.groupsOnPage()
     const abArr = collections.iframeLayers.toArray()
     const docArr = sizedLayersOf(collections)
     const groups: MoveAssemblyGroup[] = allGroups.map((g) => {
@@ -1393,7 +1460,7 @@ export function Canvas({
       }
     })
     return { groups, layouts: iframeLayerLayoutsRef.current.values() }
-  }, [collections])
+  }, [collections, ops])
 
   // `removeIframeLayers` / `removeDocumentLayers` are defined up top (the Canvas
   // Operation wrappers the controllers apply removals through). The single
@@ -2090,7 +2157,8 @@ export function Canvas({
     opensOnPanelRef.current = false
     expandChatPanel()
   }, [expandChatPanel])
-  const isCanvasEmpty = iframeLayers.length === 0 && sizedLayers.length === 0
+  // Per page (#1835): a new page shows a new canvas's empty state.
+  const isCanvasEmpty = iframeLayerGroups.length === 0
   // The first Canvas after setup shows the getting-started checklist (#780)
   // until it's dismissed. Read from this browser's storage after hydration.
   const showGettingStarted = useSyncExternalStore(
@@ -2234,6 +2302,11 @@ export function Canvas({
     onRenameIframeLayerGroup: renameIframeLayerGroup,
     onRemoveIframeLayerGroup: removeIframeLayerGroup,
     onCollapseSidebar: () => sidebarPanelRef.current?.collapse(),
+    pages,
+    currentPageId,
+    onSelectPage: switchPage,
+    onAddPage: addPage,
+    onRenamePage: ops.renamePage,
     footer: sidebarFooter,
   } satisfies ComponentProps<typeof RoomSidebar>)
   return (

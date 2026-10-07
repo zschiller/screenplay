@@ -9,6 +9,7 @@ import type {
   FileEntryData,
   MemoryData,
   MockupLayerData,
+  PageData,
   PlanData,
   ViewportData,
   RepoData,
@@ -50,6 +51,9 @@ export const COLLECTION_KEYS = {
   // frame, so viewers can't overwrite each other's. Kept so existing docs
   // load unchanged.
   commentPositions: "commentPositions",
+  /** The canvas's Pages (#1835), `lib/canvas/pages.ts`. None recorded reads
+   *  as one "Page 1". */
+  pages: "pages",
 } as const
 
 const META_KEY = "meta"
@@ -281,6 +285,7 @@ export type RoomCollections = {
   frameControl: YjsCollection<FrameControlRecord>
   frameDriveAsks: YjsCollection<FrameDriveAsk>
   commentPositions: YjsCollection<CommentPosition>
+  pages: YjsCollection<PageData>
   savedViewport: YjsSingleton<ViewportData>
   /** Run a function as a single Yjs transaction (one update, one undo step). */
   transact: (fn: () => void) => void
@@ -363,6 +368,10 @@ export function createRoomCollections(doc: Y.Doc): RoomCollections {
     commentPositions: new YjsCollection<CommentPosition>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.commentPositions)
+    ),
+    pages: new YjsCollection<PageData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.pages)
     ),
     savedViewport: new YjsSingleton<ViewportData>(doc, meta, VIEWPORT_FIELD),
     transact: (fn) => doc.transact(fn),

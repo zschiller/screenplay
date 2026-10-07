@@ -18,6 +18,13 @@ import {
   shownIndexToMemberIndex,
 } from "@/lib/canvas/done-workspaces"
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
+import {
+  FIRST_PAGE,
+  groupsOnPage,
+  nextPageName,
+  orderedPages,
+  resolvePageId,
+} from "@/lib/canvas/pages"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
@@ -35,6 +42,7 @@ import type {
   IframeLayerGroupData,
   MarkdownLayerData,
   MockupLayerData,
+  PageData,
   PlanData,
   ViewportData,
   RepoData,
@@ -442,6 +450,25 @@ export type CanvasOps = {
    * The caller owns screen→canvas conversion and placement of `anchor`.
    */
   splitToNewGroup(memberIds: string[], anchor: { x: number; y: number }): string
+  /** The canvas's Pages in list order (#1835); never empty, since a canvas
+   *  with none recorded reads as one "Page 1". */
+  listPages(): PageData[]
+  /**
+   * The Groups on page `pageId` (a page that's gone reads as the first); with
+   * no id, on the page new Groups land on (see {@link CanvasOpsOptions}).
+   */
+  groupsOnPage(pageId?: string): IframeLayerGroupData[]
+  /**
+   * Add a Page at the end of the list, named `name` or the next "Page N".
+   * The first write to a canvas's pages also records the "Page 1" it has
+   * shown so far, in the same transaction. Returns the new page's id.
+   */
+  createPage(options?: { name?: string }): string
+  /**
+   * Rename a Page; a blank name is ignored. A canvas whose pages aren't
+   * recorded yet records its "Page 1" to rename it.
+   */
+  renamePage(pageId: string, name: string): void
   /**
    * @internal Not a public verb — the single Group-invariant chokepoint the
    * removal/restructure verbs (#158) route Member removal through. Exposed
@@ -471,8 +498,83 @@ function newDocument(
   }
 }
 
-export function createCanvasOps(collections: RoomCollections): CanvasOps {
+/** How a {@link CanvasOps} places what it creates. */
+export type CanvasOpsOptions = {
+  /**
+   * The Page new Groups land on: the one the person is looking at, for the
+   * canvas's own ops. Placement beside existing Groups then counts only that
+   * page's. Without it (server-side callers), new Groups go on the first page.
+   */
+  currentPageId?: () => string | undefined
+}
+
+export function createCanvasOps(
+  collections: RoomCollections,
+  options: CanvasOpsOptions = {}
+): CanvasOps {
   const { doc } = collections
+
+  function listPages(): PageData[] {
+    return orderedPages(collections.pages.toArray())
+  }
+
+  function groupsOnPageOf(pageId?: string): IframeLayerGroupData[] {
+    const pages = listPages()
+    return groupsOnPage(
+      collections.iframeLayerGroups.toArray(),
+      pages,
+      pageId ?? targetPageId() ?? pages[0]!.id
+    )
+  }
+
+  // The page a new Group lands on, when the caller says (see
+  // `CanvasOpsOptions`); otherwise it gets no `pageId`, which is the first.
+  function targetPageId(): string | undefined {
+    const pageId = options.currentPageId?.()
+    return pageId ? resolvePageId(listPages(), pageId) : undefined
+  }
+
+  function pageField(): { pageId?: string } {
+    const pageId = targetPageId()
+    return pageId ? { pageId } : {}
+  }
+
+  // The Groups a new one is placed beside: only those on its page.
+  function placementGroups(): IframeLayerGroupData[] {
+    return groupsOnPageOf()
+  }
+
+  function createPage({ name }: { name?: string } = {}): string {
+    const id = nanoid()
+    batch(() => {
+      const recorded = collections.pages.toArray()
+      if (recorded.length === 0)
+        collections.pages.set(FIRST_PAGE.id, FIRST_PAGE)
+      const pages = orderedPages(recorded)
+      const order = Math.max(...pages.map((p) => p.order)) + 1
+      collections.pages.set(id, {
+        id,
+        name: name?.trim() || nextPageName(pages),
+        order,
+      })
+    })
+    return id
+  }
+
+  function renamePage(pageId: string, name: string): void {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    batch(() => {
+      if (collections.pages.has(pageId)) {
+        collections.pages.update(pageId, { name: trimmed })
+      } else if (
+        pageId === FIRST_PAGE.id &&
+        !collections.pages.toArray().length
+      ) {
+        collections.pages.set(pageId, { ...FIRST_PAGE, name: trimmed })
+      }
+    })
+  }
 
   function batch(fn: () => void): void {
     doc.transact(fn, CANVAS_OPS_ORIGIN)
@@ -642,6 +744,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       collections.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        ...pageField(),
         x: anchor.x,
         y: anchor.y,
         members: [{ kind: "iframe-layer", id: layerId }],
@@ -662,7 +765,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       // Read the Group snapshot inside the transaction so concurrently-created
       // frames don't race on a stale doc and overlap (the placement-race guard).
       const { x, y } = placeNewIframeLayerGroup(
-        collections.iframeLayerGroups.toArray(),
+        placementGroups(),
         collections.iframeLayers.toArray(),
         anchor,
         width,
@@ -680,6 +783,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       collections.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        ...pageField(),
         x,
         y,
         members: [{ kind: "iframe-layer", id: layerId }],
@@ -701,7 +805,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       const { width, height } = defaultSizeForAgent(agentId)
       // Placement-race guard: read the live Group snapshot inside the transaction.
       const { x, y } = placeNewIframeLayerGroup(
-        collections.iframeLayerGroups.toArray(),
+        placementGroups(),
         collections.iframeLayers.toArray(),
         anchor,
         width,
@@ -722,6 +826,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       collections.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Routes ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        ...pageField(),
         x,
         y,
         members: layerIds.map((id) => ({ kind: "iframe-layer", id })),
@@ -745,7 +850,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       const { width, height } = defaultSizeForAgent(frames[0]!.agentId)
       // Placement-race guard: read the live Group snapshot inside the transaction.
       const { x, y } = placeNewIframeLayerGroup(
-        collections.iframeLayerGroups.toArray(),
+        placementGroups(),
         collections.iframeLayers.toArray(),
         anchor,
         width,
@@ -772,6 +877,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       collections.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        ...pageField(),
         x,
         y,
         members: layerIds.map((id) => ({ kind: "iframe-layer", id })),
@@ -795,6 +901,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       collections.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        ...pageField(),
         x: anchor.x,
         y: anchor.y,
         members: [{ kind: "markdown-layer", id: docId }],
@@ -1058,7 +1165,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       const anchor =
         spec.anchor ??
         placeNewIframeLayerGroup(
-          collections.iframeLayerGroups.toArray(),
+          placementGroups(),
           collections.iframeLayers.toArray(),
           { x: 0, y: 0 },
           spec.width,
@@ -1068,6 +1175,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       collections.iframeLayerGroups.set(groupId, {
         id: groupId,
         name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        ...pageField(),
         x: anchor.x,
         y: anchor.y,
         members: [member],
@@ -1365,6 +1473,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       const idSet = new Set(memberIds)
       const memberById = new Map<string, GroupMember>()
       const touchedSources = new Set<string>()
+      let sourcePageId: string | undefined
       for (const group of collections.iframeLayerGroups.toArray()) {
         const members = getGroupMembers(group)
         let touched = false
@@ -1375,6 +1484,7 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
           }
         }
         if (!touched) continue
+        if (touchedSources.size === 0) sourcePageId = group.pageId
         touchedSources.add(group.id)
         collections.iframeLayerGroups.update(group.id, {
           members: members.filter((m) => !idSet.has(m.id)),
@@ -1392,6 +1502,8 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
       collections.iframeLayerGroups.set(newGroupId, {
         id: newGroupId,
         name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        // The new Group stays on the page its Members came from.
+        ...(sourcePageId ? { pageId: sourcePageId } : {}),
         x: anchor.x,
         y: anchor.y,
         members: newMembers,
@@ -1441,6 +1553,10 @@ export function createCanvasOps(collections: RoomCollections): CanvasOps {
     reorderGroupMembers,
     mergeGroups,
     splitToNewGroup,
+    listPages,
+    groupsOnPage: groupsOnPageOf,
+    createPage,
+    renamePage,
     internal: { pruneIfEmpty },
   }
 }
