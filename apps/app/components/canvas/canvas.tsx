@@ -41,7 +41,6 @@ import {
   useSetPresence,
   useMemories,
   useCanvasFiles,
-  useLayerFiles,
   useCanvasSkills,
   useRepos,
   useYjsHistory,
@@ -1927,7 +1926,6 @@ export function Canvas({
   // or turning a knob doesn't rebuild the link and re-render every Mockup.
   // Every Mockup view, and each Mockup file with none under its own id
   // (#1885), whose page speaks from the file modal.
-  const layerFiles = useLayerFiles()
   const mockupLinkMockups = useStableValue(
     [
       ...mockupLayers,
