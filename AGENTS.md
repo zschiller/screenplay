@@ -1,22 +1,9 @@
 ## Agent skills
 
-### Issue tracker
-
-Issues and specs are tracked as GitHub issues (github.com/zschiller/screenplay), managed via the `gh` CLI. Dependencies between issues are always GitHub native blocking edges ("blocked by"), never prose alone. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Five canonical triage roles, each mapped to its default label string (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Multi-context layout: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` files. See `docs/agents/domain.md`.
-
-### Product docs
-
-The user and self-hosting docs live in `apps/docs/content`. A PR that changes what a user sees or configures updates the page that describes it in the same PR. If no page needs to change, the PR description says why on a `Docs: <reason>` line (see `.github/pull_request_template.md`); the Docs check fails on a product-code PR with neither. A new environment variable goes in `self-hosting/environment-variables.mdx` (`apps/app/test/env-docs.test.ts` enforces it). Screenshots refresh themselves after merge (`.github/workflows/docs-screenshots.yml`); new screens are added in `apps/app/screenshots/docs/`. Diagrams are SVG components drawn with the kit in `apps/docs/components/diagram/kit.tsx` (see its header), never ASCII in a code block.
-
-UI, homepage and docs copy uses curly apostrophes and quotes (’ “ ” ‘), never straight ' and ". The app’s `test/smart-quotes.test.ts` and `pnpm --filter docs test` / `pnpm --filter homepage test` fail on a straight one in copy; `pnpm exec smart-quotes --fix <folder>` from the app curls them (`packages/smart-quotes`).
+- **Issue tracker**: read before filing, reading or linking GitHub issues; dependencies are always native blocking edges. See `docs/agents/issue-tracker.md`.
+- **Triage labels**: the five triage roles and their label strings. See `docs/agents/triage-labels.md`.
+- **Domain docs**: `CONTEXT-MAP.md` and per-context `CONTEXT.md` files. See `docs/agents/domain.md`.
+- **Product docs**: read before any PR that changes what a user sees or configures, or any UI, homepage or docs copy. See `docs/agents/product-docs.md`.
 
 <!-- BEGIN:turborepo-agent-rules -->
 
