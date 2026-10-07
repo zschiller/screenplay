@@ -7,6 +7,7 @@
     "dev": "next dev --turbopack",
     "build": "drizzle-kit migrate && next build",
     "start": "next start",
+    "headless": "node --import tsx --import ./headless/register.mjs headless/start.ts",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "node lib/extensions/codegen.mjs && tsc --noEmit",

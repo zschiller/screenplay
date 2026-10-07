@@ -26,11 +26,17 @@ const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
 // Vercel owns the server and standalone tracing would only add build cost.
 const isDesktopBuild = process.env.SCREENPLAY_DESKTOP === "1"
 
+// Headless (#1930) runs the same standalone tree from a clone, built by
+// `pnpm headless` into its own folder inside `.next`, so it never clobbers a dev
+// or desktop build and everything that skips `.next` skips it too.
+const isHeadlessBuild = process.env.NEXT_PUBLIC_SCREENPLAY_PROFILE === "headless"
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Omit the key entirely when empty — Next rejects basePath: "".
   ...(basePath ? { basePath } : {}),
-  ...(isDesktopBuild ? { output: "standalone" } : {}),
+  ...(isDesktopBuild || isHeadlessBuild ? { output: "standalone" } : {}),
+  ...(isHeadlessBuild ? { distDir: ".next/headless" } : {}),
   experimental: {
     // Next loads every route's server bundle before it answers its first
     // request. The desktop shell holds its loading screen until `/api/health`

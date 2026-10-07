@@ -2,6 +2,7 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { z } from "zod"
 
+import { defineImplementation } from "@/lib/extensions/types"
 import type {
   ExposedPort,
   PortRange,
@@ -217,4 +218,23 @@ function commandError(err: unknown): string {
   const stderr = (err as { stderr?: unknown })?.stderr
   if (typeof stderr === "string" && stderr.trim()) return stderr.trim()
   return err instanceof Error ? err.message : String(err)
+}
+
+/**
+ * The built-ins as the config file's `previewExposure` field names them
+ * (`lib/extensions/interfaces.ts`), each checked against its options above.
+ */
+export const previewExposureBuiltIns = {
+  loopback: defineImplementation({
+    options: previewExposureOptions.loopback,
+    create: (options) => loopbackExposure(options),
+  }),
+  "url-template": defineImplementation({
+    options: previewExposureOptions["url-template"],
+    create: (options) => urlTemplateExposure(options),
+  }),
+  command: defineImplementation({
+    options: previewExposureOptions.command,
+    create: (options) => commandExposure(options),
+  }),
 }

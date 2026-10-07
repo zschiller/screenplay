@@ -88,7 +88,8 @@ push to that host on its own, for example after `gh auth setup-git`.
 
 ## Picking one
 
-The server builds one as it loads, with `selectGitHubAccess()`: `oauth-account`
-when people sign in with GitHub, and `gh-cli` with its defaults when the host is
-the only writer. `selectGitHubAccess()` refuses an unknown id, or an option it
+The config file’s `githubAccess` field picks one, and the server sets it as it
+starts, with `setGitHubAccess()`. With nothing picked, it builds the default
+with `selectGitHubAccess()`: `oauth-account` when people sign in with GitHub,
+and `gh-cli` with its defaults when the host is the only writer. `selectGitHubAccess()` refuses an unknown id, or an option it
 doesn’t recognise, with a message naming it.

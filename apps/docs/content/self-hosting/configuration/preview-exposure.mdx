@@ -17,6 +17,11 @@ small interface in `apps/app/lib/preview-exposure/` with three built-ins:
 | `url-template` | `0.0.0.0`     | an origin from a pattern                  | A proxy that gives every port its own URL |
 | `command`      | `127.0.0.1`   | an origin from a pattern, after a command | `tailscale serve`, or a company tool      |
 
+On [Headless](/self-hosting/headless), it’s how viewers reach previews. The
+host’s own frames always load through portless at
+`http://screenplay-<port>.localhost:1355`, over the host’s SSH tunnel, whatever
+the config picks, so the host never needs a company proxy or its sign-in.
+
 It covers only what a browser loads: each chat’s bridge proxy (the page a
 frame shows) and its frame stream. The preview itself always listens on
 `127.0.0.1`. The server never loads a browser URL either: its own checks,
@@ -111,7 +116,8 @@ shows the command’s error on the preview; a failed release is only logged.
 
 ## Picking one
 
-The server picks one as it starts, with `setPreviewExposure()`, and keeps
-`loopback` when nothing else is picked. `createPreviewExposure()` builds a
+The config file’s `previewExposure` field picks one, and the server sets it as
+it starts, with `setPreviewExposure()`. With nothing picked it keeps
+`loopback`. `createPreviewExposure()` builds a
 built-in from its options and refuses ones it doesn’t recognise with a message
 naming the option.

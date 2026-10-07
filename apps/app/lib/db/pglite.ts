@@ -28,15 +28,18 @@ export interface PgliteHandle {
   close: () => Promise<void>
 }
 
-// The desktop-only migration set drizzle-kit writes from `schema-core` (see
-// drizzle.local.config.ts) — `drizzle/local`, NOT the full hosted `drizzle/`
-// history. The multi-user surface (auth, room_member, comments) is excluded
-// from the local build (PRD #404, issue #417), so those tables are never
-// created on disk here. PGlite only ever runs in the local build, so this is
-// always the right set. Resolved from this module so it works whether run from
-// the app root (tests, `next dev`) or a bundled sidecar.
-// `PGLITE_MIGRATIONS_DIR` overrides it when the packaged desktop build ships
-// the SQL somewhere else.
+// The migration set drizzle-kit writes for this profile. The Mac app (and
+// tests, which run PGlite under the default profile) has no
+// multi-user surface (auth, room_member, comments; PRD #404, issue #417), so it
+// runs `drizzle/local`, generated from `schema-core` alone (see
+// drizzle.local.config.ts), and those tables are never created on disk.
+// Headless has the multi-user surface, so it runs the full hosted `drizzle/`
+// history, as the screenshot harness's hosted capture already does on PGlite.
+// Read from the env rather than lib/capabilities, which tests stub the profile
+// for after this module loads.
+// Resolved from this module so it works whether run from the app root (tests,
+// `next dev`) or a standalone server. `PGLITE_MIGRATIONS_DIR` overrides it
+// when the packaged desktop build ships the SQL somewhere else.
 //
 // Built with `dirname`/`join` rather than `new URL("../../drizzle/local",
 // import.meta.url)` on purpose: Turbopack statically intercepts the latter and
@@ -44,7 +47,12 @@ export interface PgliteHandle {
 // which fails the hosted build even though this path is only read on desktop.
 const MIGRATIONS_DIR =
   process.env.PGLITE_MIGRATIONS_DIR ??
-  join(dirname(fileURLToPath(import.meta.url)), "../../drizzle/local")
+  join(
+    dirname(fileURLToPath(import.meta.url)),
+    process.env.NEXT_PUBLIC_SCREENPLAY_PROFILE === "headless"
+      ? "../../drizzle"
+      : "../../drizzle/local"
+  )
 
 /**
  * Build the local, embedded-Postgres sibling of {@link createNeonDb}. The same
