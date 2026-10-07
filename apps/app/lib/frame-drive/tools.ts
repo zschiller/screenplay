@@ -416,8 +416,8 @@ export function findDrivable(
     return typeof frame === "string" ? frame : { id, name: frame.name }
   }
 
-  // Read off the raw maps: a server doc's collection snapshots can be stale.
-  const mockups = records<MockupLayerData>(c, COLLECTION_KEYS.mockupLayers)
+  // Mockup views read fresh, with their files' titles (#1883).
+  const mockups = c.mockupLayers.toArray()
   if (!frames) {
     if (mockups.length === 1)
       return { id: mockups[0]!.id, name: mockupName(mockups[0]!) }

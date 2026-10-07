@@ -47,6 +47,8 @@ const LIVE_FRAME_FIELDS: ReadonlySet<string> = new Set([
 const LIVE_KEYS: ReadonlySet<string> = new Set([
   COLLECTION_KEYS.iframeLayers,
   COLLECTION_KEYS.mockupLayers,
+  // A Mockup's page state is its file's (#1883).
+  COLLECTION_KEYS.layerFiles,
 ])
 
 /** The collections a member edits on the canvas. */
@@ -55,6 +57,7 @@ const EDITABLE_KEYS = [
   COLLECTION_KEYS.iframeLayerGroups,
   COLLECTION_KEYS.markdownLayers,
   COLLECTION_KEYS.mockupLayers,
+  COLLECTION_KEYS.layerFiles,
   COLLECTION_KEYS.memories,
   COLLECTION_KEYS.pages,
 ] as const

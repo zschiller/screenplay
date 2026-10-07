@@ -9,6 +9,7 @@ import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { holdLayer } from "@/lib/agent/layer-hold"
+import { layerFileOf, updateLayerFile } from "@/lib/yjs/file-views"
 import {
   PAGE_PARAM_DESCRIPTION,
   pickLayerPage,
@@ -59,18 +60,19 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
    */
   const editDocument = (
     documentId: string,
-    edit: (c: RoomCollections) => string
+    edit: (c: RoomCollections, fileId: string) => string
   ): Promise<string> =>
     ctx.room.mutateDoc(({ doc }) => {
       const c = createRoomCollections(doc)
-      const layer = c.markdownLayers.get(documentId)
-      if (!layer) return `Error: no document ${documentId}.`
-      const refused = holdLayer(c, ctx.chatId, documentId)
+      // The id may name a view or the file (#1883); the edit is the file's.
+      const file = layerFileOf(c, documentId)
+      if (file?.kind !== "document") return `Error: no document ${documentId}.`
+      const refused = holdLayer(c, ctx.chatId, file.id)
       if (refused) return refused
       let result = ""
       createCanvasOps(c).batch(() => {
-        c.markdownLayers.update(documentId, { lastChangedByChatId: ctx.chatId })
-        result = edit(c)
+        updateLayerFile(c, documentId, { lastChangedByChatId: ctx.chatId })
+        result = edit(c, file.id)
       })
       return result
     })
@@ -137,8 +139,8 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
         required: ["document_id", "content"],
       }),
       execute: async ({ document_id, content }) =>
-        editDocument(document_id, (c) => {
-          writeDocumentMarkdown(documentFragment(c.doc, document_id), content, {
+        editDocument(document_id, (c, fileId) => {
+          writeDocumentMarkdown(documentFragment(c.doc, fileId), content, {
             keepTitle: true,
           })
           return `Replaced document body (${content.length} characters).`
@@ -157,8 +159,8 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
         required: ["document_id", "content"],
       }),
       execute: async ({ document_id, content }) =>
-        editDocument(document_id, (c) => {
-          appendDocumentMarkdown(documentFragment(c.doc, document_id), content)
+        editDocument(document_id, (c, fileId) => {
+          appendDocumentMarkdown(documentFragment(c.doc, fileId), content)
           return `Appended ${content.length} characters to the document.`
         }),
     }),
@@ -175,11 +177,11 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
         required: ["document_id", "title"],
       }),
       execute: async ({ document_id, title }) =>
-        editDocument(document_id, (c) => {
+        editDocument(document_id, (c, fileId) => {
           // The title heading inside the body is the source of truth; the
-          // verb mirrors it onto the cached `title` field.
-          setFragmentTitle(documentFragment(c.doc, document_id), title)
-          c.markdownLayers.update(document_id, { title })
+          // verb mirrors it onto the file's cached `title` field.
+          setFragmentTitle(documentFragment(c.doc, fileId), title)
+          updateLayerFile(c, document_id, { title })
           return `Title set to "${title}".`
         }),
     }),

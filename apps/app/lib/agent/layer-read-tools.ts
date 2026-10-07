@@ -3,6 +3,7 @@ import "server-only"
 import { tool, jsonSchema } from "ai"
 import { annotateTools } from "@/lib/mcp/tool-server"
 import type { RoomReader } from "@/lib/room-access"
+import { layerFileOf } from "@/lib/yjs/file-views"
 import { documentFragment } from "@/lib/yjs/fragment-text"
 import { readDocumentBody, roomMentionLabels } from "@/lib/document-markdown"
 import { mentionMarkdownNames } from "@/lib/mention-kinds"
@@ -34,14 +35,20 @@ export function buildLayerReadTools(ctx: LayerReadToolContext) {
       execute: async (input) => {
         const id = (input as { id: string }).id
         const result = await ctx.room.readDoc((c) => {
-          const layer = c.markdownLayers.get(id)
-          if (!layer) return null
+          // A view's id or its file's (#1883): the body is the file's.
+          const file = layerFileOf(c, id)
+          if (file?.kind !== "document") return null
+          const viewId = c.markdownLayers.has(id)
+            ? id
+            : c.markdownLayers.viewIdsOf(file.id)[0]
           return {
             id,
-            title: layer.title,
-            page: layerPageName(c, { kind: "markdown-layer", id }),
+            title: file.title,
+            page: viewId
+              ? layerPageName(c, { kind: "markdown-layer", id: viewId })
+              : undefined,
             body: readDocumentBody(
-              documentFragment(c.doc, id),
+              documentFragment(c.doc, file.id),
               roomMentionLabels(c)
             ),
           }

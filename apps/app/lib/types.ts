@@ -475,15 +475,48 @@ export type PageViewData = ViewportData & {
   seenAt: number
 }
 
+/** What a {@link LayerFileData} is: a Document or a Mockup. */
+export type LayerFileKind = "document" | "mockup"
+
+/**
+ * A Document or Mockup as a file (#1883, spec #1882), apart from the views of
+ * it on the canvas. Its body is keyed by this id: a Document's XmlFragment
+ * `markdown-layer-{id}`, a Mockup's Y.Text `mockup-layer-{id}`. Read a view
+ * through `markdownLayers` / `mockupLayers` and these fields come with it
+ * (`lib/yjs/file-views.ts`). Not a Canvas File (`FileEntryData`).
+ */
+export type LayerFileData = {
+  id: string
+  kind: LayerFileKind
+  title: string
+  /** The chat that last made or changed the file with its tools (#1724). */
+  lastChangedByChatId?: string
+  /** The chat that made it, from before #1724; read, never written. */
+  ownerChatId?: string
+  /** A Mockup's page state, the same in every view of it: see
+   *  {@link MockupLayerData}. */
+  knobs?: JsonValue[]
+  knobValues?: JsonObject
+  sharedState?: JsonObject
+  live?: boolean
+  liveBranchId?: string
+  colorScheme?: "light" | "dark"
+}
+
 /**
  * A Notion-style markdown tile on the canvas. Lives inside an
  * `IframeLayerGroup` exactly like iframe layers do — the group anchors
  * world-space `(x, y)`, and the layer carries only its own size + title.
- * Body content lives in a Yjs XmlFragment keyed by `markdown-layer-${id}`
- * (owned by TipTap, same shape as text layers' `text-${id}` fragments).
+ * Body content lives in a Yjs XmlFragment keyed by its file id,
+ * `markdown-layer-${fileId}` (owned by TipTap).
  */
 export type MarkdownLayerData = {
   id: string
+  /**
+   * The file this view shows (#1883). Every read fills it in; a write without
+   * it means the view's own id. The title and last chat below are the file's.
+   */
+  fileId?: string
   width: number
   height: number
   title: string
@@ -504,11 +537,18 @@ export type MarkdownLayerData = {
 /**
  * A static HTML page a chat wrote, shown on the canvas without a Sandbox
  * (issue #1309). Lives in a Group like the other layers. The page itself is a
- * `Y.Text` keyed `mockup-layer-${id}` (resolved through `mockupHtml`), so it
- * syncs like a document body; the record carries size, title and owner.
+ * `Y.Text` keyed by its file id, `mockup-layer-${fileId}` (resolved through
+ * `mockupHtml`), so it syncs like a document body; the record carries size,
+ * title and owner.
  */
 export type MockupLayerData = {
   id: string
+  /**
+   * The file this view shows (#1883), as on a Document. The title, last chat,
+   * knobs, shared state, live and colour scheme are the file's; the size, fit
+   * and scroll are this view's.
+   */
+  fileId?: string
   width: number
   height: number
   title: string

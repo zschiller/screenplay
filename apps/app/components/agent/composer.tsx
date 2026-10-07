@@ -1,5 +1,6 @@
 "use client"
 
+import { findViewOrFile } from "@/lib/yjs/file-views"
 import {
   forwardRef,
   type ReactNode,
@@ -291,7 +292,7 @@ function serializeDraft(
     message: trimmed,
     referencedDocs: mentions.map((m) => ({
       id: m.id,
-      title: markdownLayers.find((d) => d.id === m.id)?.title,
+      title: findViewOrFile(markdownLayers, m.id)?.title,
     })),
     targetedElements: elements,
   }

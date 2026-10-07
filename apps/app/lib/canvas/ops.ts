@@ -34,6 +34,7 @@ import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
 import { mockupHtml, writeMockupHtml } from "@/lib/yjs/mockup-html"
+import { layerFileOf, updateLayerFile } from "@/lib/yjs/file-views"
 import {
   documentFragment,
   seedDocumentFragment,
@@ -45,6 +46,7 @@ import type {
   GroupMember,
   IframeLayerData,
   IframeLayerGroupData,
+  LayerFileData,
   MarkdownLayerData,
   MockupLayerData,
   PageData,
@@ -334,6 +336,22 @@ export type CanvasOps = {
    */
   renameDocument(docId: string, title: string): void
   /**
+   * The file a Document or Mockup id names (#1883): a view's file, or the
+   * file itself. Undefined when there's neither.
+   */
+  fileOf(id: string): LayerFileData | undefined
+  /**
+   * Add another view of an existing Document or Mockup file (#1883) to the
+   * end of a Group's row, the size of the file's first view (or `size`).
+   * Every view of a file shows the same body. Returns the new view's id, or
+   * `undefined` when the file or the Group is gone.
+   */
+  addFileView(
+    fileId: string,
+    groupId: string,
+    size?: { width: number; height: number }
+  ): string | undefined
+  /**
    * Remove the given Iframe Layers and drop them from any Group that held
    * them, pruning a Group emptied by the removal. Iframe Layers own no Chat
    * Sessions, so `removedChatIds` is always empty — the field is present so
@@ -342,7 +360,8 @@ export type CanvasOps = {
   removeLayers(ids: string[]): { removedChatIds: string[] }
   /**
    * Remove the given Markdown Layers (Documents): drop them from any Group
-   * (pruning a Group emptied by the removal). Documents own no Chat Sessions
+   * (pruning a Group emptied by the removal). Each is a view (#1883); a file
+   * goes with its last view until Delete file lands (spec #1882). Documents own no Chat Sessions
    * since #1314 (the chat that made one outlives it), so `removedChatIds` is
    * always empty, as for {@link removeLayers}.
    */
@@ -367,13 +386,14 @@ export type CanvasOps = {
     anchor?: { x: number; y: number }
   }): { mockupId: string; groupId: string } | undefined
   /**
-   * Replace a Mockup Layer's page and/or title. The record and
-   * its HTML text commit together. Returns false when the mockup is gone.
+   * Replace a Mockup's page and/or title, by a view's id or its file's
+   * (#1883): every view of the file repaints. The file and its HTML text
+   * commit together. Returns false when the mockup is gone.
    */
   updateMockup(id: string, patch: { html?: string; title?: string }): boolean
   /**
-   * Copy a Mockup Layer (page, size, knobs and last chat) to the end of its
-   * Group's row, named "<title> copy" — the mockup bar's
+   * Copy a Mockup Layer into a new file (page, size, knobs and last chat) at
+   * the end of its Group's row, named "<title> copy" — the mockup bar's
    * Duplicate. Returns the copy's id, or `undefined` when the mockup is gone.
    */
   duplicateMockup(id: string): string | undefined
@@ -787,8 +807,9 @@ export function createCanvasOps(
     } else if (member.kind === "markdown-layer") {
       const layer = collections.markdownLayers.get(member.id)
       if (!layer) return undefined
-      collections.markdownLayers.set(id, { ...layer, id })
-      const body = documentFragment(doc, member.id)
+      // A copy is a new file under the copy's id (#1883), body and all.
+      collections.markdownLayers.set(id, { ...layer, id, fileId: id })
+      const body = documentFragment(doc, layer.fileId ?? member.id)
         .toArray()
         .map((node) => node.clone() as XmlElement | XmlText)
       if (body.length > 0) documentFragment(doc, id).insert(0, body)
@@ -796,10 +817,10 @@ export function createCanvasOps(
     } else {
       const layer = collections.mockupLayers.get(member.id)
       if (!layer) return undefined
-      collections.mockupLayers.set(id, { ...layer, id })
+      collections.mockupLayers.set(id, { ...layer, id, fileId: id })
       writeMockupHtml(
         mockupHtml(doc, id),
-        mockupHtml(doc, member.id).toString()
+        mockupHtml(doc, layer.fileId ?? member.id).toString()
       )
     }
     return id
@@ -1375,13 +1396,51 @@ export function createCanvasOps(
 
   function renameDocument(docId: string, title: string): void {
     batch(() => {
-      if (!collections.markdownLayers.has(docId)) return
-      // The fragment heading is what every peer's editor renders; the record
+      const file = fileOf(docId)
+      if (file?.kind !== "document") return
+      // The fragment heading is what every peer's editor renders; the file's
       // `title` is the cache the sidebar/agent tools read. Both move together
-      // so a rename can never leave the two views disagreeing.
-      setFragmentTitle(documentFragment(doc, docId), title)
-      collections.markdownLayers.update(docId, { title })
+      // so a rename can never leave the two disagreeing.
+      setFragmentTitle(documentFragment(doc, file.id), title)
+      updateLayerFile(collections, docId, { title })
     })
+  }
+
+  function fileOf(id: string): LayerFileData | undefined {
+    return layerFileOf(collections, id)
+  }
+
+  function addFileView(
+    fileId: string,
+    groupId: string,
+    size?: { width: number; height: number }
+  ): string | undefined {
+    const file = collections.layerFiles.get(fileId)
+    const group = collections.iframeLayerGroups.get(groupId)
+    if (!file || !group) return undefined
+    const views =
+      file.kind === "document"
+        ? collections.markdownLayers
+        : collections.mockupLayers
+    const first = views.viewIdsOf(fileId)[0]
+    const from = first ? views.get(first) : undefined
+    const width = size?.width ?? from?.width
+    const height = size?.height ?? from?.height
+    if (width === undefined || height === undefined) return undefined
+    const id = nanoid()
+    batch(() => {
+      views.addView(id, fileId, { width, height })
+      collections.iframeLayerGroups.update(groupId, {
+        members: [
+          ...getGroupMembers(group),
+          {
+            kind: file.kind === "document" ? "markdown-layer" : "mockup-layer",
+            id,
+          },
+        ],
+      })
+    })
+    return id
   }
 
   function removeLayers(ids: string[]): { removedChatIds: string[] } {
@@ -1470,13 +1529,14 @@ export function createCanvasOps(
     id: string,
     patch: { html?: string; title?: string }
   ): boolean {
-    if (!collections.mockupLayers.get(id)) return false
+    const file = fileOf(id)
+    if (file?.kind !== "mockup") return false
     batch(() => {
       if (patch.title !== undefined) {
-        collections.mockupLayers.update(id, { title: patch.title })
+        updateLayerFile(collections, id, { title: patch.title })
       }
       if (patch.html !== undefined) {
-        writeMockupHtml(mockupHtml(doc, id), patch.html)
+        writeMockupHtml(mockupHtml(doc, file.id), patch.html)
       }
     })
     return true
@@ -1494,7 +1554,7 @@ export function createCanvasOps(
     batch(() => {
       createMockup({
         id: copyId,
-        html: mockupHtml(doc, id).toString(),
+        html: mockupHtml(doc, source.fileId ?? id).toString(),
         title: source.title ? `${source.title} copy` : "",
         width: source.width,
         height: source.height,
@@ -1821,6 +1881,8 @@ export function createCanvasOps(
     addFrameToGroup,
     addDocumentToGroup,
     renameDocument,
+    fileOf,
+    addFileView,
     removeLayers,
     removeDocuments,
     createMockup,

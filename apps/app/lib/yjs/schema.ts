@@ -7,6 +7,7 @@ import type {
   ChatSessionData,
   MarkdownLayerData,
   FileEntryData,
+  LayerFileData,
   MemoryData,
   MockupLayerData,
   PageData,
@@ -17,6 +18,7 @@ import type {
 } from "@/lib/types"
 import type { FrameControlRecord } from "@/lib/canvas/frame-control"
 import type { FrameDriveAsk } from "@/lib/frame-drive/view/asks"
+import { FileViewCollection, migrateFileViews } from "@/lib/yjs/file-views"
 
 /**
  * Y.Doc layout for a room. Each domain is a top-level Y.Map of Y.Maps; the
@@ -31,9 +33,14 @@ export const COLLECTION_KEYS = {
   branches: "branches",
   iframeLayers: "iframeLayers",
   iframeLayerGroups: "iframeLayerGroups",
+  /** Views of Documents (#1883): size, and the file they show. */
   markdownLayers: "markdownLayers",
-  /** Mockup Layers (#1267); their HTML lives in `mockup-layer-{id}` texts. */
+  /** Views of Mockups (#1267, #1883); their HTML lives in their file's
+   *  `mockup-layer-{fileId}` text. */
   mockupLayers: "mockupLayers",
+  /** The file behind each Document and Mockup (#1883), `lib/yjs/file-views.ts`.
+   *  Not Canvas Files, which are `files`. */
+  layerFiles: "layerFiles",
   chatSessions: "chatSessions",
   plans: "plans",
   /** Canvas memory entries (#902), `lib/memory/canvas.ts`. */
@@ -207,6 +214,14 @@ export class YjsCollection<T extends Record<string, unknown>> {
   }
 }
 
+/** What reading a collection needs, met by `YjsCollection` and by the file
+ *  views of `lib/yjs/file-views.ts`. */
+export type ObservableCollection<T> = {
+  get(id: string): T | undefined
+  toArray(): T[]
+  observe(cb: () => void): () => void
+}
+
 /**
  * Singleton object wrapper — for the `savedViewport`-style pattern where the
  * "value" is a single object rather than a keyed collection.
@@ -278,8 +293,12 @@ export type RoomCollections = {
   branches: YjsCollection<BranchData>
   iframeLayers: YjsCollection<IframeLayerData>
   iframeLayerGroups: YjsCollection<IframeLayerGroupData>
-  markdownLayers: YjsCollection<MarkdownLayerData>
-  mockupLayers: YjsCollection<MockupLayerData>
+  /** Document views, read with their file's fields (`lib/yjs/file-views.ts`). */
+  markdownLayers: FileViewCollection<MarkdownLayerData>
+  /** Mockup views, read with their file's fields. */
+  mockupLayers: FileViewCollection<MockupLayerData>
+  /** Every Document's and Mockup's file, with or without a view (#1883). */
+  layerFiles: YjsCollection<LayerFileData>
   chatSessions: YjsCollection<ChatSessionData>
   plans: YjsCollection<PlanData>
   memories: YjsCollection<MemoryData>
@@ -305,6 +324,11 @@ export function getRoomCollections(doc: Y.Doc): RoomCollections {
 
   const collections = createRoomCollections(doc)
   migrateLegacyGroups(collections)
+  migrateFileViews(doc, {
+    files: ensureCollection(doc, COLLECTION_KEYS.layerFiles),
+    documents: ensureCollection(doc, COLLECTION_KEYS.markdownLayers),
+    mockups: ensureCollection(doc, COLLECTION_KEYS.mockupLayers),
+  })
   COLLECTIONS_CACHE.set(doc, collections)
   return collections
 }
@@ -335,13 +359,21 @@ export function createRoomCollections(doc: Y.Doc): RoomCollections {
       doc,
       ensureCollection(doc, COLLECTION_KEYS.iframeLayerGroups)
     ),
-    markdownLayers: new YjsCollection<MarkdownLayerData>(
+    markdownLayers: new FileViewCollection<MarkdownLayerData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.markdownLayers)
+      ensureCollection(doc, COLLECTION_KEYS.markdownLayers),
+      ensureCollection(doc, COLLECTION_KEYS.layerFiles),
+      "document"
     ),
-    mockupLayers: new YjsCollection<MockupLayerData>(
+    mockupLayers: new FileViewCollection<MockupLayerData>(
       doc,
-      ensureCollection(doc, COLLECTION_KEYS.mockupLayers)
+      ensureCollection(doc, COLLECTION_KEYS.mockupLayers),
+      ensureCollection(doc, COLLECTION_KEYS.layerFiles),
+      "mockup"
+    ),
+    layerFiles: new YjsCollection<LayerFileData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.layerFiles)
     ),
     chatSessions: new YjsCollection<ChatSessionData>(
       doc,

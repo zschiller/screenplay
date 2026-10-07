@@ -20,6 +20,8 @@ import {
   mentionTargetLabel,
 } from "@/lib/mention-kinds"
 import type { RoomCollections } from "@/lib/yjs/schema"
+import { layerFileOf } from "@/lib/yjs/file-views"
+import type { LayerFileKind } from "@/lib/types"
 
 /**
  * **Document Markdown**: the one way a Document's body becomes markdown and
@@ -146,12 +148,21 @@ export type MentionLabelOf = (
 export function roomMentionLabels(
   c: Pick<
     RoomCollections,
-    "markdownLayers" | "mockupLayers" | "branches" | "chatSessions"
+    | "markdownLayers"
+    | "mockupLayers"
+    | "layerFiles"
+    | "branches"
+    | "chatSessions"
   >
 ): MentionLabelOf {
+  // A view's id or its file's (#1883): the name is the file's.
+  const fileOfKind = (kind: LayerFileKind, id: string) => {
+    const file = layerFileOf(c, id)
+    return file?.kind === kind ? file : undefined
+  }
   const targets: MentionTargets = {
-    document: (id) => c.markdownLayers.get(id),
-    mockup: (id) => c.mockupLayers.get(id),
+    document: (id) => fileOfKind("document", id),
+    mockup: (id) => fileOfKind("mockup", id),
     workspace: (id) => c.branches.get(id),
     chat: (id) => c.chatSessions.get(id),
   }

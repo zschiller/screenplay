@@ -208,6 +208,7 @@ describe("createMockup", () => {
     const { mockupId, groupId } = result!
     expect(collections.mockupLayers.get(mockupId)).toEqual({
       id: mockupId,
+      fileId: mockupId,
       width: 720,
       height: 800,
       title: "Receipt",
@@ -440,6 +441,7 @@ describe("duplicateMockup", () => {
     expect(copyId).toBeDefined()
     expect(collections.mockupLayers.get(copyId!)).toEqual({
       id: copyId,
+      fileId: copyId,
       width: 400,
       height: 300,
       title: "Option A copy",
@@ -2524,5 +2526,125 @@ describe("pageAfterDelete", () => {
   it("lands on the page above, or below when the first page went", () => {
     expect(pageAfterDelete(before, [page("a", 0), page("c", 2)], "b")).toBe("a")
     expect(pageAfterDelete(before, [page("b", 1), page("c", 2)], "a")).toBe("b")
+  })
+})
+
+describe("files and views (#1883)", () => {
+  /** A Document with a second view of its file in another Group. */
+  function documentWithTwoViews() {
+    const h = makeHarness()
+    const { docId, groupId } = h.ops.createDocument(
+      { x: 0, y: 0 },
+      { width: 480, height: 640 }
+    )
+    h.ops.renameDocument(docId, "Plan")
+    seedGroup(h.collections, "group-2", [{ kind: "iframe-layer", id: "f-1" }])
+    h.collections.iframeLayers.set("f-1", baseLayer("f-1"))
+    const viewId = h.ops.addFileView(docId, "group-2")!
+    return { ...h, docId, groupId, viewId }
+  }
+
+  it("makes each new Document a file plus a view under the same id", () => {
+    const { ops, collections } = makeHarness()
+
+    const { docId } = ops.createDocument(
+      { x: 0, y: 0 },
+      { width: 480, height: 640 }
+    )
+
+    expect(collections.layerFiles.get(docId)).toEqual({
+      id: docId,
+      kind: "document",
+      title: "",
+    })
+    expect(collections.markdownLayers.get(docId)?.fileId).toBe(docId)
+    expect(ops.fileOf(docId)?.id).toBe(docId)
+  })
+
+  it("adds another view of a file at the end of a Group, the first view's size", () => {
+    const { collections, docId, viewId } = documentWithTwoViews()
+
+    expect(collections.markdownLayers.get(viewId)).toEqual({
+      id: viewId,
+      fileId: docId,
+      width: 480,
+      height: 640,
+      title: "Plan",
+    })
+    expect(collections.iframeLayerGroups.get("group-2")?.members).toEqual([
+      { kind: "iframe-layer", id: "f-1" },
+      { kind: "markdown-layer", id: viewId },
+    ])
+  })
+
+  it("shows the same body in both views, and a rename through either repaints both", () => {
+    const { doc, ops, collections, docId, viewId } = documentWithTwoViews()
+
+    ops.renameDocument(viewId, "Plan B")
+
+    expect(collections.markdownLayers.get(docId)?.title).toBe("Plan B")
+    expect(collections.markdownLayers.get(viewId)?.title).toBe("Plan B")
+    // One body, keyed by the file: both views' editors bind to it.
+    expect(getFragmentTitle(documentFragment(doc, docId))).toBe("Plan B")
+    expect(ops.fileOf(viewId)?.id).toBe(docId)
+  })
+
+  it("updates a Mockup's page through any view, so every view repaints", () => {
+    const { doc, ops, collections } = makeHarness()
+    const { mockupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Hero",
+      width: 400,
+      height: 300,
+      anchor: { x: 0, y: 0 },
+    })!
+    seedGroup(collections, "group-2", [{ kind: "iframe-layer", id: "f-1" }])
+    collections.iframeLayers.set("f-1", baseLayer("f-1"))
+    const viewId = ops.addFileView(mockupId, "group-2")!
+
+    expect(
+      ops.updateMockup(viewId, { html: "<p>B</p>", title: "Hero 2" })
+    ).toBe(true)
+
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>B</p>")
+    expect(collections.mockupLayers.get(mockupId)?.title).toBe("Hero 2")
+    expect(collections.mockupLayers.get(viewId)?.title).toBe("Hero 2")
+  })
+
+  it("keeps the file when one view is removed, and ⌘Z brings the view back", () => {
+    const { doc, ops, collections, docId, viewId } = documentWithTwoViews()
+    const undo = createCanvasUndo(doc)
+
+    ops.removeDocuments([viewId])
+
+    expect(collections.markdownLayers.has(viewId)).toBe(false)
+    expect(collections.layerFiles.get(docId)?.title).toBe("Plan")
+    undo.undo()
+    expect(collections.markdownLayers.get(viewId)?.title).toBe("Plan")
+    undo.destroy()
+  })
+
+  it("adds nothing for a missing file or Group", () => {
+    const { ops, docId } = documentWithTwoViews()
+
+    expect(ops.addFileView("gone", "group-2")).toBe(undefined)
+    expect(ops.addFileView(docId, "gone")).toBe(undefined)
+  })
+
+  it("copies a page's Documents into new files, body and all", () => {
+    const { doc, ops, collections, docId } = documentWithTwoViews()
+    const pageId = ops.listPages()[0]!.id
+
+    ops.duplicatePage(pageId)
+
+    const copies = collections.markdownLayers
+      .toArray()
+      .filter((d) => d.fileId !== docId)
+    expect(copies).toHaveLength(2)
+    for (const copy of copies) {
+      expect(copy.fileId).toBe(copy.id)
+      expect(collections.layerFiles.get(copy.id)?.title).toBe("Plan")
+      expect(getFragmentTitle(documentFragment(doc, copy.id))).toBe("Plan")
+    }
   })
 })

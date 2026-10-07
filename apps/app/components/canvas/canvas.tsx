@@ -2476,11 +2476,12 @@ export function Canvas({
     [iframeLayers]
   )
   const sidebarDocuments = useMemo(
-    () => markdownLayers.map(({ id, title }) => ({ id, title })),
+    () =>
+      markdownLayers.map(({ id, fileId, title }) => ({ id, fileId, title })),
     [markdownLayers]
   )
   const sidebarMockups = useMemo(
-    () => mockupLayers.map(({ id, title }) => ({ id, title })),
+    () => mockupLayers.map(({ id, fileId, title }) => ({ id, fileId, title })),
     [mockupLayers]
   )
   const sidebarProps = sidebarStable.value("sidebar", {

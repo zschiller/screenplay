@@ -10,6 +10,7 @@ import {
 } from "@/lib/mockup-refs"
 import type { RoomDoc } from "@/lib/room-access"
 import { chatSkillSources } from "@/lib/agent/chat-skill-sources"
+import { layerFileOf } from "@/lib/yjs/file-views"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 
 /** A file a reference names: its media type and bytes. */
@@ -74,8 +75,9 @@ export async function mockupRefSources(
 ): Promise<MockupRefSources> {
   const chatId = await room
     .readDoc((c) => {
-      const mockup = c.mockupLayers.get(opts.mockupId)
-      return mockup && lastChangedBy(mockup)
+      // A view's id or its file's (#1883): the file names the last chat.
+      const file = layerFileOf(c, opts.mockupId)
+      return file && lastChangedBy(file)
     })
     .catch(() => undefined)
   const skills = await chatSkillSources(room, chatId, opts.userId ?? null)

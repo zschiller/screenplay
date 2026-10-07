@@ -363,7 +363,10 @@ export type SidebarFrame = Pick<
 >
 
 /** A Document or Mockup as the sidebar lists it. */
-export type SidebarTitledLayer = Pick<MarkdownLayerData, "id" | "title">
+export type SidebarTitledLayer = Pick<
+  MarkdownLayerData,
+  "id" | "fileId" | "title"
+>
 
 interface RoomSidebarProps {
   /** The canvas's Workspaces: group and frame rows name theirs. */
@@ -561,10 +564,15 @@ function RoomSidebarImpl({
   // The Documents and Mockups a chat is working on right now (#1726): their
   // rows end in the 9-dot.
   const chatSessions = useChatSessions()
-  const workingLayerIds = useMemo(
-    () => new Set(layerHolders(chatSessions).keys()),
-    [chatSessions]
-  )
+  // The hold is the file's (#1883): every view of a held file shows it.
+  const workingLayerIds = useMemo(() => {
+    const held = new Set(layerHolders(chatSessions).keys())
+    const ids = new Set<string>()
+    for (const layer of [...markdownLayers, ...mockupLayers])
+      if (held.has(layer.fileId ?? layer.id) || held.has(layer.id))
+        ids.add(layer.id)
+    return ids
+  }, [chatSessions, markdownLayers, mockupLayers])
 
   /**
    * Per-kind sidebar row + menu component lookup. Each entry binds a
