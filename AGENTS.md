@@ -20,6 +20,10 @@ User and self-hosting docs in `apps/docs/content`: read before a PR that changes
 
 Testing on Linux versus the Mac, local dev fixes, held dependency pins, publishing and PR habits: `apps/docs/content/contributing/`.
 
+### Design guide
+
+Design and copy rules and rejected directions: read before designing, building or reviewing anything people see. See `docs/design/README.md`.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know

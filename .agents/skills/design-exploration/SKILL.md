@@ -11,9 +11,11 @@ An exploration is the sibling of [`design-audit`](../design-audit/SKILL.md): an 
 
 ## 1. Frame the question
 
-1. Quote the owner's words at the top of the page, then state the question in one line. The options answer that question and no other: every option traces to the owner's words or to a fact in the code. An example you invent to explain an option stays an example, not an option.
+1. Quote the owner's words at the top of the page, then state the question in one line. The options answer that question and no other: every option traces to the owner's words or to a fact in the code. An example you invent to explain an option stays an example, not an option. Any further behaviour an option would bring becomes its own question, since a pick approves only the option's answer to its question.
 2. Take an **inventory** of Today on main: every place the thing appears, with real captures, and the numbers that matter (sizes, colours, counts, which component). Measure them from the DOM rather than eyeballing a screenshot. List the facts that constrain the answer, citing `file:line`.
 3. Gather the owner's design rules as [`RULES.md`](RULES.md) describes, and read the exploration's own topic file if this is a later round. Drop any option that a rule or an earlier rejection already settles.
+
+When two questions touch the same moment of a flow (what happens on one click, one screen, one step), ask them as one question whose options are whole flows, so separate picks can't combine into a flow nobody saw.
 
 Done when the question is one line, Today is captured and measured, and every constraint has a citation.
 
@@ -82,4 +84,4 @@ Done when the PR is up with the summary and its shots. Reply with the PR link, w
 
 ## When the owner asks for a spec
 
-Only when the owner says to: write one spec from the topic file with the repo's spec skill (such as `to-spec`), linking the Artifact and naming each pick, and show it to the owner before filing. Labels, tickets and dependencies follow the tracker's docs and the owner's answer. Building happens in its own threads and PRs, with the screenshots RULES.md's PR evidence rule asks for.
+Only when the owner says to: write one spec from the topic file with the repo's spec skill (such as `to-spec`), linking the Artifact and naming each pick, and show it to the owner before filing. The spec holds only behaviour an exploration page showed and the owner picked or signed off; anything else goes in as an open question, never as a story. Labels, tickets and dependencies follow the tracker's docs and the owner's answer. Building happens in its own threads and PRs, with the screenshots RULES.md's PR evidence rule asks for.
