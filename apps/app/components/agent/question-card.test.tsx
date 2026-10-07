@@ -9,13 +9,29 @@ import {
 } from "@testing-library/react"
 import type { AgentMessage } from "@/lib/agent/types"
 import { inputStore } from "@/lib/input-store"
+import { fileModal } from "@/lib/canvas/file-modal"
 import { viewRequests, type ViewRequest } from "@/lib/canvas/view-requests"
 import { QuestionCard } from "./question-card"
 
-// The Mockups on the canvas, by id, as the room doc would hold them.
-const titles = new Map<string, string>([["mock-1", "Option B · Suggestions"]])
+// The Mockup files, by any id they go by, as the room doc would hold them:
+// one on the canvas, one only in the chat (#1889).
+const files = new Map<string, object>([
+  [
+    "mock-1",
+    {
+      id: "mock-1",
+      kind: "mockup",
+      title: "Option B · Suggestions",
+      viewIds: ["mock-1"],
+    },
+  ],
+  [
+    "page-1",
+    { id: "page-1", kind: "mockup", title: "Rows · Exploration", viewIds: [] },
+  ],
+])
 vi.mock("@/lib/yjs/react", () => ({
-  useMockupTitle: (id: string) => titles.get(id),
+  useLayerFile: (id: string) => files.get(id) ?? null,
 }))
 
 afterEach(cleanup)
@@ -51,6 +67,16 @@ describe("QuestionCard on a Mockup (#1644)", () => {
     unsubscribe()
 
     expect(requests).toEqual([{ ids: ["mock-1"] }])
+  })
+
+  it("opens a Mockup that isn't on the canvas in the file modal", () => {
+    render(<QuestionCard message={ask({ mockup_id: "page-1" })} chatId="c" />)
+    expect(screen.getByTestId("question-mockup").textContent).toBe(
+      "On Rows · Exploration"
+    )
+    fireEvent.click(screen.getByRole("button", { name: /Rows/ }))
+    expect(fileModal.current()).toBe("page-1")
+    fileModal.close()
   })
 
   it("draws no line for a question about nothing, or a Mockup that's gone", () => {

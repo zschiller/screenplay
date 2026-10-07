@@ -1,46 +1,12 @@
 <title>{{TITLE}}</title>
-<!-- Design exploration page. Fill PAGE, TODAY and ROUNDS in the data script; the page renders from them. -->
+<!-- Design exploration page. Fill PAGE, TODAY and ROUNDS in data.js; the page renders from them. -->
 <link rel="stylesheet" href="skill:screenplay-design-exploration/fonts.css">
 <style>
 :root{--font-ui:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-title:"Unbounded",ui-sans-serif,system-ui,sans-serif;--font-code:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
 :root,.dark .inverted{--background:oklch(1 0 0);--foreground:oklch(0 0 0);--card:oklch(1 0 0);--card-foreground:oklch(0 0 0);--primary:oklch(0 0 0);--primary-foreground:oklch(1 0 0);--secondary:oklch(0.975 0 0);--secondary-foreground:oklch(0 0 0);--muted:oklch(0.975 0 0);--muted-foreground:oklch(0.556 0 0);--destructive:oklch(0.56 0.226 27);--success:oklch(0.56 0.16 148);--warning:oklch(0.6 0.139 60);--info:oklch(0.56 0.259 326);--border:oklch(0 0 0 / 12%);--input:oklch(0 0 0 / 12%);--ring:oklch(0.667 0.295 322.15);--radius:0.125rem}
 .dark,:root:not(.dark) .inverted{--background:oklch(0 0 0);--foreground:oklch(1 0 0);--card:oklch(0 0 0);--card-foreground:oklch(1 0 0);--primary:oklch(1 0 0);--primary-foreground:oklch(0 0 0);--secondary:oklch(0.25 0 0);--secondary-foreground:oklch(1 0 0);--muted:oklch(0.25 0 0);--muted-foreground:oklch(0.708 0 0);--destructive:oklch(0.66 0.225 27);--success:oklch(0.82 0.235 148);--warning:oklch(0.88 0.179 95);--info:oklch(0.667 0.295 322.15);--border:oklch(1 0 0 / 16%);--input:oklch(1 0 0 / 16%);--ring:oklch(0.667 0.295 322.15)}
 </style>
-<script>
-const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
-const PAGE={
- date:"{{DATE}}",
- slug:"{{SLUG}}", // localStorage key, unique per exploration
- quote:"The owner's own words that started this exploration.",
- q:"The question in one line?"
-};
-// Today: the Today tab. facts are short lines with the measured numbers; shots follow them, then html (an optional drawn wireframe).
-const TODAY={facts:["What main does now, with the measured numbers that matter."],shots:[IMG("today/home-light.png","Today · Home","today/home-dark.png")]};
-// Newest round first in this list; the tabs show rounds in time order and open on this first one. A round's questions each show one option at a time behind A/B/C tabs.
-// A question with one option is a sign-off (Looks good / Needs changes).
-// option: id, name, why, cost, rec, state ("" | "picked" | "rejected"), shots and/or html. why, cost, facts, every and feedback may hold inline HTML.
-// every: what all of the round's options share, folded above the questions. feedback: the owner's reaction that started the round, three lines until opened.
-const ROUNDS=[
-{n:2,feedback:"What the owner said about round 1.",every:["Something every option in this round shares."],questions:[
- {key:"look",title:"The first question",intro:"What the options in this question have in common.",options:[
-  {id:"A",name:"Short name",why:"Two or three sentences on why this answers the question.",cost:"What it costs or breaks.",rec:true,state:"",shots:[IMG("r2/a-light.png","A · Home","r2/a-dark.png")]},
-  {id:"B",name:"Short name",why:"Why.",cost:"Cost.",state:"",shots:[IMG("r2/b-light.png","B · Home","r2/b-dark.png")]}
- ]},
- {key:"final",title:"Everything so far",intro:"One option, so this question is a sign-off.",options:[
-  {id:"P",name:"Combined",why:"The picks together.",cost:"",state:"",shots:[IMG("r2/p-light.png","P · Home","r2/p-dark.png")]}
- ]}
-]},
-{n:1,feedback:"",questions:[
- {key:"pick",title:"",intro:"",options:[
-  {id:"A",name:"Short name",why:"Why.",cost:"Cost.",rec:true,state:"rejected",shots:[]},
-  {id:"B",name:"Short name",why:"Why.",cost:"Cost.",state:"picked",shots:[]}
- ]}
-]}
-];
-</script>
-<!-- Captures on a canvas: add an img per path the data names, its alt that path and its src the canvas File as files:<path>. -->
-<div id="files" hidden>
-</div>
+<script src="data.js"></script>
 <!-- Generated below this line by packages/skill-templates: the built page. Never read or edit it; fill the data script above, or change the source there and rebuild. -->
 <div id="app"></div>
 <script src="skill:screenplay-design-exploration/exploration-runtime.js"></script>

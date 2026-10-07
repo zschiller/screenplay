@@ -32,14 +32,19 @@ describe("skill templates", () => {
   })
 
   it.each(templates)(
-    "$name as a Mockup holds its data and a reference, not the bundle",
+    "$name as a Mockup loads its data from its folder and its runtime by reference",
     (t) => {
-      const { page, ref } = appOutputs(t)
+      const { page, data, dataRef, ref } = appOutputs(t)
       const html = read(page)
-      const data = readFileSync(`${pkg}src/${t.name}/data.js`, "utf8")
-      expect(html.split(MARKER)[1]).toContain(`<script src="${ref}"></script>`)
-      // A few KB around the data: the title, the tokens and the reference
-      expect(html.length - data.length).toBeLessThan(4 * 1024)
+      const [top, body] = html.split(MARKER) as [string, string]
+      expect(top).toContain(`<script src="${dataRef}"></script>`)
+      expect(body).toContain(`<script src="${ref}"></script>`)
+      // No capture list: captures load from the folder by their paths
+      expect(html).not.toContain('id="files"')
+      // A few KB: the title, the tokens and the references
+      expect(html.length).toBeLessThan(4 * 1024)
+      const sample = readFileSync(`${pkg}src/${t.name}/data.js`, "utf8")
+      expect(read(data)).toContain(sample.trim())
     }
   )
 

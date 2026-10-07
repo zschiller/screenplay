@@ -44,6 +44,13 @@ if (process.env.SCREENPLAY_REQUIRE_BROWSER_STACK && !CHROME) {
 
 const b64 = (s: string) => Buffer.from(s).toString("base64")
 
+// What the stand-in app's server serves for Mockup folders (#1889), by path:
+// each template page's `data.js`, and any capture under a folder as a grey
+// picture.
+const served = new Map<string, string>()
+let origin = ""
+const CAPTURE = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="50"><rect width="80" height="50" fill="#888"/></svg>`
+
 const RESOURCES: MockupResources = {
   "skill:explore/runtime.js": {
     type: "text/javascript",
@@ -74,6 +81,18 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   beforeAll(async () => {
     server = http.createServer((req, res) => {
       if (req.url !== "/favicon.ico") requests.push(req.url ?? "")
+      const url = req.url ?? ""
+      const file = served.get(url)
+      if (file !== undefined) {
+        res.setHeader("Content-Type", "text/javascript")
+        res.end(file)
+        return
+      }
+      if (url.startsWith("/mockups/") && /\.(png|webp|jpe?g)$/.test(url)) {
+        res.setHeader("Content-Type", "image/svg+xml")
+        res.end(CAPTURE)
+        return
+      }
       res.setHeader("Content-Type", "text/html")
       res.end("<!doctype html><body></body>")
     })
@@ -81,7 +100,8 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
     browser = await chromium.launch({ executablePath: CHROME! })
     page = await browser.newPage()
     const { port } = server.address() as AddressInfo
-    await page.goto(`http://127.0.0.1:${port}/`)
+    origin = `http://127.0.0.1:${port}`
+    await page.goto(`${origin}/`)
   })
 
   afterAll(async () => {
@@ -90,8 +110,8 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   })
 
   /** Run `html` as a Mockup and read back what its page reports. */
-  async function run(html: string, resources: MockupResources) {
-    const doc = mockupSrcDoc(html, "", resources)
+  async function run(html: string, resources: MockupResources, base?: string) {
+    const doc = mockupSrcDoc(html, "", resources, base)
     return page.evaluate(
       (srcdoc) =>
         new Promise<Record<string, unknown>>((resolve, reject) => {
@@ -177,8 +197,9 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
     expect(report.images).toEqual([0, 7])
     expect(requests).toEqual([])
   })
-  // The design templates' App Skill pages (#1646): a few KB of data that
-  // load their runtime from the Skill with a `skill:` reference.
+  // The design templates' App Skill pages (#1646): a few KB that load their
+  // runtime from the Skill with a `skill:` reference, and their data and
+  // captures from the Mockup's folder (#1889).
   const TEMPLATES = [
     ["screenplay-design-exploration", "exploration-template.html"],
     ["screenplay-design-audit", "audit-template.html"],
@@ -189,26 +210,37 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   it.each(TEMPLATES)(
     "renders the %s Skill's %s from its runtime",
     async (skill, path) => {
-      const { html, resources } = templatePage(skill, path)
+      const { html, resources, base } = templatePage(skill, path)
       expect(Object.values(resources)).not.toContain(null)
+      // Two references, whatever the data holds: no capture list
+      expect(Object.keys(resources)).toHaveLength(2)
       const report = await run(
         `${html}<script>
-          // React renders after load; report once the page has mounted
+          // React renders after load; report once the page has mounted and
+          // its first captures have loaded
           var t = setInterval(function () {
             var app = document.getElementById("app")
             if (!app.childElementCount) return
+            var shots = Array.from(document.images, function (i) {
+              return i.complete ? i.naturalWidth : -1
+            })
+            if (shots.length && shots.every(function (w) { return w < 0 })) return
             clearInterval(t)
             parent.postMessage({
               report: true,
               text: app.textContent.length > 0,
+              shots: shots.filter(function (w) { return w >= 0 }),
               font: getComputedStyle(document.documentElement).fontFamily,
               faces: Array.from(document.fonts, (f) => f.family).sort(),
             }, "*")
           }, 20)
         </script>`,
-        resources
+        resources,
+        base
       )
       expect(report.text).toBe(true)
+      // Every capture the page shows loaded from its folder
+      expect(report.shots).not.toContain(0)
       // The runtime's styles: the page's font comes from its token block,
       // and the faces from the Skill's fonts.css, as nothing loads from the
       // network
@@ -230,18 +262,18 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
       b64(
         `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="#888"/></svg>`
       )
-    const data = `<script>
+    const data = `
       const PAGE={date:"4 Oct 2026",slug:"test",round:1,title:"Part",quote:"Show me.",where:""};
       const CONTROLS=[{key:"s",label:"Shape",values:["Wide","Tall","Square"]}];
       const STATES=[
         {id:"wide",name:"Wide",set:{s:"Wide"},shots:{p:"${shot(1280, 800)}"}},
         {id:"tall",name:"Tall",set:{s:"Tall"},shots:{p:"${shot(400, 900)}"}},
         {id:"square",name:"Square",set:{s:"Square"},shots:{p:"${shot(600, 600)}"}}
-      ];
-    </script>`
-    const html = files
-      .find((f) => f.path === "storybook-template.html")!
-      .content.replace(/<script>\s*const IMG=[\s\S]*?<\/script>/, data)
+      ];`
+    const html = files.find(
+      (f) => f.path === "storybook-template.html"
+    )!.content
+    const base = serveFolder("storybook-notes", data)
     const runtime = files.find((f) => f.path === "storybook-runtime.js")!
     const doc = mockupSrcDoc(
       html,
@@ -254,7 +286,8 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
           type: "text/javascript",
           data: b64(runtime.content),
         },
-      }
+      },
+      base
     )
     await page.setViewportSize({ width: 1400, height: 900 })
     await page.evaluate((srcdoc) => {
@@ -312,8 +345,8 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
     path: string,
     question: Record<string, unknown>
   ) {
-    const { html, resources } = templatePage(skill, path)
-    const doc = mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources)
+    const { html, resources, base } = templatePage(skill, path)
+    const doc = mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources, base)
     await page.evaluate(
       ([srcdoc, question]) => {
         const w = window as unknown as { posted: unknown[] }
@@ -434,10 +467,27 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   }, 20_000)
 })
 
-/** An App Skill's template page and the Skill files its references name. */
+/**
+ * Serve `data` as a Mockup folder's `data.js` (#1889), and any capture under
+ * it; the folder's base, as its page gets it.
+ */
+function serveFolder(name: string, data: string) {
+  served.set(`/mockups/${name}/r1/data.js`, data)
+  return `${origin}/mockups/${name}/r1/`
+}
+
+/**
+ * An App Skill's template page as a Mockup folder's index.html, the Skill
+ * files its references name, and the base of the folder that serves its
+ * sample data as `data.js`.
+ */
 function templatePage(skill: string, path: string) {
   const files = appSkills.open(skill)!.files
   const html = files.find((f) => f.path === path)!.content
+  const data = files.find(
+    (f) => f.path === path.replace("-template.html", "-data.js")
+  )!.content
+  const base = serveFolder(path.replace("-template.html", ""), data)
   const resources: Record<string, MockupResources[string]> = {}
   for (const ref of mockupRefs(html)) {
     const parsed = parseMockupRef(ref)
@@ -449,5 +499,5 @@ function templatePage(skill: string, path: string) {
       ? { type: mediaTypeFor(file.path, "text/plain"), data: b64(file.content) }
       : null
   }
-  return { html, resources }
+  return { html, resources, base }
 }

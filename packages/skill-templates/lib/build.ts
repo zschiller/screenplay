@@ -1,7 +1,8 @@
 // Renders one template, from a Vite build of its React entry as a single IIFE
 // plus CSS, into its outputs: the repo skill's page with the bundle inlined
 // under the readable top (lib/page.ts), so it publishes as an Artifact, and
-// the App Skill's data page plus the runtime file it loads by reference.
+// the App Skill's Mockup page, its sample data and the runtime file the page
+// loads by reference.
 
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
@@ -86,19 +87,30 @@ export async function render(t: Template): Promise<Output[]> {
         ].join("\n"),
       }),
     },
-    // A Mockup holds only this page; the canvas swaps the reference for the
-    // runtime from the Skill when it renders (#1643)
+    // A Mockup folder holds this page as its index.html beside its data.js
+    // and captures (#1889); the canvas swaps the reference for the runtime
+    // from the Skill when it renders (#1643)
     {
       path: app.page,
       content: assemble({
         ...top,
         mockupFonts: app.fontsRef,
+        mockupData: app.dataRef,
         body: [
           `<div id="app"></div>`,
           `<script src="${app.ref}"></script>`,
           "",
         ].join("\n"),
       }),
+    },
+    // What the agent fills and writes into the folder as data.js
+    {
+      path: app.data,
+      content: [
+        `// The ${t.name} page's data: ${app.dataRef} in the Mockup's folder, which its index.html loads. Every capture path it names loads from the Mockup's folder, relative to index.html, so write each capture there at that path.`,
+        top.data.trim(),
+        "",
+      ].join("\n"),
     },
     // The styles go in from the script, so the runtime is one file
     {

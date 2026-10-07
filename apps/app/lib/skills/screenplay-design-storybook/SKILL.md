@@ -27,23 +27,26 @@ it’s left out, citing `file:line`.
 
 ## 2. Build the page
 
-Build it from this skill’s `storybook-template.html`: copy the template
-whole and fill only its data script; its `skill:` lines load the page, which
-draws the controls, a note per state, an All states grid, and Send to chat.
+Build it as one Mockup folder: this skill’s `storybook-template.html` whole
+as `index.html` (`create_mockup`’s `html`), whose `skill:` lines load the
+page, and its `storybook-data.js` filled in as `data.js`
+(`write_mockup_file`). The page draws the controls, a note per state, an All
+states grid, and Send to chat.
 
 1. List the controls, and the states worth showing as named cells of the
    controls (“Running, long title”), each with one line on what’s worth
    looking at in it (`why`), citing the code that produces it.
 2. Draw every state from the real part:
    - **Live** (the default): read the part’s markup from a frame
-     (`read_frame_html`) and, in an inline script above the data script,
+     (`read_frame_html`) and, at the top of `data.js`,
      set `window.RENDER` to one function of the control values that draws
      the part with the app’s own classes and the styles it needs, so every
      combination renders and the part never jumps.
    - **Captured**, for a part that only makes sense in place (a whole panel,
      a screen): save one picture per state and theme with `screenshot_page`
-     and `saveAs`, all framing the same region, and reference them as the
-     template’s files comment says.
+     and `saveAs`, all framing the same region, and copy each into the
+     folder at the path `data.js` names with `write_mockup_file` and
+     `from_file`.
 3. Title it `<part> · Storybook` and create it with `create_mockup`.
 
 Done when every listed state renders in every theme the app ships.

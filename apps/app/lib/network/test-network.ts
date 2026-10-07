@@ -109,6 +109,10 @@ export async function startTestNetwork(
   })
   proxy.on("connect", (req, client, head) => {
     tunnels.push(req.url ?? "")
+    // Before anything else: a browser may reset a tunnel it was refused (one
+    // to any other host, e.g. its own update checks), and an unheard reset
+    // fails the whole test run.
+    client.on("error", () => client.destroy())
     const [host, port] = (req.url ?? "").split(":")
     if (host !== REMOTE_HOST || Number(port) !== remotePort) {
       client.end("HTTP/1.1 502 Bad Gateway\r\n\r\n")
@@ -120,9 +124,9 @@ export async function startTestNetwork(
       upstream.pipe(client)
       client.pipe(upstream)
     })
+    upstream.on("error", () => upstream.destroy())
     for (const socket of [client, upstream]) {
       sockets.add(socket)
-      socket.on("error", () => socket.destroy())
       socket.on("close", () => sockets.delete(socket))
     }
   })

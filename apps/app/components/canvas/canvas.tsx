@@ -1905,11 +1905,12 @@ export function Canvas({
           f.kind === "mockup" &&
           !mockupLayers.some((m) => (m.fileId ?? m.id) === f.id)
       ),
-    ].map(({ id, title, lastChangedByChatId, ownerChatId }) => ({
-      id,
-      title,
-      lastChangedByChatId,
-      ownerChatId,
+    ].map((m) => ({
+      id: m.id,
+      fileId: "fileId" in m ? m.fileId : undefined,
+      title: m.title,
+      lastChangedByChatId: m.lastChangedByChatId,
+      ownerChatId: m.ownerChatId,
     }))
   )
   const mockupChatLink = useMemo(

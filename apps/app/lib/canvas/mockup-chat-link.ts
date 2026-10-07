@@ -37,7 +37,7 @@ export type ShownChat =
 export interface MockupChatLinkDeps {
   mockups: readonly Pick<
     MockupLayerData,
-    "id" | "title" | "lastChangedByChatId" | "ownerChatId"
+    "id" | "fileId" | "title" | "lastChangedByChatId" | "ownerChatId"
   >[]
   chats: readonly Pick<
     ChatSessionData,
@@ -107,6 +107,15 @@ export interface MockupChatLink {
 export function createMockupChatLink(deps: MockupChatLinkDeps): MockupChatLink {
   const { mockups, chats, panel, input } = deps
   const mockupOf = (id: string) => mockups.find((m) => m.id === id)
+  /** Every id a Mockup goes by: its file's and each of its views'. */
+  const idsOf = (id: string) => {
+    const fileId = mockupOf(id)?.fileId ?? id
+    return new Set([
+      id,
+      fileId,
+      ...mockups.filter((m) => (m.fileId ?? m.id) === fileId).map((m) => m.id),
+    ])
+  }
   const chatOf = (id: string) => {
     const mockup = mockupOf(id)
     return mockup ? layerChat(layerRoute(mockup, chats), chats) : null
@@ -187,9 +196,10 @@ export function createMockupChatLink(deps: MockupChatLinkDeps): MockupChatLink {
       // one, and the last changer's beats another chat's.
       const mockup = mockupOf(mockupId)
       const last = mockup && lastChangedBy(mockup)
+      const ids = idsOf(mockupId)
       let found: AskedQuestion | null = null
       for (const [i, chat] of chats.entries()) {
-        const latest = mockupQuestion([...transcripts[i]!], mockupId)
+        const latest = mockupQuestion([...transcripts[i]!], ids)
         if (!latest) continue
         const next = { ...latest, chatId: chat.id }
         if (!found || rank(next, last) > rank(found, last)) found = next

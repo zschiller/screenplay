@@ -1,6 +1,6 @@
 ---
 name: screenplay-design-exploration
-description: Explore a design question with lettered takes as Mockups on the canvas, over as many rounds as the user wants, then build the one they pick. Use when the user asks to explore, mock up or compare designs for a screen, flow or component, or to build one of your takes (“build take B”).
+description: Explore a design question with lettered takes as Mockups, over as many rounds as the user wants, then build the one they pick. Use when the user asks to explore, mock up or compare designs for a screen, flow or component, or to build one of your takes (“build take B”).
 ---
 
 # Skill: Exploring with Mockups, then building one
@@ -9,8 +9,8 @@ An **exploration** answers one design question with **takes**: distinct,
 lettered answers (A, B, C) beside the real screen. A **round** is one set of
 takes; the user’s pick starts the next. You compose it from your tools:
 `view_frame`, `read_frame_html` and `screenshot_page` to see the app as it
-is, `create_mockup` and `update_mockup` for the takes, `ask_question` for
-the pick, and your Workspace for the build.
+is, `create_mockup`, `write_mockup_file` and `update_mockup` for the takes,
+`ask_question` for the pick, and your Workspace for the build.
 
 ## Exploring
 
@@ -25,15 +25,23 @@ the pick, and your Workspace for the build.
 3. **Pick the form**, whichever makes the decision clearest:
    - **One Mockup per take**, titled `<subject> · <letter> · <name>`, e.g.
      “Empty cart · B · Inline tips”, when each take is judged by looking at
-     it or using it.
+     it or using it. Place these (`place: true`), so they sit beside the
+     frames they restyle.
    - **An exploration page**: one Mockup titled `<subject> · Exploration`
      built from this skill’s `exploration-template.html`, when comparing is
      the point, the round asks several small questions, or the question is
      structural. It holds Today and one tab per round, each question’s takes
      behind A / B / C with their pictures, why, cost and the recommendation.
-     Copy the template whole and fill only its data script; its `skill:`
-     lines load the page. Save captures with `screenshot_page` and `saveAs`,
-     and reference them as its files comment says.
+     It’s a page to use at full size, so leave it in your reply
+     (`place: false`) unless the user asks for it on the canvas: they open
+     its tile and pick there. The page is one folder:
+     - `index.html`: the template whole, as `create_mockup`’s `html`. Its
+       `skill:` lines load the page’s code from this skill; never edit it.
+     - `data.js`: this skill’s `exploration-data.js`, filled in, written
+       with `write_mockup_file`. The page renders from it.
+     - The captures, at the paths `data.js` names (`r2/a-light.png`): save
+       each with `screenshot_page` and `saveAs`, then copy it in with
+       `write_mockup_file` and `from_file`.
 4. **Draw the takes**, two to four per question. Takes are **distinct**: a
    different answer, not a spacing tweak of another take. Draw them in the
    app’s real markup, components and tokens; a take that needs a new
@@ -65,15 +73,16 @@ open question has its card.
   Say in one line which take you follow.
 - A change to a take rewrites its Mockup with `update_mockup`. A new round
   keeps the earlier ones to compare: new Mockups per take, or on an
-  exploration page a new round at the front of its rounds with the earlier
-  takes marked picked or rejected.
+  exploration page a new round at the front of `ROUNDS` in its `data.js`,
+  with the earlier takes marked picked or rejected and the new captures
+  beside the old.
 - A take the user rejects ends that direction: save it to canvas memory
   (`write_memory`) so no later chat offers it again, and build the next round
   from what they said they wanted.
 - A message drafted on one of your Mockups (a `Drafted on mockup` footer) or
   targeting an element in one (`mockup <id>` in its Targeted elements
   footer) is about that page: read it with `read_mockup` and rewrite it with
-  `update_mockup`.
+  `update_mockup`, or its `data.js` with `write_mockup_file`.
 
 The exploration runs until the user ends it or asks you to build a take.
 
@@ -85,8 +94,9 @@ toggle”):
 1. **Find it.** Match their words to one of your takes; `read_mockup` with
    no id lists your Mockups with ids and titles. When more than one fits,
    ask with `ask_question`.
-2. **Read its page** with `read_mockup` for the current HTML, since a later
-   round may have rewritten it.
+2. **Read its page** with `read_mockup` for the current HTML (and, on an
+   exploration page, its `data.js` with `path`), since a later round may
+   have rewritten it.
 3. **Write the decisions summary**: a few lines naming the take and what was
    settled along the way, such as answers to question cards, changes asked
    for in chat, and takes passed on and why. It goes in your final reply, so
@@ -94,7 +104,7 @@ toggle”):
 4. **Build it in your Workspace** in the app’s own components, tokens and
    conventions. The take is the target picture; the code is the app’s own.
 5. **Check it.** `view_frame` your frame beside the take and fix what
-   differs. Leave the Mockup on the canvas.
+   differs. Leave the Mockup where it is.
 
 Then reply: what you built, from which take, the decisions summary, and
 anything from the take you left out and why.

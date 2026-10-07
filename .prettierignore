@@ -12,3 +12,4 @@ apps/app/screenshots/docs/northwind/
 .agents/skills/**/*-template.html
 apps/app/lib/skills/**/*-template.html
 apps/app/lib/skills/**/*-runtime.js
+apps/app/lib/skills/**/*-data.js

@@ -15,7 +15,8 @@ import type { AgentMessage } from "@/lib/agent/types"
 import { inputStore } from "@/lib/input-store"
 import { parseQuestion, type QuestionAnswer } from "@/lib/agent/question"
 import { viewRequests } from "@/lib/canvas/view-requests"
-import { useMockupTitle } from "@/lib/yjs/react"
+import { fileModal } from "@/lib/canvas/file-modal"
+import { useLayerFile } from "@/lib/yjs/react"
 import { InlineRef } from "./inline-ref"
 import { LayerHoverCard } from "./layer-hover-card"
 
@@ -160,11 +161,14 @@ export function QuestionCard({
 
 /**
  * The Mockup a question is about, as a reference under the question that
- * brings it into view. Gone when the Mockup is.
+ * brings its view into view, or opens it in the file modal when it has no
+ * view on the canvas (#1889). Gone when the Mockup is.
  */
 function MockupLine({ id }: { id: string }) {
-  const title = useMockupTitle(id)
-  if (title === undefined) return null
+  const file = useLayerFile(id)
+  if (file?.kind !== "mockup") return null
+  const viewId = file.viewIds.includes(id) ? id : file.viewIds[0]
+  const title = file.title
   return (
     // 4px under the question (a legend, outside the Item's gap), and the
     // Item's 16px over the choices, as the question has without it.
@@ -176,7 +180,11 @@ function MockupLine({ id }: { id: string }) {
       <LayerHoverCard kind="mockup" id={id}>
         <InlineRef
           kind="mockup"
-          onClick={() => viewRequests.emit({ ids: [id] })}
+          onClick={() =>
+            viewId
+              ? viewRequests.emit({ ids: [viewId] })
+              : fileModal.open(file.id)
+          }
         >
           {title || "Mockup"}
         </InlineRef>

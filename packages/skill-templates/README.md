@@ -3,7 +3,7 @@
 The HTML pages the design skills publish, built from React with the app's real components (`@workspace/ui`), tokens and fonts. Each template lands in two places:
 
 - **The repo skill** (`.agents/skills/design-exploration/exploration-template.html`, `.agents/skills/design-audit/audit-template.html` and `decisions-template.html`, `.agents/skills/design-storybook/storybook-template.html`): one self-contained page, so it publishes as an Artifact.
-- **The App Skill** (`apps/app/lib/skills/<skill>/`, named by `skill` in `templates.ts`): a data page (`<name>-template.html`), the runtime it loads (`<name>-runtime.js`, the bundle's script and styles) and the skill's `fonts.css` (the page's fonts as data URLs, from `fonts/`). The page names the runtime as `skill:<skill>/<name>-runtime.js`, which the canvas swaps in when it renders the page as a Mockup, so a Mockup only stores a few KB plus its data.
+- **The App Skill** (`apps/app/lib/skills/<skill>/`, named by `skill` in `templates.ts`): a page (`<name>-template.html`), its sample data (`<name>-data.js`), the runtime it loads (`<name>-runtime.js`, the bundle's script and styles) and the skill's `fonts.css` (the page's fonts as data URLs, from `fonts/`). A Mockup is a folder, so the agent writes the page as its `index.html`, the filled data as `data.js` beside it, and the captures at the paths the data names, which load from the folder. The page names the runtime as `skill:<skill>/<name>-runtime.js`, which the canvas swaps in when it renders the page, so a Mockup only stores a few KB plus its data and captures.
 
 ```sh
 pnpm --filter @workspace/skill-templates dev    # http://localhost:5173: every template with its sample data, hot reloading
@@ -16,11 +16,11 @@ Commit the built files with the source change: the package's test fails when any
 
 Each template is a folder in `src/` with its React entry (`main.tsx`) and sample data (`data.js`). `lib/page.ts` assembles the page the same way in dev and in the build:
 
-1. A readable top an agent fills: the title, the Google Fonts link, the token block, and `data.js` as a plain `<script>` declaring the globals (`PAGE`, `ROUNDS`…) the entry reads.
+1. A readable top an agent fills: the title, the Google Fonts link, the token block, and `data.js` as a plain `<script>` declaring the globals (`PAGE`, `ROUNDS`…) the entry reads (the App Skill's page loads it with `<script src="data.js">` instead).
 2. The `Generated below this line` marker.
 3. The bundle: one IIFE and its CSS, inlined, so the page is a single file an Artifact can publish. The App Skill's page has a `<script src="skill:…">` here instead, and links `skill:<skill>/fonts.css` in place of Google Fonts, since a Mockup loads nothing from the network.
 
-A `skill:` or `files:` reference only resolves where it's written in the page's markup, not where the runtime builds it later (a capture in the data renders as a plain path).
+A `skill:` or `files:` reference only resolves where it's written in the page's markup, not where the runtime builds it later. A capture in the data renders as a plain relative path, which loads from the Mockup's folder (pages from before folders list theirs in a hidden `#files`, which `src/shared/shots.tsx` still reads).
 
 The skills stay repo-agnostic: another repo swaps the token block (shadcn variable names, light under `:root`, dark under `.dark`) and the font link, and fills the data. The token values come from `packages/ui/src/styles/tokens.css`, trimmed to the variables the page uses; the bundle carries none of them, so the block is their only source.
 

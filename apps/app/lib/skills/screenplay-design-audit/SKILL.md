@@ -49,12 +49,22 @@ a visual fix whose look matters also gets Now and After pictures, saved with
 - Anything longer goes on one **findings page**: a Mockup titled
   `<scope> · Audit` built from this skill’s `audit-template.html`. It shows
   filter tabs by lens, each finding with its pictures, Fix or Skip, and each
-  call’s options. Copy the template whole and fill only its data script, with
-  the three lenses as its `DEPTHS` (P Product, H Hierarchy, V Visual) so its
-  tabs match your tags; its `skill:` lines load the page, and its files
-  comment says how to reference the pictures.
+  call’s options. The page is one folder:
+  - `index.html`: the template whole, as `create_mockup`’s `html`. Its
+    `skill:` lines load the page’s code from this skill; never edit it.
+  - `data.js`: this skill’s `audit-data.js`, filled in with the three lenses
+    as its `DEPTHS` (P Product, H Hierarchy, V Visual) so its tabs match
+    your tags, and written with `write_mockup_file`.
+  - The pictures, at the paths `data.js` names: save each with
+    `screenshot_page` and `saveAs`, then copy it in with `write_mockup_file`
+    and `from_file`.
 - When the calls outgrow one card at a time (several plans, many calls), put
-  them on one decisions page from `decisions-template.html` instead.
+  them on one decisions page instead, the same way from
+  `decisions-template.html` and `decisions-data.js`.
+
+A findings or decisions page is used at full size, so leave it in your reply
+(`place: false`) unless the user asks for it on the canvas: they open its
+tile and pick there.
 
 Ask each call with its own `ask_question`, passing the page’s `mockup_id`:
 start the question with the call’s tag (“H2: …”), use the page’s option

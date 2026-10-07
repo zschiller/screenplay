@@ -9,9 +9,10 @@ import { ThemeContext } from "./theme.tsx"
 export type Img = { p: string; cap: string; dk?: string; bare?: boolean }
 
 /**
- * Where a capture loads from. On a canvas the page's markup lists its
+ * Where a capture loads from: its path, relative to the page, which on a
+ * canvas is the Mockup's folder (#1889). A page made before folders lists its
  * captures as `<img alt="<path>" src="files:<path>">` inside `#files`, which
- * the canvas swaps for loadable URLs; elsewhere the path is the URL.
+ * the canvas swaps for loadable URLs.
  */
 let files: Map<string, string> | undefined
 export function captureSrc(path: string) {

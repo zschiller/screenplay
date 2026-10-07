@@ -22,8 +22,10 @@ export default defineConfig([
   },
   appDesignRules,
   globalIgnores([
-    // The design templates' runtimes, built by packages/skill-templates
+    // The design templates' runtimes and sample data, built by
+    // packages/skill-templates
     "lib/skills/**/*-runtime.js",
+    "lib/skills/**/*-data.js",
     // Screenshot harness state, including the docs capture's built demo
     // site (screenshots/profile.ts; gitignored)
     ".screenshots/**",

@@ -1,39 +1,12 @@
 <title>{{TITLE}}</title>
-<!-- Design storybook page. Fill PAGE, CONTROLS and STATES in the data script; the page renders from them. -->
+<!-- Design storybook page. Fill PAGE, CONTROLS and STATES in data.js; the page renders from them. -->
 <link rel="stylesheet" href="skill:screenplay-design-storybook/fonts.css">
 <style>
 :root{--font-ui:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-title:"Unbounded",ui-sans-serif,system-ui,sans-serif;--font-code:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
 :root,.dark .inverted{--background:oklch(1 0 0);--foreground:oklch(0 0 0);--card:oklch(1 0 0);--card-foreground:oklch(0 0 0);--primary:oklch(0 0 0);--primary-foreground:oklch(1 0 0);--secondary:oklch(0.975 0 0);--secondary-foreground:oklch(0 0 0);--muted:oklch(0.975 0 0);--muted-foreground:oklch(0.556 0 0);--destructive:oklch(0.56 0.226 27);--success:oklch(0.56 0.16 148);--warning:oklch(0.6 0.139 60);--info:oklch(0.56 0.259 326);--border:oklch(0 0 0 / 12%);--input:oklch(0 0 0 / 12%);--ring:oklch(0.667 0.295 322.15);--radius:0.125rem}
 .dark,:root:not(.dark) .inverted{--background:oklch(0 0 0);--foreground:oklch(1 0 0);--card:oklch(0 0 0);--card-foreground:oklch(1 0 0);--primary:oklch(1 0 0);--primary-foreground:oklch(0 0 0);--secondary:oklch(0.25 0 0);--secondary-foreground:oklch(1 0 0);--muted:oklch(0.25 0 0);--muted-foreground:oklch(0.708 0 0);--destructive:oklch(0.66 0.225 27);--success:oklch(0.82 0.235 148);--warning:oklch(0.88 0.179 95);--info:oklch(0.667 0.295 322.15);--border:oklch(1 0 0 / 16%);--input:oklch(1 0 0 / 16%);--ring:oklch(0.667 0.295 322.15)}
 </style>
-<script>
-const IMG=(p,dk)=>({p,dk}); // p: light (or only) capture, dk: optional dark capture
-const PAGE={
- date:"{{DATE}}",
- slug:"{{SLUG}}", // localStorage key, unique per storybook
- round:1, // bump when the owner asks for another round; notes on the page start fresh
- title:"The part's name",
- quote:"The owner's own words that started this storybook.",
- where:"<code>path/to/Part.tsx</code> on main" // where the part lives and which branch the states come from; may hold inline HTML
-};
-// CONTROLS: one per dimension. values: the choices, first is the default. type "text", "number" or "toggle" (live only) takes any value instead.
-const CONTROLS=[
- {key:"status",label:"Status",values:["Idle","Running","Failed"]},
- {key:"title",label:"Title",values:["Short","Long"]}
-];
-// STATES: the cells of the matrix worth showing, in the order the owner steps through them.
-// id: stable, used for notes and the URL hash. set: a value per control (a missing key takes the control's first value).
-// shots: the capture, light then optional dark. why: one line on what to look at. said: the owner's earlier note and what changed. why and said may hold inline HTML.
-const STATES=[
- {id:"idle",name:"Idle",set:{status:"Idle",title:"Short"},shots:IMG("states/idle-light.png","states/idle-dark.png"),why:""},
- {id:"running-long",name:"Running, long title",set:{status:"Running",title:"Long"},shots:IMG("states/running-long-light.png","states/running-long-dark.png"),why:"The title truncates at 240px (<code>Part.tsx:42</code>)."},
- {id:"failed",name:"Failed",set:{status:"Failed",title:"Short"},shots:IMG("states/failed-light.png","states/failed-dark.png"),why:"",said:""}
-];
-// Live fidelity: a bundled script, loaded in its own <script src> above this one, sets window.RENDER=(values,el,{theme})=>{...} to render the real part into el. With it, every combination renders and STATES act as presets.
-</script>
-<!-- Captures on a canvas: add an img per path the data names, its alt that path and its src the canvas File as files:<path>. -->
-<div id="files" hidden>
-</div>
+<script src="data.js"></script>
 <!-- Generated below this line by packages/skill-templates: the built page. Never read or edit it; fill the data script above, or change the source there and rebuild. -->
 <div id="app"></div>
 <script src="skill:screenplay-design-storybook/storybook-runtime.js"></script>

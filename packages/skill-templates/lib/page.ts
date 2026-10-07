@@ -15,13 +15,6 @@ export const MARKER =
 // font-sans, font-heading and font-mono at these variables.
 const FONTS =
   '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Instrument+Sans:wdth,wght@75..100,400..700&family=Unbounded:wght@400&display=swap">'
-// A Mockup only swaps a `files:` reference written in its markup, not one in
-// the data, so a page on a canvas lists its captures here once and the
-// runtime shows each by the path the data names (src/shared/shots.tsx)
-const FILES = `<!-- Captures on a canvas: add an img per path the data names, its alt that path and its src the canvas File as files:<path>. -->
-<div id="files" hidden>
-</div>`
-
 const FONT_TOKENS = `:root{--font-ui:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-title:"Unbounded",ui-sans-serif,system-ui,sans-serif;--font-code:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}`
 
 const TOKENS_CSS = fileURLToPath(
@@ -84,6 +77,12 @@ export type PageParts = {
    * Screenplay look.
    */
   mockupFonts?: string
+  /**
+   * A Mockup page's data script, by its path in the Mockup's folder (#1889):
+   * the page loads it instead of holding the data, and the captures the data
+   * names load from the folder by the same relative paths.
+   */
+  mockupData?: string
 }
 
 export function assemble({
@@ -93,16 +92,18 @@ export function assemble({
   tokens,
   body,
   mockupFonts,
+  mockupData,
 }: PageParts) {
   return [
     `<title>${title}</title>`,
     mockupFonts
-      ? `<!-- ${about} -->`
+      ? `<!-- ${about.replace("the data script", mockupData ?? "the data script")} -->`
       : `<!-- ${about} Swap the tokens and the font link for the repo's brand; they use shadcn's variable names. -->`,
     mockupFonts ? `<link rel="stylesheet" href="${mockupFonts}">` : FONTS,
     `<style>\n${tokens}\n</style>`,
-    `<script>\n${data.trim()}\n</script>`,
-    ...(mockupFonts ? [FILES] : []),
+    mockupData
+      ? `<script src="${mockupData}"></script>`
+      : `<script>\n${data.trim()}\n</script>`,
     MARKER,
     body,
   ].join("\n")
