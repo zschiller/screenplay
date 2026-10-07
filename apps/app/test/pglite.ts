@@ -51,6 +51,25 @@ export async function truncateAllTables(db: DB): Promise<void> {
 }
 
 /**
+ * The handle with `transaction()` throwing exactly as the hosted neon-http
+ * driver's does (`drizzle-orm/neon-http/session`). PGlite runs transactions,
+ * so without this an app write that needs one passes every test and fails
+ * only on hosted (#1899).
+ */
+function withoutTransactions(db: DB): DB {
+  return new Proxy(db, {
+    get(target, prop, receiver) {
+      if (prop === "transaction") {
+        return async () => {
+          throw new Error("No transactions support in neon-http driver")
+        }
+      }
+      return Reflect.get(target, prop, receiver)
+    },
+  })
+}
+
+/**
  * Boot ONE in-memory PGlite for a whole test file and point the `@/lib/db` seam
  * at it, so the app modules under test share this handle instead of each test
  * re-booting a fresh WASM Postgres.
@@ -59,6 +78,8 @@ export async function truncateAllTables(db: DB): Promise<void> {
  * `lib/db/index.ts`), so pre-seeding that slot here means imported app code
  * queries this shared PGlite and never opens its own — no `SCREENPLAY_DB` /
  * `PGLITE_DATA_DIR` env stubbing needed either.
+ *
+ * Like the hosted driver, the handle rejects `transaction()`.
  *
  * `reset()` truncates every table between tests: the cheap equivalent of the
  * old per-test reboot, restoring a clean slate in milliseconds rather than
@@ -79,12 +100,13 @@ export async function setupSharedPgliteDb(
 ): Promise<SharedPgliteDb> {
   const handle = createPgliteDb("memory://", options)
   await handle.ready
+  const db = withoutTransactions(handle.db)
 
   const globalForDb = globalThis as GlobalWithDb
-  globalForDb.__screenplayDbHandle = { db: handle.db, ready: Promise.resolve() }
+  globalForDb.__screenplayDbHandle = { db, ready: Promise.resolve() }
 
   return {
-    db: handle.db,
+    db,
     async reset() {
       await truncateAllTables(handle.db)
     },

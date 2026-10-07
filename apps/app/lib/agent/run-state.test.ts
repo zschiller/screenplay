@@ -321,7 +321,7 @@ describe("pauseForPlan", () => {
     const store = fakeRepo()
     const id = store.seed("running")
     // A pending row already owns this tool-call id; the insert inside
-    // pauseForPlan collides with it. The whole transaction must roll back —
+    // pauseForPlan collides with it. The whole write must roll back —
     // the run stays running and no second pending row appears.
     store.seedPending("call_dup", { runId: id })
     const { pauseForPlan } = createRunState(store.repo)
@@ -413,7 +413,7 @@ describe("resolvePlan", () => {
   it("rolls back both writes when the run write fails (tables stay consistent)", async () => {
     const store = fakeRepo()
     // The pending row points at a run that no longer exists, so the run update
-    // inside resolvePlan fails and the whole transaction rolls back — the
+    // inside resolvePlan fails and the whole write rolls back — the
     // tool-call stays pending rather than being marked resolved on its own.
     store.seedPending("plan_orphan", { runId: "ghost_run" })
     const { resolvePlan } = createRunState(store.repo)
