@@ -1,5 +1,6 @@
 import { defineConfig, globalIgnores } from "eslint/config"
 import { nextJsConfig } from "@workspace/eslint-config/next"
+import { appDesignRules } from "@workspace/eslint-config/design-rules"
 
 export default defineConfig([
   ...nextJsConfig,
@@ -19,6 +20,7 @@ export default defineConfig([
       ],
     },
   },
+  appDesignRules,
   globalIgnores([
     // The design templates' runtimes, built by packages/skill-templates
     "lib/skills/**/*-runtime.js",

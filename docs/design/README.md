@@ -24,13 +24,13 @@ How Screenplay looks, reads and behaves: the rules every UI change in `apps/app`
 - **One scale at a time**: elements shown side by side share a scale (UI or canvas), never a mix (PR [#1752](https://github.com/zschiller/screenplay/pull/1752)).
 - **Active states** pair `font-medium` with `font-stretch-[98.8%]`, so a label keeps its width as it bolds. Static bold text needs only the weight.
 - Code inside a heading scales with the heading.
-- **Buttons**: icon buttons 28px with 16px icons. Text buttons are `sm` (28px, 13px label, 16px icon); `default` (32px) only in dialog footers and page actions (PR [#1720](https://github.com/zschiller/screenplay/pull/1720)).
+- **Buttons**: icon buttons 28px with 16px icons. Text buttons are `sm` (28px, 13px label, 16px icon); `default` (32px) only in dialog footers and page actions (PR [#1720](https://github.com/zschiller/screenplay/pull/1720)). In the app, ESLint’s `design/button-size` (`packages/eslint-config/design-rules.js`) fails any Button size but `sm`, `icon-sm`, `default` and `lg`.
 - **Icons**: Phosphor, imported from `@workspace/ui/components/icons` (the wrapper sets the weight and class). Light above 16px, Regular at 16px and under, stock weights only; dot glyphs and tiny state glyphs use Bold. PR state icons are the Lucide PR family at Phosphor’s stroke weight (PR [#1721](https://github.com/zschiller/screenplay/pull/1721)).
 - **No sparkle icon**, in any product: pick an icon that says what the thing is. ESLint (`packages/eslint-config/banned-icons.js`, run in CI) fails on the import.
 
 ## Colour
 
-- **Signal palette** (`packages/ui/src/styles/tokens.css`): each hue appears only as ink (text and icons), outline, or solid fill (`bg-*-fill`). Text and icons on a fill are black. Tints such as `bg-*/10` stay out, except diff lines, the inspect overlay and the stock destructive menu hover.
+- **Signal palette** (`packages/ui/src/styles/tokens.css`): each hue appears only as ink (text and icons), outline, or solid fill (`bg-*-fill`). Text and icons on a fill are black. Tints such as `bg-*/10` stay out, except diff lines, the inspect overlay and the stock destructive menu hover. In the app, ESLint’s `design/no-status-tint` fails a `/NN` opacity on success, warning, destructive, info or merged; the diff highlight carries the one disable comment.
 - **Status**: ink for a standalone status; outline (border, regular text, coloured icon) for chips, badges and banners; fill for small marks (dots, pins, the record dot) and the Interact button. A badge’s text matches its icon colour. Error banners use red text; warnings keep regular text with an amber icon.
 - **Idle controls are uncoloured**: red only while recording, not on an idle Record button.
 - **Needs you** is the orange `NeedsYouDot` (`bg-attention-fill`), never a warning icon.

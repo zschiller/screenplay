@@ -262,9 +262,13 @@ function cleanToolText(text: string): string {
   return out
 }
 
+// The diff highlight is the one place a status colour is a tint: a solid
+// row fill would bury the code it marks.
 const DIFF_ROW_CLASS: Record<"context" | "added" | "removed", string> = {
   context: "",
+  // eslint-disable-next-line design/no-status-tint
   added: "bg-success/10",
+  // eslint-disable-next-line design/no-status-tint
   removed: "bg-destructive/10",
 }
 const DIFF_SIGN: Record<"context" | "added" | "removed", string> = {

@@ -4,8 +4,12 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "scripts": {
+    "test": "node --test 'test/*.test.js'"
+  },
   "exports": {
     "./base": "./base.js",
+    "./design-rules": "./design-rules.js",
     "./next": "./next.js",
     "./react-internal": "./react-internal.js"
   },

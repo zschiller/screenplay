@@ -120,7 +120,10 @@ pnpm test        # Vitest
 
 CI runs `pnpm lint`, `pnpm format:check`, `pnpm typecheck` and `pnpm test` on
 every pull request. A lint error or an unformatted file fails it; lint warnings
-don’t.
+don’t. Besides React’s rules, lint checks the design rules a machine can judge
+(`packages/eslint-config/design-rules.js`): JSX text keeps its space after an
+`{expression}`, Buttons use only the `sm`, `icon-sm`, `default` and `lg` sizes,
+and status colours are never `/NN` tints.
 
 In `apps/app`, `pnpm test:watch` runs Vitest in watch mode. Database helpers:
 
