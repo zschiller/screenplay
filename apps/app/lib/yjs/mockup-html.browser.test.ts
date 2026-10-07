@@ -66,12 +66,14 @@ describe.skipIf(!CHROME)("a Mockup page with references", () => {
   let browser: Browser
   let page: Page
   let server: http.Server
-  // Every path the stand-in app's server was asked for.
+  // Every path the stand-in app's server was asked for, but the favicon:
+  // Chrome fetches that for the page itself, whenever it gets to it, so it
+  // can land after a test clears the list.
   const requests: string[] = []
 
   beforeAll(async () => {
     server = http.createServer((req, res) => {
-      requests.push(req.url ?? "")
+      if (req.url !== "/favicon.ico") requests.push(req.url ?? "")
       res.setHeader("Content-Type", "text/html")
       res.end("<!doctype html><body></body>")
     })
