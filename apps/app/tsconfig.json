@@ -6,15 +6,7 @@
     "declarationMap": false,
     "paths": {
       "@/*": ["./*"],
-      "@workspace/ui/*": ["../../packages/ui/src/*"],
-      "@extensions/server": [
-        "./lib/extensions/server.generated.ts",
-        "./lib/extensions/server.empty.ts"
-      ],
-      "@extensions/client": [
-        "./lib/extensions/client.generated.ts",
-        "./lib/extensions/client.empty.ts"
-      ]
+      "@workspace/ui/*": ["../../packages/ui/src/*"]
     },
     "plugins": [{ "name": "next" }]
   },
@@ -25,5 +17,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "extensions/*/node_modules"]
+  "exclude": ["node_modules"]
 }

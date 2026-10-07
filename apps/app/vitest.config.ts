@@ -1,11 +1,6 @@
 import { fileURLToPath } from "node:url"
 import { defineConfig } from "vitest/config"
 
-import { generateExtensionRegistry } from "./lib/extensions/codegen.mjs"
-
-// Same registries `next` and `typecheck` write, so tests see the extensions.
-generateExtensionRegistry({ log: false })
-
 const rootDir = fileURLToPath(new URL("./", import.meta.url))
 
 export default defineConfig({
@@ -22,11 +17,6 @@ export default defineConfig({
       // Mirror the tsconfig `@/*` path alias. The regex keeps it from matching
       // unrelated scoped packages like `@workspace/ui`.
       { find: /^@\//, replacement: `${rootDir}` },
-      // Mirror the tsconfig `@extensions/*` paths (always generated above).
-      {
-        find: /^@extensions\/(server|client)$/,
-        replacement: `${rootDir}lib/extensions/$1.generated.ts`,
-      },
     ],
   },
   // The app's tsconfig sets `jsx: "preserve"` (for Next.js), which the bundler

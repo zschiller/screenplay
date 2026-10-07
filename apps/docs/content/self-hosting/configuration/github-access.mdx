@@ -48,7 +48,8 @@ token for each command and sets them as author and committer.
 
 ## Built-ins
 
-Each built-in takes its options as `{ use: "<id>", …options }`.
+Each built-in is a function in `apps/app/lib/github-access/` that takes its
+options as an object.
 
 ### `oauth-account`
 
@@ -63,15 +64,11 @@ GitHub.
 ### `gh-cli`
 
 The Mac app’s behaviour. The token is whatever `gh auth token` prints, and git
-uses the machine’s own credentials. On a company box, point it at a wrapper
-command and your GitHub Enterprise host:
+uses the machine’s own credentials. A fork for a company box can point it at a
+wrapper command and a GitHub Enterprise host:
 
-```jsonc
-{
-  "use": "gh-cli",
-  "command": "corp-gh",
-  "hostname": "ghe.corp.example",
-}
+```ts
+createGhCliAccess({ command: "corp-gh", hostname: "ghe.corp.example" })
 ```
 
 | Option     | Default          |                                                                                      |
@@ -88,8 +85,12 @@ push to that host on its own, for example after `gh auth setup-git`.
 
 ## Picking one
 
-The config file’s `githubAccess` field picks one, and the server sets it as it
-starts, with `setGitHubAccess()`. With nothing picked, it builds the default
-with `selectGitHubAccess()`: `oauth-account` when people sign in with GitHub,
-and `gh-cli` with its defaults when the host is the only writer. `selectGitHubAccess()` refuses an unknown id, or an option it
-doesn’t recognise, with a message naming it.
+`selectGitHubAccess()` in `apps/app/lib/github-access/index.ts` picks one:
+`oauth-account` when people sign in with GitHub (Hosted), and `gh-cli` with its
+defaults when the host is the only writer (the Mac app, Headless). Set
+`GITHUB_ACCESS` to `oauth-account` or `gh-cli` to override that. An id it
+doesn’t know stops the server from starting.
+
+A built-in with options, or an implementation of your own, is a change to
+`selectGitHubAccess()` in your fork. Every replaceable part of Screenplay is
+picked the same way, like the [Yjs host](/self-hosting/configuration/yjs-host).

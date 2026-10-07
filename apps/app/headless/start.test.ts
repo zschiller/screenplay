@@ -1,27 +1,26 @@
 import { mkdtempSync, statSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { parseConfig } from "@/lib/extensions/config"
-
-import { loadSecrets, serverEnv } from "./start"
+import {
+  DEFAULT_HOST_PORT,
+  dataFolderOf,
+  hostPortOf,
+  loadSecrets,
+  serverEnv,
+} from "./start"
 
 function setup() {
   const dataFolder = mkdtempSync(path.join(tmpdir(), "headless-data-"))
-  const config = parseConfig(
-    `{ "outboundProxy": { "url": "http://proxy.corp:3128" } }`,
-    path.join(dataFolder, "screenplay.config.jsonc")
-  )
-  return { dataFolder, config }
+  return { dataFolder }
 }
 
 describe("the Headless server's environment", () => {
   it("keeps everything a restart needs in the data folder", () => {
-    const { dataFolder, config } = setup()
+    const { dataFolder } = setup()
     const env = serverEnv({
-      config,
       dataFolder,
       hostPort: 4100,
       portlessPort: 1355,
@@ -43,8 +42,17 @@ describe("the Headless server's environment", () => {
     expect(env.NEXT_PUBLIC_SCREENPLAY_PROFILE).toBe("headless")
     expect(env.PORT).toBe("4100")
     expect(env.HOSTNAME).toBe("127.0.0.1")
-    expect(env.SCREENPLAY_CONFIG).toBe(config.file)
-    expect(env.HTTPS_PROXY).toBe("http://proxy.corp:3128")
+  })
+
+  it("takes its data folder and port from the environment, with defaults", () => {
+    expect(dataFolderOf({})).toBe(
+      path.join(homedir(), ".screenplay", "headless")
+    )
+    expect(dataFolderOf({ SCREENPLAY_DATA_FOLDER: "/srv/screenplay" })).toBe(
+      "/srv/screenplay"
+    )
+    expect(hostPortOf({})).toBe(DEFAULT_HOST_PORT)
+    expect(hostPortOf({ SCREENPLAY_HOST_PORT: "4200" })).toBe(4200)
   })
 
   it("mints its keys once and reads the same ones back after a restart", () => {

@@ -1,7 +1,7 @@
 /**
  * Option readers shared by the built-ins. Each throws a message naming the
- * implementation and option, so a bad config refuses start with something the
- * host can fix.
+ * implementation and option, so a fork that passes a bad one fails with
+ * something it can fix.
  */
 
 export function optionString(

@@ -83,7 +83,9 @@ export const hostTunnel: boolean = buildProfile === "headless"
  *
  * `THUMBNAIL_CAPTURER` isn't here: every profile captures with headless Chrome
  * except inside the Mac shell, which sets `tauri-webview` itself at launch,
- * since that capturer needs the shell's control server.
+ * since that capturer needs the shell's control server. Nor are
+ * `GITHUB_ACCESS`, `PREVIEW_EXPOSURE` and `CODING_CLIS`: their select modules
+ * pick each profile's default themselves, and the switch only overrides it.
  */
 export const PROFILE_BACKENDS = {
   hosted: {},
@@ -112,6 +114,9 @@ export type BackendSwitch =
   | "BLOB_STORE"
   | "AGENT_ENGINE"
   | "NEXT_PUBLIC_YJS_HOST"
+  | "GITHUB_ACCESS"
+  | "PREVIEW_EXPOSURE"
+  | "CODING_CLIS"
 
 /**
  * A backend switch's value: the environment's when set, else this profile's.

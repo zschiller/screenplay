@@ -10,7 +10,7 @@
     "headless": "node --import tsx --import ./headless/register.mjs headless/start.ts",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "node lib/extensions/codegen.mjs && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
