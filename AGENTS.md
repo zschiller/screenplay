@@ -16,6 +16,10 @@ Multi-context layout: `CONTEXT-MAP.md` at the root points to per-context `CONTEX
 
 User and self-hosting docs in `apps/docs/content`: read before a PR that changes what a user sees or configures, or touches UI, homepage or docs copy. See `docs/agents/product-docs.md`.
 
+### Contributing
+
+Testing on Linux versus the Mac, local dev fixes, held dependency pins, publishing and PR habits: `apps/docs/content/contributing/`.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know
