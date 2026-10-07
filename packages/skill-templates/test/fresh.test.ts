@@ -42,4 +42,13 @@ describe("skill templates", () => {
       expect(html.length - data.length).toBeLessThan(4 * 1024)
     }
   )
+
+  it.each(templates)("$name paints its own page over a host's", (t) => {
+    // An Artifact wraps the page in an unlayered `body` rule (cream, dark
+    // text, a system font) that beats anything in a cascade layer
+    const bundle = read(t.out).split(MARKER)[1]!
+    expect(bundle).toContain(
+      "html body{background-color:var(--background);color:var(--foreground);font:inherit}"
+    )
+  })
 })
