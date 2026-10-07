@@ -4,9 +4,11 @@ import { useRouter } from "next/navigation"
 import {
   CaretDownIcon,
   DotsThreeIcon,
+  FileIcon,
   GearIcon,
   KeyboardIcon,
   PencilSimpleIcon,
+  PlusIcon,
   SidebarSimpleIcon,
   SignOutIcon,
   TrashIcon,
@@ -318,12 +320,16 @@ function PageMenu({
         >
           {pages.map((page) => (
             <DropdownMenuRadioItem key={page.id} value={page.id}>
+              <FileIcon />
               {page.name}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onAddPage}>New page</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onAddPage}>
+          <PlusIcon />
+          New page
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
