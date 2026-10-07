@@ -1,5 +1,4 @@
-import { getGroupMembers } from "@/lib/canvas/layout"
-import type { IframeLayerGroupData, PageData } from "@/lib/types"
+import type { PageData } from "@/lib/types"
 
 /**
  * Pages of a canvas (#1835, spec #1834): the ordered, named partitions of its
@@ -92,24 +91,3 @@ export function pageAfterDelete(
 
 /** The query param a link to a page carries (#1836): `/{roomId}?page=…`. */
 export const PAGE_PARAM = "page"
-
-/**
- * The page a view request for `ids` shows (#1843): a page one of them names,
- * else the page of the first Group named, or holding a Layer named; undefined
- * when none of them is on a page.
- */
-export function pageOfIds(
-  ids: readonly string[],
-  groups: readonly IframeLayerGroupData[],
-  pages: readonly PageData[]
-): string | undefined {
-  const page = pages.find((p) => ids.includes(p.id))
-  if (page) return page.id
-  for (const id of ids) {
-    const group = groups.find(
-      (g) => g.id === id || getGroupMembers(g).some((m) => m.id === id)
-    )
-    if (group) return groupPageId(group, pages)
-  }
-  return undefined
-}

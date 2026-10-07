@@ -143,11 +143,11 @@ import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
 
 import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
+import { pageIdsById } from "@/lib/canvas/layer-pages"
 import {
   PAGE_PARAM,
   groupsOnPage,
   pageAfterDelete,
-  pageOfIds,
   resolvePageId,
 } from "@/lib/canvas/pages"
 import { openPageId, pageViewport } from "@/lib/canvas/page-views"
@@ -559,7 +559,11 @@ export function Canvas({
   // Layers on other Pages (#1835) leave it too: only the current page's
   // Groups lay out and render, so their frames unmount (chats and previews
   // keep running).
-  const { iframeLayers, groups: iframeLayerGroups } = useMemo(() => {
+  const {
+    iframeLayers,
+    groups: iframeLayerGroups,
+    allPageGroups,
+  } = useMemo(() => {
     const view = hideDoneWorkspaceFrames({
       groups: allIframeLayerGroups,
       iframeLayers: allIframeLayers,
@@ -568,6 +572,8 @@ export function Canvas({
     return {
       iframeLayers: view.iframeLayers,
       groups: groupsOnPage(view.groups, pages, currentPageId),
+      // Every page's, to find a layer named in chat on another page (#1841).
+      allPageGroups: view.groups,
     }
   }, [allIframeLayerGroups, allIframeLayers, agents, pages, currentPageId])
   const markdownLayers = useMarkdownLayers()
@@ -1045,9 +1051,25 @@ export function Canvas({
   )
   const { jumpTo: cameraJumpTo } = camera
   const shownPageIdRef = useRef(currentPageId)
+  // Layers named in chat that switched the page to reach them (#1841): once
+  // the page is up they're shown instead of the page's own view.
+  const pendingShowRef = useRef<{ ids: string[]; select: boolean } | null>(null)
+  const showLayersRef = useRef(
+    (_ids: string[], _options: { select: boolean }) => {}
+  )
   useLayoutEffect(() => {
     if (shownPageIdRef.current === currentPageId) return
     shownPageIdRef.current = currentPageId
+    const pending = pendingShowRef.current
+    pendingShowRef.current = null
+    if (pending) {
+      // The refs the show reads catch up in a later effect; this page's
+      // Layers are laid out now.
+      iframeLayerLayoutsRef.current = iframeLayerLayouts
+      iframeLayerGroupsRef.current = iframeLayerGroups
+      showLayersRef.current(pending.ids, pending)
+      return
+    }
     const vp = cameraJumpTo(
       pageViewport(pageViews, pages, userId, currentPageId, savedViewport),
       unionRect(iframeLayerLayouts.values())
@@ -1057,6 +1079,7 @@ export function Canvas({
   }, [
     currentPageId,
     iframeLayerLayouts,
+    iframeLayerGroups,
     cameraJumpTo,
     pageViews,
     pages,
@@ -1132,12 +1155,10 @@ export function Canvas({
   // into view only if it's off screen.
   const { zoomToRect: cameraZoomToRect, revealRect: cameraRevealRect } = camera
   const iframeLayerGroupsRef = useRef(iframeLayerGroups)
-  const allIframeLayerGroupsRef = useRef(allIframeLayerGroups)
   const pagesRef = useRef(pages)
   const selectNamedLayerRef = useRef((_id: string) => {})
   useEffect(() => {
     iframeLayerGroupsRef.current = iframeLayerGroups
-    allIframeLayerGroupsRef.current = allIframeLayerGroups
     pagesRef.current = pages
     selectNamedLayerRef.current = (id) => {
       if (iframeLayers.some((l) => l.id === id)) {
@@ -1150,54 +1171,78 @@ export function Canvas({
       }
     }
   })
+  // Show the named Layers or Groups on the current page: select the named
+  // Layers and reveal the first, or fit them all.
+  useEffect(() => {
+    showLayersRef.current = (ids, { select }) => {
+      if (select) {
+        for (const id of ids) selectNamedLayerRef.current(id)
+        const layout = iframeLayerLayoutsRef.current.get(ids[0] ?? "")
+        if (layout) cameraRevealRect(layout)
+        return
+      }
+      const memberIds = ids.flatMap((id) => {
+        const group = iframeLayerGroupsRef.current.find((g) => g.id === id)
+        return group ? getGroupMembers(group).map((m) => m.id) : [id]
+      })
+      const layouts = iframeLayerLayoutsRef.current
+      const rect = unionRect(
+        memberIds.flatMap((id) => {
+          const layout = layouts.get(id)
+          return layout ? [layout] : []
+        })
+      )
+      if (rect) cameraZoomToRect(rect)
+    }
+  })
+  // The same from any page (#1841): named Layers on another page switch to
+  // the page of the first one, then show the ones on it.
+  const pageOfIdRef = useRef(new Map<string, string>())
+  useEffect(() => {
+    pageOfIdRef.current = pageIdsById(allPageGroups, pages)
+  }, [allPageGroups, pages])
+  const showLayersOnAnyPage = useCallback(
+    (ids: string[], options: { select: boolean }) => {
+      const pageOf = pageOfIdRef.current
+      const pageId = ids.map((id) => pageOf.get(id)).find(Boolean)
+      if (!pageId || pageId === currentPageIdRef.current) {
+        showLayersRef.current(ids, options)
+        return
+      }
+      switchPage(pageId)
+      pendingShowRef.current = {
+        ids: ids.filter((id) => pageOf.get(id) === pageId),
+        ...options,
+      }
+    },
+    [switchPage]
+  )
   useEffect(() => {
     let timer: number | undefined
     const unsubscribe = viewRequests.subscribe(({ chatId, ids, select }) => {
       if (chatId !== undefined && chatId !== roomChatId(roomId)) return
       if (select) {
         // The member's own click: no wait for the doc, which hasn't moved.
-        for (const id of ids) selectNamedLayerRef.current(id)
-        const layout = iframeLayerLayoutsRef.current.get(ids[0] ?? "")
-        if (layout) cameraRevealRect(layout)
+        showLayersOnAnyPage(ids, { select: true })
         return
       }
-      const frame = () => {
-        const memberIds = ids.flatMap((id) => {
-          if (pagesRef.current.some((p) => p.id === id)) return []
-          const group = iframeLayerGroupsRef.current.find((g) => g.id === id)
-          return group ? getGroupMembers(group).map((m) => m.id) : [id]
-        })
-        // No ids, or only a page: fit the page.
-        if (memberIds.length === 0) return zoomControls.zoomToFit()
-        const layouts = iframeLayerLayoutsRef.current
-        const rect = unionRect(
-          memberIds.flatMap((id) => {
-            const layout = layouts.get(id)
-            return layout ? [layout] : []
-          })
-        )
-        if (rect) cameraZoomToRect(rect)
-      }
       // The call's broadcast can land before the doc update that moved what
-      // it names, so let the layout catch up first. What it names on another
-      // page (#1843) switches to that page, then frames it once laid out.
+      // it names, so let the layout catch up first. A page it names (#1843)
+      // switches to that page.
       window.clearTimeout(timer)
       timer = window.setTimeout(() => {
-        const pageId = pageOfIds(
-          ids,
-          allIframeLayerGroupsRef.current,
-          pagesRef.current
-        )
-        if (!pageId || pageId === currentPageIdRef.current) return frame()
-        switchPage(pageId)
-        timer = window.setTimeout(frame, VIEW_REQUEST_SETTLE_MS)
+        const page = ids.find((id) => pagesRef.current.some((p) => p.id === id))
+        if (page && page !== currentPageIdRef.current) return switchPage(page)
+        const layerIds = ids.filter((id) => id !== page)
+        if (layerIds.length === 0) return zoomControls.zoomToFit()
+        showLayersOnAnyPage(layerIds, { select: false })
       }, VIEW_REQUEST_SETTLE_MS)
     })
     return () => {
       unsubscribe()
       window.clearTimeout(timer)
     }
-  }, [roomId, zoomControls, cameraZoomToRect, cameraRevealRect, switchPage])
+  }, [roomId, zoomControls, showLayersOnAnyPage, switchPage])
 
   // The agent showing this member a frame (#1390): fit it in their view,
   // waiting briefly for a frame it just opened to be laid out.

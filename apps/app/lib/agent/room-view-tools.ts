@@ -17,7 +17,7 @@ export function buildViewTools(readDoc: RoomToolPorts["readDoc"]): ToolSet {
   const tools = {
     show_on_canvas: tool({
       description:
-        "Move the user’s view of the canvas to fit frames, documents, mockups or Groups by id, switching them to the page those are on first. Pass a page’s id to switch them to that page and fit it. Omit `ids` to fit the page they’re on. Only the view of the person who asked moves; nothing on the canvas changes.",
+        "Move the user’s view of the canvas to fit frames, documents, mockups or Groups by id, switching them to the page those are on first. Pass a page’s id to switch them to that page. Omit `ids` to fit the page they’re on. Only the view of the person who asked moves; nothing on the canvas changes.",
       inputSchema: jsonSchema<{ ids?: string[] }>({
         type: "object",
         properties: {
