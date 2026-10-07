@@ -83,3 +83,11 @@ backend** — and the consequences ADR 0003 said it would unlock.
 - Wiring the dev server to _bind_ its allocated port (so the localhost preview is
   reachable end-to-end, not just addressable) builds on this allocator and is the
   natural next slice; the seam (`domain` → allocated port) is in place for it.
+
+## Update (2026-10-07, #1925)
+
+`usesHostGitAuth` mixed two facts and is gone. Where the Sandbox lives is
+`sandboxIsOnHost` (still keyed to `SANDBOX_BACKEND`); who holds git's
+credentials is GitHub access (`lib/github-access`): `githubAccess.git.kind` is
+`host` for the `gh-cli` built-in (the Mac app) and `brokered` for
+`oauth-account` (Hosted). Behaviour is unchanged.

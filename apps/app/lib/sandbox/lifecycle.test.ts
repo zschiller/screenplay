@@ -72,10 +72,6 @@ const fake = vi.hoisted(() => {
 // mirrors `lib/sandbox/types.ts`.
 vi.mock("@/lib/sandbox", () => ({
   sandboxProvider: fake.provider,
-  // These lifecycle tests pin the hosted (Vercel) snapshot/restore paths, which
-  // broker the git token — the local backend's host-native auth is exercised in
-  // provisioning.test.ts / provision.test.ts.
-  usesHostGitAuth: false,
   supportsHibernation: (s: { isRunning?: unknown }) =>
     typeof s?.isRunning === "function",
   isSandboxRunning: (s: { isRunning?: () => boolean }) =>

@@ -1,4 +1,5 @@
 import { markAgentPost, unmarkAgentPost } from "@/lib/agent-post-mark"
+import { githubAccess } from "@/lib/github-access"
 
 /**
  * GitHub issues and comments over the REST API, for the agent's GitHub tools
@@ -166,7 +167,6 @@ export interface IssueUpdate {
   labels?: string[]
 }
 
-const API = "https://api.github.com"
 /** Pages of 100 read per list: the newest past this are left out. */
 const MAX_PAGES = 5
 
@@ -264,7 +264,7 @@ export function gitHubIssuesClient(
     "X-GitHub-Api-Version": "2022-11-28",
   }
   const path = (repo: GitHubRepoRef, rest: string) =>
-    `${API}/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}${rest}`
+    `${githubAccess.apiUrl}/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}${rest}`
 
   async function call<T>(
     url: string,
@@ -341,7 +341,7 @@ export function gitHubIssuesClient(
         .filter(Boolean)
         .join(" ")
       const data = await call<{ items: RawIssue[] }>(
-        `${API}/search/issues?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=30`
+        `${githubAccess.apiUrl}/search/issues?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=30`
       )
       return data.items.map(summary)
     },

@@ -69,10 +69,27 @@ const defaultRunner: GhProcessRunner = async (cmd, args) => {
   }
 }
 
-export function makeGhCli(run: GhProcessRunner = defaultRunner): GhCli {
+/**
+ * Which `gh` to run. `command` is an argv prefix, so a company wrapper
+ * (`["corp-gh"]`, or `["corp", "gh"]`) stands in for `gh`. `hostname` adds
+ * `--hostname` for GitHub Enterprise; unset, gh uses its own default host.
+ */
+export interface GhCliOptions {
+  command?: readonly string[]
+  hostname?: string
+}
+
+export function makeGhCli(
+  run: GhProcessRunner = defaultRunner,
+  options: GhCliOptions = {}
+): GhCli {
+  const [bin, ...prefix] = options.command?.length ? options.command : ["gh"]
+  const host = options.hostname ? ["--hostname", options.hostname] : []
+  const gh = (args: string[]) => run(bin, [...prefix, ...args])
+
   async function getToken(): Promise<string | null> {
     try {
-      const result = await run("gh", ["auth", "token"])
+      const result = await gh(["auth", "token", ...host])
       if (result.exitCode !== 0) return null
       const token = result.stdout.trim()
       return token === "" ? null : token
@@ -87,7 +104,7 @@ export function makeGhCli(run: GhProcessRunner = defaultRunner): GhCli {
    */
   async function isInstalled(): Promise<boolean> {
     try {
-      const result = await run("gh", ["--version"])
+      const result = await gh(["--version"])
       return result.exitCode === 0
     } catch {
       return false
@@ -101,7 +118,7 @@ export function makeGhCli(run: GhProcessRunner = defaultRunner): GhCli {
    */
   async function getHandle(): Promise<string | null> {
     try {
-      const result = await run("gh", ["api", "user", "--jq", ".login"])
+      const result = await gh(["api", ...host, "user", "--jq", ".login"])
       if (result.exitCode !== 0) return null
       const handle = result.stdout.trim()
       return handle === "" ? null : handle

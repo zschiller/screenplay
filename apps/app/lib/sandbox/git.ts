@@ -1,20 +1,13 @@
 "use server"
 
 import { redactSensitiveInfo } from "@/lib/agent/redact"
-import {
-  getGitHubTokenForUser,
-  getGitIdentityForUser,
-  getUserId,
-} from "@/lib/auth-helpers"
+import { getUserId } from "@/lib/auth-helpers"
 import type { UnsavedWork } from "@/lib/branch/unsaved-work"
 import { fixtureUnsavedWork } from "@/lib/fixture-git"
 import { isFixtureWorld } from "@/lib/fixture-world"
 import { createBranch, renameBranch } from "@/lib/github-actions"
-import {
-  isSandboxRunning,
-  sandboxProvider,
-  usesHostGitAuth,
-} from "@/lib/sandbox"
+import { githubAccess } from "@/lib/github-access"
+import { isSandboxRunning, sandboxProvider } from "@/lib/sandbox"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { RepoData } from "@/lib/types"
@@ -89,15 +82,16 @@ export async function renameAgentBranch(
  * HTTP basic auth — no server round-trip, no persistent creds in the sandbox,
  * attribution stays with whoever triggered this command.
  *
- * On the local backend this is a no-op: git runs as a host process and
- * authenticates through the user's own credentials (credential helper / SSH /
- * `gh`), so there is no token to broker per command.
+ * When git is the host's own (`githubAccess.git.kind === "host"`) this is a
+ * no-op: git authenticates through the host's credentials (credential helper /
+ * SSH / `gh`), so there is no token to broker per command.
  */
 async function buildSandboxGitEnv(
   userId: string
 ): Promise<Record<string, string> | undefined> {
-  if (usesHostGitAuth) return undefined
-  const token = await getGitHubTokenForUser(userId)
+  const { git } = githubAccess
+  if (git.kind === "host") return undefined
+  const token = await git.token(userId)
   if (!token) return undefined
   return { SCREENPLAY_GH_TOKEN: token }
 }
@@ -213,7 +207,8 @@ export async function getUnsavedWork(
  * Configure git identity and normalize the branch / remote state so the agent
  * can push commits.
  *
- * **Auth depends on the backend.** On the hosted Vercel backend, auth is NOT
+ * **Auth depends on GitHub access** (`githubAccess.git`). When git is brokered
+ * (Hosted), auth is NOT
  * baked into the remote URL — the per-command credential helper installed here
  * reads SCREENPLAY_GH_TOKEN from the env of the command that invoked git, and
  * the server attaches the acting user's token per command, so each
@@ -230,7 +225,7 @@ export async function getUnsavedWork(
  * (parallel to the token), so commits in a shared sandbox attribute to whoever
  * drove them, overriding this fallback. There is no synthetic agent identity.
  *
- * On the local backend (`usesHostGitAuth`), none of that brokering
+ * When git is the host's own (the Mac app), none of that brokering
  * applies: git runs as a host process and authenticates through the user's own
  * credentials (credential helper / SSH / `gh`). So we neither rewrite `origin`
  * to a canonical HTTPS URL (which would clobber a user's SSH remote) nor install
@@ -264,7 +259,7 @@ export async function configureAgentGit(
       branch,
     ])
 
-    // Local backend: the worktree shares the user's own `.git` (for a
+    // Host git: the worktree shares the user's own `.git` (for a
     // `local-path` Repo it *is* the user's repo), git authenticates and pushes
     // through the user's host credentials, and `origin` already points at their
     // remote (possibly SSH). So everything below is hosted-only:
@@ -275,7 +270,8 @@ export async function configureAgentGit(
     //     On local the host's native git identity is already correct.
     //   - The remote rewrite and brokered-token helper belong to the hosted
     //     firewall trust boundary (ADR 0002), which doesn't exist here.
-    if (usesHostGitAuth) return
+    const { git } = githubAccess
+    if (git.kind === "host") return
 
     // Static author net: stamp the *triggering* user's real identity — never a
     // fabricated address. A shared hosted sandbox has no single author, so the
@@ -285,9 +281,7 @@ export async function configureAgentGit(
     // brokered path; if the user can't be resolved we set no identity rather
     // than invent one.
     const actingUserId = await getUserId()
-    const identity = actingUserId
-      ? await getGitIdentityForUser(actingUserId)
-      : null
+    const identity = actingUserId ? await git.identity(actingUserId) : null
     if (identity) {
       await sandbox.runCommand("git", ["config", "user.email", identity.email])
       await sandbox.runCommand("git", ["config", "user.name", identity.name])
@@ -298,7 +292,7 @@ export async function configureAgentGit(
       "remote",
       "set-url",
       "origin",
-      `https://github.com/${repo.repoOwner}/${repo.repoName}.git`,
+      `${githubAccess.webUrl}/${repo.repoOwner}/${repo.repoName}.git`,
     ])
 
     // Per-command credential helper: git invokes it whenever it needs GitHub

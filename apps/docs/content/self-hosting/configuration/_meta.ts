@@ -3,6 +3,7 @@ const meta = {
   "byo-harnesses": "Coding CLIs (harnesses)",
   "sandbox-provider": "Sandbox provider",
   "preview-exposure": "Preview exposure",
+  "github-access": "GitHub access",
   "yjs-host": "Yjs host",
   "blob-store": "Blob store",
   extensions: "Extensions",

@@ -3,14 +3,11 @@ import "server-only"
 import { tool } from "ai"
 import { z } from "zod"
 
-import { sandboxProvider, usesHostGitAuth } from "@/lib/sandbox"
+import { sandboxProvider } from "@/lib/sandbox"
 import type { SandboxInstance } from "@/lib/sandbox"
 import { createGitHubPr } from "@/lib/github-pr"
 import type { RoomDoc } from "@/lib/room-access"
-import {
-  getGitHubTokenForUser,
-  getGitIdentityForUser,
-} from "@/lib/auth-helpers"
+import { githubAccess } from "@/lib/github-access"
 import { applyTextEdit } from "@/lib/agent/edit"
 import {
   findCodeFiles,
@@ -271,18 +268,19 @@ async function getSandbox(ctx: ToolContext): Promise<SandboxInstance> {
  *     keeps commit authorship consistent with push attribution on a shared
  *     sandbox, instead of a single static (or fabricated) identity.
  *
- * On the local backend this is a no-op: git runs as a host process and
- * authenticates / authors through the user's own credentials and git config, so
- * there is nothing to broker per command.
+ * When git is the host's own (`githubAccess.git.kind === "host"`) this is a
+ * no-op: git authenticates and authors through the host's credentials and git
+ * config, so there is nothing to broker per command.
  */
 async function buildAgentGitEnv(
   ctx: ToolContext
 ): Promise<Record<string, string> | undefined> {
-  if (usesHostGitAuth) return undefined
+  const { git } = githubAccess
+  if (git.kind === "host") return undefined
   try {
     const [token, identity] = await Promise.all([
-      getGitHubTokenForUser(ctx.userId),
-      getGitIdentityForUser(ctx.userId),
+      git.token(ctx.userId),
+      git.identity(ctx.userId),
     ])
     const env: Record<string, string> = {}
     if (token) env.SCREENPLAY_GH_TOKEN = token

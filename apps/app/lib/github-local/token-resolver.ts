@@ -1,27 +1,16 @@
 import "server-only"
 
+import { hostGhCli } from "@/lib/github-access"
 import { makeGhCli, type GhCli } from "@/lib/github-local/gh-cli"
 import type { GhStatus } from "@/lib/github-local/gh-cli"
 
 /**
- * The local build's implementation of the `getGitHubToken()` seam (PRD #428):
- * the host `gh` CLI's token when the CLI is installed and authenticated, else
- * `null` (ADR 0018 dropped the device-flow fallback). Because this resolves
- * *behind* the existing seam in `auth-helpers`, every GitHub API call site
- * (repo listing, Branch-via-API, PR creation, Branch naming) lights up
- * unmodified the moment `gh` yields a token; `null` keeps meaning "API features
- * dark", which the UI already handles as the no-token state.
+ * The `gh` CLI this server's GitHub access runs (`lib/github-access`), with its
+ * configured command and hostname. The Mac app's connection row and first-run
+ * gate ask about that binary; the token itself comes from `githubAccess`.
  */
-export function makeGitHubTokenResolver(deps: {
-  gh: Pick<GhCli, "getToken">
-}): () => Promise<string | null> {
-  return () => deps.gh.getToken()
-}
-
-const productionResolver = makeGitHubTokenResolver({ gh: makeGhCli() })
-
-export function resolveLocalGitHubToken(): Promise<string | null> {
-  return productionResolver()
+function configuredGh(): GhCli {
+  return hostGhCli() ?? makeGhCli()
 }
 
 /**
@@ -38,7 +27,7 @@ export function makeLocalGitHubTokenSourceReader(deps: {
 }
 
 const productionTokenSourceReader = makeLocalGitHubTokenSourceReader({
-  gh: makeGhCli(),
+  gh: configuredGh(),
 })
 
 export function readLocalGitHubTokenSource(): Promise<"gh" | null> {
@@ -75,7 +64,7 @@ export function makeLocalGitHubConnectionReader(deps: {
 }
 
 const productionConnectionReader = makeLocalGitHubConnectionReader({
-  gh: makeGhCli(),
+  gh: configuredGh(),
 })
 
 export function readLocalGitHubConnection(): Promise<LocalGitHubConnection> {

@@ -1,6 +1,7 @@
 "use server"
 
 import { getGitHubToken } from "@/lib/auth-helpers"
+import { githubAccess } from "@/lib/github-access"
 import { githubPrReader } from "@/lib/pr-watch/github"
 import { runPrWatch } from "@/lib/pr-watch/run"
 import { FIXTURE_GITHUB_REPOS, hasFixtureGitHub } from "@/lib/fixture-github"
@@ -44,7 +45,7 @@ export async function listUserRepos(): Promise<GitHubRepo[]> {
 
   while (true) {
     const res = await fetch(
-      `https://api.github.com/user/repos?per_page=100&sort=pushed&direction=desc&page=${page}`,
+      `${githubAccess.apiUrl}/user/repos?per_page=100&sort=pushed&direction=desc&page=${page}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -101,7 +102,7 @@ export async function createBranch(
 
   // Get the SHA of the source branch
   const refRes = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${fromBranch}`,
+    `${githubAccess.apiUrl}/repos/${owner}/${repo}/git/ref/heads/${fromBranch}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -124,7 +125,7 @@ export async function createBranch(
 
   // Create the new branch
   const createRes = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/refs`,
+    `${githubAccess.apiUrl}/repos/${owner}/${repo}/git/refs`,
     {
       method: "POST",
       headers: {
@@ -161,7 +162,7 @@ export async function renameBranch(
   if (!token) return { success: false, error: "No GitHub token" }
 
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/branches/${oldBranch}/rename`,
+    `${githubAccess.apiUrl}/repos/${owner}/${repo}/branches/${oldBranch}/rename`,
     {
       method: "POST",
       headers: {
@@ -194,7 +195,7 @@ export async function deleteBranch(
   if (!token) return { success: false, error: "No GitHub token" }
 
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,
+    `${githubAccess.apiUrl}/repos/${owner}/${repo}/git/refs/heads/${branch}`,
     {
       method: "DELETE",
       headers: {
@@ -229,7 +230,7 @@ async function fetchCompare(
   head: string
 ): Promise<DiffStats | null> {
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/compare/${base}...${head}`,
+    `${githubAccess.apiUrl}/repos/${owner}/${repo}/compare/${base}...${head}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -369,7 +370,7 @@ export async function listRepoBranches(
   if (!token) return []
 
   const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`,
+    `${githubAccess.apiUrl}/repos/${owner}/${repo}/branches?per_page=100`,
     {
       headers: {
         Authorization: `Bearer ${token}`,

@@ -5,10 +5,11 @@ import path from "node:path"
 import { promisify } from "node:util"
 
 import { hasFixtureGitHub } from "@/lib/fixture-github"
-import { parseGitHubRemote } from "@/lib/github-local/parse-remote"
+import { getGitHubToken } from "@/lib/auth-helpers"
+import { githubAccess } from "@/lib/github-access"
+import { parseGitHubRemote } from "@/lib/github-access/urls"
 import {
   readLocalGitHubConnection,
-  resolveLocalGitHubToken,
   type GhConnectionState,
 } from "@/lib/github-local/token-resolver"
 import type { NewRepoSource } from "@/lib/github-local/types"
@@ -78,7 +79,9 @@ export async function inspectLocalRepoPath(
     ["config", "--get", "remote.origin.url"],
     repoRoot
   ).catch(() => "")
-  const identity = originUrl ? parseGitHubRemote(originUrl) : null
+  const identity = originUrl
+    ? parseGitHubRemote(originUrl, githubAccess.webUrl)
+    : null
 
   // The remote's default branch when the clone knows it, else whatever the
   // clone has checked out — for a local-path Repo that's the closest thing to
@@ -123,15 +126,15 @@ export async function resolveRepoFromUrl(
   const url = rawUrl.trim()
   if (!url) return { ok: false, error: "Enter a clone URL" }
 
-  const identity = parseGitHubRemote(url)
+  const identity = parseGitHubRemote(url, githubAccess.webUrl)
   let defaultBranch = "main"
 
   if (identity) {
-    const token = await resolveLocalGitHubToken()
+    const token = await getGitHubToken()
     if (token) {
       try {
         const res = await fetch(
-          `https://api.github.com/repos/${identity.owner}/${identity.name}`,
+          `${githubAccess.apiUrl}/repos/${identity.owner}/${identity.name}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

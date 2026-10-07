@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@/lib/agent/types"
 import type { BranchPrInfo, BranchPrState } from "@/lib/github-actions"
+import { findPullRequestUrl } from "@/lib/github-access/urls"
 import { hasGitHubRemote } from "@/lib/repo-identity"
 import type { BranchData, RepoData } from "@/lib/types"
 
@@ -196,7 +197,7 @@ export function latestCreatedPr(
             : ""
         )
         .join("\n")
-      const url = output.match(/https:\/\/github\.com\/[^\s]+/)?.[0]
+      const url = findPullRequestUrl(output)
       const num = output.match(/#(\d+)/)?.[1]
       if (url && num) return { url, number: Number(num) }
     }

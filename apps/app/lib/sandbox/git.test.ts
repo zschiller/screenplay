@@ -31,10 +31,28 @@ const fake = vi.hoisted(() => {
   }
 })
 
-// `usesHostGitAuth` is the build-time backend switch (worktree → host-native git
-// auth). It's a module-load const in production; a mutable holder lets a test
-// flip it to exercise the local path without re-importing the module under test.
-const backend = vi.hoisted(() => ({ hostGitAuth: false }))
+// GitHub access decides whether git is the host's own or brokered. It's a
+// module-load const in production; a mutable holder lets a test flip it to host
+// git without re-importing the module under test.
+const access = vi.hoisted(() => ({
+  hostGit: false,
+  webUrl: "https://github.com",
+  token: vi.fn(async (_userId: string): Promise<string | null> => null),
+  identity: vi.fn(
+    async (_userId: string): Promise<{ name: string; email: string } | null> =>
+      null
+  ),
+}))
+vi.mock("@/lib/github-access", () => ({
+  get githubAccess() {
+    return {
+      webUrl: access.webUrl,
+      git: access.hostGit
+        ? { kind: "host" }
+        : { kind: "brokered", token: access.token, identity: access.identity },
+    }
+  },
+}))
 
 // Keep the real portable-liveness predicate (it keys on the fake's isRunning),
 // mirroring `lib/sandbox/types.ts`; faking it would defeat the branch under test.
@@ -42,9 +60,6 @@ vi.mock("@/lib/sandbox", () => ({
   sandboxProvider: fake.provider,
   isSandboxRunning: (s: { isRunning?: () => boolean }) =>
     typeof s?.isRunning === "function" ? s.isRunning() : true,
-  get usesHostGitAuth() {
-    return backend.hostGitAuth
-  },
 }))
 
 // `getDiffStats` reads the acting user to attach a git credential env for its
@@ -52,8 +67,6 @@ vi.mock("@/lib/sandbox", () => ({
 // under plain Node — stub it so the query's parsing is what's under test.
 vi.mock("@/lib/auth-helpers", () => ({
   getUserId: vi.fn(async () => null),
-  getGitHubTokenForUser: vi.fn(async () => null),
-  getGitIdentityForUser: vi.fn(async () => null),
 }))
 
 // `renameAgentBranch` also renames the branch on GitHub. That HTTP call is an
@@ -63,11 +76,7 @@ const renameBranch = vi.hoisted(() => vi.fn())
 const createBranch = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/github-actions", () => ({ renameBranch, createBranch }))
 
-import {
-  getGitHubTokenForUser,
-  getGitIdentityForUser,
-  getUserId,
-} from "@/lib/auth-helpers"
+import { getUserId } from "@/lib/auth-helpers"
 
 import {
   configureAgentGit,
@@ -138,12 +147,13 @@ function fakeSandbox(
 
 beforeEach(() => {
   vi.clearAllMocks()
-  backend.hostGitAuth = false
+  access.hostGit = false
+  access.webUrl = "https://github.com"
   // clearAllMocks wipes call history but keeps implementations; restore the
   // null defaults so a test that scripts an identity doesn't leak into the next.
   vi.mocked(getUserId).mockResolvedValue(null)
-  vi.mocked(getGitHubTokenForUser).mockResolvedValue(null)
-  vi.mocked(getGitIdentityForUser).mockResolvedValue(null)
+  access.token.mockResolvedValue(null)
+  access.identity.mockResolvedValue(null)
 })
 
 describe("configureAgentGit", () => {
@@ -181,7 +191,7 @@ describe("configureAgentGit", () => {
     // per-command broker layers the acting user on top). Crucially it is never
     // the old hardcoded agent@screenplay.dev.
     vi.mocked(getUserId).mockResolvedValue("user-1")
-    vi.mocked(getGitIdentityForUser).mockResolvedValue({
+    access.identity.mockResolvedValue({
       name: "Octo Cat",
       email: "octo@users.noreply.github.com",
     })
@@ -224,11 +234,28 @@ describe("configureAgentGit", () => {
     expect(joined).not.toContain("agent@screenplay.dev")
   })
 
+  it("points origin at the configured GitHub's web URL", async () => {
+    access.webUrl = "https://ghe.corp.example"
+    const seen: string[] = []
+    fake.setInstance(
+      fakeSandbox((cmd, args) => {
+        seen.push([cmd, ...args].join(" "))
+        return { exitCode: 0 }
+      })
+    )
+
+    await configureAgentGit("sandbox-a", repo, "feature")
+
+    expect(seen.join("\n")).toContain(
+      `git remote set-url origin https://ghe.corp.example/${repo.repoOwner}/${repo.repoName}.git`
+    )
+  })
+
   it("under host-native git auth, skips the remote rewrite and credential helper", async () => {
     // On the local backend git rides the host's own credentials, so the
     // brokered-token plumbing (origin rewrite + SCREENPLAY_GH_TOKEN helper) must
     // not run — rewriting origin would clobber a user's SSH remote.
-    backend.hostGitAuth = true
+    access.hostGit = true
     const seen: string[] = []
     fake.setInstance(
       fakeSandbox((cmd, args) => {
@@ -347,7 +374,7 @@ describe("getDiffStats", () => {
   })
 
   it("under host-native git auth, doesn't broker a token for the fetch", async () => {
-    backend.hostGitAuth = true
+    access.hostGit = true
     fake.setInstance(
       fakeSandbox((cmd, args) =>
         args.includes("--numstat")
@@ -360,7 +387,7 @@ describe("getDiffStats", () => {
 
     expect(result).toEqual({ additions: 1, deletions: 0 })
     // Host auth covers the fetch — no per-command token is looked up.
-    expect(getGitHubTokenForUser).not.toHaveBeenCalled()
+    expect(access.token).not.toHaveBeenCalled()
   })
 })
 
