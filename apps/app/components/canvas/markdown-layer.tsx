@@ -18,8 +18,6 @@ import {
   CheckIcon,
   CodeIcon,
   ImageIcon,
-  ListBulletsIcon,
-  ListNumbersIcon,
   PencilSimpleIcon,
   TextBIcon,
   TextItalicIcon,
@@ -815,8 +813,6 @@ function MarkdownLayerImpl({
             italic: editor.isActive("italic"),
             strike: editor.isActive("strike"),
             code: editor.isActive("code"),
-            bulletList: editor.isActive("bulletList"),
-            orderedList: editor.isActive("orderedList"),
             // The title is always a heading: blocks can't change there.
             inTitle:
               editor.state.doc.resolve(editor.state.selection.from).index(0) ===
@@ -1132,27 +1128,6 @@ function MarkdownLayerImpl({
                       blockType={activeFormats?.blockType ?? "paragraph"}
                       disabled={activeFormats?.inTitle}
                     />
-                    <FloatingToolbarSeparator />
-                    <FormatButton
-                      label="Bullet list"
-                      active={!!activeFormats?.bulletList}
-                      disabled={activeFormats?.inTitle}
-                      onRun={() =>
-                        editor.chain().focus().toggleBulletList().run()
-                      }
-                    >
-                      <ListBulletsIcon />
-                    </FormatButton>
-                    <FormatButton
-                      label="Numbered list"
-                      active={!!activeFormats?.orderedList}
-                      disabled={activeFormats?.inTitle}
-                      onRun={() =>
-                        editor.chain().focus().toggleOrderedList().run()
-                      }
-                    >
-                      <ListNumbersIcon />
-                    </FormatButton>
                     <ImageDropdown
                       onPick={(key) => {
                         const { $to } = editor.state.selection
