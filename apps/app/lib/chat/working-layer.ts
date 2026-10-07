@@ -40,6 +40,7 @@ export const LAYER_ARGS: Readonly<Record<string, string>> = {
   start_editing: "layer_id",
   update_mockup: "mockup_id",
   read_mockup: "mockup_id",
+  write_mockup_file: "mockup_id",
   replace_document_body: "document_id",
   append_to_document_body: "document_id",
   set_document_title: "document_id",

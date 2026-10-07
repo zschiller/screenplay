@@ -17,6 +17,8 @@ import { Button } from "@workspace/ui/components/button"
 import { useChatsMenu } from "@/components/agent/chats-menu"
 import { ChatMarkdown } from "@/components/agent/chat-markdown"
 import { WORKSPACE_HOVER_CARD_DELAY_MS } from "@/components/workspace-hover-card"
+import { useMockupPage } from "@/hooks/use-mockup-page"
+import type { MockupLayerData } from "@/lib/types"
 import { useMockupRefs } from "@/hooks/use-mockup-refs"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
 import { lastChangedBy, layerChat } from "@/lib/canvas/layer-chat"
@@ -31,7 +33,6 @@ import {
   useIframeLayers,
   useLayerFiles,
   useMarkdownLayers,
-  useMockupHtml,
   useMockupLayers,
 } from "@/lib/yjs/react"
 import { workspaceLabel } from "@/lib/workspace-label"
@@ -107,6 +108,9 @@ type Layer = {
   id: string
   /** The file a Document or Mockup shows (#1883), whose body the card reads. */
   fileId?: string
+  /** A Mockup's folder revision and pending copy (#1886). */
+  revision?: number
+  copyOf?: string
   title: string
   width: number
   height: number
@@ -190,6 +194,12 @@ function useNamedLayer(kind: LayerMentionKind, id: string): Layer | null {
   return {
     id,
     fileId: layer.fileId,
+    ...(kind === "mockup"
+      ? {
+          revision: (layer as MockupLayerData).revision,
+          copyOf: (layer as MockupLayerData).copyOf,
+        }
+      : {}),
     title: layer.title || KIND_LABEL[kind],
     width: layer.width,
     height: layer.height,
@@ -290,17 +300,18 @@ const PREVIEW_CLASS =
  * layer shows (`mockupSrcDoc`), scaled down and inert.
  */
 function MockupPreview({ layer }: { layer: Layer }) {
-  const html = useMockupHtml(layer.fileId ?? layer.id)
+  const { page, hasPage } = useMockupPage(layer)
+  const html = page?.html ?? ""
   const runtime = useMockupRuntime()
   const resources = useMockupRefs(layer.id, html)
   const srcDoc = useMemo(
     () =>
       html.trim() && runtime !== null && resources !== null
-        ? mockupSrcDoc(html, runtime, resources)
+        ? mockupSrcDoc(html, runtime, resources, page?.base)
         : undefined,
-    [html, runtime, resources]
+    [html, runtime, resources, page?.base]
   )
-  if (!html.trim()) return null
+  if (page ? !html.trim() : !hasPage) return null
   const { scale, height } = previewBox(layer)
   return (
     <div data-slot="layer-preview" className={PREVIEW_CLASS} style={{ height }}>

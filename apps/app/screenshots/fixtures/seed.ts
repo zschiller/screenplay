@@ -6,7 +6,7 @@ import * as Y from "yjs"
 
 import { computeIframeLayerLayouts } from "@/lib/canvas/layout"
 import { groupsOnPage, orderedPages } from "@/lib/canvas/pages"
-import { mockupHtml, writeMockupHtml } from "@/lib/yjs/mockup-html"
+import { MOCKUP_INDEX, mockupFolderPrefix } from "@/lib/mockup-folder"
 import { createPgliteDb } from "@/lib/db/pglite"
 import * as schema from "@/lib/db/schema"
 import type { DB } from "@/lib/db/types"
@@ -577,6 +577,17 @@ async function seedRoomDocs(
       await writeFile(path, await fileFixtureBytes(body))
     }
 
+    // Mockup pages, each its folder's `index.html` (`lib/mockup-folder`).
+    for (const [layerId, html] of Object.entries(room.doc?.mockupHtml ?? {})) {
+      const path = join(
+        ctx.filesDir,
+        mockupFolderPrefix(room.id, layerId),
+        MOCKUP_INDEX
+      )
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, html)
+    }
+
     captureCount += await seedRoomThumbnail(room, ctx)
     doc.destroy()
   }
@@ -650,8 +661,10 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
       keepTitle: false,
     })
   }
-  for (const [layerId, html] of Object.entries(fixture.mockupHtml ?? {})) {
-    writeMockupHtml(mockupHtml(doc, layerId), html)
+  // Mockup pages are folders in the file store (#1886, `seedRoomDocs`
+  // writes them); the record carries the folder's revision.
+  for (const layerId of Object.keys(fixture.mockupHtml ?? {})) {
+    c.mockupLayers.update(layerId, { revision: 1 })
   }
 }
 
@@ -753,6 +766,9 @@ function localFileStore(filesDir: string): FileStore {
     },
     async size(key) {
       return (await stat(join(filesDir, key)).catch(() => null))?.size ?? null
+    },
+    async list() {
+      throw new Error("Seeding never lists the file store.")
     },
   }
 }

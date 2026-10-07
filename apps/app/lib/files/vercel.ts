@@ -1,6 +1,6 @@
 import "server-only"
 
-import { BlobNotFoundError, del, get, head, put } from "@vercel/blob"
+import { BlobNotFoundError, del, get, head, list, put } from "@vercel/blob"
 import type { FileStore } from "./store"
 
 /**
@@ -57,6 +57,18 @@ export function vercelFileStore(
         if (e instanceof BlobNotFoundError) return null
         throw e
       }
+    },
+    async list(prefix) {
+      const found: { key: string; size: number }[] = []
+      let cursor: string | undefined
+      do {
+        const page = await list({ prefix, cursor, token: auth() })
+        for (const blob of page.blobs) {
+          found.push({ key: blob.pathname, size: blob.size })
+        }
+        cursor = page.hasMore ? page.cursor : undefined
+      } while (cursor)
+      return found
     },
   }
 }

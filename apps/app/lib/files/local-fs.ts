@@ -1,7 +1,7 @@
 import "server-only"
 
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
-import { dirname, resolve, sep } from "node:path"
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { dirname, relative, resolve, sep } from "node:path"
 import type { FileStore } from "./store"
 
 const DEFAULT_DIR = ".screenplay/files"
@@ -46,6 +46,26 @@ export function localFsFileStore(
         if ((e as NodeJS.ErrnoException).code === "ENOENT") return null
         throw e
       }
+    },
+    async list(prefix) {
+      // The folder the prefix names, or the one it ends inside.
+      const at = prefix.endsWith("/") ? prefix : dirname(prefix)
+      let names: string[]
+      try {
+        names = await readdir(pathOf(at), { recursive: true })
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") return []
+        throw e
+      }
+      const found: { key: string; size: number }[] = []
+      for (const name of names) {
+        const path = resolve(pathOf(at), name)
+        const info = await stat(path)
+        if (!info.isFile()) continue
+        const key = relative(root, path).split(sep).join("/")
+        if (key.startsWith(prefix)) found.push({ key, size: info.size })
+      }
+      return found.sort((a, b) => (a.key < b.key ? -1 : 1))
     },
   }
 }

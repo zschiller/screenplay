@@ -26,6 +26,12 @@ import { COLLECTION_KEYS } from "@/lib/yjs/schema"
  * its chat back with it, and members' page views (#1838) only so that undoing
  * a page's deletion brings back everyone's view of it: moving the camera is
  * never a step.
+ *
+ * A Mockup's page is a folder in the file store (#1886), outside the doc, so
+ * Undo can't bring it back once it's gone: a Mockup file this member deleted
+ * keeps its folder while their Undo could still restore it, and
+ * `onMockupFilesGone` hears which are still deleted when this Undo goes (the
+ * session ends), so the canvas can have them removed for real.
  */
 
 /** Frame fields the prototype writes as it runs; ⌘Z never steps through them. */
@@ -68,6 +74,11 @@ const LIFECYCLE_KEYS = [COLLECTION_KEYS.repos, COLLECTION_KEYS.branches]
 export type CanvasUndo = {
   undo(): void
   redo(): void
+  /**
+   * Mockup files this member deleted that are still gone: their folders go
+   * when this Undo does. Read on the way out of the page, too.
+   */
+  deletedMockupFiles(): string[]
   destroy(): void
 }
 
@@ -84,7 +95,10 @@ function collectionOf(
   return parentKey ? { key: parentKey, entry: true } : null
 }
 
-export function createCanvasUndo(doc: Y.Doc): CanvasUndo {
+export function createCanvasUndo(
+  doc: Y.Doc,
+  options: { onMockupFilesGone?: (fileIds: string[]) => void } = {}
+): CanvasUndo {
   const maps = new Map<object, string>()
   for (const key of [...EDITABLE_KEYS, ...LIFECYCLE_KEYS]) {
     maps.set(doc.getMap(key), key)
@@ -147,6 +161,38 @@ export function createCanvasUndo(doc: Y.Doc): CanvasUndo {
     }
   )
 
+  // Mockup files (#1886): every one in the doc, and the ones this member
+  // deleted that are still gone.
+  const files = doc.getMap<Y.Map<unknown>>(COLLECTION_KEYS.layerFiles)
+  const mockupFiles = new Set<string>()
+  for (const [id, file] of files) {
+    if (file instanceof Y.Map && file.get("kind") === "mockup") {
+      mockupFiles.add(id)
+    }
+  }
+  const deletedByMe = new Set<string>()
+  const watchMockupFiles = (tr: Y.Transaction) => {
+    let ids: Set<string | null> | undefined
+    for (const [type, keys] of tr.changed) {
+      if ((type as object) === files) ids = keys
+    }
+    if (!ids) return
+    const mine = tr.origin === mgr || tracked.has(tr.origin)
+    for (const id of ids) {
+      if (id === null) continue
+      const file = files.get(id)
+      if (file instanceof Y.Map) {
+        if (file.get("kind") === "mockup") mockupFiles.add(id)
+        // Undone, or put back some other way: its folder stays.
+        deletedByMe.delete(id)
+      } else if (mockupFiles.delete(id) && mine) {
+        deletedByMe.add(id)
+      }
+    }
+  }
+  doc.on("afterTransaction", watchMockupFiles)
+  const stillGone = () => [...deletedByMe].filter((id) => !files.has(id))
+
   mgr.on("stack-item-added", ({ type, origin }) => {
     if (!deleting || type !== "undo" || origin === mgr) return
     deleting = false
@@ -161,9 +207,13 @@ export function createCanvasUndo(doc: Y.Doc): CanvasUndo {
     redo: () => {
       mgr.redo()
     },
+    deletedMockupFiles: stillGone,
     destroy: () => {
       doc.off("afterTransaction", beforeUndoManager)
+      doc.off("afterTransaction", watchMockupFiles)
       mgr.destroy()
+      const gone = stillGone()
+      if (gone.length) options.onMockupFilesGone?.(gone)
     },
   }
 }

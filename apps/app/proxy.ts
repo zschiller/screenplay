@@ -5,7 +5,8 @@ import { isLocalBuild } from "@/lib/local-mode"
 // Routes reachable without a session. Everything else bounces to /sign-in.
 // `/icon` is the favicon (app/icon.ts): the sign-in page and Vercel's
 // dashboard ask for it signed out. `/api/pr-watch/tick` is Vercel Cron's,
-// which checks its own secret.
+// which checks its own secret. `/api/mockup-pages` serves a Mockup's folder
+// to its own page, which sends no cookies; a signed token is its check.
 const PUBLIC_PATHS = [
   "/",
   "/sign-in",
@@ -13,6 +14,7 @@ const PUBLIC_PATHS = [
   "/api/auth",
   "/api/yjs/auth",
   "/api/pr-watch/tick",
+  "/api/mockup-pages",
 ]
 
 function isPublic(pathname: string): boolean {

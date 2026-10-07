@@ -478,6 +478,14 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     category: "canvas",
     label: () => null,
   },
+  // A file in a Mockup's folder (#1886).
+  write_mockup_file: {
+    verb: "Update mockup",
+    icon: "mockup",
+    kind: "other",
+    output: "quiet",
+    label: subject("path", "code"),
+  },
   // The Coordinator's reads (#893).
   read_canvas: {
     verb: "Read canvas",

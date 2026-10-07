@@ -1,5 +1,6 @@
 import * as Y from "yjs"
 
+import { mockupPagesScope } from "@/lib/mockup-folder"
 import {
   mockupRefs,
   swapMockupRefs,
@@ -7,10 +8,11 @@ import {
 } from "@/lib/mockup-refs"
 
 /**
- * Resolve a Mockup Layer's page from the room Y.Doc. Every Mockup Layer's HTML
- * lives in a `Y.Text` keyed `mockup-layer-{id}` (see `apps/app/CONTEXT.md`),
- * beside its record the way a Markdown Layer's body sits beside its record.
- * This is the single owner of that key string.
+ * A Mockup's page from before Mockup Folders (#1886): a `Y.Text` keyed
+ * `mockup-layer-{fileId}` in the room Y.Doc. Pages live in their folder in
+ * the file store now (`lib/mockup-folder`); this text holds a page only until
+ * the server first reads it and moves it into `index.html`, and is the single
+ * owner of that key string.
  */
 export function mockupHtml(doc: Y.Doc, id: string): Y.Text {
   return doc.getText(`mockup-layer-${id}`)
@@ -36,6 +38,24 @@ export const MOCKUP_CSP =
   "default-src 'none'; script-src 'unsafe-inline' blob:; style-src 'unsafe-inline' blob:; img-src data: blob:; font-src data:; media-src data: blob:"
 
 /**
+ * {@link MOCKUP_CSP} for a page whose folder (#1886) loads from `scope`, the
+ * pages-route URL every revision of its Mockup shares: the page may load its
+ * own folder's files, and still nothing else from the network.
+ */
+export function mockupCsp(scope?: string): string {
+  if (!scope) return MOCKUP_CSP
+  return [
+    "default-src 'none'",
+    `script-src 'unsafe-inline' blob: ${scope}`,
+    `style-src 'unsafe-inline' blob: ${scope}`,
+    `img-src data: blob: ${scope}`,
+    `font-src data: ${scope}`,
+    `media-src data: blob: ${scope}`,
+    `connect-src ${scope}`,
+  ].join("; ")
+}
+
+/**
  * A Mockup page as its frame's `srcdoc`: the page with {@link MOCKUP_CSP} as
  * the first thing in its head, so no script, style or image it names can load
  * from the network, then `runtime` (the DOM bridge and knobs runtime,
@@ -51,14 +71,21 @@ export const MOCKUP_CSP =
  * swapped for them, so every script and stylesheet still loads in order
  * before the parser goes on. A reference `resources` doesn't resolve becomes
  * an empty resource.
+ *
+ * `base` is the absolute pages-route URL of the page's folder (#1886,
+ * `lib/mockup-folder`): it becomes the page's `<base>`, so the page's
+ * relative paths (in its markup or built by its scripts) load the folder's
+ * files, and its policy lets them, and only them, load.
  */
 export function mockupSrcDoc(
   html: string,
   runtime = "",
-  resources: MockupResources = {}
+  resources: MockupResources = {},
+  base?: string
 ): string {
   const prelude =
-    `<meta http-equiv="Content-Security-Policy" content="${MOCKUP_CSP}">` +
+    `<meta http-equiv="Content-Security-Policy" content="${mockupCsp(base && mockupPagesScope(base))}">` +
+    (base ? `<base href="${escapeAttribute(base)}">` : "") +
     (runtime ? inlineScript(runtime) : "")
   const refs = mockupRefs(html)
   if (refs.length > 0) {
@@ -103,6 +130,10 @@ function scriptJson(value: unknown): string {
     .replace(/</g, "\\u003c")
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029")
+}
+
+function escapeAttribute(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;")
 }
 
 function inlineScript(js: string): string {

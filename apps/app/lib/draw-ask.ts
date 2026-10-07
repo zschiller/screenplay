@@ -95,7 +95,6 @@ export type DrawnMockup = {
 export function emptyMockup(mockup: DrawnMockup, chatId: string) {
   return {
     id: mockup.id,
-    html: "",
     title: "",
     width: mockup.width,
     height: mockup.height,

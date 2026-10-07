@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import { buildMockupTools, MAX_MOCKUP_HTML } from "@/lib/agent/mockup-tools"
 import { createCanvasOps } from "@/lib/canvas/ops"
+import { memoryFileStore } from "@/lib/files/store"
+import { MOCKUP_INDEX, mockupFolderPrefix } from "@/lib/mockup-folder"
+import { mockupFolderOn } from "@/lib/mockup-folder-server"
 import type { RoomDoc } from "@/lib/room-access"
-import { mockupHtml } from "@/lib/yjs/mockup-html"
 import {
   baseBranch,
   baseChat,
@@ -29,23 +31,55 @@ function chatTools(chatId = "chat-1", senderPage?: () => string | undefined) {
     "chat-2",
     baseChat("chat-2", { label: "Other" })
   )
+  const store = memoryFileStore()
   const tools = buildMockupTools({
     room,
     chatId,
+    store,
     ...(senderPage ? { senderPage: async () => senderPage() } : {}),
   })
   const run = <K extends keyof typeof tools>(
     name: K,
     input: Parameters<NonNullable<(typeof tools)[K]["execute"]>>[0]
   ) => tools[name].execute!(input as never, {} as never) as Promise<string>
-  return { ...h, tools, run }
+  const folder = mockupFolderOn(room, store)
+  /** A Mockup's page, as its folder's index.html holds it (#1886). */
+  const pageOf = async (id: string) => (await folder.page(id))?.html ?? ""
+  /**
+   * A Mockup another chat or a person made, as Canvas Operations make it,
+   * with `html` already in its folder.
+   */
+  const createMockup = (
+    spec: Parameters<typeof h.ops.createMockup>[0] & { html?: string }
+  ) => {
+    const { html, ...rest } = spec
+    const made = h.ops.createMockup(rest)
+    if (made && html) {
+      void store.put(
+        mockupFolderPrefix(room.roomId, made.mockupId) + MOCKUP_INDEX,
+        new TextEncoder().encode(html),
+        "text/html"
+      )
+      h.collections.mockupLayers.update(made.mockupId, { revision: 1 })
+    }
+    return made
+  }
+  return {
+    ...h,
+    ops: { ...h.ops, createMockup },
+    store,
+    folder,
+    tools,
+    run,
+    pageOf,
+  }
 }
 
 const idIn = (out: string) => /id ([^)]+)\)/.exec(out)?.[1] ?? ""
 
 describe("create_mockup", () => {
   it("draws the page on the canvas, owned by the chat", async () => {
-    const { run, doc, collections } = chatTools()
+    const { run, pageOf, collections } = chatTools()
 
     const out = await run("create_mockup", {
       place: true,
@@ -61,7 +95,7 @@ describe("create_mockup", () => {
       width: 1280,
       height: 800,
     })
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<h1>A</h1>")
+    expect(await pageOf(mockupId)).toBe("<h1>A</h1>")
   })
 
   it("lands beside the chat’s Workspace frames when it has no Mockups yet", async () => {
@@ -125,7 +159,7 @@ describe("create_mockup", () => {
 
 describe("update_mockup", () => {
   it("rewrites the chat’s own Mockup in place", async () => {
-    const { run, doc, collections } = chatTools()
+    const { run, pageOf, collections } = chatTools()
     const mockupId = idIn(
       await run("create_mockup", {
         place: true,
@@ -141,12 +175,12 @@ describe("update_mockup", () => {
     })
 
     expect(out).toBe(`Updated Mockup ${mockupId}.`)
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>A2</p>")
+    expect(await pageOf(mockupId)).toBe("<p>A2</p>")
     expect(collections.mockupLayers.get(mockupId)?.title).toBe("Option A2")
   })
 
   it("fills a Mockup a person drew and sent to this chat (#1359)", async () => {
-    const { run, doc, collections, ops } = chatTools()
+    const { run, pageOf, collections, ops } = chatTools()
     // What the ask card writes: an empty page, last changed by the answering
     // chat.
     ops.createMockup({
@@ -166,7 +200,7 @@ describe("update_mockup", () => {
     })
 
     expect(out).toBe("Updated Mockup drawn-1.")
-    expect(mockupHtml(doc, "drawn-1").toString()).toBe("<p>Cart</p>")
+    expect(await pageOf("drawn-1")).toBe("<p>Cart</p>")
     // Where and how big it was drawn stays as is.
     expect(collections.mockupLayers.get("drawn-1")).toMatchObject({
       title: "Empty cart",
@@ -176,7 +210,7 @@ describe("update_mockup", () => {
   })
 
   it("changes a Mockup another chat made, and records this chat (#1724)", async () => {
-    const { run, doc, ops, collections } = chatTools()
+    const { run, pageOf, ops, collections } = chatTools()
     const { mockupId } = ops.createMockup({
       html: "<p>theirs</p>",
       title: "Theirs",
@@ -191,14 +225,14 @@ describe("update_mockup", () => {
     })
 
     expect(out).toBe(`Updated Mockup ${mockupId}.`)
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>mine</p>")
+    expect(await pageOf(mockupId)).toBe("<p>mine</p>")
     expect(collections.mockupLayers.get(mockupId)?.lastChangedByChatId).toBe(
       "chat-1"
     )
   })
 
   it("changes a Mockup made by hand or from before #1724", async () => {
-    const { run, doc, ops, collections } = chatTools()
+    const { run, pageOf, ops, collections } = chatTools()
     const { mockupId: hand } = ops.createMockup({
       html: "<p>hand</p>",
       title: "Hand",
@@ -220,7 +254,7 @@ describe("update_mockup", () => {
       title: "Hand 2",
       lastChangedByChatId: "chat-1",
     })
-    expect(mockupHtml(doc, old).toString()).toBe("<p>new</p>")
+    expect(await pageOf(old)).toBe("<p>new</p>")
     expect(collections.mockupLayers.get(old)?.lastChangedByChatId).toBe(
       "chat-1"
     )
@@ -337,7 +371,7 @@ describe("holding a Mockup (#1725)", () => {
   }
 
   it("refuses another chat’s change with the holder’s name", async () => {
-    const { run, doc, ops, collections } = chatTools()
+    const { run, pageOf, ops, collections } = chatTools()
     const { mockupId } = ops.createMockup({
       html: "<p>theirs</p>",
       title: "Theirs",
@@ -355,7 +389,7 @@ describe("holding a Mockup (#1725)", () => {
     expect(out).toBe(
       "Other is changing this right now; tell the person and try again later."
     )
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>theirs</p>")
+    expect(await pageOf(mockupId)).toBe("<p>theirs</p>")
     expect(collections.mockupLayers.get(mockupId)?.lastChangedByChatId).toBe(
       "chat-2"
     )
@@ -365,7 +399,7 @@ describe("holding a Mockup (#1725)", () => {
   })
 
   it("lets any chat change it once the holder’s turn ends", async () => {
-    const { run, doc, ops, collections } = chatTools()
+    const { run, pageOf, ops, collections } = chatTools()
     const { mockupId } = ops.createMockup({
       html: "<p>theirs</p>",
       title: "Theirs",
@@ -377,11 +411,11 @@ describe("holding a Mockup (#1725)", () => {
 
     await run("update_mockup", { mockup_id: mockupId, html: "<p>mine</p>" })
 
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>mine</p>")
+    expect(await pageOf(mockupId)).toBe("<p>mine</p>")
   })
 
   it("holds what this chat creates and changes, and keeps changing it", async () => {
-    const { run, doc, collections } = chatTools()
+    const { run, pageOf, collections } = chatTools()
     collections.chatSessions.update("chat-1", { isStreaming: true })
     const mockupId = idIn(
       await run("create_mockup", {
@@ -396,7 +430,7 @@ describe("holding a Mockup (#1725)", () => {
 
     await run("update_mockup", { mockup_id: mockupId, html: "<p>A2</p>" })
 
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>A2</p>")
+    expect(await pageOf(mockupId)).toBe("<p>A2</p>")
     expect(collections.chatSessions.get("chat-1")?.workingLayers).toEqual({
       [mockupId]: started,
     })
@@ -441,7 +475,7 @@ describe("holding a Mockup (#1725)", () => {
   })
 
   it("leaves the earliest holder in charge when two chats list it", async () => {
-    const { run, doc, ops, collections } = chatTools()
+    const { run, pageOf, ops, collections } = chatTools()
     const { mockupId } = ops.createMockup({
       html: "<p>theirs</p>",
       title: "Theirs",
@@ -460,7 +494,7 @@ describe("holding a Mockup (#1725)", () => {
     })
 
     expect(out).toContain("Other is changing this right now")
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>theirs</p>")
+    expect(await pageOf(mockupId)).toBe("<p>theirs</p>")
   })
 })
 
@@ -632,7 +666,7 @@ describe("pages (#1842)", () => {
 
 describe("files and views (#1883)", () => {
   it("updates the file through any view, so both views show the new page", async () => {
-    const { run, doc, collections } = chatTools()
+    const { run, pageOf, collections } = chatTools()
     const mockupId = idIn(
       await run("create_mockup", {
         place: true,
@@ -645,7 +679,7 @@ describe("files and views (#1883)", () => {
 
     await run("update_mockup", { mockup_id: viewId, html: "<h1>B</h1>" })
 
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<h1>B</h1>")
+    expect(await pageOf(mockupId)).toBe("<h1>B</h1>")
     const read = await run("read_mockup", { mockup_id: viewId })
     expect(read).toContain("<h1>B</h1>")
     expect(collections.mockupLayers.get(viewId)?.lastChangedByChatId).toBe(
@@ -656,7 +690,7 @@ describe("files and views (#1883)", () => {
 
 describe("Mockups off the canvas (#1885)", () => {
   it("makes a Mockup with no view when it isn’t placed", async () => {
-    const { run, doc, collections } = chatTools()
+    const { run, pageOf, collections } = chatTools()
 
     const out = await run("create_mockup", {
       place: false,
@@ -673,11 +707,11 @@ describe("Mockups off the canvas (#1885)", () => {
       title: "Options",
       lastChangedByChatId: "chat-1",
     })
-    expect(mockupHtml(doc, fileId).toString()).toBe("<h1>Pick</h1>")
+    expect(await pageOf(fileId)).toBe("<h1>Pick</h1>")
   })
 
   it("updates and reads a Mockup with no view, and lists it as off the canvas", async () => {
-    const { run, doc } = chatTools()
+    const { run, pageOf } = chatTools()
     const fileId = idIn(
       await run("create_mockup", { place: false, title: "Options", html: "a" })
     )
@@ -685,12 +719,157 @@ describe("Mockups off the canvas (#1885)", () => {
     expect(
       await run("update_mockup", { mockup_id: fileId, html: "<p>b</p>" })
     ).toBe(`Updated Mockup ${fileId}.`)
-    expect(mockupHtml(doc, fileId).toString()).toBe("<p>b</p>")
+    expect(await pageOf(fileId)).toBe("<p>b</p>")
     expect(await run("read_mockup", { mockup_id: fileId })).toContain(
       "<p>b</p>"
     )
     expect(await run("read_mockup", {})).toContain(
       `- ${fileId}: Options (not on the canvas)`
     )
+  })
+})
+
+describe("Mockup folders (#1886)", () => {
+  it("puts the page in the folder and bumps the revision on every write", async () => {
+    const { run, store, collections } = chatTools()
+    const id = idIn(
+      await run("create_mockup", { place: true, title: "A", html: "<p>A</p>" })
+    )
+    expect(collections.mockupLayers.get(id)?.revision).toBe(1)
+    expect(store.keys()).toEqual([`canvas/room-1/mockups/${id}/index.html`])
+
+    await run("update_mockup", { mockup_id: id, html: "<p>A2</p>" })
+    expect(collections.mockupLayers.get(id)?.revision).toBe(2)
+    // A rename alone leaves the folder be.
+    await run("update_mockup", { mockup_id: id, title: "A2" })
+    expect(collections.mockupLayers.get(id)?.revision).toBe(2)
+  })
+
+  it("writes, reads and removes files beside the page", async () => {
+    const { run, collections } = chatTools()
+    const id = idIn(
+      await run("create_mockup", {
+        place: true,
+        title: "Explore",
+        html: '<script src="data.js"></script>',
+      })
+    )
+
+    expect(
+      await run("write_mockup_file", {
+        mockup_id: id,
+        path: "data.js",
+        content: "const DATA = 1",
+      })
+    ).toBe(`Wrote "data.js" (14 B) in Mockup ${id}.`)
+    expect(collections.mockupLayers.get(id)?.revision).toBe(2)
+    expect(await run("read_mockup", { mockup_id: id, path: "data.js" })).toBe(
+      "const DATA = 1"
+    )
+    expect(await run("read_mockup", { mockup_id: id })).toContain(
+      "Other files in its folder (read one with path):\n- data.js (14 B)"
+    )
+
+    await run("write_mockup_file", {
+      mockup_id: id,
+      path: "data.js",
+      delete: true,
+    })
+    expect(await run("read_mockup", { mockup_id: id, path: "data.js" })).toBe(
+      `Mockup ${id} has no file at "data.js".`
+    )
+    expect(collections.mockupLayers.get(id)?.revision).toBe(3)
+  })
+
+  it("copies a capture from the canvas’s saved files", async () => {
+    const { run, store, collections } = chatTools()
+    collections.files.set("file-1", {
+      id: "file-1",
+      path: "screenshots/home.png",
+      kind: "file",
+      size: 3,
+      mediaType: "image/png",
+      addedBy: "agent",
+      addedById: "chat-1",
+      blobKey: "canvas/room-1/file-1",
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    await store.put("canvas/room-1/file-1", new Uint8Array([1, 2, 3]), "")
+    const id = idIn(
+      await run("create_mockup", { place: true, title: "A", html: "<p/>" })
+    )
+
+    await run("write_mockup_file", {
+      mockup_id: id,
+      path: "captures/home.png",
+      from_file: "screenshots/home.png",
+    })
+
+    expect(
+      await store.get(`canvas/room-1/mockups/${id}/captures/home.png`)
+    ).toEqual(new Uint8Array([1, 2, 3]))
+    expect(
+      await run("read_mockup", { mockup_id: id, path: "captures/home.png" })
+    ).toBe(
+      `"captures/home.png" is a 3 B image/png file, which the page loads by its path.`
+    )
+  })
+
+  it("refuses a write past the folder’s size limit, writing nothing", async () => {
+    const { run, store, collections } = chatTools()
+    const id = idIn(
+      await run("create_mockup", { place: true, title: "A", html: "<p/>" })
+    )
+    await store.put(
+      `canvas/room-1/mockups/${id}/big.bin`,
+      new Uint8Array(25 * 1024 * 1024),
+      ""
+    )
+
+    const out = await run("write_mockup_file", {
+      mockup_id: id,
+      path: "data.js",
+      content: "const DATA = 1",
+    })
+
+    expect(out).toContain("the most it can hold is 26214400 (25 MB)")
+    expect(await store.get(`canvas/room-1/mockups/${id}/data.js`)).toBeNull()
+    expect(collections.mockupLayers.get(id)?.revision).toBe(1)
+  })
+
+  it("refuses another chat’s write while it holds the Mockup", async () => {
+    const { run, ops, collections, store } = chatTools()
+    const { mockupId } = ops.createMockup({
+      html: "<p>theirs</p>",
+      title: "Theirs",
+      width: 400,
+      height: 300,
+    })!
+    collections.chatSessions.update("chat-2", {
+      isStreaming: true,
+      workingLayers: { [mockupId]: 1 },
+    })
+
+    const out = await run("write_mockup_file", {
+      mockup_id: mockupId,
+      path: "data.js",
+      content: "x",
+    })
+
+    expect(out).toContain("Other is changing this right now")
+    expect(
+      await store.get(`canvas/room-1/mockups/${mockupId}/data.js`)
+    ).toBeNull()
+  })
+
+  it("asks for exactly one of content, from_file or delete", async () => {
+    const { run } = chatTools()
+    const id = idIn(
+      await run("create_mockup", { place: true, title: "A", html: "<p/>" })
+    )
+    expect(
+      await run("write_mockup_file", { mockup_id: id, path: "a.js" })
+    ).toBe("Pass exactly one of content, from_file or delete.")
   })
 })

@@ -40,7 +40,6 @@ import { pageViewKey } from "@/lib/canvas/page-views"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
-import { mockupHtml, writeMockupHtml } from "@/lib/yjs/mockup-html"
 import { layerFileOf, updateLayerFile } from "@/lib/yjs/file-views"
 import {
   documentFragment,
@@ -363,17 +362,13 @@ export type CanvasOps = {
    * Make a Document or Mockup file with no view on the canvas (#1885): the
    * agent can hand a file over in chat without placing it. A Document's body
    * starts with its title heading, as {@link createDocument}'s does; a
-   * Mockup's is `html`. Returns the file's id.
+   * Mockup's page is written to its folder on the server (#1886). Returns
+   * the file's id.
    */
   createFile(
     spec:
       | { kind: "document"; title?: string; lastChangedByChatId?: string }
-      | {
-          kind: "mockup"
-          title: string
-          html: string
-          lastChangedByChatId?: string
-        }
+      | { kind: "mockup"; title: string; lastChangedByChatId?: string }
   ): string
   /**
    * Add a view of the file `fileId` to the canvas (#1885), on the current
@@ -402,17 +397,20 @@ export type CanvasOps = {
    */
   removeDocuments(ids: string[]): { removedChatIds: string[] }
   /**
-   * Create a Mockup Layer (#1309) showing `spec.html`. With `groupId` it joins
+   * Create a Mockup Layer (#1309), a new file and its view, with no page:
+   * its page is a folder in the file store (#1886), written after by the
+   * server (`lib/mockup-folder-server`), or copied from `copyOf`'s folder on
+   * its first read. With `groupId` it joins
    * the end of that Group's row, beside the layers it sits with; otherwise it
    * starts a fresh Group at `anchor` (canvas-space top-left), or beside the
    * existing Groups when no anchor is given. `lastChangedByChatId` names the chat
-   * that made it. The record and its HTML text commit together. `id` lets a caller that
+   * that made it. `id` lets a caller that
    * names the Mockup before it exists (a drawn box's ask, #1359) pick it.
    * Returns `undefined` when `groupId` names a missing Group.
    */
   createMockup(spec: {
     id?: string
-    html: string
+    copyOf?: string
     title: string
     width: number
     height: number
@@ -421,11 +419,11 @@ export type CanvasOps = {
     anchor?: { x: number; y: number }
   }): { mockupId: string; groupId: string } | undefined
   /**
-   * Replace a Mockup's page and/or title, by a view's id or its file's
-   * (#1883): every view of the file repaints. The file and its HTML text
-   * commit together. Returns false when the mockup is gone.
+   * Rename a Mockup, by a view's id or its file's (#1883): every view of the
+   * file repaints. Its page is its folder's (#1886), which only the server
+   * writes. Returns false when the mockup is gone.
    */
-  updateMockup(id: string, patch: { html?: string; title?: string }): boolean
+  updateMockup(id: string, patch: { title?: string }): boolean
   /**
    * Copy a Mockup Layer into a new file (page, size, knobs and last chat) at
    * the end of its Group's row, named "<title> copy" — the mockup bar's
@@ -852,11 +850,14 @@ export function createCanvasOps(
     } else {
       const layer = collections.mockupLayers.get(member.id)
       if (!layer) return undefined
-      collections.mockupLayers.set(id, { ...layer, id, fileId: id })
-      writeMockupHtml(
-        mockupHtml(doc, id),
-        mockupHtml(doc, layer.fileId ?? member.id).toString()
-      )
+      // Its folder is copied on the copy's first read (#1886).
+      const { revision: _revision, ...rest } = layer
+      collections.mockupLayers.set(id, {
+        ...rest,
+        id,
+        fileId: id,
+        copyOf: layer.copyOf ?? layer.fileId ?? member.id,
+      })
     }
     return id
   }
@@ -1481,12 +1482,7 @@ export function createCanvasOps(
   function createFile(
     spec:
       | { kind: "document"; title?: string; lastChangedByChatId?: string }
-      | {
-          kind: "mockup"
-          title: string
-          html: string
-          lastChangedByChatId?: string
-        }
+      | { kind: "mockup"; title: string; lastChangedByChatId?: string }
   ): string {
     const fileId = nanoid()
     batch(() => {
@@ -1498,9 +1494,7 @@ export function createCanvasOps(
           ? { lastChangedByChatId: spec.lastChangedByChatId }
           : {}),
       })
-      if (spec.kind === "mockup") {
-        writeMockupHtml(mockupHtml(doc, fileId), spec.html)
-      } else {
+      if (spec.kind === "document") {
         const fragment = documentFragment(doc, fileId)
         seedDocumentFragment(fragment)
         if (spec.title) setFragmentTitle(fragment, spec.title)
@@ -1639,7 +1633,7 @@ export function createCanvasOps(
 
   function createMockup(spec: {
     id?: string
-    html: string
+    copyOf?: string
     title: string
     width: number
     height: number
@@ -1665,8 +1659,8 @@ export function createCanvasOps(
         ...(spec.lastChangedByChatId
           ? { lastChangedByChatId: spec.lastChangedByChatId }
           : {}),
+        ...(spec.copyOf ? { copyOf: spec.copyOf } : {}),
       })
-      writeMockupHtml(mockupHtml(doc, mockupId), spec.html)
       const member = { kind: "mockup-layer" as const, id: mockupId }
       if (group) {
         collections.iframeLayerGroups.update(group.id, {
@@ -1697,20 +1691,12 @@ export function createCanvasOps(
     return groupId ? { mockupId, groupId } : undefined
   }
 
-  function updateMockup(
-    id: string,
-    patch: { html?: string; title?: string }
-  ): boolean {
+  function updateMockup(id: string, patch: { title?: string }): boolean {
     const file = fileOf(id)
     if (file?.kind !== "mockup") return false
-    batch(() => {
-      if (patch.title !== undefined) {
-        updateLayerFile(collections, id, { title: patch.title })
-      }
-      if (patch.html !== undefined) {
-        writeMockupHtml(mockupHtml(doc, file.id), patch.html)
-      }
-    })
+    if (patch.title !== undefined) {
+      batch(() => updateLayerFile(collections, id, { title: patch.title }))
+    }
     return true
   }
 
@@ -1726,7 +1712,9 @@ export function createCanvasOps(
     batch(() => {
       createMockup({
         id: copyId,
-        html: mockupHtml(doc, source.fileId ?? id).toString(),
+        // A member's canvas can't write the file store: the copy's folder
+        // is made on its first read (#1886).
+        copyOf: source.copyOf ?? source.fileId ?? id,
         title: source.title ? `${source.title} copy` : "",
         width: source.width,
         height: source.height,

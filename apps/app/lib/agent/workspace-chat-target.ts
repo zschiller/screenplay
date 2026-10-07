@@ -1,5 +1,6 @@
 import "server-only"
 
+import { fileStore } from "@/lib/files"
 import { buildAgentSystemPrompt, type LayerDirectory } from "./config"
 import {
   accountFilesFor,
@@ -207,7 +208,12 @@ export const workspaceChatTarget: ChatTargetSpec<
           chatId,
           senderPage: senderPageOf(chatId),
         }),
-        ...buildMockupTools({ room, chatId, senderPage: senderPageOf(chatId) }),
+        ...buildMockupTools({
+          room,
+          chatId,
+          senderPage: senderPageOf(chatId),
+          store: fileStore,
+        }),
         ...buildPlaceTools({ room, chatId, senderPage: senderPageOf(chatId) }),
         ...buildLayerHoldTools({ room, chatId }),
         // Read-only access to the other Workspaces' code (#1315).

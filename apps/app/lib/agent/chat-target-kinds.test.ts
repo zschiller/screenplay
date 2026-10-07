@@ -92,6 +92,7 @@ import { buildArrangeTools } from "@/lib/agent/room-arrange-tools"
 import { buildViewTools } from "@/lib/agent/room-view-tools"
 import { buildDocumentTools } from "@/lib/agent/document-tools"
 import { buildMockupTools } from "@/lib/agent/mockup-tools"
+import { memoryFileStore } from "@/lib/files/store"
 import type { RoomDoc } from "@/lib/room-access"
 import { accountSkills } from "@/lib/skills/account"
 import { canvasSkills } from "@/lib/skills/canvas"
@@ -303,7 +304,9 @@ describe("the Coordinator only delegates", () => {
   const names = (tools: object) => Object.keys(tools)
   const documentAndMockupWrites = [
     ...names(buildDocumentTools({ room, chatId: "chat-1" })),
-    ...names(buildMockupTools({ room, chatId: "chat-1" })),
+    ...names(
+      buildMockupTools({ room, chatId: "chat-1", store: memoryFileStore() })
+    ),
   ].filter((name) => name !== "read_document" && name !== "read_mockup")
   const arrangeAndCamera = [
     ...names(buildArrangeTools(room.mutateDoc, "turn-1")),
@@ -1488,7 +1491,9 @@ describe("sketchChatTarget (a chat with no repository)", () => {
     expect(names).toEqual(
       expect.arrayContaining([
         ...Object.keys(buildDocumentTools({ room, chatId: "s-1" })),
-        ...Object.keys(buildMockupTools({ room, chatId: "s-1" })),
+        ...Object.keys(
+          buildMockupTools({ room, chatId: "s-1", store: memoryFileStore() })
+        ),
         "read_document",
         "read_skill",
         "ask_question",

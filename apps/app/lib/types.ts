@@ -396,6 +396,18 @@ export type IframeLayerData = {
    * Device size, turns it off. Absent is off.
    */
   fitHeight?: boolean
+  /**
+   * The page's folder revision (#1886), bumped by every write to the
+   * folder; every view reloads the page when it changes. Unset on a Mockup
+   * with no folder yet: one nobody wrote, or one from before folders, whose
+   * page is still the `Y.Text` `mockup-layer-{fileId}` until it's first read.
+   */
+  revision?: number
+  /**
+   * A copy (Duplicate) made on a member's canvas, which can't write the file
+   * store: the file whose folder this one copies on its first read.
+   */
+  copyOf?: string
 }
 
 /**
@@ -481,7 +493,8 @@ export type LayerFileKind = "document" | "mockup"
 /**
  * A Document or Mockup as a file (#1883, spec #1882), apart from the views of
  * it on the canvas. Its body is keyed by this id: a Document's XmlFragment
- * `markdown-layer-{id}`, a Mockup's Y.Text `mockup-layer-{id}`. Read a view
+ * `markdown-layer-{id}`, a Mockup's folder in the file store (#1886,
+ * `lib/mockup-folder`; a Y.Text `mockup-layer-{id}` until it moves). Read a view
  * through `markdownLayers` / `mockupLayers` and these fields come with it
  * (`lib/yjs/file-views.ts`). Not a Canvas File (`FileEntryData`).
  */
@@ -501,6 +514,10 @@ export type LayerFileData = {
   live?: boolean
   liveBranchId?: string
   colorScheme?: "light" | "dark"
+  /** A Mockup's folder revision (#1886): see {@link MockupLayerData}. */
+  revision?: number
+  /** A Mockup copied from another whose folder isn't copied yet. */
+  copyOf?: string
 }
 
 /**
@@ -537,9 +554,9 @@ export type MarkdownLayerData = {
 /**
  * A static HTML page a chat wrote, shown on the canvas without a Sandbox
  * (issue #1309). Lives in a Group like the other layers. The page itself is a
- * `Y.Text` keyed by its file id, `mockup-layer-${fileId}` (resolved through
- * `mockupHtml`), so it syncs like a document body; the record carries size,
- * title and owner.
+ * folder in the private file store (#1886, `lib/mockup-folder`): an
+ * `index.html` and whatever it loads by relative path. The record carries
+ * size, title, owner and the folder's revision.
  */
 export type MockupLayerData = {
   id: string
@@ -589,6 +606,18 @@ export type MockupLayerData = {
    * Device size, turns it off. Absent is off.
    */
   fitHeight?: boolean
+  /**
+   * The page's folder revision (#1886), bumped by every write to the
+   * folder; every view reloads the page when it changes. Unset on a Mockup
+   * with no folder yet: one nobody wrote, or one from before folders, whose
+   * page is still the `Y.Text` `mockup-layer-{fileId}` until it's first read.
+   */
+  revision?: number
+  /**
+   * A copy (Duplicate) made on a member's canvas, which can't write the file
+   * store: the file whose folder this one copies on its first read.
+   */
+  copyOf?: string
 }
 
 export type ViewportData = {

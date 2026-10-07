@@ -13,6 +13,11 @@ export interface FileStore {
   delete(keys: readonly string[]): Promise<void>
   /** How many bytes are under `key`, or `null` when there are none. */
   size(key: string): Promise<number | null>
+  /**
+   * Every key that starts with `prefix`, with its size: a Mockup's folder
+   * (`lib/mockup-folder`) is the keys under its prefix.
+   */
+  list(prefix: string): Promise<{ key: string; size: number }[]>
 }
 
 /** A {@link FileStore} in memory, for tests and anything that needs no disk. */
@@ -30,6 +35,12 @@ export function memoryFileStore(): FileStore & { keys(): string[] } {
     },
     async size(key) {
       return blobs.get(key)?.byteLength ?? null
+    },
+    async list(prefix) {
+      return [...blobs]
+        .filter(([key]) => key.startsWith(prefix))
+        .map(([key, body]) => ({ key, size: body.byteLength }))
+        .sort((a, b) => (a.key < b.key ? -1 : 1))
     },
     keys: () => [...blobs.keys()].sort(),
   }

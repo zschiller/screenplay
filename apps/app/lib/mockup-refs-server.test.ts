@@ -115,7 +115,6 @@ function room(workspace: "running" | "stopped" = "running"): RoomDoc {
   )
   h.ops.createMockup({
     id: "m-1",
-    html: "<p>A</p>",
     title: "A",
     width: 400,
     height: 300,

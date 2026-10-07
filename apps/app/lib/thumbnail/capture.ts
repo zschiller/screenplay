@@ -140,13 +140,13 @@ export async function captureRoomThumbnail(
   const captures = new Map<string, FrameCapture>()
   for (const frame of frames) {
     const layout = layouts.get(frame.id)
-    if ((!frame.previewUrl && !frame.mockupHtml) || !layout) continue
+    if ((!frame.previewUrl && !frame.mockupFileId) || !layout) continue
     if (dirtySet && !dirtySet.has(frame.id)) continue
 
     try {
       const pageUrl =
         frame.previewUrl ??
-        (await mockupPageUrl(room, frame.id, frame.mockupHtml ?? ""))
+        (await mockupPageUrl(room, frame.id, frame.mockupFileId!))
       // Capture at the frame's own shape so the screenshot shares its aspect
       // ratio — the iframe on the canvas renders its page at exactly these
       // dimensions, so this reproduces what the user sees rather than a fixed

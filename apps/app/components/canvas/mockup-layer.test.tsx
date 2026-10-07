@@ -12,10 +12,16 @@ import {
 import { MockupChatLinkProvider } from "./mockup-chat-link"
 import { MockupLayer } from "./mockup-layer"
 
-// The page's HTML lives in the Room doc and the runtime comes from the
-// server; both are the test's to say.
+// The page comes from its folder and the runtime from the server; both are
+// the test's to say.
 let html = "<p>Checkout</p>"
-vi.mock("@/lib/yjs/react", () => ({ useMockupHtml: () => html }))
+vi.mock("@/hooks/use-mockup-page", () => ({
+  useMockupPage: () => ({
+    page: { html, base: "https://app.test/api/mockup-pages/t/r1/" },
+    hasPage: !!html.trim(),
+    current: true,
+  }),
+}))
 vi.mock("@/hooks/use-mockup-refs", () => ({ useMockupRefs: () => ({}) }))
 vi.mock("@/hooks/use-mockup-runtime", () => ({
   useMockupRuntime: () => "/* runtime */",

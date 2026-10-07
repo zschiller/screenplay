@@ -59,7 +59,6 @@ describe("FileTiles (#1885)", () => {
     const mockup = ops.createFile({
       kind: "mockup",
       title: "Option B · Suggestions",
-      html: "<p>B</p>",
     })
     const document = ops.createFile({ kind: "document", title: "Brief" })
     // A placed view names the same file as its id: it shows once.

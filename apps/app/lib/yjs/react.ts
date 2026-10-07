@@ -9,11 +9,13 @@ import {
   useSyncExternalStore,
 } from "react"
 import * as Y from "yjs"
+import { withBasePath } from "@/lib/base-path"
 import { createCanvasUndo, type CanvasUndo } from "@/lib/canvas/undo"
 import { orderedPages } from "@/lib/canvas/pages"
 import type { ChatBroadcastEvent } from "@/lib/chat-store"
 import {
   useOptionalYjs,
+  useRoomId,
   useYjs,
   type AwarenessChange,
   type AwarenessLike,
@@ -202,7 +204,11 @@ export function useMockupTitle(id: string): string | undefined {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-/** A Mockup Layer's page, kept current as the shared `Y.Text` changes. */
+/**
+ * A Mockup's page from before Mockup Folders (#1886), kept current as the
+ * shared `Y.Text` changes: empty once the server moves it into its folder.
+ * Views read the page through `useMockupPage`.
+ */
 export function useMockupHtml(layerId: string): string {
   const { doc } = useYjs()
   const text = useMemo(() => mockupHtml(doc, layerId), [doc, layerId])
@@ -261,16 +267,29 @@ export function useSavedViewport(): ViewportData | null {
  */
 export function useYjsHistory() {
   const { doc } = useYjs()
+  const roomId = useRoomId()
   const undoRef = useRef<CanvasUndo | null>(null)
 
   useEffect(() => {
-    const undo = createCanvasUndo(doc)
+    // A Mockup this member deleted keeps its folder while ⌘Z could bring it
+    // back (#1886); once their Undo is gone, so is the folder.
+    const purge = (fileIds: string[]) => {
+      for (const fileId of fileIds) purgeMockupFolder(roomId, fileId)
+    }
+    const undo = createCanvasUndo(doc, { onMockupFilesGone: purge })
     undoRef.current = undo
+    // Closing the tab never unmounts: the Undo goes all the same. A page
+    // kept to come back to (`persisted`) keeps its Undo.
+    const onPageHide = (e: PageTransitionEvent) => {
+      if (!e.persisted) purge(undo.deletedMockupFiles())
+    }
+    window.addEventListener("pagehide", onPageHide)
     return () => {
+      window.removeEventListener("pagehide", onPageHide)
       undo.destroy()
       undoRef.current = null
     }
-  }, [doc])
+  }, [doc, roomId])
 
   return useMemo(
     () => ({
@@ -279,6 +298,18 @@ export function useYjsHistory() {
     }),
     []
   )
+}
+
+/** Ask the server to remove a deleted Mockup's folder (#1886), even as the page unloads. */
+function purgeMockupFolder(roomId: string, fileId: string): void {
+  void fetch(
+    withBasePath(
+      `/api/mockup-folders/${encodeURIComponent(roomId)}/${encodeURIComponent(fileId)}`
+    ),
+    { method: "DELETE", keepalive: true }
+  ).catch(() => {
+    // The folder stays; nothing reads it again.
+  })
 }
 
 /**

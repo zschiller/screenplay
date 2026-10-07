@@ -37,6 +37,9 @@ export const FILE_FIELDS: Record<LayerFileKind, ReadonlySet<string>> = {
     "live",
     "liveBranchId",
     "colorScheme",
+    // The folder (#1886): every view reloads when it changes.
+    "revision",
+    "copyOf",
   ]),
 }
 

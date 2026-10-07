@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@workspace/ui/lib/utils"
 import { ChatMarkdown } from "@/components/agent/chat-markdown"
+import { useMockupPage } from "@/hooks/use-mockup-page"
 import { useMockupRefs } from "@/hooks/use-mockup-refs"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
 import { readDocumentBody } from "@/lib/document-markdown"
 import { useYjs } from "@/lib/yjs/context"
 import { documentFragment } from "@/lib/yjs/fragment-text"
 import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
-import { useMockupHtml } from "@/lib/yjs/react"
+import { useLayerFile } from "@/lib/yjs/react"
 
 /**
  * Previews of a Document or Mockup file (#1885): what a tile in a chat reply
@@ -20,20 +21,26 @@ import { useMockupHtml } from "@/lib/yjs/react"
 const PREVIEW_LAYOUT_WIDTH = 640
 
 /**
- * A Mockup's page as its views show it (`mockupSrcDoc`, with the runtime and
- * its resolved references), kept current; undefined while it loads or when
- * the page is empty.
+ * A Mockup's page as its views show it (`mockupSrcDoc`, with the runtime, its
+ * resolved references and its folder as its base, #1886), kept current;
+ * undefined while it loads or when the page is empty.
  */
 export function useMockupSrcDoc(fileId: string): string | undefined {
-  const html = useMockupHtml(fileId)
+  const file = useLayerFile(fileId)
+  const { page } = useMockupPage({
+    id: fileId,
+    revision: file?.revision,
+    copyOf: file?.copyOf,
+  })
+  const html = page?.html ?? ""
   const runtime = useMockupRuntime()
   const resources = useMockupRefs(fileId, html)
   return useMemo(
     () =>
       html.trim() && runtime !== null && resources !== null
-        ? mockupSrcDoc(html, runtime, resources)
+        ? mockupSrcDoc(html, runtime, resources, page?.base)
         : undefined,
-    [html, runtime, resources]
+    [html, runtime, resources, page?.base]
   )
 }
 

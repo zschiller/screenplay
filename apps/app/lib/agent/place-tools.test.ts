@@ -40,7 +40,6 @@ describe("add_to_canvas (#1885)", () => {
     const fileId = ops.createFile({
       kind: "mockup",
       title: "Options",
-      html: "<p>a</p>",
     })
 
     const out = await run({ id: fileId })
@@ -76,7 +75,6 @@ describe("add_to_canvas (#1885)", () => {
     const fileId = ops.createFile({
       kind: "mockup",
       title: "Options",
-      html: "<p>a</p>",
     })
 
     const out = await run({ id: fileId })

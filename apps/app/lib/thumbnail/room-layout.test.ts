@@ -102,7 +102,7 @@ describe("readRoomCaptureLayout", () => {
     expect(frames).toEqual([{ id: "m1", label: "Option A", previewUrl: null }])
   })
 
-  it("hands a mockup layer's page to the capture", async () => {
+  it("hands a mockup layer's page from before folders to the capture", async () => {
     const doc = new Y.Doc()
     writeMockupHtml(mockupHtml(doc, "m1"), "<h1>Option A</h1>")
     withDoc({
@@ -120,8 +120,25 @@ describe("readRoomCaptureLayout", () => {
         id: "m1",
         label: "Option A",
         previewUrl: null,
-        mockupHtml: "<h1>Option A</h1>",
+        mockupFileId: "m1",
       },
+    ])
+  })
+
+  it("hands a mockup layer with a folder to the capture (#1886)", async () => {
+    withDoc({
+      mockupLayers: [
+        { id: "m1", width: 300, height: 200, title: "Option A", revision: 2 },
+      ],
+      groups: [
+        { id: "g1", x: 0, y: 0, members: [{ kind: "mockup-layer", id: "m1" }] },
+      ],
+    })
+
+    const { frames } = await readRoomCaptureLayout(ROOM)
+
+    expect(frames).toEqual([
+      { id: "m1", label: "Option A", previewUrl: null, mockupFileId: "m1" },
     ])
   })
 
