@@ -35,6 +35,10 @@ const fake = vi.hoisted(() => {
       worktreePath: "/vercel/sandbox",
       homeDir: "/home/vercel-sandbox",
       domain: (port: number) => `https://fake-${port}.example.com`,
+      internalUrl: (port: number) => `https://fake-${port}.example.com`,
+      expose: async (port: number) => ({
+        browserOrigin: `https://fake-${port}.example.com`,
+      }),
       hostPort: (port: number) => port,
       runCommand: (async (
         first: string | { cmd: string; args?: string[] },

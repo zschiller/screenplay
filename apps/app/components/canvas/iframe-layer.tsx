@@ -97,6 +97,8 @@ export interface IframeLayerData {
   height: number
   label: string
   iframeUrl?: string
+  /** The Workspace behind `iframeUrl`, which the dev server probe asks about. */
+  workspace?: { sandboxName: string; devPort: number }
   iframeState?: JsonObject
   route?: string
   scrollX?: number
@@ -771,7 +773,9 @@ function IframeLayerImpl({
   // the source of the Create Flow "navigates then snaps back / double frame"
   // bug.) A branch switch still changes `iframeUrl`, so it re-probes correctly.
   const { state: probeState, retry: retryProbe } = useDevServerProbe(
-    iframeLayer.iframeUrl
+    iframeLayer.iframeUrl && iframeLayer.workspace
+      ? { ...iframeLayer.workspace, url: iframeLayer.iframeUrl }
+      : undefined
   )
 
   // The iframe mounts immediately (see render below) so the warm path paints

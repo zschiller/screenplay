@@ -1,5 +1,7 @@
 import "server-only"
 
+import { toInternalPreviewUrl } from "@/lib/sandbox"
+
 import { selectThumbnailCapturer } from "./select"
 import type { FramePageReader, ThumbnailCapturer } from "./types"
 
@@ -18,7 +20,18 @@ export type { ThumbnailCapturerChoice } from "./select"
  */
 const selected = selectThumbnailCapturer()
 
-export const thumbnailCapturer: ThumbnailCapturer = selected
+/**
+ * Every page it loads goes to the preview's own address, never the URL a
+ * browser loads (`toInternalPreviewUrl`): thumbnails, `view_frame`,
+ * `read_frame_html` and `screenshot_page` all come through here.
+ */
+export const thumbnailCapturer: ThumbnailCapturer = {
+  capture: async (url, viewport) =>
+    selected.capture(await toInternalPreviewUrl(url), viewport),
+}
 
 /** The same backend, reading a frame's page instead of screenshotting it. */
-export const framePageReader: FramePageReader = selected
+export const framePageReader: FramePageReader = {
+  evaluate: async (url, viewport, script) =>
+    selected.evaluate(await toInternalPreviewUrl(url), viewport, script),
+}

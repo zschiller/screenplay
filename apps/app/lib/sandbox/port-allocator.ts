@@ -2,6 +2,13 @@ import "server-only"
 
 import net from "node:net"
 
+import type { PortRange } from "@/lib/preview-exposure/types"
+
+/** Where a browser-facing port binds, and the range it's taken from. */
+export type PortBind = { host: string; ports?: PortRange }
+
+const LOOPBACK = "127.0.0.1"
+
 /**
  * Hands out distinct localhost ports — one assignment per key — and reclaims
  * them on release. The worktree {@link SandboxProvider} uses it to keep every
@@ -20,6 +27,12 @@ import net from "node:net"
  *
  * Assignment is idempotent: allocating the same key twice returns the same port
  * (so re-resolving a Branch's Sandbox is stable), and only `release` frees it.
+ *
+ * A port a browser loads (`exposed`) follows the preview exposure's `bind`
+ * instead: it must be free on `bind.host`, and with a `bind.ports` range it is
+ * the lowest free port in it, so a freed port is the next one handed out. A
+ * company proxy needs one sign-in per port, so reusing ports keeps that a
+ * one-time cost.
  */
 export class PortAllocator {
   /** key (e.g. `${sandboxName}:${logicalPort}`) → assigned host port. */
@@ -27,18 +40,48 @@ export class PortAllocator {
   /** Every port currently handed out, so we never double-assign one. */
   private readonly inUse = new Set<number>()
 
+  /** Where exposed ports bind and which they may take, read per allocation. */
+  private readonly bind: () => PortBind
+
+  constructor(bind: () => PortBind = () => ({ host: LOOPBACK })) {
+    this.bind = bind
+  }
+
   /**
    * Return the host port assigned to `key`, allocating a fresh distinct one on
    * first call. Idempotent — a key keeps its port until {@link release}.
+   * `exposed` marks a port a browser loads (see the class comment).
    */
-  async allocate(key: string): Promise<number> {
+  async allocate(
+    key: string,
+    { exposed = false }: { exposed?: boolean } = {}
+  ): Promise<number> {
     const existing = this.assigned.get(key)
     if (existing !== undefined) return existing
 
-    const port = await this.findFreePort()
+    const bind: PortBind = exposed ? this.bind() : { host: LOOPBACK }
+    const port = bind.ports
+      ? await this.findFreeInRange(bind.host, bind.ports)
+      : await this.findFreePort(bind.host)
+    // Re-check: another allocation for the same key may have finished first.
+    const raced = this.assigned.get(key)
+    if (raced !== undefined) {
+      if (bind.ports) this.inUse.delete(port)
+      return raced
+    }
     this.assigned.set(key, port)
     this.inUse.add(port)
     return port
+  }
+
+  /**
+   * Record a port `key` already holds (one a previous run of the server
+   * allocated and persisted), so it's never handed to another key.
+   */
+  claim(key: string, port: number): void {
+    if (this.assigned.has(key)) return
+    this.assigned.set(key, port)
+    this.inUse.add(port)
   }
 
   /** The port assigned to `key`, or `undefined` if it has none. */
@@ -62,28 +105,49 @@ export class PortAllocator {
    * already assigned (a just-freed port can be re-offered). Bounded so a
    * pathological run can't spin forever.
    */
-  private async findFreePort(): Promise<number> {
+  private async findFreePort(host: string): Promise<number> {
     for (let attempt = 0; attempt < 100; attempt++) {
-      const port = await ephemeralPort()
+      const port = await ephemeralPort(host)
       if (!this.inUse.has(port)) return port
     }
     throw new Error(
       "PortAllocator: exhausted attempts finding a free localhost port"
     )
   }
+
+  /**
+   * The lowest port in `range` that no key holds and that binds on `host`.
+   * Each candidate is reserved before the bind check, so concurrent
+   * allocations never settle on the same port.
+   */
+  private async findFreeInRange(
+    host: string,
+    range: PortRange
+  ): Promise<number> {
+    for (let port = range.from; port <= range.to; port++) {
+      if (this.inUse.has(port)) continue
+      this.inUse.add(port)
+      if (await canBind(host, port)) return port
+      this.inUse.delete(port)
+    }
+    throw new Error(
+      `No free preview port between ${range.from} and ${range.to}. ` +
+        "Delete a chat, or widen the preview port range."
+    )
+  }
 }
 
 /**
- * Bind a listener to `127.0.0.1:0`, read the kernel-assigned port, and close it.
+ * Bind a listener to `host:0`, read the kernel-assigned port, and close it.
  * The listener is `unref`'d so it can never keep the process alive if a close
  * callback is somehow missed.
  */
-function ephemeralPort(): Promise<number> {
+function ephemeralPort(host: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer()
     server.unref()
     server.once("error", reject)
-    server.listen(0, "127.0.0.1", () => {
+    server.listen(0, host, () => {
       const address = server.address()
       const port =
         address && typeof address === "object" ? address.port : undefined
@@ -94,5 +158,15 @@ function ephemeralPort(): Promise<number> {
       }
       server.close(() => resolve(port))
     })
+  })
+}
+
+/** Whether `host:port` is free to listen on right now. */
+function canBind(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    server.unref()
+    server.once("error", () => resolve(false))
+    server.listen(port, host, () => server.close(() => resolve(true)))
   })
 }

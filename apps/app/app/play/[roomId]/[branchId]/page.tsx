@@ -111,6 +111,8 @@ export default async function PlayPage({
         agentId={agent.id}
         branch={agent.ref}
         previewDomain={agent.previewDomain}
+        sandboxName={agent.sandboxName}
+        devPort={agent.port}
         initialRoute={initialRoute}
         initialKnobValues={initialKnobValues}
         initialSharedState={initialSharedState}

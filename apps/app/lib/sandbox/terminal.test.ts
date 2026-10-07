@@ -100,6 +100,10 @@ function fakeSandbox(
     worktreePath: "/vercel/sandbox",
     homeDir: "/home/vercel-sandbox",
     domain: (port: number) => `https://fake-${hostPort(port)}.example.com`,
+    internalUrl: (port: number) => `https://fake-${hostPort(port)}.example.com`,
+    expose: async (port: number) => ({
+      browserOrigin: `https://fake-${hostPort(port)}.example.com`,
+    }),
     hostPort,
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: notUsed("writeFiles") as never,

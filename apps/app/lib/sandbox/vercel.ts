@@ -107,6 +107,10 @@ function adaptVercelSandbox(sandbox: Sandbox): HibernatingSandbox {
     // keeps one Repo config portable: `$SCREENPLAY_PORT` resolves to the
     // configured Dev Server Port itself on this backend.)
     hostPort: (port: number) => port,
+    // The server isn't on the VM's network, so it reaches a port at the same
+    // public URL a browser does, and there's nothing to expose.
+    internalUrl: (port: number) => sandbox.domain(port),
+    expose: async (port: number) => ({ browserOrigin: sandbox.domain(port) }),
     isRunning: () => sandbox.status === "running",
   }) as unknown as HibernatingSandbox
 }

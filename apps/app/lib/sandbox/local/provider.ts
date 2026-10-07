@@ -6,6 +6,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
+import { getPreviewExposure } from "@/lib/preview-exposure"
 import { devServerEnv } from "@/lib/sandbox/local/host-env"
 import { acquireRepo, type RepoSource } from "@/lib/sandbox/local/worktree"
 import { PortAllocator } from "@/lib/sandbox/port-allocator"
@@ -59,6 +60,13 @@ interface SandboxMeta {
   worktreeDir?: string
   /** Legacy per-Sandbox clone dir from the reverted #433 generation. */
   cloneDir?: string
+  /** The logical ports a browser loads, released from the preview exposure on delete. */
+  browserPorts?: number[]
+  /**
+   * logical port → the browser origin it was last exposed at, so a browser
+   * URL handed to the server maps back to its port ({@link internalUrlFor}).
+   */
+  exposed?: Record<string, string>
 }
 
 /**
@@ -115,7 +123,9 @@ export class RefAlreadyOpenError extends Error {
  */
 export class LocalSandboxProvider implements SandboxProvider {
   private readonly root: string
-  private readonly ports = new PortAllocator()
+  private readonly ports = new PortAllocator(() => getPreviewExposure().bind)
+  /** Claims every persisted Sandbox's ports once, before the first allocation. */
+  private claimed: Promise<void> | null = null
 
   constructor(root: string = defaultRoot()) {
     this.root = root
@@ -212,17 +222,21 @@ export class LocalSandboxProvider implements SandboxProvider {
       )
     }
 
-    const portMap = await this.allocatePorts(opts.name, opts.ports)
+    const browserPorts = opts.browserPorts ?? []
+    const portMap = await this.allocatePorts(
+      opts.name,
+      opts.ports,
+      browserPorts
+    )
     const meta: SandboxMeta = {
       baseDir: manager.repoPath,
       portMap,
       worktreeDir: worktree.path,
+      browserPorts,
     }
     await this.writeMeta(opts.name, meta)
 
-    return makeInstance(opts.name, worktree.path, portMap, () =>
-      this.deleteSandbox(opts.name, meta)
-    )
+    return this.instance(opts.name, worktree.path, meta)
   }
 
   async get(opts: SandboxGetOptions): Promise<SandboxInstance> {
@@ -232,9 +246,47 @@ export class LocalSandboxProvider implements SandboxProvider {
     }
     const dir =
       meta.worktreeDir ?? meta.cloneDir ?? this.legacyWtDirFor(opts.name)
-    return makeInstance(opts.name, dir, meta.portMap, () =>
-      this.deleteSandbox(opts.name, meta)
-    )
+    return this.instance(opts.name, dir, meta)
+  }
+
+  /**
+   * The server's address for a browser URL of a preview on this computer:
+   * the same path on `http://127.0.0.1:<hostPort>`, when `url` is at an
+   * origin some Sandbox's port was exposed at. A URL already on this
+   * computer's loopback, or one that's no preview's, comes back as is.
+   */
+  async internalUrlFor(url: string): Promise<string> {
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      return url
+    }
+    if (LOOPBACK_HOSTS.has(parsed.hostname)) return url
+    for (const name of await this.metaNames()) {
+      const meta = await this.readMeta(name)
+      for (const [logical, origin] of Object.entries(meta?.exposed ?? {})) {
+        const hostPort = meta?.portMap[logical]
+        if (origin !== parsed.origin || hostPort === undefined) continue
+        return `http://127.0.0.1:${hostPort}${parsed.pathname}${parsed.search}${parsed.hash}`
+      }
+    }
+    return url
+  }
+
+  private instance(
+    name: string,
+    dir: string,
+    meta: SandboxMeta
+  ): SandboxInstance {
+    return makeInstance(name, dir, meta.portMap, {
+      onDelete: () => this.deleteSandbox(name, meta),
+      onExposed: async (logical, origin) => {
+        if (meta.exposed?.[logical] === origin) return
+        meta.exposed = { ...meta.exposed, [logical]: origin }
+        await this.writeMeta(name, meta)
+      },
+    })
   }
 
   private async deleteSandbox(name: string, meta: SandboxMeta): Promise<void> {
@@ -252,6 +304,10 @@ export class LocalSandboxProvider implements SandboxProvider {
       if (path.resolve(wtDir) !== path.resolve(meta.baseDir)) {
         await this.removeWorktree(meta.baseDir, wtDir)
       }
+    }
+    for (const logical of meta.browserPorts ?? []) {
+      const hostPort = meta.portMap[String(logical)]
+      if (hostPort !== undefined) await getPreviewExposure().release(hostPort)
     }
     for (const logical of Object.keys(meta.portMap)) {
       this.ports.release(portKey(name, Number(logical)))
@@ -300,15 +356,41 @@ export class LocalSandboxProvider implements SandboxProvider {
 
   private async allocatePorts(
     name: string,
-    ports: number[]
+    ports: number[],
+    browserPorts: number[]
   ): Promise<Record<string, number>> {
+    await (this.claimed ??= this.claimPersistedPorts())
     const portMap: Record<string, number> = {}
     for (const logical of ports) {
       portMap[String(logical)] = await this.ports.allocate(
-        portKey(name, logical)
+        portKey(name, logical),
+        { exposed: browserPorts.includes(logical) }
       )
     }
     return portMap
+  }
+
+  /**
+   * Every Sandbox a previous run left keeps its ports: they're in its meta,
+   * and its dev server and proxy relaunch on them. Claim them so a new
+   * Sandbox never takes one, which a port range would otherwise do first.
+   */
+  private async claimPersistedPorts(): Promise<void> {
+    for (const name of await this.metaNames()) {
+      const meta = await this.readMeta(name)
+      for (const [logical, port] of Object.entries(meta?.portMap ?? {})) {
+        this.ports.claim(portKey(name, Number(logical)), port)
+      }
+    }
+  }
+
+  private async metaNames(): Promise<string[]> {
+    const entries = await fs
+      .readdir(path.join(this.root, "meta"))
+      .catch(() => [] as string[])
+    return entries
+      .filter((e) => e.endsWith(".json"))
+      .map((e) => e.slice(0, -".json".length))
   }
 
   /**
@@ -347,6 +429,9 @@ export class LocalSandboxProvider implements SandboxProvider {
     }
   }
 }
+
+/** Hostnames that already are this computer's loopback. */
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
 
 /** Per-(Sandbox, forwarded-port) allocator key. */
 function portKey(name: string, logicalPort: number): string {
@@ -429,9 +514,20 @@ function makeInstance(
   name: string,
   wtDir: string,
   portMap: Record<string, number>,
-  onDelete?: () => Promise<void>
+  hooks: {
+    onDelete?: () => Promise<void>
+    onExposed?: (logical: string, browserOrigin: string) => Promise<void>
+  } = {}
 ): SandboxInstance {
+  const { onDelete, onExposed } = hooks
   const hostPort = (port: number): number => portMap[String(port)] ?? port
+  const forwarded = (port: number): number => {
+    const bound = portMap[String(port)]
+    if (bound === undefined) {
+      throw new Error(`Sandbox "${name}" doesn’t forward port ${port}`)
+    }
+    return bound
+  }
   return {
     name,
     worktreePath: wtDir,
@@ -447,6 +543,16 @@ function makeInstance(
     hostPort,
     domain(port: number): string {
       return `http://localhost:${hostPort(port)}`
+    },
+    internalUrl(port: number): string {
+      return `http://127.0.0.1:${forwarded(port)}`
+    },
+    // A browser-facing port goes out through the preview exposure; `loopback`
+    // (the Mac app) answers `http://localhost:<hostPort>`, as `domain` does.
+    async expose(port: number) {
+      const exposed = await getPreviewExposure().expose(forwarded(port))
+      await onExposed?.(String(port), exposed.browserOrigin)
+      return exposed
     },
     runCommand(
       cmdOrOpts: SandboxRunCommandOptions | string,
@@ -670,7 +776,7 @@ function git(cwd: string, args: string[]): Promise<void> {
 }
 
 let cached: LocalSandboxProvider | null = null
-export function getLocalSandboxProvider(): SandboxProvider {
+export function getLocalSandboxProvider(): LocalSandboxProvider {
   if (!cached) cached = new LocalSandboxProvider()
   return cached
 }

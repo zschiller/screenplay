@@ -66,6 +66,10 @@ function fakeSandbox(
     worktreePath: "/workspace/repo",
     homeDir,
     domain: (port: number) => `https://fake-${port}.example.com`,
+    internalUrl: (port: number) => `https://fake-${port}.example.com`,
+    expose: async (port: number) => ({
+      browserOrigin: `https://fake-${port}.example.com`,
+    }),
     hostPort: (port: number) => port,
     runCommand: ((cmdOrOpts: unknown) => {
       const opts = cmdOrOpts as {

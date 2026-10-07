@@ -29,73 +29,34 @@ import {
   stopDevAndProxy,
 } from "@/lib/sandbox/provision-internals"
 import { lookupStableDevUrl } from "@/lib/sandbox/portless"
+import {
+  forgetPreviewInternalUrl,
+  previewInternalUrl,
+  probePreview,
+  probePreviewUrl,
+  type PreviewProbeResult,
+} from "@/lib/sandbox/preview-probe"
 import { provisionSandbox } from "@/lib/sandbox/provisioning"
 import { runSandboxAction } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { RepoData } from "@/lib/types"
 
 /**
- * What a single preview probe observed:
- *
- *  - `"ready"` — the dev server itself answered (any non-5xx, or a redirect).
- *  - `"upstream-refused"` — the bridge proxy is up and served its placeholder
- *    because the dev server refused the connection (nothing listening on the
- *    resolved dev port). On the local backend this is the signature of a dev
- *    server that never bound the port portless assigned it (a script that
- *    ignores `$PORT`, or portless itself failing to launch).
- *  - `"unreachable"` — nothing answered at all (the proxy itself is down, or
- *    the placeholder reported some other upstream failure).
- *
- * The placeholder self-identifies via `x-screenplay-proxy` /
- * `x-screenplay-upstream-error` headers (see servePlaceholder in proxy.mjs).
+ * Whether a Workspace's preview answers, by its Sandbox and its Dev Server
+ * Port: the client's probe (the frame's spinner, the Terminal Pane's dot).
+ * It takes the Workspace, never a URL, so the server only ever fetches a
+ * preview at its own address ({@link SandboxInstance.internalUrl}), and
+ * can't be pointed at anything else. Never wakes a stopped Sandbox.
  */
-type PreviewProbeResult = "ready" | "upstream-refused" | "unreachable"
-
-async function probePreview(url: string): Promise<PreviewProbeResult> {
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      redirect: "manual",
-      signal: AbortSignal.timeout(5000),
-      headers: { Accept: "text/html" },
-    })
-    // Don't consume the body — reachability is all we need, and the iframe
-    // re-fetches the URL itself. Discard the stream so the connection frees.
-    res.body?.cancel().catch(() => {})
-    // `redirect: "manual"` surfaces a 3xx as an opaque-redirect response; either
-    // way, anything that isn't a 5xx proxy placeholder means the server is up.
-    if (
-      res.type === "opaqueredirect" ||
-      (res.status >= 200 && res.status < 500)
-    ) {
-      return "ready"
-    }
-    const isPlaceholder =
-      res.headers?.get?.("x-screenplay-proxy") === "placeholder"
-    const upstreamError = res.headers?.get?.("x-screenplay-upstream-error")
-    return isPlaceholder && upstreamError === "ECONNREFUSED"
-      ? "upstream-refused"
-      : "unreachable"
-  } catch {
-    return "unreachable"
-  }
-}
-
-/**
- * Check if a sandbox preview URL is reachable. The bridge proxy serves its
- * "dev server not ready" placeholder with a 5xx status (see servePlaceholder in
- * proxy.mjs), so any non-5xx response means the dev server itself answered.
- *
- * Deliberately lightweight: it does NOT download or parse the page body. The
- * old version did a full `GET` + `res.text()` and sniffed for HTML markup, which
- * meant every preview was fetched twice in series — once here, then again by the
- * iframe — roughly doubling time-to-first-paint on a warm server. A redirect
- * (e.g. "/" -> "/login") is a live server too, so it's treated as reachable
- * instead of following the chain. A plain boolean probe — no sandbox command
- * runs — so it stays outside the result contract.
- */
-export async function probeSandboxUrl(url: string): Promise<boolean> {
-  return (await probePreview(url)) === "ready"
+export async function probeWorkspacePreview(
+  sandboxName: string,
+  devPort: number
+): Promise<boolean> {
+  const url = await previewInternalUrl(sandboxName, devPort)
+  if (!url) return false
+  const ready = await probePreviewUrl(url)
+  if (!ready) forgetPreviewInternalUrl(sandboxName)
+  return ready
 }
 
 // How many times to probe the preview before concluding it's actually dead and
@@ -156,7 +117,8 @@ export async function ensurePreviewLive(
     probeDelayMs = PREVIEW_PROBE_DELAY_MS,
   } = options
   const portIsMapped = sandbox.hostPort(port) !== port
-  const previewDomain = sandbox.domain(port + PROXY_PORT_OFFSET)
+  // The server probes the preview at its own address, never a browser URL.
+  const internalUrl = sandbox.internalUrl(port + PROXY_PORT_OFFSET)
 
   /**
    * Run one probe window. Returns `"ready"` the moment a probe succeeds,
@@ -167,7 +129,7 @@ export async function ensurePreviewLive(
   const probeWindow = async (): Promise<PreviewProbeResult> => {
     let refusals = 0
     for (let attempt = 0; attempt < probeAttempts; attempt++) {
-      const state = await probePreview(previewDomain)
+      const state = await probePreview(internalUrl)
       if (state === "ready") return "ready"
       if (state === "upstream-refused") refusals++
       if (attempt < probeAttempts - 1) {
@@ -178,7 +140,9 @@ export async function ensurePreviewLive(
   }
 
   const before = await probeWindow()
-  if (before === "ready") return previewDomain
+  if (before === "ready") {
+    return (await sandbox.expose(port + PROXY_PORT_OFFSET)).browserOrigin
+  }
   if (portIsMapped && before === "upstream-refused") {
     // The proxy is alive and bound — this launch's plumbing works — but nothing
     // ever listened on the resolved dev port. The dev server isn't binding the
@@ -409,7 +373,8 @@ export async function reconnectSandbox(
       success: true,
       value: {
         sandboxName: check.name,
-        previewDomain: check.domain(port + PROXY_PORT_OFFSET),
+        previewDomain: (await check.expose(port + PROXY_PORT_OFFSET))
+          .browserOrigin,
       },
     }
   }
@@ -449,7 +414,8 @@ export async function reconnectSandbox(
     if (devServerStopped) {
       return {
         sandboxName: sandbox.name,
-        previewDomain: sandbox.domain(port + PROXY_PORT_OFFSET),
+        previewDomain: (await sandbox.expose(port + PROXY_PORT_OFFSET))
+          .browserOrigin,
       }
     }
     const previewDomain = await launchDevAndProxy(
@@ -543,6 +509,7 @@ export async function restartSandbox(
       name: sandboxName,
       source: { type: "snapshot", snapshotId },
       ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT, STREAM_PORT],
+      browserPorts: [port + PROXY_PORT_OFFSET, STREAM_PORT],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
       resources: { vcpus: SANDBOX_VCPUS },

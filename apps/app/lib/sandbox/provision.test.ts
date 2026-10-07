@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ModelProvider } from "@/lib/agent/providers"
+import {
+  getPreviewExposure,
+  loopbackExposure,
+  setPreviewExposure,
+  urlTemplateExposure,
+} from "@/lib/preview-exposure"
 import type {
   SandboxCommandResult,
   SandboxCreateOptions,
@@ -180,6 +186,10 @@ function fakeSandbox(
     worktreePath: opts.worktreePath ?? "/vercel/sandbox",
     homeDir: opts.homeDir ?? "/home/vercel-sandbox",
     domain: (port: number) => `https://fake-${port}.example.com`,
+    internalUrl: (port: number) => `https://fake-${port}.example.com`,
+    expose: async (port: number) => ({
+      browserOrigin: `https://fake-${port}.example.com`,
+    }),
     hostPort: opts.hostPort ?? ((port: number) => port),
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async (files: SandboxFile[]) => {
@@ -736,6 +746,39 @@ describe("startDevServer", () => {
         SCREENPLAY_LISTEN_HOST: "127.0.0.1",
       })
     } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("binds the bridge proxy where the preview exposure says, and returns its browser origin", async () => {
+    vi.stubEnv("SANDBOX_BACKEND", "local")
+    setPreviewExposure(
+      urlTemplateExposure({ origin: "https://{port}-box.corp.example" })
+    )
+    try {
+      const calls: RecordedCall[] = []
+      const sandbox = fakeSandbox(() => ({ exitCode: 0 }), {
+        calls,
+        hostPort: (port) => port + 50000,
+      })
+      fake.setInstance({
+        ...sandbox,
+        expose: async (port: number) =>
+          getPreviewExposure().expose(sandbox.hostPort(port)),
+      })
+
+      const result = await startDevServer("sandbox-a", 3000, "npm run dev")
+
+      expect(findProxyLaunch(calls)!.env).toMatchObject({
+        SCREENPLAY_LISTEN_PORT: "54000",
+        SCREENPLAY_LISTEN_HOST: "0.0.0.0",
+      })
+      expect(result).toMatchObject({
+        success: true,
+        value: { previewDomain: "https://54000-box.corp.example" },
+      })
+    } finally {
+      setPreviewExposure(loopbackExposure())
       vi.unstubAllEnvs()
     }
   })

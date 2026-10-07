@@ -203,7 +203,7 @@ async function workspaceStream(
     return "This chat was set up before frames were shared, so its frames can’t be used here."
   }
   const stream = {
-    url: result.value.url,
+    url: result.value.internalUrl,
     key: frameStreamKey(sandboxName),
     at: Date.now(),
   }

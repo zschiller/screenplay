@@ -628,6 +628,12 @@ function CanvasMemberLayerImpl({
                 iframeLayer: {
                   ...iframeLayer,
                   iframeUrl: agentInfo?.previewDomain,
+                  workspace: assignedAgent
+                    ? {
+                        sandboxName: assignedAgent.sandboxName,
+                        devPort: assignedAgent.port,
+                      }
+                    : undefined,
                 },
                 sharedStream: stream,
                 live: live.live,

@@ -164,7 +164,7 @@ import {
   deleteSandboxes,
   ensurePreviewLive,
   keepAliveSandbox,
-  probeSandboxUrl,
+  probeWorkspacePreview,
   reconnectSandbox,
   recreateSandbox,
   removeSandboxEnv,
@@ -274,6 +274,10 @@ function fakeSandbox(
     worktreePath: "/vercel/sandbox",
     homeDir: "/home/vercel-sandbox",
     domain: (port: number) => `https://fake-${port}.example.com`,
+    internalUrl: (port: number) => `https://fake-${port}.example.com`,
+    expose: async (port: number) => ({
+      browserOrigin: `https://fake-${port}.example.com`,
+    }),
     hostPort: opts.hostPort ?? ((port: number) => port),
     runCommand: runCommand as SandboxInstance["runCommand"],
     writeFiles: async () => {
@@ -1177,48 +1181,55 @@ describe("ensurePreviewLive", () => {
   })
 })
 
-describe("probeSandboxUrl", () => {
+describe("probeWorkspacePreview", () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it("returns true on a 2xx response (dev server answered)", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ status: 200 }))
-    )
+  // A distinct Sandbox per test: the internal address is remembered per name.
+  let n = 0
+  const probe = (fetchImpl: (url: string) => Promise<unknown>) => {
+    const name = `probe-sandbox-${n++}`
+    const fetchMock = vi.fn(fetchImpl)
+    vi.stubGlobal("fetch", fetchMock)
+    fake.setGet(fakeSandbox({ name }))
+    return { name, fetchMock }
+  }
 
-    expect(await probeSandboxUrl("https://x.example.com")).toBe(true)
+  it("fetches the preview's internal address, never a URL from the client", async () => {
+    const { name, fetchMock } = probe(async () => ({ status: 200 }))
+
+    expect(await probeWorkspacePreview(name, 3000)).toBe(true)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://fake-4000.example.com")
   })
 
   it("treats a redirect as reachable without following it", async () => {
     // `redirect: "manual"` surfaces a 3xx as an opaque-redirect response. A
     // live server that redirects (e.g. "/" -> "/login") is still up.
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ status: 0, type: "opaqueredirect" }))
-    )
+    const { name } = probe(async () => ({ status: 0, type: "opaqueredirect" }))
 
-    expect(await probeSandboxUrl("https://x.example.com")).toBe(true)
+    expect(await probeWorkspacePreview(name, 3000)).toBe(true)
   })
 
   it("returns false on the proxy’s 5xx placeholder (dev server not up yet)", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ status: 503 }))
-    )
+    const { name } = probe(async () => ({ status: 503 }))
 
-    expect(await probeSandboxUrl("https://x.example.com")).toBe(false)
+    expect(await probeWorkspacePreview(name, 3000)).toBe(false)
   })
 
   it("returns false when the request throws (sandbox not reachable)", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new Error("ECONNREFUSED")
-      })
-    )
+    const { name } = probe(async () => {
+      throw new Error("ECONNREFUSED")
+    })
 
-    expect(await probeSandboxUrl("https://x.example.com")).toBe(false)
+    expect(await probeWorkspacePreview(name, 3000)).toBe(false)
+  })
+
+  it("returns false without fetching when the Sandbox is stopped", async () => {
+    const { name, fetchMock } = probe(async () => ({ status: 200 }))
+    fake.setGet(fakeSandbox({ name, status: "stopped" }))
+
+    expect(await probeWorkspacePreview(name, 3000)).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
