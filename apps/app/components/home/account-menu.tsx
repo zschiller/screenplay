@@ -6,7 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
@@ -65,18 +64,16 @@ export function AccountMenu() {
             align="start"
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
           >
-            {/* The same identity as the row, not a section heading: keeps the
-                UI face and the label's normal case. */}
-            <DropdownMenuLabel className="p-0 font-sans font-normal tracking-normal normal-case">
-              <div className="flex items-center gap-2 px-1.5 py-1.5 text-left">
-                <AccountIdentity
-                  name={name}
-                  email={email}
-                  image={user?.image}
-                  initials={initials}
-                />
-              </div>
-            </DropdownMenuLabel>
+            {/* The same identity as the row, not a section heading, so not a
+                DropdownMenuLabel (that's a group's mono heading). */}
+            <div className="flex items-center gap-2 px-1.5 py-1.5 text-left">
+              <AccountIdentity
+                name={name}
+                email={email}
+                image={user?.image}
+                initials={initials}
+              />
+            </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={async () => {

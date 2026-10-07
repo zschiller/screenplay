@@ -55,7 +55,7 @@ import {
   WorkingChatMention,
   type WorkingChat,
 } from "@/components/canvas/working-chat"
-import { GripSpinner } from "@/components/grip-spinner"
+import { AgentActivityDots } from "@/components/agent-activity-dots"
 import {
   Empty,
   EmptyDescription,
@@ -577,7 +577,7 @@ function MockupSketching({
       >
         <EmptyHeader>
           <EmptyMedia variant="icon" className="mb-1">
-            <GripSpinner className="text-muted-foreground" />
+            <AgentActivityDots className="text-muted-foreground" />
           </EmptyMedia>
           <EmptyTitle>Sketching</EmptyTitle>
           <EmptyDescription>The chat is drawing this page.</EmptyDescription>

@@ -90,7 +90,7 @@ import { MemorySection } from "./canvas-memory-section"
 import { CanvasSkillsSection } from "./canvas-skills-section"
 import { openCanvasFileOnDesktop } from "@/lib/files/desktop-actions"
 import { isLocalBuild } from "@/lib/local-mode"
-import { ScrollHairline, useScrollEdges } from "@/components/scroll-hairline"
+import { DialogScrollBody } from "@/components/scroll-hairline"
 
 /** The sections of Canvas settings. Members may join later. */
 export type CanvasSettingsSection =
@@ -181,7 +181,6 @@ export function CanvasSettingsDialog({
   const [activeId, setActiveId] =
     useState<CanvasSettingsSection>("repositories")
   const active = SECTIONS.find((s) => s.id === activeId) ?? SECTIONS[0]!
-  const { attach, onScroll, above } = useScrollEdges()
   const members = useCanvasMembers(
     roomId,
     policy.showsAddedBy && active.id === "files"
@@ -247,48 +246,44 @@ export function CanvasSettingsDialog({
                 </BreadcrumbList>
               </Breadcrumb>
             </header>
-            <div className="relative flex min-h-0 flex-1 flex-col">
-              <ScrollHairline shown={above} />
-              <div
-                ref={attach}
-                onScroll={onScroll}
-                className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5"
-              >
-                {active.id === "skills" ? (
-                  <CanvasSkillsSection roomId={roomId} skills={skills} />
-                ) : active.id === "files" ? (
-                  <FilesSection
-                    roomId={roomId}
-                    files={files}
-                    onDelete={(path) => deleteFile(roomId, path)}
-                    onDesktop={
-                      openFileOnDesktop &&
-                      ((path, how) => openFileOnDesktop(roomId, path, how))
-                    }
-                    adderName={adderName}
-                  />
-                ) : active.id === "memory" ? (
-                  <MemorySection
-                    memories={memories}
-                    onAddMemory={onAddMemory}
-                    onEditMemory={onEditMemory}
-                    onRemoveMemory={onRemoveMemory}
-                  />
-                ) : (
-                  <RepositoriesSection
-                    roomId={roomId}
-                    canRevealEnv={canRevealEnv}
-                    userId={userId}
-                    repos={repos}
-                    branches={branches}
-                    onUpdateRepo={onUpdateRepo}
-                    onRemoveRepo={onRemoveRepo}
-                    onSwitchOn={onSwitchOn}
-                    policy={policy}
-                  />
-                )}
-              </div>
-            </div>
+            <DialogScrollBody
+              wrapperClassName="flex min-h-0 flex-1 flex-col"
+              className="flex flex-1 flex-col gap-4 px-5 pb-5"
+            >
+              {active.id === "skills" ? (
+                <CanvasSkillsSection roomId={roomId} skills={skills} />
+              ) : active.id === "files" ? (
+                <FilesSection
+                  roomId={roomId}
+                  files={files}
+                  onDelete={(path) => deleteFile(roomId, path)}
+                  onDesktop={
+                    openFileOnDesktop &&
+                    ((path, how) => openFileOnDesktop(roomId, path, how))
+                  }
+                  adderName={adderName}
+                />
+              ) : active.id === "memory" ? (
+                <MemorySection
+                  memories={memories}
+                  onAddMemory={onAddMemory}
+                  onEditMemory={onEditMemory}
+                  onRemoveMemory={onRemoveMemory}
+                />
+              ) : (
+                <RepositoriesSection
+                  roomId={roomId}
+                  canRevealEnv={canRevealEnv}
+                  userId={userId}
+                  repos={repos}
+                  branches={branches}
+                  onUpdateRepo={onUpdateRepo}
+                  onRemoveRepo={onRemoveRepo}
+                  onSwitchOn={onSwitchOn}
+                  policy={policy}
+                />
+              )}
+            </DialogScrollBody>
           </main>
         </SidebarProvider>
       </DialogContent>

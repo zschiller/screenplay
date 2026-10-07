@@ -136,7 +136,7 @@ const GLYPH = `<svg class="hc-glyph" viewBox="0 0 24 24"><circle class="hc-ring"
   .flatMap((cy) => [5, 12, 19].map((cx) => [cx, cy]))
   .map(
     ([cx, cy], i) =>
-      `<circle class="grip-dot" cx="${cx}" cy="${cy}" r="2" style="animation-delay:${-((i * 7) % 9) * 0.21}s" />`
+      `<circle class="agent-dot" cx="${cx}" cy="${cy}" r="2" style="animation-delay:${-((i * 7) % 9) * 0.21}s" />`
   )
   .join("")}</g></svg>`
 

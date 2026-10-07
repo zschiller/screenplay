@@ -4,9 +4,9 @@ import { CircleNotchIcon } from "@workspace/ui/components/icons"
 /**
  * The progress spinner: loading data, a request in flight, a tool call running,
  * a sandbox booting. It is **not** for LLM activity (the agent thinking, a reply
- * streaming, a subagent running); the app uses its 9-dot `GripSpinner`
- * (`apps/app/components/grip-spinner.tsx`) for that, so the grid alone means
- * "the model is working".
+ * streaming, a subagent running); the app uses its 9-dot
+ * `AgentActivityDots` (`apps/app/components/agent-activity-dots.tsx`) for
+ * that, so the grid alone means "the model is working".
  *
  * The ring turns inside a still svg: the spin is on the glyph's path, about
  * the middle of the view box, not on the svg's own box.

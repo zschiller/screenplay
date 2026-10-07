@@ -585,8 +585,8 @@ hydration); a client-side rename callback or broadcast for auto-naming (it made
 the git rename depend on which surfaces were mounted).
 
 **Busy Indicator**:
-The two spinners, split by what is busy. The **GripSpinner** (the 9-dot grid,
-`components/grip-spinner.tsx`) means **LLM activity**: the agent thinking, a
+The two spinners, split by what is busy. **AgentActivityDots** (the 9-dot
+grid, `components/agent-activity-dots.tsx`) means **LLM activity**: the agent thinking, a
 reply streaming, a subagent (Task) running, a live chat tab. The **Spinner**
 (`@workspace/ui/components/spinner`) means **progress**: loading, a request in
 flight, a tool call running, a Sandbox booting.

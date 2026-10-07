@@ -156,9 +156,9 @@ body {
   visibility: hidden;
 }
 
-/* GripSpinner — each dot of the Grip grid fades in/out on its own randomized
-   cadence to signal a running agent. See components/grip-spinner.tsx. */
-@keyframes grip-dot-twinkle {
+/* AgentActivityDots — each dot of the Grip grid fades in/out on its own
+   randomized cadence to signal a running agent. See components/agent-activity-dots.tsx. */
+@keyframes agent-dot-twinkle {
   0%,
   100% {
     opacity: 1;
@@ -169,9 +169,9 @@ body {
 }
 
 /* Reduce motion, app-wide. With the OS setting on, every CSS animation and
-   transition finishes at once — looping keyframes like the Grip spinner hold
-   still on their end frame, and panels, menus, and dialogs appear rather than
-   slide or zoom. A near-zero duration rather than `none`, so `animationend` and
+   transition finishes at once — looping keyframes like AgentActivityDots'
+   hold still on their end frame, and panels, menus, and dialogs appear rather
+   than slide or zoom. A near-zero duration rather than `none`, so `animationend` and
    `transitionend` still fire for the code (Radix's presence, above all) that
    waits on them. `motion` animations are covered by MotionConfig in
    components/motion-provider.tsx. */

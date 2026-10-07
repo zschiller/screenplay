@@ -9,7 +9,7 @@ import {
 } from "@workspace/ui/components/icons"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
-import { GripSpinner } from "@/components/grip-spinner"
+import { AgentActivityDots } from "@/components/agent-activity-dots"
 import { prStateColor } from "@/components/pr-state-color"
 import { PrStateIcon } from "@/components/pr-state-icon"
 import type { WorkspaceStatusLine } from "@/lib/branch/workspace-state"
@@ -56,7 +56,7 @@ export function WorkspaceStateGlyph({ line }: { line: WorkspaceStatusLine }) {
     ) : line.kind === "progress" ? (
       <Spinner className="size-3.5 opacity-70" />
     ) : line.state === "working" ? (
-      <GripSpinner className="size-3.5 opacity-70" />
+      <AgentActivityDots className="size-3.5 opacity-70" />
     ) : line.state === "needs-you" ? (
       <NeedsYouDot />
     ) : line.state === "done" ? (

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 
 /**
@@ -9,7 +10,8 @@ import { cn } from "@workspace/ui/lib/utils"
  * above a footer while more lies below (`bottom`). Goes inside a `relative`
  * wrapper around the scroll; it overlays the content, so showing it moves
  * nothing. Every scrolling dialog uses it (pickers, repository dialogs,
- * Canvas settings, the skill viewer, Move to).
+ * Canvas settings, the skill viewer, Move to); a dialog's body scroll gets it
+ * through {@link DialogScrollBody}.
  */
 export function ScrollHairline({
   shown,
@@ -27,6 +29,62 @@ export function ScrollHairline({
         shown ? "opacity-100" : "opacity-0"
       )}
     />
+  )
+}
+
+/**
+ * A dialog's body scroll, with the dialog rules built in: no padding above
+ * the first item (the header's own bottom padding spaces it; Zack
+ * 2026-10-06), a hairline under the header only once the content scrolls up,
+ * and, with a `footer` under the body, one above it only while more lies
+ * below. Callers give the sides, bottom and gaps.
+ */
+export function DialogScrollBody({
+  children,
+  className,
+  wrapperClassName,
+  footer = false,
+  scrollArea,
+}: {
+  children: React.ReactNode
+  /** The scrolling content's sides, bottom padding and layout. Never a top
+   *  padding: it's dropped. */
+  className?: string
+  /** Sizes the body in its dialog (`flex-1` in a flex column). */
+  wrapperClassName?: string
+  /** A footer sits right under the body. */
+  footer?: boolean
+  /** Scroll in a shadcn `ScrollArea` with these classes (its viewport's
+   *  max-height) instead of a native overflow. */
+  scrollArea?: string
+}) {
+  const { attach, onScroll, above, below } = useScrollEdges()
+
+  return (
+    <div className={cn("relative", wrapperClassName)}>
+      <ScrollHairline shown={above} />
+      {scrollArea === undefined ? (
+        <div
+          ref={attach}
+          onScroll={onScroll}
+          className={cn("overflow-y-auto", className, "pt-0")}
+        >
+          {children}
+        </div>
+      ) : (
+        // Scroll doesn't bubble out of the Radix viewport, so its scroll is
+        // caught on the way down.
+        <ScrollArea
+          ref={attach}
+          orientation="vertical"
+          onScrollCapture={onScroll}
+          className={scrollArea}
+        >
+          <div className={cn(className, "pt-0")}>{children}</div>
+        </ScrollArea>
+      )}
+      {footer && <ScrollHairline shown={below} edge="bottom" />}
+    </div>
   )
 }
 

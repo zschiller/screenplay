@@ -14,7 +14,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@workspace/ui/components/popover"
-import { GripSpinner } from "@/components/grip-spinner"
+import { AgentActivityDots } from "@/components/agent-activity-dots"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import type { FrameDriverView, FrameRequesterView } from "./use-frame-control"
 
@@ -33,7 +33,7 @@ function DriverMark({
 }: {
   driver: Extract<FrameDriverView, { kind: "agent" | "person" }>
 }) {
-  if (driver.kind === "agent") return <GripSpinner className="size-4" />
+  if (driver.kind === "agent") return <AgentActivityDots className="size-4" />
   return <PersonMark person={driver} />
 }
 
@@ -202,7 +202,7 @@ export function FrameDriverTag({ driver }: { driver: FrameDriverView }) {
         data-frame-driver-tag=""
         className="flex h-[18px] shrink-0 items-center gap-1 rounded bg-foreground px-1.5 text-xs font-medium whitespace-nowrap text-background"
       >
-        <GripSpinner className="size-3" />
+        <AgentActivityDots className="size-3" />
         {AGENT_NAME} has control
       </span>
     )

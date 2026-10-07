@@ -111,8 +111,8 @@ type PageRowActions = Pick<
  * The left sidebar's Pages section (#1835, #1836): every page of the canvas,
  * the current one active. Click switches; + adds “Page N” and opens its name
  * in the inline rename field, where Enter commits, as in every inline rename.
- * Double-click renames; a row drags to reorder; its ⋯ menu (or a right-click)
- * has Rename, Duplicate and Delete. A layer row dragged
+ * Double-click renames; a row drags to reorder; its ⋯ menu has Rename,
+ * Duplicate and Delete. A layer row dragged
  * onto another page's row moves there (#1837). A row ends in the avatars of
  * the other people on that page (#1840). The heading folds the list away and
  * then reads as the current page's name.
@@ -389,8 +389,6 @@ function PageRow({
     transition,
     isDragging,
   } = useSortable({ id: page.id })
-  // A right-click opens the row's ⋯ menu.
-  const [menuOpen, setMenuOpen] = useState(false)
   // Rename waits for the menu to close: its focus trap would take focus back
   // from the inline field.
   const renamePendingRef = useRef(false)
@@ -411,10 +409,6 @@ function PageRow({
           ? `translate3d(0, ${transform.y}px, 0)`
           : undefined,
         transition,
-      }}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        setMenuOpen(true)
       }}
     >
       <SidebarMenuButton
@@ -451,7 +445,7 @@ function PageRow({
         />
         {people ? <PagePeople people={people} /> : null}
       </SidebarMenuButton>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+      <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <IconButton label="Page options" tooltipSide="right" asChild>
             <SidebarMenuAction className={frameRowActionClass}>

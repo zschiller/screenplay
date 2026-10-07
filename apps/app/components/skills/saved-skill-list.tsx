@@ -46,7 +46,7 @@ import { parseFrontmatter } from "@/lib/skills/frontmatter"
 import type { OpenedSkill, SavedSkill } from "@/lib/skills/saved"
 import type { FileEntryData } from "@/lib/types"
 import { formatDistanceToNow } from "@/lib/utils"
-import { ScrollHairline, useScrollEdges } from "@/components/scroll-hairline"
+import { DialogScrollBody } from "@/components/scroll-hairline"
 
 /** What differs between the account and canvas lists: their words. */
 export interface SavedSkillCopy {
@@ -265,8 +265,6 @@ export function SkillDialog({
         ? skillBody(loaded.skill.content)
         : (files.find((f) => f.path === path)?.content ?? "")
 
-  const { attach, onScroll, above } = useScrollEdges()
-
   const body = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div
@@ -279,48 +277,44 @@ export function SkillDialog({
         <DialogTitle className="break-words">{skill?.name}</DialogTitle>
         <DialogDescription>{skill?.description}</DialogDescription>
       </div>
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <ScrollHairline shown={above} />
-        <div
-          ref={attach}
-          onScroll={onScroll}
-          className="min-h-0 flex-1 overflow-y-auto px-6 pb-6"
-        >
-          {loaded.state === "loading" ? (
-            <div
-              role="status"
-              aria-label="Opening skill…"
-              className="flex justify-center py-8"
+      <DialogScrollBody
+        wrapperClassName="flex min-h-0 flex-1 flex-col"
+        className="min-h-0 flex-1 px-6 pb-6"
+      >
+        {loaded.state === "loading" ? (
+          <div
+            role="status"
+            aria-label="Opening skill…"
+            className="flex justify-center py-8"
+          >
+            <Spinner className="size-4" />
+          </div>
+        ) : loaded.state === "failed" ? (
+          <div role="alert" className="flex flex-col items-start gap-3">
+            <p className="text-sm text-muted-foreground">
+              Couldn’t open this skill. Try again.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLoaded({ state: "loading" })
+                setAttempt((n) => n + 1)
+              }}
             >
-              <Spinner className="size-4" />
-            </div>
-          ) : loaded.state === "failed" ? (
-            <div role="alert" className="flex flex-col items-start gap-3">
-              <p className="text-sm text-muted-foreground">
-                Couldn’t open this skill. Try again.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setLoaded({ state: "loading" })
-                  setAttempt((n) => n + 1)
-                }}
-              >
-                Try again
-              </Button>
-            </div>
-          ) : path.endsWith(".md") ? (
-            <ChatMarkdown className="prose-headings:text-sm prose-headings:font-semibold">
-              {content ?? ""}
-            </ChatMarkdown>
-          ) : (
-            <pre className="font-mono text-xs break-words whitespace-pre-wrap">
-              {content}
-            </pre>
-          )}
-        </div>
-      </div>
+              Try again
+            </Button>
+          </div>
+        ) : path.endsWith(".md") ? (
+          <ChatMarkdown className="prose-headings:text-sm prose-headings:font-semibold">
+            {content ?? ""}
+          </ChatMarkdown>
+        ) : (
+          <pre className="font-mono text-xs break-words whitespace-pre-wrap">
+            {content}
+          </pre>
+        )}
+      </DialogScrollBody>
     </div>
   )
 

@@ -3,9 +3,10 @@
 import { cn } from "@workspace/ui/lib/utils"
 
 /**
- * GripSpinner — an "agent is running" indicator drawn as lucide's `Grip` 3×3
- * dot grid where, instead of spinning, each dot fades in and out on its own
- * cadence so the grid shimmers in a long, organic-looking pattern.
+ * AgentActivityDots — an "agent is running" indicator drawn as lucide's `Grip`
+ * 3×3 dot grid where, instead of spinning, each dot fades in and out on its
+ * own cadence so the grid shimmers in a long, organic-looking pattern. The
+ * name carries the rule: these dots mean the agent is working, nothing else.
  *
  * **Use it only for LLM activity**: the agent thinking, a reply streaming, a
  * subagent (Task) running, a chat tab whose run is live. Anything else that is
@@ -23,7 +24,7 @@ import { cn } from "@workspace/ui/lib/utils"
  * - Each dot's timing is a fixed constant, so the server and client render the
  *   same markup and nothing is set in state.
  * - Every dot's animation starts at the document timeline's origin, so all
- *   GripSpinners on the page share one phase and one that re-mounts (a list
+ *   AgentActivityDots on the page share one phase and one that re-mounts (a list
  *   re-keying, a row re-rendering) picks up where it was instead of jumping.
  */
 
@@ -71,11 +72,11 @@ function syncToTimeline(grid: HTMLSpanElement | null) {
   }
 }
 
-export function GripSpinner({ className }: { className?: string }) {
+export function AgentActivityDots({ className }: { className?: string }) {
   return (
     <span
       ref={syncToTimeline}
-      data-slot="grip-spinner"
+      data-slot="agent-activity-dots"
       aria-hidden="true"
       className={cn("relative inline-block size-4 shrink-0", className)}
     >
@@ -87,7 +88,7 @@ export function GripSpinner({ className }: { className?: string }) {
             className="absolute inset-0 bg-current"
             style={{
               mask: dotMask(cx, cy),
-              animation: `grip-dot-twinkle ${duration}s ease-in-out ${delay}s infinite`,
+              animation: `agent-dot-twinkle ${duration}s ease-in-out ${delay}s infinite`,
             }}
           />
         )

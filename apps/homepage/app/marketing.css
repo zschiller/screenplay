@@ -40,13 +40,13 @@ html {
   .caret-blink {
     animation: caret-blink 1s steps(1, end) infinite;
   }
-  /* A working Workspace's 3×3 grid (the app's GripSpinner). */
-  .grip-dot {
-    animation: grip-dot-twinkle 1.4s ease-in-out infinite;
+  /* A working Workspace's 3×3 grid (the app's AgentActivityDots). */
+  .agent-dot {
+    animation: agent-dot-twinkle 1.4s ease-in-out infinite;
   }
 }
 
-@keyframes grip-dot-twinkle {
+@keyframes agent-dot-twinkle {
   50% {
     opacity: 0.15;
   }
