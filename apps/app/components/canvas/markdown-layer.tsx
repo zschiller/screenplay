@@ -93,6 +93,7 @@ import { baseName } from "@/lib/files/paths"
 import { toast } from "sonner"
 import { LabelChat } from "@/components/canvas/label-chat"
 import { useLayerToolbar } from "@/components/canvas/use-layer-toolbar"
+import { useToolbarReveal } from "@/components/canvas/use-toolbar-reveal"
 import { LayerLabelRow } from "@/components/canvas/layer-title-bar"
 import {
   LayerMenu,
@@ -446,6 +447,10 @@ function MarkdownLayerImpl({
     anchorRef: rootRef,
     toolbarRef,
   })
+  // The block controls grow out from between Edit and ⋯ as editing starts,
+  // and fold back away when it stops.
+  const blockControlsRef = useRef<HTMLDivElement>(null)
+  const blockControlsMounted = useToolbarReveal(editing, blockControlsRef)
 
   // Images: paste, drop and Upload image save into the canvas's files under
   // `uploads/`, as chat attachments do, and Image from files picks one there
@@ -1161,8 +1166,13 @@ function MarkdownLayerImpl({
                 >
                   <PencilSimpleIcon />
                 </FloatingToolbarButton>
-                {editing && editor && (
-                  <>
+                {blockControlsMounted && editor && (
+                  <div
+                    ref={blockControlsRef}
+                    // Folding away after editing stops: no longer pressable.
+                    inert={!editing}
+                    className="flex shrink-0 items-center gap-1 overflow-hidden *:shrink-0"
+                  >
                     <FloatingToolbarSeparator />
                     <NodeTypeDropdown
                       editor={editor}
@@ -1180,21 +1190,19 @@ function MarkdownLayerImpl({
                         )
                       }}
                     />
-                  </>
+                    {onRemove && <FloatingToolbarSeparator />}
+                  </div>
                 )}
                 {onRemove && (
-                  <>
-                    {editing && <FloatingToolbarSeparator />}
-                    <LayerMenu
-                      placement="toolbar"
-                      actions={menuActions}
-                      onRename={
-                        onRename
-                          ? () => titleEditableRef.current?.startEditing()
-                          : undefined
-                      }
-                    />
-                  </>
+                  <LayerMenu
+                    placement="toolbar"
+                    actions={menuActions}
+                    onRename={
+                      onRename
+                        ? () => titleEditableRef.current?.startEditing()
+                        : undefined
+                    }
+                  />
                 )}
               </FloatingToolbar>,
               toolbarTarget
