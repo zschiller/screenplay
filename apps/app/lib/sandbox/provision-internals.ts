@@ -398,12 +398,11 @@ export async function launchDevAndProxy(
     // the dev server was told to bind.
     // The local backend keeps the proxy on loopback, off the LAN; a hosted
     // sandbox must listen on every interface for its forwarded port (#997).
+    // Both are explicit: the proxy's own default is loopback (#1900).
     env: {
       SCREENPLAY_UPSTREAM_PORT: String(devPort),
       SCREENPLAY_LISTEN_PORT: String(proxyPort),
-      ...(isLocalSandboxBackend()
-        ? { SCREENPLAY_LISTEN_HOST: "127.0.0.1" }
-        : {}),
+      SCREENPLAY_LISTEN_HOST: isLocalSandboxBackend() ? "127.0.0.1" : "0.0.0.0",
     },
   })
 

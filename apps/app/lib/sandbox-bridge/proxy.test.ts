@@ -101,11 +101,14 @@ describe("bridge proxy", () => {
   })
 
   /** Start the proxy with `env` and resolve with the address it logs. */
-  async function boundAddress(env: Record<string, string>): Promise<string> {
+  async function boundAddress(
+    env: Record<string, string>,
+    base: NodeJS.ProcessEnv = process.env
+  ): Promise<string> {
     listenPort = await freePort()
     proxy = spawn(process.execPath, [PROXY_PATH], {
       env: {
-        ...process.env,
+        ...base,
         SCREENPLAY_LISTEN_PORT: String(listenPort),
         ...env,
       },
@@ -125,13 +128,15 @@ describe("bridge proxy", () => {
     })
   }
 
-  it("binds every interface by default, as a hosted sandbox needs", async () => {
-    expect(await boundAddress({})).toBe(`0.0.0.0:${listenPort}`)
+  it("binds loopback by default, keeping previews off the LAN", async () => {
+    const env = { ...process.env }
+    delete env.SCREENPLAY_LISTEN_HOST
+    expect(await boundAddress({}, env)).toBe(`127.0.0.1:${listenPort}`)
   })
 
-  it("binds loopback when the local backend asks, keeping previews off the LAN", async () => {
-    expect(await boundAddress({ SCREENPLAY_LISTEN_HOST: "127.0.0.1" })).toBe(
-      `127.0.0.1:${listenPort}`
+  it("binds every interface when a hosted sandbox asks", async () => {
+    expect(await boundAddress({ SCREENPLAY_LISTEN_HOST: "0.0.0.0" })).toBe(
+      `0.0.0.0:${listenPort}`
     )
   })
 

@@ -661,13 +661,13 @@ describe("startDevServer", () => {
       PORT: "3000",
     })
     const proxyLaunch = findProxyLaunch(calls)
+    // A hosted sandbox forwards the port in, so the proxy is told to listen
+    // on every interface (its own default is loopback).
     expect(proxyLaunch!.env).toMatchObject({
       SCREENPLAY_UPSTREAM_PORT: "3000",
       SCREENPLAY_LISTEN_PORT: "4000",
+      SCREENPLAY_LISTEN_HOST: "0.0.0.0",
     })
-    // A hosted sandbox forwards the port in, so the proxy keeps its
-    // every-interface default.
-    expect(proxyLaunch!.env).not.toHaveProperty("SCREENPLAY_LISTEN_HOST")
   })
 
   it("threads resolved — not logical — ports through dev, proxy, and env on a port-mapped backend", async () => {
