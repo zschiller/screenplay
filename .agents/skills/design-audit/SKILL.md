@@ -53,7 +53,9 @@ Done when every call in every plan is either a question on the page or its own e
 3. When the answer is "None of these" and the note reopens the question, take that item out of its PR and list it as an open discussion.
 4. Start one thread or agent per PR, and brief each with its plan link, its PR section and the answers it waits on. PRs that wait on no call start first. Steps that need the owner's own machine run there.
 
-Done when every note has an answer and every PR has a thread whose brief carries the answers it depends on.
+5. Archive every page of the audit (each findings page and the decisions page) as [`../design-exploration/ARCHIVE.md`](../design-exploration/ARCHIVE.md) describes.
+
+Done when every note has an answer, every PR has a thread whose brief carries the answers it depends on, and every page of the audit is in the archive index (or the repo keeps no archive).
 
 ## Small audits
 
@@ -62,5 +64,6 @@ When the scope is one screen or one flow, one thread does the whole audit:
 1. Gather the rules as stage 0 describes, for that screen only.
 2. Audit it through all three depths as stage 1 describes and publish one findings page. A handful of findings with no calls can go straight in the reply instead. Ask each call on its own, tagged as stage 1 describes.
 3. Once the owner has answered, fix what they picked on one branch, smallest and surest first, and check each fix in every theme. A skipped finding is dropped; a rejected direction goes in memory's settled list so no later audit raises it again.
+4. Archive the findings page as [`../design-exploration/ARCHIVE.md`](../design-exploration/ARCHIVE.md) describes.
 
 Done when every picked finding is fixed or named as left open. Reply with the PR link, what changed by tag, and anything left open.

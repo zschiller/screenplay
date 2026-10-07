@@ -62,6 +62,12 @@ After each round:
 
 Done with a round when memory holds its feedback and picks and the next round is under way. The exploration continues until the owner says it is done. Tickets, triage labels and builds come only from the owner's own ask, so the tracker stays unchanged throughout.
 
+## 7. Archive the page
+
+When the exploration ends (the owner says it is done, a picked option's PR is up, or its spec is filed), archive the page as [`ARCHIVE.md`](ARCHIVE.md) describes, then add the archive folder's link to the topic file.
+
+Done when the page's row is in the archive index, or the repo keeps no archive.
+
 ## When the owner asks to build an option
 
 When the owner says to build one ("build B", "go with the toggle"):
