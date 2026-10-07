@@ -52,3 +52,9 @@ Reply with the link and one line on what's in it: how many controls and states, 
 When the notes arrive, record them in memory in the storybook's topic file (`<part>-storybook`): the Artifact link, the round, each note with its state. Each note is work on its state: a note asking for a change to the part is the owner's ask, so make it, in the branch in flight when there is one, otherwise on a new branch. A note that asks a design question with more than one fair answer becomes a `design-exploration` when the owner wants options. A note that only observes waits for the owner to say what to do with it.
 
 Done when every note is recorded against its state and each has a next step or is waiting on the owner.
+
+## 6. Archive the page
+
+When the owner says the storybook is done, archive the page as [`../design-exploration/ARCHIVE.md`](../design-exploration/ARCHIVE.md) describes, then add the archive folder's link to the topic file.
+
+Done when the page's row is in the archive index, or the repo keeps no archive.
