@@ -13,6 +13,7 @@ import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { holdLayer } from "@/lib/agent/layer-hold"
+import { layerFileOf, updateLayerFile } from "@/lib/yjs/file-views"
 import {
   layerPageName,
   PAGE_PARAM_DESCRIPTION,
@@ -129,13 +130,14 @@ export function buildMockupTools(ctx: MockupToolContext) {
         }
         const outcome = await ctx.room.mutateDoc(({ doc }) => {
           const collections = createRoomCollections(doc)
-          const mockup = collections.mockupLayers.get(mockup_id)
-          if (!mockup) return "missing" as const
-          const refused = holdLayer(collections, ctx.chatId, mockup_id)
+          // A view's id or its file's (#1883): the change is the file's.
+          const file = layerFileOf(collections, mockup_id)
+          if (file?.kind !== "mockup") return "missing" as const
+          const refused = holdLayer(collections, ctx.chatId, file.id)
           if (refused) return { refused }
           const ops = createCanvasOps(collections)
           ops.batch(() => {
-            collections.mockupLayers.update(mockup_id, {
+            updateLayerFile(collections, mockup_id, {
               lastChangedByChatId: ctx.chatId,
             })
             ops.updateMockup(mockup_id, { html, title })
@@ -165,8 +167,12 @@ export function buildMockupTools(ctx: MockupToolContext) {
             c.mockupLayers
               .toArray()
               .filter((m) => lastChangedBy(m) === ctx.chatId)
+              // One line per file, named by the file (#1883).
+              .filter(
+                (m, i, all) => all.findIndex((o) => o.fileId === m.fileId) === i
+              )
               .map((m) => ({
-                id: m.id,
+                id: m.fileId ?? m.id,
                 title: m.title,
                 page: layerPageName(c, { kind: "mockup-layer", id: m.id }),
               }))
@@ -184,18 +190,23 @@ export function buildMockupTools(ctx: MockupToolContext) {
         }
         const found = await ctx.room.mutateDoc(({ doc }) => {
           const collections = createRoomCollections(doc)
-          const mockup = collections.mockupLayers.get(mockup_id)
-          if (!mockup) return null
+          const file = layerFileOf(collections, mockup_id)
+          if (file?.kind !== "mockup") return null
           // Reading shows on the Mockup as work too, and holds it like a
           // change would; a read never waits on another chat's hold.
-          holdLayer(collections, ctx.chatId, mockup_id)
+          holdLayer(collections, ctx.chatId, file.id)
+          const viewId = collections.mockupLayers.has(mockup_id)
+            ? mockup_id
+            : collections.mockupLayers.viewIdsOf(file.id)[0]
           return {
-            title: mockup.title,
-            page: layerPageName(collections, {
-              kind: "mockup-layer",
-              id: mockup_id,
-            }),
-            html: mockupHtml(doc, mockup_id).toString(),
+            title: file.title,
+            page: viewId
+              ? layerPageName(collections, {
+                  kind: "mockup-layer",
+                  id: viewId,
+                })
+              : undefined,
+            html: mockupHtml(doc, file.id).toString(),
           }
         })
         if (!found) return `There’s no Mockup ${mockup_id}.`

@@ -17,7 +17,7 @@ import type { ChatSessionData, MarkdownLayerData } from "@/lib/types"
 
 type Layer = Pick<
   MarkdownLayerData,
-  "id" | "lastChangedByChatId" | "ownerChatId"
+  "id" | "fileId" | "lastChangedByChatId" | "ownerChatId"
 >
 
 /** The chat that last changed a layer with its tools, if any did. */
@@ -79,6 +79,21 @@ export function layerHolders<C extends LayerChatSession>(
 }
 
 /**
+ * The chat holding a view's file (#1883): the hold is the file's, keyed by
+ * its id, and a view from before files is keyed by its own id, the same one.
+ */
+export function viewHolder<C extends LayerChatSession>(
+  view: { id: string; fileId?: string },
+  chats: readonly C[]
+): C | undefined {
+  const fileId = view.fileId ?? view.id
+  return (
+    layerHolder(fileId, chats) ??
+    (fileId === view.id ? undefined : layerHolder(view.id, chats))
+  )
+}
+
+/**
  * Whether `chatId` may change a layer: yes unless another chat holds it.
  * Returns the holder when it may not.
  */
@@ -99,7 +114,7 @@ export function layerRoute(
   layer: Layer,
   chats: readonly LayerChatSession[]
 ): string | undefined {
-  return layerHolder(layer.id, chats)?.id ?? lastChangedBy(layer)
+  return viewHolder(layer, chats)?.id ?? lastChangedBy(layer)
 }
 
 /**

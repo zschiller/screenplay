@@ -315,3 +315,33 @@ describe("pages (#1842)", () => {
     )
   })
 })
+
+describe("files and views (#1883)", () => {
+  it("edits the file through any view of it, and reads it by the file", async () => {
+    const { run, collections } = setup()
+    collections.iframeLayerGroups.set("group-1", {
+      id: "group-1",
+      x: 0,
+      y: 0,
+      members: [{ kind: "markdown-layer", id: "doc-2" }],
+    })
+    collections.markdownLayers.addView("view-2", "doc-1", {
+      width: 300,
+      height: 200,
+    })
+
+    await run("replace_document_body", {
+      document_id: "view-2",
+      content: "One body.",
+    })
+    await run("set_document_title", { document_id: "view-2", title: "Plan B" })
+
+    expect(collections.markdownLayers.get("doc-1")).toMatchObject({
+      title: "Plan B",
+      lastChangedByChatId: "chat-1",
+    })
+    const read = await run("read_document", { id: "doc-1" })
+    expect(read).toContain("# Plan B")
+    expect(read).toContain("One body.")
+  })
+})

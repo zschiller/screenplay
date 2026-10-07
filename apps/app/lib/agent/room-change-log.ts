@@ -1,7 +1,7 @@
-import type * as Y from "yjs"
+import * as Y from "yjs"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { COLLECTION_KEYS, createRoomCollections } from "@/lib/yjs/schema"
-import type { MarkdownLayerData } from "@/lib/types"
+import type { LayerFileData } from "@/lib/types"
 
 /**
  * The Room Target chat's change log (the Coordinator's undo, #894). Every
@@ -33,6 +33,8 @@ const TRACKED = [
   COLLECTION_KEYS.iframeLayerGroups,
   COLLECTION_KEYS.markdownLayers,
   COLLECTION_KEYS.mockupLayers,
+  // The files those views show (#1883): titles and a Mockup's page state.
+  COLLECTION_KEYS.layerFiles,
   COLLECTION_KEYS.chatSessions,
   COLLECTION_KEYS.pages,
   COLLECTION_KEYS.pageViews,
@@ -150,21 +152,23 @@ export function undoTurn(
     return { ok: false, error: `Turn ${turnId} was already undone.` }
   }
 
-  const collections = createRoomCollections(doc)
   const renames: { id: string; title: string }[] = []
   doc.transact(() => {
+    // Records go back as they were stored: a view and its file separately
+    // (#1883), so putting back one never rewrites the other.
     for (const { collection, id, before } of entry.changes) {
-      const map = collections[collection]
+      const map = doc.getMap<Y.Map<unknown>>(collection)
       if (before === null) {
         map.delete(id)
         continue
       }
-      if (collection === COLLECTION_KEYS.markdownLayers) {
-        const current = map.get(id) as MarkdownLayerData | undefined
-        const title = (before as MarkdownLayerData).title
-        if (current && current.title !== title) renames.push({ id, title })
+      if (collection === COLLECTION_KEYS.layerFiles) {
+        const current = map.get(id)?.toJSON() as LayerFileData | undefined
+        const was = before as LayerFileData
+        if (was.kind === "document" && current && current.title !== was.title)
+          renames.push({ id, title: was.title })
       }
-      ;(map as { set(id: string, value: RecordJson): void }).set(id, before)
+      writeRecord(map, id, before)
     }
   })
   // A document's title also lives in its body's heading; a removed document's
@@ -177,6 +181,25 @@ export function undoTurn(
     if (latest) log.set(turnId, { ...latest, undoneBy })
   })
   return { ok: true, actions: entry.actions }
+}
+
+/** Replaces one stored record with `value`'s fields. */
+function writeRecord(
+  map: Y.Map<Y.Map<unknown>>,
+  id: string,
+  value: RecordJson
+) {
+  let inner = map.get(id)
+  if (!inner) {
+    inner = new Y.Map()
+    map.set(id, inner)
+  }
+  const stale = new Set(inner.keys())
+  for (const [k, v] of Object.entries(value)) {
+    inner.set(k, v)
+    stale.delete(k)
+  }
+  for (const k of stale) inner.delete(k)
 }
 
 /** JSON with sorted keys, so two equal records compare equal. */

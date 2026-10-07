@@ -22,6 +22,7 @@ import { savedSkillsIn, type SavedSkill } from "@/lib/skills/saved"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 import {
   getRoomCollections,
+  type ObservableCollection,
   type RoomCollections,
   type YjsCollection,
   type YjsSingleton,
@@ -48,7 +49,7 @@ export function useRoomCollections(): RoomCollections {
 }
 
 function useCollectionArray<T extends Record<string, unknown>>(
-  collection: YjsCollection<T>
+  collection: ObservableCollection<T>
 ): Array<T> {
   const subscribe = useCallback(
     (cb: () => void) => collection.observe(cb),
@@ -96,8 +97,8 @@ export function useMockupLayers(): Array<MockupLayerData> {
   return useCollectionArray(useRoomCollections().mockupLayers)
 }
 
-/** A Layer as a list of names reads it: its id and title. */
-export type TitledLayerName = { id: string; title: string }
+/** A Layer as a list of names reads it: its id, its file's and its title. */
+export type TitledLayerName = { id: string; fileId?: string; title: string }
 
 /**
  * The ids and titles of a collection's Layers. Unlike the whole array, it
@@ -106,7 +107,7 @@ export type TitledLayerName = { id: string; title: string }
  * a resize.
  */
 function useCollectionTitles(
-  collection: YjsCollection<MarkdownLayerData> | YjsCollection<MockupLayerData>
+  collection: ObservableCollection<TitledLayerName>
 ): TitledLayerName[] {
   const last = useRef<TitledLayerName[]>([])
   const subscribe = useCallback(
@@ -118,8 +119,18 @@ function useCollectionTitles(
     const prev = last.current
     const same =
       items.length === prev.length &&
-      items.every((d, i) => d.id === prev[i]!.id && d.title === prev[i]!.title)
-    if (!same) last.current = items.map(({ id, title }) => ({ id, title }))
+      items.every(
+        (d, i) =>
+          d.id === prev[i]!.id &&
+          d.fileId === prev[i]!.fileId &&
+          d.title === prev[i]!.title
+      )
+    if (!same)
+      last.current = items.map(({ id, fileId, title }) => ({
+        id,
+        fileId,
+        title,
+      }))
     return last.current
   }, [collection])
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)

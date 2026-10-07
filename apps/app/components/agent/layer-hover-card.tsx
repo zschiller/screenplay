@@ -1,5 +1,6 @@
 "use client"
 
+import { findViewOrFile } from "@/lib/yjs/file-views"
 import {
   useEffect,
   useMemo,
@@ -97,6 +98,8 @@ export function LayerHoverCard({
 
 type Layer = {
   id: string
+  /** The file a Document or Mockup shows (#1883), whose body the card reads. */
+  fileId?: string
   title: string
   width: number
   height: number
@@ -150,14 +153,16 @@ function useNamedLayer(kind: LayerMentionKind, id: string): Layer | null {
       ],
     }
   }
+  // A view's id or its file's (#1883).
   const layer =
     kind === "mockup"
-      ? mockups.find((m) => m.id === id)
-      : documents.find((d) => d.id === id)
+      ? findViewOrFile(mockups, id)
+      : findViewOrFile(documents, id)
   if (!layer) return null
   const chat = chatOf(layer)
   return {
     id,
+    fileId: layer.fileId,
     title: layer.title || KIND_LABEL[kind],
     width: layer.width,
     height: layer.height,
@@ -187,7 +192,9 @@ function LayerHoverDetail({
 }) {
   const layer = useNamedLayer(kind, id)
   const menu = useChatsMenu()
-  const body = useDocumentBody(kind === "document" ? id : null)
+  const body = useDocumentBody(
+    kind === "document" ? (layer?.fileId ?? id) : null
+  )
   if (!layer) {
     return (
       <p className="text-sm text-muted-foreground">

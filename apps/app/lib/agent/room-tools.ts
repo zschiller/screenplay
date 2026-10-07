@@ -47,7 +47,7 @@ import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
 import { isSketchChat, sketchChatSession } from "@/lib/chat/sketch-chat"
-import { lastChangedBy, layerHolder } from "@/lib/canvas/layer-chat"
+import { lastChangedBy, viewHolder } from "@/lib/canvas/layer-chat"
 import type { BranchProvisionRequest } from "@/lib/branch/provisioning-live"
 import type {
   BranchData,
@@ -1112,14 +1112,9 @@ export function summarizeCanvas(
     collections,
     COLLECTION_KEYS.iframeLayerGroups
   )
-  const documents = records<MarkdownLayerData>(
-    collections,
-    COLLECTION_KEYS.markdownLayers
-  )
-  const mockups = records<MockupLayerData>(
-    collections,
-    COLLECTION_KEYS.mockupLayers
-  )
+  // Views with their files' fields (#1883); fresh on an unobserved doc.
+  const documents = collections.markdownLayers.toArray()
+  const mockups = collections.mockupLayers.toArray()
   const chats = records<ChatSessionData>(
     collections,
     COLLECTION_KEYS.chatSessions
@@ -1157,8 +1152,8 @@ export function summarizeCanvas(
     return chat && `last changed by chat "${clip(chat.label)}"`
   }
   // The chat whose running turn is changing it (#1725), if one is.
-  const holderOf = (layerId: string) => {
-    const chat = layerHolder(layerId, chats)
+  const holderOf = (layer: { id: string; fileId?: string }) => {
+    const chat = viewHolder(layer, chats)
     return chat && `chat "${clip(chat.label)}" is changing it now`
   }
 
@@ -1241,7 +1236,7 @@ export function summarizeCanvas(
     section("Documents", documents, CANVAS_SUMMARY_LIMITS.documents, (d) =>
       [
         `- [${d.id}] "${clip(d.title || "Untitled")}"`,
-        holderOf(d.id),
+        holderOf(d),
         lastChatOf(lastChangedBy(d)),
         groupOf.get(d.id) && `Group ${groupOf.get(d.id)}`,
       ]
@@ -1252,7 +1247,7 @@ export function summarizeCanvas(
       [
         `- [${m.id}] "${clip(m.title || "Untitled")}"`,
         `${Math.round(m.width)}×${Math.round(m.height)}`,
-        holderOf(m.id),
+        holderOf(m),
         lastChatOf(lastChangedBy(m)),
         groupOf.get(m.id) && `Group ${groupOf.get(m.id)}`,
       ]

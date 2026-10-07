@@ -5,6 +5,7 @@ import { annotateTools } from "@/lib/mcp/tool-server"
 import type { RoomDoc } from "@/lib/room-access"
 import { heldByOther } from "@/lib/canvas/layer-chat"
 import type { ChatSessionData } from "@/lib/types"
+import { fileAndViewIds, fileIdOf } from "@/lib/yjs/file-views"
 import {
   COLLECTION_KEYS,
   createRoomCollections,
@@ -14,11 +15,13 @@ import {
 /**
  * The hold check a Mockup or Document tool runs inside the room-doc mutation
  * that applies its edit (#1725), so no other chat's hold can land between the
- * check and the write. When another chat holds the layer, returns the refusal
- * the agent reads, and the caller writes nothing. Otherwise records the layer
- * in this chat's working list (keeping when it first started on it), which
- * covers an Engine that doesn't stream tool arguments and a layer the call
- * just made, and returns null.
+ * check and the write. The hold is the file's (#1883): `layerId` may name the
+ * file or any view of it, and another chat holding any of those holds them
+ * all. When another chat holds it, returns the refusal the agent reads, and
+ * the caller writes nothing. Otherwise records the file in this chat's
+ * working list (keeping when it first started on it), which covers an Engine
+ * that doesn't stream tool arguments and a file the call just made, and
+ * returns null.
  */
 export function holdLayer(
   c: RoomCollections,
@@ -29,14 +32,17 @@ export function holdLayer(
   const chats = Object.values(
     c.doc.getMap(COLLECTION_KEYS.chatSessions).toJSON()
   ) as ChatSessionData[]
-  const holder = heldByOther(layerId, chatId, chats)
-  if (holder) {
-    return `${holder.label || "Another chat"} is changing this right now; tell the person and try again later.`
+  const fileId = fileIdOf(c, layerId) ?? layerId
+  for (const id of fileAndViewIds(c, fileId)) {
+    const holder = heldByOther(id, chatId, chats)
+    if (holder) {
+      return `${holder.label || "Another chat"} is changing this right now; tell the person and try again later.`
+    }
   }
   const chat = c.chatSessions.get(chatId)
-  if (chat && chat.workingLayers?.[layerId] === undefined) {
+  if (chat && chat.workingLayers?.[fileId] === undefined) {
     c.chatSessions.update(chatId, {
-      workingLayers: { ...chat.workingLayers, [layerId]: Date.now() },
+      workingLayers: { ...chat.workingLayers, [fileId]: Date.now() },
     })
   }
   return null

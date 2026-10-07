@@ -483,7 +483,7 @@ function CanvasMemberLayerImpl({
                   groupLabel,
                   // Named even when the group label names its Workspace, so
                   // the Group shows which layer the chat is on (#1726).
-                  workingChat: workingChats.get(doc.id),
+                  workingChat: viewWorkingChat(workingChats, doc),
                   groupSelected,
                   onSelect: handleDocumentLayerSelect,
                   onResize: layerMutations.resizeDocument,
@@ -520,7 +520,7 @@ function CanvasMemberLayerImpl({
                 {...stable.value(`mockup:${mockup.id}`, {
                   layer: mockup,
                   // Named even when the group label names its Workspace (#1726).
-                  workingChat: workingChats.get(mockup.id),
+                  workingChat: viewWorkingChat(workingChats, mockup),
                   zoom,
                   // Mockups share the Document selection Set.
                   selected: selectedDocumentLayerIds.has(mockup.id),
@@ -756,3 +756,12 @@ function CanvasMemberLayerImpl({
  * on `onIframeWheel` / `selfName` for the two that used to churn per frame.
  */
 export const CanvasMemberLayer = memo(CanvasMemberLayerImpl)
+
+/** The chat working on a view's file (#1883): the hold is the file's, so
+ *  every view of it shows the chat. */
+function viewWorkingChat(
+  workingChats: ReadonlyMap<string, WorkingChat>,
+  view: { id: string; fileId?: string }
+): WorkingChat | undefined {
+  return workingChats.get(view.fileId ?? view.id) ?? workingChats.get(view.id)
+}

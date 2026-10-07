@@ -423,10 +423,34 @@ A live preview pane on the canvas rendering a sandbox dev-server URL (or a blank
 frame). Belongs to exactly one Group.
 _Avoid_: screen, window, panel; "frame" is the UI label only.
 
+**File** (of a Document or Mockup, #1883, spec #1882):
+What a Document or Mockup is, apart from where it shows: a `layerFiles` record
+(`LayerFileData`: id, kind `document` | `mockup`, title, last chat, and a
+Mockup's page state: knobs, shared state, live, colour scheme). Its body is
+keyed by the file id. A file has one or more **Views**; until Delete file
+lands, a file goes with its last View. The edit hold (#1725) is the file's:
+`workingLayers` keys the file id, and a chat holding the file through any View
+holds every View of it. Mentions, hover cards, refs and tool arguments may name
+a View or the file, and resolve to the file (`fileIdOf`, `layerFileOf` in
+`lib/yjs/file-views.ts`). Rooms from before split each layer into a file plus
+one View under the same id on load (`migrateFileViews`).
+_Avoid_: Canvas File (that's `@/lib/files`, a different thing); "asset";
+"document" for the record (it's the file of a Document).
+
+**View** (#1883):
+A Document's or Mockup's place on the canvas: a Markdown or Mockup Layer
+record holding its size (and a Mockup's fit and scroll) and the `fileId` it
+shows. Read through `markdownLayers` / `mockupLayers`, a View comes with its
+file's fields on it, and a write routes each field to the View or the file
+(`FileViewCollection`), so every View of a file repaints when the file changes.
+Canvas Operations' `addFileView` adds another View of a file to a Group; the
+remove verbs remove Views.
+_Avoid_: copy (a copy is a new file), instance.
+
 **Markdown Layer** (Document):
-A rich-text layer whose body is a TipTap-owned `Y.XmlFragment` keyed
-`markdown-layer-{id}`. Its title is mirrored into both the fragment heading and
-the layer's collection record. Any chat reads and edits any Document with its
+A rich-text layer, a **View** of a Document's **File**, whose body is a
+TipTap-owned `Y.XmlFragment` keyed `markdown-layer-{fileId}`. Its title is
+mirrored into both the fragment heading and the file record. Any chat reads and edits any Document with its
 tools (#1724); each create or edit records the chat as its **last chat**
 (`lastChangedByChatId`, read from `ownerChatId` on older records). While a
 chat's running turn is changing it, that chat is its **holder** (#1725): the
@@ -440,9 +464,9 @@ since #1314).
 
 **Mockup Layer** (Mockup):
 A static HTML page a chat wrote, shown on the canvas with no Sandbox
-(#1309). Its page is a `Y.Text` keyed `mockup-layer-{id}` beside its record
-(`MockupLayerData`: size, title and the `lastChangedByChatId` of its last
-chat, as a Document's, and held as a Document is). Mockups have no status; the Set aside / Current / Built status (#1310)
+(#1309), a **View** of a Mockup's **File**. Its page is a `Y.Text` keyed
+`mockup-layer-{fileId}` beside its file (title and the `lastChangedByChatId`
+of its last chat, as a Document's, and held as a Document is). Mockups have no status; the Set aside / Current / Built status (#1310)
 was removed. Older records may still carry a `status` field, which nothing
 reads.
 It renders in an `<iframe srcdoc sandbox="allow-scripts">` with no

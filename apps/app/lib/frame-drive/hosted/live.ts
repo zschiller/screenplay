@@ -120,7 +120,8 @@ async function liveMockup(
     const branch = layer.liveBranchId
       ? c.branches.get(layer.liveBranchId)
       : undefined
-    return { layer, branch, html: mockupHtml(c.doc, mockupId).toString() }
+    const html = mockupHtml(c.doc, layer.fileId ?? mockupId).toString()
+    return { layer, branch, html }
   })
   if (!found) return null
   const { layer, branch, html } = found

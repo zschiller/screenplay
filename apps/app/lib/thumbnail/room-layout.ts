@@ -84,7 +84,7 @@ export async function readRoomCaptureLayout(
     // A Mockup carries its page, which the capture renders in place of a
     // preview; one nobody has filled yet stays a placeholder.
     const mockupFrames: CaptureFrame[] = mockupLayers.map((m) => {
-      const html = mockupHtml(c.doc, m.id).toString()
+      const html = mockupHtml(c.doc, m.fileId ?? m.id).toString()
       return {
         id: m.id,
         label: m.title,

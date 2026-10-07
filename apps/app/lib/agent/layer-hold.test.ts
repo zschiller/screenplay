@@ -86,3 +86,49 @@ describe("start_editing (the chat says what it's about to change)", () => {
     expect(working("chat-1")).toBe(undefined)
   })
 })
+
+describe("the hold is the file's (#1883)", () => {
+  /** The Mockup with a second view of its file in another Group. */
+  function twoViews() {
+    const t = chatTools()
+    t.collections.iframeLayerGroups.set("group-2", {
+      id: "group-2",
+      x: 0,
+      y: 0,
+      members: [{ kind: "markdown-layer", id: "doc-1" }],
+    })
+    const view = t.ops.addFileView(t.mockup, "group-2")!
+    return { ...t, view }
+  }
+
+  it("refuses through one view while another chat holds the file through the other", async () => {
+    const { startEditing, mockup, view, working, collections } = twoViews()
+    collections.chatSessions.update("chat-2", {
+      isStreaming: true,
+      workingLayers: { [mockup]: 1 },
+    })
+
+    expect(await startEditing(view)).toBe(
+      "Other is changing this right now; tell the person and try again later."
+    )
+    expect(working("chat-1")).toBe(undefined)
+  })
+
+  it("refuses while another chat holds it by a view's id", async () => {
+    const { startEditing, mockup, view, collections } = twoViews()
+    collections.chatSessions.update("chat-2", {
+      isStreaming: true,
+      workingLayers: { [view]: 1 },
+    })
+
+    expect(await startEditing(mockup)).toContain("Other is changing this")
+  })
+
+  it("records the file, whichever view it was named by", async () => {
+    const { startEditing, mockup, view, working } = twoViews()
+
+    await startEditing(view)
+
+    expect(working("chat-1")).toEqual({ [mockup]: expect.any(Number) })
+  })
+})

@@ -1,5 +1,6 @@
 "use client"
 
+import { findViewOrFile } from "@/lib/yjs/file-views"
 import { useMemo } from "react"
 import {
   type MentionCandidate,
@@ -48,8 +49,9 @@ export function useMentionTargetLabel(
   const sessions = useChatSessions()
   const mockups = useMockupLayerTitles()
   return mentionTargetLabel(kind, id, {
-    document: (docId) => docs.find((d) => d.id === docId),
-    mockup: (mockupId) => mockups.find((m) => m.id === mockupId),
+    // A view's id or its file's (#1883).
+    document: (docId) => findViewOrFile(docs, docId),
+    mockup: (mockupId) => findViewOrFile(mockups, mockupId),
     workspace: (branchId) => branches.find((b) => b.id === branchId),
     chat: (chatId) => sessions.find((s) => s.id === chatId),
   })

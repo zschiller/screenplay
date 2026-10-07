@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { buildMockupTools, MAX_MOCKUP_HTML } from "@/lib/agent/mockup-tools"
+import { createCanvasOps } from "@/lib/canvas/ops"
 import type { RoomDoc } from "@/lib/room-access"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 import {
@@ -562,5 +563,25 @@ describe("pages (#1842)", () => {
     )
 
     expect(await run("read_mockup", { mockup_id: id })).toMatch(/^# A\n/)
+  })
+})
+
+describe("files and views (#1883)", () => {
+  it("updates the file through any view, so both views show the new page", async () => {
+    const { run, doc, collections } = chatTools()
+    const mockupId = idIn(
+      await run("create_mockup", { title: "Option A", html: "<h1>A</h1>" })
+    )
+    const groupId = collections.iframeLayerGroups.toArray()[0]!.id
+    const viewId = createCanvasOps(collections).addFileView(mockupId, groupId)!
+
+    await run("update_mockup", { mockup_id: viewId, html: "<h1>B</h1>" })
+
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<h1>B</h1>")
+    const read = await run("read_mockup", { mockup_id: viewId })
+    expect(read).toContain("<h1>B</h1>")
+    expect(collections.mockupLayers.get(viewId)?.lastChangedByChatId).toBe(
+      "chat-1"
+    )
   })
 })

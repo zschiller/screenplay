@@ -437,7 +437,8 @@ function MarkdownLayerImpl({
     () => ({ awareness: editorAwareness(awareness) }),
     [awareness]
   )
-  const fragment = useDocumentFragment(layer.id)
+  // The body is the file's (#1883): every view of it edits the same one.
+  const fragment = useDocumentFragment(layer.fileId ?? layer.id)
   const rootRef = useRef<HTMLDivElement>(null)
 
   // The bar under the page while it alone is selected: Edit and ⋯, and while
