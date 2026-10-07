@@ -1,11 +1,11 @@
 ---
 title: Terminal tabs
-description: A plain shell in the chat’s sandbox, beside its preview.
+description: A plain terminal in the chat’s sandbox, beside its preview.
 ---
 
 # Terminal tabs
 
-A terminal tab is an interactive shell inside a chat’s sandbox, in the
+A terminal tab is an interactive terminal inside a chat’s sandbox, in the
 same directory the agent works in. It opens in the terminal pane under the
 chat, beside **Preview** (see
 [Terminals](/guides/agent#terminals)). Use one to run tests, poke at git, or
@@ -13,7 +13,7 @@ try a command yourself while the chat works.
 
 <Screenshot
   name="terminal"
-  alt="A shell in the customer-stories chat’s terminal pane, after a build"
+  alt="A terminal in the customer-stories chat’s terminal pane, after a build"
 />
 
 ## Opening a terminal
@@ -21,14 +21,14 @@ try a command yourself while the chat works.
 Open the terminal pane (click a name under the composer, or press
 
 <kbd>⌃</kbd> <kbd>`</kbd>) and click **+** after its tabs. It opens a plain
-shell in the chat’s sandbox and the pane switches to it. Double-click a tab’s
+terminal in the chat’s sandbox and the pane switches to it. Double-click a tab’s
 name to rename it. Open as many as you like.
 
 On desktop, to work with Claude Code, Codex or OpenCode, pick it as the
-chat’s model rather than running it in a shell, so it’s the chat’s one agent and the
+chat’s model rather than running it in a terminal, so it’s the chat’s one agent and the
 Coordinator can see what it does (see
 [Choosing a model](/guides/agent#choosing-a-model)). A coding CLI installed in
-the sandbox still runs if you type its command in a shell.
+the sandbox still runs if you type its command in a terminal.
 
 <Callout type="info">
   A terminal that an earlier version opened with a coding CLI keeps running it
@@ -43,11 +43,11 @@ the sandbox still runs if you type its command in a shell.
 - **Scrollback** isn’t saved, and it ends with the sandbox.
 - **Closing** a terminal tab ends its session for good. Closed terminals
   aren’t archived the way chats are. If something is still running in it,
-  such as a test run or a dev server, Screenplay asks before closing; an
-  idle shell closes at once. The pane then shows the tab next to it, or
+  such as a test run or a server, Screenplay asks before closing; an
+  idle terminal closes at once. The pane then shows the tab next to it, or
   **Preview**.
 
 <Callout type="info">
-  A shell and the chat work in the same files. Commit from one and the other
+  A terminal and the chat work in the same files. Commit from one and the other
   sees it.
 </Callout>

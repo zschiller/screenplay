@@ -13,7 +13,7 @@ The [local build](/self-hosting/configuration/local-build) and its per-seam loca
 [sandbox](/self-hosting/configuration/sandbox-provider), [Yjs host](/self-hosting/configuration/yjs-host),
 [blob store](/self-hosting/configuration/blob-store), database, engine — are assembled into a
 single desktop app by a **Tauri shell** that runs the Next app as a
-bundled **Node sidecar** ([#418](https://github.com/zschiller/screenplay/issues/418), [#404](https://github.com/zschiller/screenplay/issues/404)). The shell lives in
+bundled **Node sidecar** ([#418](https://github.com/zschiller/screenplay/issues/418), [#404](https://github.com/zschiller/screenplay/issues/404)). The Tauri shell lives in
 `apps/desktop`.
 
 ## The single build switch
@@ -40,7 +40,7 @@ THUMBNAIL_CAPTURER=tauri-webview
 ```
 
 The `NEXT_PUBLIC_*` half is inlined at `next build`; the seam selectors are read
-at runtime and re-injected by the shell when it spawns the sidecar.
+at runtime and re-injected by the Tauri shell when it spawns the sidecar.
 
 ## Lifecycle
 
@@ -64,24 +64,24 @@ opens:
 
 `ENCRYPTION_KEY` (encrypts saved repositories, environment variable values, and account memory, files and skills lists at rest) and
 `TERMINAL_AUTH_SECRET` are deployment secrets in the hosted app. A desktop
-install has no deployment, so the shell **mints and persists them on first
+install has no deployment, so the Tauri shell **mints and persists them on first
 launch** next to the app data — stable across restarts, unique per install.
 
 ## Thumbnails
 
 The desktop build ships no headless Chromium, so the
 [blob store](/self-hosting/configuration/blob-store)’s thumbnail capture happens in a webview:
-the sidecar’s `TauriWebviewCapturer` POSTs each render URL to the shell’s
+the sidecar’s `TauriWebviewCapturer` POSTs each render URL to the Tauri shell’s
 localhost control server (`TAURI_CONTROL_URL`), which renders it off-screen and
 returns a PNG via the platform webview’s snapshot API. The local-fs store writes
 the WebP and serves it back from the sidecar’s own `/blobs` route.
 
 The same control server snapshots the canvas window itself when a chat’s agent
-[drives a frame](/guides/frames#the-agent-driving-a-frame) and checks a step.
+[uses a frame](/guides/frames#the-agent-using-a-frame) and checks a step.
 It also plays the agent’s clicks and keys as real input to the canvas window,
 sets your clipboard aside around a step that copies or pastes, and answers a
 file picker the agent’s click opens with files from the code of the frame’s chat.
-These act on your screen and clipboard, so the shell mints a token at launch
+These act on your screen and clipboard, so the Tauri shell mints a token at launch
 and hands it only to the sidecar (`TAURI_CONTROL_TOKEN`); a snapshot or input
 request without it is refused. The agent’s steps reach the canvas over a
 WebSocket on the local Yjs server’s port, behind the same per-launch secret and

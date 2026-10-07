@@ -179,10 +179,10 @@ answers the question. The question in the chat still works too, and an
 answer there shows as your pick on the page, including one a teammate gave.
 
 A page only speaks when you click or press a key on it in **Interact**; it
-can never send anything on its own, and the agent driving the mockup can’t
+can never send anything on its own, and the agent using the mockup can’t
 answer for you. On a [live](#going-live) mockup, whoever has control speaks
 for everyone, and every viewer’s page shows the same picks. While nobody has
-control, or while the agent drives a mockup, a pick stays on the page, which
+control, or while the agent has control of a mockup, a pick stays on the page, which
 says to answer in the chat.
 
 ## Sending your reaction from the page
@@ -236,28 +236,28 @@ Click **Go live** again to end it for everyone: each of you is back on your
 own copy. What the live page held only in memory, like a half typed form,
 doesn’t come along. The desktop app has no **Go live**.
 
-## The agent driving a mockup
+## The agent using a mockup
 
 A chat’s agent can click through a mockup for you, the way it
-[drives a frame](/guides/frames#the-agent-driving-a-frame): ask a chat to show
+[uses a frame](/guides/frames#the-agent-using-a-frame): ask a chat to show
 you how a take behaves, or to get it into a state. It reads the page’s
 buttons and fields, clicks, types and scrolls, and looks at the mockup after
 each step. This works in the browser and in the desktop app, from a
 chat on a repository or a [chat with no repository](/guides/agent#chats-with-no-repository).
 
-- **It drives your copy.** The steps happen in the mockup on the canvas of
+- **It uses your copy.** The steps happen in the mockup on the canvas of
   the person who asked. Everyone else keeps their own copy, as when you click
   through it yourself.
-- **The canvas has to be open.** The agent drives only while the canvas is
+- **The canvas has to be open.** The agent works only while the canvas is
   open in your browser or the desktop app. With it closed, the agent says so in the
   chat instead.
 - **A live mockup is the exception.** On a [live](#going-live) mockup the agent
-  drives the one live page, so everyone on the canvas watches each step, and
+  uses the one live page, so everyone on the canvas watches each step, and
   it works with nobody’s canvas open.
 - **It shows the same signs as a frame.** **Agent has control** sits on the
   mockup’s title line, an unselected mockup gets a ring, the Interact button
   shows the agent’s dots, and the mockup has no resize handles while the
-  agent drives it.
+  agent has control.
 
 <ScreenshotRow>
   <Screenshot
@@ -269,11 +269,11 @@ chat on a repository or a [chat with no repository](/guides/agent#chats-with-no-
   <Screenshot
     name="mockup-claude-driving-selected"
     caption="Selected: the agent’s dots, and no resize handles."
-    alt="A selected mockup the agent drives, with the Agent has control tag on its title line, the agent’s dots on the Interact button and no resize handles"
+    alt="A selected mockup the agent controls, with the Agent has control tag on its title line, the agent’s dots on the Interact button and no resize handles"
   />
 </ScreenshotRow>
 
-- **You can take over at any moment.** Click the driver button (its tooltip
+- **You can take over at any moment.** Click the Interact button (its tooltip
   says **Click to take control**) or double-click the mockup, and the agent stops at
   once and asks before it carries on.
 

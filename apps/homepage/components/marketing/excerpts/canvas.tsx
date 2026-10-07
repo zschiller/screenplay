@@ -562,7 +562,7 @@ export function CanvasExcerpt() {
   return (
     <div
       role="img"
-      aria-label="The Screenplay canvas: three versions of the Northwind homepage hero running side by side, each in its own Workspace, with the Coordinator chat that started them on the right."
+      aria-label="The Screenplay canvas: three versions of the Northwind homepage hero running side by side, each in its own chat, with the Coordinator chat that started them on the right."
       className="flex aspect-[4/3] w-full overflow-hidden border border-border bg-background text-foreground sm:aspect-[16/10] lg:aspect-[16/9.4]"
     >
       <div

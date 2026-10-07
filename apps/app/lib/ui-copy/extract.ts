@@ -176,3 +176,85 @@ export function extractProse(fileName: string, source: string): UiString[] {
   visit(sf)
   return out
 }
+
+/** JSX attributes in an MDX page whose value a reader sees. */
+const MDX_COPY_ATTRS = new Set([
+  "alt",
+  "caption",
+  "title",
+  "label",
+  "description",
+])
+
+/**
+ * The **prose** of an MDX docs page, one entry per paragraph (so a rule can
+ * match across a line break): the frontmatter's `title` and `description`,
+ * text, and reader-facing JSX attributes (`alt`, `caption`, …). Code fences,
+ * inline code, `import`/`export` lines, link targets, HTML comments and
+ * other attributes (`name="frame-claude-driving"`) are code and are left out.
+ */
+export function extractMdxProse(source: string): UiString[] {
+  const lines = source.split("\n")
+  const kept: string[] = []
+  let i = 0
+  if (lines[0]?.trim() === "---") {
+    kept.push("")
+    for (i = 1; i < lines.length && lines[i]!.trim() !== "---"; i++) {
+      const m = lines[i]!.match(/^(title|description):\s*(.*)$/)
+      kept.push(m ? m[2]!.replace(/^["']|["']$/g, "") : "")
+    }
+    kept.push("")
+    i++
+  }
+  let fence: string | null = null
+  for (; i < lines.length; i++) {
+    const line = lines[i]!
+    const open = line.match(/^\s*(`{3,}|~{3,})/)
+    if (fence) {
+      if (open && open[1]!.startsWith(fence)) fence = null
+      kept.push("")
+      continue
+    }
+    if (open) {
+      fence = open[1]!
+      kept.push("")
+      continue
+    }
+    if (/^(import|export)\s/.test(line)) {
+      kept.push("")
+      continue
+    }
+    kept.push(line)
+  }
+
+  const text = kept
+    .join("\n")
+    .replace(/<!--[\s\S]*?-->/g, (c) => c.replace(/[^\n]/g, ""))
+    .replace(/`[^`\n]*`/g, "")
+    // JSX attributes: keep the reader-facing ones' text, drop the rest.
+    .replace(
+      /\b([\w-]+)=(?:"([^"]*)"|'([^']*)'|\{[^}]*\})/g,
+      (_, name: string, dq?: string, sq?: string) =>
+        MDX_COPY_ATTRS.has(name) ? ` ${dq ?? sq ?? ""} ` : ""
+    )
+    .replace(/<\/?[A-Za-z][\w.]*|\/?>/g, " ")
+    .replace(/\]\([^)]*\)/g, "]")
+    .replace(/https?:\/\/\S+/g, "")
+
+  const out: UiString[] = []
+  let start = -1
+  let para: string[] = []
+  const flush = () => {
+    const joined = para.join(" ").replace(/\s+/g, " ").trim()
+    if (joined) out.push({ line: start + 1, text: joined, kind: "mdx" })
+    para = []
+    start = -1
+  }
+  text.split("\n").forEach((line, n) => {
+    if (!line.trim()) return flush()
+    if (start < 0) start = n
+    para.push(line)
+  })
+  flush()
+  return out
+}

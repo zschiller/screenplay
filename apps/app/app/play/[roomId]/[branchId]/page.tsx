@@ -23,7 +23,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { roomId } = await params
   const room = await getRoom(roomId)
-  return { title: room?.name ? `▶ ${room.name}` : "▶ Prototype Player" }
+  return { title: room?.name ? `▶ ${room.name}` : "▶ Play mode" }
 }
 
 type SearchParams = {

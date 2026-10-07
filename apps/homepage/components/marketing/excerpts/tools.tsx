@@ -136,7 +136,7 @@ export function TerminalExcerpt() {
   return (
     <Card
       fill
-      label="A terminal setting up a worktree, an install and a dev server."
+      label="A terminal setting up a worktree, an install and a local server."
     >
       <Window name="zsh" terminal>
         <div className="font-mono text-[11px] leading-[1.9] text-neutral-200">
