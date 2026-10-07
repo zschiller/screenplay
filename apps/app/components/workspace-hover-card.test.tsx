@@ -28,7 +28,10 @@ vi.mock("@/hooks/use-workspace-states", async () => {
 })
 // The Chats menu's provider, as the canvas mounts it; null in the player.
 const chats = vi.hoisted(() => ({
-  value: null as null | { onSelectWorkspace: (id: string) => void },
+  value: null as null | {
+    onSelectWorkspace: (id: string) => void
+    pagesOf: (id: string) => readonly string[]
+  },
 }))
 vi.mock("@/components/agent/chats-menu", () => ({
   useChatsMenu: () => chats.value,
@@ -83,7 +86,7 @@ describe("WorkspaceHoverCard", () => {
 
   it("opens the Workspace's chat from Open chat, and closes", () => {
     const onSelectWorkspace = vi.fn()
-    chats.value = { onSelectWorkspace }
+    chats.value = { onSelectWorkspace, pagesOf: () => [] }
     hoverCard()
     expect(screen.getByText("acme/storefront")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
@@ -92,7 +95,7 @@ describe("WorkspaceHoverCard", () => {
   })
 
   it("leaves Open chat out where the chat is already a click away", () => {
-    chats.value = { onSelectWorkspace: vi.fn() }
+    chats.value = { onSelectWorkspace: vi.fn(), pagesOf: () => [] }
     hoverCard({ openChat: false })
     expect(screen.getByText("acme/storefront")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Open chat" })).toBeNull()
@@ -102,5 +105,15 @@ describe("WorkspaceHoverCard", () => {
     hoverCard()
     expect(screen.getByText("acme/storefront")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Open chat" })).toBeNull()
+  })
+
+  it("lists every page the Workspace's Layers are on", () => {
+    chats.value = {
+      onSelectWorkspace: vi.fn(),
+      pagesOf: (id) => (id === "b1" ? ["Homepage", "Explorations"] : []),
+    }
+    hoverCard()
+    expect(screen.getByText("Pages")).toBeTruthy()
+    expect(screen.getByText("Homepage, Explorations")).toBeTruthy()
   })
 })

@@ -97,8 +97,8 @@ can’t merge. An open pull request waiting on review doesn’t count. A
 while its question waits.
 Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
 
-- a **search** field that finds a chat by its title or its branch,
-  including done ones;
+- a **search** field that finds a chat by its title, its branch or the
+  [page](/guides/canvas#pages) its layers are on, including done ones;
 - one row for each chat, under **Working**, **Needs you** and
   **Idle** (see [Order](#order));
 - under **No repository**, any
@@ -108,7 +108,10 @@ Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
 On a canvas with no repository the menu lists only chats with no repository,
 under **Chats**. Draw a box with the Mockup tool to start one.
 
-Pick a row to open that chat; the menu closes. <kbd>Esc</kbd> or a click
+Pick a row to open that chat; the menu closes. When the chat’s layers are all
+on another [page](/guides/canvas#pages), the canvas switches to the first of
+those pages and fits them in view. A chat with layers on the page you’re on,
+or with none, opens without moving the canvas. <kbd>Esc</kbd> or a click
 outside closes it without picking. The arrow keys move through the rows.
 With the agent panel collapsed (<kbd>⌘</kbd> <kbd>I</kbd>), open the panel
 first.
@@ -135,7 +138,10 @@ Each chat row shows:
   that’s starting, stopped or failed shows neither;
 - on a canvas with two or more repositories, the **repository’s short name**
   at the end, so you can tell web and API work apart. With one repository
-  it’s never shown.
+  it’s never shown;
+- on a canvas with two or more [pages](/guides/canvas#pages), the **page** the
+  chat’s frames, mockups and documents are on, last. A chat with layers on
+  several pages names the first; its hover card lists them all.
 
 The agent panel’s header, a frame’s chat list and the
 **Remove** repository dialog show a chat the same way: the status icon,

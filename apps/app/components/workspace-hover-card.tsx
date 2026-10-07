@@ -148,6 +148,8 @@ function WorkspaceHoverDetail({
   const repo = repos.find((r) => r.id === branch.repoId)
   const { label, line } = stateOf(branch)
   const details = workspaceDetails(branch, repo)
+  // Every page its Layers are on (#1841); the Chats menu row names the first.
+  const pages = chats?.pagesOf(branch.id) ?? []
 
   return (
     <>
@@ -168,7 +170,7 @@ function WorkspaceHoverDetail({
           )}
         </p>
       </div>
-      {(details.repository || details.branch) && (
+      {(details.repository || details.branch || pages.length > 0) && (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
           {details.repository && (
             <>
@@ -201,6 +203,14 @@ function WorkspaceHoverDetail({
                   -{details.changes.deletions}
                 </span>
               </dd>
+            </>
+          )}
+          {pages.length > 0 && (
+            <>
+              <dt className="text-muted-foreground">
+                {pages.length > 1 ? "Pages" : "Page"}
+              </dt>
+              <dd className="min-w-0 break-words">{pages.join(", ")}</dd>
             </>
           )}
         </dl>

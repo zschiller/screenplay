@@ -169,13 +169,21 @@ export interface ChatsMenuProviderProps {
   onPlayBranch: (branchId: string) => void
   onShowRoutes: (branchId: string) => void
   onUpdateBranch: (id: string, data: Partial<BranchData>) => void
+  /**
+   * The pages each chat's Layers are on (#1841), in page order, by Workspace
+   * id or, for a chat with no repository, chat id. Empty while the canvas
+   * has one page, so no row names it.
+   */
+  chatPageNames?: ReadonlyMap<string, string[]>
   children: React.ReactNode
 }
 
 type ChatsMenuValue = Omit<
   ChatsMenuProviderProps,
-  "children" | "iframeLayers"
+  "children" | "iframeLayers" | "chatPageNames"
 > & {
+  /** The pages a chat's Layers are on, first first; none on a one-page canvas. */
+  pagesOf: (key: string) => readonly string[]
   open: boolean
   setOpen: (open: boolean) => void
   sortedRepos: RepoData[]
@@ -207,6 +215,21 @@ type ChatsMenuValue = Omit<
 }
 
 const ChatsMenuContext = createContext<ChatsMenuValue | null>(null)
+
+const NO_PAGES: readonly string[] = []
+
+/**
+ * The page a chat's Layers are on, at a row's end (#1841): the first, when
+ * they're on more than one (its hover card lists them all).
+ */
+function RowPage({ pages }: { pages: readonly string[] }) {
+  if (pages.length === 0) return null
+  return (
+    <span className="shrink-0 truncate text-sm text-muted-foreground">
+      {pages[0]}
+    </span>
+  )
+}
 
 /** The Chats menu's state and actions, or null outside its provider. */
 export function useChatsMenu() {
@@ -381,8 +404,13 @@ export function ChatsMenuProvider({
     branches: _branches,
     diffStats,
     branchPrs,
+    chatPageNames,
     ...handlers
   } = props
+  const pagesOf = useMemo(() => {
+    const names = chatPageNames ?? new Map<string, string[]>()
+    return (key: string): readonly string[] => names.get(key) ?? NO_PAGES
+  }, [chatPageNames])
   const actions = useStableValue({
     ...handlers,
     askDelete,
@@ -400,6 +428,7 @@ export function ChatsMenuProvider({
       branches,
       diffStats,
       branchPrs,
+      pagesOf,
       open,
       setOpen,
       sortedRepos,
@@ -421,6 +450,7 @@ export function ChatsMenuProvider({
       branches,
       diffStats,
       branchPrs,
+      pagesOf,
       open,
       setOpen,
       sortedRepos,
@@ -694,9 +724,11 @@ function SketchChatMenuRow({
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const line = menu.sketchLineOf(chat)
+  const pages = menu.pagesOf(chat.id)
   return (
     <CommandItem
       value={`${chat.label} ${chat.id}`}
+      keywords={[chat.label, ...pages]}
       onSelect={() => {
         menu.onSelectSketchChat(chat.id)
         menu.setOpen(false)
@@ -741,6 +773,7 @@ function SketchChatMenuRow({
           )}
         />
       </span>
+      <RowPage pages={pages} />
       {/* The … sits over the row's end, as on a Workspace row. */}
       <span
         {...isolate}
@@ -837,11 +870,12 @@ function WorkspaceMenuRow({
   })
   const label = workspaceLabel(branch)
   const showRepoNames = menu.sortedRepos.length > 1
+  const pages = menu.pagesOf(branch.id)
 
   const item = (
     <CommandItem
       value={`${label} ${branch.ref ?? ""} ${branch.id}`}
-      keywords={[label, branch.ref ?? "", repoShortName(repo)]}
+      keywords={[label, branch.ref ?? "", repoShortName(repo), ...pages]}
       onSelect={() => {
         menu.onSelectWorkspace(branch.id, { expandPanel: false })
         menu.setOpen(false)
@@ -910,6 +944,7 @@ function WorkspaceMenuRow({
           {repoShortName(repo)}
         </span>
       )}
+      <RowPage pages={pages} />
       {/* The … sits over the row's end, like a chat tab's close button, so
           it holds no slot at rest and the row stays as tall as the
           other rows (#1165). It shows on hover, when the row is arrowed to,

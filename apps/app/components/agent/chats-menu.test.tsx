@@ -92,7 +92,10 @@ function branch(over: Partial<BranchData>): BranchData {
 
 function renderMenu(
   branches: BranchData[],
-  { repos = [REPO] }: { repos?: RepoData[] } = {}
+  {
+    repos = [REPO],
+    chatPageNames,
+  }: { repos?: RepoData[]; chatPageNames?: Map<string, string[]> } = {}
 ) {
   const noop = () => {}
   const onSelectWorkspace = vi.fn()
@@ -119,6 +122,7 @@ function renderMenu(
       onPlayBranch={noop}
       onShowRoutes={noop}
       onUpdateBranch={noop}
+      chatPageNames={chatPageNames}
     >
       <ChatsMenuButton />
     </ChatsMenuProvider>
@@ -254,5 +258,26 @@ describe("Chats menu", () => {
   it("says there are no chats yet on a canvas with none", () => {
     renderMenu([], { repos: [] })
     expect(within(openMenu()).getByText("No chats yet.")).toBeTruthy()
+  })
+
+  it("names the first page a chat's Layers are on at the end of its row", () => {
+    renderMenu([branch({}), branch({ id: "b2", title: "Pricing FAQ" })], {
+      chatPageNames: new Map([["b1", ["Homepage", "Explorations"]]]),
+    })
+    expect(rowTexts(openMenu())).toEqual([
+      "Checkout polishHomepage",
+      "Pricing FAQ",
+    ])
+  })
+
+  it("finds a chat by the page its Layers are on", () => {
+    renderMenu([branch({}), branch({ id: "b2", title: "Pricing FAQ" })], {
+      chatPageNames: new Map([["b2", ["Pricing"]]]),
+    })
+    const menu = openMenu()
+    fireEvent.change(within(menu).getByPlaceholderText("Search chats…"), {
+      target: { value: "Pricing" },
+    })
+    expect(rowTexts(menu)).toEqual(["Pricing FAQPricing"])
   })
 })

@@ -137,6 +137,7 @@ import { useDiffStats } from "@/hooks/use-diff-stats"
 import { stopDevServers } from "@/lib/sandbox/lifecycle"
 
 import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
+import { chatPlaces, pageIdsById } from "@/lib/canvas/chat-pages"
 import { groupsOnPage, resolvePageId } from "@/lib/canvas/pages"
 
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
@@ -510,7 +511,11 @@ export function Canvas({
   // Layers on other Pages (#1835) leave it too: only the current page's
   // Groups lay out and render, so their frames unmount (chats and previews
   // keep running).
-  const { iframeLayers, groups: iframeLayerGroups } = useMemo(() => {
+  const {
+    iframeLayers,
+    groups: iframeLayerGroups,
+    allPageGroups,
+  } = useMemo(() => {
     const view = hideDoneWorkspaceFrames({
       groups: allIframeLayerGroups,
       iframeLayers: allIframeLayers,
@@ -519,6 +524,8 @@ export function Canvas({
     return {
       iframeLayers: view.iframeLayers,
       groups: groupsOnPage(view.groups, pages, currentPageId),
+      // Every page's, for finding what's on another page (#1841).
+      allPageGroups: view.groups,
     }
   }, [allIframeLayerGroups, allIframeLayers, agents, pages, currentPageId])
   const markdownLayers = useMarkdownLayers()
@@ -910,14 +917,13 @@ export function Canvas({
   }, [ops, switchPage])
   const { jumpTo: cameraJumpTo } = camera
   const shownPageIdRef = useRef(currentPageId)
-  useLayoutEffect(() => {
-    if (shownPageIdRef.current === currentPageId) return
-    shownPageIdRef.current = currentPageId
-    cameraJumpTo(
-      pageViewsRef.current.get(currentPageId) ?? null,
-      unionRect(iframeLayerLayouts.values())
-    )
-  }, [currentPageId, iframeLayerLayouts, cameraJumpTo])
+  // Layers to show once their page is up (#1841): a switch made to reach
+  // them frames them (or, with `select`, selects and reveals them) instead
+  // of restoring the page's view.
+  const pendingShowRef = useRef<{ ids: string[]; select: boolean } | null>(null)
+  const showLayersRef = useRef(
+    (_ids: string[], _options: { select: boolean }) => {}
+  )
 
   const iframeLayerLayoutsRef = useRef(iframeLayerLayouts)
   useEffect(() => {
@@ -1000,15 +1006,75 @@ export function Canvas({
       }
     }
   })
+  // Show Layers or Groups on the current page: select the named Layers and
+  // reveal the first, or fit them all.
+  useEffect(() => {
+    showLayersRef.current = (ids, { select }) => {
+      if (select) {
+        for (const id of ids) selectNamedLayerRef.current(id)
+        const layout = iframeLayerLayoutsRef.current.get(ids[0] ?? "")
+        if (layout) cameraRevealRect(layout)
+        return
+      }
+      const memberIds = ids.flatMap((id) => {
+        const group = iframeLayerGroupsRef.current.find((g) => g.id === id)
+        return group ? getGroupMembers(group).map((m) => m.id) : [id]
+      })
+      const layouts = iframeLayerLayoutsRef.current
+      const rect = unionRect(
+        memberIds.flatMap((id) => {
+          const layout = layouts.get(id)
+          return layout ? [layout] : []
+        })
+      )
+      if (rect) cameraZoomToRect(rect)
+    }
+  })
+  // The same on any page (#1841): Layers on another page switch there first,
+  // to the page of the first one named, and show the ones on it.
+  const pageOfIdRef = useRef(new Map<string, string>())
+  useEffect(() => {
+    pageOfIdRef.current = pageIdsById(allPageGroups, pages)
+  }, [allPageGroups, pages])
+  const showLayersOnAnyPage = useCallback(
+    (ids: string[], options: { select: boolean }) => {
+      const pageOf = pageOfIdRef.current
+      const pageId = ids.map((id) => pageOf.get(id)).find(Boolean)
+      if (!pageId || pageId === currentPageIdRef.current) {
+        showLayersRef.current(ids, options)
+        return
+      }
+      const onPage = ids.filter((id) => pageOf.get(id) === pageId)
+      switchPage(pageId)
+      pendingShowRef.current = { ids: onPage, ...options }
+    },
+    [switchPage]
+  )
+  useLayoutEffect(() => {
+    if (shownPageIdRef.current === currentPageId) return
+    shownPageIdRef.current = currentPageId
+    const pending = pendingShowRef.current
+    pendingShowRef.current = null
+    if (pending) {
+      // The refs the show reads catch up in a later effect; this page's
+      // Layers are laid out now.
+      iframeLayerLayoutsRef.current = iframeLayerLayouts
+      iframeLayerGroupsRef.current = iframeLayerGroups
+      showLayersRef.current(pending.ids, pending)
+      return
+    }
+    cameraJumpTo(
+      pageViewsRef.current.get(currentPageId) ?? null,
+      unionRect(iframeLayerLayouts.values())
+    )
+  }, [currentPageId, iframeLayerLayouts, iframeLayerGroups, cameraJumpTo])
   useEffect(() => {
     let timer: number | undefined
     const unsubscribe = viewRequests.subscribe(({ chatId, ids, select }) => {
       if (chatId !== undefined && chatId !== roomChatId(roomId)) return
       if (select) {
         // The member's own click: no wait for the doc, which hasn't moved.
-        for (const id of ids) selectNamedLayerRef.current(id)
-        const layout = iframeLayerLayoutsRef.current.get(ids[0] ?? "")
-        if (layout) cameraRevealRect(layout)
+        showLayersOnAnyPage(ids, { select: true })
         return
       }
       // The call's broadcast can land before the doc update that moved what
@@ -1016,25 +1082,54 @@ export function Canvas({
       window.clearTimeout(timer)
       timer = window.setTimeout(() => {
         if (ids.length === 0) return zoomControls.zoomToFit()
-        const memberIds = ids.flatMap((id) => {
-          const group = iframeLayerGroupsRef.current.find((g) => g.id === id)
-          return group ? getGroupMembers(group).map((m) => m.id) : [id]
-        })
-        const layouts = iframeLayerLayoutsRef.current
-        const rect = unionRect(
-          memberIds.flatMap((id) => {
-            const layout = layouts.get(id)
-            return layout ? [layout] : []
-          })
-        )
-        if (rect) cameraZoomToRect(rect)
+        showLayersOnAnyPage(ids, { select: false })
       }, VIEW_REQUEST_SETTLE_MS)
     })
     return () => {
       unsubscribe()
       window.clearTimeout(timer)
     }
-  }, [roomId, zoomControls, cameraZoomToRect, cameraRevealRect])
+  }, [roomId, zoomControls, showLayersOnAnyPage])
+
+  // Picking a chat in the Chats menu (#1841): a chat whose Layers are all on
+  // other pages switches to the first of them and frames its Layers there.
+  // One with Layers on this page, or none, opens without moving the canvas.
+  const chatPlaceMap = useMemo(
+    () =>
+      chatPlaces({
+        groups: allPageGroups,
+        pages,
+        frames: iframeLayers,
+        documents: sizedLayers,
+        chats: chatSessions,
+      }),
+    [allPageGroups, pages, iframeLayers, sizedLayers, chatSessions]
+  )
+  const chatPlaceMapRef = useRef(chatPlaceMap)
+  useEffect(() => {
+    chatPlaceMapRef.current = chatPlaceMap
+  })
+  const showChatLayers = useCallback(
+    (key: string) => {
+      const place = chatPlaceMapRef.current.get(key)
+      if (!place || place.layerIdsByPage.has(currentPageIdRef.current)) return
+      const ids = place.layerIdsByPage.get(place.pages[0]!.id) ?? []
+      showLayersOnAnyPage(ids, { select: false })
+    },
+    [showLayersOnAnyPage]
+  )
+  // The page names the Chats menu shows per chat, only once the canvas has
+  // more than one page.
+  const chatPageNames = useMemo(() => {
+    const out = new Map<string, string[]>()
+    if (pages.length < 2) return out
+    for (const [key, place] of chatPlaceMap)
+      out.set(
+        key,
+        place.pages.map((p) => p.name)
+      )
+    return out
+  }, [chatPlaceMap, pages.length])
 
   // The agent showing this member a frame (#1390): fit it in their view,
   // waiting briefly for a frame it just opened to be laid out.
@@ -1379,6 +1474,18 @@ export function Canvas({
     chatSessions,
     chatPanelRef,
   })
+  // A chat picked in the Chats menu also shows its Layers on another page.
+  const selectWorkspaceChat = (
+    id: string,
+    options?: { expandPanel?: boolean }
+  ) => {
+    chatTarget.selectAgent(id, options)
+    showChatLayers(id)
+  }
+  const selectSketchChatAndShow = (chatId: string) => {
+    chatTarget.selectSketchChat(chatId)
+    showChatLayers(chatId)
+  }
 
   // Repo create/update/remove storage writes live on the Branch Intake
   // controller now (#592) — the root no longer defines thin `ops` wrappers just
@@ -2351,8 +2458,9 @@ export function Canvas({
           iframeLayers={iframeLayers}
           diffStats={diffStats}
           branchPrs={branchPrs}
-          onSelectWorkspace={chatTarget.selectAgent}
-          onSelectSketchChat={chatTarget.selectSketchChat}
+          onSelectWorkspace={selectWorkspaceChat}
+          onSelectSketchChat={selectSketchChatAndShow}
+          chatPageNames={chatPageNames}
           onRenameSketchChat={(chatId, label) =>
             updateChatSession(chatId, { label })
           }
