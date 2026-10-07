@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import path from "node:path"
+
+import { afterAll, afterEach, describe, expect, it } from "vitest"
 
 import { hostCatalog, setHostHarnesses } from "@/lib/agent/harnesses"
 import { githubAccess, setGitHubAccess } from "@/lib/github-access"
@@ -12,6 +16,11 @@ import {
 import { applyConfiguredInterfaces } from "./apply"
 import { ConfigError, parseConfig } from "./config"
 
+// Building an interface makes its folder under the data folder.
+const box = mkdtempSync(path.join(tmpdir(), "apply-test-"))
+const configFile = path.join(box, "screenplay.config.jsonc")
+afterAll(() => rmSync(box, { recursive: true, force: true }))
+
 afterEach(() => {
   setPreviewExposure(loopbackExposure())
   setGitHubAccess(createGhCliAccess({}))
@@ -20,7 +29,7 @@ afterEach(() => {
 
 function problems(text: string): string[] {
   try {
-    parseConfig(text, "/box/screenplay.config.jsonc")
+    parseConfig(text, configFile)
   } catch (err) {
     expect(err).toBeInstanceOf(ConfigError)
     return (err as ConfigError).problems
@@ -43,7 +52,7 @@ describe("the Headless interfaces in the config file", () => {
           { "use": "opencode", "key": "corp-code", "label": "Corp Code", "command": "corp-code" },
         ],
       }`,
-      "/box/screenplay.config.jsonc"
+      configFile
     )
     expect(config.named).toEqual([
       "githubAccess",
@@ -73,9 +82,7 @@ describe("the Headless interfaces in the config file", () => {
 
   it("leaves an interface the file doesn't name at its own default", async () => {
     const before = hostCatalog()
-    await applyConfiguredInterfaces(
-      parseConfig("{}", "/box/screenplay.config.jsonc")
-    )
+    await applyConfiguredInterfaces(parseConfig("{}", configFile))
     expect(getPreviewExposure().bind.host).toBe("127.0.0.1")
     expect(hostCatalog()).toBe(before)
   })
