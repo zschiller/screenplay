@@ -382,6 +382,22 @@ export type CanvasOps = {
     opts?: { chatId?: string; size?: { width: number; height: number } }
   ): { viewId: string; groupId: string } | undefined
   /**
+   * Add a view of the file `fileId` where it was dropped on the canvas
+   * (#1887): into Group `groupId` at shown position `index`, or, given a
+   * world point, as a new Group on the current page centred on it. The view
+   * is the size of the file's first view, or the kind's default. Undefined
+   * when the file or Group is gone.
+   */
+  placeFileAt(
+    fileId: string,
+    at: { groupId: string; index: number } | { x: number; y: number }
+  ): { viewId: string; groupId: string } | undefined
+  /**
+   * The size a new view of the file `fileId` takes: its first view's, or the
+   * kind's default. Undefined when the file is gone.
+   */
+  fileViewSize(fileId: string): { width: number; height: number } | undefined
+  /**
    * Remove the given Iframe Layers and drop them from any Group that held
    * them, pruning a Group emptied by the removal. Iframe Layers own no Chat
    * Sessions, so `removedChatIds` is always empty — the field is present so
@@ -1562,18 +1578,7 @@ export function createCanvasOps(
       file.kind === "document"
         ? collections.markdownLayers
         : collections.mockupLayers
-    const first = views.viewIdsOf(fileId)[0]
-    const from = first ? views.get(first) : undefined
-    const fallback =
-      file.kind === "document"
-        ? { width: DEFAULT_DOCUMENT_WIDTH, height: DEFAULT_DOCUMENT_HEIGHT }
-        : {
-            width: DEFAULT_IFRAME_LAYER_WIDTH,
-            height: DEFAULT_IFRAME_LAYER_HEIGHT,
-          }
-    const size =
-      opts.size ??
-      (from ? { width: from.width, height: from.height } : fallback)
+    const size = opts.size ?? fileViewSize(fileId)!
     const pageId = targetPageId() ?? listPages()[0]!.id
     const joined = chatGroupFor(
       collections,
@@ -1618,6 +1623,67 @@ export function createCanvasOps(
         ...pageField(),
         x: anchor.x,
         y: anchor.y,
+        members: [
+          {
+            kind: file.kind === "document" ? "markdown-layer" : "mockup-layer",
+            id: viewId,
+          },
+        ],
+      })
+      placed = { viewId, groupId }
+    })
+    return placed
+  }
+
+  function fileViewSize(
+    fileId: string
+  ): { width: number; height: number } | undefined {
+    const file = collections.layerFiles.get(fileId)
+    if (!file) return undefined
+    const views =
+      file.kind === "document"
+        ? collections.markdownLayers
+        : collections.mockupLayers
+    const first = views.viewIdsOf(fileId)[0]
+    const from = first ? views.get(first) : undefined
+    if (from) return { width: from.width, height: from.height }
+    return file.kind === "document"
+      ? { width: DEFAULT_DOCUMENT_WIDTH, height: DEFAULT_DOCUMENT_HEIGHT }
+      : {
+          width: DEFAULT_IFRAME_LAYER_WIDTH,
+          height: DEFAULT_IFRAME_LAYER_HEIGHT,
+        }
+  }
+
+  function placeFileAt(
+    fileId: string,
+    at: { groupId: string; index: number } | { x: number; y: number }
+  ): { viewId: string; groupId: string } | undefined {
+    const file = collections.layerFiles.get(fileId)
+    const size = fileViewSize(fileId)
+    if (!file || !size) return undefined
+    const views =
+      file.kind === "document"
+        ? collections.markdownLayers
+        : collections.mockupLayers
+    let placed: { viewId: string; groupId: string } | undefined
+    batch(() => {
+      if ("groupId" in at) {
+        const viewId = addFileView(fileId, at.groupId, size)
+        if (!viewId) return
+        moveLayerToGroup(viewId, at.groupId, at.index)
+        placed = { viewId, groupId: at.groupId }
+        return
+      }
+      const viewId = nanoid()
+      const groupId = nanoid()
+      views.addView(viewId, fileId, size)
+      collections.iframeLayerGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        ...pageField(),
+        x: Math.round(at.x - size.width / 2),
+        y: Math.round(at.y - size.height / 2),
         members: [
           {
             kind: file.kind === "document" ? "markdown-layer" : "mockup-layer",
@@ -2163,6 +2229,8 @@ export function createCanvasOps(
     addFileView,
     createFile,
     placeFile,
+    placeFileAt,
+    fileViewSize,
     removeLayers,
     removeDocuments,
     createMockup,

@@ -1,4 +1,5 @@
-import { getGroupMembers } from "@/lib/canvas/layout"
+import { unionRect } from "@/lib/canvas/camera"
+import { getGroupMembers, type GroupMemberLayout } from "@/lib/canvas/layout"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { groupsOnPage, orderedPages } from "@/lib/canvas/pages"
 import type { GroupMember } from "@/lib/types"
@@ -46,4 +47,38 @@ export function chatGroupFor(
     .filter((f) => f.branchId === branchId)
     .map((f) => groupOf("iframe-layer", f.id))
     .find((id) => id !== undefined)
+}
+
+/** Where a file dropped on the canvas lands (#1887). */
+export type FileDropTarget = { groupId: string; index: number }
+
+/**
+ * The Group a Document or Mockup dragged out of the chat joins when it's
+ * dropped at world point `point` (#1887): the Group whose members' box holds
+ * the point, at the gap nearest it (members whose middle is left of the point
+ * stay before it). `null` on empty canvas, where it starts its own Group.
+ * `layouts` are the current page's member layouts.
+ */
+export function fileDropTarget(
+  layouts: Iterable<GroupMemberLayout>,
+  point: { x: number; y: number }
+): FileDropTarget | null {
+  const groups = new Map<string, GroupMemberLayout[]>()
+  for (const layout of layouts) {
+    groups.set(layout.groupId, [...(groups.get(layout.groupId) ?? []), layout])
+  }
+  for (const [groupId, members] of groups) {
+    const box = unionRect(members)
+    if (
+      !box ||
+      point.x < box.x ||
+      point.x > box.x + box.width ||
+      point.y < box.y ||
+      point.y > box.y + box.height
+    )
+      continue
+    const index = members.filter((m) => m.x + m.width / 2 < point.x).length
+    return { groupId, index }
+  }
+  return null
 }

@@ -138,6 +138,7 @@ export function CanvasSettingsDialog({
   onRemoveMemory,
   files,
   layerFiles,
+  revealFileId = null,
   deleteFile = deleteCanvasFile,
   openFileOnDesktop = macShell ? openCanvasFileOnDesktop : undefined,
   skills,
@@ -161,6 +162,8 @@ export function CanvasSettingsDialog({
   files: FileEntryData[]
   /** The canvas's Documents and Mockups, listed beside them (#1884). */
   layerFiles?: LayerFilesInTree
+  /** A Document or Mockup to open Files at (#1887): a tile's Show in Files. */
+  revealFileId?: string | null
   /** Delete a file or folder for every member; the route unless a test
    *  picks one. */
   deleteFile?: (roomId: string, path: string) => Promise<void>
@@ -185,8 +188,15 @@ export function CanvasSettingsDialog({
    *  test picks one. */
   policy?: RepositoryLinkPolicy
 }) {
-  const [activeId, setActiveId] =
-    useState<CanvasSettingsSection>("repositories")
+  const [activeId, setActiveId] = useState<CanvasSettingsSection>(
+    revealFileId ? "files" : "repositories"
+  )
+  // Show in Files opens the Files section, whichever was last open.
+  const [revealed, setRevealed] = useState(revealFileId)
+  if (revealed !== revealFileId) {
+    setRevealed(revealFileId)
+    if (revealFileId) setActiveId("files")
+  }
   const active = SECTIONS.find((s) => s.id === activeId) ?? SECTIONS[0]!
   const members = useCanvasMembers(
     roomId,
@@ -264,6 +274,7 @@ export function CanvasSettingsDialog({
                   roomId={roomId}
                   files={files}
                   layerFiles={layerFiles}
+                  revealFileId={revealFileId}
                   onDelete={(path) => deleteFile(roomId, path)}
                   onDesktop={
                     openFileOnDesktop &&

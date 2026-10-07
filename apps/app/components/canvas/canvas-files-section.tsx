@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   CaretRightIcon,
   DotsThreeIcon,
@@ -177,6 +177,7 @@ function layerFileEntry(row: LayerFileRow): FileEntryData {
 export function FilesSection({
   files,
   layerFiles,
+  revealFileId = null,
   onDelete,
   onDesktop,
   adderName,
@@ -186,6 +187,9 @@ export function FilesSection({
   files: FileEntryData[]
   /** The canvas's Documents and Mockups; absent for Account Files. */
   layerFiles?: LayerFilesInTree
+  /** A Document or Mockup to show (#1887): its folder opens, and its row
+   *  is marked and scrolled to. */
+  revealFileId?: string | null
   onDelete: (path: string) => Promise<void>
   /** The desktop's Open and Reveal in Finder; absent on hosted. */
   onDesktop?: (path: string, how: "open" | "reveal") => Promise<void>
@@ -195,8 +199,24 @@ export function FilesSection({
   copy?: FilesCopy
 }) {
   const [deleting, setDeleting] = useState<FileTreeNode | null>(null)
-  // The folders open in the tree, by path.
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  // The folders open in the tree, by path. Showing a file opens the folders
+  // above it.
+  const revealPath = layerFiles?.rows.find(
+    (row) => row.fileId === revealFileId
+  )?.path
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() =>
+    foldersAbove(revealPath)
+  )
+  const [revealedPath, setRevealedPath] = useState(revealPath)
+  if (revealedPath !== revealPath) {
+    setRevealedPath(revealPath)
+    if (revealPath)
+      setExpanded((prev) => new Set([...prev, ...foldersAbove(revealPath)]))
+  }
+  const revealedRowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    revealedRowRef.current?.scrollIntoView({ block: "nearest" })
+  }, [revealPath])
   // The file open in its dialog; gone if an agent deletes or moves it.
   const [openPath, setOpenPath] = useState<string | null>(null)
   const opened = files.find((f) => f.path === openPath && f.kind === "file")
@@ -233,6 +253,8 @@ export function FilesSection({
         return (
           <FileRow
             key={node.entry.id}
+            ref={layer.fileId === revealFileId ? revealedRowRef : undefined}
+            active={layer.fileId === revealFileId}
             node={node}
             open={false}
             detail={layerFileDetail(layer.views)}
@@ -338,6 +360,12 @@ export function FilesSection({
   )
 }
 
+/** The folders a path sits in, outermost first: `a/b/c.md` is `a`, `a/b`. */
+function foldersAbove(path: string | undefined): Set<string> {
+  const parts = path?.split("/").slice(0, -1) ?? []
+  return new Set(parts.map((_, i) => parts.slice(0, i + 1).join("/")))
+}
+
 /** What Delete does, with a folder's blast radius. */
 export function deleteDescription(
   node: FileTreeNode,
@@ -371,6 +399,7 @@ const isUpload = (path: string) =>
  * too, with no detail or menu.
  */
 export function FileRow({
+  ref,
   node,
   open,
   detail,
@@ -384,6 +413,8 @@ export function FileRow({
   icon,
   children,
 }: {
+  /** The row, for scrolling to it. */
+  ref?: React.Ref<HTMLDivElement>
   node: FileTreeNode
   open: boolean
   detail?: string
@@ -408,7 +439,7 @@ export function FileRow({
   const folder = entry.kind === "folder"
   const [menuOpen, setMenuOpen] = useState(false)
   const row = (
-    <div className="group/file-row relative">
+    <div ref={ref} className="group/file-row relative">
       <SidebarMenuButton
         aria-expanded={folder ? open : undefined}
         isActive={active}
