@@ -58,7 +58,7 @@ import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 
 import { useAppSession } from "@/lib/auth-client"
 
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity, macShell, multiUserSurface } from "@/lib/capabilities"
 
 import { inputStore } from "@/lib/input-store"
 import { chatDraftSourceStore } from "@/lib/chat-draft-source-store"
@@ -800,7 +800,7 @@ export function Canvas({
   // other frame is each viewer's own iframe, as on the desktop app.
   const sharedFrames = useSharedFrames({
     roomId,
-    enabled: !isLocalBuild,
+    enabled: buildIdentity === "account",
     agents,
     iframeLayers,
     mockupLayers,
@@ -1500,7 +1500,7 @@ export function Canvas({
   // Room *deletion* doesn't need this: deleteRoom tears down the Sandboxes
   // themselves server-side, dev servers included.
   const stopRoomDevServers = useCallback(() => {
-    if (!isLocalBuild) return
+    if (buildIdentity === "account") return
     const names = agents.map((a) => a.sandboxName).filter(Boolean)
     if (names.length > 0) void stopDevServers(names).catch(() => {})
   }, [agents])
@@ -2553,7 +2553,7 @@ export function Canvas({
     <MoveToPageContext.Provider value={moveToPage}>
       {/* The agent drives this canvas's frames and mockups on the Mac
         (#1389), and its mockups on hosted (#1391). */}
-      {isLocalBuild ? (
+      {macShell ? (
         <FrameDriveRelay
           roomId={roomId}
           viewerId={userId ?? null}
@@ -3025,7 +3025,7 @@ export function Canvas({
                     canRevealEnv(repo, {
                       userId: userId ?? "",
                       isOwner,
-                      localBuild: isLocalBuild,
+                      localBuild: buildIdentity === "host",
                     })
                   }
                   open={canvasSettingsOpen}
@@ -3124,7 +3124,7 @@ export function Canvas({
                     {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
                     (PRD #404, issue #417). */}
-                    {!isLocalBuild && (
+                    {multiUserSurface && (
                       <>
                         <CommentsButton
                           threads={commentThreads.threads}
@@ -3137,8 +3137,9 @@ export function Canvas({
                           onFollow={camera.follow}
                         />
                         {/* Only the owner can invite; a collaborator's
-                            invite would be refused server-side. */}
-                        {isOwner && (
+                            invite would be refused server-side. A host
+                            shares by link instead. */}
+                        {isOwner && buildIdentity === "account" && (
                           <>
                             <Button
                               size="sm"
@@ -3169,7 +3170,7 @@ export function Canvas({
                     )}
                   </div>
                 </div>
-                {!isLocalBuild && commentsPanelOpen && (
+                {multiUserSurface && commentsPanelOpen && (
                   <CommentsPanel
                     roomId={roomId}
                     commentThreads={commentThreads}

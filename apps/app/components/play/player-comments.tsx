@@ -20,7 +20,7 @@ import { useScreenplayDom } from "@/hooks/use-screenplay-dom"
 import type { ElementAnchor, Placement } from "@/lib/comment-anchor"
 import type { GroupOptions } from "@/lib/comments-panel"
 import type { ThreadWithComments } from "@/lib/comments"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 import type { DomRect } from "@/lib/postmessage-protocol"
 import { useIframeLayers } from "@/lib/yjs/react"
 
@@ -177,7 +177,7 @@ export function usePlayerComments({
   // C comments and Esc stops, as on the canvas. Keys typed inside the page
   // stay with the page.
   useEffect(() => {
-    if (isLocalBuild) return
+    if (!multiUserSurface) return
     function onKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null
       if (

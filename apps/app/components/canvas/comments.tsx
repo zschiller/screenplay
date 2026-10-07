@@ -22,7 +22,7 @@ import {
   setDocumentCommentRanges,
   type DocumentCommentRange,
 } from "@/lib/document-comments-extension"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 
 import {
   CommentPinMark,
@@ -289,7 +289,7 @@ export function Comments({
       : null
   const members = useRoomMembers(
     roomId,
-    !isLocalBuild && (!!activeThread || !!newCommentPos)
+    multiUserSurface && (!!activeThread || !!newCommentPos)
   )
 
   return (
@@ -362,7 +362,7 @@ export function Comments({
                     so placing a comment previews its result. */}
                 <div aria-hidden className="absolute bottom-0 left-0">
                   <CommentPinMark
-                    number={isLocalBuild ? null : numberById.size + 1}
+                    number={multiUserSurface ? numberById.size + 1 : null}
                   />
                 </div>
               </PopoverAnchor>

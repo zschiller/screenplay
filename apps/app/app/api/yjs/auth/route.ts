@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { backendSwitch } from "@/lib/capabilities"
 import { getCurrentSession } from "@/lib/auth-helpers"
 import { LOCAL_USER } from "@/lib/local-user"
 import { canAccess } from "@/lib/rooms"
@@ -8,7 +9,7 @@ export async function POST(req: Request) {
   // Local desktop build: no OAuth, no multi-user ACLs (PRD #404). Issue
   // against the single seeded local user and skip the membership gate — the
   // sidecar is the only thing reachable on `ws://localhost`.
-  if (process.env.NEXT_PUBLIC_YJS_HOST === "local") {
+  if (backendSwitch("NEXT_PUBLIC_YJS_HOST") === "local") {
     const { status, body } = await yjsHost.issueToken({
       userId: LOCAL_USER.id,
       userInfo: { name: LOCAL_USER.name },

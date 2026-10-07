@@ -47,7 +47,7 @@ function createAuth() {
 // reads eagerly (and `getProductionURL()` throws on). Deferring construction to
 // first property access means auth-helpers and the `/api/auth` route can import
 // `auth` in the local build without ever building it — they short-circuit on
-// `isLocalBuild` before any access. The hosted build builds it on first use.
+// `buildIdentity` before any access. The hosted build builds it on first use.
 let instance: ReturnType<typeof createAuth> | null = null
 
 function getAuth(): ReturnType<typeof createAuth> {

@@ -76,7 +76,7 @@ import {
   useSkillIndex,
   type SkillSource,
 } from "@/lib/use-model-catalog"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { groupModelsByProvider } from "@/lib/model-selection"
 import type { MarkdownLayerData } from "@/lib/types"
 import type { PickedElement } from "@/lib/targeting-store"
@@ -1359,7 +1359,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 </span>
               ) : noAgents ? (
                 <span className="pl-0.75 text-sm text-muted-foreground">
-                  {isLocalBuild ? (
+                  {buildIdentity === "host" ? (
                     <>
                       No coding agent found. Install Claude Code or Codex in{" "}
                       <Link

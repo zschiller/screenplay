@@ -44,7 +44,7 @@ import {
   PICKER_DIALOG_CLASS,
   PICKER_DIALOG_HEADER_CLASS,
 } from "@/components/picker-dialog"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { sameRepository } from "@/lib/repository-library"
 import {
@@ -252,13 +252,13 @@ export function NewRepositoryButton({
       variant={variant}
       className={className}
       disabled={disabled}
-      onClick={isLocalBuild ? undefined : flow.openGitHub}
+      onClick={buildIdentity === "host" ? undefined : flow.openGitHub}
     >
       <PlusIcon />
       New repository
     </Button>
   )
-  if (!isLocalBuild) return button
+  if (buildIdentity === "account") return button
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
@@ -303,7 +303,7 @@ export function AddRepositoryTrigger({
 }) {
   const flow = useContext(AddRepositoryFlowContext)
   if (!flow) return children
-  if (!isLocalBuild) {
+  if (buildIdentity === "account") {
     return cloneElement(children, {
       onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
         children.props.onClick?.(event)
@@ -460,7 +460,7 @@ export function AddRepositoryDialog({
             // but a desktop GitHub-clone has no injection path — so
             // hide the field there.
             showEnvField={
-              !isLocalBuild ||
+              buildIdentity === "account" ||
               (pendingPick.kind === "source" &&
                 Boolean(pendingPick.source.localPath))
             }
@@ -517,7 +517,7 @@ export function AddRepositoryDialog({
             <RepoPicker
               // The local build can add a Repo with no GitHub auth at
               // all — by clone URL (PRD #428).
-              localSources={isLocalBuild}
+              localSources={buildIdentity === "host"}
               onSelect={(pick) => {
                 // Every pick — a GitHub repo or a pasted clone-URL source —
                 // goes through the confirm-and-configure settings stage

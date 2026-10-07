@@ -24,7 +24,7 @@ import { openRoom } from "@/lib/room-access"
 import { leaveRoom, removeMemberViews, teardownRoom } from "@/lib/room-teardown"
 import { library as repositoryLibrary } from "@/lib/repository-library/server"
 import { yjsHost } from "@/lib/yjs-host"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity, multiUserSurface } from "@/lib/capabilities"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 import type { RoomThumbnail } from "@/lib/room-thumbnail-merge"
 
@@ -33,7 +33,7 @@ import type { RoomThumbnail } from "@/lib/room-thumbnail-merge"
 // hidden, and these actions refuse as a backstop so a stray client call can't
 // hit a table that doesn't exist.
 function assertNotLocal(): void {
-  if (isLocalBuild) {
+  if (buildIdentity === "host") {
     throw new Error("Sharing isn’t in the desktop app.")
   }
 }
@@ -113,7 +113,7 @@ export async function listRooms(): Promise<RoomSummary[]> {
   // Member counts feed the shared-aware delete confirm. The local build has no
   // `room_member` table and no sharing, so skip the query and report 0 for
   // every Room (PRD #404, issue #417).
-  const counts = isLocalBuild
+  const counts = !multiUserSurface
     ? new Map<string, number>()
     : await getMemberCounts(rooms.map((r) => r.id))
   return rooms.map((room) => ({
@@ -173,7 +173,7 @@ export async function deleteRoom(roomId: string): Promise<void> {
   // Route every delete through the one Room-deletion rule. The local build has
   // no `room_member` table and a single user, so the deleter is always the
   // sole member — the clean hard-delete path (PRD #404, issue #417).
-  const memberIds = isLocalBuild
+  const memberIds = !multiUserSurface
     ? [userId]
     : (await listMembers(roomId)).map((m) => m.userId)
   const decision = decideRoomDeletion({

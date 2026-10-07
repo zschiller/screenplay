@@ -6,6 +6,8 @@
  * tree-shaken out, leaving the hosted bundle unchanged. The matching server
  * surface flips on the same flag in `index.ts`.
  */
+import { yjsHostDefault } from "@/lib/capabilities"
+
 import {
   YjsRoomProvider as LiveblocksYjsRoomProvider,
   prewarmRoom as liveblocksPrewarmRoom,
@@ -15,7 +17,7 @@ import {
   prewarmRoom as localPrewarmRoom,
 } from "./y-websocket-client"
 
-const isLocal = process.env.NEXT_PUBLIC_YJS_HOST === "local"
+const isLocal = (process.env.NEXT_PUBLIC_YJS_HOST || yjsHostDefault) === "local"
 
 export const YjsRoomProvider = isLocal
   ? LocalYjsRoomProvider

@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 /**
- * Load the cadence constants for a given build by stubbing `isLocalBuild` and
+ * Load the cadence constants for a given build by stubbing `macShell` and
  * re-importing the module fresh — the bounds are top-level consts computed from
  * the flag, so each build needs an isolated module instance.
  */
 async function loadCadence(local: boolean) {
   vi.resetModules()
-  vi.doMock("@/lib/local-mode", () => ({ isLocalBuild: local }))
+  vi.doMock("@/lib/capabilities", () => ({ macShell: local }))
   return import("./cadence")
 }
 
 afterEach(() => {
-  vi.doUnmock("@/lib/local-mode")
+  vi.doUnmock("@/lib/capabilities")
   vi.resetModules()
 })
 

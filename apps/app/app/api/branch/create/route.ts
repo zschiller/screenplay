@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server"
 import { getGitHubToken } from "@/lib/auth-helpers"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import {
   startBranchProvisioning,
   type BranchProvisionRequest,
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   // rides host auth and branches are created locally when no token resolves
   // (PRD #428), so a missing token must not block creation there.
   const ghToken = (await getGitHubToken()) ?? undefined
-  if (!ghToken && !isLocalBuild) {
+  if (!ghToken && buildIdentity === "account") {
     return NextResponse.json(
       { error: "Sign in with GitHub again to start this chat." },
       { status: 401 }

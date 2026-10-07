@@ -101,7 +101,7 @@ cd screenplay
 pnpm install
 
 cd apps/app
-NEXT_PUBLIC_SCREENPLAY_LOCAL=1 NEXT_PUBLIC_YJS_HOST=local NEXT_PUBLIC_BASE_PATH= \
+NEXT_PUBLIC_SCREENPLAY_PROFILE=desktop NEXT_PUBLIC_YJS_HOST=local NEXT_PUBLIC_BASE_PATH= \
 SANDBOX_BACKEND=local SCREENPLAY_DB=pglite BLOB_STORE=local-fs AGENT_ENGINE=external \
 ENCRYPTION_KEY=$(openssl rand -hex 32) TERMINAL_AUTH_SECRET=$(openssl rand -hex 32) \
   pnpm dev

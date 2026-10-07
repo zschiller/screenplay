@@ -1,4 +1,4 @@
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import type { BranchData, RepoData } from "@/lib/types"
 import { isCustomized } from "./canvas"
@@ -81,6 +81,5 @@ export const hostedLinkPolicy: RepositoryLinkPolicy = {
 }
 
 /** This build's policy: the one place that reads the build for it. */
-export const repositoryLinkPolicy: RepositoryLinkPolicy = isLocalBuild
-  ? desktopLinkPolicy
-  : hostedLinkPolicy
+export const repositoryLinkPolicy: RepositoryLinkPolicy =
+  buildIdentity === "host" ? desktopLinkPolicy : hostedLinkPolicy

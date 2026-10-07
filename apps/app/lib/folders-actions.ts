@@ -22,7 +22,7 @@ import { decideRoomDeletion } from "@/lib/room-deletion"
 import { openRoom } from "@/lib/room-access"
 import { leaveRoom, teardownRoom } from "@/lib/room-teardown"
 import { getRoom, listMembers } from "@/lib/rooms"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 
 // Server actions over folders, mirroring `lib/rooms-actions`. Every action gates
 // on `requireUserId` and scopes to that user, so folders stay private per user
@@ -164,7 +164,7 @@ export async function deleteFolder(
     if (!room) continue
     // The local build has no `room_member` table: the caller is the sole member
     // and every Room is a clean hard delete (PRD #404, issue #417).
-    const memberIds = isLocalBuild
+    const memberIds = !multiUserSurface
       ? [ownerId]
       : (await listMembers(placement.roomId)).map((m) => m.userId)
     const decision = decideRoomDeletion({

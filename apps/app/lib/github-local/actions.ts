@@ -12,7 +12,7 @@ import {
   type GhConnectionState,
 } from "@/lib/github-local/token-resolver"
 import type { NewRepoSource } from "@/lib/github-local/types"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 
 const execFileAsync = promisify(execFile)
 
@@ -36,7 +36,7 @@ export interface GitHubLocalStatus {
 }
 
 export async function getGitHubLocalStatus(): Promise<GitHubLocalStatus> {
-  if (!isLocalBuild) {
+  if (buildIdentity === "account") {
     return { tokenSource: null, gh: "not-installed", ghHandle: null }
   }
   if (await hasFixtureGitHub()) {
@@ -63,7 +63,7 @@ async function git(args: string[], cwd: string): Promise<string> {
 export async function inspectLocalRepoPath(
   rawPath: string
 ): Promise<RepoSourceResult> {
-  if (!isLocalBuild) return { ok: false, error: NOT_LOCAL }
+  if (buildIdentity === "account") return { ok: false, error: NOT_LOCAL }
   const input = rawPath.trim()
   if (!input) return { ok: false, error: "Enter a folder path" }
 
@@ -119,7 +119,7 @@ export async function inspectLocalRepoPath(
 export async function resolveRepoFromUrl(
   rawUrl: string
 ): Promise<RepoSourceResult> {
-  if (!isLocalBuild) return { ok: false, error: NOT_LOCAL }
+  if (buildIdentity === "account") return { ok: false, error: NOT_LOCAL }
   const url = rawUrl.trim()
   if (!url) return { ok: false, error: "Enter a clone URL" }
 

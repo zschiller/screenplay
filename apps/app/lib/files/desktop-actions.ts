@@ -7,7 +7,7 @@ import { promisify } from "node:util"
 import { accountFiles, canvasFiles } from "@/lib/files"
 import { requireUserId } from "@/lib/auth-helpers"
 import type { Files } from "./files"
-import { isLocalBuild } from "@/lib/local-mode"
+import { macShell } from "@/lib/capabilities"
 import { openRoom } from "@/lib/room-access"
 import { getRoom } from "@/lib/rooms"
 import { mirrorFolderName, syncFileMirror } from "./mirror"
@@ -36,7 +36,7 @@ export async function openCanvasFileOnDesktop(
   path: string,
   how: "open" | "reveal"
 ): Promise<void> {
-  if (!isLocalBuild) throw new Error("Only the desktop app opens files.")
+  if (!macShell) throw new Error("Only the desktop app opens files.")
   const room = await openRoom(roomId)
   const record = await getRoom(roomId)
   await openOnDesktop(
@@ -58,7 +58,7 @@ export async function openAccountFileOnDesktop(
   path: string,
   how: "open" | "reveal"
 ): Promise<void> {
-  if (!isLocalBuild) throw new Error("Only the desktop app opens files.")
+  if (!macShell) throw new Error("Only the desktop app opens files.")
   const userId = await requireUserId()
   await openOnDesktop(
     accountFiles(userId),

@@ -1,5 +1,5 @@
 import { decodeHarnessModelId } from "@/lib/agent/harnesses/model-id"
-import { isLocalBuild } from "@/lib/local-mode"
+import { backendSwitch, buildIdentity } from "@/lib/capabilities"
 
 /**
  * Which Engine implementation drives a Chat Session (ADR 0006, PRD #375). The
@@ -21,7 +21,9 @@ export const ENGINE_ENV_VAR = "AGENT_ENGINE"
 export function engineChoiceFromEnv(
   env: Record<string, string | undefined> = process.env
 ): EngineChoice {
-  return env[ENGINE_ENV_VAR] === "external" ? "external" : "in-process"
+  return backendSwitch(ENGINE_ENV_VAR, env) === "external"
+    ? "external"
+    : "in-process"
 }
 
 /**
@@ -56,6 +58,7 @@ export function turnHarnessKey(
   model: string | undefined,
   env: Record<string, string | undefined> = process.env
 ): string | null {
-  if (engineChoiceFromEnv(env) !== "external" || !isLocalBuild) return null
+  if (engineChoiceFromEnv(env) !== "external" || buildIdentity === "account")
+    return null
   return decodeHarnessModelId(model)?.key ?? acpHarnessFromEnv(env)
 }

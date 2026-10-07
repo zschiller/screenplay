@@ -1,5 +1,5 @@
 import { openRoomForRoute } from "@/lib/room-access"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import {
   COORDINATOR_MCP_SERVER_NAME,
   isAllowedMcpOrigin,
@@ -134,7 +134,8 @@ export async function DELETE(req: Request) {
 }
 
 function refuse(req: Request): Response | null {
-  if (!isLocalBuild) return new Response("Not found", { status: 404 })
+  if (buildIdentity === "account")
+    return new Response("Not found", { status: 404 })
   if (!isAllowedMcpOrigin(req.headers.get("origin"))) {
     return new Response("Forbidden origin", { status: 403 })
   }

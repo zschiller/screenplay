@@ -13,7 +13,7 @@ import {
   FloatingToolbarButton,
 } from "@workspace/ui/components/floating-toolbar"
 
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 
 import type { ToolModeController } from "./use-tool-mode"
 
@@ -101,7 +101,7 @@ export function CanvasToolbar({
             threads. The local build has no persisted threads (#417) and
             its element→agent targeting now lives in the composer token
             path (#618), so there's no comment tool on desktop. */}
-        {!isLocalBuild && (
+        {multiUserSurface && (
           <FloatingToolbarButton
             label="Comment"
             shortcut="C"

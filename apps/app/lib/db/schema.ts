@@ -10,6 +10,6 @@
 // history unchanged. The desktop build (PGlite) generates its migrations from
 // `schema-core` alone (`drizzle/local`), so the multi-user tables are never
 // created on disk, and every code path that would query them is gated off
-// behind `@/lib/local-mode`'s `isLocalBuild`.
+// behind `@/lib/capabilities`' `multiUserSurface`.
 export * from "./schema-core"
 export * from "./schema-multiuser"

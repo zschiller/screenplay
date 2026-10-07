@@ -1,5 +1,6 @@
 import "server-only"
 
+import { backendSwitch } from "@/lib/capabilities"
 import { getLiveblocksHost } from "@/lib/yjs-host/liveblocks-server"
 import { getLocalYjsHost } from "@/lib/yjs-host/y-websocket-server"
 import type { YjsHost } from "@/lib/yjs-host/types"
@@ -18,7 +19,7 @@ export type {
  * client surface flips on the same flag in `client.tsx`.
  */
 function resolveYjsHost(): YjsHost {
-  return process.env.NEXT_PUBLIC_YJS_HOST === "local"
+  return backendSwitch("NEXT_PUBLIC_YJS_HOST") === "local"
     ? getLocalYjsHost()
     : getLiveblocksHost()
 }

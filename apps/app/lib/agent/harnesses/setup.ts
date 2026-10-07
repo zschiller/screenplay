@@ -389,6 +389,6 @@ export function abbreviateHome(path: string, home: string): string {
 /**
  * The production module: the real catalog through the production host prober,
  * process runner, and shared availability resolver. The server actions wrap it
- * behind the `isLocalBuild` gate.
+ * behind the host-identity gate.
  */
 export const harnessSetup: HarnessSetup = createHarnessSetup()

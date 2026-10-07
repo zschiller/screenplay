@@ -235,7 +235,7 @@ already what it should be, so it doesn't go looking at the host: the first-run
 setup gate opens without probing for a coding CLI, Sandbox Reconnect doesn't
 reconcile Workspaces that have no sandboxes behind them, and opening a Canvas to
 photograph it doesn't restamp it as just-edited. It is `and`-ed with
-`isLocalBuild`, so the hosted app can never enter it.
+host identity (`@/lib/capabilities`), so the hosted app can never enter it.
 
 ## Docs screenshots
 

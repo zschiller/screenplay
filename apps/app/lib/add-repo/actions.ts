@@ -8,7 +8,7 @@ import { detectSettingsWithModel } from "@/lib/add-repo/model-detect"
 import type { DetectFileSystem } from "@/lib/add-repo/detect-fs"
 import { runOneShotModel } from "@/lib/agent/one-shot-model"
 import { fixtureModelReply } from "@/lib/fixture-model"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import type { DetectedApp, DetectedSettings } from "@/lib/add-repo/resolver"
 
 /**
@@ -70,7 +70,7 @@ export interface DetectFolderSettingsInput {
 export async function detectFolderSettings(
   input: DetectFolderSettingsInput
 ): Promise<DetectRepoSettingsResult> {
-  if (!isLocalBuild) return { ok: false }
+  if (buildIdentity === "account") return { ok: false }
   try {
     const fs = new DiskDetectFileSystem(input.localPath)
     const { apps, ...settings } = await detectSettings(fs)
@@ -115,7 +115,7 @@ export async function refineFolderSettings(
   baseline: DetectedSettings,
   appPath?: string
 ): Promise<DetectRepoSettingsResult> {
-  if (!isLocalBuild) return { ok: false }
+  if (buildIdentity === "account") return { ok: false }
   try {
     const fs = new DiskDetectFileSystem(input.localPath)
     return await refineWithModel(fs, baseline, appPath)

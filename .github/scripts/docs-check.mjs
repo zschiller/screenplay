@@ -46,9 +46,10 @@ const HINTS = [
   [/lib\/yjs-host/, "self-hosting/configuration/yjs-host.mdx"],
   [/lib\/db\/|drizzle/, "self-hosting/database.mdx"],
   [
-    /lib\/desktop|local-mode|local-user/,
+    /lib\/desktop|local-user/,
     "self-hosting/configuration/desktop-app.mdx",
   ],
+  [/lib\/capabilities/, "self-hosting/configuration/local-build.mdx"],
   [/auth/, "self-hosting/github-oauth.mdx"],
 ]
 

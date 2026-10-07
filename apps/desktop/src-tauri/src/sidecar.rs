@@ -243,8 +243,8 @@ fn apply_desktop_env(
 
     cmd.env("PORT", port.to_string())
         .env("HOSTNAME", "127.0.0.1")
-        // The single desktop switch (matches desktop.env's runtime half).
-        .env("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
+        // The desktop build profile (matches desktop.env's runtime half).
+        .env("NEXT_PUBLIC_SCREENPLAY_PROFILE", "desktop")
         .env("NEXT_PUBLIC_YJS_HOST", "local")
         .env("SANDBOX_BACKEND", "local")
         .env("SCREENPLAY_DB", "pglite")

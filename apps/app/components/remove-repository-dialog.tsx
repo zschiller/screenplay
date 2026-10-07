@@ -4,7 +4,7 @@ import { DeleteRepoDialog } from "@/components/delete-repo-dialog"
 import { useGitHubTokenAvailable } from "@/hooks/use-github-token"
 import { useUnsavedWork } from "@/hooks/use-unsaved-work"
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
 import type { BranchData, RepoData } from "@/lib/types"
 
@@ -68,7 +68,7 @@ export function RemoveRepositoryDialog({
         work: unsavedWork.get(b.id),
       }))}
       canDeleteOnRemote={githubTokenAvailable && hasGitHubRemote(repo)}
-      localBranchKept={isLocalBuild}
+      localBranchKept={buildIdentity === "host"}
       changesLost={changesLost}
       sharedCanvas={forEveryone}
       addedByName={addedByName}

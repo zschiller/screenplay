@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 import {
   act,
   cleanup,
@@ -12,8 +12,6 @@ import { IconButton, shortcutKeys } from "@workspace/ui/components/icon-button"
 
 import { CanvasToolbar, NO_REPOSITORY_HINT } from "./canvas-toolbar"
 import { useToolMode } from "./use-tool-mode"
-
-vi.mock("@/lib/local-mode", () => ({ isLocalBuild: false }))
 
 // Radix's floating content measures itself; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class {

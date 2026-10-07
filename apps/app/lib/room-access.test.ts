@@ -186,9 +186,9 @@ describe("Room Access — hosted build", () => {
 })
 
 describe("Room Access — local build", () => {
-  // `isLocalBuild` is read at module load, so stub the flag and re-import.
+  // The build profile is read at module load, so stub it and re-import.
   beforeAll(() => {
-    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
+    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_PROFILE", "desktop")
     vi.resetModules()
   })
   afterAll(() => {

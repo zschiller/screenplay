@@ -38,7 +38,7 @@ import {
  * re-probes **live** while the shared Harness Availability memo is busted, so a
  * freshly connected CLI reaches the model dropdown and new-tab picker without a
  * restart. No setup policy lives here: which action a row offers, how it reads,
- * and what it runs are all the module's answers. `isLocalBuild`-gated by its
+ * and what it runs are all the module's answers. host-only (`buildIdentity`) by its
  * caller.
  */
 export function HarnessSetupPanel() {

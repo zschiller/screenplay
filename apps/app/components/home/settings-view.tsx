@@ -20,7 +20,7 @@ import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { cn } from "@workspace/ui/lib/utils"
 import { signOut, useAppSession } from "@/lib/auth-client"
 import { getTauriInvoke } from "@/lib/desktop/tauri-bridge"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { HomeScrollBody } from "./home-scroll-body"
 import { HOME_COLUMN, HomePageHeader } from "./home-page-header"
 import { GitHubConnectionPanel } from "./github-connection-panel"
@@ -74,7 +74,7 @@ const SECTIONS: SettingsSection[] = [
       </>
     ),
   },
-  ...(isLocalBuild
+  ...(buildIdentity === "host"
     ? [
         {
           id: "coding-agents",
@@ -145,9 +145,10 @@ const SECTIONS: SettingsSection[] = [
   {
     id: "account",
     title: "Account",
-    description: isLocalBuild
-      ? "The desktop app runs as you on this device, with no sign-in."
-      : "The account you’re signed in with.",
+    description:
+      buildIdentity === "host"
+        ? "The desktop app runs as you on this device, with no sign-in."
+        : "The account you’re signed in with.",
     content: (header) => (
       <>
         {header()}
@@ -273,7 +274,7 @@ function AccountPanel() {
   const router = useRouter()
   const version = useDesktopVersion()
 
-  if (isLocalBuild) {
+  if (buildIdentity === "host") {
     return (
       <SettingsRowList>
         <SettingsRow

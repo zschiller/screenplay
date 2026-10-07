@@ -43,7 +43,7 @@ import { FolderBreadcrumb } from "./folder-breadcrumb"
 import { InputDialog } from "./input-dialog"
 import { NEW_CANVAS_SHORTCUT, useNewCanvasShortcut } from "./use-create-canvas"
 import { LoadErrorState } from "./load-error"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { CanvasIcon } from "@/components/canvas-icon"
 import type { RoomSummary } from "@/lib/rooms-actions"
 import type { FolderSummary } from "@/lib/folders-actions"
@@ -104,7 +104,7 @@ export function RoomsView({
         <>
           {/* Sharing doesn't exist in the single-user desktop build, where
               every Canvas is the user's own. */}
-          {!isLocalBuild && (
+          {buildIdentity === "account" && (
             <DropdownMenu>
               <HomeToolbarTooltip label={`Owner: ${OWNER_LABELS[owner]}`}>
                 <DropdownMenuTrigger asChild>

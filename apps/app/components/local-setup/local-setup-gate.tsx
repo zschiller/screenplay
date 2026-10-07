@@ -20,7 +20,7 @@ const POLL_INTERVAL_MS = 1800
 
 /**
  * The desktop first-run blocking gate (ADR 0016), mounted once at the root
- * layout and `isLocalBuild`-gated by its caller. When a launch lands blocked it
+ * layout and host-only (`buildIdentity`) by its caller. When a launch lands blocked it
  * renders **only** the setup flow — no browsable app behind it — as a two-step
  * stepper: **Step 1** a coding agent ({@link AgentStep}, the hard requirement,
  * led with so it can't be skipped past) and **Step 2** GitHub

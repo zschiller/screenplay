@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid"
 
 import { withBasePath } from "@/lib/base-path"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import type { MessageAttachment } from "@/lib/agent/message-markers"
 import { SERVER_UPLOAD_MAX_BYTES } from "@/lib/files/attachments"
 import { canvasFileKeyPrefix } from "@/lib/files/paths"
@@ -42,7 +42,7 @@ export async function uploadAttachment(
   file: File
 ): Promise<AttachmentUpload> {
   try {
-    if (!isLocalBuild && file.size > SERVER_UPLOAD_MAX_BYTES) {
+    if (buildIdentity === "account" && file.size > SERVER_UPLOAD_MAX_BYTES) {
       return await uploadDirect(roomId, file)
     }
     const res = await fetch(

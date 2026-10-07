@@ -35,7 +35,7 @@ import {
 } from "@/lib/add-repo/resolver"
 import type { DetectRepoSettingsResult } from "@/lib/add-repo/actions"
 import { DEFAULT_IFRAME_LAYER_SIZE_ID } from "@/lib/iframe-layer-sizes"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import {
   DEFAULT_DEV_SERVER_PORT,
   parseRunSettings,
@@ -142,7 +142,7 @@ export function RepoAddSettings({
   // `showEnvField={false}`.
   const [fields, setFields] = useState<RunSettingsFields>(() => ({
     ...runSettingsFields(),
-    copyPatterns: isLocalBuild && showEnvField ? ".env*" : "",
+    copyPatterns: buildIdentity === "host" && showEnvField ? ".env*" : "",
   }))
   const [envVars, setEnvVars] = useState("")
   // The advanced section, revealed by the expander (#681).

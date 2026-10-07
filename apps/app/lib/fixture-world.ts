@@ -1,4 +1,4 @@
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 
 /**
  * The **Fixture World** switch (issue #716): this process is serving a *seeded,
@@ -34,10 +34,11 @@ import { isLocalBuild } from "@/lib/local-mode"
  *
  * `NEXT_PUBLIC_` because the Sandbox-Reconnect half runs in the client bundle
  * while the gate half is resolved server-side, exactly like the sibling
- * {@link isLocalBuild} flag — and being a compile-time constant lets the bundler
- * drop the guarded branch from any build that doesn't set it. It is **and**-ed
- * with `isLocalBuild` so the hosted, multi-tenant app can never be placed in
+ * build profile (`@/lib/capabilities`) — and being a compile-time constant lets
+ * the bundler drop the guarded branch from any build that doesn't set it. It is
+ * **and**-ed with host identity so the hosted, multi-tenant app can never be placed in
  * fixture mode, whatever its environment says.
  */
 export const isFixtureWorld =
-  isLocalBuild && process.env.NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD === "1"
+  buildIdentity === "host" &&
+  process.env.NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD === "1"

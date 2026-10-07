@@ -11,7 +11,7 @@ import {
   panelLayoutCookieName,
   parsePanelLayoutValue,
 } from "@/lib/panel-layout"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 import {
   canAccess,
   getMemberCounts,
@@ -80,7 +80,7 @@ export default async function RoomPage({
       // that fails too, rather than showing "No comments yet".
       listThreads(roomId).catch(() => undefined),
       listTerminalTabs({ userId, roomId }).catch(() => []),
-      isLocalBuild
+      !multiUserSurface
         ? Promise.resolve(new Map<string, number>())
         : getMemberCounts([roomId]).catch(() => new Map<string, number>()),
       getRoomParentFolderForUser(userId, roomId).catch(() => null),

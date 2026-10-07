@@ -255,10 +255,9 @@ pins, replies, read-state, co-view). The element/selection
 element or doc text span and hitting "Send to Claude", which injects the
 reference into a Chat Session and persists nothing — is single-user and **kept**;
 only the composer's "Comment" (persist) button is dropped on the local build. It
-is gated by one build-time switch, `NEXT_PUBLIC_SCREENPLAY_LOCAL` (`@/lib/local-mode`'s
-`isLocalBuild`) — a sibling of the per-seam backend flags (`SANDBOX_BACKEND`,
-`SCREENPLAY_DB`, `NEXT_PUBLIC_YJS_HOST`), but gating an app-level _capability_,
-not a swappable backend. On the local build `canAccess`/`room_member` collapse
+is one of the capabilities a **Build profile** sets (`@/lib/capabilities`'
+`multiUserSurface`; the login half is its identity capability,
+`buildIdentity`). On the local build `canAccess`/`room_member` collapse
 to a single seeded local user (`@/lib/local-user`), the app opens straight into
 the work with no login, and the excluded tables aren't even created on disk: the
 schema is split (`lib/db/schema-core.ts` vs `lib/db/schema-multiuser.ts`) and the
@@ -271,6 +270,59 @@ implying presence is _deleted_ (the Yjs awareness plumbing the editor needs
 stays; the local build simply has one peer, so there are no others to show);
 saying "comments are gone" flatly (the persisted thread is, but the
 anchor-and-send-to-agent reference path survives).
+
+**Build profile** (`@/lib/capabilities`, #1924):
+One of the three ways to run Screenplay, picked at build time by
+`NEXT_PUBLIC_SCREENPLAY_PROFILE`: `hosted` (the default), `desktop` (the Mac
+app) or `headless` (**Headless**). A profile sets four capabilities and implies
+its backend switches (`SANDBOX_BACKEND`, `SCREENPLAY_DB`, `BLOB_STORE`,
+`AGENT_ENGINE`, `NEXT_PUBLIC_YJS_HOST`; one set in the env still wins). The
+capabilities: **identity** (`account`: people signed in with GitHub; `host`:
+the **Host** alone, with the machine's own git, `gh`, CLIs and folders), the
+**Multi-user surface**, the **Mac shell** (the Tauri window) and **viewers**
+(**Sharing**). They are build-time constants so bundles dead-code-eliminate the
+other profiles; code reads them from `@/lib/capabilities`, never from
+`process.env`. The older `NEXT_PUBLIC_SCREENPLAY_LOCAL=1` still means `desktop`.
+_Avoid_: "local build" for a capability (say which one: host identity, no
+multi-user surface, Mac shell); checking the profile name where a capability
+says what you mean.
+
+**Headless**:
+The third way to run Screenplay, next to Hosted and the Desktop app: the server
+from source on a machine you control (usually a remote Linux dev box), with no
+app around it, on the `headless` **Build profile**. The **Host** reaches it
+over the **Host listener**; others watch through **Sharing** (spec #1923).
+_Avoid_: "team server", "shared box" (older names); using it for the feature of
+letting others watch (that's **Sharing**).
+
+**Sharing**:
+Letting anyone you send a canvas link watch it live: frames, presence, every
+chat read-only, and comments. They write nothing else. On Headless now; the
+Mac app later (#1921). A capability (`viewers`) any profile can turn on.
+_Avoid_: "sharing" for hosted Room membership invites (that's `room_member`,
+part of the **Multi-user surface**).
+
+**Host**:
+The one person who runs a Headless server (or the Mac app) and the only one who
+writes. Whoever uses the **Host listener** is the Host; there is no sign-in.
+_Avoid_: "owner" (a Room role on hosted), "admin".
+
+**Viewer**:
+Someone watching a canvas through **Sharing**, on the **Viewer listener**. Named
+by the viewer identity extension, never by typing a name; never writes anything
+but comments.
+_Avoid_: "guest", "collaborator" (a hosted Room member who can write).
+
+**Host listener**:
+The Headless server's socket on 127.0.0.1, reached over a tunnel. A request on
+it comes from the **Host**; the role comes from the listener, never a header.
+_Avoid_: "admin port".
+
+**Viewer listener**:
+The Headless server's network socket for **Viewers**. It serves an allowlist
+only (reads, join by link, comments, presence) and runs viewer identity on each
+request before the app sees it.
+_Avoid_: "public port" (it's for a company network, not the open internet).
 
 **Room Access** (`@/lib/room-access`, #900):
 The one way a server entry point turns (session, Room) into room-scoped
@@ -303,7 +355,7 @@ fails with one `NotYourCommentError`), gates the local build in one place,
 creates a thread with its first comment in one SQL statement, and rings the
 comment doorbells. Listing never writes. `comments-actions.ts` is transport
 only.
-_Avoid_: permission checks or `isLocalBuild` in the comment actions.
+_Avoid_: permission checks or build-profile checks in the comment actions.
 
 **GitHub Connection** (local build):
 The local desktop build's **optional, on-demand GitHub API access** (PRD #428)
@@ -1147,7 +1199,7 @@ terminal** (`HostSessionTerminal` + `/api/terminal/host`). Three calls are its
 whole surface: `rows()` (the live per-CLI setup rows), `commandsFor(key, kind)`
 (what a row's action runs in the PTY), and `markConnected()` (bust the
 availability memo, hand back freshly probed rows). Both surfaces — the
-`isLocalBuild`-gated "Coding agents" Settings section and the **first-run gate**
+host-only "Coding agents" Settings section and the **first-run gate**
 (ADR 0016) — only _render_ those rows; no setup policy lives in a component.
 One **setup row** per distinct installable CLI — **deduped by `hostBinary`**
 through the single `distinctByHostBinary` rule, so the two opencode slots collapse

@@ -26,10 +26,11 @@ vi.mock("@/lib/room-access", () => ({
 }))
 
 // The desktop build, whose chats run on the user's own coding agent (#1560).
-const desktop = vi.hoisted(() => ({ isLocalBuild: false, home: "" }))
-vi.mock("@/lib/local-mode", () => ({
-  get isLocalBuild() {
-    return desktop.isLocalBuild
+const desktop = vi.hoisted(() => ({ host: false, home: "" }))
+vi.mock("@/lib/capabilities", async (original) => ({
+  ...(await original<typeof import("@/lib/capabilities")>()),
+  get buildIdentity() {
+    return desktop.host ? "host" : "account"
   },
 }))
 vi.mock("node:os", async (original) => {
@@ -179,7 +180,7 @@ describe("GET /api/agent/skills", () => {
         { name: "review", description: "Review a PR.", origin: "canvas" },
       ])
 
-      desktop.isLocalBuild = true
+      desktop.host = true
       vi.stubEnv("AGENT_ENGINE", "external")
       expect(await sources()).toEqual([
         { name: "review", description: "Review a PR.", origin: "canvas" },
@@ -191,7 +192,7 @@ describe("GET /api/agent/skills", () => {
         },
       ])
     } finally {
-      desktop.isLocalBuild = false
+      desktop.host = false
       vi.unstubAllEnvs()
       await rm(desktop.home, { recursive: true, force: true })
       desktop.home = ""

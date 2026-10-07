@@ -13,7 +13,7 @@ import {
   harnessToolNaming,
 } from "@/lib/agent/harnesses"
 import { roomIdOfRoomChat } from "@/lib/chat/room-chat"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
 import {
   COORDINATOR_MCP_SERVER_NAME,
@@ -225,7 +225,7 @@ async function coordinatorSession(opts: {
 > {
   const { chatId } = opts
   const roomId = chatId ? roomIdOfRoomChat(chatId) : null
-  if (!roomId || !chatId || !isLocalBuild) return null
+  if (!roomId || !chatId || buildIdentity === "account") return null
   return {
     cwd: await ensureCoordinatorFolder(roomId),
     mcpServers: [coordinatorMcpServer({ roomId, chatId, ...senderless(opts) })],
@@ -250,7 +250,8 @@ async function sketchSession(opts: {
   | null
 > {
   const { sandboxName, chatId, roomId } = opts
-  if (sandboxName || !chatId || !roomId || !isLocalBuild) return null
+  if (sandboxName || !chatId || !roomId || buildIdentity === "account")
+    return null
   if (roomIdOfRoomChat(chatId)) return null
   return {
     cwd: await ensureCoordinatorFolder(roomId),
@@ -280,7 +281,8 @@ function workspaceSession(opts: {
   senderless?: boolean
 }): Pick<ExternalEngineConfig, "mcpServers" | "sessionMeta"> | null {
   const { sandboxName, chatId, roomId } = opts
-  if (!sandboxName || !chatId || !roomId || !isLocalBuild) return null
+  if (!sandboxName || !chatId || !roomId || buildIdentity === "account")
+    return null
   return {
     mcpServers: [
       coordinatorMcpServer({

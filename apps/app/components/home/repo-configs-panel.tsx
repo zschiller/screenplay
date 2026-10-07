@@ -53,7 +53,7 @@ import {
 } from "@/lib/repository-library/link-policy"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { duplicateName, presetSummary } from "@/lib/preset-summary"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 
 type Mode =
@@ -203,7 +203,7 @@ export function RepoConfigsPanel({
               <EmptyTitle>No repositories yet</EmptyTitle>
               <EmptyDescription>
                 Each repository remembers how it runs:{" "}
-                {isLocalBuild
+                {buildIdentity === "host"
                   ? "its setup and run scripts, and the files to copy from your checkout."
                   : "its setup and run scripts, port and environment variables."}{" "}
                 Add the repository to any canvas and its chats start from it.
@@ -414,7 +414,10 @@ function PresetDetail({
   config: RepoConfig
   group: ConfigGroup
 }) {
-  const { commands, copies, facts } = presetSummary(config, isLocalBuild)
+  const { commands, copies, facts } = presetSummary(
+    config,
+    buildIdentity === "host"
+  )
   // Literal values (scripts, file patterns) are mono; the words around them
   // stay in the row's own type.
   const code = (text: string) => (

@@ -70,9 +70,9 @@ export async function register(): Promise<void> {
   const { dbReady } = await import("@/lib/db")
   await dbReady
 
-  const { isLocalBuild } = await import("@/lib/local-mode")
-  if (isLocalBuild) {
-    // Seed the one identity the local build runs as. Idempotent across reboots.
+  const { backendSwitch, buildIdentity } = await import("@/lib/capabilities")
+  if (buildIdentity === "host") {
+    // Seed the one identity the host runs as. Idempotent across reboots.
     const { db, schema } = await import("@/lib/db")
     const { LOCAL_USER } = await import("@/lib/local-user")
     await db
@@ -85,7 +85,7 @@ export async function register(): Promise<void> {
       .onConflictDoNothing()
   }
 
-  if (process.env.NEXT_PUBLIC_YJS_HOST === "local") {
+  if (backendSwitch("NEXT_PUBLIC_YJS_HOST") === "local") {
     const { startLocalYjsServer } =
       await import("@/lib/yjs-host/y-websocket-server")
     await startLocalYjsServer()
@@ -97,7 +97,7 @@ export async function register(): Promise<void> {
     await ensureLocalTerminalServer()
   }
 
-  if (isLocalBuild) {
+  if (buildIdentity === "host") {
     const { startPrWatchInterval } = await import("@/lib/pr-watch/interval")
     startPrWatchInterval()
   }

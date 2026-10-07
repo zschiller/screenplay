@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import type { AgentMessage } from "@/lib/agent/types"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 import { listCollaborators } from "@/lib/rooms-actions"
 
 /** A Canvas member as a chat names them. */
@@ -34,7 +34,7 @@ export function useChatSenders(
 
   // The first sender no fetch has looked for; "" asks for the first fetch.
   const unknown = useMemo(() => {
-    if (isLocalBuild) return null
+    if (!multiUserSurface) return null
     if (!directory) return ""
     for (const m of messages) {
       if (m.role === "user" && m.sentBy && !directory.looked.has(m.sentBy)) {

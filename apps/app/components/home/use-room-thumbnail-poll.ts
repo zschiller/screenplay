@@ -3,13 +3,13 @@
 import { useEffect, type Dispatch, type SetStateAction } from "react"
 import { listRoomThumbnails, type RoomSummary } from "@/lib/rooms-actions"
 import { mergeRoomThumbnails } from "@/lib/room-thumbnail-merge"
-import { isLocalBuild } from "@/lib/local-mode"
+import { macShell } from "@/lib/capabilities"
 
 // How often an open grid re-reads the per-Room thumbnail record. Captures land
 // roughly as fast as the editor's heartbeat fires (use-thumbnail-heartbeat.ts),
 // so the desktop build — whose local-webview + local-fs captures run much
 // hotter — polls faster for a snappier refresh than the hosted build.
-const POLL_MS = isLocalBuild ? 5_000 : 20_000
+const POLL_MS = macShell ? 5_000 : 20_000
 
 /**
  * Keeps the homescreen grid's thumbnails fresh without a full page reload: while

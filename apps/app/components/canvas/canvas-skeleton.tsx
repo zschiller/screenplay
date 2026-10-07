@@ -9,7 +9,7 @@ import {
 import { SidebarGroupLabel } from "@workspace/ui/components/sidebar"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity, multiUserSurface } from "@/lib/capabilities"
 import type { PanelLayout } from "@/lib/panel-layout"
 
 /**
@@ -100,7 +100,7 @@ export function CanvasSkeleton({
             <Placeholder className="flex h-7 w-13 items-center px-1.5">
               <Skeleton className="h-3 w-full" />
             </Placeholder>
-            {!isLocalBuild && (
+            {buildIdentity === "account" && (
               <Placeholder className="ml-1 flex">
                 <Skeleton className="h-6 w-14" />
               </Placeholder>
@@ -114,7 +114,7 @@ export function CanvasSkeleton({
             <PillIcon icon={<NavigationArrowIcon />} />
             <PillIcon icon={<FrameCornersIcon />} />
             <PillIcon icon={<FileTextIcon />} />
-            {!isLocalBuild && <PillIcon icon={<ChatIcon />} />}
+            {multiUserSurface && <PillIcon icon={<ChatIcon />} />}
           </Pill>
         </div>
       </div>

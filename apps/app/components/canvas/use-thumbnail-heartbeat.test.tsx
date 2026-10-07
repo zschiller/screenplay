@@ -20,9 +20,8 @@ const { doc, emitUpdate } = vi.hoisted(() => {
 })
 
 vi.mock("@/lib/yjs/context", () => ({ useYjs: () => ({ doc }) }))
-// Force the hosted cadence and keep the backstop mount fire off the
-// `isLocalBuild` path so tests opt into it via `hasThumbnail`.
-vi.mock("@/lib/local-mode", () => ({ isLocalBuild: false }))
+// Tests run as the hosted build (no profile set), which keeps the backstop
+// mount fire off the Mac shell path, so tests opt into it via `hasThumbnail`.
 
 import { useThumbnailHeartbeat } from "./use-thumbnail-heartbeat"
 

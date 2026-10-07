@@ -50,8 +50,13 @@ vi.mock("./spawn-session-factory", () => ({
 }))
 
 // The Coordinator's MCP server is served by the local build only.
-const localMode = vi.hoisted(() => ({ isLocalBuild: false }))
-vi.mock("@/lib/local-mode", () => localMode)
+const localMode = vi.hoisted(() => ({ host: false }))
+vi.mock("@/lib/capabilities", async (original) => ({
+  ...(await original<typeof import("@/lib/capabilities")>()),
+  get buildIdentity() {
+    return localMode.host ? "host" : "account"
+  },
+}))
 
 // The Coordinator's folder is created on disk; keep it out of the home dir.
 const ensureCoordinatorFolder = vi.fn(
@@ -315,13 +320,13 @@ describe("resolveLiveEngine", () => {
     const configOf = (engine: unknown) => (engine as { config: Config }).config
 
     afterEach(() => {
-      localMode.isLocalBuild = false
+      localMode.host = false
       ensureCoordinatorFolder.mockClear()
     })
 
     it("runs in the Room's own folder and gets its tools over MCP", async () => {
       process.env[ENGINE_ENV_VAR] = "external"
-      localMode.isLocalBuild = true
+      localMode.host = true
       const config = configOf(
         await resolveLiveEngine({ chatId: "room-chat-r1" })
       )
@@ -348,7 +353,7 @@ describe("resolveLiveEngine", () => {
 
     it("keeps one token per chat across turns", async () => {
       process.env[ENGINE_ENV_VAR] = "external"
-      localMode.isLocalBuild = true
+      localMode.host = true
       const first = configOf(
         await resolveLiveEngine({ chatId: "room-chat-r2" })
       )
@@ -369,7 +374,7 @@ describe("resolveLiveEngine", () => {
 
     it("gives a Workspace chat its worktree and its dev server's tools", async () => {
       process.env[ENGINE_ENV_VAR] = "external"
-      localMode.isLocalBuild = true
+      localMode.host = true
       const config = configOf(
         await resolveLiveEngine({
           sandboxName: "branch-7",
@@ -731,12 +736,12 @@ describe("resolveLiveEngine — context folder", () => {
 
 describe("toolNamingForTurn", () => {
   afterEach(() => {
-    localMode.isLocalBuild = false
+    localMode.host = false
   })
   const external = { [ENGINE_ENV_VAR]: "external" }
 
   it("names tools bare on the in-process engine", () => {
-    localMode.isLocalBuild = true
+    localMode.host = true
     expect(
       toolNamingForTurn("harness:claude-code", {}).name("read_skill")
     ).toBe("read_skill")
@@ -749,7 +754,7 @@ describe("toolNamingForTurn", () => {
   })
 
   it("names tools the way the turn's harness exposes them", () => {
-    localMode.isLocalBuild = true
+    localMode.host = true
     expect(
       toolNamingForTurn("harness:claude-code", external).name("read_skill")
     ).toBe("mcp__screenplay__read_skill")

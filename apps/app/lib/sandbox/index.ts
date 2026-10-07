@@ -1,5 +1,6 @@
 import "server-only"
 
+import { backendSwitch } from "@/lib/capabilities"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import { getVercelSandboxProvider } from "@/lib/sandbox/vercel"
 import { getLocalSandboxProvider } from "@/lib/sandbox/local/provider"
@@ -37,7 +38,7 @@ export type {
  */
 function selectSandboxProvider(): SandboxProvider {
   if (isLocalSandboxBackend()) return getLocalSandboxProvider()
-  const backend = process.env.SANDBOX_BACKEND
+  const backend = backendSwitch("SANDBOX_BACKEND")
   if (backend === "vercel" || backend === undefined || backend === "") {
     return getVercelSandboxProvider()
   }

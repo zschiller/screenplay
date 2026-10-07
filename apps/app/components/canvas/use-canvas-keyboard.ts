@@ -4,7 +4,7 @@ import { type PanelImperativeHandle } from "react-resizable-panels"
 import { resolveEscapeAction, type EscapeState } from "@/lib/canvas/escape"
 import { keyTargetOf } from "@/lib/canvas/key-target"
 import { matchCanvasKey } from "@/lib/canvas/shortcuts"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 
 import type { CanvasInteraction } from "@/components/canvas/use-canvas-interaction"
 import type { CanvasSelection } from "@/components/canvas/use-canvas-selection"
@@ -94,7 +94,7 @@ export function useCanvasKeyboard({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const action = matchCanvasKey(e, keyTargetOf(e.target), {
-        comments: !isLocalBuild,
+        comments: multiUserSurface,
       })
       switch (action) {
         case null:

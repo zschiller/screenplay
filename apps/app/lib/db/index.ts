@@ -1,5 +1,7 @@
 import "server-only"
 
+import { backendSwitch } from "@/lib/capabilities"
+
 import { createNeonDb } from "./neon"
 import { createPgliteDb } from "./pglite"
 import * as schema from "./schema"
@@ -13,7 +15,7 @@ function selectDb(): { db: DB; ready: Promise<void> } {
   // local data dir; the hosted deployment leaves it unset and keeps the
   // neon-http client unchanged. This mirrors the env-switched factory the
   // sibling seams (sandbox, blob, yjs-host) already anticipate.
-  if (process.env.SCREENPLAY_DB === "pglite") {
+  if (backendSwitch("SCREENPLAY_DB") === "pglite") {
     const dataDir = process.env.PGLITE_DATA_DIR ?? "./.pglite"
     return createPgliteDb(dataDir)
   }
