@@ -189,7 +189,7 @@ export async function deleteFolder(
     await teardownRoom(await openRoom(roomId))
   }
   for (const roomId of cascade.leaveRoomIds) {
-    await leaveRoom(roomId, ownerId)
+    await leaveRoom(await openRoom(roomId))
   }
   await deleteFolderRecord(folderId)
 

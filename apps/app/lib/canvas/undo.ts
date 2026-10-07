@@ -23,7 +23,9 @@ import { COLLECTION_KEYS } from "@/lib/yjs/schema"
  *   record an edit anyone made.
  *
  * Chat sessions are in scope only so that undoing a document's deletion brings
- * its chat back with it.
+ * its chat back with it, and members' page views (#1838) only so that undoing
+ * a page's deletion brings back everyone's view of it: moving the camera is
+ * never a step.
  */
 
 /** Frame fields the prototype writes as it runs; ⌘Z never steps through them. */
@@ -131,6 +133,7 @@ export function createCanvasUndo(doc: Y.Doc): CanvasUndo {
     [
       ...EDITABLE_KEYS.map((k) => doc.getMap(k)),
       doc.getMap(COLLECTION_KEYS.chatSessions),
+      doc.getMap(COLLECTION_KEYS.pageViews),
     ],
     {
       captureTimeout: 500,

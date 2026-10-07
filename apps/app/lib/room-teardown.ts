@@ -9,7 +9,8 @@ import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
 import { killTerminalSessions } from "@/lib/sandbox/terminal"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
 import { yjsHost } from "@/lib/yjs-host"
-import type { RoomAccess } from "@/lib/room-access"
+import { createCanvasOps } from "@/lib/canvas/ops"
+import type { RoomAccess, RoomDoc } from "@/lib/room-access"
 
 // The two ways a resolved Room deletion is carried out — `leave` and full
 // teardown — extracted so both the single-Room ⋮ delete (`deleteRoom`) and the
@@ -19,17 +20,34 @@ import type { RoomAccess } from "@/lib/room-access"
 
 /**
  * A shared non-owner leaves a Room: drop only their membership (and their
- * per-user folder placement cascades away with it / with the deleted folder).
- * The Room — its Sandboxes, Y.Doc and rows — is untouched for everyone else, so
- * resync the remaining members on the host.
+ * per-user folder placement cascades away with it / with the deleted folder)
+ * and their saved page views. The Room — its Sandboxes, Y.Doc and rows — is
+ * untouched for everyone else, so resync the remaining members on the host.
+ * The leaver opens the Room through Room Access first.
  */
-export async function leaveRoom(roomId: string, userId: string): Promise<void> {
+export async function leaveRoom(room: RoomAccess): Promise<void> {
+  const { roomId, userId } = room
   await removeMember(roomId, userId)
   const remaining = await listMembers(roomId)
   await yjsHost.syncRoomMembers(
     roomId,
     remaining.map((m) => ({ userId: m.userId, role: m.role }))
   )
+  await removeMemberViews(room, userId)
+}
+
+/**
+ * Drop a member's saved page views (#1838) once they've left or been removed.
+ * Best-effort: an unreachable doc mustn't fail the removal, and views of
+ * someone who can't open the canvas are never read.
+ */
+export async function removeMemberViews(
+  room: RoomDoc,
+  userId: string
+): Promise<void> {
+  try {
+    await room.mutateDoc((c) => createCanvasOps(c).removeMemberViews(userId))
+  } catch {}
 }
 
 /**

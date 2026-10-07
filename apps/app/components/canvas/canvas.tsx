@@ -33,6 +33,7 @@ import {
   useMockupLayers,
   useOtherPeers,
   usePages,
+  usePageViews,
   useRoomCollections,
   useSavedViewport,
   useSelfIdentity,
@@ -138,6 +139,7 @@ import { stopDevServers } from "@/lib/sandbox/lifecycle"
 
 import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
 import { groupsOnPage, resolvePageId } from "@/lib/canvas/pages"
+import { openPageId, pageViewport } from "@/lib/canvas/page-views"
 
 import { useBranchActions } from "@/components/canvas/use-branch-actions"
 
@@ -476,13 +478,17 @@ export function Canvas({
   // state, falling back to the first page when theirs is gone. Only its
   // Groups render; new Layers land on it (the ops read it through the ref).
   const pages = usePages()
+  // Each member's own view of each page (#1838): the canvas opens on the
+  // page they were on last, settled once their id is known.
+  const pageViews = usePageViews()
+  const [opened, setOpened] = useState<{ userId: string; pageId: string }>()
+  if (userId && opened?.userId !== userId)
+    setOpened({ userId, pageId: openPageId(pageViews, pages, userId) })
   const [pickedPageId, setPickedPageId] = useState<string>()
-  const currentPageId = resolvePageId(pages, pickedPageId)
+  const currentPageId = resolvePageId(pages, pickedPageId ?? opened?.pageId)
   const currentPageIdRef = useRef(currentPageId)
-  const onFirstPageRef = useRef(true)
   useLayoutEffect(() => {
     currentPageIdRef.current = currentPageId
-    onFirstPageRef.current = currentPageId === pages[0]!.id
   })
   const ops = useMemo(
     () =>
@@ -529,6 +535,38 @@ export function Canvas({
     [markdownLayers, mockupLayers]
   )
   const savedViewport = useSavedViewport()
+  const iframeLayerLayouts = useMemo(
+    () =>
+      computeIframeLayerLayouts(iframeLayerGroups, iframeLayers, sizedLayers),
+    [iframeLayerGroups, iframeLayers, sizedLayers]
+  )
+  // Where the camera opens: this person's view of their page, else (the
+  // first page of a canvas from before pages) the old shared one, else the
+  // page fitted.
+  const openView = useMemo(
+    () =>
+      opened
+        ? {
+            viewport: pageViewport(
+              pageViews,
+              pages,
+              userId,
+              currentPageId,
+              savedViewport
+            ),
+            rect: unionRect(iframeLayerLayouts.values()),
+          }
+        : null,
+    [
+      opened,
+      pageViews,
+      pages,
+      userId,
+      currentPageId,
+      savedViewport,
+      iframeLayerLayouts,
+    ]
+  )
 
   // Canvas Operation wrappers the controllers apply removals / persistence
   // through (ADR 0001: mutations go through `ops`, never the Y.Doc directly).
@@ -558,14 +596,12 @@ export function Canvas({
     (id: string) => removeDocumentLayers([id]),
     [removeDocumentLayers]
   )
-  // The saved viewport is where the canvas opens, on its first page, so a
-  // view of another page (#1835) isn't saved over it.
+  // The camera saves this person's view of the page they're on (#1838).
   const saveViewport = useCallback(
     (vp: ViewportData) => {
-      if (!onFirstPageRef.current) return
-      ops.saveViewport(vp)
+      if (userId) ops.savePageView(userId, currentPageIdRef.current, vp)
     },
-    [ops]
+    [ops, userId]
   )
 
   // Tool Mode controller (PRD #567): the four draw tools (Select / Frame /
@@ -776,7 +812,7 @@ export function Canvas({
     setPresence,
     session,
     saveViewport,
-    savedViewport,
+    openView,
     overlaySelectedIds,
     groupSelectedIframeLayerIds,
     focusedIframeLayerId,
@@ -874,26 +910,21 @@ export function Canvas({
     [hoveredWorkspaceId, iframeLayers]
   )
 
-  const iframeLayerLayouts = useMemo(
-    () =>
-      computeIframeLayerLayouts(iframeLayerGroups, iframeLayers, sizedLayers),
-    [iframeLayerGroups, iframeLayers, sizedLayers]
-  )
   // Ref mirror so callbacks that only need the current snapshot (e.g.
   // `requestReorderDrag` computing the cursor's grab offset) can read it
   // without re-binding on every layout change.
   // Switching pages (#1835). Each page keeps the view this person left it at
-  // during this visit; a page they haven't been on yet opens fitted to its
-  // content, and an empty one at 100%. Selection doesn't carry across.
-  const pageViewsRef = useRef(new Map<string, ViewportData>())
+  // (#1838, saved with the canvas); a page they haven't been on yet opens
+  // fitted to its content, and an empty one at 100%. Selection doesn't carry
+  // across.
   const { clear: clearSelection } = selection
   const switchPage = useCallback(
     (pageId: string) => {
       const from = currentPageIdRef.current
       if (pageId === from) return
       const state = transformRef.current?.state
-      if (state)
-        pageViewsRef.current.set(from, {
+      if (state && userId)
+        ops.savePageView(userId, from, {
           x: state.positionX,
           y: state.positionY,
           zoom: state.scale,
@@ -901,7 +932,7 @@ export function Canvas({
       clearSelection()
       setPickedPageId(pageId)
     },
-    [clearSelection]
+    [clearSelection, ops, userId]
   )
   const addPage = useCallback(() => {
     const pageId = ops.createPage()
@@ -913,11 +944,22 @@ export function Canvas({
   useLayoutEffect(() => {
     if (shownPageIdRef.current === currentPageId) return
     shownPageIdRef.current = currentPageId
-    cameraJumpTo(
-      pageViewsRef.current.get(currentPageId) ?? null,
+    const vp = cameraJumpTo(
+      pageViewport(pageViews, pages, userId, currentPageId, savedViewport),
       unionRect(iframeLayerLayouts.values())
     )
-  }, [currentPageId, iframeLayerLayouts, cameraJumpTo])
+    // Recorded at once, so it's the page the canvas opens on next time.
+    if (vp && userId) ops.savePageView(userId, currentPageId, vp)
+  }, [
+    currentPageId,
+    iframeLayerLayouts,
+    cameraJumpTo,
+    pageViews,
+    pages,
+    userId,
+    savedViewport,
+    ops,
+  ])
 
   const iframeLayerLayoutsRef = useRef(iframeLayerLayouts)
   useEffect(() => {

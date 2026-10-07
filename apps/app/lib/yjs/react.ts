@@ -37,6 +37,7 @@ import type {
   MockupLayerData,
   PageData,
   PlanData,
+  PageViewData,
   ViewportData,
   RepoData,
 } from "@/lib/types"
@@ -80,6 +81,11 @@ export function useIframeLayerGroups(): Array<IframeLayerGroupData> {
 export function usePages(): PageData[] {
   const records = useCollectionArray(useRoomCollections().pages)
   return useMemo(() => orderedPages(records), [records])
+}
+
+/** Every member's view of every Page (#1838), `lib/canvas/page-views.ts`. */
+export function usePageViews(): PageViewData[] {
+  return useCollectionArray(useRoomCollections().pageViews)
 }
 
 export function useMarkdownLayers(): Array<MarkdownLayerData> {

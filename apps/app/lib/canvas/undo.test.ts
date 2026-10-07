@@ -235,3 +235,38 @@ describe("Fit to content", () => {
     expect(collections.iframeLayers.get("frame-1")?.height).toBe(1200)
   })
 })
+
+describe("page views (#1838)", () => {
+  it("never makes moving the camera a step", () => {
+    const { ops, collections, undo } = canvas()
+    ops.renamePage("page-1", "Home")
+    ops.savePageView("ann", "page-1", { x: 5, y: 5, zoom: 2 })
+
+    undo.undo()
+
+    expect(collections.pages.get("page-1")).toBeUndefined()
+    expect(collections.pageViews.get("ann:page-1")).toMatchObject({
+      x: 5,
+      zoom: 2,
+    })
+  })
+
+  it("brings everyone's views back with a deleted page", () => {
+    const { ops, collections, undo } = canvas()
+    const second = ops.createPage()
+    ops.savePageView("ann", second, { x: 1, y: 2, zoom: 3 })
+    ops.savePageView("bob", second, { x: 4, y: 5, zoom: 6 })
+    // A delete is its own step, so one ⌘Z undoes only it.
+    ops.batch(() => {
+      collections.pages.delete(second)
+      ops.removePageViews(second)
+    })
+    expect(collections.pageViews.toArray()).toEqual([])
+
+    undo.undo()
+
+    expect(collections.pages.has(second)).toBe(true)
+    expect(collections.pageViews.get(`ann:${second}`)).toMatchObject({ x: 1 })
+    expect(collections.pageViews.get(`bob:${second}`)).toMatchObject({ x: 4 })
+  })
+})
