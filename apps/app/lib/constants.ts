@@ -10,6 +10,10 @@ export const ZOOM_STEP = 0.015
 export const DEFAULT_IFRAME_LAYER_WIDTH = 1280
 export const DEFAULT_IFRAME_LAYER_HEIGHT = 800
 
+/** A new Document's size, as a click with the Document tool makes it. */
+export const DEFAULT_DOCUMENT_WIDTH = 480
+export const DEFAULT_DOCUMENT_HEIGHT = 640
+
 export const MIN_IFRAME_LAYER_WIDTH = 100
 export const MIN_IFRAME_LAYER_HEIGHT = 100
 

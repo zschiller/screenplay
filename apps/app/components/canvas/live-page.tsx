@@ -484,7 +484,7 @@ function LivePageFrame({
  * The scrim over a page an armed pick can't hit, and, outside interaction,
  * the transparent overlay that drags and selects the layer, tracks the
  * element a comment or pick would target, and enters Interact on a
- * double-click.
+ * double-click (or, with `onOpen`, opens the page elsewhere).
  */
 export function LivePageOverlay({
   page,
@@ -497,6 +497,7 @@ export function LivePageOverlay({
   onHover,
   onSelect,
   onFocus,
+  onOpen,
 }: {
   page: LivePage
   api: LayerShellApi
@@ -517,6 +518,11 @@ export function LivePageOverlay({
   onHover?: (id: string, rect: DomRect | null) => void
   onSelect: (id: string, shiftKey: boolean) => void
   onFocus?: (id: string | null) => void
+  /**
+   * A double-click opens the page elsewhere instead of entering Interact: a
+   * Mockup opens in the file modal at 100% (#1885).
+   */
+  onOpen?: () => void
 }) {
   const { id, elementAt } = page
   const tracking = (commentMode || pickActive) && !spaceHeld && !dimmed
@@ -547,7 +553,7 @@ export function LivePageOverlay({
           onPointerDownCapture={api.onBodyPointerDownCapture}
           onDoubleClick={(e) => {
             if (
-              !onFocus ||
+              !(onOpen || onFocus) ||
               !canInteractOnDoubleClick({
                 hasPreview: hasPage,
                 commentMode,
@@ -563,7 +569,8 @@ export function LivePageOverlay({
             // double-click on a member of a selected group narrows the
             // selection to this one first.
             onSelect(id, false)
-            onFocus(id)
+            if (onOpen) onOpen()
+            else onFocus?.(id)
           }}
         />
       )}

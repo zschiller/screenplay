@@ -469,6 +469,15 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     output: "prose",
     label: () => null,
   },
+  // Putting a Document or Mockup on the canvas (#1885).
+  add_to_canvas: {
+    verb: "Add to canvas",
+    icon: "canvas",
+    kind: "other",
+    output: "quiet",
+    category: "canvas",
+    label: () => null,
+  },
   // The Coordinator's reads (#893).
   read_canvas: {
     verb: "Read canvas",

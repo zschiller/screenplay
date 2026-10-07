@@ -48,6 +48,7 @@ describe("create_mockup", () => {
     const { run, doc, collections } = chatTools()
 
     const out = await run("create_mockup", {
+      place: true,
       title: "Option A",
       html: "<h1>A</h1>",
     })
@@ -72,7 +73,11 @@ describe("create_mockup", () => {
     seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "frame-1" }])
 
     const mockupId = idIn(
-      await run("create_mockup", { title: "Option A", html: "<p>A</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "Option A",
+        html: "<p>A</p>",
+      })
     )
 
     expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
@@ -84,10 +89,18 @@ describe("create_mockup", () => {
   it("lands beside the chat’s latest Mockup", async () => {
     const { run, collections } = chatTools()
     const first = idIn(
-      await run("create_mockup", { title: "Option A", html: "<p>A</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "Option A",
+        html: "<p>A</p>",
+      })
     )
     const second = idIn(
-      await run("create_mockup", { title: "Option B", html: "<p>B</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "Option B",
+        html: "<p>B</p>",
+      })
     )
 
     const groups = collections.iframeLayerGroups.toArray()
@@ -114,7 +127,11 @@ describe("update_mockup", () => {
   it("rewrites the chat’s own Mockup in place", async () => {
     const { run, doc, collections } = chatTools()
     const mockupId = idIn(
-      await run("create_mockup", { title: "Option A", html: "<p>A</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "Option A",
+        html: "<p>A</p>",
+      })
     )
 
     const out = await run("update_mockup", {
@@ -221,10 +238,18 @@ describe("read_mockup", () => {
   it("lists the Mockups this chat changed last", async () => {
     const { run, ops } = chatTools()
     const a = idIn(
-      await run("create_mockup", { title: "Take 1", html: "<p>1</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "Take 1",
+        html: "<p>1</p>",
+      })
     )
     const b = idIn(
-      await run("create_mockup", { title: "Take 2", html: "<p>2</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "Take 2",
+        html: "<p>2</p>",
+      })
     )
     const { mockupId: theirs } = ops.createMockup({
       html: "<p>theirs</p>",
@@ -257,14 +282,18 @@ describe("read_mockup", () => {
   it("says when the chat changed no Mockup last", async () => {
     const { run } = chatTools()
     expect(await run("read_mockup", {})).toBe(
-      "No Mockup was changed last by this chat. Pass a mockup_id to read any Mockup on the canvas."
+      "No Mockup was changed last by this chat. Pass a mockup_id to read any Mockup."
     )
   })
 
   it("returns a Mockup’s title and whole page", async () => {
     const { run } = chatTools()
     const id = idIn(
-      await run("create_mockup", { title: "Take 2", html: "<h1>Two</h1>" })
+      await run("create_mockup", {
+        place: true,
+        title: "Take 2",
+        html: "<h1>Two</h1>",
+      })
     )
 
     expect(await run("read_mockup", { mockup_id: id })).toBe(
@@ -355,7 +384,11 @@ describe("holding a Mockup (#1725)", () => {
     const { run, doc, collections } = chatTools()
     collections.chatSessions.update("chat-1", { isStreaming: true })
     const mockupId = idIn(
-      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "A",
+        html: "<p>A</p>",
+      })
     )
     const started =
       collections.chatSessions.get("chat-1")?.workingLayers?.[mockupId]
@@ -457,7 +490,11 @@ describe("pages (#1842)", () => {
     const { run, pageOf } = onPages()
 
     const id = idIn(
-      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "A",
+        html: "<p>A</p>",
+      })
     )
 
     expect(pageOf(id)).toBe("page-2")
@@ -468,7 +505,11 @@ describe("pages (#1842)", () => {
     sender.page = undefined
 
     const id = idIn(
-      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "A",
+        html: "<p>A</p>",
+      })
     )
 
     expect(pageOf(id)).toBe("page-1")
@@ -479,6 +520,7 @@ describe("pages (#1842)", () => {
 
     const byName = idIn(
       await run("create_mockup", {
+        place: true,
         title: "A",
         html: "<p>A</p>",
         page: "page 1",
@@ -486,6 +528,7 @@ describe("pages (#1842)", () => {
     )
     const byId = idIn(
       await run("create_mockup", {
+        place: true,
         title: "B",
         html: "<p>B</p>",
         page: "page-2",
@@ -500,6 +543,7 @@ describe("pages (#1842)", () => {
     const { run, collections } = onPages()
 
     const out = await run("create_mockup", {
+      place: true,
       title: "A",
       html: "<p>A</p>",
       page: "Archive",
@@ -519,15 +563,27 @@ describe("pages (#1842)", () => {
     seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "frame-1" }])
     sender.page = "page-1"
     const first = idIn(
-      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "A",
+        html: "<p>A</p>",
+      })
     )
     sender.page = "page-2"
 
     const second = idIn(
-      await run("create_mockup", { title: "B", html: "<p>B</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "B",
+        html: "<p>B</p>",
+      })
     )
     const third = idIn(
-      await run("create_mockup", { title: "C", html: "<p>C</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "C",
+        html: "<p>C</p>",
+      })
     )
 
     expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
@@ -545,7 +601,11 @@ describe("pages (#1842)", () => {
   it("reads say which page a Mockup is on", async () => {
     const { run } = onPages()
     const id = idIn(
-      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "A",
+        html: "<p>A</p>",
+      })
     )
 
     expect(await run("read_mockup", {})).toContain(
@@ -559,7 +619,11 @@ describe("pages (#1842)", () => {
   it("says nothing of pages on a one-page canvas", async () => {
     const { run } = chatTools()
     const id = idIn(
-      await run("create_mockup", { title: "A", html: "<p>A</p>" })
+      await run("create_mockup", {
+        place: true,
+        title: "A",
+        html: "<p>A</p>",
+      })
     )
 
     expect(await run("read_mockup", { mockup_id: id })).toMatch(/^# A\n/)
@@ -570,7 +634,11 @@ describe("files and views (#1883)", () => {
   it("updates the file through any view, so both views show the new page", async () => {
     const { run, doc, collections } = chatTools()
     const mockupId = idIn(
-      await run("create_mockup", { title: "Option A", html: "<h1>A</h1>" })
+      await run("create_mockup", {
+        place: true,
+        title: "Option A",
+        html: "<h1>A</h1>",
+      })
     )
     const groupId = collections.iframeLayerGroups.toArray()[0]!.id
     const viewId = createCanvasOps(collections).addFileView(mockupId, groupId)!
@@ -582,6 +650,47 @@ describe("files and views (#1883)", () => {
     expect(read).toContain("<h1>B</h1>")
     expect(collections.mockupLayers.get(viewId)?.lastChangedByChatId).toBe(
       "chat-1"
+    )
+  })
+})
+
+describe("Mockups off the canvas (#1885)", () => {
+  it("makes a Mockup with no view when it isn’t placed", async () => {
+    const { run, doc, collections } = chatTools()
+
+    const out = await run("create_mockup", {
+      place: false,
+      title: "Options",
+      html: "<h1>Pick</h1>",
+    })
+
+    const fileId = idIn(out)
+    expect(out).toContain("not on the canvas")
+    expect(collections.mockupLayers.toArray()).toEqual([])
+    expect(collections.iframeLayerGroups.toArray()).toEqual([])
+    expect(collections.layerFiles.get(fileId)).toMatchObject({
+      kind: "mockup",
+      title: "Options",
+      lastChangedByChatId: "chat-1",
+    })
+    expect(mockupHtml(doc, fileId).toString()).toBe("<h1>Pick</h1>")
+  })
+
+  it("updates and reads a Mockup with no view, and lists it as off the canvas", async () => {
+    const { run, doc } = chatTools()
+    const fileId = idIn(
+      await run("create_mockup", { place: false, title: "Options", html: "a" })
+    )
+
+    expect(
+      await run("update_mockup", { mockup_id: fileId, html: "<p>b</p>" })
+    ).toBe(`Updated Mockup ${fileId}.`)
+    expect(mockupHtml(doc, fileId).toString()).toBe("<p>b</p>")
+    expect(await run("read_mockup", { mockup_id: fileId })).toContain(
+      "<p>b</p>"
+    )
+    expect(await run("read_mockup", {})).toContain(
+      `- ${fileId}: Options (not on the canvas)`
     )
   })
 })

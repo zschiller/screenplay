@@ -6,6 +6,10 @@ import { annotateTools } from "@/lib/mcp/tool-server"
 import { createCanvasOps } from "@/lib/canvas/ops"
 import { getGroupMembers, placeNewGroupBeside } from "@/lib/canvas/layout"
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
+import {
+  DEFAULT_DOCUMENT_HEIGHT,
+  DEFAULT_DOCUMENT_WIDTH,
+} from "@/lib/constants"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { holdLayer } from "@/lib/agent/layer-hold"
@@ -49,7 +53,10 @@ export interface DocumentToolContext {
 }
 
 /** A new Document's size, as a click with the Document tool makes it. */
-const DOCUMENT_SIZE = { width: 480, height: 640 }
+const DOCUMENT_SIZE = {
+  width: DEFAULT_DOCUMENT_WIDTH,
+  height: DEFAULT_DOCUMENT_HEIGHT,
+}
 
 export function buildDocumentTools(ctx: DocumentToolContext) {
   /**
@@ -80,20 +87,48 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
   const tools = {
     create_document: tool({
       description:
-        "Create a Document on the canvas, on the sender’s page (or the page you name), beside this chat’s other frames and Documents there. Any chat can change it later, as you can change any Document on the canvas that no other chat is changing right now. `content` is its body as CommonMark markdown (don’t repeat the title as a `#` heading). Returns its id.",
+        "Create a Document. Every Document shows in your reply as a tile the person opens to read. With `place` it also goes on the canvas, on the sender’s page (or the page you name), beside this chat’s other frames and Documents there; without it, it stays in this chat until someone adds it to the canvas. Decide per Document: place one meant to sit beside the work on the canvas; leave off one that only answers this chat. Any chat can change it later, as you can change any Document that no other chat is changing right now. `content` is its body as CommonMark markdown (don’t repeat the title as a `#` heading). Returns its id, which add_to_canvas takes.",
       inputSchema: jsonSchema<{
         title?: string
         content?: string
         page?: string
+        place: boolean
       }>({
         type: "object",
         properties: {
           title: { type: "string" },
           content: { type: "string" },
           page: { type: "string", description: PAGE_PARAM_DESCRIPTION },
+          place: {
+            type: "boolean",
+            description:
+              "Whether to put it on the canvas now (true) or leave it in this chat until someone adds it (false)",
+          },
         },
+        required: ["place"],
       }),
-      execute: async ({ title, content, page }) => {
+      execute: async ({ title, content, page, place }) => {
+        if (place === false) {
+          return ctx.room.mutateDoc(({ doc }) => {
+            const c = createRoomCollections(doc)
+            const ops = createCanvasOps(c)
+            let fileId = ""
+            ops.batch(() => {
+              fileId = ops.createFile({
+                kind: "document",
+                title,
+                lastChangedByChatId: ctx.chatId,
+              })
+              holdLayer(c, ctx.chatId, fileId)
+              if (content) {
+                writeDocumentMarkdown(documentFragment(doc, fileId), content, {
+                  keepTitle: true,
+                })
+              }
+            })
+            return `Created document "${title || "Untitled"}" (id ${fileId}), not on the canvas.`
+          })
+        }
         const senderPageId = await ctx.senderPage?.()
         return ctx.room.mutateDoc(({ doc }) => {
           const c = createRoomCollections(doc)
@@ -129,7 +164,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
     }),
 
     replace_document_body: tool({
-      description: `Replace the body of any Document on the canvas, whichever chat or person made it, below its title. Another chat that’s changing it right now holds it until its turn ends: the edit is refused, so tell the person and carry on. Call \`start_editing\` with its id first, before you write the body. The \`content\` is parsed as CommonMark markdown — headings (\`##\`, \`###\`), bullet/ordered lists, blockquotes, code blocks, inline marks (\`**bold**\`, \`*italic*\`, \`\` \`code\` \`\`, \`[link](url)\`), images and mentions all work. A mention is \`[@<name>](mention:<kind>:<id>)\`, as \`read_document\` shows them, where kind is ${mentionMarkdownNames()}. An image is \`![alt](path)\` on its own line, where \`path\` is an image in the canvas’s saved files (\`uploads/sketch.png\`; wrap a path with spaces in \`<…>\`), and the Document shows it. The title is set separately; don’t repeat it as a top-level \`#\` heading. Use this when you’ve redrafted the Document; for incremental edits prefer \`append_to_document_body\`.`,
+      description: `Replace the body of any Document, on the canvas or not, whichever chat or person made it, below its title. Another chat that’s changing it right now holds it until its turn ends: the edit is refused, so tell the person and carry on. Call \`start_editing\` with its id first, before you write the body. The \`content\` is parsed as CommonMark markdown — headings (\`##\`, \`###\`), bullet/ordered lists, blockquotes, code blocks, inline marks (\`**bold**\`, \`*italic*\`, \`\` \`code\` \`\`, \`[link](url)\`), images and mentions all work. A mention is \`[@<name>](mention:<kind>:<id>)\`, as \`read_document\` shows them, where kind is ${mentionMarkdownNames()}. An image is \`![alt](path)\` on its own line, where \`path\` is an image in the canvas’s saved files (\`uploads/sketch.png\`; wrap a path with spaces in \`<…>\`), and the Document shows it. The title is set separately; don’t repeat it as a top-level \`#\` heading. Use this when you’ve redrafted the Document; for incremental edits prefer \`append_to_document_body\`.`,
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {
@@ -149,7 +184,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     append_to_document_body: tool({
       description:
-        "Append a block of text to the end of any Document on the canvas. Use the same markdown as `replace_document_body`. Everything already in the Document stays as it is. Call `start_editing` with its id first, before you write the block.",
+        "Append a block of text to the end of any Document, on the canvas or not. Use the same markdown as `replace_document_body`. Everything already in the Document stays as it is. Call `start_editing` with its id first, before you write the block.",
       inputSchema: jsonSchema<{ document_id: string; content: string }>({
         type: "object",
         properties: {
@@ -167,7 +202,7 @@ export function buildDocumentTools(ctx: DocumentToolContext) {
 
     set_document_title: tool({
       description:
-        "Retitle any Document on the canvas. Use a short, descriptive heading — it shows at the top of the Document, in the sidebar, and in the @-mention list.",
+        "Retitle any Document, on the canvas or not. Use a short, descriptive heading — it shows at the top of the Document, in the sidebar, and in the @-mention list.",
       inputSchema: jsonSchema<{ document_id: string; title: string }>({
         type: "object",
         properties: {

@@ -31,6 +31,7 @@ import {
   useChatSessions,
   useMarkdownLayers,
   useMockupLayers,
+  useLayerFiles,
   useOtherPeers,
   usePages,
   usePageViews,
@@ -137,6 +138,7 @@ import type { IframeLayerGroupData, ViewportData } from "@/lib/types"
 import { chatStore } from "@/lib/chat-store"
 import { createMockupChatLink } from "@/lib/canvas/mockup-chat-link"
 import { MockupChatLinkProvider } from "@/components/canvas/mockup-chat-link"
+import { FileModal } from "@/components/canvas/file-modal"
 
 import { useDiffStats } from "@/hooks/use-diff-stats"
 
@@ -1262,6 +1264,22 @@ export function Canvas({
     [cameraZoomToRect]
   )
 
+  // Add to canvas from the file modal (#1885): a view beside the chat's
+  // layers on this page, selected, the camera following once it's laid out.
+  const addFileToCanvas = useCallback(
+    async (fileId: string) => {
+      const placed = ops.placeFile(fileId)
+      if (!placed) return
+      const deadline = performance.now() + REVEAL_LAYOUT_WAIT_MS
+      while (!iframeLayerLayoutsRef.current.has(placed.viewId)) {
+        if (performance.now() >= deadline) return
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      showLayersRef.current([placed.viewId], { select: true })
+    },
+    [ops]
+  )
+
   // The comments panel (#787); Escape closes it from anywhere on the canvas.
   const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
   const commentsPanelOpenRef = useRef(commentsPanelOpen)
@@ -1876,8 +1894,18 @@ export function Canvas({
   const answeredFromPages = useRef(new Set<string>())
   // Only what the link reads of each Mockup, so a Mockup resizing, scrolling
   // or turning a knob doesn't rebuild the link and re-render every Mockup.
+  // Every Mockup view, and each Mockup file with none under its own id
+  // (#1885), whose page speaks from the file modal.
+  const layerFiles = useLayerFiles()
   const mockupLinkMockups = useStableValue(
-    mockupLayers.map(({ id, title, lastChangedByChatId, ownerChatId }) => ({
+    [
+      ...mockupLayers,
+      ...layerFiles.filter(
+        (f) =>
+          f.kind === "mockup" &&
+          !mockupLayers.some((m) => (m.fileId ?? m.id) === f.id)
+      ),
+    ].map(({ id, title, lastChangedByChatId, ownerChatId }) => ({
       id,
       title,
       lastChangedByChatId,
@@ -3062,6 +3090,12 @@ export function Canvas({
                     onClose={drawAsk.close}
                   />
                 ) : null}
+                <MockupChatLinkProvider value={mockupChatLink}>
+                  <FileModal
+                    ops={ops}
+                    onAddToCanvas={(fileId) => void addFileToCanvas(fileId)}
+                  />
+                </MockupChatLinkProvider>
                 <ShortcutSheetMemo
                   {...chromeStable.value("shortcuts", {
                     open: shortcutSheetOpen,

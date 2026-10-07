@@ -29,9 +29,11 @@ function shape(messages: AgentMessage[], streaming = false): string[] {
     (item) =>
       item.kind === "turn-summary"
         ? `summary(${item.steps.length})`
-        : item.entry.message.role === "assistant"
-          ? `assistant:${item.entry.message.content}`
-          : item.entry.message.role
+        : item.kind === "files"
+          ? `files(${item.ids.join(",")})`
+          : item.entry.message.role === "assistant"
+            ? `assistant:${item.entry.message.content}`
+            : item.entry.message.role
   )
 }
 
@@ -477,5 +479,42 @@ describe("foldFinishedTurns — a run with a Steer (#1190)", () => {
 
   it("folds it once the run is over", () => {
     expect(kinds(false, null)).toContain("turn-summary")
+  })
+})
+
+describe("the files a turn delivered (#1885)", () => {
+  const created = (id: string) =>
+    call(`create-${id}`, {
+      title: "create_mockup",
+      content: [
+        {
+          type: "content",
+          content: { type: "text", text: `Created Mockup "A" (id ${id}).` },
+        },
+      ] as ToolCall["content"],
+    })
+
+  it("follows the turn’s answer, before a question card", () => {
+    expect(
+      shape([
+        user("two takes"),
+        created("m-1"),
+        created("m-2"),
+        assistant("Here are two takes."),
+        call("q", { title: "ask_question", rawInput: { question: "Which?" } }),
+      ])
+    ).toEqual([
+      "user",
+      "summary(2)",
+      "assistant:Here are two takes.",
+      "files(m-1,m-2)",
+      "tool_call",
+    ])
+  })
+
+  it("shows nothing while the turn runs", () => {
+    expect(
+      shape([user("a take"), created("m-1"), assistant("Here.")], true)
+    ).toEqual(["user", "tool_call", "assistant:Here."])
   })
 })

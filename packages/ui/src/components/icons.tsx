@@ -98,6 +98,7 @@ import { PencilSimpleLineIcon as PencilSimpleLineBase } from "@phosphor-icons/re
 import { PlayIcon as PlayBase } from "@phosphor-icons/react/dist/ssr/Play"
 import { PlugIcon as PlugBase } from "@phosphor-icons/react/dist/ssr/Plug"
 import { PlusIcon as PlusBase } from "@phosphor-icons/react/dist/ssr/Plus"
+import { PlusSquareIcon as PlusSquareBase } from "@phosphor-icons/react/dist/ssr/PlusSquare"
 import { PushPinIcon as PushPinBase } from "@phosphor-icons/react/dist/ssr/PushPin"
 import { PushPinSlashIcon as PushPinSlashBase } from "@phosphor-icons/react/dist/ssr/PushPinSlash"
 import { QuestionIcon as QuestionBase } from "@phosphor-icons/react/dist/ssr/Question"
@@ -420,6 +421,7 @@ export const PencilSimpleLineIcon = phosphor(
 export const PlayIcon = phosphor(PlayBase, "ph-play")
 export const PlugIcon = phosphor(PlugBase, "ph-plug")
 export const PlusIcon = phosphor(PlusBase, "ph-plus")
+export const PlusSquareIcon = phosphor(PlusSquareBase, "ph-plus-square")
 export const PushPinIcon = phosphor(PushPinBase, "ph-push-pin")
 export const PushPinSlashIcon = phosphor(PushPinSlashBase, "ph-push-pin-slash")
 export const QuestionIcon = phosphor(QuestionBase, "ph-question")

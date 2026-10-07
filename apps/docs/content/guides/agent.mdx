@@ -20,8 +20,8 @@ Every chat has its own branch, sandbox, preview and terminals from the
 moment it starts, and it’s the only chat that changes that code. More work in
 parallel means more chats. A chat can read other chats’ code and frames, but
 never changes them. It can also [write documents](/guides/documents#documents-a-chat-writes)
-on the canvas, and change any document or mockup no other chat is changing
-right now.
+and [mockups](/guides/mockups#in-the-chat), on the canvas or in its reply,
+and change any document or mockup no other chat is changing right now.
 
 ## Choosing a target
 
@@ -324,6 +324,7 @@ agent the chat runs on. Paths are relative to the repository.
 | **Create mockup** _title_                      | Drew a [mockup](/guides/mockups)                                                                                                  |
 | **Update mockup** _title_                      | Rewrote a mockup’s page                                                                                                           |
 | **Read mockup**                                | Read a mockup’s page                                                                                                              |
+| **Add to canvas**                              | Put a document or mockup from the chat on the canvas                                                                              |
 | **Save to account memory**                     | Saved a [memory](/guides/memory) entry (or to canvas memory)                                                                      |
 | **Save file**, **Open saved file**             | Saved or opened one of the [saved files](/guides/files)                                                                           |
 | **Create pull request**                        | Opened a pull request (shown as a link card)                                                                                      |

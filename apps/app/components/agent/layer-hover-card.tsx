@@ -29,11 +29,18 @@ import {
   useBranches,
   useChatSessions,
   useIframeLayers,
+  useLayerFiles,
   useMarkdownLayers,
   useMockupHtml,
   useMockupLayers,
 } from "@/lib/yjs/react"
 import { workspaceLabel } from "@/lib/workspace-label"
+import {
+  DEFAULT_DOCUMENT_HEIGHT,
+  DEFAULT_DOCUMENT_WIDTH,
+  DEFAULT_IFRAME_LAYER_HEIGHT,
+  DEFAULT_IFRAME_LAYER_WIDTH,
+} from "@/lib/constants"
 
 /** The kinds of layer a chat names. */
 export type LayerMentionKind = "mockup" | "frame" | "document"
@@ -112,6 +119,7 @@ function useNamedLayer(kind: LayerMentionKind, id: string): Layer | null {
   const frames = useIframeLayers()
   const documents = useMarkdownLayers()
   const mockups = useMockupLayers()
+  const files = useLayerFiles()
   const branches = useBranches()
   const chats = useChatSessions()
   const menu = useChatsMenu()
@@ -153,11 +161,30 @@ function useNamedLayer(kind: LayerMentionKind, id: string): Layer | null {
       ],
     }
   }
-  // A view's id or its file's (#1883).
-  const layer =
+  // A view's id or its file's (#1883), or a file with no view (#1885), which
+  // shows at the size a view of it would take.
+  const view =
     kind === "mockup"
       ? findViewOrFile(mockups, id)
       : findViewOrFile(documents, id)
+  const file = view ? undefined : files.find((f) => f.id === id)
+  const layer =
+    view ??
+    (file?.kind === kind
+      ? {
+          ...file,
+          fileId: file.id,
+          ...(kind === "mockup"
+            ? {
+                width: DEFAULT_IFRAME_LAYER_WIDTH,
+                height: DEFAULT_IFRAME_LAYER_HEIGHT,
+              }
+            : {
+                width: DEFAULT_DOCUMENT_WIDTH,
+                height: DEFAULT_DOCUMENT_HEIGHT,
+              }),
+        }
+      : undefined)
   if (!layer) return null
   const chat = chatOf(layer)
   return {
@@ -176,7 +203,9 @@ function useNamedLayer(kind: LayerMentionKind, id: string): Layer | null {
             ],
           ]
         : []),
-      ...(kind === "mockup" ? [["Size", size(layer)] as [string, string]] : []),
+      ...(kind === "mockup" && view
+        ? [["Size", size(layer)] as [string, string]]
+        : []),
     ],
   }
 }
@@ -261,7 +290,7 @@ const PREVIEW_CLASS =
  * layer shows (`mockupSrcDoc`), scaled down and inert.
  */
 function MockupPreview({ layer }: { layer: Layer }) {
-  const html = useMockupHtml(layer.id)
+  const html = useMockupHtml(layer.fileId ?? layer.id)
   const runtime = useMockupRuntime()
   const resources = useMockupRefs(layer.id, html)
   const srcDoc = useMemo(

@@ -23,8 +23,8 @@ import {
 import { groupsOnPage, orderedPages } from "@/lib/canvas/pages"
 
 /**
- * A chat's Mockup tools (#1309): write a static HTML page onto the canvas as a
- * Mockup Layer, rewrite any Mockup on the canvas (#1724), and read any
+ * A chat's Mockup tools (#1309): write a static HTML page as a Mockup, on the
+ * canvas or left in the chat (#1885), rewrite any Mockup (#1724), and read any
  * Mockup's page back (#1313), e.g. to build a picked take. Each create or
  * update records the chat as the Mockup's `lastChangedByChatId`, which its
  * Knobs Ask and drafts go to (`lib/canvas/layer-chat`). Each create, update
@@ -63,7 +63,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
   const tools = {
     create_mockup: tool({
       description:
-        "Draw a Mockup on the canvas: a static HTML page shown beside the live frames, for sketching a design idea without building it. It needs no dev server and appears at once on the sender’s page (or the page you name), next to this chat’s other Mockups there, or else in the Group of this Workspace’s frames there. Make one Mockup per take so they sit side by side. Returns the Mockup’s id, which update_mockup takes.",
+        "Make a Mockup: a static HTML page, for sketching a design idea without building it. It needs no dev server. Every Mockup shows in your reply as a tile the person opens at full size. With `place` it also goes on the canvas at once, on the sender’s page (or the page you name), next to this chat’s other Mockups there, or else in the Group of this Workspace’s frames there; without it, it stays in this chat until someone adds it to the canvas. Decide per Mockup: place takes meant to sit beside the frames or each other on the canvas; leave off a page meant to be used at full size, like a page of options to pick from. Make one Mockup per take. Returns the Mockup’s id, which update_mockup and add_to_canvas take.",
       inputSchema: z.object({
         title: z
           .string()
@@ -71,6 +71,11 @@ export function buildMockupTools(ctx: MockupToolContext) {
           .max(120)
           .describe("A short name for this take, e.g. 'Option A · Toggle'"),
         html: htmlSchema,
+        place: z
+          .boolean()
+          .describe(
+            "Whether to put it on the canvas now (true) or leave it in this chat until someone adds it (false)"
+          ),
         width: z
           .number()
           .int()
@@ -78,7 +83,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
           .max(4000)
           .optional()
           .describe(
-            `Width in canvas pixels, the viewport the page lays out at (default ${DEFAULT_IFRAME_LAYER_WIDTH})`
+            `Width in canvas pixels, the viewport the page lays out at on the canvas (default ${DEFAULT_IFRAME_LAYER_WIDTH})`
           ),
         height: z
           .number()
@@ -91,7 +96,21 @@ export function buildMockupTools(ctx: MockupToolContext) {
           ),
         page: z.string().optional().describe(PAGE_PARAM_DESCRIPTION),
       }),
-      execute: async ({ title, html, width, height, page }) => {
+      execute: async ({ title, html, width, height, page, place }) => {
+        if (place === false) {
+          const fileId = await ctx.room.mutateDoc(({ doc }) => {
+            const collections = createRoomCollections(doc)
+            const made = createCanvasOps(collections).createFile({
+              kind: "mockup",
+              title,
+              html,
+              lastChangedByChatId: ctx.chatId,
+            })
+            holdLayer(collections, ctx.chatId, made)
+            return made
+          })
+          return `Created Mockup "${title}" (id ${fileId}), not on the canvas.`
+        }
         const senderPageId = await ctx.senderPage?.()
         const created = await ctx.room.mutateDoc(({ doc }) => {
           const collections = createRoomCollections(doc)
@@ -118,7 +137,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
 
     update_mockup: tool({
       description:
-        "Change any Mockup on the canvas, whichever chat made it, unless another chat is changing it right now: replace its whole page, its title, or both. The canvas re-renders it in place. Call start_editing with its id first, before you write the page.",
+        "Change any Mockup, on the canvas or not, whichever chat made it, unless another chat is changing it right now: replace its whole page, its title, or both. Every view of it re-renders in place. Call start_editing with its id first, before you write the page.",
       inputSchema: z.object({
         mockup_id: z.string().describe("The id create_mockup returned"),
         html: htmlSchema.optional(),
@@ -152,7 +171,7 @@ export function buildMockupTools(ctx: MockupToolContext) {
 
     read_mockup: tool({
       description:
-        "Read Mockups back. Without an id, lists the Mockups this chat changed last, with their ids and titles. With an id, returns that Mockup’s title and whole page, e.g. to build a picked take from it. Reads any Mockup on the canvas. Read-only.",
+        "Read Mockups back. Without an id, lists the Mockups this chat changed last, with their ids and titles. With an id, returns that Mockup’s title and whole page, e.g. to build a picked take from it. Reads any Mockup, on the canvas or not. Read-only.",
       inputSchema: z.object({
         mockup_id: z
           .string()
@@ -163,28 +182,39 @@ export function buildMockupTools(ctx: MockupToolContext) {
       }),
       execute: async ({ mockup_id }) => {
         if (mockup_id === undefined) {
-          const own = await ctx.room.readDoc((c) =>
-            c.mockupLayers
-              .toArray()
-              .filter((m) => lastChangedBy(m) === ctx.chatId)
-              // One line per file, named by the file (#1883).
-              .filter(
-                (m, i, all) => all.findIndex((o) => o.fileId === m.fileId) === i
-              )
-              .map((m) => ({
-                id: m.fileId ?? m.id,
-                title: m.title,
-                page: layerPageName(c, { kind: "mockup-layer", id: m.id }),
-              }))
-          )
+          const own = await ctx.room.readDoc(({ doc }) => {
+            // A fresh view: a cached collection can read stale on the server.
+            const c = createRoomCollections(doc)
+            return (
+              c.layerFiles
+                .toArray()
+                // One line per file, named by the file (#1883), placed or not
+                // (#1885).
+                .filter((f) => f.kind === "mockup")
+                .filter((f) => lastChangedBy(f) === ctx.chatId)
+                .map((f) => {
+                  const viewId = c.mockupLayers.viewIdsOf(f.id)[0]
+                  return {
+                    id: f.id,
+                    title: f.title,
+                    page: viewId
+                      ? layerPageName(c, { kind: "mockup-layer", id: viewId })
+                      : undefined,
+                    placed: !!viewId,
+                  }
+                })
+            )
+          })
           if (own.length === 0) {
-            return "No Mockup was changed last by this chat. Pass a mockup_id to read any Mockup on the canvas."
+            return "No Mockup was changed last by this chat. Pass a mockup_id to read any Mockup."
           }
           return [
             "Mockups this chat changed last:",
             ...own.map(
               (m) =>
-                `- ${m.id}: ${m.title}` + (m.page ? ` (page "${m.page}")` : "")
+                `- ${m.id}: ${m.title}` +
+                (m.page ? ` (page "${m.page}")` : "") +
+                (m.placed ? "" : " (not on the canvas)")
             ),
           ].join("\n")
         }

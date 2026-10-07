@@ -1,6 +1,10 @@
 import type { XmlElement, XmlText } from "yjs"
 import { nanoid } from "nanoid"
 import {
+  DEFAULT_DOCUMENT_HEIGHT,
+  DEFAULT_DOCUMENT_WIDTH,
+  DEFAULT_IFRAME_LAYER_HEIGHT,
+  DEFAULT_IFRAME_LAYER_WIDTH,
   FIT_CONTENT_MAX_HEIGHT,
   IFRAME_LAYER_GROUP_GAP,
   MIN_IFRAME_LAYER_HEIGHT,
@@ -21,6 +25,7 @@ import {
   shownIndexToMemberIndex,
 } from "@/lib/canvas/done-workspaces"
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
+import { chatGroupFor } from "@/lib/canvas/file-placement"
 import {
   FIRST_PAGE,
   groupPageId,
@@ -96,6 +101,7 @@ type RecordByKey = {
   iframeLayerGroups: IframeLayerGroupData
   markdownLayers: MarkdownLayerData
   mockupLayers: MockupLayerData
+  layerFiles: LayerFileData
   chatSessions: ChatSessionData
   plans: PlanData
   commentPositions: CommentPosition
@@ -351,6 +357,33 @@ export type CanvasOps = {
     groupId: string,
     size?: { width: number; height: number }
   ): string | undefined
+  /**
+   * Make a Document or Mockup file with no view on the canvas (#1885): the
+   * agent can hand a file over in chat without placing it. A Document's body
+   * starts with its title heading, as {@link createDocument}'s does; a
+   * Mockup's is `html`. Returns the file's id.
+   */
+  createFile(
+    spec:
+      | { kind: "document"; title?: string; lastChangedByChatId?: string }
+      | {
+          kind: "mockup"
+          title: string
+          html: string
+          lastChangedByChatId?: string
+        }
+  ): string
+  /**
+   * Add a view of the file `fileId` to the canvas (#1885), on the current
+   * page beside the chat's layers there (`chatGroupFor`): `chatId`, or else
+   * the chat that last changed the file. Without such a Group it starts its
+   * own beside the others. The view is the size of the file's first view, or
+   * `size`, or the kind's default. Undefined when the file is gone.
+   */
+  placeFile(
+    fileId: string,
+    opts?: { chatId?: string; size?: { width: number; height: number } }
+  ): { viewId: string; groupId: string } | undefined
   /**
    * Remove the given Iframe Layers and drop them from any Group that held
    * them, pruning a Group emptied by the removal. Iframe Layers own no Chat
@@ -1443,6 +1476,101 @@ export function createCanvasOps(
     return id
   }
 
+  function createFile(
+    spec:
+      | { kind: "document"; title?: string; lastChangedByChatId?: string }
+      | {
+          kind: "mockup"
+          title: string
+          html: string
+          lastChangedByChatId?: string
+        }
+  ): string {
+    const fileId = nanoid()
+    batch(() => {
+      collections.layerFiles.set(fileId, {
+        id: fileId,
+        kind: spec.kind,
+        title: spec.title ?? "",
+        ...(spec.lastChangedByChatId
+          ? { lastChangedByChatId: spec.lastChangedByChatId }
+          : {}),
+      })
+      if (spec.kind === "mockup") {
+        writeMockupHtml(mockupHtml(doc, fileId), spec.html)
+      } else {
+        const fragment = documentFragment(doc, fileId)
+        seedDocumentFragment(fragment)
+        if (spec.title) setFragmentTitle(fragment, spec.title)
+      }
+    })
+    return fileId
+  }
+
+  function placeFile(
+    fileId: string,
+    opts: { chatId?: string; size?: { width: number; height: number } } = {}
+  ): { viewId: string; groupId: string } | undefined {
+    const file = collections.layerFiles.get(fileId)
+    if (!file) return undefined
+    const views =
+      file.kind === "document"
+        ? collections.markdownLayers
+        : collections.mockupLayers
+    const first = views.viewIdsOf(fileId)[0]
+    const from = first ? views.get(first) : undefined
+    const fallback =
+      file.kind === "document"
+        ? { width: DEFAULT_DOCUMENT_WIDTH, height: DEFAULT_DOCUMENT_HEIGHT }
+        : {
+            width: DEFAULT_IFRAME_LAYER_WIDTH,
+            height: DEFAULT_IFRAME_LAYER_HEIGHT,
+          }
+    const size =
+      opts.size ??
+      (from ? { width: from.width, height: from.height } : fallback)
+    const pageId = targetPageId() ?? listPages()[0]!.id
+    const joined = chatGroupFor(
+      collections,
+      opts.chatId ?? lastChangedBy(file),
+      pageId
+    )
+    let placed: { viewId: string; groupId: string } | undefined
+    batch(() => {
+      if (joined) {
+        const viewId = addFileView(fileId, joined, size)
+        if (viewId) placed = { viewId, groupId: joined }
+        return
+      }
+      const viewId = nanoid()
+      const groupId = nanoid()
+      const anchor = placeNewIframeLayerGroup(
+        placementGroups(),
+        collections.iframeLayers.toArray(),
+        { x: 0, y: 0 },
+        size.width,
+        size.height,
+        sizedLayersOf(collections)
+      )
+      views.addView(viewId, fileId, size)
+      collections.iframeLayerGroups.set(groupId, {
+        id: groupId,
+        name: `Group ${nextGroupNumber(collections.iframeLayerGroups.toArray())}`,
+        ...pageField(),
+        x: anchor.x,
+        y: anchor.y,
+        members: [
+          {
+            kind: file.kind === "document" ? "markdown-layer" : "mockup-layer",
+            id: viewId,
+          },
+        ],
+      })
+      placed = { viewId, groupId }
+    })
+    return placed
+  }
+
   function removeLayers(ids: string[]): { removedChatIds: string[] } {
     if (ids.length === 0) return { removedChatIds: [] }
     const idSet = new Set(ids)
@@ -1883,6 +2011,8 @@ export function createCanvasOps(
     renameDocument,
     fileOf,
     addFileView,
+    createFile,
+    placeFile,
     removeLayers,
     removeDocuments,
     createMockup,

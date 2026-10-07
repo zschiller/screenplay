@@ -40,6 +40,7 @@ vi.mock("@/lib/yjs/react", () => ({
   useIframeLayers: () => [FRAME],
   useMarkdownLayers: () => [DOCUMENT],
   useMockupLayers: () => [],
+  useLayerFiles: () => [],
   useMockupHtml: () => "",
 }))
 vi.mock("@/lib/yjs/context", () => ({

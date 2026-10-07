@@ -16,6 +16,7 @@ import {
 import { prependTurnMarkers } from "./message-markers"
 import { buildDocumentTools } from "./document-tools"
 import { buildMockupTools } from "./mockup-tools"
+import { buildPlaceTools } from "./place-tools"
 import { senderPageOf } from "./sender-page"
 import { buildLayerHoldTools } from "./layer-hold"
 import { buildLayerReadTools } from "./layer-read-tools"
@@ -135,6 +136,7 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
           senderPage: senderPageOf(chatId),
         }),
         ...buildMockupTools({ room, chatId, senderPage: senderPageOf(chatId) }),
+        ...buildPlaceTools({ room, chatId, senderPage: senderPageOf(chatId) }),
         ...buildLayerHoldTools({ room, chatId }),
         // Driving a Mockup in the asker's view (#1391).
         ...chatFrameDriveTools({ room, userId }),

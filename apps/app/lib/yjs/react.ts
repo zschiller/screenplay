@@ -34,6 +34,7 @@ import type {
   ChatSessionData,
   MarkdownLayerData,
   FileEntryData,
+  LayerFileData,
   MemoryData,
   MockupLayerData,
   PageData,
@@ -95,6 +96,42 @@ export function useMarkdownLayers(): Array<MarkdownLayerData> {
 
 export function useMockupLayers(): Array<MockupLayerData> {
   return useCollectionArray(useRoomCollections().mockupLayers)
+}
+
+/** Every Document and Mockup file (#1883), placed or not. */
+export function useLayerFiles(): Array<LayerFileData> {
+  return useCollectionArray(useRoomCollections().layerFiles)
+}
+
+/** A file as a tile or the file modal shows it (#1885), with its views. */
+export type ShownLayerFile = LayerFileData & {
+  /** Its views on the canvas, in collection order; empty when unplaced. */
+  viewIds: string[]
+}
+
+/**
+ * The Document or Mockup file an id names, a view's or the file's own, kept
+ * current; null when there's neither (it was deleted). Outside a room, null.
+ */
+export function useLayerFile(id: string | null): ShownLayerFile | null {
+  const files = useLayerFiles()
+  const documents = useMarkdownLayers()
+  const mockups = useMockupLayers()
+  return useMemo(() => {
+    if (!id) return null
+    const view =
+      documents.find((v) => v.id === id) ?? mockups.find((v) => v.id === id)
+    const fileId = view?.fileId ?? id
+    const file = files.find((f) => f.id === fileId)
+    if (!file) return null
+    const views = file.kind === "document" ? documents : mockups
+    return {
+      ...file,
+      viewIds: views
+        .filter((v) => (v.fileId ?? v.id) === fileId)
+        .map((v) => v.id),
+    }
+  }, [id, files, documents, mockups])
 }
 
 /** A Layer as a list of names reads it: its id, its file's and its title. */
