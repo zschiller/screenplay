@@ -314,7 +314,8 @@ export class ExternalEngine implements Engine {
       // End the agent with every turn, not only a stopped one: the next turn
       // resumes it with `session/load` in a fresh child. Codex's adapter holds
       // a writer lock on its thread while its process lives, so a load from
-      // the next turn's child fails until this one is gone (#1271).
+      // the next turn's child fails until this one is gone (#1271), and the
+      // chat silently replays its history instead.
       session?.close()
     }
   }

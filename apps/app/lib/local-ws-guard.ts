@@ -16,6 +16,9 @@ import type { Duplex } from "node:stream"
  *  - **Blind local processes** (a prototype's dev server, anything else on the
  *    Mac) that know the port but not the per-launch secret the sidecar hands its
  *    own client through `/api/yjs/auth` and the terminal URL routes.
+ *
+ * So a new Node client (a harness fixture, a script) sends `origin` and the
+ * token, as `screenshots/fixtures/workspace-lifecycle.ts` does.
  */
 
 export const LOCAL_WS_TOKEN_PARAM = "token"

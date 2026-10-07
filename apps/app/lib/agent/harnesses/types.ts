@@ -324,6 +324,10 @@ export interface Harness {
    * behavior. `enumerateModels` is stateless, so this list can never be a live
    * session's `availableModels` — it's the descriptor's **curated floor**
    * (#523), and the dropdown lists exactly it.
+   *
+   * A model-list refresh changes these, the provider `FALLBACK` lists
+   * (`lib/agent/providers`), `availability.test.ts` and the list in the docs'
+   * `guides/agent.mdx` together.
    */
   models?: HarnessModel[]
 
