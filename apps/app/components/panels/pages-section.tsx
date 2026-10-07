@@ -8,14 +8,46 @@ import {
   useRef,
   useState,
 } from "react"
-import { useDroppable } from "@dnd-kit/core"
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useDndContext,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
 
-import { CaretRightIcon, PlusIcon } from "@workspace/ui/components/icons"
+import {
+  CaretRightIcon,
+  CopyIcon,
+  DotsThreeIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@workspace/ui/components/icons"
 import { IconButton } from "@workspace/ui/components/icon-button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
@@ -27,6 +59,10 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 
 import { renameOnF2 } from "@/components/panels/layer-rows/rename-key"
+import {
+  frameRowActionClass,
+  frameRowButtonClass,
+} from "@/components/panels/layer-rows/row-action"
 import { PagePeople, usePeopleByPage } from "@/components/panels/page-people"
 import type { PageData } from "@/lib/types"
 import type { PeerPresence } from "@/lib/yjs/react"
@@ -59,31 +95,86 @@ export type PagesSectionProps = {
   /** The list is showing; folded, the heading names the current page. */
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** The pages' new order after a row is dragged (#1836). */
+  onReorderPages: (orderedIds: string[]) => void
+  onDuplicatePage: (pageId: string) => void
+  /** Offered only while there's more than one page. */
+  onDeletePage: (pageId: string) => void
 }
 
+type PageRowActions = Pick<
+  PagesSectionProps,
+  "onRenamePage" | "onDuplicatePage" | "onDeletePage"
+>
+
 /**
- * The left sidebar's Pages section (#1835): every page of the canvas, the
- * current one active. Click switches; + adds “Page N” and opens its name in
- * the inline rename field, where Enter commits, as in every inline rename.
- * A layer row dragged onto another page's row moves there (#1837). A row
- * ends in the avatars of the other people on that page (#1840). The heading
- * folds the list away and then reads as the current page's name.
+ * The left sidebar's Pages section (#1835, #1836): every page of the canvas,
+ * the current one active. Click switches; + adds “Page N” and opens its name
+ * in the inline rename field, where Enter commits, as in every inline rename.
+ * Double-click renames; a row drags to reorder; its ⋯ menu (or a right-click)
+ * has Rename, Duplicate and Delete. A layer row dragged
+ * onto another page's row moves there (#1837). A row ends in the avatars of
+ * the other people on that page (#1840). The heading folds the list away and
+ * then reads as the current page's name.
+ *
+ * Two drags meet on a row: reordering pages runs in this section's own
+ * drag context, and a layer row's drop target lives in the sidebar's, so
+ * each row's drop target is registered out here, above the inner context.
  */
 export const PagesSection = memo(function PagesSection({
   pages,
   currentPageId,
   onSelectPage,
   onAddPage,
-  onRenamePage,
+  onReorderPages,
   open,
   onOpenChange,
+  ...actions
 }: PagesSectionProps) {
+  // Each page row's drop target in the sidebar's drag context (#1837), by
+  // page id; the row hands it its element.
+  const [dropRefs] = useState(
+    () => new Map<string, (el: HTMLElement | null) => void>()
+  )
+  const layerOver = useDndContext().over?.id
   // The page just added, whose name opens for renaming once its row is in.
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const sensors = useSensors(
+    // A click (no movement) still switches page; a real drag past 6px moves.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    // Space picks a row up; Enter on it switches page, as on the layer rows.
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: {
+        start: ["Space"],
+        cancel: ["Escape"],
+        end: ["Space", "Enter"],
+      },
+    })
+  )
+  const ids = pages.map((p) => p.id)
   const peopleByPage = usePeopleByPage(pages)
   const listId = useId()
   const currentName =
     pages.find((page) => page.id === currentPageId)?.name ?? ""
+  // The click that ends a drag doesn't also switch to the dragged page.
+  const draggingRef = useRef(false)
+  const endDrag = () => {
+    setTimeout(() => {
+      draggingRef.current = false
+    })
+  }
+  const selectPage = (pageId: string) => {
+    if (!draggingRef.current) onSelectPage(pageId)
+  }
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    endDrag()
+    if (!over || active.id === over.id) return
+    const from = ids.indexOf(String(active.id))
+    const to = ids.indexOf(String(over.id))
+    if (from < 0 || to < 0) return
+    onReorderPages(arrayMove(ids, from, to))
+  }
   return (
     <SidebarGroup data-sidebar-pages data-state={open ? "open" : "closed"}>
       <div className="flex items-center justify-between gap-2">
@@ -105,28 +196,54 @@ export const PagesSection = memo(function PagesSection({
           <PlusIcon />
         </IconButton>
       </div>
-      <SidebarMenu
-        id={listId}
-        aria-label="Pages"
-        inert={!open}
-        className={cn(
-          "transition-opacity duration-200 ease-out motion-reduce:transition-none",
-          !open && "opacity-0"
-        )}
+      {pages.map((page) => (
+        <PageDropTarget
+          key={page.id}
+          pageId={page.id}
+          disabled={page.id === currentPageId}
+          refs={dropRefs}
+        />
+      ))}
+      <DndContext
+        // Stable id keeps dnd-kit's a11y `aria-describedby` deterministic
+        // across SSR/hydration.
+        id="room-sidebar-pages"
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={() => {
+          draggingRef.current = true
+        }}
+        onDragCancel={endDrag}
+        onDragEnd={onDragEnd}
       >
-        {pages.map((page) => (
-          <PageRow
-            key={page.id}
-            page={page}
-            current={page.id === currentPageId}
-            people={peopleByPage.get(page.id)}
-            renameOnMount={page.id === renamingId}
-            onRenameStarted={() => setRenamingId(null)}
-            onSelect={onSelectPage}
-            onRename={onRenamePage}
-          />
-        ))}
-      </SidebarMenu>
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          <SidebarMenu
+            id={listId}
+            aria-label="Pages"
+            inert={!open}
+            className={cn(
+              "transition-opacity duration-200 ease-out motion-reduce:transition-none",
+              !open && "opacity-0"
+            )}
+          >
+            {pages.map((page) => (
+              <PageRow
+                key={page.id}
+                page={page}
+                current={page.id === currentPageId}
+                people={peopleByPage.get(page.id)}
+                canDelete={pages.length > 1}
+                dropRef={dropRefs.get(page.id)}
+                dropOver={layerOver === `${PAGE_DROP_PREFIX}${page.id}`}
+                renameOnMount={page.id === renamingId}
+                onRenameStarted={() => setRenamingId(null)}
+                onSelect={selectPage}
+                {...actions}
+              />
+            ))}
+          </SidebarMenu>
+        </SortableContext>
+      </DndContext>
     </SidebarGroup>
   )
 })
@@ -212,52 +329,117 @@ function PagesHeading({
   )
 }
 
+/** A page row's drop target for layer rows (#1837), in the sidebar's drag
+ *  context; the current page isn't somewhere to move to. */
+function PageDropTarget({
+  pageId,
+  disabled,
+  refs,
+}: {
+  pageId: string
+  disabled: boolean
+  refs: Map<string, (el: HTMLElement | null) => void>
+}) {
+  const { setNodeRef } = useDroppable({
+    id: `${PAGE_DROP_PREFIX}${pageId}`,
+    disabled,
+  })
+  refs.set(pageId, setNodeRef)
+  useEffect(() => () => void refs.delete(pageId), [refs, pageId])
+  return null
+}
+
 function PageRow({
   page,
   current,
   people,
+  canDelete,
+  dropRef,
+  dropOver,
   renameOnMount,
   onRenameStarted,
   onSelect,
-  onRename,
+  onRenamePage,
+  onDuplicatePage,
+  onDeletePage,
 }: {
   page: PageData
   current: boolean
   people: readonly PeerPresence[] | undefined
+  canDelete: boolean
+  /** The row's drop target for layer rows (#1837), and whether one is over it. */
+  dropRef?: (el: HTMLElement | null) => void
+  dropOver: boolean
   renameOnMount: boolean
   onRenameStarted: () => void
   onSelect: (pageId: string) => void
-  onRename: (pageId: string, name: string) => void
-}) {
+} & PageRowActions) {
   const nameRef = useRef<EditableTextHandle | null>(null)
   useEffect(() => {
     if (!renameOnMount) return
     nameRef.current?.startEditing()
     onRenameStarted()
   }, [renameOnMount, onRenameStarted])
-  // The current page isn't somewhere to move to.
-  const { setNodeRef, isOver } = useDroppable({
-    id: `${PAGE_DROP_PREFIX}${page.id}`,
-    disabled: current,
-  })
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: page.id })
+  // A right-click opens the row's ⋯ menu.
+  const [menuOpen, setMenuOpen] = useState(false)
+  // Rename waits for the menu to close: its focus trap would take focus back
+  // from the inline field.
+  const renamePendingRef = useRef(false)
   return (
     <SidebarMenuItem
-      ref={setNodeRef}
-      data-drop-over={isOver || undefined}
-      className={cn(isOver && "rounded-md ring-2 ring-canvas-selection")}
+      ref={(el) => {
+        setNodeRef(el)
+        dropRef?.(el)
+      }}
+      data-drop-over={dropOver || undefined}
+      className={cn(
+        "group/frame-row",
+        isDragging && "z-10",
+        dropOver && "rounded-md ring-2 ring-canvas-selection"
+      )}
+      style={{
+        transform: transform
+          ? `translate3d(0, ${transform.y}px, 0)`
+          : undefined,
+        transition,
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setMenuOpen(true)
+      }}
     >
       <SidebarMenuButton
+        ref={setActivatorNodeRef}
         isActive={current}
         aria-current={current ? "page" : undefined}
-        className="!transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible"
+        className={cn(
+          "!transition-[width,height] has-[[data-editable-text=editing]]:overflow-visible",
+          frameRowButtonClass
+        )}
+        {...attributes}
+        {...listeners}
+        // The row's button is its one Tab stop, not the sortable's wrapper.
+        role={undefined}
         onClick={() => onSelect(page.id)}
-        onKeyDown={(e) => renameOnF2(e, nameRef)}
+        onKeyDown={(e) => {
+          renameOnF2(e, nameRef)
+          listeners?.onKeyDown?.(e)
+        }}
       >
         <EditableText
           ref={nameRef}
           as="span"
           value={page.name}
-          onCommit={(next) => onRename(page.id, next)}
+          onCommit={(next) => onRenamePage(page.id, next)}
           placeholder="Page"
           tabIndex={-1}
           className="min-w-0"
@@ -269,6 +451,47 @@ function PageRow({
         />
         {people ? <PagePeople people={people} /> : null}
       </SidebarMenuButton>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <IconButton label="Page options" tooltipSide="right" asChild>
+            <SidebarMenuAction className={frameRowActionClass}>
+              <DotsThreeIcon />
+            </SidebarMenuAction>
+          </IconButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          side="right"
+          align="start"
+          onCloseAutoFocus={(e) => {
+            if (!renamePendingRef.current) return
+            renamePendingRef.current = false
+            e.preventDefault()
+            nameRef.current?.startEditing()
+          }}
+        >
+          <DropdownMenuItem
+            onSelect={() => {
+              renamePendingRef.current = true
+            }}
+          >
+            <PencilSimpleIcon />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onDuplicatePage(page.id)}>
+            <CopyIcon />
+            Duplicate
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={!canDelete}
+            onSelect={() => onDeletePage(page.id)}
+          >
+            <TrashIcon />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </SidebarMenuItem>
   )
 }

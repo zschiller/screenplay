@@ -4,13 +4,19 @@ import { groupBranchId } from "@/lib/canvas/group-workspace"
 import { hideDoneWorkspaceFrames } from "@/lib/canvas/done-workspaces"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import { CANVAS_OPS_ORIGIN, CONTENT_HEIGHT_ORIGIN } from "@/lib/canvas/ops"
+import { pageAfterDelete } from "@/lib/canvas/pages"
+import { createCanvasUndo } from "@/lib/canvas/undo"
 import {
   FIT_CONTENT_MAX_HEIGHT,
   MIN_IFRAME_LAYER_HEIGHT,
   MIN_IFRAME_LAYER_WIDTH,
 } from "@/lib/constants"
 import { routeToLabel } from "@/lib/route-utils"
-import { documentFragment, getFragmentTitle } from "@/lib/yjs/fragment-text"
+import {
+  documentFragment,
+  getFragmentTitle,
+  setFragmentTitle,
+} from "@/lib/yjs/fragment-text"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 import { COLLECTION_KEYS } from "@/lib/yjs/schema"
 import {
@@ -2366,5 +2372,157 @@ describe("Move to page (#1837)", () => {
     expect(
       getGroupMembers(collections.iframeLayerGroups.get("g")!).map((m) => m.id)
     ).toEqual(["a", "b"])
+  })
+})
+
+describe("Page actions (#1836)", () => {
+  const names = (ops: ReturnType<typeof makeHarness>["ops"]) =>
+    ops.listPages().map((p) => p.name)
+
+  /** Page 1 holds a frame, a document and a mockup; Page 2 a frame. */
+  function seedPages() {
+    const h = makeHarness()
+    const { ops, collections, doc } = h
+    const second = ops.createPage()
+    collections.iframeLayers.set("a", baseLayer("a", { label: "Home" }))
+    collections.iframeLayers.set("b", baseLayer("b"))
+    collections.markdownLayers.set("d", baseDoc("d", { title: "Notes" }))
+    setFragmentTitle(documentFragment(doc, "d"), "Notes")
+    collections.mockupLayers.set("m", {
+      id: "m",
+      width: 300,
+      height: 200,
+      title: "Card",
+    })
+    mockupHtml(doc, "m").insert(0, "<p>card</p>")
+    seedGroup(collections, "g1", [
+      { kind: "iframe-layer", id: "a" },
+      { kind: "markdown-layer", id: "d" },
+    ])
+    seedGroup(collections, "g2", [{ kind: "mockup-layer", id: "m" }])
+    seedGroup(collections, "g3", [{ kind: "iframe-layer", id: "b" }])
+    ops.patch("iframeLayerGroups", "g3", { pageId: second })
+    return { ...h, second }
+  }
+
+  it("reorders pages, keeping a page the list leaves out after the rest", () => {
+    const { ops } = makeHarness()
+    const second = ops.createPage()
+    const third = ops.createPage()
+
+    ops.reorderPages([third, "page-1"])
+
+    expect(ops.listPages().map((p) => p.id)).toEqual([third, "page-1", second])
+  })
+
+  it("keeps Groups with no page of their own on their page when it moves down", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set("a", baseLayer("a"))
+    seedGroup(collections, "legacy", [{ kind: "iframe-layer", id: "a" }])
+    const second = ops.createPage()
+
+    ops.reorderPages([second, "page-1"])
+
+    expect(ops.groupsOnPage("page-1").map((g) => g.id)).toEqual(["legacy"])
+    expect(ops.groupsOnPage(second)).toEqual([])
+  })
+
+  it("duplicates a page below it with copies of its Layers and their bodies", () => {
+    const { ops, collections, doc, second } = seedPages()
+
+    const copy = ops.duplicatePage("page-1")!
+
+    expect(names(ops)).toEqual(["Page 1", "Page 1 copy", "Page 2"])
+    expect(ops.listPages()[1]!.id).toBe(copy)
+    const groups = ops.groupsOnPage(copy)
+    expect(groups.map((g) => g.name)).toEqual(["g1", "g2"])
+    const [frame, document] = getGroupMembers(groups[0]!)
+    expect(frame!.id).not.toBe("a")
+    expect(collections.iframeLayers.get(frame!.id)?.label).toBe("Home")
+    expect(getFragmentTitle(documentFragment(doc, document!.id))).toBe("Notes")
+    const mockup = getGroupMembers(groups[1]!)[0]!
+    expect(mockupHtml(doc, mockup.id).toString()).toBe("<p>card</p>")
+    // The original page is untouched.
+    expect(ops.groupsOnPage("page-1").map((g) => g.id)).toEqual(["g1", "g2"])
+    expect(ops.groupsOnPage(second).map((g) => g.id)).toEqual(["g3"])
+  })
+
+  it("duplicates a canvas's only, unrecorded page", () => {
+    const { ops } = makeHarness()
+
+    const copy = ops.duplicatePage("page-1")
+
+    expect(names(ops)).toEqual(["Page 1", "Page 1 copy"])
+    expect(ops.listPages()[1]!.id).toBe(copy)
+  })
+
+  it("deletes a page and its Layers in one step, leaving chats alone", () => {
+    const { ops, collections, doc, second } = seedPages()
+    collections.chatSessions.set("c", baseChat("c"))
+    let transactions = 0
+    doc.on("afterTransaction", () => transactions++)
+
+    expect(ops.deletePage("page-1")).toBe(true)
+
+    expect(transactions).toBe(1)
+    expect(names(ops)).toEqual(["Page 2"])
+    expect(collections.iframeLayerGroups.toArray().map((g) => g.id)).toEqual([
+      "g3",
+    ])
+    expect(collections.iframeLayers.toArray().map((l) => l.id)).toEqual(["b"])
+    expect(collections.markdownLayers.toArray()).toEqual([])
+    expect(collections.mockupLayers.toArray()).toEqual([])
+    expect(collections.chatSessions.get("c")).toBeDefined()
+    expect(ops.groupsOnPage(second).map((g) => g.id)).toEqual(["g3"])
+  })
+
+  it("won't delete the last page", () => {
+    const { ops, collections } = makeHarness()
+    collections.iframeLayers.set("a", baseLayer("a"))
+    seedGroup(collections, "g", [{ kind: "iframe-layer", id: "a" }])
+
+    expect(ops.deletePage("page-1")).toBe(false)
+    const second = ops.createPage()
+    ops.deletePage(second)
+    expect(ops.deletePage("page-1")).toBe(false)
+
+    expect(names(ops)).toEqual(["Page 1"])
+    expect(collections.iframeLayerGroups.get("g")).toBeDefined()
+  })
+
+  it("⌘Z brings back a deleted page, its Layers, their bodies and its place", () => {
+    const { ops, collections, doc, second } = seedPages()
+    const third = ops.createPage()
+    const undo = createCanvasUndo(doc)
+
+    ops.deletePage(second)
+    expect(names(ops)).toEqual(["Page 1", "Page 3"])
+    undo.undo()
+
+    expect(ops.listPages().map((p) => p.id)).toEqual(["page-1", second, third])
+    expect(ops.groupsOnPage(second).map((g) => g.id)).toEqual(["g3"])
+    expect(collections.iframeLayers.get("b")).toBeDefined()
+
+    ops.savePageView("u1", "page-1", { x: 1, y: 2, zoom: 1 })
+    ops.deletePage("page-1")
+    expect(collections.pageViews.toArray()).toEqual([])
+    undo.undo()
+    expect(collections.pageViews.toArray().map((v) => v.pageId)).toEqual([
+      "page-1",
+    ])
+    expect(ops.groupsOnPage("page-1").map((g) => g.id)).toEqual(["g1", "g2"])
+    expect(getFragmentTitle(documentFragment(doc, "d"))).toBe("Notes")
+    expect(mockupHtml(doc, "m").toString()).toBe("<p>card</p>")
+    undo.destroy()
+  })
+})
+
+describe("pageAfterDelete", () => {
+  const page = (id: string, order: number) => ({ id, name: id, order })
+  const before = [page("a", 0), page("b", 1), page("c", 2)]
+
+  it("lands on the page above, or below when the first page went", () => {
+    expect(pageAfterDelete(before, [page("a", 0), page("c", 2)], "b")).toBe("a")
+    expect(pageAfterDelete(before, [page("b", 1), page("c", 2)], "a")).toBe("b")
   })
 })

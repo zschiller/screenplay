@@ -1,3 +1,4 @@
+import type { XmlElement, XmlText } from "yjs"
 import { nanoid } from "nanoid"
 import {
   FIT_CONTENT_MAX_HEIGHT,
@@ -494,6 +495,23 @@ export type CanvasOps = {
    */
   moveLayersToPage(layerIds: string[], pageId: string): string | undefined
   /**
+   * Put the Pages in `orderedIds` order (#1836), renumbering each one's
+   * `order`. A page missing from the list keeps its place after them.
+   */
+  reorderPages(orderedIds: string[]): void
+  /**
+   * Copy a Page, with every Layer on it, to just below it, named
+   * "<name> copy" (#1836). Documents and Mockups get their own copy of their
+   * body. Returns the copy's id, or `undefined` when the page is gone.
+   */
+  duplicatePage(pageId: string): string | undefined
+  /**
+   * Delete a Page and every Layer on it in one step, so ⌘Z brings back the
+   * page, its Layers and its place (#1836). Chats whose frames were on it
+   * keep running. Refused (returns false) for the canvas's last page.
+   */
+  deletePage(pageId: string): boolean
+  /**
    * @internal Not a public verb — the single Group-invariant chokepoint the
    * removal/restructure verbs (#158) route Member removal through. Exposed
    * here (behind `internal`) so those verbs and the invariant tests reach the
@@ -684,6 +702,133 @@ export function createCanvasOps(
       collections.iframeLayerGroups.update(movedTo, { pageId })
     })
     return movedTo
+  }
+
+  // Give every page its index in `ordered` as its order. Caller is inside a
+  // batch, with the pages recorded.
+  function writePageOrder(ordered: readonly PageData[]): void {
+    ordered.forEach((page, order) => {
+      if (collections.pages.get(page.id)?.order !== order)
+        collections.pages.update(page.id, { order })
+    })
+  }
+
+  function reorderPages(orderedIds: string[]): void {
+    // One page (maybe unrecorded) has no order to change.
+    if (collections.pages.toArray().length < 2) return
+    batch(() => {
+      const pages = listPages()
+      const byId = new Map(pages.map((p) => [p.id, p]))
+      const listed = orderedIds.flatMap((id) => byId.get(id) ?? [])
+      const rest = pages.filter((p) => !orderedIds.includes(p.id))
+      // A Group with no page of its own is on whichever page is first, so it
+      // names that page before another one can take its place.
+      for (const group of collections.iframeLayerGroups.toArray()) {
+        const pageId = groupPageId(group, pages)
+        if (group.pageId !== pageId)
+          collections.iframeLayerGroups.update(group.id, { pageId })
+      }
+      writePageOrder([...listed, ...rest])
+    })
+  }
+
+  function duplicatePage(pageId: string): string | undefined {
+    const pages = listPages()
+    const index = pages.findIndex((p) => p.id === pageId)
+    if (index < 0) return undefined
+    const source = pages[index]!
+    const copyId = nanoid()
+    batch(() => {
+      const copy: PageData = {
+        id: copyId,
+        name: `${source.name} copy`,
+        order: index + 1,
+      }
+      if (collections.pages.toArray().length === 0)
+        collections.pages.set(FIRST_PAGE.id, FIRST_PAGE)
+      collections.pages.set(copyId, copy)
+      writePageOrder([
+        ...pages.slice(0, index + 1),
+        copy,
+        ...pages.slice(index + 1),
+      ])
+      const groups = groupsOnPage(
+        collections.iframeLayerGroups.toArray(),
+        pages,
+        pageId
+      )
+      for (const group of groups) {
+        const members = getGroupMembers(group).flatMap((m) => {
+          const id = copyMember(m)
+          return id ? [{ kind: m.kind, id }] : []
+        })
+        if (members.length === 0) continue
+        const groupId = nanoid()
+        const { iframeLayerIds: _legacy, ...rest } = group
+        collections.iframeLayerGroups.set(groupId, {
+          ...rest,
+          id: groupId,
+          pageId: copyId,
+          members,
+        })
+      }
+    })
+    return copyId
+  }
+
+  // Copy one Member's Layer, body and all, for `duplicatePage`. Returns the
+  // copy's id, or undefined when the Layer is gone. Caller is inside a batch.
+  function copyMember(member: GroupMember): string | undefined {
+    const id = nanoid()
+    if (member.kind === "iframe-layer") {
+      const layer = collections.iframeLayers.get(member.id)
+      if (!layer) return undefined
+      collections.iframeLayers.set(id, { ...layer, id })
+    } else if (member.kind === "markdown-layer") {
+      const layer = collections.markdownLayers.get(member.id)
+      if (!layer) return undefined
+      collections.markdownLayers.set(id, { ...layer, id })
+      const body = documentFragment(doc, member.id)
+        .toArray()
+        .map((node) => node.clone() as XmlElement | XmlText)
+      if (body.length > 0) documentFragment(doc, id).insert(0, body)
+      else seedDocumentFragment(documentFragment(doc, id))
+    } else {
+      const layer = collections.mockupLayers.get(member.id)
+      if (!layer) return undefined
+      collections.mockupLayers.set(id, { ...layer, id })
+      writeMockupHtml(
+        mockupHtml(doc, id),
+        mockupHtml(doc, member.id).toString()
+      )
+    }
+    return id
+  }
+
+  function deletePage(pageId: string): boolean {
+    const pages = listPages()
+    if (pages.length <= 1 || !pages.some((p) => p.id === pageId)) return false
+    batch(() => {
+      const groups = groupsOnPage(
+        collections.iframeLayerGroups.toArray(),
+        pages,
+        pageId
+      )
+      // The Layers go with their Groups; their bodies stay in the doc, as on
+      // every delete, so ⌘Z brings them back whole.
+      for (const group of groups) {
+        for (const m of getGroupMembers(group)) {
+          if (m.kind === "iframe-layer") collections.iframeLayers.delete(m.id)
+          else if (m.kind === "markdown-layer")
+            collections.markdownLayers.delete(m.id)
+          else collections.mockupLayers.delete(m.id)
+        }
+        collections.iframeLayerGroups.delete(group.id)
+      }
+      collections.pages.delete(pageId)
+      removePageViews(pageId)
+    })
+    return true
   }
 
   function batch(fn: () => void): void {
@@ -1698,6 +1843,9 @@ export function createCanvasOps(
     renamePage,
     moveGroupToPage,
     moveLayersToPage,
+    reorderPages,
+    duplicatePage,
+    deletePage,
     internal: { pruneIfEmpty },
   }
 }
