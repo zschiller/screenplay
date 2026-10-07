@@ -3,7 +3,7 @@
 //
 //   Docs: not needed, internal refactor
 //
-// in its description. See the "Docs" section of AGENTS.md.
+// in its description. See docs/agents/product-docs.md.
 //
 // Usage (CI): node .github/scripts/docs-check.mjs <base-ref>
 // Reads the PR description from the event at $GITHUB_EVENT_PATH.
