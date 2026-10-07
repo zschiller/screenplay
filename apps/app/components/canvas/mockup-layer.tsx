@@ -416,6 +416,7 @@ function MockupLayerImpl({
   const menuActions: LayerMenuActions = {
     noun: "mockup",
     onDuplicate: onDuplicate ? () => onDuplicate(layer.id) : undefined,
+    moveTo: { kind: "layer", id: layer.id },
     size: onSetSize
       ? {
           width: layer.width,

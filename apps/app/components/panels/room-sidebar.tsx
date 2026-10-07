@@ -81,6 +81,11 @@ import type {
 } from "@/lib/types"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import {
+  MoveToPageContext,
+  type MoveToPageTarget,
+} from "@/components/canvas/move-to-page"
+import {
+  PAGE_DROP_PREFIX,
   PagesSection,
   pagesPanelHeight,
   type PagesSectionProps,
@@ -184,7 +189,7 @@ const canvasCollision: CollisionDetection = (args) => {
     (args.active.data.current as { kind?: string } | undefined)?.kind ===
     "group-header"
   const eligible = (id: string | number) =>
-    !draggingGroup || String(id).startsWith("gap:")
+    isPageDropId(id) || !draggingGroup || String(id).startsWith("gap:")
 
   const within = pointerWithin(args).filter((c) => eligible(c.id))
   if (within.length > 0) return within
@@ -194,7 +199,8 @@ const canvasCollision: CollisionDetection = (args) => {
   let bestDist = Number.POSITIVE_INFINITY
   if (y != null) {
     for (const container of args.droppableContainers) {
-      if (!eligible(container.id)) continue
+      // A page row takes a drop only with the pointer on it.
+      if (!eligible(container.id) || isPageDropId(container.id)) continue
       const rect = args.droppableRects.get(container.id)
       if (!rect) continue
       const dist =
@@ -206,7 +212,19 @@ const canvasCollision: CollisionDetection = (args) => {
     }
   }
   if (best) return [best]
-  return closestCenter(args).filter((c) => eligible(c.id))
+  return closestCenter(args).filter(
+    (c) => eligible(c.id) && !isPageDropId(c.id)
+  )
+}
+
+const isPageDropId = (id: string | number) =>
+  String(id).startsWith(PAGE_DROP_PREFIX)
+
+/** What dropping a row on a page row moves (#1837): a Group's header moves
+ *  the Group, a single-Layer Group's row its Group, a member row its Layer. */
+function pageDropTarget(row: SidebarDragRow): MoveToPageTarget {
+  if (row.kind === "member") return { kind: "layer", id: row.member.id }
+  return { kind: "group", id: row.groupId }
 }
 
 /**
@@ -619,6 +637,7 @@ function RoomSidebarImpl({
   const [activeDragRow, setActiveDragRow] = useState<SidebarDragRow | null>(
     null
   )
+  const moveToPage = useContext(MoveToPageContext)
   // The single drop indicator for the Canvas list, recomputed on each move.
   const [dropHint, setDropHint] = useState<DropHint | null>(null)
   // Live pointer Y. dnd-kit's move events don't carry the pointer, so we track
@@ -682,7 +701,10 @@ function RoomSidebarImpl({
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
       const { active, over } = event
-      const next = over ? resolveDrop(String(active.id), over).hint : null
+      const next =
+        over && !isPageDropId(over.id)
+          ? resolveDrop(String(active.id), over).hint
+          : null
       setDropHint((prev) => (sameDropHint(prev, next) ? prev : next))
     },
     [resolveDrop]
@@ -691,6 +713,15 @@ function RoomSidebarImpl({
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event
+      if (over && isPageDropId(over.id)) {
+        endDrag()
+        if (activeDragRow)
+          moveToPage?.move(
+            pageDropTarget(activeDragRow),
+            String(over.id).slice(PAGE_DROP_PREFIX.length)
+          )
+        return
+      }
       const intent = over ? resolveDrop(String(active.id), over).intent : null
       endDrag()
       if (!intent) return
@@ -698,7 +729,14 @@ function RoomSidebarImpl({
         onReorderIframeLayerGroups(intent.orderedIds)
       else onMoveMember(intent.member, intent.target)
     },
-    [resolveDrop, onMoveMember, onReorderIframeLayerGroups, endDrag]
+    [
+      resolveDrop,
+      onMoveMember,
+      onReorderIframeLayerGroups,
+      endDrag,
+      activeDragRow,
+      moveToPage,
+    ]
   )
 
   return (
@@ -721,48 +759,48 @@ function RoomSidebarImpl({
               <SidebarSimpleIcon />
             </IconButton>
           </div>
-          <ResizablePanelGroup
-            orientation="vertical"
-            className="min-h-0 flex-1"
+          <DndContext
+            // Stable id keeps dnd-kit's a11y `aria-describedby` deterministic
+            // across SSR/hydration (see file-dnd.tsx for the full rationale).
+            id="room-sidebar-canvases"
+            sensors={sensors}
+            collisionDetection={canvasCollision}
+            onDragStart={handleDragStart}
+            onDragMove={handleDragMove}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
           >
-            <ResizablePanel
-              id="pages"
-              panelRef={pagesPanelRef}
-              defaultSize={pagesDefaultSize}
-              minSize={`${pagesPanelHeight(1)}px`}
-              maxSize="70%"
-              groupResizeBehavior="preserve-pixel-size"
+            <ResizablePanelGroup
+              orientation="vertical"
+              className="min-h-0 flex-1"
             >
-              <PagesSection
-                pages={pages}
-                currentPageId={currentPageId}
-                onSelectPage={onSelectPage}
-                onAddPage={onAddPage}
-                onRenamePage={onRenamePage}
-              />
-            </ResizablePanel>
-            <ResizableHandle
-              aria-label="Resize pages"
-              className="bg-sidebar-border focus-visible:ring-0"
-              onPointerDown={() => {
-                pagesSizedByHandRef.current = true
-              }}
-              onKeyDown={() => {
-                pagesSizedByHandRef.current = true
-              }}
-            />
-            <ResizablePanel id="layers" minSize="80px">
-              <DndContext
-                // Stable id keeps dnd-kit's a11y `aria-describedby` deterministic
-                // across SSR/hydration (see file-dnd.tsx for the full rationale).
-                id="room-sidebar-canvases"
-                sensors={sensors}
-                collisionDetection={canvasCollision}
-                onDragStart={handleDragStart}
-                onDragMove={handleDragMove}
-                onDragEnd={handleDragEnd}
-                onDragCancel={handleDragCancel}
+              <ResizablePanel
+                id="pages"
+                panelRef={pagesPanelRef}
+                defaultSize={pagesDefaultSize}
+                minSize={`${pagesPanelHeight(1)}px`}
+                maxSize="70%"
+                groupResizeBehavior="preserve-pixel-size"
               >
+                <PagesSection
+                  pages={pages}
+                  currentPageId={currentPageId}
+                  onSelectPage={onSelectPage}
+                  onAddPage={onAddPage}
+                  onRenamePage={onRenamePage}
+                />
+              </ResizablePanel>
+              <ResizableHandle
+                aria-label="Resize pages"
+                className="bg-sidebar-border focus-visible:ring-0"
+                onPointerDown={() => {
+                  pagesSizedByHandRef.current = true
+                }}
+                onKeyDown={() => {
+                  pagesSizedByHandRef.current = true
+                }}
+              />
+              <ResizablePanel id="layers" minSize="80px">
                 <SidebarGroup>
                   <SidebarGroupLabel>Layers</SidebarGroupLabel>
                   <SidebarGroupContent>
@@ -916,10 +954,12 @@ function RoomSidebarImpl({
                                             <LayerMenu
                                               placement="row"
                                               layerId={group.id}
-                                              actions={groupLayerMenu(() =>
-                                                onRemoveIframeLayerGroup(
-                                                  group.id
-                                                )
+                                              actions={groupLayerMenu(
+                                                group.id,
+                                                () =>
+                                                  onRemoveIframeLayerGroup(
+                                                    group.id
+                                                  )
                                               )}
                                               onRename={() =>
                                                 groupNameRef.current?.startEditing()
@@ -991,9 +1031,9 @@ function RoomSidebarImpl({
                     </div>
                   ) : null}
                 </DragOverlay>
-              </DndContext>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </DndContext>
           {footer && <div className="shrink-0 p-2">{footer}</div>}
         </SidebarProvider>
       </TooltipProvider>

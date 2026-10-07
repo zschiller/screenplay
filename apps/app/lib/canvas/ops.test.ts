@@ -2196,3 +2196,134 @@ describe("renamePage", () => {
     expect(ops.listPages().map((p) => p.name)).toEqual(["Homepage", "Pricing"])
   })
 })
+
+describe("Move to page (#1837)", () => {
+  const groupsOn = (ops: ReturnType<typeof makeHarness>["ops"], id: string) =>
+    ops.groupsOnPage(id).map((g) => g.id)
+
+  // Page 1 holds "a" + "b" in Group "g" at (0, 0); the second page holds a
+  // 400 × 300 frame "t" in Group "there" at (100, -80).
+  function twoPages() {
+    const h = makeHarness()
+    const second = h.ops.createPage()
+    for (const id of ["a", "b", "t"])
+      h.collections.iframeLayers.set(id, baseLayer(id))
+    seedGroup(h.collections, "g", [
+      { kind: "iframe-layer", id: "a" },
+      { kind: "iframe-layer", id: "b" },
+    ])
+    seedGroup(h.collections, "there", [{ kind: "iframe-layer", id: "t" }])
+    h.ops.patch("iframeLayerGroups", "there", {
+      pageId: second,
+      x: 100,
+      y: -80,
+    })
+    return { ...h, second }
+  }
+
+  it("moves a Group whole, right of the target page's content and top-aligned with it", () => {
+    const { ops, collections, second } = twoPages()
+
+    ops.moveGroupToPage("g", second)
+
+    expect(groupsOn(ops, "page-1")).toEqual([])
+    expect(groupsOn(ops, second).sort()).toEqual(["g", "there"])
+    const g = collections.iframeLayerGroups.get("g")!
+    // "there" ends at 100 + 400; one gap past it.
+    expect({ x: g.x, y: g.y }).toEqual({ x: 550, y: -80 })
+    expect(getGroupMembers(g).map((m) => m.id)).toEqual(["a", "b"])
+  })
+
+  it("keeps a Group's spot on an empty page", () => {
+    const { ops, collections } = twoPages()
+    const empty = ops.createPage()
+    ops.patch("iframeLayerGroups", "g", { x: 30, y: 40 })
+
+    ops.moveGroupToPage("g", empty)
+
+    const g = collections.iframeLayerGroups.get("g")!
+    expect([g.pageId, g.x, g.y]).toEqual([empty, 30, 40])
+  })
+
+  it("moves a single Layer into a new Group on the target page, leaving its Group the rest", () => {
+    const { ops, collections, second } = twoPages()
+
+    const moved = ops.moveLayersToPage(["b"], second)!
+
+    expect(groupsOn(ops, "page-1")).toEqual(["g"])
+    expect(groupsOn(ops, second).sort()).toEqual([moved, "there"].sort())
+    expect(
+      getGroupMembers(collections.iframeLayerGroups.get("g")!).map((m) => m.id)
+    ).toEqual(["a"])
+    const group = collections.iframeLayerGroups.get(moved)!
+    expect(getGroupMembers(group).map((m) => m.id)).toEqual(["b"])
+    expect({ x: group.x, y: group.y }).toEqual({ x: 550, y: -80 })
+  })
+
+  it("moves the whole Group when the Layers are all of it, committing no empty Group", () => {
+    const { ops, collections, second } = twoPages()
+
+    const moved = ops.moveLayersToPage(["b", "a"], second)
+
+    expect(moved).toBe("g")
+    expect(collections.iframeLayerGroups.get("g")?.pageId).toBe(second)
+    expect(findEmptyGroups(collections)).toEqual([])
+  })
+
+  it("prunes a Group its last Layers leave across Groups", () => {
+    const { ops, collections, second } = twoPages()
+    collections.iframeLayers.set("c", baseLayer("c"))
+    seedGroup(collections, "solo", [{ kind: "iframe-layer", id: "c" }])
+
+    const moved = ops.moveLayersToPage(["c", "a"], second)!
+
+    expect(collections.iframeLayerGroups.has("solo")).toBe(false)
+    expect(findEmptyGroups(collections)).toEqual([])
+    expect(
+      getGroupMembers(collections.iframeLayerGroups.get(moved)!).map(
+        (m) => m.id
+      )
+    ).toEqual(["c", "a"])
+  })
+
+  it("places what it moves clear of every Group on the target page", () => {
+    const { ops, collections, second } = twoPages()
+    collections.iframeLayers.set("tall", baseLayer("tall", { height: 2000 }))
+    seedGroup(collections, "below", [{ kind: "iframe-layer", id: "tall" }])
+    ops.patch("iframeLayerGroups", "below", { pageId: second, x: 0, y: 500 })
+
+    ops.moveGroupToPage("g", second)
+
+    const g = collections.iframeLayerGroups.get("g")!
+    // The furthest right on that page is "there" (ends at 500) vs "below"
+    // (ends at 400), so "g" starts past both, top-aligned with the topmost.
+    expect({ x: g.x, y: g.y }).toEqual({ x: 550, y: -80 })
+  })
+
+  it("does nothing for its own page or a page that isn't there", () => {
+    const { ops, collections } = twoPages()
+    const before = collections.iframeLayerGroups.toArray()
+
+    ops.moveGroupToPage("g", "page-1")
+    ops.moveGroupToPage("g", "nope")
+    expect(ops.moveLayersToPage(["a"], "page-1")).toBeUndefined()
+
+    expect(collections.iframeLayerGroups.toArray()).toEqual(before)
+  })
+
+  it("moves in one undoable step", () => {
+    const { doc, ops, collections, second } = twoPages()
+    const undo = new UndoManager(
+      doc.getMap(COLLECTION_KEYS.iframeLayerGroups),
+      { trackedOrigins: new Set([CANVAS_OPS_ORIGIN]) }
+    )
+
+    ops.moveLayersToPage(["b"], second)
+    undo.undo()
+
+    expect(groupsOn(ops, "page-1")).toEqual(["g"])
+    expect(
+      getGroupMembers(collections.iframeLayerGroups.get("g")!).map((m) => m.id)
+    ).toEqual(["a", "b"])
+  })
+})
