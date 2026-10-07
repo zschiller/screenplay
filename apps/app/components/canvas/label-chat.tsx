@@ -33,7 +33,7 @@ export function LabelChat({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-label-chat=""
-      className="flex min-w-10 shrink-[1000000] [[data-chat-hidden]>&]:hidden [:has([data-editable-text=editing])>&]:min-w-0 [:has([data-editable-text=editing])>&]:overflow-hidden"
+      className="flex min-w-10 shrink-[1000000] [:has([data-editable-text=editing])>&]:min-w-0 [:has([data-editable-text=editing])>&]:overflow-hidden [[data-chat-hidden]>&]:hidden"
     >
       {children}
     </div>

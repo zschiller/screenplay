@@ -5,7 +5,8 @@ import { PerkAgent, PerkChat, PerkComments, PerkLive } from "../excerpts/perks"
 import { buttonClass, measure, sectionTop } from "./editorial"
 import { SectionHeading } from "./section-heading"
 
-const h3 = "font-heading text-[20px] leading-[1.2] font-normal tracking-[-0.03em]"
+const h3 =
+  "font-heading text-[20px] leading-[1.2] font-normal tracking-[-0.03em]"
 const bodyText = "text-[15px] leading-normal text-muted-foreground"
 
 /** What the hosted web app adds to the desktop app. */
