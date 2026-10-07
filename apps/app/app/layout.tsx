@@ -1,12 +1,11 @@
 import type { Metadata } from "next"
 import { cookies } from "next/headers"
-import { Geist_Mono, Instrument_Sans, Unbounded } from "next/font/google"
 
+import "./fonts/fonts.css"
 import "./globals.css"
 import { MotionProvider } from "@/components/motion-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
-import { cn } from "@workspace/ui/lib/utils"
 import { LocalSetupGate } from "@/components/local-setup/local-setup-gate"
 import { getLocalSetupGateStatus } from "@/lib/local-setup/gate-status"
 import {
@@ -27,27 +26,9 @@ export const metadata: Metadata = {
 
 // The app's type voice (#1005, #1077): Instrument Sans for the UI, Unbounded
 // at 400 for page, dialog and empty-state titles, Geist Mono for code and
-// section labels. `next/font` downloads them at build time and serves them from
-// the app, so the desktop build works offline. `globals.css` maps these
-// variables onto `font-sans` and `font-heading`.
-const fontSans = Instrument_Sans({
-  subsets: ["latin"],
-  // The width axis lets a label that bolds on selection (`font-medium
-  // font-stretch-[98.8%]`) keep its regular width, so nothing beside it moves.
-  axes: ["wdth"],
-  variable: "--font-instrument-sans",
-})
-
-const fontHeading = Unbounded({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-unbounded",
-})
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-})
+// section labels. The app ships the font files itself (`fonts/fonts.css`), so
+// a build downloads nothing and the desktop build works offline (#1929).
+// `globals.css` maps them onto `font-sans` and `font-heading`.
 
 /**
  * Compute the desktop first-run gate's initial block state **server-side** so the
@@ -99,17 +80,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={cn(
-        "antialiased",
-        fontMono.variable,
-        fontHeading.variable,
-        "font-sans",
-        fontSans.variable
-      )}
-    >
+    <html lang="en" suppressHydrationWarning className="font-sans antialiased">
       <body>
         <ThemeProvider>
           <MotionProvider>
