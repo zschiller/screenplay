@@ -20,6 +20,8 @@ import { senderPageOf } from "./sender-page"
 import { buildLayerHoldTools } from "./layer-hold"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
+import { buildAskCoordinatorTools } from "./ask-coordinator-tools"
+import { liveAskCoordinator } from "./ask-coordinator-live"
 import { sketchAppSkills } from "./sketch-tools"
 import { buildSkillTools } from "./skill-tools"
 import { canvasSkills } from "@/lib/skills/canvas"
@@ -155,6 +157,9 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
           },
         }),
         ...buildQuestionTools(),
+        // Anything this chat can't do itself, such as page changes or a new
+        // chat, goes to the Coordinator (#1843).
+        ...buildAskCoordinatorTools(liveAskCoordinator(room, target, chatId)),
         // Account and canvas memory (#1515).
         ...buildMemoryTools({
           canvas: room,

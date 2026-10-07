@@ -31,6 +31,7 @@ export type RowLabel = {
 export type ToolIcon =
   | "file"
   | "file-plus"
+  | "page"
   | "edit"
   | "rename"
   | "note"
@@ -773,6 +774,34 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     output: "outcome",
     category: "canvas",
   },
+  create_page: {
+    verb: "Create page",
+    icon: "page",
+    kind: "edit",
+    output: "outcome",
+    category: "canvas",
+  },
+  rename_page: {
+    verb: "Rename page",
+    icon: "rename",
+    kind: "edit",
+    output: "outcome",
+    category: "canvas",
+  },
+  delete_page: {
+    verb: "Delete page",
+    icon: "trash",
+    kind: "delete",
+    output: "outcome",
+    category: "canvas",
+  },
+  move_to_page: {
+    verb: "Move to page",
+    icon: "page",
+    kind: "move",
+    output: "outcome",
+    category: "canvas",
+  },
   undo_changes: {
     verb: "Undo changes",
     icon: "undo",
@@ -817,6 +846,13 @@ export const SCREENPLAY_TOOLS: Record<string, ToolEntry> = {
     output: "outcome",
   },
   ask_question: { verb: "Ask a question", icon: "question", kind: "other" },
+  // A chat handing the Coordinator what it can't do itself (#1843).
+  ask_coordinator: {
+    verb: "Ask the Coordinator",
+    icon: "send",
+    kind: "other",
+    label: subject("request", "text"),
+  },
   // The Coordinator's plan, drawn as a Plan card rather than a row.
   propose_plan: { verb: "Propose plan", icon: "terminal", kind: "other" },
 }

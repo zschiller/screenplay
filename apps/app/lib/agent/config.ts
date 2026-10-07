@@ -20,6 +20,7 @@ import {
 } from "@/lib/agent/message-markers"
 import { PLAN_APPROVAL } from "@/lib/agent/coordinator-plan"
 import { workspaceLink } from "@/lib/agent/workspace-task"
+import { ASK_COORDINATOR_TOOL } from "@/lib/agent/ask-coordinator-tools"
 import { layerLink } from "@/lib/agent/layer-link"
 import { BARE_TOOL_NAMING, type ToolNaming } from "@/lib/agent/tool-name"
 import { frameDrivePrompt } from "@/lib/frame-drive/prompt"
@@ -345,10 +346,20 @@ const canvasViewPrompt = `A user message may end with a \`${CANVAS_VIEW_FOOTER_T
 /**
  * How a chat (not the Coordinator) works with a canvas's pages (#1842): new
  * layers on the sender's page or one it names; editing pages is the
- * Coordinator's alone, so two chats never fight over them.
+ * Coordinator's alone, so two chats never fight over them, and a chat asks
+ * it for those (#1843).
  */
 const chatPagesPrompt = (t: ToolNaming["name"]) =>
-  `A canvas can have several pages, each with its own layers. On a canvas with more than one, the \`${CANVAS_VIEW_FOOTER_TOKEN}\` footer names the page its sender was on, and \`${t("read_document")}\` and \`${t("read_mockup")}\` say which page a layer is on. \`${t("create_mockup")}\` and \`${t("create_document")}\` put a new one on that sender’s page, beside your other layers there; pass \`page\` with an existing page’s name only when the person asks for that page. You can’t create, rename, delete or reorder pages, or move layers between them: when asked to, say that’s the Coordinator’s job.`
+  `A canvas can have several pages, each with its own layers. On a canvas with more than one, the \`${CANVAS_VIEW_FOOTER_TOKEN}\` footer names the page its sender was on, and \`${t("read_document")}\` and \`${t("read_mockup")}\` say which page a layer is on. \`${t("create_mockup")}\` and \`${t("create_document")}\` put a new one on that sender’s page, beside your other layers there; pass \`page\` with an existing page’s name only when the person asks for that page. You can’t create, rename, delete or reorder pages, or move layers between them yourself: when asked to, call \`${t(ASK_COORDINATOR_TOOL)}\` with what to do, naming the pages and layers by name and id.
+
+${askCoordinatorPrompt(t)}`
+
+/**
+ * Anything a chat can't do itself goes to the Coordinator (#1843), rather
+ * than a refusal.
+ */
+const askCoordinatorPrompt = (t: ToolNaming["name"]) =>
+  `Asking the Coordinator: for anything else you can’t do yourself, such as arranging or removing things on the canvas, starting a new chat or messaging another one, call \`${t(ASK_COORDINATOR_TOOL)}\` with the request in your own words instead of saying you can’t. The Coordinator does it with its own tools; you don’t hear back in this turn, so tell the person you asked it and carry on.`
 
 /**
  * How the Workspace agent handles a PR event that woke it (#1703): fix and
@@ -588,8 +599,12 @@ export function buildRoomSystemPrompt(opts: {
     "- Removing a frame never removes its Workspace.",
     `- A Group holds its frames and documents in one row, left to right, and the summary gives each Group’s top-left corner and size. To tidy the canvas, or to put Groups side by side or in a column, call \`${t("arrange_groups")}\`: it spaces them so nothing overlaps. Use \`${t("move_group")}\` only to put one Group at a particular spot, clear of the others' rects. When the user only asks to fix overlaps, move just the Groups that overlap. A change that leaves Groups overlapping says so in its result; clear them before you finish.`,
     "",
+    "Pages:",
+    `- A canvas can have several pages, each with its own Groups; the summary lists them in order, who is on each, and each Group’s page. \`${t("create_page")}\` adds one (after a given page, or at the end), \`${t("rename_page")}\` renames one, \`${t("delete_page")}\` deletes one with everything on it (never the last), and \`${t("move_to_page")}\` moves Groups, frames, documents and mockups to another page. They act right away and \`${t("undo_changes")}\` undoes them.`,
+    `- After you make or fill a page the user asked for, call \`${t("show_on_canvas")}\` on what’s on it: their view switches to that page.`,
+    "",
     "Moving the view:",
-    `- \`${t("show_on_canvas")}\` moves the user’s view to fit frames, documents or Groups, or the whole canvas when you pass no ids. It moves only the view of the person who asked and changes nothing on the canvas.`,
+    `- \`${t("show_on_canvas")}\` moves the user’s view to fit frames, documents or Groups, switching them to the page those are on, or to a page by its id; with no ids it fits the page they’re on. It moves only the view of the person who asked and changes nothing on the canvas.`,
     `- When the user asks to see, find, zoom to or go to something, call it rather than describing where it is. After you create or arrange what the user asked for, call it on the result so they see it.`,
     "",
     "Documents and mockups:",
@@ -632,6 +647,7 @@ export function buildRoomSystemPrompt(opts: {
     `- When a turn ends on work you handed a Workspace or a chat with no repository, or any turn there fails, you get a message starting \`[${WAKE_MARKER_LABEL}: <id>]\` with how it ended, its turn summary and its last reply. The user doesn’t see it. Turns someone drove in that chat themselves don’t reach you: they’re already there.`,
     "- Results stay in the chat that did the work, and its card in your chat shows its state (Ready, Needs you, Failed, Stopped). So don’t report a result, narrate progress, repeat what the chat said, or say a plan or question is waiting. With nothing to add, end your turn without writing anything.",
     "- Write only for a blocker the card can’t show, such as why a chat failed or what stops it going on, or for a decision only the user can make, in one or two lines with the chat linked. You have no way to approve plans; the user approves them in the chat.",
+    "- A message starting the same way can instead say a chat asks you to do something it can’t do itself, such as a page change or starting a new chat, in its agent’s words for the person working there. Do it with your own tools as you would for the user, then say in one line what you did or why you couldn’t.",
     "- You may follow up yourself when the user already asked for the next step, for example sending a chat its next step or opening its pull request. After two such follow-ups with no word from the user, the tools that hand out work refuse: tell the user in one line what you’d do next instead.",
     "",
     renderMemorySaving(t, opts.accountMemory),

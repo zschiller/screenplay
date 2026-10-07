@@ -1155,9 +1155,11 @@ export function Canvas({
   // into view only if it's off screen.
   const { zoomToRect: cameraZoomToRect, revealRect: cameraRevealRect } = camera
   const iframeLayerGroupsRef = useRef(iframeLayerGroups)
+  const pagesRef = useRef(pages)
   const selectNamedLayerRef = useRef((_id: string) => {})
   useEffect(() => {
     iframeLayerGroupsRef.current = iframeLayerGroups
+    pagesRef.current = pages
     selectNamedLayerRef.current = (id) => {
       if (iframeLayers.some((l) => l.id === id)) {
         selection.selectIframeLayer(id, false)
@@ -1225,18 +1227,22 @@ export function Canvas({
         return
       }
       // The call's broadcast can land before the doc update that moved what
-      // it names, so let the layout catch up first.
+      // it names, so let the layout catch up first. A page it names (#1843)
+      // switches to that page.
       window.clearTimeout(timer)
       timer = window.setTimeout(() => {
-        if (ids.length === 0) return zoomControls.zoomToFit()
-        showLayersOnAnyPage(ids, { select: false })
+        const page = ids.find((id) => pagesRef.current.some((p) => p.id === id))
+        if (page && page !== currentPageIdRef.current) return switchPage(page)
+        const layerIds = ids.filter((id) => id !== page)
+        if (layerIds.length === 0) return zoomControls.zoomToFit()
+        showLayersOnAnyPage(layerIds, { select: false })
       }, VIEW_REQUEST_SETTLE_MS)
     })
     return () => {
       unsubscribe()
       window.clearTimeout(timer)
     }
-  }, [roomId, zoomControls, showLayersOnAnyPage])
+  }, [roomId, zoomControls, showLayersOnAnyPage, switchPage])
 
   // The agent showing this member a frame (#1390): fit it in their view,
   // waiting briefly for a frame it just opened to be laid out.

@@ -234,7 +234,9 @@ describe("room chat target", () => {
       "comment_on_issue",
       "create_frames",
       "create_issue",
+      "create_page",
       "create_workspaces",
+      "delete_page",
       "delete_saved_file",
       "link_issues",
       "list_changes",
@@ -246,6 +248,7 @@ describe("room chat target", () => {
       "move_group",
       "move_saved_file",
       "move_to_group",
+      "move_to_page",
       "open_pull_request",
       "propose_plan",
       "read_canvas",
@@ -262,6 +265,7 @@ describe("room chat target", () => {
       "remove",
       "remove_workspace",
       "rename",
+      "rename_page",
       "review_pr",
       "save_file",
       "save_skill",
@@ -339,12 +343,60 @@ describe("the Coordinator only delegates", () => {
     )
 
     expect(arrangeAndCamera).toEqual(
-      expect.arrayContaining(["arrange_groups", "show_on_canvas"])
+      expect.arrayContaining([
+        "arrange_groups",
+        "show_on_canvas",
+        "create_page",
+        "move_to_page",
+      ])
     )
     for (const name of arrangeAndCamera) {
       expect(tools).not.toContain(name)
     }
     expect(tools).toEqual(expect.arrayContaining(documentAndMockupWrites))
+    // It asks the Coordinator for those instead (#1843).
+    expect(tools).toContain("ask_coordinator")
+  })
+
+  it("has every chat ask the Coordinator for what it can’t do, rather than refuse (#1843)", () => {
+    for (const prompt of [
+      workspaceChatTarget.buildSystemPrompt(
+        {
+          repoSystemPrompt: null,
+          settingUp: false,
+          chatId: "chat-1",
+          layerDirectory: { documents: [] },
+          skills: [],
+          memory: [],
+          files: [],
+          accountMemory: [],
+          accountFiles: [],
+          contextFolder: null,
+        } as never,
+        BARE_TOOL_NAMING
+      ),
+      sketchChatTarget.buildSystemPrompt(
+        {
+          chatId: "s-1",
+          layerDirectory: { documents: [] },
+          skills: [],
+          memory: [],
+          files: [],
+          accountMemory: [],
+          accountFiles: [],
+          contextFolder: null,
+        },
+        BARE_TOOL_NAMING
+      ),
+    ]) {
+      expect(prompt).toContain(
+        "move layers between them yourself: when asked to, call `ask_coordinator`"
+      )
+      expect(prompt).toMatch(
+        /starting a new chat or messaging another one, call `ask_coordinator`/
+      )
+      expect(prompt).not.toContain("say that’s the Coordinator’s job")
+    }
   })
 
   it("tells the Coordinator to start a chat for a Document or Mockup", () => {
@@ -1440,6 +1492,7 @@ describe("sketchChatTarget (a chat with no repository)", () => {
         "read_document",
         "read_skill",
         "ask_question",
+        "ask_coordinator",
         // It drives a Mockup in the asker's view (#1391).
         "frame_click",
         "frame_screenshot",

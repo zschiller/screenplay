@@ -161,6 +161,36 @@ export function wakeMessage(input: {
 }
 
 /**
+ * The Coordinator turn's message for a chat asking it to do something the
+ * chat can't (#1843): which chat asks, and the request in the chat's own
+ * words. Like a wake, it carries the `[workspace update: …]` marker, so the
+ * Coordinator chat never shows it and its turn reads as answering that chat.
+ */
+export function askMessage(input: {
+  workspaceId: string
+  title: string
+  request: string
+  /** True when `workspaceId` is a chat with no repository (a Sketch Chat). */
+  sketch?: boolean
+}): string {
+  const { workspaceId, title, request } = input
+  const link = input.sketch
+    ? `"${title}" (a chat with no repository) [chat ${workspaceId}]`
+    : workspaceLink(title, workspaceId)
+  const subject = input.sketch ? "Chat" : "Workspace"
+  return prependTurnMarkers(
+    [
+      `${subject} ${link} asks you to do something it can’t do itself. Its agent wrote this for the person working in that chat:`,
+      "",
+      request,
+      "",
+      "Do it with your own tools, as you would for the user. Then say in one line what you did, or why you couldn’t. That chat isn’t told, so don’t message it unless the request asks you to.",
+    ].join("\n"),
+    { wakeFrom: workspaceId }
+  )
+}
+
+/**
  * The stock lines a harness writes when a wake needs no answer (#1224):
  * "No response requested.", "No reply needed.", "(nothing to add)" and close
  * variants. Claude Code sometimes writes one instead of ending its turn

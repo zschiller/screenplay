@@ -22,16 +22,20 @@ export const CHANGE_LOG_KEY = "roomChanges"
 export const MAX_LOGGED_TURNS = 20
 
 /**
- * The collections a canvas arrangement can touch: frames, Groups, documents
- * and the document chats removed or created with them. Branches aren't
- * tracked: arranging never removes a Workspace, and undo must never rewind a
- * Workspace's live status.
+ * The collections a canvas arrangement can touch: frames, Groups, documents,
+ * mockups, the document chats removed or created with them, and pages with
+ * each member's view of them (#1843; a deleted page takes its Layers and
+ * views along). Branches aren't tracked: arranging never removes a
+ * Workspace, and undo must never rewind a Workspace's live status.
  */
 const TRACKED = [
   COLLECTION_KEYS.iframeLayers,
   COLLECTION_KEYS.iframeLayerGroups,
   COLLECTION_KEYS.markdownLayers,
+  COLLECTION_KEYS.mockupLayers,
   COLLECTION_KEYS.chatSessions,
+  COLLECTION_KEYS.pages,
+  COLLECTION_KEYS.pageViews,
 ] as const
 type TrackedKey = (typeof TRACKED)[number]
 
