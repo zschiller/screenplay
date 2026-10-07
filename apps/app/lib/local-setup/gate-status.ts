@@ -4,7 +4,7 @@ import { listHarnessReadiness } from "@/lib/agent/harnesses/setup-actions"
 import { readLocalGitHubTokenSource } from "@/lib/github-local/token-resolver"
 import { isFixtureWorld } from "@/lib/fixture-world"
 import { readFixtureEntryState } from "@/lib/fixture-entry"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { deriveGateStatus } from "./is-complete"
 
 /**
@@ -23,7 +23,7 @@ import { deriveGateStatus } from "./is-complete"
  * Returns **only** `{ harnessSatisfied, githubSatisfied }` — the raw credential
  * shapes behind those reads (tokens, the GitHub handle) never cross to the
  * client. Off the desktop build it is a no-op
- * `false`/`false`: the gate itself is `isLocalBuild`-gated (so this is never
+ * `false`/`false`: the gate itself is host-only (so this is never
  * reached on the hosted build), and the guard keeps a stray call from ever
  * probing host state on a server.
  *
@@ -40,7 +40,8 @@ export async function getLocalSetupGateStatus(): Promise<{
   harnessSatisfied: boolean
   githubSatisfied: boolean
 }> {
-  if (!isLocalBuild) return { harnessSatisfied: false, githubSatisfied: false }
+  if (buildIdentity === "account")
+    return { harnessSatisfied: false, githubSatisfied: false }
   if (isFixtureWorld) {
     const entry = await readFixtureEntryState()
     return {

@@ -9,7 +9,7 @@ import {
 } from "@workspace/ui/components/dialog"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 import { canvasShortcutGroups } from "@/lib/canvas/shortcuts"
 
 /**
@@ -24,7 +24,7 @@ export function ShortcutSheet({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const groups = canvasShortcutGroups({ comments: !isLocalBuild })
+  const groups = canvasShortcutGroups({ comments: multiUserSurface })
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent

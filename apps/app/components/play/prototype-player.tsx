@@ -36,7 +36,7 @@ import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
 import { useStartWorkspace } from "@/hooks/use-start-workspace"
 import { keyTargetOf } from "@/lib/canvas/key-target"
 import { matchCanvasKey } from "@/lib/canvas/shortcuts"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 import { PlayerHud } from "./player-hud"
 import { PlayerChatHost } from "./player-chat-host"
 import { PlayerCommentLayer, usePlayerComments } from "./player-comments"
@@ -522,7 +522,7 @@ export function PrototypePlayer({
             >
               {iframe}
               {/* Comments are excluded from the local build (PRD #404). */}
-              {!isLocalBuild && iframe && !stage && (
+              {multiUserSurface && iframe && !stage && (
                 <PlayerCommentLayer {...comments.layer} />
               )}
               {statusScreen}

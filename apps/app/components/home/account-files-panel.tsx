@@ -12,7 +12,7 @@ import { LoadErrorRow } from "@/components/home/load-error"
 import { SettingsRowSkeleton } from "@/components/home/settings-row"
 import { listAccountFiles } from "@/lib/files/account-actions"
 import { openAccountFileOnDesktop } from "@/lib/files/desktop-actions"
-import { isLocalBuild } from "@/lib/local-mode"
+import { macShell } from "@/lib/capabilities"
 import type { FileEntryData } from "@/lib/types"
 
 const COPY: FilesCopy = {
@@ -35,7 +35,7 @@ export function AccountFilesPanel({
   header,
   list = listAccountFiles,
   deleteFile = deleteAccountFile,
-  openFileOnDesktop = isLocalBuild ? openAccountFileOnDesktop : undefined,
+  openFileOnDesktop = macShell ? openAccountFileOnDesktop : undefined,
 }: {
   header: (action?: React.ReactNode) => React.ReactNode
   list?: () => Promise<FileEntryData[]>

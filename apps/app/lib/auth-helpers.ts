@@ -4,7 +4,7 @@ import { headers } from "next/headers"
 import { and, eq, inArray } from "drizzle-orm"
 import { auth, type Session } from "@/lib/auth"
 import { db, schema } from "@/lib/db"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { LOCAL_USER } from "@/lib/local-user"
 
 // The single seeded identity every request runs as in the local desktop build
@@ -36,7 +36,7 @@ const LOCAL_SESSION = {
  * build it is always the single seeded local user.
  */
 export async function getUserId(): Promise<string | null> {
-  if (isLocalBuild) return LOCAL_USER.id
+  if (buildIdentity === "host") return LOCAL_USER.id
   const session = await auth.api.getSession({ headers: await headers() })
   return session?.user.id ?? null
 }
@@ -53,7 +53,7 @@ export async function requireUserId(): Promise<string> {
  * synthesized single local session without consulting Better Auth.
  */
 export async function getCurrentSession() {
-  if (isLocalBuild) return LOCAL_SESSION
+  if (buildIdentity === "host") return LOCAL_SESSION
   return auth.api.getSession({ headers: await headers() })
 }
 
@@ -70,7 +70,7 @@ export async function getCurrentSession() {
 export async function getGitHubTokenForUser(
   userId: string
 ): Promise<string | null> {
-  if (isLocalBuild) {
+  if (buildIdentity === "host") {
     // Dynamic import inside the compile-time-eliminated branch so the hosted
     // bundle never pulls the local chain (child_process + the keyring binding).
     const { resolveLocalGitHubToken } =
@@ -164,7 +164,8 @@ export interface GitIdentity {
 export async function getGitIdentityForUser(
   userId: string
 ): Promise<GitIdentity | null> {
-  if (isLocalBuild) return { name: LOCAL_USER.name, email: LOCAL_USER.email }
+  if (buildIdentity === "host")
+    return { name: LOCAL_USER.name, email: LOCAL_USER.email }
   const rows = await db
     .select({ name: schema.user.name, email: schema.user.email })
     .from(schema.user)

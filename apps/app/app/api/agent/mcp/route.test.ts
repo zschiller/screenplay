@@ -10,8 +10,13 @@ import type { RoomDoc } from "@/lib/room-access"
  * harness doc; Room Access and Terminal Tabs are stubbed.
  */
 
-const localMode = vi.hoisted(() => ({ isLocalBuild: true }))
-vi.mock("@/lib/local-mode", () => localMode)
+const localMode = vi.hoisted(() => ({ host: true }))
+vi.mock("@/lib/capabilities", async (original) => ({
+  ...(await original<typeof import("@/lib/capabilities")>()),
+  get buildIdentity() {
+    return localMode.host ? "host" : "account"
+  },
+}))
 
 let collections: RoomCollections
 const openRoomForRoute = vi.fn(async (roomId: string, _chatId?: string) => ({
@@ -171,7 +176,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  localMode.isLocalBuild = true
+  localMode.host = true
   openRoomForRoute.mockClear()
   vi.clearAllMocks()
 })
@@ -389,7 +394,7 @@ describe("the Coordinator’s MCP route", () => {
   })
 
   it("does not exist outside the local build", async () => {
-    localMode.isLocalBuild = false
+    localMode.host = false
     const res = await POST(rpc({ jsonrpc: "2.0", id: 8, method: "ping" }))
     expect(res.status).toBe(404)
   })

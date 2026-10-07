@@ -133,7 +133,9 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 
 ## Build switches
 
-These select alternative backends. The desktop app sets them together; see
+These pick a build profile and select alternative backends. A profile implies
+its backends, and a backend switch you set yourself wins over it. The desktop
+app sets them together; see
 [Local build](/self-hosting/configuration/local-build) and
 [Desktop app](/self-hosting/configuration/desktop-app). A hosted deployment
 leaves them all unset.
@@ -141,7 +143,8 @@ leaves them all unset.
 | Variable | Required | Description |
 | --- | --- | --- |
 | `SCREENPLAY_DESKTOP` | Optional | `1` builds the self-contained server the desktop shell runs (Next’s `standalone` output). Read at build time. |
-| `NEXT_PUBLIC_SCREENPLAY_LOCAL` | Optional | `1` removes the multi-user surface (single local user). Inlined at build time. |
+| `NEXT_PUBLIC_SCREENPLAY_PROFILE` | Optional | The build profile: `hosted` (the default), `desktop` or `headless`. It sets the app’s capabilities and, for `desktop` and `headless`, implies the local backends below. Inlined at build time. See [Build profiles](/self-hosting/configuration/local-build#build-profiles). |
+| `NEXT_PUBLIC_SCREENPLAY_LOCAL` | Optional | Older spelling of `NEXT_PUBLIC_SCREENPLAY_PROFILE=desktop`: `1` picks the desktop profile when no profile is set. Inlined at build time. |
 | `SANDBOX_BACKEND` | Optional | `local`: each chat’s code is a git worktree on the host. |
 | `SCREENPLAY_DB` | Optional | `pglite`: embedded Postgres. |
 | `NEXT_PUBLIC_YJS_HOST` | Optional | `local`: in-process y-websocket server. Inlined at build time. |

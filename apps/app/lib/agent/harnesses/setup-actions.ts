@@ -2,7 +2,7 @@
 
 import { readFixtureEntryState } from "@/lib/fixture-entry"
 import { isFixtureWorld } from "@/lib/fixture-world"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import {
   createHarnessSetup,
   harnessSetup,
@@ -18,7 +18,7 @@ import type { HarnessModelChoice } from "./types"
  * the first-run gate (ADR 0016), the harness sibling of the GitHub-connection
  * actions. Each one is a thin pass-through to the **Harness Setup** module
  * (`./setup.ts`) — every rule lives there — plus the local-build gate: the
- * surfaces are `isLocalBuild`-only client-side, and the guard keeps a stray
+ * surfaces are host-only client-side, and the guard keeps a stray
  * hosted-build call from ever probing host state.
  */
 
@@ -28,7 +28,7 @@ import type { HarnessModelChoice } from "./types"
  * restart. One row per distinct `hostBinary`. `[]` off the desktop build.
  */
 export async function listHarnessSetupRows(): Promise<HarnessSetupRow[]> {
-  if (!isLocalBuild) return []
+  if (buildIdentity === "account") return []
   return (await setupFor()).rows()
 }
 
@@ -40,7 +40,7 @@ export async function listHarnessSetupRows(): Promise<HarnessSetupRow[]> {
 export async function listHarnessReadiness(): Promise<
   Pick<HarnessSetupRow, "installed" | "authenticated">[]
 > {
-  if (!isLocalBuild) return []
+  if (buildIdentity === "account") return []
   return (await setupFor()).readiness()
 }
 
@@ -55,7 +55,7 @@ export async function resolveHarnessSetupRun(
   key: string,
   kind: HarnessSetupActionKind
 ): Promise<HarnessSetupRun | null> {
-  if (!isLocalBuild) return null
+  if (buildIdentity === "account") return null
   return (await setupFor()).commandsFor(key, kind)
 }
 
@@ -66,7 +66,7 @@ export async function resolveHarnessSetupRun(
  * here is the row's new state".
  */
 export async function noteHarnessConnected(): Promise<HarnessSetupRow[]> {
-  if (!isLocalBuild) return []
+  if (buildIdentity === "account") return []
   return (await setupFor()).markConnected()
 }
 
@@ -78,7 +78,7 @@ export async function noteHarnessConnected(): Promise<HarnessSetupRow[]> {
 export async function listHarnessModelChoices(
   key: string
 ): Promise<HarnessModelChoice[] | null> {
-  if (!isLocalBuild) return null
+  if (buildIdentity === "account") return null
   return (await setupFor()).modelChoices(key)
 }
 

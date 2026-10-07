@@ -23,7 +23,7 @@ import {
 } from "@workspace/ui/components/sidebar"
 import { cn } from "@workspace/ui/lib/utils"
 import { docsUrl } from "@/lib/docs-url"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { openExternal } from "@/lib/open-external"
 import { useTrafficLightsPresent } from "@/lib/use-traffic-lights"
 import { AccountMenu } from "./account-menu"
@@ -117,7 +117,7 @@ export function HomeSidebar() {
           <DocsNavItem link={DOCS} />
           <NavItem link={SETTINGS} active={isActive(SETTINGS.href)} />
         </SidebarMenu>
-        {!isLocalBuild && <AccountMenu />}
+        {buildIdentity === "account" && <AccountMenu />}
       </SidebarFooter>
     </SidebarProvider>
   )

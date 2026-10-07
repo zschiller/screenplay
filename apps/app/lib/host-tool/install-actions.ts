@@ -1,7 +1,7 @@
 "use server"
 
 import { probeHostFacts } from "@/lib/agent/harnesses/host-binary"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 
 /**
  * Server actions the guided-install setup step calls before it builds an install
@@ -19,6 +19,6 @@ import { isLocalBuild } from "@/lib/local-mode"
  * which just routes the install down the binary path.
  */
 export async function probeHomebrewPresent(): Promise<boolean> {
-  if (!isLocalBuild) return false
+  if (buildIdentity === "account") return false
   return (await probeHostFacts()).brewPresent
 }

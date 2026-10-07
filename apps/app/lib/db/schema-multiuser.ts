@@ -18,7 +18,7 @@ import { room, user, type RoomRole } from "./schema-core"
 // `./schema.ts`, which re-exports this module alongside `./schema-core`. The
 // desktop build excludes them: its PGlite migrations are generated from
 // `schema-core` only (`drizzle/local`), and every code path that would touch
-// them is gated off behind `@/lib/local-mode`'s `isLocalBuild`.
+// them is gated off behind `@/lib/capabilities`' `multiUserSurface`.
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),

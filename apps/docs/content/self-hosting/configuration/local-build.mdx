@@ -1,6 +1,6 @@
 ---
 title: Local (single-user) build
-description: How the desktop build removes the multi-user surface with one build-time flag.
+description: How a build profile sets what each way of running Screenplay can do, and how the desktop build removes the multi-user surface.
 ---
 
 # Local (single-user) build
@@ -37,20 +37,49 @@ Git operations use the host’s own credentials, so the brokered GitHub token an
 ADR 0002’s egress firewall trust boundary dissolve. Re-enabling multi-tenant
 operation on the local build is out of scope.
 
-## The switch
+## Build profiles
 
-One build-time flag gates the whole surface, a sibling of the per-seam backend
-flags (`SANDBOX_BACKEND`, `SCREENPLAY_DB`, `NEXT_PUBLIC_YJS_HOST`):
+One build-time variable, `NEXT_PUBLIC_SCREENPLAY_PROFILE`, picks a **build
+profile**. The profile sets four capabilities and the backend switches together,
+so nobody assembles a combination by hand:
 
-- `NEXT_PUBLIC_SCREENPLAY_LOCAL` — unset (or anything but `1`) keeps the full
-  hosted multi-user app, **byte-for-byte unchanged**; `1` selects the local
-  build. It is `NEXT_PUBLIC_` so the same constant is inlined into both the
-  server runtime (auth/session, access checks) and the client bundle (the
-  affordances that simply don’t render), and so the bundler dead-code-eliminates
-  the unused branch.
+| Profile | Identity | Multi-user surface | Mac app | Viewers |
+| --- | --- | --- | --- | --- |
+| `hosted` (default) | `account` | on | off | off |
+| `desktop` | `host` | off | on | off |
+| `headless` | `host` | on | off | on |
 
-Read it through `apps/app/lib/local-mode.ts`’s `isLocalBuild`, never
-`process.env` directly, so the gate stays one well-named seam.
+- **Identity** is who writes. `account` is many people signed in with GitHub.
+  `host` is one person running the server on their own machine, with no
+  sign-in, as the seeded local user, using that machine’s own git, `gh`, coding
+  CLIs and folders.
+- **Multi-user surface** is membership, persisted comments, chat senders and
+  remote presence (above).
+- **Mac app** is the desktop app’s window around the app: traffic lights,
+  native dialogs, opening files in Finder, webview thumbnails, and the agent
+  controlling frames in your own canvas.
+- **Viewers** are people watching a canvas by link (Sharing). Nothing uses it
+  yet.
+
+`headless` is the profile for running the server on a machine you control. It
+exists, but nothing launches it yet.
+
+`desktop` and `headless` also imply the local backends: `SANDBOX_BACKEND=local`,
+`SCREENPLAY_DB=pglite`, `BLOB_STORE=local-fs`, `AGENT_ENGINE=external` and
+`NEXT_PUBLIC_YJS_HOST=local`. A backend switch you set yourself wins over the
+profile’s. `THUMBNAIL_CAPTURER=tauri-webview` stays the Mac app’s to set, since
+that capturer needs its window.
+
+Unset, the profile is `hosted`, and the hosted app is unchanged. The older
+`NEXT_PUBLIC_SCREENPLAY_LOCAL=1` still picks `desktop`. The profile is
+`NEXT_PUBLIC_` so the same constants are inlined into both the server runtime
+(auth/session, access checks) and the client bundle (the affordances that simply
+don’t render), and so the bundler dead-code-eliminates the other profiles’
+branches.
+
+Read the capabilities through `apps/app/lib/capabilities.ts` (`buildIdentity`,
+`multiUserSurface`, `macShell`, `viewers`), never `process.env` directly, so
+each gate says what it means.
 
 ### Database tables
 
@@ -79,7 +108,7 @@ The desktop profile, `apps/desktop/desktop.env`, sets every flag together:
 ```dotenv filename="apps/desktop/desktop.env"
 # Read at build time
 SCREENPLAY_DESKTOP=1
-NEXT_PUBLIC_SCREENPLAY_LOCAL=1
+NEXT_PUBLIC_SCREENPLAY_PROFILE=desktop
 NEXT_PUBLIC_YJS_HOST=local
 NEXT_PUBLIC_BASE_PATH=
 
@@ -99,7 +128,7 @@ so point it at a throwaway folder:
 ```bash
 cd apps/app
 SCREENPLAY_DESKTOP=1 \
-NEXT_PUBLIC_SCREENPLAY_LOCAL=1 \
+NEXT_PUBLIC_SCREENPLAY_PROFILE=desktop \
 NEXT_PUBLIC_YJS_HOST=local \
 NEXT_PUBLIC_BASE_PATH= \
 SANDBOX_BACKEND=local \

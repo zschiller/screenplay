@@ -26,7 +26,7 @@ describe("fixture-world switch", () => {
   it("is on for the local build with the explicit opt-in", async () => {
     expect(
       await load({
-        NEXT_PUBLIC_SCREENPLAY_LOCAL: "1",
+        NEXT_PUBLIC_SCREENPLAY_PROFILE: "desktop",
         NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD: "1",
       })
     ).toBe(true)
@@ -35,7 +35,7 @@ describe("fixture-world switch", () => {
   it("is off on the hosted build even when the env asks for it", async () => {
     expect(
       await load({
-        NEXT_PUBLIC_SCREENPLAY_LOCAL: undefined,
+        NEXT_PUBLIC_SCREENPLAY_PROFILE: undefined,
         NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD: "1",
       })
     ).toBe(false)
@@ -44,7 +44,7 @@ describe("fixture-world switch", () => {
   it("is off for the local build without the opt-in", async () => {
     expect(
       await load({
-        NEXT_PUBLIC_SCREENPLAY_LOCAL: "1",
+        NEXT_PUBLIC_SCREENPLAY_PROFILE: "desktop",
         NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD: undefined,
       })
     ).toBe(false)
@@ -55,7 +55,7 @@ describe("fixture-world switch", () => {
     async (value) => {
       expect(
         await load({
-          NEXT_PUBLIC_SCREENPLAY_LOCAL: "1",
+          NEXT_PUBLIC_SCREENPLAY_PROFILE: "desktop",
           NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD: value,
         })
       ).toBe(false)
@@ -89,7 +89,7 @@ describe("fixture world → the first-run setup gate", () => {
     ["garbage", { harnessSatisfied: true, githubSatisfied: true }],
   ])("reads the %s entry cookie as %o", async (value, expected) => {
     vi.resetModules()
-    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
+    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_PROFILE", "desktop")
     vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD", "1")
     mockEntryCookie(value)
     const { getLocalSetupGateStatus } =
@@ -99,7 +99,7 @@ describe("fixture world → the first-run setup gate", () => {
 
   it("opens the gate without probing the host at all", async () => {
     vi.resetModules()
-    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
+    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_PROFILE", "desktop")
     vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_FIXTURE_WORLD", "1")
     mockEntryCookie(undefined)
 

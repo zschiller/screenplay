@@ -2,7 +2,7 @@
 
 import { createAuthClient } from "better-auth/react"
 import { AUTH_BASE_PATH } from "@/lib/base-path"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { LOCAL_USER } from "@/lib/local-user"
 
 // Mirror the server's `basePath`: in the browser the client resolves its fetch
@@ -35,12 +35,12 @@ const LOCAL_SESSION_RESULT = {
 /**
  * Session for components, build-aware. In the hosted build this is Better
  * Auth's `useSession`; in the local build it short-circuits to the single
- * seeded local user. `isLocalBuild` is a compile-time constant, so exactly one
+ * seeded local user. `buildIdentity` is a compile-time constant, so exactly one
  * branch survives bundling and the hook call below is unconditional within any
  * given build (despite the rules-of-hooks lint).
  */
 export function useAppSession(): ReturnType<typeof useSession> {
-  if (isLocalBuild) return LOCAL_SESSION_RESULT
+  if (buildIdentity === "host") return LOCAL_SESSION_RESULT
   // eslint-disable-next-line react-hooks/rules-of-hooks
   return useSession()
 }

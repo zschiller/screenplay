@@ -112,7 +112,7 @@ import {
 } from "@/lib/document-comments"
 import type { ChatQuote } from "@/lib/chat-quote-store"
 import type { MarkdownLayerData } from "@/lib/types"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 import { cn } from "@workspace/ui/lib/utils"
 import type { GroupLabelValue } from "@/components/canvas/group-label"
 import {
@@ -1265,9 +1265,9 @@ function MarkdownLayerImpl({
                   >
                     <CodeIcon />
                   </FormatButton>
-                  {((!isLocalBuild && onStartInlineComment) ||
+                  {((multiUserSurface && onStartInlineComment) ||
                     onReplyInChat) && <FloatingToolbarSeparator />}
-                  {!isLocalBuild && onStartInlineComment && (
+                  {multiUserSurface && onStartInlineComment && (
                     <FloatingToolbarButton
                       label="Comment"
                       variant="ghost"

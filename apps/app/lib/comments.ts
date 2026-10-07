@@ -13,7 +13,7 @@ import {
 } from "@/lib/comment-permissions"
 import { bumpCommentsRead, bumpCommentsRevision } from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 import { openRoom, type RoomAccess, type RoomDoc } from "@/lib/room-access"
 
 /**
@@ -29,7 +29,7 @@ import { openRoom, type RoomAccess, type RoomDoc } from "@/lib/room-access"
  * it: reads return empty so server components that pre-fetch threads render
  * cleanly, a person's writes refuse, and the agent's hooks do nothing.
  */
-const commentsEnabled = !isLocalBuild
+const commentsEnabled = multiUserSurface
 
 function requireCommentsEnabled(): void {
   if (!commentsEnabled) {

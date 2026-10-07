@@ -39,7 +39,6 @@ vi.mock("@/lib/room-access", () => ({
     }
   },
 }))
-vi.mock("@/lib/local-mode", () => ({ isLocalBuild: false }))
 
 import {
   copyInCanvasRepoEnv,

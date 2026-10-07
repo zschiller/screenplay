@@ -12,7 +12,7 @@ import { Input } from "@workspace/ui/components/input"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { IframeLayerSizeSelect } from "@/components/iframe-layer-size-select"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import {
   DEFAULT_DEV_SERVER_PORT,
   type RunSettingsFields,
@@ -207,7 +207,7 @@ export function RepoSettingsFields({
           portless assigns and delivers the real port (ADR 0010) — so there
           is nothing for the user to set. Hosted keeps the field: there the
           dev server must bind this exact port. */}
-          {!isLocalBuild && (
+          {buildIdentity === "account" && (
             <Field>
               <FieldLabel htmlFor={`${idPrefix}-port`}>Preview port</FieldLabel>
               <Input
@@ -231,7 +231,7 @@ export function RepoSettingsFields({
           env vars, desktop local-folder shows files-to-copy. It's the last
           essential field, so the `all` order is unchanged by the move. */}
           {showEnvField &&
-            (isLocalBuild ? (
+            (buildIdentity === "host" ? (
               // Desktop mode: instead of spelling env vars out, glob patterns of
               // files (e.g. `.env*`) carried over from the original checkout
               // into each workspace's worktree.

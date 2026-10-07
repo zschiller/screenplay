@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises"
 import { join, normalize, resolve, sep } from "node:path"
 import { Readable } from "node:stream"
 
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 
 /**
  * Serves the local-fs {@link import("@/lib/blob/local-fs").BlobStore}'s
@@ -37,7 +37,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ path: string[] }> }
 ): Promise<Response> {
-  if (!isLocalBuild) return new Response("Not found", { status: 404 })
+  if (buildIdentity === "account")
+    return new Response("Not found", { status: 404 })
 
   const { path: segments } = await params
   const root = resolve(process.env.LOCAL_BLOB_DIR ?? DEFAULT_DIR)

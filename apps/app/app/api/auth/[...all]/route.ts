@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth"
 import { BASE_PATH } from "@/lib/base-path"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 
 // Better Auth is configured with `basePath: "/app/api/auth"` so every URL it
 // generates — the OAuth `redirect_uri`, the `oAuthProxy` callback, post-sign-in
@@ -20,7 +20,7 @@ const handler = (request: Request) => {
   // Auth is never configured there. Answer the only request the client still
   // makes (`get-session`) with "no session" and refuse the rest, without ever
   // constructing `auth` (which would throw on the missing OAuth env).
-  if (isLocalBuild) {
+  if (buildIdentity === "host") {
     return new Response("null", {
       status: 200,
       headers: { "content-type": "application/json" },

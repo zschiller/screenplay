@@ -119,7 +119,7 @@ export function resolveCaptureProfile(): CaptureProfile {
     previewOrigin: `http://127.0.0.1:${previewPort}`,
     env: {
       // --- the local-build switches, mirroring desktop.env ---
-      NEXT_PUBLIC_SCREENPLAY_LOCAL: "1",
+      NEXT_PUBLIC_SCREENPLAY_PROFILE: "desktop",
       NEXT_PUBLIC_YJS_HOST: "local",
       // Empty overrides any NEXT_PUBLIC_BASE_PATH a developer's .env.local sets
       // for hosted dev — the harness drives the app at the origin root.
@@ -169,7 +169,7 @@ export function resolveCaptureProfile(): CaptureProfile {
  */
 function hostedEnv(baseUrl: string, root: string): Record<string, string> {
   return {
-    NEXT_PUBLIC_SCREENPLAY_LOCAL: "0",
+    NEXT_PUBLIC_SCREENPLAY_PROFILE: "hosted",
     PGLITE_MIGRATIONS_DIR: join(root, "drizzle"),
     BETTER_AUTH_URL: baseUrl,
     BETTER_AUTH_PRODUCTION_URL: baseUrl,

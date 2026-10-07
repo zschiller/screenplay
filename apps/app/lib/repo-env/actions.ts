@@ -1,6 +1,6 @@
 "use server"
 
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { openRoom } from "@/lib/room-access"
 import { canvasRepoEnv, type EnvDocFields } from "./canvas-repo-env"
 import { migrateCanvasRepoEnv } from "./migrate"
@@ -17,7 +17,7 @@ async function openEnv(roomId: string) {
   return canvasRepoEnv(room, kvCanvasRepoEnvStore, {
     userId: room.userId,
     role: room.role,
-    localBuild: isLocalBuild,
+    localBuild: buildIdentity === "host",
   })
 }
 

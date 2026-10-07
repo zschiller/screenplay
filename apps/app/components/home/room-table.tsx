@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { cn } from "@workspace/ui/lib/utils"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { formatDistanceToNow } from "@/lib/utils"
 import { DeleteRoomDialog } from "@/components/delete-room-dialog"
 import { DeleteFolderDialog } from "@/components/delete-folder-dialog"
@@ -221,7 +221,7 @@ function FolderRow({
         </TableCell>
       )}
       {/* Owner column is hidden in the single-user desktop build. */}
-      {!isLocalBuild && <TableCell />}
+      {buildIdentity === "account" && <TableCell />}
       <TableCell className="w-8 pr-2">
         <FolderActionMenu
           onNewCanvas={() => openNewCanvas(folder.id)}
@@ -360,7 +360,7 @@ function RoomRow({
         </TableCell>
       )}
       {/* Owner column is hidden in the single-user desktop build. */}
-      {!isLocalBuild && (
+      {buildIdentity === "account" && (
         <TableCell className="whitespace-nowrap text-muted-foreground">
           {room.isOwner ? "You" : "Shared"}
         </TableCell>
@@ -526,7 +526,7 @@ export function RoomTable({
           )}
           {/* Owner column is hidden in the single-user desktop build. It carries
               no sort key, so it stays a plain label. */}
-          {!isLocalBuild && (
+          {buildIdentity === "account" && (
             <TableHead
               className="whitespace-nowrap"
               style={{ width: "6.5rem" }}

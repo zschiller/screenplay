@@ -40,7 +40,7 @@ import {
 import { CommentsPanel } from "@/components/canvas/comments-panel"
 import { PlayerKnobs } from "./player-knobs"
 import type { PlayerComments } from "./player-comments"
-import { isLocalBuild } from "@/lib/local-mode"
+import { macShell, multiUserSurface } from "@/lib/capabilities"
 
 type Corner = "tl" | "tr" | "bl" | "br"
 
@@ -281,7 +281,7 @@ export function PlayerHud({
             <DotsSixVerticalIcon className="size-3.5" />
           </span>
           {/* The desktop (local) build has no room route to go back to. */}
-          {!isLocalBuild && (
+          {!macShell && (
             <IconButton
               label={`Back to ${roomName}`}
               tooltipSide={tooltipSide}
@@ -360,7 +360,7 @@ export function PlayerHud({
             <SlidersHorizontalIcon />
           </IconButton>
           {/* Comments are excluded from the local build (PRD #404, #417). */}
-          {!isLocalBuild && (
+          {multiUserSurface && (
             <>
               <IconButton
                 label="Comment"

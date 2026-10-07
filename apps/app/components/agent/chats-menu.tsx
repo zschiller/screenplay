@@ -94,7 +94,7 @@ import {
 
 import type { BranchPrInfo } from "@/lib/github-actions"
 
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 
 import { hasGitHubRemote, repoShortName } from "@/lib/repo-identity"
 
@@ -484,7 +484,7 @@ export function ChatsMenuProvider({
           deleteBranch?.prState === "open" ? deleteBranch.prNumber : undefined
         }
         work={deleteBranch ? unsavedWork.get(deleteBranch.id) : undefined}
-        localBranchKept={isLocalBuild}
+        localBranchKept={buildIdentity === "host"}
         onConfirm={async ({ deleteOnRemote }) => {
           if (!deleteBranch) return
           await onRemoveBranch(deleteBranch.id, { deleteOnRemote })

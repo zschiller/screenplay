@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react"
 
 import { getTauriInvoke } from "@/lib/desktop/tauri-bridge"
-import { isLocalBuild } from "@/lib/local-mode"
+import { macShell } from "@/lib/capabilities"
 
 /**
  * Whether the macOS window traffic lights are currently occupying the
  * top-left of the webview.
  *
- * True only on the desktop build (`isLocalBuild`) and only when the window is
+ * True only in the Mac shell (`macShell`) and only when the window is
  * NOT in native fullscreen — macOS hides the traffic lights in fullscreen, so
  * UI that reserves space for them should reclaim it.
  *
@@ -21,10 +21,10 @@ import { isLocalBuild } from "@/lib/local-mode"
 export function useTrafficLightsPresent(): boolean {
   // Default to present on the desktop build so the first paint reserves space
   // for the common (non-fullscreen) case; the effect corrects it on mount.
-  const [present, setPresent] = useState(isLocalBuild)
+  const [present, setPresent] = useState(macShell)
 
   useEffect(() => {
-    if (!isLocalBuild) return
+    if (!macShell) return
     const invoke = getTauriInvoke()
     let cancelled = false
 

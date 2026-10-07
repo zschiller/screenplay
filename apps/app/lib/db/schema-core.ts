@@ -22,7 +22,7 @@ import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 // sharing, and `thread`/`comment`/`thread_read` — lives in `./schema-multiuser`
 // and is excluded from the desktop build's PGlite migrations (`drizzle/local`).
 // `./schema.ts` re-exports both halves, so the hosted build's full schema is
-// unchanged. See `@/lib/local-mode`.
+// unchanged. See `@/lib/capabilities`.
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),

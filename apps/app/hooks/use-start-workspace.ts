@@ -2,7 +2,7 @@ import { useCallback } from "react"
 import { toast } from "sonner"
 
 import { startWorkspace } from "@/lib/branch/recovery"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import type { BranchData } from "@/lib/types"
 import { useRoomId } from "@/lib/yjs/context"
 import { useRoomCollections } from "@/lib/yjs/react"
@@ -32,7 +32,7 @@ export function useStartWorkspace(): (branchId: string) => void {
               toast.error(message, description ? { description } : undefined),
           },
         },
-        { local: isLocalBuild }
+        { local: buildIdentity === "host" }
       )
     },
     [collections, roomId]

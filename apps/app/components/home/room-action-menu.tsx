@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import type { RoomSummary } from "@/lib/rooms-actions"
 
 type Props = {
@@ -64,7 +64,7 @@ export function RoomActionMenu({
           </DropdownMenuItem>
         )}
         {/* Sharing is excluded from the local build (PRD #404, issue #417). */}
-        {room.isOwner && !isLocalBuild && (
+        {room.isOwner && buildIdentity === "account" && (
           <DropdownMenuItem onSelect={onShare}>
             <ShareNetworkIcon />
             Share

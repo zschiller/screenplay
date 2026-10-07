@@ -14,7 +14,7 @@ import {
   parseGitHubSkip,
 } from "@/lib/local-setup/github-skip"
 import { isLocalSetupComplete } from "@/lib/local-setup/is-complete"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 
 export const metadata: Metadata = {
   title: {
@@ -55,7 +55,7 @@ const fontMono = Geist_Mono({
  * either direction (the `home-view-prefs` anti-flash pattern). Reads the same
  * live status the poll does, folds in the persisted GitHub-skip bit (so a
  * skipped, harness-satisfied user is never re-blocked), and runs it all through
- * the shared release predicate. Only ever called on the `isLocalBuild` branch
+ * the shared release predicate. Only ever called on the host-identity branch
  * below, so the hosted build never probes host state here.
  */
 async function computeGateState(): Promise<{
@@ -81,11 +81,11 @@ export default async function RootLayout({
   children: React.ReactNode
 }>) {
   // The gate covers both real desktop entry points (home surface and a direct
-  // canvas load) from this one mount site. On the hosted build `isLocalBuild` is
-  // a compile-time `false`, so this branch — and the gate plus its status
+  // canvas load) from this one mount site. On the hosted build `buildIdentity === "host"`
+  // is a compile-time `false`, so this branch — and the gate plus its status
   // probes — is dead-code-eliminated and the sign-in path is untouched.
   let body: React.ReactNode = children
-  if (isLocalBuild) {
+  if (buildIdentity === "host") {
     const { initiallyBlocked, status, githubSkipped } = await computeGateState()
     body = (
       <LocalSetupGate

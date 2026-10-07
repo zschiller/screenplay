@@ -64,7 +64,7 @@ import { targetingStore } from "@/lib/targeting-store"
 import { useModelCatalog, useSkillIndex } from "@/lib/use-model-catalog"
 import type { SkillSource } from "@/lib/skills-store"
 import { SkillIndexContext } from "./skill-hover-card"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import {
   chatQuoteStore,
   quoteRangeLabel,
@@ -196,7 +196,7 @@ export function AgentChat({
             roomId,
             chat: capabilities.skillChat,
             // The desktop agent's own Skills (#1560) follow the model.
-            ...(isLocalBuild ? { model: effectiveModel } : {}),
+            ...(buildIdentity === "host" ? { model: effectiveModel } : {}),
           }
         : undefined,
     [

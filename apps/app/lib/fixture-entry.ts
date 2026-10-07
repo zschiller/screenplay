@@ -15,8 +15,8 @@ import { isFixtureWorld } from "@/lib/fixture-world"
  * same way it seeds a panel layout.
  *
  * Only ever honoured under {@link isFixtureWorld}, which is itself `and`-ed with
- * `isLocalBuild`, so the hosted app never reads it and a real desktop install
- * can't be talked into a signed-out or blocked state by a stray cookie.
+ * host identity (`@/lib/capabilities`), so the hosted app never reads it and a
+ * real desktop install can't be talked into a signed-out or blocked state by a stray cookie.
  */
 export type FixtureEntryState =
   /** The home surface as a signed-out visitor sees it. */

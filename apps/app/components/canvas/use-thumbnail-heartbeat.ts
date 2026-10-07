@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useYjs } from "@/lib/yjs/context"
 import { withBasePath } from "@/lib/base-path"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity, macShell } from "@/lib/capabilities"
 import type { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 import {
   THUMBNAIL_CAPTURE_SETTLE_MS as CAPTURE_SETTLE_MS,
@@ -158,7 +158,7 @@ export function useThumbnailHeartbeat(
     // redundant rebuild — and means the fragile flush-on-navigate paths below
     // (pagehide, unmount, `flushLayout`) are inert locally, with `layoutTimer`
     // never set. The capture lane stays client-driven on both backends.
-    if (!isLocalBuild) doc.on("update", onDocUpdate)
+    if (buildIdentity === "account") doc.on("update", onDocUpdate)
     const unsubscribe = tracker.subscribe(onContentSettling)
     window.addEventListener("pagehide", onPageHide)
 
@@ -167,7 +167,7 @@ export function useThumbnailHeartbeat(
     // thumbnail that went stale while the room was closed — including rows
     // persisted before a restart (the blob URL scheme changed once; see
     // lib/blob/local-fs.ts).
-    if (!hasThumbnail || isLocalBuild) {
+    if (!hasThumbnail || macShell) {
       initialTimer = setTimeout(() => {
         initialTimer = null
         lastCapture = Date.now()

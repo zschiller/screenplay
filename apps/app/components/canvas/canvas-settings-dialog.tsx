@@ -89,7 +89,7 @@ import { deleteCanvasFile, FilesSection } from "./canvas-files-section"
 import { MemorySection } from "./canvas-memory-section"
 import { CanvasSkillsSection } from "./canvas-skills-section"
 import { openCanvasFileOnDesktop } from "@/lib/files/desktop-actions"
-import { isLocalBuild } from "@/lib/local-mode"
+import { macShell } from "@/lib/capabilities"
 import { DialogScrollBody } from "@/components/scroll-hairline"
 
 /** The sections of Canvas settings. Members may join later. */
@@ -134,7 +134,7 @@ export function CanvasSettingsDialog({
   onRemoveMemory,
   files,
   deleteFile = deleteCanvasFile,
-  openFileOnDesktop = isLocalBuild ? openCanvasFileOnDesktop : undefined,
+  openFileOnDesktop = macShell ? openCanvasFileOnDesktop : undefined,
   skills,
   policy = repositoryLinkPolicy,
 }: {

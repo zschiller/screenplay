@@ -1,13 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, render, renderHook, screen } from "@testing-library/react"
 
 import type { RepoNaming } from "@/lib/repo-identity"
 
 import { CanvasEmptyState, emptyCanvasDescription } from "./canvas-empty-state"
 import { useToolMode } from "./use-tool-mode"
-
-vi.mock("@/lib/local-mode", () => ({ isLocalBuild: false }))
 
 afterEach(cleanup)
 

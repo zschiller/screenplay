@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { isLocalBuild } from "@/lib/local-mode"
+import { macShell } from "@/lib/capabilities"
 
 export const runtime = "nodejs"
 
@@ -16,7 +16,7 @@ export const runtime = "nodejs"
  * when the user cancelled the dialog.
  */
 export async function POST() {
-  if (!isLocalBuild) {
+  if (!macShell) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
   const controlUrl = process.env.TAURI_CONTROL_URL

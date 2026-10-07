@@ -31,7 +31,7 @@ Shoot a production build (`next build && next start`): `next dev` draws Next’s
 Each of these was on the page once and was false. Check the code before writing anything near them.
 
 - **The Mac app doesn’t work offline, and code does leave the machine.** The agent CLI sends code to its model provider, the chat adapter is fetched with `npx -y` (`apps/app/lib/agent/harnesses/`), and working out how to run a new repository sends its README and config to the model. What is true: no account, no Screenplay servers, no telemetry.
-- **The Mac app has no sharing.** Invites, cursors and comments are excluded from the local build (`apps/app/lib/local-mode.ts`).
+- **The Mac app has no sharing.** Invites, cursors and comments are excluded from the desktop build profile (`apps/app/lib/capabilities.ts`).
 - **Knob values belong to one frame** (`knobValues` on the layer, `apps/app/lib/types.ts`). They never update other branches or write back into code.
 - **Shared state is per frame**, synced between viewers and play mode, never across frames.
 - **The Mac app is Apple Silicon only** (`Screenplay_<version>_aarch64.dmg` in `apps/desktop/scripts/release.mjs`) and has **no auto-update**.

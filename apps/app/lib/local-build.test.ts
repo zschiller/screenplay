@@ -11,7 +11,7 @@ import {
 import { setupSharedPgliteDb, type SharedPgliteDb } from "../test/pglite"
 
 // The access-model half of issue #417: behind the build-time switch
-// (`NEXT_PUBLIC_SCREENPLAY_LOCAL=1`) the multi-user surface collapses to the
+// (`NEXT_PUBLIC_SCREENPLAY_PROFILE=desktop`) the multi-user surface collapses to the
 // single seeded local user. These exercise the public seams every request
 // flows through — session resolution and room access — against the local
 // PGlite backend, with no OAuth and no `room_member` table.
@@ -23,14 +23,14 @@ describe("local build — access model", () => {
   // stubbing is needed. `beforeAll` gets headroom so the one boot stays
   // reliable under full-suite CPU contention.
   //
-  // `isLocalBuild` (lib/local-mode.ts) is a module-eval-time const, so the
+  // The build profile (lib/capabilities.ts) is a module-eval-time const, so the
   // env must be stubbed BEFORE anything imports it — hence in `beforeAll`,
   // before the harness boot and every test's dynamic `import()`. All tests in
   // this file run in local mode, so one stub for the file is correct and the
   // per-test `resetModules` the old shape needed falls away.
   let harness: SharedPgliteDb
   beforeAll(async () => {
-    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_LOCAL", "1")
+    vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_PROFILE", "desktop")
     // The desktop build also selects the local Yjs host; set it so importing
     // `rooms-actions` (which holds the `yjsHost` singleton) doesn't reach for a
     // Liveblocks secret the local build never has.

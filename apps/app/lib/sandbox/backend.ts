@@ -1,3 +1,5 @@
+import { backendSwitch } from "@/lib/capabilities"
+
 /**
  * The `SANDBOX_BACKEND` build-time switch, read in one place. The desktop
  * provider is the **local** backend in domain language — "worktree" names the
@@ -11,6 +13,6 @@
  * can branch on the backend without dragging a provider graph in.
  */
 export function isLocalSandboxBackend(): boolean {
-  const backend = process.env.SANDBOX_BACKEND
+  const backend = backendSwitch("SANDBOX_BACKEND")
   return backend === "local" || backend === "worktree"
 }

@@ -1,5 +1,7 @@
 import "server-only"
 
+import { backendSwitch } from "@/lib/capabilities"
+
 import { getLocalFsBlobStore } from "./local-fs"
 import type { BlobStore } from "./types"
 import { getVercelBlobStore } from "./vercel"
@@ -24,7 +26,9 @@ export const BLOB_STORE_ENV_VAR = "BLOB_STORE"
 export function blobStoreChoiceFromEnv(
   env: Record<string, string | undefined> = process.env
 ): BlobStoreChoice {
-  return env[BLOB_STORE_ENV_VAR] === "local-fs" ? "local-fs" : "vercel"
+  return backendSwitch(BLOB_STORE_ENV_VAR, env) === "local-fs"
+    ? "local-fs"
+    : "vercel"
 }
 
 /** Resolve the configured {@link BlobStore} for the current build. */

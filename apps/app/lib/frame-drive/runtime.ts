@@ -1,5 +1,5 @@
 import { sharedFramesEnabled } from "@/lib/frame-stream/shared-frames"
-import { isLocalBuild } from "@/lib/local-mode"
+import { macShell } from "@/lib/capabilities"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 
 /**
@@ -12,7 +12,7 @@ import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 export type FrameDriveRuntime = "mac" | "shared" | null
 
 export function frameDriveRuntime(): FrameDriveRuntime {
-  if (isLocalBuild) return "mac"
+  if (macShell) return "mac"
   if (isLocalSandboxBackend() || !sharedFramesEnabled()) return null
   return "shared"
 }

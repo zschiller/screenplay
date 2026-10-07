@@ -27,7 +27,7 @@ import {
 import { createPullRequestAction } from "@/lib/create-pr-action"
 import { creatingPrStore } from "@/lib/creating-pr-store"
 import type { BranchPrInfo } from "@/lib/github-actions"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 import { openExternal } from "@/lib/open-external"
 import type {
   BranchData,
@@ -289,7 +289,7 @@ export function useBranchActions(deps: BranchActionsDeps): BranchActions {
       runDevServer: (agentId) => runDevServerRecovery(agentId, recoveryDeps),
       startWorkspace: (agentId) =>
         void startWorkspaceRecovery(agentId, recoveryDeps, {
-          local: isLocalBuild,
+          local: buildIdentity === "host",
         }),
       markDone: (agentId) => {
         const agent = agents.find((a) => a.id === agentId)

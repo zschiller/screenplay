@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { db, schema } from "@/lib/db"
 import type { RoomRole } from "@/lib/db/schema"
 import { isFixtureWorld } from "@/lib/fixture-world"
-import { isLocalBuild } from "@/lib/local-mode"
+import { multiUserSurface } from "@/lib/capabilities"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 import type { RoomThumbnail } from "@/lib/room-thumbnail-merge"
 
@@ -55,7 +55,7 @@ export async function createRoom(opts: {
   if (!row) throw new Error("Failed to create room")
   // No `room_member` table in the local build — the single local user owns
   // every room implicitly (PRD #404, issue #417).
-  if (!isLocalBuild) {
+  if (multiUserSurface) {
     await db
       .insert(schema.roomMember)
       .values({ roomId: row.id, userId: opts.ownerId, role: "owner" })
@@ -76,7 +76,7 @@ export async function getRoom(roomId: string): Promise<RoomRecord | null> {
 export async function listRoomsForUser(userId: string): Promise<RoomRecord[]> {
   // The local build has no `room_member` table to join: the single local user
   // owns every room, so list them all (PRD #404, issue #417).
-  if (isLocalBuild) {
+  if (!multiUserSurface) {
     const rows = await db
       .select()
       .from(schema.room)
@@ -121,7 +121,7 @@ export async function listRoomThumbnailsForUser(
   // Mirror listRoomsForUser's visibility: the local build owns every room
   // implicitly (no `room_member` table to join); the hosted build scopes to
   // the user's memberships (PRD #404, issue #417).
-  const rows = isLocalBuild
+  const rows = !multiUserSurface
     ? await db.select(columns).from(schema.room)
     : await db
         .select(columns)
@@ -306,7 +306,7 @@ export async function canAccess(
 ): Promise<boolean> {
   // The local build collapses access to the single seeded local user — there is
   // no `room_member` table and nobody else to gate against (PRD #404, #417).
-  if (isLocalBuild) return true
+  if (!multiUserSurface) return true
   const membership = await getMembership(roomId, userId)
   return membership !== null
 }
@@ -319,7 +319,7 @@ export async function requireMember(
   userId: string
 ): Promise<RoomMemberRecord> {
   // Single local user — always a member, as the implicit owner.
-  if (isLocalBuild) {
+  if (!multiUserSurface) {
     return { roomId, userId, role: "owner", createdAt: 0 }
   }
   const membership = await getMembership(roomId, userId)

@@ -1,4 +1,4 @@
-import { isLocalBuild } from "@/lib/local-mode"
+import { macShell } from "@/lib/capabilities"
 
 /**
  * The cadence bounds for the per-frame thumbnail system, split into two
@@ -39,7 +39,7 @@ export const THUMBNAIL_LAYOUT_DEBOUNCE_MS = 500
  * storm or a multi-step reload collapses into one shot of the settled page.
  * Hotter on desktop, where a round is cheap.
  */
-export const THUMBNAIL_CAPTURE_SETTLE_MS = isLocalBuild ? 800 : 1_500
+export const THUMBNAIL_CAPTURE_SETTLE_MS = macShell ? 800 : 1_500
 
 /** Short settle after mount before the backstop full capture (no thumbnail yet). */
 export const THUMBNAIL_HEARTBEAT_INITIAL_DELAY_MS = 3_000
@@ -57,4 +57,4 @@ export const THUMBNAIL_HEARTBEAT_MIN_REFRESH_GAP_MS = 3_000
  * never starves the capture lane. Stays above {@link THUMBNAIL_CAPTURE_SETTLE_MS}
  * so a single post-settle capture is never swallowed by its own settle window.
  */
-export const THUMBNAIL_CAPTURE_COOLDOWN_MS = isLocalBuild ? 3_000 : 12_000
+export const THUMBNAIL_CAPTURE_COOLDOWN_MS = macShell ? 3_000 : 12_000

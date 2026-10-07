@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
-import { isLocalBuild } from "@/lib/local-mode"
+import { buildIdentity } from "@/lib/capabilities"
 
 // Routes reachable without a session. Everything else bounces to /sign-in.
 // `/icon` is the favicon (app/icon.ts): the sign-in page and Vercel's
@@ -27,7 +27,7 @@ function isPublic(pathname: string): boolean {
 export default function middleware(request: NextRequest) {
   // The local desktop build has no login screen (PRD #404, issue #417): it runs
   // as the single seeded local user, so nothing is gated behind a session.
-  if (isLocalBuild) return NextResponse.next()
+  if (buildIdentity === "host") return NextResponse.next()
 
   if (isPublic(request.nextUrl.pathname)) return NextResponse.next()
 
