@@ -117,6 +117,9 @@ pnpm format      # Prettier
 pnpm test        # Vitest
 ```
 
+CI runs `pnpm lint`, `pnpm typecheck` and `pnpm test` on every pull request. A
+lint error fails it; warnings don’t.
+
 In `apps/app`, `pnpm test:watch` runs Vitest in watch mode. Database helpers:
 
 ```bash

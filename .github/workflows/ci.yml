@@ -1,12 +1,12 @@
 name: CI
 
-# Runs the workspace test suite and typecheck on every push and pull
+# Runs the workspace test suite, typecheck and lint on every push and pull
 # request. This is the gate that the manual publish workflows and Vercel
 # deploys don't provide — Vercel only runs `next build`, so without this a
 # broken test could merge and ship unnoticed.
 #
-# The jobs run side by side: typecheck, the app's unit tests in three shards,
-# and the browser tests (`*.browser.test.ts`, a real Chrome, Xvfb and ffmpeg)
+# The jobs run side by side: typecheck and lint, the app's unit tests in three
+# shards, and the browser tests (`*.browser.test.ts`, a real Chrome, Xvfb and ffmpeg)
 # on a runner of their own so they aren't starved by the rest. `test` is the
 # one check that says whether all of them passed.
 
@@ -59,6 +59,11 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      # The repo's ESLint rules (the sparkle icon ban, React hooks rules) only
+      # hold if something runs them. An error fails the job; warnings don't.
+      - name: Lint
+        run: pnpm lint
 
       # Every package's tests but the app's, which the jobs below run.
       - name: Test packages

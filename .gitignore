@@ -53,6 +53,11 @@ apps/app/.screenshots/
 # never committed, and ignored so Turbopack doesn't rebuild on every write.
 apps/app/.screenplay/
 
+# The agent-rules files `next dev` writes into the app folder when it detects
+# a coding agent (next/dist/server/lib/generate-agent-files.js).
+apps/app/AGENTS.md
+apps/app/CLAUDE.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
