@@ -6,6 +6,7 @@ import {
 } from "@/lib/canvas/layout"
 import { groupsOnPage, orderedPages } from "@/lib/canvas/pages"
 import type { RoomReader } from "@/lib/room-access"
+import { mockupHasPage } from "@/lib/mockup-folder"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 
 /**
@@ -20,14 +21,15 @@ import { mockupHtml } from "@/lib/yjs/mockup-html"
  * placeholder labeled by the document's title — and still occupy their place in
  * the composed thumbnail.
  *
- * A Mockup Layer has no preview URL either, but it has its page: `mockupHtml`
- * carries it (when it isn't empty), and the capture renders that page itself.
+ * A Mockup Layer has no preview URL either, but it has its page: when it has
+ * one, `mockupFileId` names its file, and the capture renders that page itself
+ * from its folder (#1886).
  */
 export type CaptureFrame = {
   id: string
   label: string
   previewUrl: string | null
-  mockupHtml?: string
+  mockupFileId?: string
 }
 
 /**
@@ -84,12 +86,13 @@ export async function readRoomCaptureLayout(
     // A Mockup carries its page, which the capture renders in place of a
     // preview; one nobody has filled yet stays a placeholder.
     const mockupFrames: CaptureFrame[] = mockupLayers.map((m) => {
-      const html = mockupHtml(c.doc, m.fileId ?? m.id).toString()
+      const fileId = m.fileId ?? m.id
+      const legacy = mockupHtml(c.doc, fileId).toString()
       return {
         id: m.id,
         label: m.title,
         previewUrl: null,
-        ...(html.trim() ? { mockupHtml: html } : {}),
+        ...(mockupHasPage(m, legacy) ? { mockupFileId: fileId } : {}),
       }
     })
     return {

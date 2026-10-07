@@ -1,5 +1,6 @@
 import "server-only"
 
+import { fileStore } from "@/lib/files"
 import { buildSketchSystemPrompt, type LayerDirectory } from "./config"
 import {
   accountFilesFor,
@@ -135,7 +136,12 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
           chatId,
           senderPage: senderPageOf(chatId),
         }),
-        ...buildMockupTools({ room, chatId, senderPage: senderPageOf(chatId) }),
+        ...buildMockupTools({
+          room,
+          chatId,
+          senderPage: senderPageOf(chatId),
+          store: fileStore,
+        }),
         ...buildPlaceTools({ room, chatId, senderPage: senderPageOf(chatId) }),
         ...buildLayerHoldTools({ room, chatId }),
         // Driving a Mockup in the asker's view (#1391).

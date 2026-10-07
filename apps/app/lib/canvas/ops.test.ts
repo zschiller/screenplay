@@ -193,11 +193,10 @@ describe("removeDocuments", () => {
 })
 
 describe("createMockup", () => {
-  it("starts a fresh Group at the anchor for a standalone mockup, with its page", () => {
+  it("starts a fresh Group at the anchor for a standalone mockup, with no page yet", () => {
     const { doc, ops, collections } = makeHarness()
 
     const result = ops.createMockup({
-      html: "<h1>Receipt</h1>",
       title: "Receipt",
       width: 720,
       height: 800,
@@ -218,7 +217,8 @@ describe("createMockup", () => {
       y: 60,
       members: [{ kind: "mockup-layer", id: mockupId }],
     })
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<h1>Receipt</h1>")
+    // Its page is a folder the server writes (#1886): nothing in the doc.
+    expect(mockupHtml(doc, mockupId).toString()).toBe("")
   })
 
   it("joins the end of a Group beside its frame, remembering its chat", () => {
@@ -230,7 +230,6 @@ describe("createMockup", () => {
     seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
 
     const result = ops.createMockup({
-      html: "<p>A</p>",
       title: "Option A",
       width: 400,
       height: 300,
@@ -252,7 +251,6 @@ describe("createMockup", () => {
     const { ops, collections } = makeHarness()
 
     const result = ops.createMockup({
-      html: "<p>A</p>",
       title: "Option A",
       width: 400,
       height: 300,
@@ -265,47 +263,27 @@ describe("createMockup", () => {
 })
 
 describe("updateMockup", () => {
-  it("replaces the page and the title together", () => {
-    const { doc, ops, collections } = makeHarness()
+  it("renames the file", () => {
+    const { ops, collections } = makeHarness()
     const { mockupId } = ops.createMockup({
-      html: "<p>A</p>",
       title: "Option A",
       width: 400,
       height: 300,
       lastChangedByChatId: "chat-1",
     })!
 
-    expect(
-      ops.updateMockup(mockupId, { html: "<p>B</p>", title: "Option B" })
-    ).toBe(true)
+    expect(ops.updateMockup(mockupId, { title: "Option B" })).toBe(true)
 
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>B</p>")
     expect(collections.mockupLayers.get(mockupId)).toMatchObject({
       title: "Option B",
       lastChangedByChatId: "chat-1",
     })
   })
 
-  it("keeps the title when only the page changes", () => {
-    const { doc, ops, collections } = makeHarness()
-    const { mockupId } = ops.createMockup({
-      html: "<p>A</p>",
-      title: "Option A",
-      width: 400,
-      height: 300,
-    })!
+  it("reports a missing mockup", () => {
+    const { ops } = makeHarness()
 
-    ops.updateMockup(mockupId, { html: "" })
-
-    expect(mockupHtml(doc, mockupId).toString()).toBe("")
-    expect(collections.mockupLayers.get(mockupId)?.title).toBe("Option A")
-  })
-
-  it("reports a missing mockup and writes nothing", () => {
-    const { doc, ops } = makeHarness()
-
-    expect(ops.updateMockup("gone", { html: "<p>B</p>" })).toBe(false)
-    expect(mockupHtml(doc, "gone").toString()).toBe("")
+    expect(ops.updateMockup("gone", { title: "B" })).toBe(false)
   })
 })
 
@@ -375,7 +353,6 @@ describe("followContentHeight", () => {
   it("follows a Mockup's page too", () => {
     const { ops, collections } = makeHarness()
     const { mockupId } = ops.createMockup({
-      html: "<p>Hi</p>",
       title: "Hi",
       width: 400,
       height: 300,
@@ -416,11 +393,10 @@ describe("followContentHeight", () => {
 
 describe("duplicateMockup", () => {
   it("copies the page, size, knobs and chat to the end of its Group", () => {
-    const { doc, ops, collections } = makeHarness()
+    const { ops, collections } = makeHarness()
     collections.iframeLayers.set("layer-1", baseLayer("layer-1"))
     seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "layer-1" }])
     const { mockupId } = ops.createMockup({
-      html: "<p>A</p>",
       title: "Option A",
       width: 400,
       height: 300,
@@ -448,8 +424,10 @@ describe("duplicateMockup", () => {
       lastChangedByChatId: "chat-1",
       knobs: [{ id: "tone" }],
       knobValues: { tone: "warm" },
+      // A member's canvas can't write the file store: the server copies
+      // the folder on the copy's first read (#1886).
+      copyOf: mockupId,
     })
-    expect(mockupHtml(doc, copyId!).toString()).toBe("<p>A</p>")
     expect(collections.iframeLayerGroups.get("group-1")?.members).toEqual([
       { kind: "mockup-layer", id: mockupId },
       { kind: "iframe-layer", id: "layer-1" },
@@ -469,7 +447,6 @@ describe("removeMockups", () => {
   it("drops the mockup and prunes the Group it emptied", () => {
     const { ops, collections } = makeHarness()
     const { mockupId, groupId } = ops.createMockup({
-      html: "<p>A</p>",
       title: "Option A",
       width: 400,
       height: 300,
@@ -494,7 +471,6 @@ describe("removeBranch", () => {
       createdAt: 0,
     })
     const { mockupId, groupId } = ops.createMockup({
-      html: "<p>A</p>",
       title: "Option A",
       width: 400,
       height: 300,
@@ -1482,7 +1458,7 @@ describe("createBranch", () => {
   })
 
   it("lands a drawn Mockup box as the new chat's empty Mockup, at its rect (#1359)", () => {
-    const { doc, ops, collections } = makeHarness()
+    const { ops, collections } = makeHarness()
     const { chatId } = ops.createBranch({
       branch: spec,
       chat: { label: "Checkout" },
@@ -1490,7 +1466,6 @@ describe("createBranch", () => {
 
     ops.createMockup({
       id: "drawn-1",
-      html: "",
       title: "",
       width: 390,
       height: 844,
@@ -1507,7 +1482,7 @@ describe("createBranch", () => {
       .toArray()
       .find((g) => getGroupMembers(g).some((m) => m.id === "drawn-1"))
     expect(group).toMatchObject({ x: 40, y: 60 })
-    expect(mockupHtml(doc, "drawn-1").toString()).toBe("")
+    expect(collections.mockupLayers.get("drawn-1")?.revision).toBeUndefined()
   })
 })
 
@@ -2181,7 +2156,6 @@ describe("Pages (#1835)", () => {
       { width: 400, height: 300 }
     )
     const mockup = ops.createMockup({
-      html: "<p>hi</p>",
       title: "M",
       width: 400,
       height: 300,
@@ -2395,8 +2369,8 @@ describe("Page actions (#1836)", () => {
       width: 300,
       height: 200,
       title: "Card",
+      revision: 2,
     })
-    mockupHtml(doc, "m").insert(0, "<p>card</p>")
     seedGroup(collections, "g1", [
       { kind: "iframe-layer", id: "a" },
       { kind: "markdown-layer", id: "d" },
@@ -2443,7 +2417,13 @@ describe("Page actions (#1836)", () => {
     expect(collections.iframeLayers.get(frame!.id)?.label).toBe("Home")
     expect(getFragmentTitle(documentFragment(doc, document!.id))).toBe("Notes")
     const mockup = getGroupMembers(groups[1]!)[0]!
-    expect(mockupHtml(doc, mockup.id).toString()).toBe("<p>card</p>")
+    // A new file whose folder the server copies from the original's (#1886).
+    expect(collections.mockupLayers.get(mockup.id)).toMatchObject({
+      fileId: mockup.id,
+      title: "Card",
+      copyOf: "m",
+    })
+    expect(collections.mockupLayers.get(mockup.id)?.revision).toBeUndefined()
     // The original page is untouched.
     expect(ops.groupsOnPage("page-1").map((g) => g.id)).toEqual(["g1", "g2"])
     expect(ops.groupsOnPage(second).map((g) => g.id)).toEqual(["g3"])
@@ -2514,7 +2494,7 @@ describe("Page actions (#1836)", () => {
     ])
     expect(ops.groupsOnPage("page-1").map((g) => g.id)).toEqual(["g1", "g2"])
     expect(getFragmentTitle(documentFragment(doc, "d"))).toBe("Notes")
-    expect(mockupHtml(doc, "m").toString()).toBe("<p>card</p>")
+    expect(collections.mockupLayers.get("m")?.revision).toBe(2)
     undo.destroy()
   })
 })
@@ -2589,10 +2569,9 @@ describe("files and views (#1883)", () => {
     expect(ops.fileOf(viewId)?.id).toBe(docId)
   })
 
-  it("updates a Mockup's page through any view, so every view repaints", () => {
-    const { doc, ops, collections } = makeHarness()
+  it("renames a Mockup through any view, so every view repaints", () => {
+    const { ops, collections } = makeHarness()
     const { mockupId } = ops.createMockup({
-      html: "<p>A</p>",
       title: "Hero",
       width: 400,
       height: 300,
@@ -2602,11 +2581,8 @@ describe("files and views (#1883)", () => {
     collections.iframeLayers.set("f-1", baseLayer("f-1"))
     const viewId = ops.addFileView(mockupId, "group-2")!
 
-    expect(
-      ops.updateMockup(viewId, { html: "<p>B</p>", title: "Hero 2" })
-    ).toBe(true)
+    expect(ops.updateMockup(viewId, { title: "Hero 2" })).toBe(true)
 
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>B</p>")
     expect(collections.mockupLayers.get(mockupId)?.title).toBe("Hero 2")
     expect(collections.mockupLayers.get(viewId)?.title).toBe("Hero 2")
   })

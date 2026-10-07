@@ -24,7 +24,6 @@ function chatTools() {
   const startEditing = (layer_id: string) =>
     start_editing.execute!({ layer_id }, {} as never) as Promise<string>
   const mockup = h.ops.createMockup({
-    html: "<p>A</p>",
     title: "Receipt",
     width: 400,
     height: 300,

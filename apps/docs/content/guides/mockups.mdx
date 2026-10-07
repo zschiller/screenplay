@@ -1,12 +1,12 @@
 ---
 title: Mockups
-description: Self-contained design pages a chat sketches in its reply or on the canvas, next to the running app, on their own, or in a box you draw.
+description: Design pages a chat sketches in its reply or on the canvas, next to the running app, on their own, or in a box you draw.
 ---
 
 # Mockups
 
-A mockup is a single self-contained page a chat makes to show a design idea.
-It doesn’t wait for a preview, so it appears the moment it’s written.
+A mockup is a page a chat makes to show a design idea. It doesn’t wait for a
+preview, so it appears the moment it’s written.
 Mockups let you compare a few options side by side with the running app
 before anything is built.
 
@@ -120,8 +120,9 @@ and <kbd>⌘</kbd> <kbd>Z</kbd> brings a deleted mockup back.
 **Rename**, **Duplicate**, **Device size**, **Fit to content** and
 **Delete**, the same [menu](/guides/canvas#layer-menus) as the mockup’s row in
 the layers list. Duplicate (<kbd>⌘</kbd> <kbd>D</kbd>) adds a copy at the end
-of the mockup’s group, with the same page, size and chat, its name ending in
-“copy”.
+of the mockup’s group, with the same page and files, size and chat, its name
+ending in “copy”. The copy is a mockup of its own: changing one never changes
+the other.
 
 Mockups take a frame’s [sizes](/guides/frames#sizes): **Device size** sets
 one of the same device presets, dragging a corner snaps to them (hold
@@ -165,21 +166,28 @@ A mockup’s scroll position syncs the same way, as a frame’s does: when
 someone scrolls the page, everyone’s copy follows, and the mockup opens, and
 reloads, where it was scrolled to.
 
-## Pictures and templates
+## Pictures, data and templates
 
-A mockup’s page doesn’t have to hold everything itself. It can show a
-picture from the canvas’s [files](/guides/files), like a screenshot the agent
-took of your app, and load a script or stylesheet from a
-[skill](/guides/building/skills), like a page template’s shared code. The page
-names the file and Screenplay puts it in when the mockup shows, for everyone
-on the canvas, so the page stays small. A file from a skill comes from the
-skill of that name your chats would use, in the usual
+A mockup is a folder: its page and the files it loads beside it, like a data
+script, a stylesheet or screenshots the agent took of your app. The page loads
+them by their path in the folder (`data.js`, `captures/home.png`), from its
+markup or its scripts, and when the chat rewrites any of them, the mockup
+reloads for everyone on the canvas. A mockup’s folder holds up to 25 MB.
+
+A page can also load a script or stylesheet from a
+[skill](/guides/building/skills), like a page template’s shared code that
+many pages use. A file from a skill comes from the skill of that name your
+chats would use, in the usual
 [order](/guides/building/skills#where-skills-come-from): the repository of the
-chat that changed the mockup last, then the canvas’s, your account’s and the built-in
-one.
+chat that changed the mockup last, then the canvas’s, your account’s and the
+built-in one. Pages made before mockups had folders may still name a picture
+from the canvas’s [files](/guides/files); those keep showing.
 
-A file the page names that isn’t there, say a screenshot that was deleted,
-shows as an empty picture, and the rest of the page works as before.
+A file the page names that isn’t there shows as an empty picture, and the
+rest of the page works as before.
+
+A deleted mockup keeps its folder while <kbd>⌘</kbd> <kbd>Z</kbd> can still
+bring it back. Once you leave the canvas, the folder is gone for good.
 
 ## Answering on the page
 
@@ -309,7 +317,7 @@ work too.
 
 A mockup’s page runs in a locked-down frame: it can run its own scripts, but
 it can’t reach Screenplay, your session or the rest of the canvas, and it
-doesn’t load anything from the network. Mockups are self-contained pages:
-the [pictures and templates](#pictures-and-templates) a page names come from
-the canvas, not the network. A live mockup runs locked down the same way, in
-its chat’s sandbox.
+doesn’t load anything from the network but its own folder: the
+[files and templates](#pictures-data-and-templates) a page names come from the
+canvas, never from anywhere else. A live mockup runs locked down the same way,
+in its chat’s sandbox.

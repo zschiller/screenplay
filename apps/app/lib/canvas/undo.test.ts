@@ -3,7 +3,6 @@ import * as Y from "yjs"
 import { addMemory, removeMemory } from "@/lib/memory/canvas"
 import { createCanvasUndo } from "@/lib/canvas/undo"
 import { createCanvasOps } from "@/lib/canvas/ops"
-import { mockupHtml } from "@/lib/yjs/mockup-html"
 import { COLLECTION_KEYS, createRoomCollections } from "@/lib/yjs/schema"
 import {
   baseBranch,
@@ -132,12 +131,14 @@ describe("⌘Z on a Mockup (#1309)", () => {
     const sv = Y.encodeStateVector(server)
     const serverOps = createCanvasOps(createRoomCollections(server))
     const { mockupId } = serverOps.createMockup({
-      html: "<p>A</p>",
       title: "Option A",
       width: 400,
       height: 300,
       lastChangedByChatId: "chat-2",
     })!
+    createRoomCollections(server).mockupLayers.update(mockupId, {
+      revision: 1,
+    })
     Y.applyUpdate(h.doc, Y.encodeStateAsUpdate(server, sv), "provider")
     return { ...h, mockupId, server, serverOps }
   }
@@ -146,23 +147,58 @@ describe("⌘Z on a Mockup (#1309)", () => {
     const { doc, collections, undo, mockupId, server, serverOps } =
       withChatMockup()
     const sv = Y.encodeStateVector(server)
-    serverOps.updateMockup(mockupId, { html: "<p>B</p>" })
+    serverOps.updateMockup(mockupId, { title: "Option B" })
+    // A write to its folder bumps the revision (#1886), from the server too.
+    createRoomCollections(server).mockupLayers.update(mockupId, {
+      revision: 2,
+    })
     Y.applyUpdate(doc, Y.encodeStateAsUpdate(server, sv), "provider")
 
     undo.undo()
-    expect(collections.mockupLayers.has(mockupId)).toBe(true)
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>B</p>")
+    expect(collections.mockupLayers.get(mockupId)).toMatchObject({
+      title: "Option B",
+      revision: 2,
+    })
   })
 
-  it("brings a deleted Mockup back with its page and its chat", () => {
-    const { doc, ops, collections, undo, mockupId } = withChatMockup()
+  it("brings a deleted Mockup back with its folder's revision and its chat", () => {
+    const { ops, collections, undo, mockupId } = withChatMockup()
     ops.removeMockups([mockupId])
 
     undo.undo()
-    expect(collections.mockupLayers.get(mockupId)?.lastChangedByChatId).toBe(
-      "chat-2"
-    )
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>A</p>")
+    expect(collections.mockupLayers.get(mockupId)).toMatchObject({
+      lastChangedByChatId: "chat-2",
+      revision: 1,
+    })
+  })
+
+  it("keeps a deleted Mockup's folder while ⌘Z could bring it back, and lets it go with Undo (#1886)", () => {
+    const { doc, ops, undo, mockupId } = withChatMockup()
+    ops.removeMockups([mockupId])
+    expect(undo.deletedMockupFiles()).toEqual([mockupId])
+
+    undo.undo()
+    expect(undo.deletedMockupFiles()).toEqual([])
+    undo.redo()
+    expect(undo.deletedMockupFiles()).toEqual([mockupId])
+
+    const gone: string[][] = []
+    const second = createCanvasUndo(doc, {
+      onMockupFilesGone: (ids) => gone.push(ids),
+    })
+    second.destroy()
+    // Only the Undo that deleted it lets it go.
+    expect(gone).toEqual([])
+  })
+
+  it("lets go of nothing another member deleted", () => {
+    const { doc, collections, undo, mockupId, server } = withChatMockup()
+    const sv = Y.encodeStateVector(server)
+    createRoomCollections(server).mockupLayers.delete(mockupId)
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(server, sv), "provider")
+
+    expect(collections.mockupLayers.has(mockupId)).toBe(false)
+    expect(undo.deletedMockupFiles()).toEqual([])
   })
 
   it("undoes a rename", () => {

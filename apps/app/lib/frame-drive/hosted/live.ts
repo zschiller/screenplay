@@ -16,7 +16,11 @@ import { mockupRefSources, resolveMockupRefs } from "@/lib/mockup-refs-server"
 import type { RoomDoc } from "@/lib/room-access"
 import { ensureFrameStream } from "@/lib/sandbox/frame-stream"
 import { MOCKUP_RUNTIME_JS } from "@/lib/sandbox-bridge"
-import { mockupHtml, mockupSrcDoc } from "@/lib/yjs/mockup-html"
+import { withBasePath } from "@/lib/base-path"
+import { getBaseURL } from "@/lib/base-url"
+import { fileStore } from "@/lib/files"
+import { mockupFolderOn, mockupPageBase } from "@/lib/mockup-folder-server"
+import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
 
 // One driver per Room for the process: every chat's agent is the same party
 // on a shared frame, and the driver remembers which frames it holds between
@@ -120,16 +124,25 @@ async function liveMockup(
     const branch = layer.liveBranchId
       ? c.branches.get(layer.liveBranchId)
       : undefined
-    const html = mockupHtml(c.doc, layer.fileId ?? mockupId).toString()
-    return { layer, branch, html }
+    return { layer, branch, fileId: layer.fileId ?? mockupId }
   })
   if (!found) return null
-  const { layer, branch, html } = found
+  const { layer, branch, fileId } = found
   if (!branch?.previewDomain) {
     return "The chat this live mockup runs in has stopped, so there’s no shared browser to use."
   }
   const stream = await workspaceStream(branch.sandboxName, branch.port)
   if (typeof stream === "string") return stream
+  // Its page and folder (#1886): the Workspace's browser loads the folder's
+  // files from this app, as a viewer's canvas does.
+  const page = await mockupFolderOn(room, fileStore).page(fileId)
+  const html = page?.html ?? ""
+  const base = page?.revision
+    ? new URL(
+        withBasePath(mockupPageBase(room.roomId, fileId, page.revision).path),
+        getBaseURL()
+      ).href
+    : undefined
   // Its `skill:` and `files:` references (#1643) resolve as a viewer's
   // canvas resolves them, but with no one's Account Skills.
   const resources = await liveMockupRefs(room, mockupId, mockupRefs(html))
@@ -137,7 +150,7 @@ async function liveMockup(
     route: "/",
     width: Math.round(layer.width),
     height: Math.round(layer.height),
-    doc: mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources),
+    doc: mockupSrcDoc(html, MOCKUP_RUNTIME_JS, resources, base),
     stream,
   }
 }

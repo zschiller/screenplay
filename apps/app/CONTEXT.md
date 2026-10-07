@@ -516,15 +516,15 @@ since #1314).
 
 **Mockup Layer** (Mockup):
 A static HTML page a chat wrote, shown on the canvas with no Sandbox
-(#1309), a **View** of a Mockup's **File**. Its page is a `Y.Text` keyed
-`mockup-layer-{fileId}` beside its file (title and the `lastChangedByChatId`
-of its last chat, as a Document's, and held as a Document is). Mockups have no status; the Set aside / Current / Built status (#1310)
+(#1309), a **View** of a Mockup's **File**. Its page is a **Mockup Folder**
+(title and the `lastChangedByChatId` of its last chat are its file's, as a
+Document's, and it's held as a Document is). Mockups have no status; the Set aside / Current / Built status (#1310)
 was removed. Older records may still carry a `status` field, which nothing
 reads.
 It renders in an `<iframe srcdoc sandbox="allow-scripts">` with no
-`allow-same-origin` and a Content Security Policy that blocks the network, so
-the page can never reach the app, its cookies or the canvas, and has no
-browser chrome. A Workspace chat creates one with `create_mockup` and rewrites
+`allow-same-origin` and a Content Security Policy that blocks the network but
+its own folder, so the page can never reach the app, its cookies or the
+canvas, and has no browser chrome. A Workspace chat creates one with `create_mockup` and rewrites
 any (page or title) with `update_mockup`; a new one joins the Group of the latest
 Mockup the chat changed, else of its Workspace's frames. Like a Document, its
 label shows only its title, and the Group label rule counts its last chat's
@@ -533,6 +533,20 @@ in the Markdown Layer Set: selection only tells frames apart from the other
 kinds.
 _Avoid_: prototype (that's a running Workspace), wireframe, design layer;
 "artifact".
+
+**Mockup Folder** (#1886, `lib/mockup-folder.ts`):
+Where a Mockup's page lives: a folder in the private file store under
+`canvas/<roomId>/mockups/<fileId>/`, an `index.html` and whatever it loads by
+relative path. Its file record carries a **revision** every write bumps, so
+every View reloads. A View builds its srcdoc from `index.html` with a `<base>`
+at the **pages route** (`/api/mockup-pages/<token>/r<revision>/`), whose token
+names one Mockup for a day and is minted only for a member, since the sandboxed
+page sends no cookies. Only the server writes a folder; a member's Duplicate
+sets `copyOf`, and a page from before folders (the room doc's
+`mockup-layer-{fileId}` text) moves into `index.html`, on the first read
+(`mockupFolderOn(...).page`). A deleted Mockup keeps its folder while the
+deleter's Undo could bring it back, and is removed for real when that Undo goes.
+_Avoid_: the room doc's text as the page; serving the folder by cookie.
 
 **Layer Shell**:
 The canvas frame that wraps every Layer kind: it owns the world-space container,

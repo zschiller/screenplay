@@ -226,7 +226,7 @@ describe("captureRoomThumbnail", () => {
           id: "m1",
           label: "Option A",
           previewUrl: null,
-          mockupHtml: "<h1>A</h1>",
+          mockupFileId: "m1",
         },
         { id: "m2", label: "Drawn", previewUrl: null },
       ],
@@ -234,7 +234,7 @@ describe("captureRoomThumbnail", () => {
 
     const manifest = await captureRoomThumbnail(ROOM, capturer)
 
-    expect(mockupPageUrl).toHaveBeenCalledWith(ROOM, "m1", "<h1>A</h1>")
+    expect(mockupPageUrl).toHaveBeenCalledWith(ROOM, "m1", "m1")
     expect(capturer.capture).toHaveBeenCalledTimes(1)
     expect(capturer.capture).toHaveBeenCalledWith("data:m1", {
       width: 400,
@@ -261,7 +261,7 @@ describe("captureRoomThumbnail", () => {
           id: "m1",
           label: "Option A",
           previewUrl: null,
-          mockupHtml: "<h1>A</h1>",
+          mockupFileId: "m1",
         },
       ],
     } satisfies RoomCaptureLayout)

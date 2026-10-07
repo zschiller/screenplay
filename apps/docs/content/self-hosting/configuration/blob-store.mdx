@@ -74,7 +74,8 @@ store. A different backend reads whatever env vars you wire into its factory.
 Canvas files, the files agents save for a canvas’s members, are private: only
 members of the canvas can read them, through
 `/api/canvas-files/<canvas>/<path>`, which checks membership. Their bytes, along
-with each person’s account files and the files of every saved skill, go to
+with each person’s account files, the files of every saved skill and each
+mockup’s folder (under `canvas/<canvas>/mockups/<mockup>/`), go to
 a separate **file store** (`apps/app/lib/files`) with no public URLs, picked by
 the same `BLOB_STORE` value:
 
@@ -96,6 +97,12 @@ store, an attachment over 4 MB uploads from the browser straight to the store
 that canvas only; the app then checks its size and type and adds it to the
 canvas’s files.
 
+A mockup’s page runs in a sandboxed frame that sends no cookies, so it loads
+the files in its folder through `/api/mockup-pages/<token>/…`, where the token,
+signed with `TERMINAL_AUTH_SECRET`, names that one mockup for a day and is
+handed only to the canvas’s members. If a proxy in front of the app only lets
+signed-in requests through, let that path through too.
+
 A different backend implements the `FileStore` interface in
-`apps/app/lib/files/store.ts` (`put`, `get`, `delete` and `size` by key) and is
-wired into `apps/app/lib/files/index.ts`.
+`apps/app/lib/files/store.ts` (`put`, `get`, `delete` and `size` by key, and
+`list` by prefix) and is wired into `apps/app/lib/files/index.ts`.

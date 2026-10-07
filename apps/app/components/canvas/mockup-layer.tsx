@@ -7,6 +7,7 @@ import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
 import { cn } from "@workspace/ui/lib/utils"
 import type { EditableTextHandle } from "@workspace/ui/components/editable-text"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
+import { useMockupPage } from "@/hooks/use-mockup-page"
 import { useMockupRefs } from "@/hooks/use-mockup-refs"
 import { useMockupRuntime } from "@/hooks/use-mockup-runtime"
 import { useMockupPageTheme } from "@/hooks/use-mockup-page-theme"
@@ -18,7 +19,6 @@ import {
 import { pageAnswers, pageVoice } from "@/lib/canvas/mockup-chat-link"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import type { DomRect } from "@/lib/postmessage-protocol"
-import { useMockupHtml } from "@/lib/yjs/react"
 import { mockupSrcDoc } from "@/lib/yjs/mockup-html"
 import { fileModal } from "@/lib/canvas/file-modal"
 import { LabelChat } from "@/components/canvas/label-chat"
@@ -265,7 +265,9 @@ function MockupLayerImpl({
 }: MockupLayerProps) {
   // The page is the file's, which every view of it shows.
   const fileId = layer.fileId ?? layer.id
-  const html = useMockupHtml(fileId)
+  const mockupPage = useMockupPage(layer)
+  const html = mockupPage.page?.html ?? ""
+  const base = mockupPage.page?.base
   const runtime = useMockupRuntime()
   const resources = useMockupRefs(fileId, html)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -273,17 +275,19 @@ function MockupLayerImpl({
   const bodyRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
 
-  const hasPage = !!html.trim()
-  // The runtime arrives once per session, and the page's `skill:` and
-  // `files:` references (#1643) once they resolve; until then the page waits
-  // rather than load twice.
-  const ready = runtime !== null && resources !== null
+  // Known from the record while the page loads, then from the page.
+  const hasPage = mockupPage.page ? !!html.trim() : mockupPage.hasPage
+  // The page arrives from its folder (#1886), the runtime once per session,
+  // and the page's `skill:` and `files:` references (#1643) once they
+  // resolve; until then the page waits rather than load twice.
+  const ready =
+    mockupPage.page !== null && runtime !== null && resources !== null
   const builtDoc = useMemo(
     () =>
-      hasPage && runtime !== null && resources !== null
-        ? mockupSrcDoc(html, runtime, resources)
+      html.trim() && runtime !== null && resources !== null
+        ? mockupSrcDoc(html, runtime, resources, base)
         : undefined,
-    [hasPage, html, runtime, resources]
+    [html, runtime, resources, base]
   )
   // A change that names new references keeps the page shown until they
   // resolve.
