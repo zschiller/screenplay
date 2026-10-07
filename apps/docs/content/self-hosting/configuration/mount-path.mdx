@@ -10,7 +10,7 @@ domain — deploy it anywhere and every page, asset, route handler, and client
 `fetch` resolves correctly with no extra config.
 
 To serve it under a prefix instead (e.g. behind another origin that proxies a
-subpath), set **`NEXT_PUBLIC_BASE_PATH`** (e.g. `/app`). One variable drives
+subpath), set **`NEXT_PUBLIC_BASE_PATH`** (e.g. `/app`). One variable sets
 everything: `apps/app/next.config.mjs` feeds it to Next’s `basePath` (pages,
 `_next/*` assets, route handlers), and `apps/app/lib/base-path.ts` exposes it as
 `BASE_PATH` + a `withBasePath()` helper used for the URLs Next does **not**

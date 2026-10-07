@@ -79,7 +79,7 @@ when its variables are set. See [Model providers](/self-hosting/configuration/mo
 | `OPENAI_COMPATIBLE_BASE_URL` | If OpenAI-compatible | Base URL of any OpenAI-compatible endpoint: OpenRouter, Groq, vLLM, LM Studio… Setting it enables the provider. |
 | `OPENAI_COMPATIBLE_API_KEY` | Optional | Bearer token for that endpoint. Leave it unset for an endpoint without auth, such as a local LM Studio. |
 | `AGENT_DEFAULT_MODEL` | Optional | The default model as `provider:model`, e.g. `openai:gpt-6-astra`. If its provider isn’t configured, new chats use the first enabled model instead. Default: `anthropic:claude-sonnet-5-5`. |
-| `SANDBOX_HARNESSES` | Optional | Comma-separated coding CLIs to install in every sandbox, runnable from a [shell](/guides/terminals): `claude-code`, `codex`, `opencode-gateway`, `opencode-compat`. Unset means none. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
+| `SANDBOX_HARNESSES` | Optional | Comma-separated coding CLIs to install in every sandbox, runnable from a [terminal](/guides/terminals): `claude-code`, `codex`, `opencode-gateway`, `opencode-compat`. Unset means none. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
 
 ## Terminal access
 
@@ -93,7 +93,7 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 - **`bearer`** (default, no extra setup). The terminal is reached through a
   random, unguessable sandbox URL, and **that URL is the whole credential**.
   URLs can leak through browser history, `Referer` headers, proxy logs, and
-  screen shares, and anyone holding one gets a writable shell until the
+  screen shares, and anyone holding one gets a writable terminal until the
   sandbox is gone. Use it only when every user is trusted.
 - **`ttyd-credential`** (no extra infrastructure). The terminal daemon requires
   a per-sandbox secret derived from `TERMINAL_AUTH_SECRET`, which is sent over

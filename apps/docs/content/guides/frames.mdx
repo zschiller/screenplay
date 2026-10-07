@@ -143,13 +143,13 @@ the start of the address says why; hover it to read the reason:
 The frame itself shows the detail and what to do; see
 [Preview states](#preview-states).
 
-### Who’s driving
+### Who has control
 
-One party drives a frame at a time, and only the driver’s clicks and keys
-reach it. Interact is the driver’s seat: pressing it makes you the driver,
+One party has control of a frame at a time, and only their clicks and keys
+reach it. Interact is where control lives: pressing it gives you control,
 and leaving it lets go.
 
-When the agent drives a frame, the frame shows it:
+When the agent has control of a frame, the frame shows it:
 
 - **Agent has control** sits on the frame’s title line, at its right edge.
 - An unselected frame gets a 2px ring, so you can spot it
@@ -167,7 +167,7 @@ When the agent drives a frame, the frame shows it:
   <Screenshot
     name="frame-claude-driving-selected"
     caption="Selected: the agent’s dots, and no resize handles."
-    alt="The selected frame the agent drives, with the agent’s dots on the Interact button and no resize handles"
+    alt="The selected frame the agent controls, with the agent’s dots on the Interact button and no resize handles"
   />
 </ScreenshotRow>
 
@@ -177,7 +177,7 @@ you leave Interact, the agent carries on if it asked to.
 
 <Screenshot
   name="frame-tooltip-take-over"
-  alt="The driver button’s tooltip: Agent has control, then Click to take control"
+  alt="The Interact button’s tooltip: Agent has control, then Click to take control"
 />
 
 ### Live frames
@@ -235,14 +235,14 @@ again to take your ask back.
   alt="Under the Interact button, Ana asks for control and Ben asks for control, each with Not now and Give control"
 />
 
-When several people ask at once, the driver sees each of them and picks one;
-the others keep waiting. When the driver leaves Interact, control passes to
-whoever asked first. A driver who reloads the page or drops their connection
+When several people ask at once, the person with control sees each of them
+and picks one; the others keep waiting. When they leave Interact, control
+passes to whoever asked first. Someone with control who reloads the page or drops their connection
 keeps control for 5 seconds. If they don’t come back, control passes to
 whoever asked first and is still here, or to nobody.
 
-A driver who walks away from the frame doesn’t keep it from you. Once your
-ask has waited 3 minutes without the driver clicking, scrolling or typing in
+Someone with control who walks away from the frame doesn’t keep it from you.
+Once your ask has waited 3 minutes without them clicking, scrolling or typing in
 the frame, control passes to you, or to whoever asked before you.
 
 A live frame streams at up to twice its size, so it stays sharp when you zoom in
@@ -287,7 +287,7 @@ delete it with all its frames.
   alt="The frame menu’s Preview submenu: Open in play mode, Open in browser, Add frames for all routes, Open logs, Restart preview, Set up again…"
 />
 
-## The agent driving a frame
+## The agent using a frame
 
 A chat’s agent can use a frame: click, type, press keys, scroll,
 pick options, drag and hover, like you would. It reads the page’s buttons, links and
@@ -295,7 +295,7 @@ fields to find what to act on, and looks at the frame after each step to
 check it worked. Ask it to show you what it built, or to get a frame into a
 state for you.
 
-How it drives depends on how you ask:
+How it works depends on how you ask:
 
 - **“Show me”** plays like a demo. The agent brings the frame into view for you,
   and a cursor labelled Agent glides to each button or field and pauses before
@@ -309,25 +309,25 @@ wrong. When no frame shows what it needs, or you’re using the one there,
 the agent opens a new frame beside its chat’s other frames instead of taking
 yours over.
 
-- **Asking is the go-ahead.** Asking the agent in the chat lets it drive, even
+- **Asking is the go-ahead.** Asking the agent in the chat gives it control, even
   while you’re interacting with the frame, so there’s no second prompt.
-- **You can take over at any moment.** Click the driver button (or
+- **You can take over at any moment.** Click the Interact button (or
   double-click the frame) and the agent stops at once. It tells you where it got
   to and asks before it carries on; when you leave Interact, the frame is
   the agent’s again.
 - **It hands the frame back.** When it’s done, or after a minute without a
-  step, the frame stops showing the agent as its driver.
+  step, the frame stops showing that the agent has control.
 
 ### On a shared canvas
 
-On hosted Screenplay, the agent drives the frame’s one live browser: when it
+On hosted Screenplay, the agent uses the frame’s one live browser: when it
 picks a frame up, the frame goes live for everyone, as if it pressed
 **Go live**, so everyone on the canvas watches each step as it happens, with
 **Agent has control** on the frame’s title line. The frame stays live after
 the agent hands it back or someone takes over, so nobody loses the page it got
 to; click **Go live** to end it when you’re done. Anyone
 can take the frame from the agent; between people, the usual
-[asking for control](#asking-for-control) applies. The agent can drive a frame
+[asking for control](#asking-for-control) applies. The agent can use a frame
 nobody is looking at, too: it keeps running while the agent works on it.
 When you ask it to show you something, everyone watching sees its cursor, but
 only your view moves to the frame.
@@ -339,9 +339,9 @@ do is choose a file: when a step needs one, it asks you to pick it yourself.
 
 ### In the desktop app
 
-- **It drives your own frame.** The steps happen in the frame on your canvas,
+- **It uses your own frame.** The steps happen in the frame on your canvas,
   and nothing is sent anywhere else.
-- **Screenplay has to be open.** The agent drives only while the canvas is
+- **Screenplay has to be open.** The agent uses frames only while the canvas is
   open in the desktop app. A canvas that opens in a window hidden behind other
   windows doesn’t load until you bring it forward. With the canvas closed or
   not loaded, the agent tells you so in the chat instead.
@@ -368,14 +368,14 @@ in Interact. After a hover, the frame keeps the pointer so the page stays
 hovered, until you move your own mouse on the canvas. A frame that’s scrolled
 off the canvas or covered can’t take a click, so the agent’s step there is
 simulated inside the page instead, with the limits a
-[mockup](/guides/mockups#the-agent-driving-a-mockup) in the browser has.
+[mockup](/guides/mockups#the-agent-using-a-mockup) in the browser has.
 Moving your own mouse over the frame hands hover back to you.
 
 When a step needs something it can’t do, the agent says which and asks you to
 do it in the frame. Tell it in the chat when you’re done, and it carries on
 from there.
 
-The agent drives [mockups](/guides/mockups#the-agent-driving-a-mockup) in the
+The agent uses [mockups](/guides/mockups#the-agent-using-a-mockup) in the
 desktop app the same way. In the browser, its steps on a mockup are simulated
 inside the page.
 

@@ -45,8 +45,8 @@ H.264 video at up to twice its size, 30 frames a second, and streams them
 to the canvas over one WebSocket on the sandbox’s forwarded port `7682`. The
 canvas decodes it with WebCodecs. Viewers authenticate with a short-lived
 token signed with a per-sandbox key derived from `TERMINAL_AUTH_SECRET`, and
-only the person driving a frame gets a token that lets their input through.
-When the agent drives a frame, the app connects to the same service and sends
+only the person with control of a frame gets a token that lets their input through.
+When the agent uses a frame, the app connects to the same service and sends
 each step with its own short-lived grant; the service applies it as real
 input over the Chrome DevTools Protocol, and a person’s newer grant takes the
 frame back at once.
