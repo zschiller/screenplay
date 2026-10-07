@@ -237,12 +237,14 @@ function renderDialog(
     policy = desktopLinkPolicy,
     files = [],
     layerFiles,
+    revealFileId,
     desktop = false,
   }: {
     canReveal?: boolean
     policy?: RepositoryLinkPolicy
     files?: FileEntryData[]
     layerFiles?: LayerFilesInTree
+    revealFileId?: string
     /** Give the dialog the desktop's Open and Reveal in Finder. */
     desktop?: boolean
   } = {}
@@ -272,6 +274,7 @@ function renderDialog(
       memories={memories}
       files={files}
       layerFiles={layerFiles}
+      revealFileId={revealFileId}
       policy={policy}
       {...handlers}
     />
@@ -1018,6 +1021,25 @@ describe("CanvasSettingsDialog", () => {
         expect(tree.onDeleteFile).toHaveBeenCalledWith("m1")
         expect(screen.queryByRole("alertdialog")).toBeNull()
         expect(handlers.deleteFile).not.toHaveBeenCalled()
+      })
+
+      it("opens Files at one a tile's Show in Files names (#1887)", () => {
+        renderDialog(undefined, undefined, {
+          files: [entry("zebra.md")],
+          layerFiles: layerFiles(),
+          revealFileId: "m1",
+        })
+
+        // Files, with Mockups open and the file marked; Documents stays shut.
+        const folder = (name: string) =>
+          screen
+            .getByRole("button", { name: new RegExp(`^${name}`) })
+            .getAttribute("aria-expanded")
+        expect(folder("Documents")).toBe("false")
+        expect(folder("Mockups")).toBe("true")
+        expect(rowNames()).toEqual(["Cart · B.html", "zebra.md"])
+        const row = screen.getByRole("button", { name: /^Cart · B\.html/ })
+        expect(row.getAttribute("data-active")).toBe("true")
       })
 
       it("opens an unplaced one in its own app on the desktop", async () => {

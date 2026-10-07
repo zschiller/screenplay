@@ -139,6 +139,11 @@ import { chatStore } from "@/lib/chat-store"
 import { createMockupChatLink } from "@/lib/canvas/mockup-chat-link"
 import { MockupChatLinkProvider } from "@/components/canvas/mockup-chat-link"
 import { FileModal } from "@/components/canvas/file-modal"
+import { FileDropSurface } from "@/components/canvas/file-drop-surface"
+import {
+  FileTileActionsContext,
+  type FileTileActions,
+} from "@/components/agent/file-tiles"
 
 import { useDiffStats } from "@/hooks/use-diff-stats"
 
@@ -432,6 +437,9 @@ export function Canvas({
   const [currentRoomName, setCurrentRoomName] = useState(roomName)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [canvasSettingsOpen, setCanvasSettingsOpen] = useState(false)
+  // The Document or Mockup a tile's Show in Files (#1887) opened Canvas
+  // settings at; null when it was opened any other way.
+  const [filesRevealId, setFilesRevealId] = useState<string | null>(null)
   // Inline rename of the room name in the floating breadcrumb. The menu's
   // "Rename" item flags a pending edit and `onCloseAutoFocus` starts it once
   // the menu's focus trap has released (see iframe-layer-row for the pattern).
@@ -1282,6 +1290,38 @@ export function Canvas({
     [ops]
   )
 
+  // A tile dragged out of the chat and dropped on the canvas (#1887): a view
+  // where it was dropped, selected once it's laid out. The camera stays put:
+  // the person chose the spot.
+  const dropFile = useCallback(
+    async (
+      fileId: string,
+      at: { groupId: string; index: number } | { x: number; y: number }
+    ) => {
+      const placed = ops.placeFileAt(fileId, at)
+      if (!placed) return
+      const deadline = performance.now() + REVEAL_LAYOUT_WAIT_MS
+      while (!iframeLayerLayoutsRef.current.has(placed.viewId)) {
+        if (performance.now() >= deadline) return
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      selectNamedLayerRef.current(placed.viewId)
+    },
+    [ops]
+  )
+
+  // A reply's file tiles' ⋯ menu (#1887).
+  const fileTileActions = useMemo<FileTileActions>(
+    () => ({
+      addToCanvas: (fileId) => void addFileToCanvas(fileId),
+      showInFiles: (fileId) => {
+        setFilesRevealId(fileId)
+        setCanvasSettingsOpen(true)
+      },
+    }),
+    [addFileToCanvas]
+  )
+
   // The comments panel (#787); Escape closes it from anywhere on the canvas.
   const [commentsPanelOpen, setCommentsPanelOpen] = useState(false)
   const commentsPanelOpenRef = useRef(commentsPanelOpen)
@@ -1515,6 +1555,7 @@ export function Canvas({
         const viewId = views.get(fileId)?.[0]
         if (!viewId) return
         setCanvasSettingsOpen(false)
+        setFilesRevealId(null)
         viewRequests.emit({ ids: [viewId], select: true })
       },
       onDeleteFile: (fileId) => ops.deleteFiles([fileId]),
@@ -2893,6 +2934,14 @@ export function Canvas({
                   />
                 </div>
 
+                {/* Takes a file tile dragged out of the chat (#1887). */}
+                <FileDropSurface
+                  layouts={effectiveIframeLayerLayouts}
+                  camera={() => transformRef.current?.state ?? null}
+                  sizeOf={ops.fileViewSize}
+                  onDrop={(fileId, at) => void dropFile(fileId, at)}
+                />
+
                 {/* Portal target for floating frame toolbars. Lives above the
                   SelectionOverlay so the toolbar isn't painted over by hover
                   rings or resize handles. Children (rendered via createPortal
@@ -3035,7 +3084,10 @@ export function Canvas({
                     onRoomMenuCloseAutoFocus,
                     deleteDialogOpen,
                     onDeleteDialogOpenChange: setDeleteDialogOpen,
-                    onOpenSettings: () => setCanvasSettingsOpen(true),
+                    onOpenSettings: () => {
+                      setFilesRevealId(null)
+                      setCanvasSettingsOpen(true)
+                    },
                     onOpenShortcuts: openShortcutSheet,
                     stopRoomDevServers,
                     flushLayout,
@@ -3059,7 +3111,11 @@ export function Canvas({
                     })
                   }
                   open={canvasSettingsOpen}
-                  onOpenChange={setCanvasSettingsOpen}
+                  onOpenChange={(open) => {
+                    setCanvasSettingsOpen(open)
+                    if (!open) setFilesRevealId(null)
+                  }}
+                  revealFileId={filesRevealId}
                   userId={userId}
                   repos={repos}
                   branches={agents}
@@ -3238,22 +3294,25 @@ export function Canvas({
               inert={chatCollapsed}
               onResize={(size) => setChatCollapsed(size.inPixels === 0)}
             >
-              <ChatPanelHostMemo
-                {...chromeStable.value("chat", {
-                  chatTarget,
-                  tabPool,
-                  chatSessions,
-                  localTerminals: terminalTabs.tabs,
-                  roomId,
-                  diffStats,
-                  branchPrs,
-                  chatPanelRef,
-                  onUpdateChatSession: updateChatSession,
-                  onSetBranchPr: setBranchPr,
-                  logsRequest,
-                  devServerControls,
-                })}
-              />
+              {/* A reply's file tiles' ⋯ and drag (#1887). */}
+              <FileTileActionsContext.Provider value={fileTileActions}>
+                <ChatPanelHostMemo
+                  {...chromeStable.value("chat", {
+                    chatTarget,
+                    tabPool,
+                    chatSessions,
+                    localTerminals: terminalTabs.tabs,
+                    roomId,
+                    diffStats,
+                    branchPrs,
+                    chatPanelRef,
+                    onUpdateChatSession: updateChatSession,
+                    onSetBranchPr: setBranchPr,
+                    logsRequest,
+                    devServerControls,
+                  })}
+                />
+              </FileTileActionsContext.Provider>
             </ResizablePanel>
           </ResizablePanelGroup>
         </ChatsMenuProvider>
