@@ -10,6 +10,7 @@ import {
   TARGETED_ELEMENTS_FOOTER_TOKEN,
   buildAttachmentsFooter,
   buildCanvasViewFooter,
+  parseCanvasViewPageId,
   buildReferencedDocsFooter,
   buildTargetedElementsFooter,
   deriveElementLabel,
@@ -767,6 +768,59 @@ describe("buildCanvasViewFooter", () => {
     expect(parseUserMessage(wire).body).toBe(
       "make this blue\n\n- and this a list item"
     )
+  })
+})
+
+describe("the sender’s page in the canvas view (#1842)", () => {
+  const page = { id: "pg-2", name: 'Site "v2"' }
+
+  it("names the page on the heading, even with nothing on screen", () => {
+    expect(
+      buildCanvasViewFooter({
+        sender: "Maya",
+        page,
+        selected: [],
+        onScreen: [],
+      })
+    ).toBe(
+      [
+        "",
+        "",
+        "---",
+        "",
+        'Canvas view: what Maya had selected and on screen when they sent this message, on page "Site \\"v2\\"" [pg-2]',
+      ].join("\n")
+    )
+  })
+
+  it("reads back the latest footer’s page, and strips from the body", () => {
+    const wire = [
+      "make this blue" +
+        buildCanvasViewFooter({ page, selected: [], onScreen: [] }),
+      "and put it here" +
+        buildCanvasViewFooter({
+          page: { id: "pg-3", name: "Archive" },
+          selected: [],
+          onScreen: [{ kind: "document", id: "d1", name: "Plan" }],
+        }),
+    ].join("\n\n")
+    expect(parseCanvasViewPageId(wire)).toBe("pg-3")
+    expect(parseUserMessage(wire).body).toBe(
+      "make this blue\n\nand put it here"
+    )
+  })
+
+  it("reads no page from a footer without one", () => {
+    expect(
+      parseCanvasViewPageId(
+        "hi" +
+          buildCanvasViewFooter({
+            selected: [],
+            onScreen: [{ kind: "document", id: "d1", name: "Plan" }],
+          })
+      )
+    ).toBeUndefined()
+    expect(parseCanvasViewPageId('on page "x" [y]')).toBeUndefined()
   })
 })
 

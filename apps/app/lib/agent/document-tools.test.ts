@@ -16,7 +16,7 @@ import {
  * A chat's Document tools and `read_document` against a bare Room doc, with a
  * Document a person has typed mention pills and marks into.
  */
-function setup() {
+function setup(senderPage?: () => string | undefined) {
   const { collections } = makeHarness()
   collections.chatSessions.set("chat-1", baseChat("chat-1"))
   collections.branches.set(
@@ -40,7 +40,11 @@ function setup() {
     mutateDoc: async (fn) => fn(collections),
   }
   const tools = {
-    ...buildDocumentTools({ room, chatId: "chat-1" }),
+    ...buildDocumentTools({
+      room,
+      chatId: "chat-1",
+      ...(senderPage ? { senderPage: async () => senderPage() } : {}),
+    }),
     ...buildLayerReadTools({ room }),
   }
   const run = (name: keyof typeof tools, input: object) =>
@@ -222,5 +226,92 @@ describe("holding a Document (#1725)", () => {
     expect(
       Object.keys(collections.chatSessions.get("chat-1")?.workingLayers ?? {})
     ).toEqual([docId, "doc-1"])
+  })
+})
+
+describe("pages (#1842)", () => {
+  function onPages() {
+    const sender = { page: "page-2" as string | undefined }
+    const t = setup(() => sender.page)
+    t.collections.pages.set("page-1", {
+      id: "page-1",
+      name: "Page 1",
+      order: 0,
+    })
+    t.collections.pages.set("page-2", {
+      id: "page-2",
+      name: "Explorations",
+      order: 1,
+    })
+    const pageOf = (docId: string) =>
+      t.collections.iframeLayerGroups
+        .toArray()
+        .find((g) => g.members.some((m) => m.id === docId))?.pageId
+    const idIn = (out: string) => /id ([^)]+)\)/.exec(out)?.[1] ?? ""
+    return { ...t, sender, pageOf, idIn }
+  }
+
+  it("lands on the sender’s page", async () => {
+    const { run, pageOf, idIn } = onPages()
+
+    const id = idIn(await run("create_document", { title: "Spec" }))
+
+    expect(pageOf(id)).toBe("page-2")
+  })
+
+  it("lands on a page it names", async () => {
+    const { run, pageOf, idIn } = onPages()
+
+    const id = idIn(
+      await run("create_document", { title: "Spec", page: "Page 1" })
+    )
+
+    expect(pageOf(id)).toBe("page-1")
+  })
+
+  it("lists the pages for a name no page has, and makes nothing", async () => {
+    const { run, collections } = onPages()
+    const before = collections.markdownLayers.toArray().length
+
+    const out = await run("create_document", { title: "Spec", page: "Nope" })
+
+    expect(out).toContain('no page "Nope"')
+    expect(out).toContain('"Page 1" (page-1), "Explorations" (page-2)')
+    expect(collections.markdownLayers.toArray()).toHaveLength(before)
+  })
+
+  it("sits beside the chat’s Groups on that page, not on another", async () => {
+    const { run, collections, idIn, sender } = onPages()
+    // The chat's Document on Page 1, far from the origin.
+    collections.iframeLayerGroups.set("g-plan", {
+      id: "g-plan",
+      name: "Plan",
+      pageId: "page-1",
+      x: 5000,
+      y: 5000,
+      members: [{ kind: "markdown-layer", id: "doc-1" }],
+    })
+    sender.page = "page-1"
+    const beside = idIn(await run("create_document", { title: "A" }))
+    sender.page = "page-2"
+    const elsewhere = idIn(await run("create_document", { title: "B" }))
+
+    const groupOf = (id: string) =>
+      collections.iframeLayerGroups
+        .toArray()
+        .find((g) => g.members.some((m) => m.id === id))!
+    expect(groupOf(beside)).toMatchObject({ pageId: "page-1", y: 5000 })
+    expect(groupOf(beside).x).toBeGreaterThan(5000)
+    expect(groupOf(elsewhere)).toMatchObject({ pageId: "page-2" })
+    expect(groupOf(elsewhere).x).toBeLessThan(5000)
+  })
+
+  it("read_document says which page a Document is on", async () => {
+    const { run, idIn } = onPages()
+    const id = idIn(await run("create_document", { title: "Spec" }))
+
+    expect(await run("read_document", { id })).toMatch(
+      /^Page: "Explorations"\n\n# Spec\n/
+    )
   })
 })

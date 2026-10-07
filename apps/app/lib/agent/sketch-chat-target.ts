@@ -16,6 +16,7 @@ import {
 import { prependTurnMarkers } from "./message-markers"
 import { buildDocumentTools } from "./document-tools"
 import { buildMockupTools } from "./mockup-tools"
+import { senderPageOf } from "./sender-page"
 import { buildLayerHoldTools } from "./layer-hold"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
@@ -124,8 +125,14 @@ export const sketchChatTarget: ChatTargetSpec<SketchTarget, SketchContext> = {
     const { chatId, userId } = target
     return {
       shared: {
-        ...buildDocumentTools({ room, chatId }),
-        ...buildMockupTools({ room, chatId }),
+        // New ones land on the sender's page, or a page the agent names
+        // (#1842).
+        ...buildDocumentTools({
+          room,
+          chatId,
+          senderPage: senderPageOf(chatId),
+        }),
+        ...buildMockupTools({ room, chatId, senderPage: senderPageOf(chatId) }),
         ...buildLayerHoldTools({ room, chatId }),
         // Driving a Mockup in the asker's view (#1391).
         ...chatFrameDriveTools({ room, userId }),

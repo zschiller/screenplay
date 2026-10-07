@@ -391,6 +391,11 @@ export interface CanvasViewItem {
 export interface CanvasView {
   /** The sender's display name. */
   sender?: string
+  /**
+   * The page the sender was on (#1842), named only on a canvas with more
+   * than one: where a chat's new Mockups and Documents land by default.
+   */
+  page?: { id: string; name: string }
   selected: CanvasViewItem[]
   /** On screen, the largest share of the screen first. */
   onScreen: CanvasViewItem[]
@@ -416,16 +421,22 @@ function canvasViewLine(item: CanvasViewItem): string {
  * `parseUserMessage` strips every one of them.
  */
 export function buildCanvasViewFooter(view: CanvasView | null): string {
-  if (!view || (view.selected.length === 0 && view.onScreen.length === 0)) {
+  if (
+    !view ||
+    (view.selected.length === 0 && view.onScreen.length === 0 && !view.page)
+  ) {
     return ""
   }
   const who = view.sender?.trim() || "The sender"
+  const page = view.page
+    ? `, on page ${JSON.stringify(view.page.name)} [${view.page.id}]`
+    : ""
   return [
     "",
     "",
     "---",
     "",
-    `${CANVAS_VIEW_FOOTER_TOKEN} what ${who} had selected and on screen when they sent this message`,
+    `${CANVAS_VIEW_FOOTER_TOKEN} what ${who} had selected and on screen when they sent this message${page}`,
     ...(view.selected.length > 0
       ? ["Selected:", ...view.selected.map(canvasViewLine)]
       : []),
@@ -433,6 +444,20 @@ export function buildCanvasViewFooter(view: CanvasView | null): string {
       ? ["On screen:", ...view.onScreen.map(canvasViewLine)]
       : []),
   ].join("\n")
+}
+
+/**
+ * The page id the last canvas-view footer in `wire` names (#1842): the page
+ * the message's sender was on, where a chat's new layers land by default.
+ * `undefined` when no footer names one (a one-page canvas, a wake).
+ */
+export function parseCanvasViewPageId(wire: string): string | undefined {
+  // The footer's heading line ends `, on page "<name>" [<id>]`.
+  const re =
+    /^Canvas view:[^\n]*, on page "(?:[^"\\\n]|\\.)*" \[([^\]\n]+)\]$/gm
+  let id: string | undefined
+  for (const m of wire.matchAll(re)) id = m[1]
+  return id
 }
 
 /**

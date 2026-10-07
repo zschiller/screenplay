@@ -6,6 +6,7 @@ import type { RoomReader } from "@/lib/room-access"
 import { documentFragment } from "@/lib/yjs/fragment-text"
 import { readDocumentBody, roomMentionLabels } from "@/lib/document-markdown"
 import { mentionMarkdownNames } from "@/lib/mention-kinds"
+import { layerPageName } from "@/lib/agent/layer-page"
 
 /**
  * Cross-cutting "read another layer's contents" tools, available to every
@@ -24,7 +25,7 @@ export interface LayerReadToolContext {
 export function buildLayerReadTools(ctx: LayerReadToolContext) {
   const tools = {
     read_document: tool({
-      description: `Read a markdown document on the canvas by id. Returns the title as a \`#\` heading, then the body as markdown; a comment quoting “Line N” means line N of that body, counting from the line after the title’s blank line. Mentions read \`[@<name>](mention:<kind>:<id>)\` with the current name, where kind is ${mentionMarkdownNames()}; read a \`document\` one with this tool. Use this to follow \`@<title>\`-style mentions (look up the id in the canvas layer directory baked into your system prompt).`,
+      description: `Read a markdown document on the canvas by id. Returns the page it’s on (on a canvas with more than one), then the title as a \`#\` heading, then the body as markdown; a comment quoting “Line N” means line N of that body, counting from the line after the title’s blank line. Mentions read \`[@<name>](mention:<kind>:<id>)\` with the current name, where kind is ${mentionMarkdownNames()}; read a \`document\` one with this tool. Use this to follow \`@<title>\`-style mentions (look up the id in the canvas layer directory baked into your system prompt).`,
       inputSchema: jsonSchema<{ id: string }>({
         type: "object",
         properties: { id: { type: "string" } },
@@ -38,6 +39,7 @@ export function buildLayerReadTools(ctx: LayerReadToolContext) {
           return {
             id,
             title: layer.title,
+            page: layerPageName(c, { kind: "markdown-layer", id }),
             body: readDocumentBody(
               documentFragment(c.doc, id),
               roomMentionLabels(c)
@@ -46,6 +48,7 @@ export function buildLayerReadTools(ctx: LayerReadToolContext) {
         })
         if (!result) return `Document not found: ${id}`
         return [
+          ...(result.page ? [`Page: "${result.page}"`, ""] : []),
           `# ${result.title || "Untitled"}`,
           "",
           result.body || "(empty)",

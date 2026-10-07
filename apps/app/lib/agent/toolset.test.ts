@@ -152,6 +152,18 @@ describe("toolsetOn (a Workspace chat, in process)", () => {
     expect(tools.update_mockup).toBeDefined()
   })
 
+  it("gives a chat none of the Coordinator’s page tools (#1842)", () => {
+    const tools = workspaceToolset() as Record<string, unknown>
+    for (const name of [
+      "create_page",
+      "rename_page",
+      "delete_page",
+      "move_to_page",
+    ]) {
+      expect(tools[name]).toBeUndefined()
+    }
+  })
+
   it("preserves submit_plan as a human-in-the-loop tool with no execute", () => {
     const tools = workspaceToolset()
     expect(tools.submit_plan).toBeDefined()

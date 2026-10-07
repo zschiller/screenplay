@@ -20,6 +20,8 @@ export function useCanvasView(deps: {
   currentSelection: () => SelectionSnapshot
   records: CanvasViewRecords
   sender?: string
+  /** The page this member is on, on a canvas with more than one (#1842). */
+  page?: { id: string; name: string }
 }): void {
   const latest = useRef(deps)
   useEffect(() => {
@@ -29,7 +31,7 @@ export function useCanvasView(deps: {
   useEffect(
     () =>
       canvasViewSource.register(() => {
-        const { canvasWrapperRef, currentSelection, records, sender } =
+        const { canvasWrapperRef, currentSelection, records, sender, page } =
           latest.current
         const selection = currentSelection()
         const wrapper = canvasWrapperRef.current
@@ -46,6 +48,7 @@ export function useCanvasView(deps: {
           : []
         return describeCanvasView({
           sender,
+          page,
           selectedGroupIds: selection.groupIds,
           selectedLayerIds: [
             ...selection.iframeLayerIds,
