@@ -631,6 +631,58 @@ describe("a drawn Document’s ask", () => {
   })
 })
 
+describe("opening an existing file in a drawn box (#1890)", () => {
+  it("makes a Mockup box a view of the file, where it was drawn, sending nothing", () => {
+    const t = setup()
+    const fileId = t.ops.createFile({ kind: "mockup", title: "Hero" })
+    act(() => t.hook.result.current.startFromMockupBox(box))
+
+    act(() => t.hook.result.current.openFile(fileId))
+
+    const view = t.onlyMockup()!
+    expect(view).toMatchObject({
+      fileId,
+      width: 390,
+      height: 600,
+      title: "Hero",
+    })
+    const group = t.collections.iframeLayerGroups
+      .toArray()
+      .find((g) => g.members?.some((m) => m.id === view.id))
+    expect(group).toMatchObject({ x: 10, y: 20 })
+    expect(t.setSelectedDocumentLayerIds).toHaveBeenLastCalledWith(
+      new Set([view.id])
+    )
+    expect(t.sendPrompt).not.toHaveBeenCalled()
+    expect(t.sendMessage).not.toHaveBeenCalled()
+    expect(t.createBranch).not.toHaveBeenCalled()
+    expect(t.hook.result.current.open).toBeNull()
+  })
+
+  it("swaps a drawn Document for a view of the file, the empty one gone", () => {
+    const t = setup()
+    const fileId = t.ops.createFile({ kind: "document", title: "Brief" })
+    const { docId } = t.ops.createDocument(
+      { x: 0, y: 0 },
+      { width: 480, height: 640 }
+    )
+    t.hook.rerender()
+    act(() => t.hook.result.current.startFromDocument(docId))
+
+    act(() => t.hook.result.current.openFile(fileId))
+
+    expect(t.collections.markdownLayers.has(docId)).toBe(false)
+    expect(t.collections.layerFiles.has(docId)).toBe(false)
+    const [view] = t.collections.markdownLayers.toArray()
+    expect(view).toMatchObject({ fileId, width: 480, height: 640 })
+    expect(t.setSelectedDocumentLayerIds).toHaveBeenLastCalledWith(
+      new Set([view!.id])
+    )
+    expect(t.setEditingDocumentLayerId).not.toHaveBeenCalled()
+    expect(t.sendPrompt).not.toHaveBeenCalled()
+  })
+})
+
 // The pure helpers the module routes with.
 
 const repo = (id: string, repoFullName: string) =>

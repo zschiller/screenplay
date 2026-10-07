@@ -238,24 +238,21 @@ describe("FrameAskCard for a drawn Document", () => {
     ).toBeTruthy()
   })
 
-  it("writes it by hand from Write it myself, what was typed as the title", () => {
+  it("has no Write it myself button: Esc writes it by hand", () => {
+    renderDocumentCard()
+
+    expect(screen.queryByRole("button", { name: "Write it myself" })).toBe(null)
+  })
+
+  it("writes it by hand on Esc, what was typed as the title", () => {
     const { onClose, onWriteMyself } = renderDocumentCard()
 
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Launch plan" },
     })
-    fireEvent.click(screen.getByRole("button", { name: "Write it myself" }))
-
-    expect(onWriteMyself).toHaveBeenCalledWith("Launch plan")
-    expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it("writes it by hand on Esc", () => {
-    const { onClose, onWriteMyself } = renderDocumentCard()
-
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" })
 
-    expect(onWriteMyself).toHaveBeenCalledWith("")
+    expect(onWriteMyself).toHaveBeenCalledWith("Launch plan")
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -266,5 +263,107 @@ describe("FrameAskCard for a drawn Document", () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onWriteMyself).not.toHaveBeenCalled()
+  })
+})
+
+describe("FrameAskCard opening an existing file (#1890)", () => {
+  const files = [
+    { id: "m-1", title: "Pricing · Option A" },
+    { id: "m-2", title: "Order receipt email" },
+  ]
+
+  function renderMockupCard(opts: { files?: typeof files } = {}) {
+    inserted.length = 0
+    const onOpen = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <FrameAskCard
+        kind="mockup"
+        locate={() => ({ left: 0, top: 0, width: 480, height: 640 })}
+        markdownLayers={[]}
+        workspaces={[]}
+        defaultAnswerer={NEW_CHAT}
+        onSubmit={() => {}}
+        files={opts.files ?? files}
+        onOpen={onOpen}
+        onClose={onClose}
+      />
+    )
+    return { onOpen, onClose }
+  }
+  const openButton = () => screen.getByRole("button", { name: "Open mockup" })
+  const search = () => screen.getByPlaceholderText("Search mockups…")
+
+  it("opens on the prompt, with Open mockup beside Send", () => {
+    renderMockupCard()
+
+    expect(
+      screen.getByRole("textbox", { name: "What should this mockup show?" })
+    ).toBeTruthy()
+    expect(openButton()).toBeTruthy()
+    expect(screen.queryByPlaceholderText("Search mockups…")).toBe(null)
+  })
+
+  it("offers no Open with no file of the kind on the canvas", () => {
+    renderMockupCard({ files: [] })
+
+    expect(screen.queryByRole("button", { name: "Open mockup" })).toBe(null)
+  })
+
+  it("lists the files, and picking one opens it in the box", () => {
+    const { onOpen, onClose } = renderMockupCard()
+
+    fireEvent.click(openButton())
+    fireEvent.click(screen.getByRole("option", { name: "Order receipt email" }))
+
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Pricing · Option A",
+      "Order receipt email",
+      "New mockup…",
+    ])
+    expect(onOpen).toHaveBeenCalledWith("m-2")
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("opens the search on ⌘O, starting from what was typed", () => {
+    renderMockupCard()
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "pricing" },
+    })
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "o", metaKey: true })
+
+    expect(search()).toHaveProperty("value", "pricing")
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Pricing · Option A",
+      "New mockup…",
+    ])
+  })
+
+  it("goes back to the prompt from New mockup…, carrying words no file matched", () => {
+    renderMockupCard()
+    fireEvent.click(openButton())
+
+    fireEvent.change(search(), { target: { value: "A pricing page" } })
+    fireEvent.click(
+      screen.getByRole("option", { name: "New mockup: “A pricing page”" })
+    )
+
+    expect(
+      screen.getByRole("textbox", { name: "What should this mockup show?" })
+    ).toBeTruthy()
+    expect(inserted).toEqual(["A pricing page"])
+  })
+
+  it("goes back to the prompt on Esc, without closing", () => {
+    const { onClose } = renderMockupCard()
+    fireEvent.click(openButton())
+
+    fireEvent.keyDown(search(), { key: "Escape" })
+
+    expect(
+      screen.getByRole("textbox", { name: "What should this mockup show?" })
+    ).toBeTruthy()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })
