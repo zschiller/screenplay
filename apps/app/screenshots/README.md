@@ -355,3 +355,71 @@ branch, so ignore it in a diff or leave those screens out of it.
 Canvas thumbnails are always the seeded ones: the harness answers the Canvas's
 requests to re-capture them, so a capture run never launches the app's own
 headless Chromium.
+
+## Trying a design option
+
+To shoot a variant before writing it into the app (a design exploration, an
+audit's proposed fix), inject it into the capture from a scratch screen rather
+than editing components:
+
+- **CSS:** call `page.addStyleTag({ content })` (or `{ path }`) in the screen's
+  `prepare`. Rules that aren't in a layer and carry `!important` beat
+  Tailwind's layered utilities. Token overrides go on `html`, for example
+  `html { --success: …; --font-instrument-serif: … }`. To restyle every screen
+  in a run, add the same call in `lib/capture.ts` just before the final
+  `settle`, reading the file path from an env var (say `EXPLORE_CSS`), and keep
+  that edit out of the commit.
+- **JS:** call `page.addInitScript({ content: "…" })` in the screen's
+  `beforeNavigate`. Pass a source string, never a function (see
+  [Gotchas](#gotchas)).
+- **Icons:** append a nested `<svg>` inside the `svg.lucide` you're replacing
+  and give it `width` and `height` with `!important`, or the button's
+  `[&_svg]:size-*` utility shrinks it.
+
+Shoot each option under its own `--label` so the sets sit side by side.
+
+## Gotchas
+
+- **A run replaces its whole label folder.** `shots --label after --screens a`
+  deletes everything already in `captures/after/` first. To re-shoot a few
+  screens, use a new label (`after2`) or rerun the full list.
+- **"Before" from a worktree can shoot the wrong build.** Every local run
+  serves on port 3947, and `shots` reuses whatever answers there. Stop the
+  `boot` or `shots` in your own checkout before the worktree's "before" run,
+  and the reverse after it.
+- **UI gated on the host isn't on screen by default.** Prefer the
+  `fixtureGitHub()` cookie (`screens/helpers.ts`), which makes GitHub read as
+  connected. For anything that still calls the real `gh`, put a stand-in `gh`
+  script first on `PATH` that answers `auth token`, `--version` and
+  `api user --jq .login`. To show Claude Code signed in under Settings, put a
+  stand-in `security` script first on `PATH` that prints any non-empty text.
+- **Light and dark share one Canvas.** The second theme of a run finds
+  whatever the first theme's `prepare` changed (a frame's route, a selection,
+  terminal tabs it consumed). Make each step idempotent by checking the current
+  state first, or shoot each theme in its own `--fresh --themes <t>` run under
+  its own label.
+- **Zoom persists into the Canvas's saved viewport.** A screen that zooms the
+  canvas leaves later screens on that Canvas zoomed. List it after every other
+  screen on the same Canvas.
+- **`pkill -f next-server` kills your own shell** when the pattern also matches
+  your command line (exit 144). Find the PID with
+  `ps aux | grep -E "next-serve[r]"` and kill that.
+- **The first run in a new worktree can render a fallback font.** A cold or
+  stale `.next` sometimes paints a wider fallback sans instead of Instrument
+  Sans, and menu labels wrap. Check the font in the shots; if it's wrong,
+  `rm -rf apps/app/.next` and shoot again.
+- **A hang at "Compiling …" or "app server never answered /api/health"** is a
+  stale Turbopack cache from a killed run. Kill leftover `next-server`
+  processes (by PID, above), `rm -rf apps/app/.next`, and rerun. A hosted run
+  that half-migrated also needs `rm -rf .screenshots/hosted/pglite*`.
+- **Init scripts must be source strings.** `tsx` rewrites a function literal
+  to call an `__name` helper the page doesn't have, so a function passed to
+  `addInitScript` throws on every navigation without any error in the run's
+  output. Pass `{ content: "…" }`.
+- **Clicks can land before hydration.** A `prepare` that clicks a header
+  button right after load can miss; retry the click until the dialog or menu
+  appears. Row `⋯` triggers show only while the row is hovered: hover the row,
+  open the menu, wait about 300ms, then pick the item.
+- **Streams open twice in dev.** Strict Mode mounts twice, so a
+  `beforeNavigate` stub that counts requests is off by one. Key stubs on the
+  request itself (a query parameter, the path).
