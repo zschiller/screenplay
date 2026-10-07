@@ -58,6 +58,38 @@ describe("add_to_canvas (#1885)", () => {
     ).toContainEqual({ kind: "mockup-layer", id: viewId })
   })
 
+  it("starts a Group in free space when the chat’s Group would cover another", async () => {
+    const { ops, collections, run } = setup()
+    collections.iframeLayers.set(
+      "frame-1",
+      baseLayer("frame-1", { branchId: "ws-1" })
+    )
+    seedGroup(collections, "group-1", [{ kind: "iframe-layer", id: "frame-1" }])
+    collections.iframeLayers.set("frame-2", baseLayer("frame-2"))
+    collections.iframeLayerGroups.set("group-2", {
+      id: "group-2",
+      name: "group-2",
+      x: 500,
+      y: 0,
+      members: [{ kind: "iframe-layer", id: "frame-2" }],
+    })
+    const fileId = ops.createFile({
+      kind: "mockup",
+      title: "Options",
+      html: "<p>a</p>",
+    })
+
+    const out = await run({ id: fileId })
+
+    const viewId = /view id ([^)]+)\)/.exec(out)![1]!
+    const own = collections.iframeLayerGroups
+      .toArray()
+      .find((g) => getGroupMembers(g).some((m) => m.id === viewId))!
+    expect(own.id).not.toBe("group-1")
+    // Right of group-2, so it covers neither frame.
+    expect(own.x).toBeGreaterThanOrEqual(900)
+  })
+
   it("starts its own Group when the chat has no layers, and keeps the file", async () => {
     const { ops, collections, run } = setup()
     const fileId = ops.createFile({ kind: "document", title: "Notes" })

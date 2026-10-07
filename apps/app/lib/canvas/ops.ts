@@ -16,7 +16,9 @@ import {
   getGroupMembers,
   groupContentHeight,
   groupContentWidth,
+  groupGap,
   nextGroupNumber,
+  placeNewGroupBeside,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
 import {
@@ -1507,6 +1509,34 @@ export function createCanvasOps(
     return fileId
   }
 
+  /** Whether a view this size, added at the end of the Group, covers no other Group. */
+  function fitsAtEndOf(
+    groupId: string,
+    size: { width: number; height: number },
+    groups: readonly IframeLayerGroupData[],
+    frames: readonly IframeLayerData[],
+    sized: ReturnType<typeof sizedLayersOf>
+  ): boolean {
+    const group = groups.find((g) => g.id === groupId)
+    if (!group) return false
+    const width = groupContentWidth(group, frames, sized)
+    const spot = {
+      x: group.x + width + (width > 0 ? groupGap(group) : 0),
+      y: group.y,
+    }
+    return groups.every((g) => {
+      if (g.id === groupId) return true
+      const w = groupContentWidth(g, frames, sized)
+      const h = groupContentHeight(g, frames, sized)
+      return (
+        spot.x + size.width <= g.x ||
+        g.x + w <= spot.x ||
+        spot.y + size.height <= g.y ||
+        g.y + h <= spot.y
+      )
+    })
+  }
+
   function placeFile(
     fileId: string,
     opts: { chatId?: string; size?: { width: number; height: number } } = {}
@@ -1535,23 +1565,37 @@ export function createCanvasOps(
       opts.chatId ?? lastChangedBy(file),
       pageId
     )
+    const groups = placementGroups()
+    const frames = collections.iframeLayers.toArray()
+    const sized = sizedLayersOf(collections)
     let placed: { viewId: string; groupId: string } | undefined
     batch(() => {
-      if (joined) {
+      // Join the chat's Group when the view fits at its end; when that would
+      // cover another Group, start one beside it in free space instead.
+      if (joined && fitsAtEndOf(joined, size, groups, frames, sized)) {
         const viewId = addFileView(fileId, joined, size)
         if (viewId) placed = { viewId, groupId: joined }
         return
       }
       const viewId = nanoid()
       const groupId = nanoid()
-      const anchor = placeNewIframeLayerGroup(
-        placementGroups(),
-        collections.iframeLayers.toArray(),
-        { x: 0, y: 0 },
-        size.width,
-        size.height,
-        sizedLayersOf(collections)
-      )
+      const anchor = joined
+        ? placeNewGroupBeside(
+            groups,
+            frames,
+            sized,
+            new Set([joined]),
+            size.width,
+            size.height
+          )
+        : placeNewIframeLayerGroup(
+            groups,
+            frames,
+            { x: 0, y: 0 },
+            size.width,
+            size.height,
+            sized
+          )
       views.addView(viewId, fileId, size)
       collections.iframeLayerGroups.set(groupId, {
         id: groupId,
