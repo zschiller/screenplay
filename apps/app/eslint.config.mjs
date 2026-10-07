@@ -3,6 +3,11 @@ import { nextJsConfig } from "@workspace/eslint-config/next"
 
 export default defineConfig([
   ...nextJsConfig,
-  // The design templates' runtimes, built by packages/skill-templates
-  globalIgnores(["lib/skills/**/*-runtime.js"]),
+  globalIgnores([
+    // The design templates' runtimes, built by packages/skill-templates
+    "lib/skills/**/*-runtime.js",
+    // Screenshot harness state, including the docs capture's built demo
+    // site (screenshots/profile.ts; gitignored)
+    ".screenshots/**",
+  ]),
 ])

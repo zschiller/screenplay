@@ -54,8 +54,6 @@ import type {
   ChatSessionData,
   IframeLayerData,
   IframeLayerGroupData,
-  MarkdownLayerData,
-  MockupLayerData,
   PageData,
   PageViewData,
   PlanData,
