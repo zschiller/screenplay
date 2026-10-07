@@ -377,9 +377,20 @@ state lives in the room's Y.Doc. (Note: "Canvas" is also the user-facing label
 for a Room; in code, Canvas means this surface specifically.)
 _Avoid_: board, whiteboard, scene.
 
+**Page**:
+An ordered, named partition of a Canvas's Groups, like a page in a Figma file
+(spec #1834). A Room has one or more Pages; the canvas shows one at a time, and
+only that Page's Groups render (Layers on other Pages unmount; their chats and
+previews keep running). Pages split the Layers and nothing else: repositories,
+Memory, chats and the Coordinator stay per Canvas. A Room with no Pages
+recorded reads as one "Page 1" (`lib/canvas/pages.ts`), and a Group with no
+`pageId`, or one naming a Page that's gone, is on the first Page, so existing
+canvases open without a write. The Page a person is looking at is client state.
+_Avoid_: board, scene, sheet.
+
 **Group** (Iframe Layer Group):
 A positioned container on the canvas holding one or more Members; carries its
-own x/y, name, gap, and sidebar order. Invariant: a Group is **never committed
+own x/y, name, gap, sidebar order, and the Page it is on. Invariant: a Group is **never committed
 to the Y.Doc with zero members** — removing its last member deletes it. Empty
 groups may exist only in uncommitted, client-side drag state.
 _Avoid_: cluster, stack, frame group.

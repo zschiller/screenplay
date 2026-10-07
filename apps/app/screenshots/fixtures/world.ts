@@ -19,6 +19,7 @@ import type {
   MarkdownLayerData,
   MockupLayerData,
   MemoryData,
+  PageData,
   PlanData,
   RepoData,
   ViewportData,
@@ -109,6 +110,8 @@ export interface FixtureRoom {
     branches?: BranchData[]
     iframeLayers?: IframeLayerData[]
     iframeLayerGroups?: IframeLayerGroupData[]
+    /** The canvas's Pages (#1835); omitted reads as one “Page 1”. */
+    pages?: PageData[]
     markdownLayers?: MarkdownLayerData[]
     mockupLayers?: MockupLayerData[]
     chatSessions?: ChatSessionData[]

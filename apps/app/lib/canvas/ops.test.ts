@@ -2033,3 +2033,166 @@ describe("positions from the Canvas's Done-hidden view", () => {
     ).toEqual(["a", "c", "d", "b"])
   })
 })
+
+describe("Pages (#1835)", () => {
+  const groupsOn = (ops: ReturnType<typeof makeHarness>["ops"], id: string) =>
+    ops.groupsOnPage(id).map((g) => g.id)
+
+  it("reads a canvas with no pages as one “Page 1” holding every Group, with no write", () => {
+    const { doc, ops, collections } = makeHarness()
+    collections.iframeLayers.set("a", baseLayer("a"))
+    seedGroup(collections, "g1", [{ kind: "iframe-layer", id: "a" }])
+    let writes = 0
+    doc.on("afterTransaction", () => writes++)
+
+    const pages = ops.listPages()
+
+    expect(pages.map((p) => p.name)).toEqual(["Page 1"])
+    expect(groupsOn(ops, pages[0]!.id)).toEqual(["g1"])
+    expect(writes).toBe(0)
+    expect(collections.pages.toArray()).toEqual([])
+  })
+
+  it("adds “Page N” at the end, recording the first page alongside it in one step", () => {
+    const { doc, ops } = makeHarness()
+    const origins: unknown[] = []
+    doc.on("afterTransaction", (tr) => origins.push(tr.origin))
+
+    const second = ops.createPage()
+    const third = ops.createPage()
+
+    expect(ops.listPages().map((p) => [p.id, p.name])).toEqual([
+      ["page-1", "Page 1"],
+      [second, "Page 2"],
+      [third, "Page 3"],
+    ])
+    expect(origins).toEqual([CANVAS_OPS_ORIGIN, CANVAS_OPS_ORIGIN])
+  })
+
+  it("never reuses a “Page N” name still on the list", () => {
+    const { ops } = makeHarness()
+    ops.createPage({ name: "Page 7" })
+
+    ops.createPage()
+
+    expect(ops.listPages().map((p) => p.name)).toEqual([
+      "Page 1",
+      "Page 7",
+      "Page 8",
+    ])
+  })
+
+  it("is undone in one step, taking the recorded first page with it", () => {
+    const { doc, ops } = makeHarness()
+    const undo = new UndoManager(doc.getMap(COLLECTION_KEYS.pages), {
+      trackedOrigins: new Set([CANVAS_OPS_ORIGIN]),
+    })
+
+    ops.createPage()
+    undo.undo()
+
+    expect(ops.listPages().map((p) => p.name)).toEqual(["Page 1"])
+  })
+
+  it("keeps Groups without a page, or on a page that's gone, on the first page", () => {
+    const { ops, collections } = makeHarness()
+    const second = ops.createPage()
+    collections.iframeLayers.set("a", baseLayer("a"))
+    collections.iframeLayers.set("b", baseLayer("b"))
+    collections.iframeLayers.set("c", baseLayer("c"))
+    seedGroup(collections, "none", [{ kind: "iframe-layer", id: "a" }])
+    seedGroup(collections, "gone", [{ kind: "iframe-layer", id: "b" }])
+    seedGroup(collections, "second", [{ kind: "iframe-layer", id: "c" }])
+    ops.patch("iframeLayerGroups", "gone", { pageId: "deleted" })
+    ops.patch("iframeLayerGroups", "second", { pageId: second })
+
+    expect(groupsOn(ops, "page-1")).toEqual(["none", "gone"])
+    expect(groupsOn(ops, second)).toEqual(["second"])
+  })
+
+  it("puts Layers made on a page on that page, placed beside only its Groups", () => {
+    const looking: { at?: string } = {}
+    const { ops, collections } = makeHarness({
+      currentPageId: () => looking.at,
+    })
+    // A wide Group on Page 1; the new page is empty.
+    collections.iframeLayers.set("wide", baseLayer("wide", { width: 2000 }))
+    seedGroup(collections, "first", [{ kind: "iframe-layer", id: "wide" }])
+    const current = ops.createPage()
+    looking.at = current
+    collections.branches.set("agent-1", baseBranch("agent-1"))
+
+    const frame = ops.createFrameForAgent("agent-1", { x: 0, y: 0 })
+    const blank = ops.createBlankFrame(
+      { x: 10, y: 10 },
+      { width: 400, height: 300 }
+    )
+    const document = ops.createDocument(
+      { x: 20, y: 20 },
+      { width: 400, height: 300 }
+    )
+    const mockup = ops.createMockup({
+      html: "<p>hi</p>",
+      title: "M",
+      width: 400,
+      height: 300,
+    })
+
+    const onSecond = groupsOn(ops, current)
+    expect(onSecond).toContain(frame.groupId)
+    expect(onSecond).toContain(document.groupId)
+    expect(onSecond).toContain(mockup?.groupId)
+    expect(
+      ops
+        .groupsOnPage(current)
+        .some((g) => getGroupMembers(g).some((m) => m.id === blank))
+    ).toBe(true)
+    expect(groupsOn(ops, "page-1")).toEqual(["first"])
+    // Page 1's 2000px Group doesn't push the first Group on an empty page.
+    expect(collections.iframeLayerGroups.get(frame.groupId)?.x).toBeLessThan(
+      2000
+    )
+  })
+
+  it("keeps Layers made without a current page on the first page", () => {
+    const { ops } = makeHarness()
+    const second = ops.createPage()
+
+    const { groupId } = ops.createDocument(
+      { x: 0, y: 0 },
+      { width: 400, height: 300 }
+    )
+
+    expect(groupsOn(ops, "page-1")).toEqual([groupId])
+    expect(groupsOn(ops, second)).toEqual([])
+  })
+
+  it("keeps a Layer split out of its Group on that Group's page", () => {
+    const { ops, collections } = makeHarness()
+    const second = ops.createPage()
+    collections.iframeLayers.set("a", baseLayer("a"))
+    collections.iframeLayers.set("b", baseLayer("b"))
+    seedGroup(collections, "g", [
+      { kind: "iframe-layer", id: "a" },
+      { kind: "iframe-layer", id: "b" },
+    ])
+    ops.patch("iframeLayerGroups", "g", { pageId: second })
+
+    const split = ops.splitToNewGroup(["b"], { x: 900, y: 0 })
+
+    expect(groupsOn(ops, second)).toEqual(["g", split])
+  })
+})
+
+describe("renamePage", () => {
+  it("renames a page, and records an unrecorded “Page 1” to rename it", () => {
+    const { ops } = makeHarness()
+
+    ops.renamePage("page-1", "  Homepage ")
+    const second = ops.createPage()
+    ops.renamePage(second, "Pricing")
+    ops.renamePage(second, "   ")
+
+    expect(ops.listPages().map((p) => p.name)).toEqual(["Homepage", "Pricing"])
+  })
+})

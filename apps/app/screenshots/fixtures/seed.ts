@@ -629,6 +629,7 @@ function applyRoomDoc(doc: Y.Doc, room: FixtureRoom): void {
     // there is nothing left for it to wrap.
     for (const group of fixture.iframeLayerGroups ?? [])
       c.iframeLayerGroups.set(group.id, group)
+    for (const page of fixture.pages ?? []) c.pages.set(page.id, page)
     for (const chat of fixture.chatSessions ?? [])
       c.chatSessions.set(chat.id, chat)
     for (const plan of fixture.plans ?? []) c.plans.set(plan.id, plan)

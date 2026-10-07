@@ -7,8 +7,9 @@ description: Navigate the canvas, use the tools, and arrange frames and document
 
 A canvas has three regions:
 
-- **Left sidebar** (<kbd>⌘</kbd> <kbd>B</kbd>): the canvas’s layers, its
-  groups, frames and documents.
+- **Left sidebar** (<kbd>⌘</kbd> <kbd>B</kbd>): the canvas’s
+  [pages](#pages), and the current page’s layers: its groups, frames and
+  documents.
 - **The canvas itself**: an infinite surface of frames and documents, with
   the toolbar at the bottom center.
 - **Agent panel** (<kbd>⌘</kbd> <kbd>I</kbd>): the [Coordinator](/guides/coordinator), or chat and
@@ -187,9 +188,28 @@ too small on screen to fit all of it, the description goes first, then the
 buttons, then the title, leaving just the icon. While **Start a chat** is open
 on a frame, the frame dims behind it.
 
+## Pages
+
+A canvas holds one or more pages, like the pages of a Figma file, so one
+project can show different things without crowding one surface. Pages split
+the canvas’s layers and nothing else: its repositories, memory, files, skills,
+chats and Coordinator are shared by every page. Every canvas starts with
+“Page 1”, and a canvas made before pages has all its content there.
+
+<Screenshot name="canvas-pages" alt="The Pages list above the layers list in the sidebar" />
+
+- **Pages**, at the top of the sidebar, lists every page. Click one to switch
+  to it: the canvas and the layers list show only that page’s layers.
+- **+** adds “Page 2” (and so on), switches to it and opens its name to
+  rename. Type a name and press <kbd>Enter</kbd>. A new page starts empty.
+- Frames, mockups and documents you add land on the page you’re on.
+- Layers on other pages aren’t drawn, so a big canvas stays quick. Their chats
+  and previews keep running.
+- Drag the line between Pages and Layers to give either more room.
+
 ## The layers list
 
-The sidebar’s layer list mirrors the canvas. Groups with several
+The sidebar’s layer list mirrors the current page of the canvas. Groups with several
 members appear as folders. A flow’s row ends with its chat (state icon
 and title, with its pull request at the row’s end), and its frame rows show
 just their names. In a group whose frames differ, and in single-frame groups,
@@ -206,7 +226,7 @@ each frame row ends with its own chat instead.
 
 <kbd>⌘</kbd> <kbd>Z</kbd> and <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd> undo and
 redo your own canvas changes: moving, resizing, adding, deleting and renaming
-frames, documents and groups. A frame’s page, its route and scroll, isn’t part
+frames, documents and groups, and adding and renaming pages. A frame’s page, its route and scroll, isn’t part
 of undo. Your ⌘Z never undoes someone else’s changes or the Coordinator’s.
 
 Deleting a frame, document or group happens at once, whether from the layers
