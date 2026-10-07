@@ -101,6 +101,9 @@ export function buildFrameDriveTools(
   }
 ) {
   const frames = opts.frames ?? true
+  // A chat with no repository has no Workspace: no frames of its own to
+  // open, no `view_frame`, and no files a file input could pick.
+  const workspace = scope.sandboxName !== undefined
   // What the tools call what they drive.
   const page = frames ? "a frame or Mockup" : "a Mockup"
   const sleep =
@@ -110,7 +113,9 @@ export function buildFrameDriveTools(
     .optional()
     .describe(
       frames
-        ? "The frame or Mockup to drive. Leave it out for your Workspace’s frame; with several, the answer lists them"
+        ? workspace
+          ? "The frame or Mockup to drive. Leave it out for your Workspace’s frame; with several, the answer lists them"
+          : "The frame or Mockup to drive. Leave it out when there’s one; with several, the answer lists them"
         : "The Mockup to drive. Leave it out when there’s one; with several, the answer lists them"
     )
 
@@ -179,38 +184,39 @@ export function buildFrameDriveTools(
       },
     }),
 
-    ...(frames && {
-      frame_open: tool({
-        description:
-          "Open a new frame showing your Workspace beside its other frames, to drive when no frame fits: rather than taking over a frame the person is using for something else. Pass `route` to open it on a page. Returns the new frame’s id once the canvas has it; then call frame_start_driving with it.",
-        inputSchema: z.object({
-          route: z
-            .string()
-            .optional()
-            .describe("The page to open, e.g. '/settings'. Defaults to '/'"),
-        }),
-        execute: async ({ route }) => {
-          const closed = await driver.canvasUnavailable()
-          if (closed)
-            return `Can’t open a frame to drive: ${closed} ${TELL_IN_CHAT}`
-          const opened = await room.mutateDoc((c) =>
-            openWorkspaceFrame(c, scope.sandboxName, route)
-          )
-          if (typeof opened === "string") return opened
-          const name = `frame [${opened.id}] (${opened.route})`
-          // The canvas mounts it once the Room syncs; wait so the first step
-          // doesn't find it missing.
-          const deadline = Date.now() + OPEN_FRAME_WAIT_MS
-          while ((await driver.frameUnavailable(opened.id)) !== null) {
-            if (Date.now() >= deadline) {
-              return `Opened ${name} beside your Workspace’s frames, but the canvas hasn’t loaded it yet. Try frame_start_driving with frameId "${opened.id}" in a moment.`
+    ...(frames &&
+      workspace && {
+        frame_open: tool({
+          description:
+            "Open a new frame showing your Workspace beside its other frames, to drive when no frame fits: rather than taking over a frame the person is using for something else. Pass `route` to open it on a page. Returns the new frame’s id once the canvas has it; then call frame_start_driving with it.",
+          inputSchema: z.object({
+            route: z
+              .string()
+              .optional()
+              .describe("The page to open, e.g. '/settings'. Defaults to '/'"),
+          }),
+          execute: async ({ route }) => {
+            const closed = await driver.canvasUnavailable()
+            if (closed)
+              return `Can’t open a frame to drive: ${closed} ${TELL_IN_CHAT}`
+            const opened = await room.mutateDoc((c) =>
+              openWorkspaceFrame(c, scope.sandboxName, route)
+            )
+            if (typeof opened === "string") return opened
+            const name = `frame [${opened.id}] (${opened.route})`
+            // The canvas mounts it once the Room syncs; wait so the first step
+            // doesn't find it missing.
+            const deadline = Date.now() + OPEN_FRAME_WAIT_MS
+            while ((await driver.frameUnavailable(opened.id)) !== null) {
+              if (Date.now() >= deadline) {
+                return `Opened ${name} beside your Workspace’s frames, but the canvas hasn’t loaded it yet. Try frame_start_driving with frameId "${opened.id}" in a moment.`
+              }
+              await sleep(OPEN_FRAME_POLL_MS)
             }
-            await sleep(OPEN_FRAME_POLL_MS)
-          }
-          return `Opened ${name} beside your Workspace’s frames. Call frame_start_driving with frameId "${opened.id}"; its page may take a moment to load.`
-        },
+            return `Opened ${name} beside your Workspace’s frames. Call frame_start_driving with frameId "${opened.id}"; its page may take a moment to load.`
+          },
+        }),
       }),
-    }),
 
     frame_elements: tool({
       description: `Read what can be acted on in ${page} on the canvas: its links, buttons, fields and other controls, each with a selector to target it by, plus the page’s path and title. Pass \`selector\` to also read one element’s text and value. Read this before acting, and again after a step to see what changed. Read-only.`,
@@ -231,7 +237,7 @@ export function buildFrameDriveTools(
     }),
 
     frame_screenshot: tool({
-      description: `Look at ${page} exactly as the person sees it on the canvas, in the state you drove it to. Use it to check each step.${frames ? " (view_frame renders a fresh copy of a frame’s page instead, so it doesn’t show what you did.)" : ""} Read-only.`,
+      description: `Look at ${page} exactly as the person sees it on the canvas, in the state you drove it to. Use it to check each step.${frames && workspace ? " (view_frame renders a fresh copy of a frame’s page instead, so it doesn’t show what you did.)" : ""} Read-only.`,
       inputSchema: z.object({ frameId }),
       execute: async ({ frameId }): Promise<string | ImageToolOutput> => {
         const frame = await resolve(frameId)

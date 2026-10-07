@@ -362,7 +362,7 @@ export function buildTargetedElementsFooter(
       // An element in a Mockup has no route or code to find it in: say where
       // its page is, only when one is there so frame-only footers stay as is.
       (elements.some((e) => e.layerKind === "mockup")
-        ? "; an entry in a Mockup names it as `mockup <id>`: read its page with read_mockup and change it with update_mockup)"
+        ? "; an entry in a Mockup names it as `mockup <id>`)"
         : ")"),
     ...lines,
   ].join("\n")
