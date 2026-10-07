@@ -32,6 +32,9 @@ interface LayerEdgesUnderlayProps {
  * It follows the live camera frame by frame (like the labels), not the
  * deferred zoom the overlays read, so it never lags or hides mid-pan or
  * mid-zoom.
+ *
+ * Never a CSS ring or counter-scaled border inside the zoomed content: WebKit
+ * rasterizes before it scales, so those blur, or vanish when zoomed in.
  */
 export function LayerEdgesUnderlay({
   layouts,

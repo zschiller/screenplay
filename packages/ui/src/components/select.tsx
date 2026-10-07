@@ -28,6 +28,8 @@ function SelectValue({
   return <SelectPrimitive.Value data-slot="select-value" {...props} />
 }
 
+// To change the small trigger's height, pass `data-[size=sm]:h-7`: a plain
+// `h-7` loses to the size variant's `data-[size=sm]:h-8`.
 function SelectTrigger({
   className,
   size = "default",

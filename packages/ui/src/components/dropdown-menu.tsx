@@ -165,6 +165,8 @@ function DropdownMenuRadioItem({
   )
 }
 
+// A mono caps group label. Anything else (an account header) passes
+// `font-sans tracking-normal normal-case`.
 function DropdownMenuLabel({
   className,
   inset,

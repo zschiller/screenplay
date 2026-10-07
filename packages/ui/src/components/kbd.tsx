@@ -1,5 +1,7 @@
 import { cn } from "@workspace/ui/lib/utils"
 
+// `font-sans`, not `system-ui`: on Linux Chromium system-ui is a monospaced
+// face. Symbols (⌘ ⇧ ⌫) still fall back per glyph.
 function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
   return (
     <kbd

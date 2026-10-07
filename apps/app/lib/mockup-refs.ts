@@ -12,6 +12,9 @@ import { normalizeFilePath } from "@/lib/files/paths"
  * The page text keeps the references; the canvas resolves them when it builds
  * the page's srcdoc (`mockupSrcDoc`), where each becomes a `blob:` URL made
  * inside the page's own frame, so nothing loads from the network.
+ *
+ * Only references in the page's markup resolve: one its script builds at
+ * runtime (a React template rendering `<img src="files:…">`) stays unresolved.
  */
 
 export type MockupRef =

@@ -2953,7 +2953,10 @@ export function Canvas({
                 {/* Window-drag strip: spans the full toolbar height across the top
                 of the canvas, in the chrome layer but BEHIND the floating pills
                 (same layer, earlier in DOM order) so the pills stay clickable
-                while the empty toolbar area drags the native window. */}
+                while the empty toolbar area drags the native window. It also
+                swallows clicks on anything in lower layers painted beneath it
+                (the frame toolbar portal), so floating chrome near the top of
+                the canvas stays below ~52px. */}
                 <div
                   data-tauri-drag-region
                   className="absolute top-0 right-0 left-0 z-(--z-canvas-chrome) h-12"

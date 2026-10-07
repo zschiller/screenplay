@@ -114,7 +114,13 @@ export class YjsCollection<T extends Record<string, unknown>> {
     return plain<T>(this.map.get(id))
   }
 
-  /** Iteration-stable array snapshot. Reference is stable until the next mutation. */
+  /**
+   * Iteration-stable array snapshot. Reference is stable until the next mutation.
+   *
+   * The snapshot (and `toMap()`'s) only refreshes while something observes the
+   * collection, so on the server a read after a write can be stale: find by
+   * stable fields (ids) here, then read the record with {@link get}.
+   */
   toArray(): T[] {
     if (this.snapshotCache) return this.snapshotCache as T[]
     const arr: T[] = []

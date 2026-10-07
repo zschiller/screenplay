@@ -1051,6 +1051,7 @@ function RoomSidebarImpl({
                                                   frameWorkspaceOf(branch)
                                                 return workspace ? (
                                                   // Names win: the Workspace takes only the room the name leaves.
+                                                  // (`shrink-[100]` still clipped the name by a sub-pixel; `basis-0` doesn't.)
                                                   <span className="flex min-w-10 flex-1 basis-0 text-sm font-normal text-muted-foreground">
                                                     <CompactWorkspaceMention
                                                       workspace={workspace}

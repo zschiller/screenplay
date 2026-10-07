@@ -2,6 +2,8 @@ import * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"
 
+// To shrink it, pass `text-xs md:text-xs`: a bare `text-xs` only replaces
+// `text-base`, and `md:text-sm` still wins on desktop.
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
     <input
