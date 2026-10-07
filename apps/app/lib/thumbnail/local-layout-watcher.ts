@@ -15,7 +15,8 @@ import { THUMBNAIL_LAYOUT_DEBOUNCE_MS as DEBOUNCE_MS } from "./cadence"
  * stale when you edit a Canvas and return home: freshness no longer depends on
  * the editor surviving long enough to POST its last edit.
  *
- * It watches only the layout collections (frames, groups, markdown, branches) —
+ * It watches only the layout collections (frames, groups, markdown, branches,
+ * pages, since reordering them changes which page is the cover) —
  * NOT chat/stream maps — so a chat token stream doesn't thrash a rebuild. A
  * trailing debounce coalesces a drag into one rebuild. The rebuild is the cheap
  * lane (`frameIds: []`): a doc read + a manifest write, no browser, and it leaves
@@ -52,6 +53,7 @@ export function watchLocalRoomLayout(roomId: string, doc: Y.Doc): () => void {
     c.iframeLayerGroups.observe(onChange),
     c.markdownLayers.observe(onChange),
     c.branches.observe(onChange),
+    c.pages.observe(onChange),
   ]
 
   function detach() {

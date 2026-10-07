@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm"
 import * as Y from "yjs"
 
 import { computeIframeLayerLayouts } from "@/lib/canvas/layout"
+import { groupsOnPage, orderedPages } from "@/lib/canvas/pages"
 import { mockupHtml, writeMockupHtml } from "@/lib/yjs/mockup-html"
 import { createPgliteDb } from "@/lib/db/pglite"
 import * as schema from "@/lib/db/schema"
@@ -769,7 +770,13 @@ async function seedRoomThumbnail(
   const frameIds = room.thumbnailFrames ?? []
   if (frameIds.length === 0 || !room.doc) return 0
 
-  const groups = room.doc.iframeLayerGroups ?? []
+  // The cover is the first page, as `readRoomCaptureLayout` derives it.
+  const pages = orderedPages(room.doc.pages ?? [])
+  const groups = groupsOnPage(
+    room.doc.iframeLayerGroups ?? [],
+    pages,
+    pages[0]!.id
+  )
   const iframeLayers = room.doc.iframeLayers ?? []
   const layouts = computeIframeLayerLayouts(groups, iframeLayers, [
     ...(room.doc.markdownLayers ?? []),

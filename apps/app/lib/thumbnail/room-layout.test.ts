@@ -7,6 +7,7 @@ import type {
   IframeLayerGroupData,
   MarkdownLayerData,
   MockupLayerData,
+  PageData,
 } from "@/lib/types"
 
 // `readRoomCaptureLayout` reads the room Y.Doc through the Room's reader; stub
@@ -26,6 +27,7 @@ function withDoc(snapshot: {
   markdownLayers?: MarkdownLayerData[]
   mockupLayers?: MockupLayerData[]
   groups?: IframeLayerGroupData[]
+  pages?: PageData[]
   doc?: Y.Doc
 }) {
   readDoc.mockImplementation((fn: (c: unknown) => unknown) =>
@@ -37,6 +39,7 @@ function withDoc(snapshot: {
         markdownLayers: { toArray: () => snapshot.markdownLayers ?? [] },
         mockupLayers: { toArray: () => snapshot.mockupLayers ?? [] },
         iframeLayerGroups: { toArray: () => snapshot.groups ?? [] },
+        pages: { toArray: () => snapshot.pages ?? [] },
       })
     )
   )
@@ -155,6 +158,60 @@ describe("readRoomCaptureLayout", () => {
       id: "a1",
       label: "Frame",
       previewUrl: "https://b1.example/home",
+    })
+  })
+
+  describe("with several pages", () => {
+    // One frame per page: a1 on Site, a2 on Explorations.
+    const layers = [
+      iframeLayer({ id: "a1", label: "Home" }),
+      iframeLayer({ id: "a2", label: "Option A" }),
+    ]
+    const groups: IframeLayerGroupData[] = [
+      {
+        id: "g1",
+        x: 0,
+        y: 0,
+        pageId: "page-1",
+        members: [{ kind: "iframe-layer", id: "a1" }],
+      },
+      {
+        id: "g2",
+        x: 500,
+        y: 0,
+        pageId: "p2",
+        members: [{ kind: "iframe-layer", id: "a2" }],
+      },
+    ]
+
+    it("lays out only the first page's layers", async () => {
+      withDoc({
+        iframeLayers: layers,
+        groups,
+        pages: [
+          { id: "page-1", name: "Site", order: 0 },
+          { id: "p2", name: "Explorations", order: 1 },
+        ],
+      })
+
+      const { layouts } = await readRoomCaptureLayout(ROOM)
+
+      expect([...layouts.keys()]).toEqual(["a1"])
+    })
+
+    it("follows the page order, so reordering changes the cover", async () => {
+      withDoc({
+        iframeLayers: layers,
+        groups,
+        pages: [
+          { id: "page-1", name: "Site", order: 1 },
+          { id: "p2", name: "Explorations", order: 0 },
+        ],
+      })
+
+      const { layouts } = await readRoomCaptureLayout(ROOM)
+
+      expect([...layouts.keys()]).toEqual(["a2"])
     })
   })
 })

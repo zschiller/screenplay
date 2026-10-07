@@ -4,6 +4,7 @@ import {
   computeIframeLayerLayouts,
   type IframeLayerLayoutMap,
 } from "@/lib/canvas/layout"
+import { groupsOnPage, orderedPages } from "@/lib/canvas/pages"
 import type { RoomReader } from "@/lib/room-access"
 import { mockupHtml } from "@/lib/yjs/mockup-html"
 
@@ -35,6 +36,10 @@ export type CaptureFrame = {
  * labels and preview URLs. Reads the room's Y.Doc once — the only Y.Doc read on
  * the capture path — and returns plain data so the rest of the path stays
  * Yjs-free.
+ *
+ * Only the first page's Groups are laid out (#1844), so the home grid's cover
+ * stays the same whichever page anyone is on. Layers on other pages get no
+ * layout, and the capture and manifest skip a layer with no layout.
  */
 export type RoomCaptureLayout = {
   layouts: IframeLayerLayoutMap
@@ -49,7 +54,12 @@ export async function readRoomCaptureLayout(
     const iframeLayers = c.iframeLayers.toArray()
     const markdownLayers = c.markdownLayers.toArray()
     const mockupLayers = c.mockupLayers.toArray()
-    const groups = c.iframeLayerGroups.toArray()
+    const pages = orderedPages(c.pages.toArray())
+    const groups = groupsOnPage(
+      c.iframeLayerGroups.toArray(),
+      pages,
+      pages[0]!.id
+    )
     const layouts = computeIframeLayerLayouts(groups, iframeLayers, [
       ...markdownLayers,
       ...mockupLayers,
