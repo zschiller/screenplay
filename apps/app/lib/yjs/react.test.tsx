@@ -12,7 +12,7 @@ import {
 import { YjsConnectionProvider } from "./context"
 import {
   useOtherPeers,
-  usePeerViewport,
+  usePeerView,
   useSelfIdentity,
   type CanvasPresence,
 } from "./react"
@@ -57,7 +57,7 @@ describe("presence hooks", () => {
     expect(result.current).toMatchObject({ message: "hi" })
   })
 
-  it("keeps the peers across their cursor moves, not their selection", () => {
+  it("keeps the peers across their cursor moves, not their selection or page", () => {
     const { remote, wrapper, sync } = setup()
     remote.setLocalState(presence("Bea"))
     act(sync)
@@ -70,22 +70,36 @@ describe("presence hooks", () => {
     remote.setLocalState({ ...presence("Bea"), selectedIframeLayerIds: ["f"] })
     act(sync)
     expect(result.current).not.toBe(first)
+    const second = result.current
+    remote.setLocalState({
+      ...presence("Bea"),
+      selectedIframeLayerIds: ["f"],
+      pageId: "page-2",
+    })
+    act(sync)
+    expect(result.current).not.toBe(second)
   })
 
-  it("follows a peer's viewport and reports them gone", () => {
+  it("follows a peer's page and viewport and reports them gone", () => {
     const { remote, wrapper, sync } = setup()
     remote.setLocalState(presence("Bea"))
     act(sync)
     const { result, rerender } = renderHook(
-      ({ id }: { id: number | null }) => usePeerViewport(id),
+      ({ id }: { id: number | null }) => usePeerView(id),
       { wrapper, initialProps: { id: null as number | null } }
     )
     expect(result.current).toBeNull()
     rerender({ id: remote.clientID })
-    expect(result.current).toEqual({ x: 0, y: 0, zoom: 1 })
+    expect(result.current).toEqual({ viewport: { x: 0, y: 0, zoom: 1 } })
     remote.setLocalState(presence("Bea", 80))
     act(sync)
-    expect(result.current).toEqual({ x: 80, y: 0, zoom: 1 })
+    expect(result.current).toEqual({ viewport: { x: 80, y: 0, zoom: 1 } })
+    remote.setLocalState({ ...presence("Bea", 80), pageId: "page-2" })
+    act(sync)
+    expect(result.current).toEqual({
+      viewport: { x: 80, y: 0, zoom: 1 },
+      pageId: "page-2",
+    })
     remote.setLocalState(null)
     act(sync)
     expect(result.current).toBeUndefined()

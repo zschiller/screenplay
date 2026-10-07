@@ -806,6 +806,44 @@ export function Canvas({
   )
   const closeCursorChat = interaction.closeCursorChat
 
+  // Switching pages (#1835). Each page keeps the view this person left it at
+  // (#1838, saved with the canvas); a page they haven't been on yet opens
+  // fitted to its content, and an empty one at 100%. Selection doesn't carry
+  // across.
+  const { clear: clearSelection } = selection
+  const showPage = useCallback(
+    (pageId: string) => {
+      const from = currentPageIdRef.current
+      if (pageId === from) return
+      const state = transformRef.current?.state
+      if (state && userId)
+        ops.savePageView(userId, from, {
+          x: state.positionX,
+          y: state.positionY,
+          zoom: state.scale,
+        })
+      clearSelection()
+      setPickedPageId(pageId)
+    },
+    [clearSelection, ops, userId]
+  )
+  // Following someone (#1840) takes you to their page, and along as they
+  // change pages; a page that's gone reads as the first, as it does for them.
+  const followPage = useCallback(
+    (pageId: string | undefined) => {
+      const target = resolvePageId(pages, pageId)
+      if (target === currentPageIdRef.current) return false
+      showPage(target)
+      return true
+    },
+    [pages, showPage]
+  )
+  // Presence carries the page on screen, for page-row avatars, cursors and
+  // Follow on everyone else's screen.
+  useEffect(() => {
+    setPresence({ pageId: currentPageId })
+  }, [setPresence, currentPageId])
+
   // Canvas Camera controller (PRD #567): owns the react-zoom-pan-pinch
   // transform, the zoom / viewport mirrors, persistence, presence broadcast,
   // follow, and the wheel pan/zoom. The locals below alias its values so the
@@ -824,6 +862,8 @@ export function Canvas({
     createFlowIframeLayerId,
     editingDocumentLayerId,
     spaceHeld,
+    pageId: currentPageId,
+    followPage,
   })
   const zoom = camera.zoom
   const viewportPos = camera.viewportPos
@@ -918,26 +958,15 @@ export function Canvas({
   // Ref mirror so callbacks that only need the current snapshot (e.g.
   // `requestReorderDrag` computing the cursor's grab offset) can read it
   // without re-binding on every layout change.
-  // Switching pages (#1835). Each page keeps the view this person left it at
-  // (#1838, saved with the canvas); a page they haven't been on yet opens
-  // fitted to its content, and an empty one at 100%. Selection doesn't carry
-  // across.
-  const { clear: clearSelection } = selection
+  // A page the person picks themselves is their own move: it stops
+  // following, like a pan.
+  const { breakFollow } = camera
   const switchPage = useCallback(
     (pageId: string) => {
-      const from = currentPageIdRef.current
-      if (pageId === from) return
-      const state = transformRef.current?.state
-      if (state && userId)
-        ops.savePageView(userId, from, {
-          x: state.positionX,
-          y: state.positionY,
-          zoom: state.scale,
-        })
-      clearSelection()
-      setPickedPageId(pageId)
+      breakFollow()
+      showPage(pageId)
     },
-    [clearSelection, ops, userId]
+    [breakFollow, showPage]
   )
   // Move to page ▸ and a sidebar drop on a page row (#1837): what moves
   // leaves this page, so it leaves the selection too.
@@ -2780,7 +2809,11 @@ export function Canvas({
                 {/* The snapped device's name, beside the red selection rect and
                 above every frame, so a neighbouring frame can't cover it. */}
                 <ResizeSnapLabel {...resizeSnapProps} />
-                <Cursors viewport={{ ...viewportPos, zoom }} />
+                <Cursors
+                  viewport={{ ...viewportPos, zoom }}
+                  pages={pages}
+                  pageId={currentPageId}
+                />
                 {chatAnchor && self?.message != null ? (
                   <CursorChat
                     screenX={chatAnchor.x * zoom + viewportPos.x}

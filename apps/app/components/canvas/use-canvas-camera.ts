@@ -28,7 +28,7 @@ import {
   ZOOM_STEP,
 } from "@/lib/constants"
 import { isFixtureWorld } from "@/lib/fixture-world"
-import { usePeerViewport, type CanvasPresence } from "@/lib/yjs/react"
+import { usePeerView, type CanvasPresence } from "@/lib/yjs/react"
 import type { ViewportData } from "@/lib/types"
 import type { WheelForward } from "@/hooks/use-screenplay-dom"
 import type { LiveCamera, LiveZoom } from "./live-zoom"
@@ -85,6 +85,14 @@ export interface CanvasCameraDeps {
   editingDocumentLayerId: string | null
   /** Space-held arms left-click panning. */
   spaceHeld: boolean
+  /** The page on screen (#1840): following re-runs once a switch lands. */
+  pageId: string
+  /**
+   * Follow onto the followed person's page: show it when it isn't the one on
+   * screen and return true, and the camera follows their viewport once it's
+   * in. `pageId` is theirs as they broadcast it (absent from older clients).
+   */
+  followPage: (pageId: string | undefined) => boolean
 }
 
 /** A camera target: `viewport`, or with none, `rect` fitted (100% at the
@@ -123,7 +131,7 @@ export interface CanvasCamera {
    *  screen-space chrome that tracks the content, like Layer labels. */
   liveCamera: LiveCamera
   followingConnectionId: number | null
-  /** Follow a peer's viewport (or `null` to stop following). */
+  /** Follow a peer's page and viewport (or `null` to stop following). */
   follow(connectionId: number | null): void
   /** Stop following when the user takes manual control (pan / wheel / pinch). */
   breakFollow(): void
@@ -221,6 +229,8 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     createFlowIframeLayerId,
     editingDocumentLayerId,
     spaceHeld,
+    pageId,
+    followPage,
   } = deps
 
   const [zoom, setZoom] = useState(1)
@@ -790,17 +800,23 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     [transformRef, setCameraNow, viewportFor]
   )
 
-  // --- Follow another user's viewport ---
-  const followedViewport = usePeerViewport(followingConnectionId)
+  // --- Follow another user's page and viewport ---
+  const followed = usePeerView(followingConnectionId)
+  const followedOnPageRef = useRef(pageId)
   useEffect(() => {
-    if (followingConnectionId === null || followedViewport === null) return
+    // The first move after a page switch cuts to their view rather than
+    // gliding from wherever the page opened.
+    const pageChanged = followedOnPageRef.current !== pageId
+    followedOnPageRef.current = pageId
+    if (followingConnectionId === null || followed === null) return
     // If the user we're following disconnected, stop following.
-    if (!followedViewport) {
+    if (!followed) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFollowingConnectionId(null)
       return
     }
-    const viewport = followedViewport
+    if (followPage(followed.pageId)) return
+    const { viewport } = followed
     const ref = transformRef.current
     if (!ref) return
     // Only move if our viewport actually differs.
@@ -809,8 +825,16 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     const dy = Math.abs(positionY - viewport.y)
     const dz = Math.abs(scale - viewport.zoom)
     if (dx < 1 && dy < 1 && dz < 0.001) return
-    ref.setTransform(viewport.x, viewport.y, viewport.zoom, 200)
-  }, [transformRef, followingConnectionId, followedViewport])
+    if (pageChanged) setCameraNow(viewport)
+    else ref.setTransform(viewport.x, viewport.y, viewport.zoom, 200)
+  }, [
+    transformRef,
+    followingConnectionId,
+    followed,
+    followPage,
+    pageId,
+    setCameraNow,
+  ])
 
   // --- Figma-style wheel: scroll = pan, Ctrl/Cmd+scroll = zoom ---
   useEffect(() => {
