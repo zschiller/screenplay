@@ -10,7 +10,8 @@ import type { Files } from "./files"
 import { macShell } from "@/lib/capabilities"
 import { openRoom } from "@/lib/room-access"
 import { getRoom } from "@/lib/rooms"
-import { mirrorFolderName, syncFileMirror } from "./mirror"
+import { layerFileExports } from "./layer-file-exports"
+import { mirrorFolderName, syncFileMirror, type MirrorExtra } from "./mirror"
 import { normalizeFilePath } from "./paths"
 
 const run = promisify(execFile)
@@ -39,6 +40,8 @@ export async function openCanvasFileOnDesktop(
   if (!macShell) throw new Error("Only the desktop app opens files.")
   const room = await openRoom(roomId)
   const record = await getRoom(roomId)
+  // Its Documents and Mockups too (#1884), as .md and .html.
+  const extra = await room.readDoc(layerFileExports)
   await openOnDesktop(
     canvasFiles(room),
     join(
@@ -46,7 +49,8 @@ export async function openCanvasFileOnDesktop(
       mirrorFolderName(record?.name ?? "", roomId)
     ),
     path,
-    how
+    how,
+    extra
   )
 }
 
@@ -73,11 +77,12 @@ async function openOnDesktop(
   files: Files,
   dir: string,
   path: string,
-  how: "open" | "reveal"
+  how: "open" | "reveal",
+  extra: readonly MirrorExtra[] = []
 ): Promise<void> {
   const p = normalizeFilePath(path)
   if ("error" in p) throw new Error(p.error)
-  await syncFileMirror(files, dir)
+  await syncFileMirror(files, dir, extra)
   const target = join(dir, p.path)
 
   if (process.platform === "darwin") {

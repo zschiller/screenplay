@@ -103,6 +103,32 @@ describe("LayerMenuContent", () => {
     expect(items()).toEqual(["Rename", "Delete"])
   })
 
+  it("gives a Document's or Mockup's view Remove and Delete file (#1884)", () => {
+    const onDelete = vi.fn()
+    const onDeleteFile = vi.fn()
+    const onDuplicateAsNewFile = vi.fn()
+    openMenu({
+      actions: {
+        noun: "mockup",
+        onDuplicate: vi.fn(),
+        onDuplicateAsNewFile,
+        onDelete,
+        onDeleteFile,
+      },
+      onRename: vi.fn(),
+    })
+    expect(items()).toEqual([
+      "Rename",
+      "Duplicate ⌘D",
+      "Duplicate as new file",
+      "Remove",
+      "Delete file",
+    ])
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete file" }))
+    expect(onDeleteFile).toHaveBeenCalledTimes(1)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
   it("shows no Delete, and no separator before it, without a removal", () => {
     openMenu({
       actions: { noun: "mockup", onDuplicate: vi.fn() },

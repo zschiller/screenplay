@@ -64,6 +64,30 @@ describe("syncFileMirror", () => {
     expect(await tree(dir)).toEqual(["kept", "kept/a.md"])
     expect(await readFile(join(dir, "kept/a.md"), "utf8")).toBe("two")
   })
+
+  it("writes Documents and Mockups beside the files, and follows their changes", async () => {
+    await save(files, "a.md", "one")
+
+    await syncFileMirror(files, dir, [
+      { path: "Documents/Plan.md", text: "# Plan\n" },
+      { path: "Mockups/Hero.html", text: "<p>A</p>" },
+    ])
+    expect(await tree(dir)).toEqual([
+      "Documents",
+      "Documents/Plan.md",
+      "Mockups",
+      "Mockups/Hero.html",
+      "a.md",
+    ])
+
+    await syncFileMirror(files, dir, [
+      { path: "Mockups/Hero.html", text: "<p>B</p>" },
+    ])
+    expect(await tree(dir)).toEqual(["Mockups", "Mockups/Hero.html", "a.md"])
+    expect(await readFile(join(dir, "Mockups/Hero.html"), "utf8")).toBe(
+      "<p>B</p>"
+    )
+  })
 })
 
 describe("mirrorFolderName", () => {

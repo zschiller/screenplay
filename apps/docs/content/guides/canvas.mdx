@@ -119,11 +119,14 @@ wherever you open it: **…** on its row in the [layers list](#the-layers-list),
 after the name of a selected document or group. Its tooltip names the object:
 **Frame options**, **Mockup options**, **Document options**, **Group options**. It holds, as they apply:
 
-- **Rename** and **Duplicate** (frames and mockups).
+- **Rename** and **Duplicate**. A document’s or mockup’s Duplicate adds
+  another view of the same file; **Duplicate as new file** makes a copy.
 - **Device size** and **Fit to content** (frames and mockups).
 - A frame’s **Preview** and **Chat** submenus, which split its
   [chat menu](/guides/chats#chat-actions) in two.
-- **Delete**.
+- **Delete** for a frame or group. A document or mockup has **Remove**, which
+  takes away only that view, and **Delete file**, which deletes it and every
+  view of it (see [Documents](/guides/documents#removing-and-deleting)).
 
 ## Groups
 
@@ -277,7 +280,10 @@ of undo. Your ⌘Z never undoes someone else’s changes or the Coordinator’s.
 
 Deleting a frame, document or group happens at once, whether from the layers
 list, the frame toolbar or the <kbd>Delete</kbd> key, with no confirm and no
-toast; <kbd>⌘</kbd> <kbd>Z</kbd> brings it back. Everyone on the canvas sees
+toast; <kbd>⌘</kbd> <kbd>Z</kbd> brings it back. For a document or mockup,
+<kbd>Delete</kbd> removes only that view, and **Delete file** deletes the
+file with every view of it, all brought back by one <kbd>⌘</kbd>
+<kbd>Z</kbd>. Everyone on the canvas sees
 the delete, and the undo. Deleting a
 chat or a repository still asks first, because undo can’t bring those
 back.

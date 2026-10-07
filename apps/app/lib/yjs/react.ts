@@ -175,6 +175,11 @@ function useCollectionTitles(
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
+/** Every Document's and Mockup's file, with or without a view (#1884). */
+export function useLayerFiles(): Array<LayerFileData> {
+  return useCollectionArray(useRoomCollections().layerFiles)
+}
+
 export function useMarkdownLayerTitles(): TitledLayerName[] {
   return useCollectionTitles(useRoomCollections().markdownLayers)
 }

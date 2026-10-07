@@ -1,5 +1,13 @@
-import { mkdir, readdir, rm, stat, utimes, writeFile } from "node:fs/promises"
-import { join, resolve, sep } from "node:path"
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from "node:fs/promises"
+import { dirname, join, resolve, sep } from "node:path"
 
 import type { Files } from "./files"
 
@@ -12,8 +20,16 @@ import type { Files } from "./files"
  * The copy only follows the files module; edits made in it never sync back.
  * Each sync writes what changed since the last one (by size and save time)
  * and removes what agents deleted or moved.
+ *
+ * `extra` adds files that aren't in the module, by path: a canvas's
+ * Documents and Mockups (#1884, `lib/files/layer-files.ts`). Each is
+ * rewritten when its text changes.
  */
-export async function syncFileMirror(files: Files, dir: string): Promise<void> {
+export async function syncFileMirror(
+  files: Files,
+  dir: string,
+  extra: readonly MirrorExtra[] = []
+): Promise<void> {
   const listed = await files.list()
   if (!listed.ok) throw new Error(listed.error)
   const root = resolve(dir)
@@ -48,7 +64,31 @@ export async function syncFileMirror(files: Files, dir: string): Promise<void> {
     const at = new Date(entry.updatedAt)
     await utimes(full, at, at)
   }
+  for (const item of extra) {
+    const full = inside(item.path)
+    keep.add(full)
+    // Its folders too, so the prune keeps them.
+    for (
+      let parent = dirname(full);
+      parent.startsWith(root + sep);
+      parent = dirname(parent)
+    ) {
+      keep.add(parent)
+    }
+    await mkdir(dirname(full), { recursive: true })
+    const current = await readFile(full, "utf8").catch(() => null)
+    if (current === item.text) continue
+    await rm(full, { recursive: true, force: true })
+    await writeFile(full, item.text)
+  }
   await prune(root, keep)
+}
+
+/** A file the mirror writes that the files module doesn't hold. */
+export interface MirrorExtra {
+  /** Folders joined by `/`, as a saved file's path. */
+  path: string
+  text: string
 }
 
 /** Remove everything under `dir` that isn't in `keep`. */

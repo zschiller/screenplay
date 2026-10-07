@@ -107,10 +107,16 @@ interface MockupLayerProps {
   /** The page's content height, while Fit to content is on. */
   onFollowContentHeight?: (id: string, height: number) => void
   onRename: (id: string, title: string) => void
-  /** The bar's ⋯ Duplicate: a copy at the end of the mockup's Group. */
+  /** The bar's ⋯ Duplicate: another view of the file at the end of the
+   *  mockup's Group (#1884). */
   onDuplicate?: (id: string) => void
-  /** The bar's ⋯ Delete, the same removal as the Delete key (⌘Z undoes it). */
+  /** The bar's ⋯ Duplicate as new file: a copy of the file. */
+  onDuplicateAsNewFile?: (id: string) => void
+  /** The bar's ⋯ Remove, the same removal as the Delete key: only this view
+   *  goes (⌘Z undoes it). */
   onRemove?: (id: string) => void
+  /** The bar's ⋯ Delete file: the file and every view of it (⌘Z undoes it). */
+  onDeleteFile?: (id: string) => void
   /**
    * True while a chat's element pick is armed and this mockup is one it can
    * hit (its chat's Workspace is the picker's): the overlay tracks the hovered
@@ -236,6 +242,8 @@ function MockupLayerImpl({
   onFollowContentHeight,
   onRename,
   onDuplicate,
+  onDuplicateAsNewFile,
+  onDeleteFile,
   onRemove,
   pickActive,
   dimmed,
@@ -424,6 +432,9 @@ function MockupLayerImpl({
   const menuActions: LayerMenuActions = {
     noun: "mockup",
     onDuplicate: onDuplicate ? () => onDuplicate(layer.id) : undefined,
+    onDuplicateAsNewFile: onDuplicateAsNewFile
+      ? () => onDuplicateAsNewFile(layer.id)
+      : undefined,
     moveTo: { kind: "layer", id: layer.id },
     size: onSetSize
       ? {
@@ -436,6 +447,7 @@ function MockupLayerImpl({
       ? { checked: fitHeight, onCheckedChange: handleFitToContent }
       : undefined,
     onDelete: onRemove ? () => onRemove(layer.id) : undefined,
+    onDeleteFile: onDeleteFile ? () => onDeleteFile(layer.id) : undefined,
   }
   useRegisterLayerMenu(layer.id, menuActions)
 

@@ -183,7 +183,7 @@ describe("views of one file", () => {
     expect(c.markdownLayers.get("view-b")?.width).toBe(360)
   })
 
-  it("keep the file while a view is left, and take it with the last", () => {
+  it("keep the file when any view goes, the last one included (#1884)", () => {
     const { c } = twoViews()
 
     c.markdownLayers.delete("view-a")
@@ -191,7 +191,19 @@ describe("views of one file", () => {
     expect(c.markdownLayers.get("view-b")?.title).toBe("Plan")
 
     c.markdownLayers.delete("view-b")
+    expect(c.layerFiles.get("file-1")?.title).toBe("Plan")
+    expect(c.markdownLayers.viewIdsOf("file-1")).toEqual([])
+  })
+
+  it("go with their file on Delete file", () => {
+    const { c } = twoViews()
+
+    expect(c.markdownLayers.deleteFile("file-1").sort()).toEqual([
+      "view-a",
+      "view-b",
+    ])
     expect(c.layerFiles.has("file-1")).toBe(false)
+    expect(c.markdownLayers.viewIdsOf("file-1")).toEqual([])
   })
 })
 

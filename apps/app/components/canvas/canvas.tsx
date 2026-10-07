@@ -41,6 +41,7 @@ import {
   useSetPresence,
   useMemories,
   useCanvasFiles,
+  useLayerFiles,
   useCanvasSkills,
   useRepos,
   useYjsHistory,
@@ -255,6 +256,8 @@ import { CanvasZoomMenu } from "./canvas-zoom-menu"
 
 import { unionRect } from "@/lib/canvas/camera"
 import { viewRequests } from "@/lib/canvas/view-requests"
+import { layerFilePaths } from "@/lib/files/layer-files"
+import type { LayerFilesInTree } from "./canvas-files-section"
 import { roomChatId } from "@/lib/chat/room-chat"
 import { isSketchChat, sketchChatSession } from "@/lib/chat/sketch-chat"
 
@@ -687,7 +690,7 @@ export function Canvas({
     removeDocumentLayers,
     batch: ops.batch,
     duplicateIframeLayer: ops.duplicateIframeLayer,
-    duplicateMockup: ops.duplicateMockup,
+    duplicateView: ops.duplicateView,
   })
   const selectedIframeLayerIds = selection.iframeLayerIds
   const selectedGroupIds = selection.groupIds
@@ -1488,8 +1491,36 @@ export function Canvas({
     () => [...memoryEntries].sort((a, b) => a.createdAt - b.createdAt),
     [memoryEntries]
   )
-  // Canvas Files (#1517), browsed in Canvas settings › Files.
+  // Canvas Files (#1517), browsed in Canvas settings › Files, with every
+  // Document and Mockup beside them (#1884).
   const canvasFiles = useCanvasFiles()
+  const layerFiles = useLayerFiles()
+  const layerFilesInTree = useMemo((): LayerFilesInTree => {
+    const views = new Map<string, string[]>()
+    for (const view of [...markdownLayers, ...mockupLayers]) {
+      const fileId = view.fileId ?? view.id
+      views.set(fileId, [...(views.get(fileId) ?? []), view.id])
+    }
+    const paths = layerFilePaths(
+      layerFiles,
+      canvasFiles.map((f) => f.path)
+    )
+    return {
+      rows: layerFiles.map((file) => ({
+        fileId: file.id,
+        kind: file.kind,
+        path: paths.get(file.id)!,
+        views: views.get(file.id)?.length ?? 0,
+      })),
+      onShow: (fileId) => {
+        const viewId = views.get(fileId)?.[0]
+        if (!viewId) return
+        setCanvasSettingsOpen(false)
+        viewRequests.emit({ ids: [viewId], select: true })
+      },
+      onDeleteFile: (fileId) => ops.deleteFiles([fileId]),
+    }
+  }, [layerFiles, markdownLayers, mockupLayers, canvasFiles, ops])
 
   // Leaving the Room takes its Branches' dev servers with it on desktop:
   // local dev servers are host processes with no auto-stop timer, so without
@@ -3045,6 +3076,7 @@ export function Canvas({
                   }
                   onRemoveMemory={(id) => removeMemory(collections, id)}
                   files={canvasFiles}
+                  layerFiles={layerFilesInTree}
                   skills={canvasSkills}
                 />
                 <CanvasToolbarMemo

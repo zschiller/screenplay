@@ -11,6 +11,7 @@ import {
   FileTextIcon,
   FolderIcon,
   FolderOpenIcon,
+  ScribbleIcon,
   TrashIcon,
   ArrowSquareOutIcon,
 } from "@workspace/ui/components/icons"
@@ -50,7 +51,11 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 import { LoadErrorState } from "@/components/home/load-error"
 import { baseName, formatFileSize, isTextMediaType } from "@/lib/files/paths"
 import { fileTree, itemCount, type FileTreeNode } from "@/lib/files/tree"
-import type { FileEntryData } from "@/lib/types"
+import {
+  LAYER_FILE_MEDIA_TYPES,
+  layerFileDetail,
+} from "@/lib/files/layer-files"
+import type { FileEntryData, LayerFileKind } from "@/lib/types"
 
 /** Where a canvas's file is read and deleted: the route that checks membership. */
 export function canvasFileUrl(roomId: string, path: string): string {
@@ -117,6 +122,41 @@ export function fileDetail(
   return `${formatFileSize(entry.size)} · ${adderName(entry)}`
 }
 
+/** A Document or Mockup as a Files row (#1884). */
+export interface LayerFileRow {
+  fileId: string
+  kind: LayerFileKind
+  /** Where it sits in the tree, and the Mac's mirror: `lib/files/layer-files`. */
+  path: string
+  /** How many views of it are on the canvas; 0 reads Not on canvas. */
+  views: number
+}
+
+/** Documents and Mockups beside the saved files, and what their rows do. */
+export interface LayerFilesInTree {
+  rows: LayerFileRow[]
+  /** A row with a view: show it on the canvas, as a mention does. */
+  onShow: (fileId: string) => void
+  /** Delete file: the file and every view, no confirm; ⌘Z brings it back. */
+  onDeleteFile: (fileId: string) => void
+}
+
+/** A Document's or Mockup's row as a tree entry, so it sorts with the rest. */
+function layerFileEntry(row: LayerFileRow): FileEntryData {
+  return {
+    id: `layer-file:${row.fileId}`,
+    path: row.path,
+    kind: "file",
+    size: 0,
+    mediaType: LAYER_FILE_MEDIA_TYPES[row.kind],
+    addedBy: "agent",
+    addedById: "",
+    blobKey: "",
+    createdAt: 0,
+    updatedAt: 0,
+  }
+}
+
 /**
  * Canvas settings › Files (#1517): the canvas's files as one expanding tree,
  * read-only for people. Agents save and organize files; a person can open one
@@ -126,11 +166,17 @@ export function fileDetail(
  * On the desktop the files are on the Mac, so Open hands a file to its own
  * app and Reveal in Finder shows a file or folder there (`onDesktop`).
  *
+ * Every Document and Mockup is listed too (#1884), under Documents and
+ * Mockups, by `layerFiles`: a row shows its view on the canvas, says Not on
+ * canvas when it has none, and its ⋯ deletes the file at once, as Delete file
+ * on the canvas does. On the desktop an unplaced one opens in its own app.
+ *
  * Settings › Files (#1521) shows your Account Files with the same tree, read
  * through `fileUrl` instead of a Room, with its own `copy`.
  */
 export function FilesSection({
   files,
+  layerFiles,
   onDelete,
   onDesktop,
   adderName,
@@ -138,6 +184,8 @@ export function FilesSection({
   ...source
 }: FileSource & {
   files: FileEntryData[]
+  /** The canvas's Documents and Mockups; absent for Account Files. */
+  layerFiles?: LayerFilesInTree
   onDelete: (path: string) => Promise<void>
   /** The desktop's Open and Reveal in Finder; absent on hosted. */
   onDesktop?: (path: string, how: "open" | "reveal") => Promise<void>
@@ -152,7 +200,16 @@ export function FilesSection({
   // The file open in its dialog; gone if an agent deletes or moves it.
   const [openPath, setOpenPath] = useState<string | null>(null)
   const opened = files.find((f) => f.path === openPath && f.kind === "file")
-  const tree = fileTree(files)
+  const layerRows = new Map(
+    (layerFiles?.rows ?? []).map((row) => [`layer-file:${row.fileId}`, row])
+  )
+  const tree = fileTree([
+    ...files,
+    ...[...layerRows.values()].map(layerFileEntry),
+  ])
+  // Only a folder the store holds can be deleted: Documents and Mockups are
+  // made up for the tree.
+  const savedPaths = new Set(files.map((f) => f.path))
   const onToggle = (path: string) =>
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -169,27 +226,65 @@ export function FilesSection({
       )
     )
 
-  const branch = (nodes: FileTreeNode[]) =>
-    nodes.map((node) => (
-      <FileRow
-        key={node.entry.path}
-        node={node}
-        open={expanded.has(node.entry.path)}
-        detail={
-          node.entry.kind === "folder"
-            ? itemCount(node.children.length)
-            : fileDetail(node.entry, adderName)
-        }
-        onToggle={() => onToggle(node.entry.path)}
-        onOpen={() =>
-          onDesktop ? desktop(node, "open") : setOpenPath(node.entry.path)
-        }
-        onReveal={onDesktop && (() => desktop(node, "reveal"))}
-        onDelete={() => setDeleting(node)}
-      >
-        {node.children.length > 0 && branch(node.children)}
-      </FileRow>
-    ))
+  const branch = (nodes: FileTreeNode[]): React.ReactNode =>
+    nodes.map((node) => {
+      const layer = layerRows.get(node.entry.id)
+      if (layer && layerFiles) {
+        return (
+          <FileRow
+            key={node.entry.id}
+            node={node}
+            open={false}
+            detail={layerFileDetail(layer.views)}
+            onToggle={() => {}}
+            onOpen={
+              layer.views > 0
+                ? () => layerFiles.onShow(layer.fileId)
+                : onDesktop && (() => desktop(node, "open"))
+            }
+            openInMenu={false}
+            onReveal={onDesktop && (() => desktop(node, "reveal"))}
+            deleteLabel="Delete file"
+            icon={
+              layer.kind === "mockup" ? (
+                <ScribbleIcon
+                  aria-hidden
+                  className="text-sidebar-foreground/70"
+                />
+              ) : (
+                <FileTextIcon
+                  aria-hidden
+                  className="text-sidebar-foreground/70"
+                />
+              )
+            }
+            onDelete={() => layerFiles.onDeleteFile(layer.fileId)}
+          />
+        )
+      }
+      const saved =
+        node.entry.kind === "file" || savedPaths.has(node.entry.path)
+      return (
+        <FileRow
+          key={node.entry.path}
+          node={node}
+          open={expanded.has(node.entry.path)}
+          detail={
+            node.entry.kind === "folder"
+              ? itemCount(node.children.length)
+              : fileDetail(node.entry, adderName)
+          }
+          onToggle={() => onToggle(node.entry.path)}
+          onOpen={() =>
+            onDesktop ? desktop(node, "open") : setOpenPath(node.entry.path)
+          }
+          onReveal={onDesktop && (() => desktop(node, "reveal"))}
+          onDelete={saved ? () => setDeleting(node) : undefined}
+        >
+          {node.children.length > 0 && branch(node.children)}
+        </FileRow>
+      )
+    })
 
   return (
     <>
@@ -282,8 +377,11 @@ export function FileRow({
   active,
   onToggle,
   onOpen,
+  openInMenu = true,
   onReveal,
   onDelete,
+  deleteLabel = "Delete",
+  icon,
   children,
 }: {
   node: FileTreeNode
@@ -292,11 +390,18 @@ export function FileRow({
   /** The file shown beside the tree, if one is. */
   active?: boolean
   onToggle: () => void
-  onOpen: () => void
+  /** Absent, pressing a file's row does nothing. */
+  onOpen?: () => void
+  /** Whether the ⋯ menu repeats Open; not where it means something else. */
+  openInMenu?: boolean
   /** Desktop only: show the file or folder in Finder. */
   onReveal?: () => void
   /** Absent, the row has no ⋯ menu. */
   onDelete?: () => void
+  /** The ⋯ menu's delete item: “Delete file” for a Document or Mockup. */
+  deleteLabel?: string
+  /** In place of the file's type icon: a Document's or Mockup's kind. */
+  icon?: React.ReactNode
   children?: React.ReactNode
 }) {
   const { entry, name } = node
@@ -330,7 +435,7 @@ export function FileRow({
             />
           </span>
         ) : (
-          <EntryIcon entry={entry} />
+          (icon ?? <EntryIcon entry={entry} />)
         )}
         <span className="min-w-0 flex-1 truncate">{name}</span>
         {detail && (
@@ -358,7 +463,7 @@ export function FileRow({
             align="end"
             onCloseAutoFocus={(event) => event.preventDefault()}
           >
-            {!folder && (
+            {!folder && openInMenu && onOpen && (
               <DropdownMenuItem onSelect={onOpen}>
                 <ArrowSquareOutIcon />
                 Open
@@ -372,7 +477,7 @@ export function FileRow({
             )}
             <DropdownMenuItem variant="destructive" onSelect={onDelete}>
               <TrashIcon />
-              Delete
+              {deleteLabel}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

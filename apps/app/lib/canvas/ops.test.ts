@@ -2600,6 +2600,112 @@ describe("files and views (#1883)", () => {
     undo.destroy()
   })
 
+  it("keeps the file Not on canvas when its last view is removed (#1884)", () => {
+    const { doc, ops, collections, docId, viewId } = documentWithTwoViews()
+    const undo = createCanvasUndo(doc)
+
+    ops.removeDocuments([docId, viewId])
+
+    expect(collections.markdownLayers.toArray()).toEqual([])
+    expect(collections.layerFiles.get(docId)?.title).toBe("Plan")
+    expect(ops.fileOf(docId)?.title).toBe("Plan")
+    undo.undo()
+    expect(collections.markdownLayers.has(docId)).toBe(true)
+    expect(collections.markdownLayers.has(viewId)).toBe(true)
+    undo.destroy()
+  })
+
+  it("deletes a file and every view in one step, and one ⌘Z brings them all back (#1884)", () => {
+    const { doc, ops, collections, docId, groupId, viewId } =
+      documentWithTwoViews()
+    const undo = createCanvasUndo(doc)
+
+    ops.deleteFiles([viewId])
+
+    expect(collections.layerFiles.has(docId)).toBe(false)
+    expect(collections.markdownLayers.toArray()).toEqual([])
+    // The Document's own Group emptied and went; group-2 keeps its frame.
+    expect(collections.iframeLayerGroups.has(groupId)).toBe(false)
+    expect(collections.iframeLayerGroups.get("group-2")?.members).toEqual([
+      { kind: "iframe-layer", id: "f-1" },
+    ])
+
+    undo.undo()
+    expect(collections.layerFiles.get(docId)?.title).toBe("Plan")
+    expect(collections.markdownLayers.get(viewId)?.title).toBe("Plan")
+    expect(collections.markdownLayers.get(docId)?.title).toBe("Plan")
+    expect(getFragmentTitle(documentFragment(doc, docId))).toBe("Plan")
+    expect(collections.iframeLayerGroups.get("group-2")?.members).toEqual([
+      { kind: "iframe-layer", id: "f-1" },
+      { kind: "markdown-layer", id: viewId },
+    ])
+    undo.destroy()
+  })
+
+  it("deletes a file with no view by its own id", () => {
+    const { ops, collections, docId, viewId } = documentWithTwoViews()
+    ops.removeDocuments([docId, viewId])
+
+    ops.deleteFiles([docId])
+
+    expect(collections.layerFiles.has(docId)).toBe(false)
+  })
+
+  it("deletes a Mockup file with its views, its page kept for ⌘Z", () => {
+    const { doc, ops, collections } = makeHarness()
+    const { mockupId, groupId } = ops.createMockup({
+      html: "<p>A</p>",
+      title: "Hero",
+      width: 400,
+      height: 300,
+      anchor: { x: 0, y: 0 },
+    })!
+    const viewId = ops.duplicateView(mockupId)!
+    const undo = createCanvasUndo(doc)
+
+    ops.deleteFiles([mockupId])
+
+    expect(collections.layerFiles.has(mockupId)).toBe(false)
+    expect(collections.mockupLayers.toArray()).toEqual([])
+    expect(collections.iframeLayerGroups.has(groupId)).toBe(false)
+    undo.undo()
+    expect(collections.mockupLayers.get(viewId)?.title).toBe("Hero")
+    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>A</p>")
+    undo.destroy()
+  })
+
+  it("duplicates a view as another view of the same file", () => {
+    const { ops, collections, docId, groupId } = documentWithTwoViews()
+
+    const copy = ops.duplicateView(docId)!
+
+    expect(collections.markdownLayers.get(copy)).toEqual({
+      id: copy,
+      fileId: docId,
+      width: 480,
+      height: 640,
+      title: "Plan",
+    })
+    expect(collections.iframeLayerGroups.get(groupId)?.members).toEqual([
+      { kind: "markdown-layer", id: docId },
+      { kind: "markdown-layer", id: copy },
+    ])
+  })
+
+  it("duplicates a Document as a new file, body and all", () => {
+    const { doc, ops, collections, docId, viewId } = documentWithTwoViews()
+
+    const copy = ops.duplicateDocument(viewId)!
+
+    expect(collections.markdownLayers.get(copy)?.fileId).toBe(copy)
+    expect(collections.layerFiles.get(copy)?.title).toBe("Plan copy")
+    expect(getFragmentTitle(documentFragment(doc, copy))).toBe("Plan copy")
+    expect(getFragmentTitle(documentFragment(doc, docId))).toBe("Plan")
+    expect(
+      collections.iframeLayerGroups.get("group-2")?.members
+    ).toContainEqual({ kind: "markdown-layer", id: copy })
+  })
+
   it("adds nothing for a missing file or Group", () => {
     const { ops, docId } = documentWithTwoViews()
 

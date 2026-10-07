@@ -85,7 +85,11 @@ import type {
   RepoData,
 } from "@/lib/types"
 import type { SavedSkill } from "@/lib/skills/saved"
-import { deleteCanvasFile, FilesSection } from "./canvas-files-section"
+import {
+  deleteCanvasFile,
+  FilesSection,
+  type LayerFilesInTree,
+} from "./canvas-files-section"
 import { MemorySection } from "./canvas-memory-section"
 import { CanvasSkillsSection } from "./canvas-skills-section"
 import { openCanvasFileOnDesktop } from "@/lib/files/desktop-actions"
@@ -133,6 +137,7 @@ export function CanvasSettingsDialog({
   onEditMemory,
   onRemoveMemory,
   files,
+  layerFiles,
   deleteFile = deleteCanvasFile,
   openFileOnDesktop = macShell ? openCanvasFileOnDesktop : undefined,
   skills,
@@ -154,6 +159,8 @@ export function CanvasSettingsDialog({
   onRemoveMemory: (id: string) => void
   /** Canvas Files entries (#1517), in any order. */
   files: FileEntryData[]
+  /** The canvas's Documents and Mockups, listed beside them (#1884). */
+  layerFiles?: LayerFilesInTree
   /** Delete a file or folder for every member; the route unless a test
    *  picks one. */
   deleteFile?: (roomId: string, path: string) => Promise<void>
@@ -256,6 +263,7 @@ export function CanvasSettingsDialog({
                 <FilesSection
                   roomId={roomId}
                   files={files}
+                  layerFiles={layerFiles}
                   onDelete={(path) => deleteFile(roomId, path)}
                   onDesktop={
                     openFileOnDesktop &&

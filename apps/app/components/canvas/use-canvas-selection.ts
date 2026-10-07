@@ -45,8 +45,8 @@ export interface CanvasSelectionDeps {
   batch: (fn: () => void) => void
   /** Copy a frame to the end of its Group; the copy's id, if it was made. */
   duplicateIframeLayer: (id: string) => string | undefined
-  /** Copy a Mockup the same way; `undefined` for anything that isn't one. */
-  duplicateMockup: (id: string) => string | undefined
+  /** Another view of a Document's or Mockup's file the same way (#1884). */
+  duplicateView: (id: string) => string | undefined
 }
 
 export interface CanvasSelection {
@@ -105,7 +105,7 @@ export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
     removeDocumentLayers,
     batch,
     duplicateIframeLayer,
-    duplicateMockup,
+    duplicateView,
   } = deps
 
   const [iframeLayerIds, setIframeLayerIds] = useState<Set<string>>(new Set())
@@ -268,23 +268,23 @@ export function useCanvasSelection(deps: CanvasSelectionDeps): CanvasSelection {
   const duplicateSelected = useCallback((): boolean => {
     const { iframeLayerIds: frames, markdownLayerIds: layers } = current()
     const frameCopies: string[] = []
-    const mockupCopies: string[] = []
+    const viewCopies: string[] = []
     batch(() => {
       for (const id of frames) {
         const copy = duplicateIframeLayer(id)
         if (copy) frameCopies.push(copy)
       }
       for (const id of layers) {
-        const copy = duplicateMockup(id)
-        if (copy) mockupCopies.push(copy)
+        const copy = duplicateView(id)
+        if (copy) viewCopies.push(copy)
       }
     })
-    if (frameCopies.length + mockupCopies.length === 0) return false
+    if (frameCopies.length + viewCopies.length === 0) return false
     setGroupIds(new Set())
     setIframeLayerIds(new Set(frameCopies))
-    setDocumentLayerIds(new Set(mockupCopies))
+    setDocumentLayerIds(new Set(viewCopies))
     return true
-  }, [current, batch, duplicateIframeLayer, duplicateMockup])
+  }, [current, batch, duplicateIframeLayer, duplicateView])
 
   const removeIframeLayerAndReselect = useCallback(
     (id: string) => {

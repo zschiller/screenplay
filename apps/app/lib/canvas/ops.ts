@@ -390,8 +390,9 @@ export type CanvasOps = {
   removeLayers(ids: string[]): { removedChatIds: string[] }
   /**
    * Remove the given Markdown Layers (Documents): drop them from any Group
-   * (pruning a Group emptied by the removal). Each is a view (#1883); a file
-   * goes with its last view until Delete file lands (spec #1882). Documents own no Chat Sessions
+   * (pruning a Group emptied by the removal). Each is a view (#1883): its file
+   * stays, Not on canvas once its last view goes (#1884); Delete file is
+   * {@link deleteFiles}. Documents own no Chat Sessions
    * since #1314 (the chat that made one outlives it), so `removedChatIds` is
    * always empty, as for {@link removeLayers}.
    */
@@ -426,10 +427,29 @@ export type CanvasOps = {
   updateMockup(id: string, patch: { title?: string }): boolean
   /**
    * Copy a Mockup Layer into a new file (page, size, knobs and last chat) at
-   * the end of its Group's row, named "<title> copy" — the mockup bar's
-   * Duplicate. Returns the copy's id, or `undefined` when the mockup is gone.
+   * the end of its Group's row, named "<title> copy" — the menu's Duplicate as
+   * new file. Returns the copy's id, or `undefined` when the mockup is gone.
    */
   duplicateMockup(id: string): string | undefined
+  /**
+   * Copy a Document view's file into a new file (body, size and last chat) at
+   * the end of its Group's row, named "<title> copy" — the menu's Duplicate as
+   * new file (#1884). Returns the copy's id, or `undefined` when it's gone.
+   */
+  duplicateDocument(id: string): string | undefined
+  /**
+   * Another view of a Document's or Mockup's file (#1884), the size of `id`'s
+   * view, at the end of its Group's row — the menu's Duplicate. Returns the
+   * new view's id, or `undefined` when the view or its Group is gone.
+   */
+  duplicateView(id: string): string | undefined
+  /**
+   * Delete file (#1884): remove each Document or Mockup file `ids` names (a
+   * view's id or the file's) and every view of it, dropping the views from
+   * their Groups (pruning emptied Groups), as one undo step with no confirm.
+   * The bodies stay in the doc, so ⌘Z brings the files and views back whole.
+   */
+  deleteFiles(ids: string[]): void
   /**
    * Set a frame's or Mockup's height to its page's content height, while its
    * Fit to content is on. Committed under {@link CONTENT_HEIGHT_ORIGIN}.
@@ -444,8 +464,9 @@ export type CanvasOps = {
   duplicateIframeLayer(id: string): string | undefined
   /**
    * Remove the given Mockup Layers, dropping them from any Group (pruning a
-   * Group emptied by the removal). Their HTML texts stay in the doc, like a
-   * document's body, so Undo brings a mockup back whole.
+   * Group emptied by the removal). Each is a view (#1883): its file stays,
+   * Not on canvas once its last view goes (#1884); Delete file is
+   * {@link deleteFiles}.
    */
   removeMockups(ids: string[]): { removedChatIds: string[] }
   /**
@@ -1736,6 +1757,103 @@ export function createCanvasOps(
     return copyId
   }
 
+  function duplicateDocument(id: string): string | undefined {
+    const source = collections.markdownLayers.get(id)
+    const group = groupHolding("markdown-layer", id)
+    if (!source || !group) return
+    const copyId = nanoid()
+    batch(() => {
+      // A new file under the copy's id, body and all, as a page copy makes.
+      collections.markdownLayers.set(copyId, {
+        ...source,
+        id: copyId,
+        fileId: copyId,
+        title: source.title ? `${source.title} copy` : "",
+      })
+      const body = documentFragment(doc, source.fileId ?? id)
+        .toArray()
+        .map((node) => node.clone() as XmlElement | XmlText)
+      const fragment = documentFragment(doc, copyId)
+      if (body.length > 0) fragment.insert(0, body)
+      else seedDocumentFragment(fragment)
+      if (source.title) setFragmentTitle(fragment, `${source.title} copy`)
+      collections.iframeLayerGroups.update(group.id, {
+        members: [
+          ...getGroupMembers(group),
+          { kind: "markdown-layer", id: copyId },
+        ],
+      })
+    })
+    return copyId
+  }
+
+  function duplicateView(id: string): string | undefined {
+    const kind = collections.markdownLayers.has(id)
+      ? ("markdown-layer" as const)
+      : collections.mockupLayers.has(id)
+        ? ("mockup-layer" as const)
+        : undefined
+    if (!kind) return
+    const views =
+      kind === "markdown-layer"
+        ? collections.markdownLayers
+        : collections.mockupLayers
+    const source = views.get(id)
+    const group = groupHolding(kind, id)
+    if (!source || !group) return
+    const viewId = nanoid()
+    batch(() => {
+      views.addView(viewId, source.fileId ?? id, {
+        width: source.width,
+        height: source.height,
+        ...("fitHeight" in source && source.fitHeight
+          ? { fitHeight: true }
+          : {}),
+      })
+      collections.iframeLayerGroups.update(group.id, {
+        members: [...getGroupMembers(group), { kind, id: viewId }],
+      })
+    })
+    return viewId
+  }
+
+  function deleteFiles(ids: string[]): void {
+    const fileIds = new Set<string>()
+    for (const id of ids) {
+      const file = fileOf(id)
+      if (file) fileIds.add(file.id)
+    }
+    if (fileIds.size === 0) return
+    batch(() => {
+      const removed = new Set<string>()
+      for (const fileId of fileIds) {
+        const file = collections.layerFiles.get(fileId)
+        const views =
+          file?.kind === "mockup"
+            ? collections.mockupLayers
+            : collections.markdownLayers
+        for (const viewId of views.deleteFile(fileId)) removed.add(viewId)
+      }
+      removeMembersMatching(
+        (m) =>
+          (m.kind === "markdown-layer" || m.kind === "mockup-layer") &&
+          removed.has(m.id)
+      )
+    })
+  }
+
+  /** The Group whose row holds the `kind` Member `id`. */
+  function groupHolding(
+    kind: GroupMember["kind"],
+    id: string
+  ): IframeLayerGroupData | undefined {
+    return collections.iframeLayerGroups
+      .toArray()
+      .find((g) =>
+        getGroupMembers(g).some((m) => m.kind === kind && m.id === id)
+      )
+  }
+
   function duplicateIframeLayer(id: string): string | undefined {
     const source = collections.iframeLayers.get(id)
     const group = collections.iframeLayerGroups
@@ -2050,6 +2168,9 @@ export function createCanvasOps(
     createMockup,
     updateMockup,
     duplicateMockup,
+    duplicateDocument,
+    duplicateView,
+    deleteFiles,
     duplicateIframeLayer,
     followContentHeight,
     removeMockups,

@@ -74,10 +74,17 @@ export interface GroupActions {
    */
   duplicateIframeLayer: (iframeLayerId: string) => string | undefined
   /**
-   * Append a copy of a Mockup (page, size, knobs, last chat) to the end of
-   * its group — the mockup bar's Duplicate. Returns the copy's id.
+   * Another view of a Document's or Mockup's file at the end of its group —
+   * the menu's Duplicate (#1884). Returns the new view's id.
    */
-  duplicateMockup: (mockupId: string) => string | undefined
+  duplicateView: (viewId: string) => string | undefined
+  /**
+   * Copy a Document's or Mockup's file into a new one at the end of its group
+   * — the menu's Duplicate as new file. Returns the copy's id.
+   */
+  duplicateAsNewFile: (viewId: string) => string | undefined
+  /** Delete file: the file and every view of it, one ⌘Z step (#1884). */
+  deleteFile: (viewId: string) => void
   /** Append a new document to an existing group, mirroring the last sibling's bounds. */
   addDocumentLayerToGroup: (groupId: string) => string | undefined
 
@@ -212,8 +219,21 @@ export function useGroupActions({
     [ops]
   )
 
-  const duplicateMockup = useCallback(
-    (mockupId: string): string | undefined => ops.duplicateMockup(mockupId),
+  const duplicateView = useCallback(
+    (viewId: string): string | undefined => ops.duplicateView(viewId),
+    [ops]
+  )
+
+  const duplicateAsNewFile = useCallback(
+    (viewId: string): string | undefined =>
+      collections.mockupLayers.has(viewId)
+        ? ops.duplicateMockup(viewId)
+        : ops.duplicateDocument(viewId),
+    [collections, ops]
+  )
+
+  const deleteFile = useCallback(
+    (viewId: string) => ops.deleteFiles([viewId]),
     [ops]
   )
 
@@ -407,7 +427,9 @@ export function useGroupActions({
       addRoutesGroupForAgent,
       addIframeLayerToGroup,
       duplicateIframeLayer,
-      duplicateMockup,
+      duplicateView,
+      duplicateAsNewFile,
+      deleteFile,
       addDocumentLayerToGroup,
       addDocumentLayer,
       moveMember,
@@ -421,7 +443,9 @@ export function useGroupActions({
       addRoutesGroupForAgent,
       addIframeLayerToGroup,
       duplicateIframeLayer,
-      duplicateMockup,
+      duplicateView,
+      duplicateAsNewFile,
+      deleteFile,
       addDocumentLayerToGroup,
       addDocumentLayer,
       moveMember,

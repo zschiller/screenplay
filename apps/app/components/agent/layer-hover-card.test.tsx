@@ -42,6 +42,9 @@ vi.mock("@/lib/yjs/react", () => ({
   useMockupLayers: () => [],
   useLayerFiles: () => [],
   useMockupHtml: () => "",
+  useLayerFiles: () => [
+    { id: "m-unplaced", kind: "mockup", title: "Cart · B" },
+  ],
 }))
 vi.mock("@/lib/yjs/context", () => ({
   useRoomId: () => "room1",
@@ -140,6 +143,14 @@ describe("LayerHoverCard", () => {
     expect(card.textContent).toContain("2 lines")
     // No chats menu (the player): no Open chat.
     expect(screen.queryByRole("button", { name: "Open chat" })).toBeNull()
+  })
+
+  it("shows a file with no view on the canvas, without a size (#1884)", () => {
+    hover("mockup", "m-unplaced")
+    const card = screen.getByTestId("layer-hover-card")
+    expect(card.textContent).toContain("Cart · B")
+    expect(card.textContent).not.toContain("Size")
+    expect(card.textContent).not.toContain("deleted")
   })
 
   it("says so when the layer is gone", () => {

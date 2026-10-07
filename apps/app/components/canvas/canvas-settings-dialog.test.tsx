@@ -140,6 +140,7 @@ import {
   type RepositoryLinkPolicy,
 } from "@/lib/repository-library"
 import { CanvasSettingsDialog } from "./canvas-settings-dialog"
+import type { LayerFilesInTree } from "./canvas-files-section"
 
 // Radix's Dialog, menus and cmdk use pointer-capture / scroll APIs jsdom
 // doesn't implement, plus a ResizeObserver. Polyfill the bare minimum.
@@ -235,11 +236,13 @@ function renderDialog(
     canReveal = true,
     policy = desktopLinkPolicy,
     files = [],
+    layerFiles,
     desktop = false,
   }: {
     canReveal?: boolean
     policy?: RepositoryLinkPolicy
     files?: FileEntryData[]
+    layerFiles?: LayerFilesInTree
     /** Give the dialog the desktop's Open and Reveal in Finder. */
     desktop?: boolean
   } = {}
@@ -268,6 +271,7 @@ function renderDialog(
       branches={BRANCHES}
       memories={memories}
       files={files}
+      layerFiles={layerFiles}
       policy={policy}
       {...handlers}
     />
@@ -951,6 +955,85 @@ describe("CanvasSettingsDialog", () => {
     }
 
     afterEach(() => vi.unstubAllGlobals())
+
+    describe("Documents and Mockups (#1884)", () => {
+      const layerFiles = (): LayerFilesInTree => ({
+        rows: [
+          {
+            fileId: "d1",
+            kind: "document",
+            path: "Documents/Plan.md",
+            views: 2,
+          },
+          {
+            fileId: "m1",
+            kind: "mockup",
+            path: "Mockups/Cart · B.html",
+            views: 0,
+          },
+        ],
+        onShow: vi.fn(),
+        onDeleteFile: vi.fn(),
+      })
+      const open = (desktop = false) => {
+        const tree = layerFiles()
+        const handlers = renderDialog(undefined, undefined, {
+          files: [entry("zebra.md")],
+          layerFiles: tree,
+          desktop,
+        })
+        fireEvent.click(screen.getByRole("button", { name: "Files" }))
+        for (const name of ["Documents", "Mockups"])
+          fireEvent.click(
+            screen.getByRole("button", { name: new RegExp(`^${name}`) })
+          )
+        return { tree, handlers }
+      }
+
+      it("lists them beside the saved files, marking one Not on canvas", () => {
+        open()
+
+        expect(rowNames()).toEqual(["Plan.md", "Cart · B.html", "zebra.md"])
+        expect(screen.getByText("2 views")).toBeTruthy()
+        expect(screen.getByText("Not on canvas")).toBeTruthy()
+      })
+
+      it("shows a placed one on the canvas when pressed", () => {
+        const { tree } = open()
+
+        fireEvent.click(screen.getByRole("button", { name: /^Plan\.md/ }))
+
+        expect(tree.onShow).toHaveBeenCalledWith("d1")
+      })
+
+      it("deletes the file at once from its ⋯, with no confirm", async () => {
+        const { tree, handlers } = open()
+
+        const items = within(await menu("Cart · B.html")).getAllByRole(
+          "menuitem"
+        )
+        expect(items.map((i) => i.textContent)).toEqual(["Delete file"])
+        fireEvent.click(items[0]!)
+
+        expect(tree.onDeleteFile).toHaveBeenCalledWith("m1")
+        expect(screen.queryByRole("alertdialog")).toBeNull()
+        expect(handlers.deleteFile).not.toHaveBeenCalled()
+      })
+
+      it("opens an unplaced one in its own app on the desktop", async () => {
+        const { handlers } = open(true)
+
+        fireEvent.click(screen.getByRole("button", { name: /^Cart · B\.html/ }))
+
+        await waitFor(() =>
+          expect(handlers.openFileOnDesktop).toHaveBeenCalledWith(
+            "room-1",
+            "Mockups/Cart · B.html",
+            "open"
+          )
+        )
+      })
+    })
 
     it("lists folders first with their item count, collapsed", () => {
       openFiles()

@@ -114,6 +114,7 @@ import {
 } from "@/lib/branch/workspace-state"
 import { parseLayerLink, type LayerLinkKind } from "@/lib/agent/layer-link"
 import { fileModal } from "@/lib/canvas/file-modal"
+import { useFileDeleted } from "@/lib/document-mentions"
 import { fileIdOf } from "@/lib/yjs/file-views"
 import { useOptionalYjs } from "@/lib/yjs/context"
 import { getRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
@@ -1131,9 +1132,33 @@ function selectNamedLayer(id: string) {
 function MockupRef({ id }: { id: string }) {
   const title = useMockupTitle(id)
   return (
-    <LayerHoverCard kind="mockup" id={id}>
-      <InlineRef kind="mockup" onClick={() => selectNamedLayer(id)}>
-        {title || "Mockup"}
+    <LayerRef kind="mockup" id={id} onClick={() => selectNamedLayer(id)}>
+      {title || "Mockup"}
+    </LayerRef>
+  )
+}
+
+/**
+ * A frame, Document or Mockup named in a message, with its hover card. A
+ * Document or Mockup whose file was deleted reads struck through and opens
+ * nothing (#1884).
+ */
+function LayerRef({
+  kind,
+  id,
+  onClick,
+  children,
+}: {
+  kind: "frame" | "document" | "mockup"
+  id: string
+  onClick?: () => void
+  children: ReactNode
+}) {
+  const deleted = useFileDeleted(kind, id)
+  return (
+    <LayerHoverCard kind={kind} id={id}>
+      <InlineRef kind={kind} onClick={onClick} deleted={deleted}>
+        {children}
       </InlineRef>
     </LayerHoverCard>
   )
@@ -1289,11 +1314,13 @@ function UserBubble({
         if (typeof href === "string" && href.startsWith("mention:")) {
           const id = href.slice("mention:".length)
           return (
-            <LayerHoverCard kind="document" id={id}>
-              <InlineRef kind="document" onClick={() => selectNamedLayer(id)}>
-                {stripAt(children)}
-              </InlineRef>
-            </LayerHoverCard>
+            <LayerRef
+              kind="document"
+              id={id}
+              onClick={() => selectNamedLayer(id)}
+            >
+              {stripAt(children)}
+            </LayerRef>
           )
         }
         // A drawn Mockup, by its live title.
@@ -1423,18 +1450,17 @@ function AssistantMessage({ content }: { content: string }) {
           const clickable =
             !!onShow || (layer.kind !== "frame" && !!collections)
           return (
-            <LayerHoverCard kind={layer.kind} id={layer.id}>
-              <InlineRef
-                kind={layer.kind}
-                onClick={
-                  clickable
-                    ? () => showNamedLayer(collections, layer, onShow)
-                    : undefined
-                }
-              >
-                {children}
-              </InlineRef>
-            </LayerHoverCard>
+            <LayerRef
+              kind={layer.kind}
+              id={layer.id}
+              onClick={
+                clickable
+                  ? () => showNamedLayer(collections, layer, onShow)
+                  : undefined
+              }
+            >
+              {children}
+            </LayerRef>
           )
         }
         if (

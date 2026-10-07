@@ -31,6 +31,7 @@ export function InlineRef({
   kind,
   icon,
   onClick,
+  deleted = false,
   className,
   children,
   ...props
@@ -40,6 +41,8 @@ export function InlineRef({
   icon?: ReactNode
   /** Makes the reference a button (open the Workspace, show the layer). */
   onClick?: () => void
+  /** A deleted Document or Mockup (#1884): struck through, and no button. */
+  deleted?: boolean
 }) {
   const Icon = ICONS[kind]
   const content = (
@@ -52,7 +55,7 @@ export function InlineRef({
       <span className="inline-ref-label">{children}</span>
     </>
   )
-  if (onClick) {
+  if (onClick && !deleted) {
     return (
       <button
         type="button"
@@ -68,6 +71,7 @@ export function InlineRef({
   return (
     <span
       data-inline-ref={kind}
+      data-deleted={deleted || undefined}
       className={cn("inline-ref", className)}
       {...props}
     >
