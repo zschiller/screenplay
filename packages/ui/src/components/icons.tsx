@@ -95,6 +95,7 @@ import { PathIcon as PathBase } from "@phosphor-icons/react/dist/ssr/Path"
 import { PauseCircleIcon as PauseCircleBase } from "@phosphor-icons/react/dist/ssr/PauseCircle"
 import { PencilSimpleIcon as PencilSimpleBase } from "@phosphor-icons/react/dist/ssr/PencilSimple"
 import { PencilSimpleLineIcon as PencilSimpleLineBase } from "@phosphor-icons/react/dist/ssr/PencilSimpleLine"
+import { MinusSquareIcon as MinusSquareBase } from "@phosphor-icons/react/dist/ssr/MinusSquare"
 import { PlayIcon as PlayBase } from "@phosphor-icons/react/dist/ssr/Play"
 import { PlugIcon as PlugBase } from "@phosphor-icons/react/dist/ssr/Plug"
 import { PlusIcon as PlusBase } from "@phosphor-icons/react/dist/ssr/Plus"
@@ -418,6 +419,7 @@ export const PencilSimpleLineIcon = phosphor(
   PencilSimpleLineBase,
   "ph-pencil-simple-line"
 )
+export const MinusSquareIcon = phosphor(MinusSquareBase, "ph-minus-square")
 export const PlayIcon = phosphor(PlayBase, "ph-play")
 export const PlugIcon = phosphor(PlugBase, "ph-plug")
 export const PlusIcon = phosphor(PlusBase, "ph-plus")

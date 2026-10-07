@@ -18,10 +18,10 @@ import {
   CopyIcon,
   DotsThreeIcon,
   FilePlusIcon,
+  MinusSquareIcon,
   PencilSimpleIcon,
   PlayIcon,
   TrashIcon,
-  XIcon,
 } from "@workspace/ui/components/icons"
 import {
   DropdownMenu,
@@ -63,7 +63,7 @@ import {
  *
  * The items, in order, each shown when the object has it: Rename, Duplicate,
  * Duplicate as new file, Move to page, then the frame's Device size, Fit to
- * content, Preview and Chat, then Delete (Remove and Delete file for a
+ * content, Preview and Chat, then Delete (Remove from canvas and Delete file for a
  * Document's or Mockup's view, #1884).
  */
 export interface LayerMenuActions {
@@ -97,7 +97,7 @@ export interface LayerMenuActions {
   }
   /**
    * Delete, when the object can be removed. With {@link onDeleteFile} it
-   * reads Remove: it takes away only the view.
+   * reads Remove from canvas: it takes away only the view.
    */
   onDelete?: () => void
   /** A Document's or Mockup's view: delete its file and every view (#1884). */
@@ -322,8 +322,8 @@ function LayerMenuItems({
           {actions.onDelete &&
             (actions.onDeleteFile ? (
               <DropdownMenuItem onSelect={actions.onDelete}>
-                <XIcon />
-                Remove
+                <MinusSquareIcon />
+                Remove from canvas
               </DropdownMenuItem>
             ) : (
               <DropdownMenuItem

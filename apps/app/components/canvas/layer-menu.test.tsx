@@ -103,7 +103,7 @@ describe("LayerMenuContent", () => {
     expect(items()).toEqual(["Rename", "Delete"])
   })
 
-  it("gives a Document's or Mockup's view Remove and Delete file (#1884)", () => {
+  it("gives a Document's or Mockup's view Remove from canvas and Delete file (#1884)", () => {
     const onDelete = vi.fn()
     const onDeleteFile = vi.fn()
     const onDuplicateAsNewFile = vi.fn()
@@ -121,7 +121,7 @@ describe("LayerMenuContent", () => {
       "Rename",
       "Duplicate ⌘D",
       "Duplicate as new file",
-      "Remove",
+      "Remove from canvas",
       "Delete file",
     ])
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete file" }))
