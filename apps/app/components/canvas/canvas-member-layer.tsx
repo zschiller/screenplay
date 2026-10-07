@@ -306,7 +306,7 @@ function CanvasMemberLayerImpl({
   }
 
   const groupMenuOf = (groupId: string) =>
-    groupLayerMenu(() => groupActions.removeIframeLayerGroup(groupId))
+    groupLayerMenu(groupId, () => groupActions.removeIframeLayerGroup(groupId))
 
   return (
     <>

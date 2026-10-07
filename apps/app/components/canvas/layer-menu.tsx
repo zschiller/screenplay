@@ -47,6 +47,11 @@ import { OpenInBrowserItem } from "@/components/open-in-browser-item"
 import { useFocusNeighbourOnDelete } from "@/components/panels/layer-rows/row-focus"
 import { DUPLICATE_KEYS } from "@/lib/canvas/shortcuts"
 import { DeviceSizeSubMenu } from "./device-size-menu"
+import {
+  MoveToPageContext,
+  MoveToPageSubMenu,
+  type MoveToPageTarget,
+} from "./move-to-page"
 
 /**
  * One menu per object (I7): a frame, mockup, document or Group has one menu,
@@ -55,12 +60,14 @@ import { DeviceSizeSubMenu } from "./device-size-menu"
  * two can't drift.
  *
  * The items, in order, each shown when the object has it: Rename, Duplicate,
- * then the frame's Device size, Fit to content, Preview and Chat, then Delete.
+ * Move to page, then the frame's Device size, Fit to content, Preview and Chat, then Delete.
  */
 export interface LayerMenuActions {
   /** The object, for the trigger's name ("Frame options"). */
   noun: "frame" | "mockup" | "document" | "group"
   onDuplicate?: () => void
+  /** What Move to page ▸ moves: the Layer alone, or the whole Group. */
+  moveTo?: MoveToPageTarget
   size?: {
     width: number
     height: number
@@ -92,8 +99,11 @@ export function layerMenuLabel(noun: LayerMenuActions["noun"]) {
 }
 
 /** A Group's menu, the same on its canvas label and its sidebar row. */
-export function groupLayerMenu(onDelete: () => void): LayerMenuActions {
-  return { noun: "group", onDelete }
+export function groupLayerMenu(
+  groupId: string,
+  onDelete: () => void
+): LayerMenuActions {
+  return { noun: "group", moveTo: { kind: "group", id: groupId }, onDelete }
 }
 
 type PendingRename = { kind: "layer" } | { kind: "chat"; branchId: string }
@@ -190,6 +200,10 @@ function LayerMenuItems({
   const showChat =
     !!chat && (hasWorkspaceMenu || !!chat.onPlay || !!chat.onOpenInBrowser)
   const showFrameItems = !!actions.size || !!actions.fitToContent || showChat
+  const pages = useContext(MoveToPageContext)
+  const canMove =
+    !!actions.moveTo && !!pages?.pages.some((p) => p.id !== pages.currentPageId)
+  const hasFirstSection = canRename || !!actions.onDuplicate || canMove
 
   return (
     <>
@@ -206,9 +220,10 @@ function LayerMenuItems({
           <MenuKeys keys={DUPLICATE_KEYS} />
         </DropdownMenuItem>
       )}
+      {actions.moveTo && <MoveToPageSubMenu target={actions.moveTo} />}
       {showFrameItems && (
         <>
-          {(canRename || actions.onDuplicate) && <DropdownMenuSeparator />}
+          {hasFirstSection && <DropdownMenuSeparator />}
           {actions.size && (
             <DeviceSizeSubMenu
               width={actions.size.width}
@@ -282,9 +297,7 @@ function LayerMenuItems({
       )}
       {actions.onDelete && (
         <>
-          {(canRename || actions.onDuplicate || showFrameItems) && (
-            <DropdownMenuSeparator />
-          )}
+          {(hasFirstSection || showFrameItems) && <DropdownMenuSeparator />}
           <DropdownMenuItem variant="destructive" onSelect={actions.onDelete}>
             <TrashIcon />
             Delete

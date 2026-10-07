@@ -87,6 +87,11 @@ import { renameRoom } from "@/lib/rooms-actions"
 import { SelectionOverlay } from "./selection-overlay"
 import { LayerEdgesUnderlay } from "./layer-edges-underlay"
 import { PixelGridOverlay } from "./pixel-grid-overlay"
+import {
+  MoveToPageContext,
+  type MoveToPage,
+  type MoveToPageTarget,
+} from "./move-to-page"
 
 import { Comments } from "./comments"
 
@@ -933,6 +938,20 @@ export function Canvas({
       setPickedPageId(pageId)
     },
     [clearSelection, ops, userId]
+  )
+  // Move to page ▸ and a sidebar drop on a page row (#1837): what moves
+  // leaves this page, so it leaves the selection too.
+  const moveToPageTarget = useCallback(
+    (target: MoveToPageTarget, pageId: string) => {
+      if (target.kind === "group") ops.moveGroupToPage(target.id, pageId)
+      else ops.moveLayersToPage([target.id], pageId)
+      clearSelection()
+    },
+    [ops, clearSelection]
+  )
+  const moveToPage = useMemo<MoveToPage>(
+    () => ({ pages, currentPageId, move: moveToPageTarget }),
+    [pages, currentPageId, moveToPageTarget]
   )
   const addPage = useCallback(() => {
     const pageId = ops.createPage()
@@ -2352,7 +2371,7 @@ export function Canvas({
     footer: sidebarFooter,
   } satisfies ComponentProps<typeof RoomSidebar>)
   return (
-    <>
+    <MoveToPageContext.Provider value={moveToPage}>
       {/* The agent drives this canvas's frames and mockups on the Mac
         (#1389), and its mockups on hosted (#1391). */}
       {isLocalBuild ? (
@@ -3011,6 +3030,6 @@ export function Canvas({
           </ResizablePanelGroup>
         </ChatsMenuProvider>
       </AddRepositoryFlowProvider>
-    </>
+    </MoveToPageContext.Provider>
   )
 }

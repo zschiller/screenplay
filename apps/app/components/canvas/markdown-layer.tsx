@@ -428,6 +428,7 @@ function MarkdownLayerImpl({
   const titleEditableRef = useRef<EditableTextHandle>(null)
   const menuActions: LayerMenuActions = {
     noun: "document",
+    moveTo: { kind: "layer", id: layer.id },
     onDelete: onRemove ? () => onRemove(layer.id) : undefined,
   }
   useRegisterLayerMenu(layer.id, menuActions)

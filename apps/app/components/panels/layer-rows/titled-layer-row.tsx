@@ -148,7 +148,11 @@ function TitledLayerRowMenu<T extends TitledLayer>({
     <LayerMenu
       placement="row"
       layerId={item.id}
-      actions={{ noun, onDelete: () => onRemove(item.id) }}
+      actions={{
+        noun,
+        moveTo: { kind: "layer", id: item.id },
+        onDelete: () => onRemove(item.id),
+      }}
       onRename={() => editableRef?.current?.startEditing()}
       className={cn(frameRowActionClass, isSub && "!top-1/2 -translate-y-1/2")}
     />
