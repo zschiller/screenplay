@@ -159,8 +159,8 @@ dependency or config change, add `--force` so the tests really run:
 pnpm turbo run test --filter=app --force
 ```
 
-CI runs typecheck and the package tests, the app’s unit tests in three
-shards, and a browser job with Chrome, Xvfb and ffmpeg installed. A test that
+Besides lint and typecheck, CI runs the package tests, the app’s unit tests
+in three shards, and a browser job with Chrome, Xvfb and ffmpeg installed. A test that
 needs that browser stack must be named `*.browser.test.ts`: the unit shards
 skip that name, and `apps/app/test/browser-tests.test.ts` fails a test that
 mentions Xvfb under any other name. In the browser job,
@@ -281,7 +281,7 @@ add one.
 
 - Open a pull request ready for review, not as a draft.
 - Before you push, merge `main` in and run the app’s full suite
-  (`pnpm --filter app test`) and `pnpm typecheck`. A pull request can be
+  (`pnpm --filter app test`), `pnpm typecheck` and `pnpm lint`. A pull request can be
   merged as soon as its review looks right, before CI finishes, so a red
   check found only by CI lands on `main`.
 - A pull request that changes what a user sees or configures updates the
