@@ -1,19 +1,25 @@
 "use client"
 
+import { resolvePageId } from "@/lib/canvas/pages"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
+import type { PageData } from "@/lib/types"
 import { useOtherPresences } from "@/lib/yjs/react"
 
 interface CursorsProps {
   viewport: { x: number; y: number; zoom: number }
+  pages: PageData[]
+  /** The page on screen: only the people on it draw a cursor (#1840). */
+  pageId: string
 }
 
-export function Cursors({ viewport }: CursorsProps) {
+export function Cursors({ viewport, pages, pageId }: CursorsProps) {
   const others = useOtherPresences()
 
   return (
     <>
       {others.map(({ clientId, presence }) => {
         if (!presence.pointer) return null
+        if (resolvePageId(pages, presence.pageId) !== pageId) return null
 
         const screenX = presence.pointer.x * viewport.zoom + viewport.x
         const screenY = presence.pointer.y * viewport.zoom + viewport.y
