@@ -169,6 +169,18 @@ _Avoid_: VM, container, box (the backend's words — and the VM isn't even the o
 backing now); workspace (the UI label for a Repo); using "sandbox" to mean the
 Branch itself; calling its contents "never durable" (true only for the Vercel VM).
 
+**GitHub Access**:
+The one interface that knows which GitHub a server talks to and with whose
+credentials (spec #1923): its API and web base URLs, a token per person for the
+server's own REST calls, and how git inside a chat authenticates and authors,
+either the **host**'s own git or **brokered** (the person's token per command
+and their identity on commits). Built-ins: `oauth-account` (Hosted, brokered)
+and `gh-cli` (the Mac app, host git; a company wrapper command or a GitHub
+Enterprise hostname are its options). It is a credentials fact, separate from
+where the Sandbox lives (the Sandbox Provider).
+_Avoid_: deciding credentials from the build or the sandbox backend; naming a
+GitHub host anywhere else.
+
 **Sandbox Provider**:
 The swappable backend that creates and reconnects Sandboxes. There are now
 **two**: the hosted **Vercel** backend (a remote VM, hibernating) and the desktop

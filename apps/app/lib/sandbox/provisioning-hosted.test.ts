@@ -11,8 +11,8 @@ import type { RepoData } from "@/lib/types"
 // The hosted side of provisioning, where the host does NOT own git auth: the
 // branch is created through the GitHub API and the clone is token-authed. A
 // scripted fake provider stands in for Vercel Sandbox (every command exits 0);
-// `backend.hostGitAuth` flips the one local-vs-hosted switch for the tests that
-// pin what changes when it's on.
+// `backend.hostGitAuth` flips both local-vs-hosted facts (the Sandbox is on the
+// host, and git is the host's own) for the tests that pin what changes then.
 const fake = vi.hoisted(() => {
   const createCalls: SandboxCreateOptions[] = []
   const commands: string[][] = []
@@ -103,8 +103,22 @@ const backend = vi.hoisted(() => ({ hostGitAuth: false }))
 vi.mock("@/lib/sandbox", () => ({
   sandboxProvider: fake.provider,
   isSandboxRunning: () => true,
-  get usesHostGitAuth() {
+  get sandboxIsOnHost() {
     return backend.hostGitAuth
+  },
+}))
+vi.mock("@/lib/github-access", () => ({
+  get githubAccess() {
+    return {
+      webUrl: "https://github.com",
+      git: backend.hostGitAuth
+        ? { kind: "host" }
+        : {
+            kind: "brokered",
+            token: async () => null,
+            identity: async () => null,
+          },
+    }
   },
 }))
 
@@ -114,7 +128,6 @@ vi.mock("@/lib/env-store", () => ({ storeEnvVars }))
 vi.mock("@/lib/auth-helpers", () => ({
   getUserId: vi.fn(async () => null),
   getGitHubTokenForUser: vi.fn(async () => null),
-  getGitIdentityForUser: vi.fn(async () => null),
 }))
 const createBranch = vi.hoisted(() =>
   vi.fn(async (): Promise<{ success: boolean; error?: string }> => ({

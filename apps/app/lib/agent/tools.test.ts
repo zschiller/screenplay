@@ -31,21 +31,26 @@ const fake = vi.hoisted(() => {
   }
 })
 
-// `usesHostGitAuth` is the build-time backend switch (worktree → host-native git
-// auth); a mutable holder lets a test flip it to the local path.
-const backend = vi.hoisted(() => ({ hostGitAuth: false }))
-vi.mock("@/lib/sandbox", () => ({
-  sandboxProvider: fake.provider,
-  get usesHostGitAuth() {
-    return backend.hostGitAuth
-  },
+vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
+// GitHub access decides whether git is the host's own or brokered per command;
+// a mutable holder lets a test flip it to host git. The brokered token and
+// identity are stubs so the import graph stays out of the DB chain.
+const access = vi.hoisted(() => ({
+  hostGit: false,
+  token: vi.fn(async (_userId: string): Promise<string | null> => null),
+  identity: vi.fn(
+    async (_userId: string): Promise<{ name: string; email: string } | null> =>
+      null
+  ),
 }))
-// The git-env helper reaches into the auth stack for a per-user token. Tools
-// under test don't care about its value; stub it so the import graph stays out
-// of the DB/runtime-env chain.
-vi.mock("@/lib/auth-helpers", () => ({
-  getGitHubTokenForUser: vi.fn(async () => null),
-  getGitIdentityForUser: vi.fn(async () => null),
+vi.mock("@/lib/github-access", () => ({
+  get githubAccess() {
+    return {
+      git: access.hostGit
+        ? { kind: "host" }
+        : { kind: "brokered", token: access.token, identity: access.identity },
+    }
+  },
 }))
 // `create_pr` pulls in github-pr and its GitHub round-trip. Stub it so the
 // tools' import graph stays unit-testable under plain Node.
@@ -55,11 +60,6 @@ vi.mock("@/lib/github-pr", () => ({
     number: 1,
   })),
 }))
-
-import {
-  getGitHubTokenForUser,
-  getGitIdentityForUser,
-} from "@/lib/auth-helpers"
 
 import { buildSandboxTools, type ToolContext } from "@/lib/agent/tools"
 
@@ -125,11 +125,11 @@ function fakeSandbox(opts: {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  backend.hostGitAuth = false
+  access.hostGit = false
   // clearAllMocks wipes call history but keeps implementations; restore the
   // null defaults so a test that scripts an identity doesn't leak into the next.
-  vi.mocked(getGitHubTokenForUser).mockResolvedValue(null)
-  vi.mocked(getGitIdentityForUser).mockResolvedValue(null)
+  access.token.mockResolvedValue(null)
+  access.identity.mockResolvedValue(null)
 })
 
 describe("read_file", () => {
@@ -274,14 +274,14 @@ describe("run_command", () => {
     )
 
     // Hosted path looks up the acting user's token to inject SCREENPLAY_GH_TOKEN.
-    expect(getGitHubTokenForUser).toHaveBeenCalledWith("user-1")
+    expect(access.token).toHaveBeenCalledWith("user-1")
   })
 
   it("brokers the acting user's commit identity per command", async () => {
     // Authorship rides the same per-command env as the token: the acting user's
     // real name + email as GIT_AUTHOR_*/GIT_COMMITTER_*, so commits in a shared
     // sandbox attribute to whoever drove them — never a fabricated address.
-    vi.mocked(getGitIdentityForUser).mockResolvedValue({
+    access.identity.mockResolvedValue({
       name: "Octo Cat",
       email: "octo@users.noreply.github.com",
     })
@@ -304,7 +304,7 @@ describe("run_command", () => {
       {} as never
     )
 
-    expect(getGitIdentityForUser).toHaveBeenCalledWith("user-1")
+    expect(access.identity).toHaveBeenCalledWith("user-1")
     expect(env).toMatchObject({
       GIT_AUTHOR_NAME: "Octo Cat",
       GIT_AUTHOR_EMAIL: "octo@users.noreply.github.com",
@@ -314,7 +314,7 @@ describe("run_command", () => {
   })
 
   it("under host-native git auth, doesn't broker a per-command token", async () => {
-    backend.hostGitAuth = true
+    access.hostGit = true
     fake.setInstance(fakeSandbox({ command: () => ({ exitCode: 0 }) }))
 
     await buildSandboxTools(ctx).run_command.execute!(
@@ -323,7 +323,7 @@ describe("run_command", () => {
     )
 
     // Local worktree path rides host credentials — no token lookup, no injection.
-    expect(getGitHubTokenForUser).not.toHaveBeenCalled()
+    expect(access.token).not.toHaveBeenCalled()
   })
 
   it("leaves a token in its output untouched — redaction is the assembly point's job", async () => {

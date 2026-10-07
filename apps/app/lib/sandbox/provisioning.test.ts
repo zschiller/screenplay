@@ -48,7 +48,15 @@ vi.mock("@/lib/env-store", () => ({ storeEnvVars }))
 vi.mock("@/lib/auth-helpers", () => ({
   getUserId: vi.fn(async () => null),
   getGitHubTokenForUser: vi.fn(async () => null),
-  getGitIdentityForUser: vi.fn(async () => null),
+}))
+// The Mac app's GitHub access: `gh-cli`, so git is the host's own.
+vi.mock("@/lib/github-access", () => ({
+  githubAccess: {
+    id: "gh-cli",
+    apiUrl: "https://api.github.com",
+    webUrl: "https://github.com",
+    git: { kind: "host" },
+  },
 }))
 // Where the host owns git auth, the GitHub API must never be asked to create a
 // branch — the spy lets each test hold provisioning to that.

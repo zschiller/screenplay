@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import type { GhCli, GhStatus } from "@/lib/github-local/gh-cli"
 import {
-  makeGitHubTokenResolver,
   makeLocalGitHubConnectionReader,
   makeLocalGitHubTokenSourceReader,
 } from "@/lib/github-local/token-resolver"
@@ -10,18 +9,6 @@ import {
 function fakeGh(token: string | null): Pick<GhCli, "getToken"> {
   return { getToken: async () => token }
 }
-
-describe("local GitHub token resolver", () => {
-  it("resolves the gh CLI's token when gh is available", async () => {
-    const resolve = makeGitHubTokenResolver({ gh: fakeGh("gh-token") })
-    expect(await resolve()).toBe("gh-token")
-  })
-
-  it("resolves null when gh has no token", async () => {
-    const resolve = makeGitHubTokenResolver({ gh: fakeGh(null) })
-    expect(await resolve()).toBeNull()
-  })
-})
 
 describe("local GitHub connection reader", () => {
   const read = (status: GhStatus) =>

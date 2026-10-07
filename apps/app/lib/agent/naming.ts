@@ -1,6 +1,7 @@
 import "server-only"
 
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
+import { githubAccess } from "@/lib/github-access"
 import type { RoomReader } from "@/lib/room-access"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { deriveFallbackName } from "./fallback-name"
@@ -114,7 +115,7 @@ export async function deduplicateBranchName(
 
     for (let i = 0; i < 10; i++) {
       const res = await fetch(
-        `https://api.github.com/repos/${repoOwner}/${repoName}/git/ref/heads/${candidate}`,
+        `${githubAccess.apiUrl}/repos/${repoOwner}/${repoName}/git/ref/heads/${candidate}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

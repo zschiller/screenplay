@@ -52,15 +52,7 @@ const fake = vi.hoisted(() => {
   }
 })
 
-// `usesHostGitAuth` is the build-time backend switch (worktree → host-native git
-// auth); a mutable holder lets a test flip it to the local path.
-const backend = vi.hoisted(() => ({ hostGitAuth: false }))
-vi.mock("@/lib/sandbox", () => ({
-  sandboxProvider: fake.provider,
-  get usesHostGitAuth() {
-    return backend.hostGitAuth
-  },
-}))
+vi.mock("@/lib/sandbox", () => ({ sandboxProvider: fake.provider }))
 
 // These actions fold the provider registry into the sandbox network policy and
 // resolve harness brokers from it. A reconfigurable stub lets each test set the
@@ -210,7 +202,6 @@ beforeEach(() => {
   vi.unstubAllEnvs()
   fake.reset()
   fake.createCalls.length = 0
-  backend.hostGitAuth = false
   getModelProviders.mockReturnValue([])
 })
 
