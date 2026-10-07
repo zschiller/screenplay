@@ -17,6 +17,8 @@ import {
   ChatCircleIcon,
   CopyIcon,
   DotsThreeIcon,
+  FilePlusIcon,
+  MinusSquareIcon,
   PencilSimpleIcon,
   PlayIcon,
   TrashIcon,
@@ -60,12 +62,16 @@ import {
  * two can't drift.
  *
  * The items, in order, each shown when the object has it: Rename, Duplicate,
- * Move to page, then the frame's Device size, Fit to content, Preview and Chat, then Delete.
+ * Duplicate as new file, Move to page, then the frame's Device size, Fit to
+ * content, Preview and Chat, then Delete (Remove from canvas and Delete file for a
+ * Document's or Mockup's view, #1884).
  */
 export interface LayerMenuActions {
   /** The object, for the trigger's name ("Frame options"). */
   noun: "frame" | "mockup" | "document" | "group"
   onDuplicate?: () => void
+  /** A Document's or Mockup's view: copy its file into a new one (#1884). */
+  onDuplicateAsNewFile?: () => void
   /** What Move to page ▸ moves: the Layer alone, or the whole Group. */
   moveTo?: MoveToPageTarget
   size?: {
@@ -89,8 +95,13 @@ export interface LayerMenuActions {
     /** Open logs: the chat's Preview terminal. */
     onOpenLogs?: () => void
   }
-  /** Delete, when the object can be removed. */
+  /**
+   * Delete, when the object can be removed. With {@link onDeleteFile} it
+   * reads Remove from canvas: it takes away only the view.
+   */
   onDelete?: () => void
+  /** A Document's or Mockup's view: delete its file and every view (#1884). */
+  onDeleteFile?: () => void
 }
 
 /** Every … trigger's name and tooltip: "Frame options", "Group options". */
@@ -203,7 +214,11 @@ function LayerMenuItems({
   const pages = useContext(MoveToPageContext)
   const canMove =
     !!actions.moveTo && !!pages?.pages.some((p) => p.id !== pages.currentPageId)
-  const hasFirstSection = canRename || !!actions.onDuplicate || canMove
+  const hasFirstSection =
+    canRename ||
+    !!actions.onDuplicate ||
+    !!actions.onDuplicateAsNewFile ||
+    canMove
 
   return (
     <>
@@ -218,6 +233,12 @@ function LayerMenuItems({
           <CopyIcon />
           Duplicate
           <MenuKeys keys={DUPLICATE_KEYS} />
+        </DropdownMenuItem>
+      )}
+      {actions.onDuplicateAsNewFile && (
+        <DropdownMenuItem onSelect={actions.onDuplicateAsNewFile}>
+          <FilePlusIcon />
+          Duplicate as new file
         </DropdownMenuItem>
       )}
       {actions.moveTo && <MoveToPageSubMenu target={actions.moveTo} />}
@@ -295,13 +316,33 @@ function LayerMenuItems({
           )}
         </>
       )}
-      {actions.onDelete && (
+      {(actions.onDelete || actions.onDeleteFile) && (
         <>
           {(hasFirstSection || showFrameItems) && <DropdownMenuSeparator />}
-          <DropdownMenuItem variant="destructive" onSelect={actions.onDelete}>
-            <TrashIcon />
-            Delete
-          </DropdownMenuItem>
+          {actions.onDelete &&
+            (actions.onDeleteFile ? (
+              <DropdownMenuItem onSelect={actions.onDelete}>
+                <MinusSquareIcon />
+                Remove from canvas
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={actions.onDelete}
+              >
+                <TrashIcon />
+                Delete
+              </DropdownMenuItem>
+            ))}
+          {actions.onDeleteFile && (
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={actions.onDeleteFile}
+            >
+              <TrashIcon />
+              Delete file
+            </DropdownMenuItem>
+          )}
         </>
       )}
     </>

@@ -586,6 +586,11 @@ body {
 .inline-ref-label {
   align-self: baseline;
 }
+/* A Document or Mockup whose file was deleted (#1884): struck through, and
+   it opens nothing. */
+.inline-ref[data-deleted] > .inline-ref-label {
+  text-decoration: line-through;
+}
 button.inline-ref {
   cursor: pointer;
   border-radius: var(--radius-sm);

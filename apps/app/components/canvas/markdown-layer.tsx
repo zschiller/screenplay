@@ -378,8 +378,15 @@ interface MarkdownLayerProps {
    *  driven by the editor) this must also write into the editor's first
    *  heading so every peer's view updates. */
   onRename?: (id: string, title: string) => void
-  /** The menu's Delete, the same removal as the Delete key (⌘Z undoes it). */
+  /** The menu's Remove, the same removal as the Delete key: only this view
+   *  goes (⌘Z undoes it). */
   onRemove?: (id: string) => void
+  /** The menu's Duplicate: another view of the file (#1884). */
+  onDuplicate?: (id: string) => void
+  /** The menu's Duplicate as new file: a copy of the file. */
+  onDuplicateAsNewFile?: (id: string) => void
+  /** The menu's Delete file: the file and every view of it (⌘Z undoes it). */
+  onDeleteFile?: (id: string) => void
   onStartEdit: (id: string) => void
   onStopEdit: () => void
 }
@@ -415,6 +422,9 @@ function MarkdownLayerImpl({
   onTitleChange,
   onRename,
   onRemove,
+  onDuplicate,
+  onDuplicateAsNewFile,
+  onDeleteFile,
   onStartEdit,
   onStopEdit,
   onEditorReady,
@@ -428,8 +438,13 @@ function MarkdownLayerImpl({
   const titleEditableRef = useRef<EditableTextHandle>(null)
   const menuActions: LayerMenuActions = {
     noun: "document",
+    onDuplicate: onDuplicate ? () => onDuplicate(layer.id) : undefined,
+    onDuplicateAsNewFile: onDuplicateAsNewFile
+      ? () => onDuplicateAsNewFile(layer.id)
+      : undefined,
     moveTo: { kind: "layer", id: layer.id },
     onDelete: onRemove ? () => onRemove(layer.id) : undefined,
+    onDeleteFile: onDeleteFile ? () => onDeleteFile(layer.id) : undefined,
   }
   useRegisterLayerMenu(layer.id, menuActions)
   // Carets only: the pointer moving changes the awareness on every move.

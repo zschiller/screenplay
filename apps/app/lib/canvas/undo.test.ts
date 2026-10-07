@@ -174,7 +174,12 @@ describe("⌘Z on a Mockup (#1309)", () => {
 
   it("keeps a deleted Mockup's folder while ⌘Z could bring it back, and lets it go with Undo (#1886)", () => {
     const { doc, ops, undo, mockupId } = withChatMockup()
+    // Removing the last view keeps the file (#1884): nothing to let go.
     ops.removeMockups([mockupId])
+    expect(undo.deletedMockupFiles()).toEqual([])
+    undo.undo()
+
+    ops.deleteFiles([mockupId])
     expect(undo.deletedMockupFiles()).toEqual([mockupId])
 
     undo.undo()

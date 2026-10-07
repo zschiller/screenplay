@@ -179,18 +179,26 @@ export class FileViewCollection<T extends MarkdownLayerData | MockupLayerData> {
   }
 
   /**
-   * Removes a view. Until Delete file lands (#1882), a file goes with its last
-   * view, as a layer went before; its body stays in the doc, as on every
-   * delete, so ⌘Z brings it all back.
+   * Removes a view. The file stays, with no view or with its others (#1884):
+   * Files lists it, and chat and mentions still open it. Delete file is
+   * {@link deleteFile}.
    */
   delete(id: string): void {
-    const view = this.views.get(id)
-    if (!view) return
-    const fileId = storedFileId(id, view)
+    this.views.delete(id)
+  }
+
+  /**
+   * Delete file (#1884): removes the file and every view of it in one
+   * transaction. Its body stays in the doc, as on every delete, so ⌘Z brings
+   * the file and all its views back. Returns the removed views' ids.
+   */
+  deleteFile(fileId: string): string[] {
+    const viewIds = this.viewIdsOf(fileId)
     this.doc.transact(() => {
-      this.views.delete(id)
-      if (this.viewIdsOf(fileId).length === 0) this.files.delete(fileId)
+      for (const id of viewIds) this.views.delete(id)
+      this.files.delete(fileId)
     })
+    return viewIds
   }
 
   /** Subscribe to changes of the views or their files. */

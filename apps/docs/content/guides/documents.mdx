@@ -24,8 +24,9 @@ and the agent should share.
 - To write it yourself, click **Write it myself** or press <kbd>Esc</kbd>.
   The caret goes into the title, and anything you typed in the card becomes
   the title. Clicking away leaves the document empty.
-- A selected document has a bar under it with **Edit** and **…** (Rename and
-  Delete). Click **Edit** or **double-click** the document to edit it. While
+- A selected document has a bar under it with **Edit** and **…** (Rename,
+  Duplicate, Duplicate as new file, Remove and Delete file; see
+  [Removing and deleting](#removing-and-deleting)). Click **Edit** or **double-click** the document to edit it. While
   you edit, **Edit** turns pink and so does the document’s thicker outline.
   Click **Edit** again, press <kbd>Esc</kbd> or click outside to stop editing.
 - The first heading is always the document’s **title**. It’s also shown in
@@ -59,6 +60,25 @@ for a heading 2 or `-` for a bullet list.
 On the hosted app, several people can edit the same document at once, and
 each person’s cursor shows in their color. Documents are layers like frames: you can move them,
 resize them, and group them with frames.
+
+## Removing and deleting
+
+Each document is a **file**, and a document on the canvas is a **view** of
+it. One file can have several views, all showing the same page, or none at
+all.
+
+- <kbd>Delete</kbd>, or **…** › **Remove from canvas**, takes away only that view, and
+  <kbd>⌘</kbd> <kbd>Z</kbd> brings it back. A document whose last view goes
+  stays in [Files](/guides/files#documents-and-mockups), marked **Not on
+  canvas**, and chats and mentions still name it.
+- **…** › **Delete file** deletes the document and every view of it at once,
+  with no confirm. One <kbd>⌘</kbd> <kbd>Z</kbd> brings them all back. A
+  mention of a deleted document shows its name struck through and opens
+  nothing.
+- **…** › **Duplicate** (<kbd>⌘</kbd> <kbd>D</kbd>) adds another view of the
+  same document at the end of its group; an edit in one shows in both.
+  **Duplicate as new file** makes a copy, its title ending in “copy”, that you
+  edit on its own.
 
 ## Images
 
@@ -120,7 +140,8 @@ until you do. Click **×** on the quote to drop it, or select other text and cli
 Type <kbd>@</kbd> in a document, or pick **Mention** in the / menu, to link to
 another document, a chat or a mockup on the canvas. The list groups them under
 **Documents**, **Chats** and **Mockups**; keep typing to narrow it. A mention
-follows its target if it’s renamed. <kbd>@</kbd> in the
+follows its target if it’s renamed, and shows its name struck through once
+its file is deleted. <kbd>@</kbd> in the
 [agent composer](/guides/agent#mentioning-documents) lists documents: the
 agent is told which documents you mentioned and reads their current
 contents.

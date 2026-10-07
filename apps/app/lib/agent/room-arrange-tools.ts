@@ -310,7 +310,7 @@ export function buildArrangeTools(
 
     remove: tool({
       description:
-        "Remove frames and documents. A Group left empty is removed with them. Removing a frame never touches its Workspace. Undo with `undo_changes`.",
+        "Remove frames and documents. A Group left empty is removed with them. Removing a frame never touches its Workspace, and removing a document takes only that view off the canvas: its file stays. Undo with `undo_changes`.",
       inputSchema: jsonSchema<{ ids: string[] }>({
         type: "object",
         properties: {

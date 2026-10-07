@@ -112,17 +112,29 @@ conversation.
 ## Working with mockups
 
 Mockups are layers like frames and documents. You can select, move, resize,
-rename and delete them, group them with other layers, and find them in the
-layers list with their own icon. Delete them with <kbd>Delete</kbd>,
-and <kbd>⌘</kbd> <kbd>Z</kbd> brings a deleted mockup back.
+rename and remove them, group them with other layers, and find them in the
+layers list with their own icon.
+
+Each mockup is a **file**, and a mockup on the canvas is a **view** of it. One
+file can have several views, all showing the same page, or none at all.
+<kbd>Delete</kbd> removes only the view you selected, and <kbd>⌘</kbd>
+<kbd>Z</kbd> brings it back. A file whose last view goes stays in
+[Files](/guides/files#documents-and-mockups), marked **Not on canvas**, and
+chats and mentions still name it.
 
 **Mockup options** (⋯), at the end of the bar under a selected mockup, holds
-**Rename**, **Duplicate**, **Device size**, **Fit to content** and
-**Delete**, the same [menu](/guides/canvas#layer-menus) as the mockup’s row in
-the layers list. Duplicate (<kbd>⌘</kbd> <kbd>D</kbd>) adds a copy at the end
-of the mockup’s group, with the same page and files, size and chat, its name
-ending in “copy”. The copy is a mockup of its own: changing one never changes
-the other.
+**Rename**, **Duplicate**, **Duplicate as new file**, **Device size**,
+**Fit to content**, **Remove from canvas** and **Delete file**, the same
+[menu](/guides/canvas#layer-menus) as the mockup’s row in the layers list.
+
+- **Duplicate** (<kbd>⌘</kbd> <kbd>D</kbd>) adds another view of the same
+  file at the end of the mockup’s group. A change to the page shows in both.
+- **Duplicate as new file** makes a copy with the same page and files, size and chat,
+  its name ending in “copy”, that you can change on its own.
+- **Remove from canvas** takes away this view, as <kbd>Delete</kbd> does.
+- **Delete file** deletes the mockup and every view of it at once, with no
+  confirm. One <kbd>⌘</kbd> <kbd>Z</kbd> brings them all back. A mention of a
+  deleted mockup shows its name struck through and opens nothing.
 
 Mockups take a frame’s [sizes](/guides/frames#sizes): **Device size** sets
 one of the same device presets, dragging a corner snaps to them (hold
