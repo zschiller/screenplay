@@ -1,10 +1,5 @@
 export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue }
+  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
 /**
  * Mirror a value up to the parent screenplay canvas under the given key. The
@@ -33,7 +28,7 @@ export type JsonValue =
 export function useSharedState<T extends JsonValue | undefined>(
   key: string,
   value: T,
-  setter?: (value: T) => void,
+  setter?: (value: T) => void
 ): void
 
 /**
@@ -43,7 +38,7 @@ export function useSharedState<T extends JsonValue | undefined>(
  */
 export function setSharedState(
   key: string,
-  value: JsonValue | undefined,
+  value: JsonValue | undefined
 ): () => void
 
 /**
@@ -53,7 +48,7 @@ export function setSharedState(
  */
 export function subscribeSharedState(
   key: string,
-  onChange: (value: JsonValue | undefined) => void,
+  onChange: (value: JsonValue | undefined) => void
 ): () => void
 
 /** Drop a key from the published state. */

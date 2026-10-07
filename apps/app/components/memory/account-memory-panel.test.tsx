@@ -197,7 +197,9 @@ describe("Settings › Memory (#1513)", () => {
       (within(form).getByLabelText("Memory") as HTMLTextAreaElement).value
     ).toBe("Use pnpm.")
     expect(
-      within(form).getByRole("button", { name: "Save" }).hasAttribute("disabled")
+      within(form)
+        .getByRole("button", { name: "Save" })
+        .hasAttribute("disabled")
     ).toBe(false)
   })
 
@@ -221,7 +223,9 @@ describe("Settings › Memory (#1513)", () => {
     expect(
       await within(confirm).findByText("Couldn’t delete the memory. Try again.")
     ).not.toBeNull()
-    expect(screen.getByText("Prefers small fixes over redesigns.")).not.toBeNull()
+    expect(
+      screen.getByText("Prefers small fixes over redesigns.")
+    ).not.toBeNull()
   })
 
   it("says so when memory can’t be loaded", async () => {

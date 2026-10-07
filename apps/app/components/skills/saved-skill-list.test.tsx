@@ -149,9 +149,7 @@ describe("SavedSkillList", () => {
       name: "release-checklist",
     })
     await within(dialog).findByText("Bump the version.")
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "tag.sh" })
-    )
+    fireEvent.click(within(dialog).getByRole("button", { name: "tag.sh" }))
     expect(within(dialog).getByText('git tag "v$1"')).toBeTruthy()
     fireEvent.click(
       within(dialog).getByRole("button", { name: "changelog-template.md" })

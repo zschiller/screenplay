@@ -74,7 +74,7 @@ export type KnobValue = string | number | boolean
  *   })
  */
 export function useKnob<T extends Knob>(
-  def: T,
+  def: T
 ): T extends BooleanKnob
   ? boolean
   : T extends NumberKnob | SliderKnob
@@ -85,5 +85,5 @@ export function getKnobValue(id: string): KnobValue | undefined
 
 export function registerKnob(
   def: Knob,
-  onChange: (value: KnobValue) => void,
+  onChange: (value: KnobValue) => void
 ): () => void

@@ -1,14 +1,14 @@
 name: CI
 
-# Runs the workspace test suite, typecheck and lint on every push and pull
-# request. This is the gate that the manual publish workflows and Vercel
-# deploys don't provide — Vercel only runs `next build`, so without this a
+# Runs the workspace test suite, typecheck, lint and a format check on every
+# push and pull request. This is the gate that the manual publish workflows
+# and Vercel deploys don't provide — Vercel only runs `next build`, so without this a
 # broken test could merge and ship unnoticed.
 #
-# The jobs run side by side: typecheck, lint, the app's unit tests in three
-# shards, and the browser tests (`*.browser.test.ts`, a real Chrome, Xvfb and ffmpeg)
-# on a runner of their own so they aren't starved by the rest. `test` is the
-# one check that says whether all of them passed.
+# The jobs run side by side: typecheck, lint, format, the app's unit tests in
+# three shards, and the browser tests (`*.browser.test.ts`, a real Chrome, Xvfb
+# and ffmpeg) on a runner of their own so they aren't starved by the rest.
+# `test` is the one check that says whether all of them passed.
 
 on:
   push:
@@ -86,6 +86,21 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+
+  # Prettier over all TypeScript in apps/ and packages/. To fix what it lists,
+  # run `pnpm exec prettier --write` on those files.
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Check formatting
+        run: pnpm format:check
 
   unit:
     runs-on: ubuntu-latest
@@ -177,7 +192,7 @@ jobs:
   # The one check to require: green only when every job above is.
   test:
     if: always()
-    needs: [typecheck, lint, unit, browser]
+    needs: [typecheck, lint, format, unit, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

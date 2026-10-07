@@ -100,7 +100,7 @@ export function buildDevServerTools(ports: DevServerPorts) {
 
     restart_dev_server: tool({
       description:
-        "Restart this Workspace’s dev server (the one behind the live preview), the same as the user’s \"Restart dev server\" action. Files and uncommitted changes are untouched. Use it when the server is wedged or crashed, or after a change it doesn’t hot-reload (config files, env vars, new dependencies). Never start a second dev server yourself with a shell command: it would fight this one for the port. Waits for the server to answer, then returns the start of the new log.",
+        'Restart this Workspace’s dev server (the one behind the live preview), the same as the user’s "Restart dev server" action. Files and uncommitted changes are untouched. Use it when the server is wedged or crashed, or after a change it doesn’t hot-reload (config files, env vars, new dependencies). Never start a second dev server yourself with a shell command: it would fight this one for the port. Waits for the server to answer, then returns the start of the new log.',
       inputSchema: z.object({}),
       execute: () => launch(ports, "restarted", "restart"),
     }),

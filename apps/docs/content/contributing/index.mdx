@@ -114,11 +114,13 @@ pnpm build       # production builds (apps/app runs its migrations first)
 pnpm lint        # ESLint
 pnpm typecheck   # tsc --noEmit
 pnpm format      # Prettier
+pnpm format:check # Prettier, checking only
 pnpm test        # Vitest
 ```
 
-CI runs `pnpm lint`, `pnpm typecheck` and `pnpm test` on every pull request. A
-lint error fails it; warnings don’t.
+CI runs `pnpm lint`, `pnpm format:check`, `pnpm typecheck` and `pnpm test` on
+every pull request. A lint error or an unformatted file fails it; lint warnings
+don’t.
 
 In `apps/app`, `pnpm test:watch` runs Vitest in watch mode. Database helpers:
 
