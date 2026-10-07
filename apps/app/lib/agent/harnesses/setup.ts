@@ -10,13 +10,13 @@ import {
   probeHostFacts,
   type HostBinaryProber,
 } from "./host-binary"
-import { HARNESSES } from "./index"
+import { hostCatalog } from "./index"
 import { defaultHarnessProcessRunner } from "./process-runner"
 import type {
-  Harness,
   HarnessModelChoice,
   HarnessProcessRunner,
   HostFacts,
+  HostHarness,
 } from "./types"
 
 /**
@@ -167,14 +167,14 @@ export interface HarnessSetup {
  */
 export function createHarnessSetup(
   opts: {
-    harnesses?: Harness[]
+    harnesses?: HostHarness[]
     probe?: HostBinaryProber
     run?: HarnessProcessRunner
     availability?: HarnessResolver
     facts?: () => Promise<HostFacts>
   } = {}
 ): HarnessSetup {
-  const harnesses = opts.harnesses ?? HARNESSES
+  const harnesses = opts.harnesses ?? hostCatalog()
   const probe = opts.probe ?? defaultHostBinaryProber
   const run = opts.run ?? defaultHarnessProcessRunner
   const availability = opts.availability ?? harnessAvailability
@@ -190,7 +190,7 @@ export function createHarnessSetup(
    * descriptor without a probe is `null` ("can't tell"), which the row policy
    * treats as *not authed* (offer sign-in), never a false "connected".
    */
-  async function resolveRow(harness: Harness): Promise<HarnessSetupRow> {
+  async function resolveRow(harness: HostHarness): Promise<HarnessSetupRow> {
     const installed = await probe(harness.hostBinary)
     const [authenticated, version, path] = await Promise.all([
       installed && harness.probeAuth ? harness.probeAuth(run) : null,
@@ -291,7 +291,7 @@ function runMessage(kind: HarnessSetupActionKind, label: string): string {
  * can run, so it offers no action at all.
  */
 function describeRow(
-  harness: Harness,
+  harness: HostHarness,
   installed: boolean,
   authenticated: boolean | null
 ): Omit<HarnessSetupRow, "version" | "path"> {
