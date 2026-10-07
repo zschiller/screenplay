@@ -41,15 +41,15 @@ How Screenplay looks, reads and behaves: the rules every UI change in `apps/app`
 
 ## Components
 
-- **Spinners**: the regular `Spinner` for loading and progress; the 9-dot spinner only for agent activity (runs, streaming, thinking).
-- **Kbd** is for keys only, one cap per key, in the UI font. Pointer actions (Click, Drag) are plain muted text. Shortcuts go in a control’s tooltip, never in a hint row under a text box.
+- **Spinners**: the regular `Spinner` for loading and progress; the 9-dot `AgentActivityDots` only for agent activity (runs, streaming, thinking).
+- **Kbd** is for keys only, one cap per key, in the UI font (`apps/app/test/kbd-keys-only.test.ts` fails on a mouse word). Pointer actions (Click, Drag) are plain muted text. Shortcuts go in a control’s tooltip, never in a hint row under a text box.
 - **Surfaces**: tooltips, toasts, menus (`DropdownMenu`, `Select`) and the `@` and `/` lists in the composer and Documents are inverted (the `inverted` class). Searchable pickers built on `Command` (the chat picker, comboboxes) use the normal popover surface (`packages/ui/src/components/command.tsx`), as do popovers, hover cards and dialogs.
 - **Menus** hug their widest item, 224px minimum, never wrap; the sizing lives in `packages/ui/src/components/dropdown-menu.tsx`, so individual menus set no width. Every item carries an icon. A checkmark column appears only when items are checkable. A menu leaves out what a tap already does (no “Open”).
 - **One of a few choices** uses `Tabs`, not `ToggleGroup`.
 - **List pickers in a dialog** use the repo picker’s chrome (`apps/app/components/picker-dialog.tsx`).
 - **Row ⋯ actions** overlay the row’s end on hover with a 16px fade and never reserve space (`apps/app/components/panels/layer-rows/row-action.ts`).
 - **Hover-revealed accessories** keep their place with `visibility`, not `display`, so nothing shifts. A name label never moves on selection or hover.
-- **Dialogs**: body edges (fields, list rows, footer buttons) sit on the title’s 20px gutter. A dialog keeps its height across loading, empty and error states. Hairlines show only while content is scrolled (`apps/app/components/scroll-hairline.tsx`). A scrolling body has no top padding (`px-5 pb-5`; see `RepoDialogBody` in `apps/app/components/repo-dialog-layout.tsx`).
+- **Dialogs**: body edges (fields, list rows, footer buttons) sit on the title’s 20px gutter. A dialog keeps its height across loading, empty and error states. A scrolling body goes in `DialogScrollBody` (`apps/app/components/scroll-hairline.tsx`), which drops its top padding and shows hairlines only while content is scrolled.
 - **Settings sub-items** open as dialogs over Settings or Canvas settings; settings group labels are sentence case.
 - **Confirm buttons** say the plain verb (Delete, Remove), even when an option widens the action. Destructive confirms use the stock `destructive` variant.
 - **Approvals** (merge, saving a skill) use the AI Elements `Confirmation` (`packages/ui/src/components/confirmation.tsx`).
