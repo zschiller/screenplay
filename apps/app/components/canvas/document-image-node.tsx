@@ -5,7 +5,9 @@ import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
 import { FileImageIcon } from "@workspace/ui/components/icons"
 import { cn } from "@workspace/ui/lib/utils"
 import { attachmentUrl } from "@/lib/chat-attachments"
+import { MockupEmbed } from "@/components/canvas/mockup-embed"
 import { isWebImageSource } from "@/lib/document-image"
+import { mockupEmbedId } from "@/lib/document-embed"
 import { fetchPngDensity, imageDensity } from "@/lib/image-density"
 import { useRoomId } from "@/lib/yjs/context"
 
@@ -14,15 +16,43 @@ import { useRoomId } from "@/lib/yjs/context"
  * canvas file path, shown through the members-only files route; a file that's
  * gone (deleted, or moved by an agent) leaves a quiet row naming it.
  *
+ * An image whose `src` is a mockup URL is a live Mockup embed instead
+ * (`lib/document-embed.ts`).
+ *
  * It shows at its pixel density (`lib/image-density.ts`), so a retina
  * screenshot is the size it was on screen, never wider than the column. It
  * stays hidden until both its size and its PNG hint are in, so it doesn't
  * show big and then shrink.
  */
 export function DocumentImageNodeView({ node, selected }: NodeViewProps) {
-  const roomId = useRoomId()
   const src = (node.attrs.src as string | null) ?? ""
   const alt = (node.attrs.alt as string | null) ?? ""
+  // A mockup URL in place of a path embeds the Mockup live (#1888).
+  const mockupId = mockupEmbedId(src)
+  if (mockupId) {
+    return (
+      <NodeViewWrapper
+        className="my-3"
+        data-document-embed=""
+        data-drag-handle=""
+      >
+        <MockupEmbed id={mockupId} name={alt} selected={selected} />
+      </NodeViewWrapper>
+    )
+  }
+  return <DocumentImageView src={src} alt={alt} selected={selected} />
+}
+
+function DocumentImageView({
+  src,
+  alt,
+  selected,
+}: {
+  src: string
+  alt: string
+  selected: boolean
+}) {
+  const roomId = useRoomId()
   const url = isWebImageSource(src) ? src : attachmentUrl(roomId, src)
   // Keyed by the URL, so a fixed path tries again.
   const [failed, setFailed] = useState<string | null>(null)

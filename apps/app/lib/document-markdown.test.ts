@@ -38,6 +38,7 @@ describe("Document Markdown round trip", () => {
     ],
     ["an image", "![Sketch](uploads/sketch.png)"],
     ["an image path with spaces", "![Flow](<uploads/user flow.png>)"],
+    ["a Mockup embed", "![Option B](mockup:mock-1)"],
     ["a document mention", "See [@Notes](mention:document:doc-2)."],
     ["a chat mention", "Ask [@Fix the login](mention:chat:ws-1)."],
     ["a mockup mention", "Like [@Hero](mention:mockup:mock-1)."],

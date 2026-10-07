@@ -139,7 +139,13 @@ import { chatStore } from "@/lib/chat-store"
 import { createMockupChatLink } from "@/lib/canvas/mockup-chat-link"
 import { MockupChatLinkProvider } from "@/components/canvas/mockup-chat-link"
 import { FileModal } from "@/components/canvas/file-modal"
-import { FileDropSurface } from "@/components/canvas/file-drop-surface"
+import {
+  documentEmbedSpotAt,
+  FileDropSurface,
+  type DocumentEmbedSpot,
+} from "@/components/canvas/file-drop-surface"
+import { CanvasOpsContext } from "@/components/canvas/mockup-embed"
+import { insertMockupEmbed } from "@/lib/document-embed"
 import {
   FileTileActionsContext,
   type FileTileActions,
@@ -1308,6 +1314,27 @@ export function Canvas({
       selectNamedLayerRef.current(placed.viewId)
     },
     [ops]
+  )
+
+  // A Mockup tile dropped on a Document's text (#1888): an embed in the gap
+  // between blocks it was dropped at, the Document selected.
+  const { getDocumentEditor } = reference
+  const embedFileAt = useCallback(
+    (fileId: string, clientX: number, clientY: number) =>
+      ops.fileOf(fileId)?.kind === "mockup"
+        ? documentEmbedSpotAt(clientX, clientY, getDocumentEditor)
+        : null,
+    [ops, getDocumentEditor]
+  )
+  const embedFile = useCallback(
+    (fileId: string, spot: DocumentEmbedSpot) => {
+      const editor = getDocumentEditor(spot.documentId)
+      const file = ops.fileOf(fileId)
+      if (!editor || !file) return
+      insertMockupEmbed(editor, spot.pos, file.id, file.title)
+      selectNamedLayerRef.current(spot.documentId)
+    },
+    [ops, getDocumentEditor]
   )
 
   // A reply's file tiles' ⋯ menu (#1887).
@@ -2637,101 +2664,103 @@ export function Canvas({
   } satisfies ComponentProps<typeof RoomSidebar>)
   return (
     <MoveToPageContext.Provider value={moveToPage}>
-      {/* The agent drives this canvas's frames and mockups on the Mac
+      {/* What a Document's Mockup embeds write their Knobs through (#1888). */}
+      <CanvasOpsContext.Provider value={ops}>
+        {/* The agent drives this canvas's frames and mockups on the Mac
         (#1389), and its mockups on hosted (#1391). */}
-      {macShell ? (
-        <FrameDriveRelay
-          roomId={roomId}
-          viewerId={userId ?? null}
-          frameControl={collections.frameControl}
-          reveal={revealFrame}
-        />
-      ) : (
-        <FrameDriveViewRelay
-          roomId={roomId}
-          viewerId={userId ?? null}
-          frameControl={collections.frameControl}
-          asks={collections.frameDriveAsks}
-          reveal={revealFrame}
-        />
-      )}
-      {chatTarget.pendingProbes.map(({ agentId, sandboxName }) => (
-        <LogProbe
-          key={agentId}
-          sandboxName={sandboxName}
-          onReady={() => {
-            // Expand the collapsed chat panel once the new Workspace's
-            // sandbox streams logs, as it's selected — not earlier, when
-            // there's nothing to show yet.
-            chatTarget.handlePendingReady(agentId)
-            chatTarget.expandPanel()
-          }}
-        />
-      ))}
-      <AddRepositoryFlowProvider value={addRepository}>
-        <ChatsMenuProvider
-          userId={userId ?? "anonymous"}
-          roomId={roomId}
-          repos={repos}
-          branches={agents}
-          iframeLayers={iframeLayers}
-          diffStats={diffStats}
-          branchPrs={branchPrs}
-          onSelectWorkspace={chatTarget.selectAgent}
-          onSelectSketchChat={chatTarget.selectSketchChat}
-          onRenameSketchChat={(chatId, label) =>
-            updateChatSession(chatId, { label })
-          }
-          onDeleteSketchChat={deleteSketchChat}
-          onRestartDevServer={branchActions.restartDevServer}
-          onCreatePr={branchActions.createPullRequest}
-          onRecreateBranch={branchActions.recreate}
-          onRetryBranch={retryBranch}
-          onMarkBranchDone={branchActions.markDone}
-          onReopenBranch={branchActions.reopen}
-          onRemoveBranch={removeBranchIntake}
-          onPlayBranch={handlePlayAgent}
-          onShowRoutes={handleShowRoutesForAgent}
-          onUpdateBranch={updateAgentInStorage}
-        >
-          <ResizablePanelGroup
-            orientation="horizontal"
-            className="fixed inset-0 bg-canvas-plane"
-            defaultLayout={initialLayout}
-            onLayoutChange={onLayoutChange}
-            onLayoutChanged={onLayoutChanged}
+        {macShell ? (
+          <FrameDriveRelay
+            roomId={roomId}
+            viewerId={userId ?? null}
+            frameControl={collections.frameControl}
+            reveal={revealFrame}
+          />
+        ) : (
+          <FrameDriveViewRelay
+            roomId={roomId}
+            viewerId={userId ?? null}
+            frameControl={collections.frameControl}
+            asks={collections.frameDriveAsks}
+            reveal={revealFrame}
+          />
+        )}
+        {chatTarget.pendingProbes.map(({ agentId, sandboxName }) => (
+          <LogProbe
+            key={agentId}
+            sandboxName={sandboxName}
+            onReady={() => {
+              // Expand the collapsed chat panel once the new Workspace's
+              // sandbox streams logs, as it's selected — not earlier, when
+              // there's nothing to show yet.
+              chatTarget.handlePendingReady(agentId)
+              chatTarget.expandPanel()
+            }}
+          />
+        ))}
+        <AddRepositoryFlowProvider value={addRepository}>
+          <ChatsMenuProvider
+            userId={userId ?? "anonymous"}
+            roomId={roomId}
+            repos={repos}
+            branches={agents}
+            iframeLayers={iframeLayers}
+            diffStats={diffStats}
+            branchPrs={branchPrs}
+            onSelectWorkspace={chatTarget.selectAgent}
+            onSelectSketchChat={chatTarget.selectSketchChat}
+            onRenameSketchChat={(chatId, label) =>
+              updateChatSession(chatId, { label })
+            }
+            onDeleteSketchChat={deleteSketchChat}
+            onRestartDevServer={branchActions.restartDevServer}
+            onCreatePr={branchActions.createPullRequest}
+            onRecreateBranch={branchActions.recreate}
+            onRetryBranch={retryBranch}
+            onMarkBranchDone={branchActions.markDone}
+            onReopenBranch={branchActions.reopen}
+            onRemoveBranch={removeBranchIntake}
+            onPlayBranch={handlePlayAgent}
+            onShowRoutes={handleShowRoutesForAgent}
+            onUpdateBranch={updateAgentInStorage}
           >
-            {/* Sidebar */}
-            <ResizablePanel
-              id="sidebar"
-              defaultSize="240px"
-              minSize="180px"
-              maxSize="480px"
-              collapsible
-              collapsedSize="0px"
-              groupResizeBehavior="preserve-pixel-size"
-              panelRef={sidebarPanelRef}
-              inert={sidebarCollapsed}
-              onResize={(size, _id, prev) => {
-                setSidebarCollapsed(size.inPixels === 0)
-                if (prev) {
-                  const delta = size.inPixels - prev.inPixels
-                  if (delta !== 0) {
-                    const ref = transformRef.current
-                    if (ref) {
-                      const { positionX, positionY, scale } = ref.state
-                      ref.setTransform(positionX - delta, positionY, scale, 0)
+            <ResizablePanelGroup
+              orientation="horizontal"
+              className="fixed inset-0 bg-canvas-plane"
+              defaultLayout={initialLayout}
+              onLayoutChange={onLayoutChange}
+              onLayoutChanged={onLayoutChanged}
+            >
+              {/* Sidebar */}
+              <ResizablePanel
+                id="sidebar"
+                defaultSize="240px"
+                minSize="180px"
+                maxSize="480px"
+                collapsible
+                collapsedSize="0px"
+                groupResizeBehavior="preserve-pixel-size"
+                panelRef={sidebarPanelRef}
+                inert={sidebarCollapsed}
+                onResize={(size, _id, prev) => {
+                  setSidebarCollapsed(size.inPixels === 0)
+                  if (prev) {
+                    const delta = size.inPixels - prev.inPixels
+                    if (delta !== 0) {
+                      const ref = transformRef.current
+                      if (ref) {
+                        const { positionX, positionY, scale } = ref.state
+                        ref.setTransform(positionX - delta, positionY, scale, 0)
+                      }
                     }
                   }
-                }
-              }}
-            >
-              <RoomSidebar {...sidebarProps} />
-            </ResizablePanel>
-            <ResizableHandle className="focus-visible:ring-0" />
+                }}
+              >
+                <RoomSidebar {...sidebarProps} />
+              </ResizablePanel>
+              <ResizableHandle className="focus-visible:ring-0" />
 
-            {/* Canvas */}
-            {/* react-resizable-panels wraps each panel's children in a div with
+              {/* Canvas */}
+              {/* react-resizable-panels wraps each panel's children in a div with
             `overflow: auto` + `max-width/height: 100%`. The canvas fills that
             wrapper exactly (`h-full w-full`), so sub-pixel width rounding mid
             drag-resize momentarily overflows it and flashes a scrollbar — which
@@ -2740,224 +2769,230 @@ export function Canvas({
             the transformed world is clipped — so pin it to `overflow: hidden`.
             Inline style (not a className) is required: the library sets
             `overflow: auto` inline, which wins over any class. */}
-            <ResizablePanel id="canvas" style={{ overflow: "hidden" }}>
-              <div
-                className="relative isolate h-full w-full"
-                data-canvas-wrapper
-                ref={canvasWrapperRef}
-                style={{
-                  clipPath: "inset(0)",
-                  cursor: isDragPanning
-                    ? "grabbing"
-                    : spaceHeld
-                      ? "grab"
-                      : documentMode ||
-                          frameMode ||
-                          mockupMode ||
-                          commentMode ||
-                          targeting.pickActive
-                        ? "crosshair"
-                        : activeGapHandle
-                          ? "col-resize"
-                          : gesturePreview.reorder
-                            ? "grabbing"
-                            : hoveredReorderIframeLayerId
-                              ? "grab"
-                              : undefined,
-                }}
-                onPointerDownCapture={
-                  canvasGestureHandlers.onPointerDownCapture
-                }
-                onPointerDown={canvasGestureHandlers.onPointerDown}
-                onPointerMove={(e) => {
-                  handlePointerMove(e)
-                  canvasGestureHandlers.onPointerMove(e)
-                }}
-                onPointerUp={canvasGestureHandlers.onPointerUp}
-                onPointerLeave={handlePointerLeave}
-                onClick={
-                  commentMode
-                    ? handleCanvasClick
-                    : targeting.pickActive
-                      ? targeting.handleClick
-                      : undefined
-                }
-              >
-                {/* Device-snap ghosts render BEFORE TransformWrapper in DOM order
+              <ResizablePanel id="canvas" style={{ overflow: "hidden" }}>
+                <div
+                  className="relative isolate h-full w-full"
+                  data-canvas-wrapper
+                  ref={canvasWrapperRef}
+                  style={{
+                    clipPath: "inset(0)",
+                    cursor: isDragPanning
+                      ? "grabbing"
+                      : spaceHeld
+                        ? "grab"
+                        : documentMode ||
+                            frameMode ||
+                            mockupMode ||
+                            commentMode ||
+                            targeting.pickActive
+                          ? "crosshair"
+                          : activeGapHandle
+                            ? "col-resize"
+                            : gesturePreview.reorder
+                              ? "grabbing"
+                              : hoveredReorderIframeLayerId
+                                ? "grab"
+                                : undefined,
+                  }}
+                  onPointerDownCapture={
+                    canvasGestureHandlers.onPointerDownCapture
+                  }
+                  onPointerDown={canvasGestureHandlers.onPointerDown}
+                  onPointerMove={(e) => {
+                    handlePointerMove(e)
+                    canvasGestureHandlers.onPointerMove(e)
+                  }}
+                  onPointerUp={canvasGestureHandlers.onPointerUp}
+                  onPointerLeave={handlePointerLeave}
+                  onClick={
+                    commentMode
+                      ? handleCanvasClick
+                      : targeting.pickActive
+                        ? targeting.handleClick
+                        : undefined
+                  }
+                >
+                  {/* Device-snap ghosts render BEFORE TransformWrapper in DOM order
                 so the iframeLayer iframes paint on top — the parts of each ghost
                 that extend past the active iframeLayer remain visible. Same
                 screen-space canvas approach as SelectionOverlay so the 1px
                 outlines stay crisp at any zoom. The snapped device's label is
                 ResizeSnapLabel, above the frames. */}
-                <ResizeSnapUnderlay {...resizeSnapProps} />
+                  <ResizeSnapUnderlay {...resizeSnapProps} />
 
-                <GroupMergeUnderlay
-                  zoom={zoom}
-                  viewportPos={viewportPos}
-                  rects={gesturePreview.mergeRects}
-                />
+                  <GroupMergeUnderlay
+                    zoom={zoom}
+                    viewportPos={viewportPos}
+                    rects={gesturePreview.mergeRects}
+                  />
 
-                {/* "+ frame" placeholder outlines. Underlay so the slot reads as
+                  {/* "+ frame" placeholder outlines. Underlay so the slot reads as
                 a backdrop hint rather than overlay chrome — selection rings
                 and iframe content paint on top. */}
-                <PlaceholderRectsUnderlay
-                  zoom={zoom}
-                  viewportPos={viewportPos}
-                  rects={placeholderRects}
-                />
-
-                {/* Every Layer's resting hairline, beneath the content. */}
-                <LayerEdgesUnderlay
-                  layouts={effectiveIframeLayerLayouts}
-                  dragShift={reorderDragShift}
-                  camera={camera.liveCamera}
-                />
-
-                <CanvasContentContext.Provider
-                  value={
-                    <LiveZoomContext.Provider value={camera.liveZoom}>
-                      <LabelLayerContext.Provider value={labelLayer}>
-                        <div
-                          className="relative"
-                          style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
-                        >
-                          <MockupChatLinkProvider value={mockupChatLink}>
-                            <CanvasMemberLayer
-                              iframeLayerGroups={iframeLayerGroups}
-                              iframeLayers={iframeLayers}
-                              markdownLayers={markdownLayers}
-                              workingChats={workingChats}
-                              mockupLayers={mockupLayers}
-                              selection={selection}
-                              onIframeWheel={camera.handleIframeWheel}
-                              reference={reference}
-                              reorderPreview={gesturePreview.reorder}
-                              gestureLayerHandlers={gestureLayerHandlers}
-                              effectiveIframeLayerLayouts={
-                                effectiveIframeLayerLayouts
-                              }
-                              iframeLayerLayouts={iframeLayerLayouts}
-                              groupZIndex={groupZIndex}
-                              groupDisplayNames={groupDisplayNames}
-                              placeholderRects={placeholderRects}
-                              placeholderTool={
-                                frameMode
-                                  ? "frame"
-                                  : documentMode
-                                    ? "document"
-                                    : null
-                              }
-                              onPlaceholderAdd={addAtPlaceholder}
-                              remoteSelectionColors={remoteSelectionColors}
-                              remoteGroupSelectionColors={
-                                remoteGroupSelectionColors
-                              }
-                              agentDomains={agentDomains}
-                              agents={agents}
-                              onRestartWorkspace={
-                                memberCallbacks.onRestartWorkspace
-                              }
-                              onOpenLogs={openBranchLogs}
-                              onStartChat={drawAsk.startFrameChat}
-                              askingIframeLayerId={askFrameId}
-                              repos={repos}
-                              zoom={zoom}
-                              spaceHeld={spaceHeld}
-                              commentMode={commentMode}
-                              pickActive={targeting.pickActive}
-                              dimmedIframeLayerIds={targeting.dimmedIds}
-                              selfName={self?.name || "Anonymous"}
-                              selfColor={self?.color || "#888888"}
-                              editingDocumentLayerId={editingDocumentLayerId}
-                              setEditingDocumentLayerId={
-                                setEditingDocumentLayerId
-                              }
-                              focusedIframeLayerId={focusedIframeLayerId}
-                              setFocusedIframeLayerId={setFocusedIframeLayerId}
-                              frameControl={frameControl}
-                              sharedFrames={sharedFrames}
-                              createFlowIframeLayerId={createFlowIframeLayerId}
-                              setCreateFlowIframeLayerId={
-                                setCreateFlowIframeLayerId
-                              }
-                              removeIframeLayer={removeIframeLayer}
-                              removeMockup={removeMockup}
-                              removeDocument={removeDocument}
-                              handlePlayIframeLayer={handlePlayIframeLayer}
-                              onAskForKnob={memberCallbacks.onAskForKnob}
-                              handleCaptureReadyChange={
-                                handleCaptureReadyChange
-                              }
-                              handleCaptureDirty={handleCaptureDirty}
-                              layerMutations={layerMutations}
-                              groupActions={groupActions}
-                            />
-                          </MockupChatLinkProvider>
-                        </div>
-                      </LabelLayerContext.Provider>
-                    </LiveZoomContext.Provider>
-                  }
-                >
-                  <CanvasTransform
-                    transformRef={transformRef}
-                    wrapperProps={camera.transformWrapperProps}
+                  <PlaceholderRectsUnderlay
+                    zoom={zoom}
+                    viewportPos={viewportPos}
+                    rects={placeholderRects}
                   />
-                </CanvasContentContext.Provider>
 
-                {/* The pixel grid when zoomed far in: over the content, under
+                  {/* Every Layer's resting hairline, beneath the content. */}
+                  <LayerEdgesUnderlay
+                    layouts={effectiveIframeLayerLayouts}
+                    dragShift={reorderDragShift}
+                    camera={camera.liveCamera}
+                  />
+
+                  <CanvasContentContext.Provider
+                    value={
+                      <LiveZoomContext.Provider value={camera.liveZoom}>
+                        <LabelLayerContext.Provider value={labelLayer}>
+                          <div
+                            className="relative"
+                            style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
+                          >
+                            <MockupChatLinkProvider value={mockupChatLink}>
+                              <CanvasMemberLayer
+                                iframeLayerGroups={iframeLayerGroups}
+                                iframeLayers={iframeLayers}
+                                markdownLayers={markdownLayers}
+                                workingChats={workingChats}
+                                mockupLayers={mockupLayers}
+                                selection={selection}
+                                onIframeWheel={camera.handleIframeWheel}
+                                reference={reference}
+                                reorderPreview={gesturePreview.reorder}
+                                gestureLayerHandlers={gestureLayerHandlers}
+                                effectiveIframeLayerLayouts={
+                                  effectiveIframeLayerLayouts
+                                }
+                                iframeLayerLayouts={iframeLayerLayouts}
+                                groupZIndex={groupZIndex}
+                                groupDisplayNames={groupDisplayNames}
+                                placeholderRects={placeholderRects}
+                                placeholderTool={
+                                  frameMode
+                                    ? "frame"
+                                    : documentMode
+                                      ? "document"
+                                      : null
+                                }
+                                onPlaceholderAdd={addAtPlaceholder}
+                                remoteSelectionColors={remoteSelectionColors}
+                                remoteGroupSelectionColors={
+                                  remoteGroupSelectionColors
+                                }
+                                agentDomains={agentDomains}
+                                agents={agents}
+                                onRestartWorkspace={
+                                  memberCallbacks.onRestartWorkspace
+                                }
+                                onOpenLogs={openBranchLogs}
+                                onStartChat={drawAsk.startFrameChat}
+                                askingIframeLayerId={askFrameId}
+                                repos={repos}
+                                zoom={zoom}
+                                spaceHeld={spaceHeld}
+                                commentMode={commentMode}
+                                pickActive={targeting.pickActive}
+                                dimmedIframeLayerIds={targeting.dimmedIds}
+                                selfName={self?.name || "Anonymous"}
+                                selfColor={self?.color || "#888888"}
+                                editingDocumentLayerId={editingDocumentLayerId}
+                                setEditingDocumentLayerId={
+                                  setEditingDocumentLayerId
+                                }
+                                focusedIframeLayerId={focusedIframeLayerId}
+                                setFocusedIframeLayerId={
+                                  setFocusedIframeLayerId
+                                }
+                                frameControl={frameControl}
+                                sharedFrames={sharedFrames}
+                                createFlowIframeLayerId={
+                                  createFlowIframeLayerId
+                                }
+                                setCreateFlowIframeLayerId={
+                                  setCreateFlowIframeLayerId
+                                }
+                                removeIframeLayer={removeIframeLayer}
+                                removeMockup={removeMockup}
+                                removeDocument={removeDocument}
+                                handlePlayIframeLayer={handlePlayIframeLayer}
+                                onAskForKnob={memberCallbacks.onAskForKnob}
+                                handleCaptureReadyChange={
+                                  handleCaptureReadyChange
+                                }
+                                handleCaptureDirty={handleCaptureDirty}
+                                layerMutations={layerMutations}
+                                groupActions={groupActions}
+                              />
+                            </MockupChatLinkProvider>
+                          </div>
+                        </LabelLayerContext.Provider>
+                      </LiveZoomContext.Provider>
+                    }
+                  >
+                    <CanvasTransform
+                      transformRef={transformRef}
+                      wrapperProps={camera.transformWrapperProps}
+                    />
+                  </CanvasContentContext.Provider>
+
+                  {/* The pixel grid when zoomed far in: over the content, under
                 the labels and the selection. */}
-                <PixelGridOverlay camera={camera.liveCamera} />
+                  <PixelGridOverlay camera={camera.liveCamera} />
 
-                {/* Comment pins live in their own screen-space layer above the
+                  {/* Comment pins live in their own screen-space layer above the
                   selection overlay so pins/popovers aren't painted over by it.
                   The transform mirrors what TransformComponent applies, so the
                   children still position in world coordinates. In the local
                   build there are no persisted threads (so no pins); this still
                   renders the composer that anchors an element/selection and
                   sends it to the agent (#417). */}
-                <div
-                  className="pointer-events-none absolute inset-0 z-(--z-canvas-annotations)"
-                  data-camera-overlay=""
-                  style={{
-                    transformOrigin: "0 0",
-                    transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
-                    // Hidden mid-zoom AND mid-pan: this transform reads the deferred
-                    // zoom/viewportPos, so it would lag the canvas and snap on settle.
-                    visibility: isCameraMoving ? "hidden" : undefined,
-                  }}
-                >
-                  <Comments
-                    roomId={roomId}
-                    zoom={zoom}
-                    newCommentPos={reference.newCommentPos}
-                    onNewCommentPlaced={() => {
-                      reference.clearComposer()
-                      toolMode.set("select")
+                  <div
+                    className="pointer-events-none absolute inset-0 z-(--z-canvas-annotations)"
+                    data-camera-overlay=""
+                    style={{
+                      transformOrigin: "0 0",
+                      transform: `translate(${viewportPos.x}px, ${viewportPos.y}px) scale(${zoom})`,
+                      // Hidden mid-zoom AND mid-pan: this transform reads the deferred
+                      // zoom/viewportPos, so it would lag the canvas and snap on settle.
+                      visibility: isCameraMoving ? "hidden" : undefined,
                     }}
-                    onCancelComment={reference.clearComposer}
-                    iframeLayers={Array.from(iframeLayerLayouts.values())}
-                    frameInfo={commentFrameInfo}
-                    placements={commentPlacements.placements}
-                    getDocumentEditor={reference.getDocumentEditor}
-                    documentEditorsVersion={reference.documentEditorsVersion}
-                    commentThreads={commentThreads}
-                    activeThreadId={reference.activeThreadId}
-                    onActivateThread={reference.setActiveThread}
-                    describeLayer={describeCommentLayer}
-                    hidePins={commentPinsHidden}
-                    requests={commentRequests}
+                  >
+                    <Comments
+                      roomId={roomId}
+                      zoom={zoom}
+                      newCommentPos={reference.newCommentPos}
+                      onNewCommentPlaced={() => {
+                        reference.clearComposer()
+                        toolMode.set("select")
+                      }}
+                      onCancelComment={reference.clearComposer}
+                      iframeLayers={Array.from(iframeLayerLayouts.values())}
+                      frameInfo={commentFrameInfo}
+                      placements={commentPlacements.placements}
+                      getDocumentEditor={reference.getDocumentEditor}
+                      documentEditorsVersion={reference.documentEditorsVersion}
+                      commentThreads={commentThreads}
+                      activeThreadId={reference.activeThreadId}
+                      onActivateThread={reference.setActiveThread}
+                      describeLayer={describeCommentLayer}
+                      hidePins={commentPinsHidden}
+                      requests={commentRequests}
+                    />
+                  </div>
+
+                  {/* Takes a file tile dragged out of the chat (#1887). */}
+                  <FileDropSurface
+                    layouts={effectiveIframeLayerLayouts}
+                    camera={() => transformRef.current?.state ?? null}
+                    sizeOf={ops.fileViewSize}
+                    onDrop={(fileId, at) => void dropFile(fileId, at)}
+                    embedAt={embedFileAt}
+                    onEmbed={embedFile}
                   />
-                </div>
 
-                {/* Takes a file tile dragged out of the chat (#1887). */}
-                <FileDropSurface
-                  layouts={effectiveIframeLayerLayouts}
-                  camera={() => transformRef.current?.state ?? null}
-                  sizeOf={ops.fileViewSize}
-                  onDrop={(fileId, at) => void dropFile(fileId, at)}
-                />
-
-                {/* Portal target for floating frame toolbars. Lives above the
+                  {/* Portal target for floating frame toolbars. Lives above the
                   SelectionOverlay so the toolbar isn't painted over by hover
                   rings or resize handles. Children (rendered via createPortal
                   from iframe-layer) position themselves in canvas-wrapper
@@ -2965,377 +3000,382 @@ export function Canvas({
                   moved, reordered or resized so nothing covers what's being
                   dragged; opacity (not display) keeps the loop measuring, so
                   the toolbar comes back already in place. */}
-                <div
-                  id="frame-toolbar-portal"
-                  className={`pointer-events-none absolute inset-0 z-(--z-canvas-popovers) ${layerGestureActive ? "opacity-0" : ""}`}
-                />
+                  <div
+                    id="frame-toolbar-portal"
+                    className={`pointer-events-none absolute inset-0 z-(--z-canvas-popovers) ${layerGestureActive ? "opacity-0" : ""}`}
+                  />
 
-                {/* Portal target for the inline "Comment" bubble that appears
+                  {/* Portal target for the inline "Comment" bubble that appears
                   above text selections inside a document layer. Same reason
                   as the toolbar portal: the bubble lives inside the world
                   transform's stacking context, so an internal z-index can't
                   lift it above the SelectionOverlay sibling. Portaled out
                   and positioned via rAF from markdown-layer. */}
-                <div
-                  id="inline-comment-bubble-portal"
-                  className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
-                />
-
-                {/* Follows the live camera, so it stays on its Layers through
-                a pan or zoom. */}
-                <SelectionOverlay
-                  camera={camera.liveCamera}
-                  zoom={zoom}
-                  viewportPos={viewportPos}
-                  selectedIframeLayerIds={overlaySelectedIds}
-                  groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
-                  // An edited Document wears an interacting frame's 2px ring.
-                  focusedIframeLayerId={
-                    focusedIframeLayerId ?? editingDocumentLayerId
-                  }
-                  hoveredIframeLayerId={hoveredIframeLayerId}
-                  workspaceHighlightIds={workspaceHighlightIds}
-                  iframeLayerLayouts={effectiveIframeLayerLayouts}
-                  drivenFrames={drivenFrames}
-                  hideResizeHandles={
-                    editingDocumentLayerId !== null ||
-                    selectedGroupIds.size > 0 ||
-                    // An interacting frame is for using the preview, not
-                    // resizing it: its edges belong to the page.
-                    focusedIframeLayerId !== null ||
-                    // Nor is one someone else drives (#1387).
-                    [...selectedInteractiveIds].some((id) =>
-                      drivenByOther(frameControl.driverOf(id))
-                    )
-                  }
-                  gapHandles={gapHandles}
-                  reorderHandles={reorderHandles}
-                  hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
-                  reorderDragShift={reorderDragShift}
-                  marquee={gesturePreview.marqueeRect}
-                  frameDraft={
-                    frameDraft ??
-                    mockupDraft ??
-                    (askMockupBox && {
-                      startX: askMockupBox.x,
-                      startY: askMockupBox.y,
-                      currentX: askMockupBox.x + askMockupBox.width,
-                      currentY: askMockupBox.y + askMockupBox.height,
-                      pending: true,
-                    })
-                  }
-                  documentDraft={documentDraft}
-                  othersSelections={othersSelections}
-                  snapGuides={gesturePreview.snapGuides}
-                  isResizeSnapped={
-                    gesturePreview.resizeSnap?.snappedPresetId != null
-                  }
-                  inspectRect={(() => {
-                    // Show the live hover overlay while in commentMode or during an
-                    // armed element pick, so the user can see what element they're
-                    // about to anchor a comment to / target.
-                    const source =
-                      commentMode || targeting.pickActive
-                        ? reference.inspectHover
-                        : null
-                    if (!source) return null
-                    const layout = iframeLayerLayouts.get(source.iframeLayerId)
-                    if (!layout) return null
-                    return {
-                      x: layout.x + source.rect.x,
-                      y: layout.y + source.rect.y,
-                      width: source.rect.width,
-                      height: source.rect.height,
-                    }
-                  })()}
-                  highlightRect={targeting.highlightRect}
-                />
-                {/* The snapped device's name, beside the red selection rect and
-                above every frame, so a neighbouring frame can't cover it. */}
-                <ResizeSnapLabel {...resizeSnapProps} />
-                <Cursors
-                  viewport={{ ...viewportPos, zoom }}
-                  pages={pages}
-                  pageId={currentPageId}
-                />
-                {chatAnchor && self?.message != null ? (
-                  <CursorChat
-                    screenX={chatAnchor.x * zoom + viewportPos.x}
-                    screenY={chatAnchor.y * zoom + viewportPos.y}
-                    color={self.color}
-                    value={self.message}
-                    onChange={(next) => setPresence({ message: next })}
-                    onClose={closeCursorChat}
+                  <div
+                    id="inline-comment-bubble-portal"
+                    className="pointer-events-none absolute inset-0 z-(--z-canvas-popovers)"
                   />
-                ) : null}
-                {/* A drawn Mockup box asking what to show already took the click. */}
-                {isCanvasEmpty && !askMockupBox && (
-                  <CanvasEmptyState toolMode={toolMode} repos={repos} />
-                )}
-                {/* Window-drag strip: spans the full toolbar height across the top
+
+                  {/* Follows the live camera, so it stays on its Layers through
+                a pan or zoom. */}
+                  <SelectionOverlay
+                    camera={camera.liveCamera}
+                    zoom={zoom}
+                    viewportPos={viewportPos}
+                    selectedIframeLayerIds={overlaySelectedIds}
+                    groupSelectedIframeLayerIds={groupSelectedIframeLayerIds}
+                    // An edited Document wears an interacting frame's 2px ring.
+                    focusedIframeLayerId={
+                      focusedIframeLayerId ?? editingDocumentLayerId
+                    }
+                    hoveredIframeLayerId={hoveredIframeLayerId}
+                    workspaceHighlightIds={workspaceHighlightIds}
+                    iframeLayerLayouts={effectiveIframeLayerLayouts}
+                    drivenFrames={drivenFrames}
+                    hideResizeHandles={
+                      editingDocumentLayerId !== null ||
+                      selectedGroupIds.size > 0 ||
+                      // An interacting frame is for using the preview, not
+                      // resizing it: its edges belong to the page.
+                      focusedIframeLayerId !== null ||
+                      // Nor is one someone else drives (#1387).
+                      [...selectedInteractiveIds].some((id) =>
+                        drivenByOther(frameControl.driverOf(id))
+                      )
+                    }
+                    gapHandles={gapHandles}
+                    reorderHandles={reorderHandles}
+                    hoveredReorderIframeLayerId={hoveredReorderIframeLayerId}
+                    reorderDragShift={reorderDragShift}
+                    marquee={gesturePreview.marqueeRect}
+                    frameDraft={
+                      frameDraft ??
+                      mockupDraft ??
+                      (askMockupBox && {
+                        startX: askMockupBox.x,
+                        startY: askMockupBox.y,
+                        currentX: askMockupBox.x + askMockupBox.width,
+                        currentY: askMockupBox.y + askMockupBox.height,
+                        pending: true,
+                      })
+                    }
+                    documentDraft={documentDraft}
+                    othersSelections={othersSelections}
+                    snapGuides={gesturePreview.snapGuides}
+                    isResizeSnapped={
+                      gesturePreview.resizeSnap?.snappedPresetId != null
+                    }
+                    inspectRect={(() => {
+                      // Show the live hover overlay while in commentMode or during an
+                      // armed element pick, so the user can see what element they're
+                      // about to anchor a comment to / target.
+                      const source =
+                        commentMode || targeting.pickActive
+                          ? reference.inspectHover
+                          : null
+                      if (!source) return null
+                      const layout = iframeLayerLayouts.get(
+                        source.iframeLayerId
+                      )
+                      if (!layout) return null
+                      return {
+                        x: layout.x + source.rect.x,
+                        y: layout.y + source.rect.y,
+                        width: source.rect.width,
+                        height: source.rect.height,
+                      }
+                    })()}
+                    highlightRect={targeting.highlightRect}
+                  />
+                  {/* The snapped device's name, beside the red selection rect and
+                above every frame, so a neighbouring frame can't cover it. */}
+                  <ResizeSnapLabel {...resizeSnapProps} />
+                  <Cursors
+                    viewport={{ ...viewportPos, zoom }}
+                    pages={pages}
+                    pageId={currentPageId}
+                  />
+                  {chatAnchor && self?.message != null ? (
+                    <CursorChat
+                      screenX={chatAnchor.x * zoom + viewportPos.x}
+                      screenY={chatAnchor.y * zoom + viewportPos.y}
+                      color={self.color}
+                      value={self.message}
+                      onChange={(next) => setPresence({ message: next })}
+                      onClose={closeCursorChat}
+                    />
+                  ) : null}
+                  {/* A drawn Mockup box asking what to show already took the click. */}
+                  {isCanvasEmpty && !askMockupBox && (
+                    <CanvasEmptyState toolMode={toolMode} repos={repos} />
+                  )}
+                  {/* Window-drag strip: spans the full toolbar height across the top
                 of the canvas, in the chrome layer but BEHIND the floating pills
                 (same layer, earlier in DOM order) so the pills stay clickable
                 while the empty toolbar area drags the native window. It also
                 swallows clicks on anything in lower layers painted beneath it
                 (the frame toolbar portal), so floating chrome near the top of
                 the canvas stays below ~52px. */}
-                <div
-                  data-tauri-drag-region
-                  className="absolute top-0 right-0 left-0 z-(--z-canvas-chrome) h-12"
-                />
-                <CanvasTopBarMemo
-                  {...chromeStable.value("topBar", {
-                    roomId,
-                    isOwner,
-                    sharedWithCount,
-                    parentFolder,
-                    currentRoomName,
-                    onRoomRename: handleRoomRename,
-                    sidebarCollapsed,
-                    trafficLightsPresent,
-                    sidebarPanelRef,
-                    roomNameEditableRef,
-                    pendingRoomRenameRef,
-                    onRoomMenuCloseAutoFocus,
-                    deleteDialogOpen,
-                    onDeleteDialogOpenChange: setDeleteDialogOpen,
-                    onOpenSettings: () => {
-                      setFilesRevealId(null)
-                      setCanvasSettingsOpen(true)
-                    },
-                    onOpenShortcuts: openShortcutSheet,
-                    stopRoomDevServers,
-                    flushLayout,
-                    pages,
-                    currentPageId,
-                    onSelectPage: switchPage,
-                    onAddPage: addPage,
-                  })}
-                />
-                <AddRepositoryDialog
-                  flow={addRepository}
-                  onAdded={switchOnHere}
-                />
-                <CanvasSettingsDialog
-                  roomId={roomId}
-                  canRevealEnv={(repo) =>
-                    canRevealEnv(repo, {
-                      userId: userId ?? "",
+                  <div
+                    data-tauri-drag-region
+                    className="absolute top-0 right-0 left-0 z-(--z-canvas-chrome) h-12"
+                  />
+                  <CanvasTopBarMemo
+                    {...chromeStable.value("topBar", {
+                      roomId,
                       isOwner,
-                      localBuild: buildIdentity === "host",
-                    })
-                  }
-                  open={canvasSettingsOpen}
-                  onOpenChange={(open) => {
-                    setCanvasSettingsOpen(open)
-                    if (!open) setFilesRevealId(null)
-                  }}
-                  revealFileId={filesRevealId}
-                  userId={userId}
-                  repos={repos}
-                  branches={agents}
-                  onUpdateRepo={updateRepoInStorage}
-                  onRemoveRepo={removeRepoIntake}
-                  onSwitchOn={switchOnHere}
-                  memories={memories}
-                  onAddMemory={(text) =>
-                    addMemory(collections, { text, source: "member" })
-                  }
-                  onEditMemory={(id, text) =>
-                    editMemory(collections, id, { text })
-                  }
-                  onRemoveMemory={(id) => removeMemory(collections, id)}
-                  files={canvasFiles}
-                  layerFiles={layerFilesInTree}
-                  skills={canvasSkills}
-                />
-                <CanvasToolbarMemo
-                  {...chromeStable.value("toolbar", {
-                    toolMode,
-                    onClearMode: reference.clearMode,
-                  })}
-                />
-                {askFrameId ? (
-                  <FrameAskCard
-                    key={askFrameId}
-                    locate={() => frameAskTarget(askFrameId)}
-                    markdownLayers={markdownLayers}
-                    workspaces={agents}
-                    defaultAnswerer={drawAsk.answerer}
-                    previews={drawAsk.previews}
-                    onShow={drawAsk.show}
-                    onSubmit={drawAsk.send}
-                    onClose={drawAsk.close}
+                      sharedWithCount,
+                      parentFolder,
+                      currentRoomName,
+                      onRoomRename: handleRoomRename,
+                      sidebarCollapsed,
+                      trafficLightsPresent,
+                      sidebarPanelRef,
+                      roomNameEditableRef,
+                      pendingRoomRenameRef,
+                      onRoomMenuCloseAutoFocus,
+                      deleteDialogOpen,
+                      onDeleteDialogOpenChange: setDeleteDialogOpen,
+                      onOpenSettings: () => {
+                        setFilesRevealId(null)
+                        setCanvasSettingsOpen(true)
+                      },
+                      onOpenShortcuts: openShortcutSheet,
+                      stopRoomDevServers,
+                      flushLayout,
+                      pages,
+                      currentPageId,
+                      onSelectPage: switchPage,
+                      onAddPage: addPage,
+                    })}
                   />
-                ) : askMockupBox ? (
-                  <FrameAskCard
-                    kind="mockup"
-                    locate={locateMockupBox}
-                    files={askMockupFiles}
-                    onOpen={drawAsk.openFile}
-                    markdownLayers={markdownLayers}
-                    workspaces={agents}
-                    sketchChats={sketchChats}
-                    defaultAnswerer={drawAsk.answerer}
-                    onSubmit={drawAsk.send}
-                    onClose={drawAsk.close}
+                  <AddRepositoryDialog
+                    flow={addRepository}
+                    onAdded={switchOnHere}
                   />
-                ) : askDocumentId ? (
-                  <FrameAskCard
-                    key={askDocumentId}
-                    kind="document"
-                    locate={() => documentAskTarget(askDocumentId)}
-                    markdownLayers={markdownLayers}
-                    workspaces={agents}
-                    sketchChats={sketchChats}
-                    defaultAnswerer={drawAsk.answerer}
-                    onSubmit={drawAsk.send}
-                    onWriteMyself={drawAsk.writeDocument}
-                    files={askDocumentFiles}
-                    onOpen={drawAsk.openFile}
-                    onClose={drawAsk.close}
+                  <CanvasSettingsDialog
+                    roomId={roomId}
+                    canRevealEnv={(repo) =>
+                      canRevealEnv(repo, {
+                        userId: userId ?? "",
+                        isOwner,
+                        localBuild: buildIdentity === "host",
+                      })
+                    }
+                    open={canvasSettingsOpen}
+                    onOpenChange={(open) => {
+                      setCanvasSettingsOpen(open)
+                      if (!open) setFilesRevealId(null)
+                    }}
+                    revealFileId={filesRevealId}
+                    userId={userId}
+                    repos={repos}
+                    branches={agents}
+                    onUpdateRepo={updateRepoInStorage}
+                    onRemoveRepo={removeRepoIntake}
+                    onSwitchOn={switchOnHere}
+                    memories={memories}
+                    onAddMemory={(text) =>
+                      addMemory(collections, { text, source: "member" })
+                    }
+                    onEditMemory={(id, text) =>
+                      editMemory(collections, id, { text })
+                    }
+                    onRemoveMemory={(id) => removeMemory(collections, id)}
+                    files={canvasFiles}
+                    layerFiles={layerFilesInTree}
+                    skills={canvasSkills}
                   />
-                ) : null}
-                <MockupChatLinkProvider value={mockupChatLink}>
-                  <FileModal
-                    ops={ops}
-                    onAddToCanvas={(fileId) => void addFileToCanvas(fileId)}
+                  <CanvasToolbarMemo
+                    {...chromeStable.value("toolbar", {
+                      toolMode,
+                      onClearMode: reference.clearMode,
+                    })}
                   />
-                </MockupChatLinkProvider>
-                <ShortcutSheetMemo
-                  {...chromeStable.value("shortcuts", {
-                    open: shortcutSheetOpen,
-                    onOpenChange: setShortcutSheetOpen,
-                  })}
-                />
-                {/* The top-right pill, mirroring the breadcrumb pill (32px, 24px
+                  {askFrameId ? (
+                    <FrameAskCard
+                      key={askFrameId}
+                      locate={() => frameAskTarget(askFrameId)}
+                      markdownLayers={markdownLayers}
+                      workspaces={agents}
+                      defaultAnswerer={drawAsk.answerer}
+                      previews={drawAsk.previews}
+                      onShow={drawAsk.show}
+                      onSubmit={drawAsk.send}
+                      onClose={drawAsk.close}
+                    />
+                  ) : askMockupBox ? (
+                    <FrameAskCard
+                      kind="mockup"
+                      locate={locateMockupBox}
+                      files={askMockupFiles}
+                      onOpen={drawAsk.openFile}
+                      markdownLayers={markdownLayers}
+                      workspaces={agents}
+                      sketchChats={sketchChats}
+                      defaultAnswerer={drawAsk.answerer}
+                      onSubmit={drawAsk.send}
+                      onClose={drawAsk.close}
+                    />
+                  ) : askDocumentId ? (
+                    <FrameAskCard
+                      key={askDocumentId}
+                      kind="document"
+                      locate={() => documentAskTarget(askDocumentId)}
+                      markdownLayers={markdownLayers}
+                      workspaces={agents}
+                      sketchChats={sketchChats}
+                      defaultAnswerer={drawAsk.answerer}
+                      onSubmit={drawAsk.send}
+                      onWriteMyself={drawAsk.writeDocument}
+                      files={askDocumentFiles}
+                      onOpen={drawAsk.openFile}
+                      onClose={drawAsk.close}
+                    />
+                  ) : null}
+                  <MockupChatLinkProvider value={mockupChatLink}>
+                    <FileModal
+                      ops={ops}
+                      onAddToCanvas={(fileId) => void addFileToCanvas(fileId)}
+                    />
+                  </MockupChatLinkProvider>
+                  <ShortcutSheetMemo
+                    {...chromeStable.value("shortcuts", {
+                      open: shortcutSheetOpen,
+                      onOpenChange: setShortcutSheetOpen,
+                    })}
+                  />
+                  {/* The top-right pill, mirroring the breadcrumb pill (32px, 24px
                 controls): the zoom menu (always), then the people controls
                 (comments, facepile; web only), then Share as the one filled
                 action, then the expand-chat button at the edge (when the right
                 sidebar is collapsed). */}
-                <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
-                  <div
-                    className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <CanvasZoomMenuMemo
-                      {...chromeStable.value("zoomMenu", {
-                        liveZoomPercent: camera.liveZoomPercent,
-                        onZoomIn: zoomControls.zoomIn,
-                        onZoomOut: zoomControls.zoomOut,
-                        onZoomTo: cameraZoomTo,
-                        onZoomToFit: zoomControls.zoomToFit,
-                      })}
-                    />
-                    {/* Following other users' viewports and sharing are part of
+                  <div className="pointer-events-none absolute top-0 right-0 z-(--z-canvas-chrome) flex h-12 items-center px-2">
+                    <div
+                      className="pointer-events-auto flex items-center gap-1 rounded-lg bg-background p-1 shadow-md outline outline-1 outline-foreground/10 [&>*]:animate-in [&>*]:duration-200 [&>*]:fade-in-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <CanvasZoomMenuMemo
+                        {...chromeStable.value("zoomMenu", {
+                          liveZoomPercent: camera.liveZoomPercent,
+                          onZoomIn: zoomControls.zoomIn,
+                          onZoomOut: zoomControls.zoomOut,
+                          onZoomTo: cameraZoomTo,
+                          onZoomToFit: zoomControls.zoomToFit,
+                        })}
+                      />
+                      {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
                     (PRD #404, issue #417). */}
-                    {multiUserSurface && (
-                      <>
-                        <CommentsButton
-                          threads={commentThreads.threads}
-                          open={commentsPanelOpen}
-                          pinsHidden={commentPinsHidden}
-                          onToggle={() => setCommentsPanelOpen((open) => !open)}
-                        />
-                        <FollowingToolbar
-                          followingId={followingConnectionId}
-                          onFollow={camera.follow}
-                        />
-                        {/* Only the owner can invite; a collaborator's
+                      {multiUserSurface && (
+                        <>
+                          <CommentsButton
+                            threads={commentThreads.threads}
+                            open={commentsPanelOpen}
+                            pinsHidden={commentPinsHidden}
+                            onToggle={() =>
+                              setCommentsPanelOpen((open) => !open)
+                            }
+                          />
+                          <FollowingToolbar
+                            followingId={followingConnectionId}
+                            onFollow={camera.follow}
+                          />
+                          {/* Only the owner can invite; a collaborator's
                             invite would be refused server-side. A host
                             shares by link instead. */}
-                        {isOwner && buildIdentity === "account" && (
-                          <>
-                            <Button
-                              size="sm"
-                              className="ml-1"
-                              onClick={() => setShareDialogOpen(true)}
-                            >
-                              Share
-                            </Button>
-                            <ShareRoomDialog
-                              open={shareDialogOpen}
-                              onOpenChange={setShareDialogOpen}
-                              roomId={roomId}
-                              roomName={currentRoomName}
-                            />
-                          </>
-                        )}
-                      </>
-                    )}
-                    {chatCollapsed && (
-                      <IconButton
-                        label="Show chat"
-                        shortcut="⌘I"
-                        tooltipSide="bottom"
-                        onClick={() => chatPanelRef.current?.expand()}
-                      >
-                        <SidebarSimpleIcon mirrored />
-                      </IconButton>
-                    )}
+                          {isOwner && buildIdentity === "account" && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="ml-1"
+                                onClick={() => setShareDialogOpen(true)}
+                              >
+                                Share
+                              </Button>
+                              <ShareRoomDialog
+                                open={shareDialogOpen}
+                                onOpenChange={setShareDialogOpen}
+                                roomId={roomId}
+                                roomName={currentRoomName}
+                              />
+                            </>
+                          )}
+                        </>
+                      )}
+                      {chatCollapsed && (
+                        <IconButton
+                          label="Show chat"
+                          shortcut="⌘I"
+                          tooltipSide="bottom"
+                          onClick={() => chatPanelRef.current?.expand()}
+                        >
+                          <SidebarSimpleIcon mirrored />
+                        </IconButton>
+                      )}
+                    </div>
                   </div>
+                  {multiUserSurface && commentsPanelOpen && (
+                    <CommentsPanel
+                      roomId={roomId}
+                      commentThreads={commentThreads}
+                      placements={commentPlacements.placements}
+                      activeThreadId={reference.activeThreadId}
+                      onSelectThread={selectCommentThread}
+                      pinsHidden={commentPinsHidden}
+                      onPinsHiddenChange={setCommentPinsHidden}
+                      onClose={() => setCommentsPanelOpen(false)}
+                      describeLayer={describeCommentLayer}
+                      getDocumentEditor={reference.getDocumentEditor}
+                      requests={commentRequests}
+                    />
+                  )}
                 </div>
-                {multiUserSurface && commentsPanelOpen && (
-                  <CommentsPanel
-                    roomId={roomId}
-                    commentThreads={commentThreads}
-                    placements={commentPlacements.placements}
-                    activeThreadId={reference.activeThreadId}
-                    onSelectThread={selectCommentThread}
-                    pinsHidden={commentPinsHidden}
-                    onPinsHiddenChange={setCommentPinsHidden}
-                    onClose={() => setCommentsPanelOpen(false)}
-                    describeLayer={describeCommentLayer}
-                    getDocumentEditor={reference.getDocumentEditor}
-                    requests={commentRequests}
-                  />
-                )}
-              </div>
-            </ResizablePanel>
-            <ResizableHandle
-              className={
-                chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"
-              }
-              disabled={chatCollapsed}
-            />
+              </ResizablePanel>
+              <ResizableHandle
+                className={
+                  chatCollapsed ? "w-0 opacity-0" : "focus-visible:ring-0"
+                }
+                disabled={chatCollapsed}
+              />
 
-            {/* Chat — right panel */}
-            <ResizablePanel
-              id="chat"
-              defaultSize="0px"
-              minSize="420px"
-              maxSize="900px"
-              collapsible
-              collapsedSize="0px"
-              groupResizeBehavior="preserve-pixel-size"
-              panelRef={chatPanelRef}
-              inert={chatCollapsed}
-              onResize={(size) => setChatCollapsed(size.inPixels === 0)}
-            >
-              {/* A reply's file tiles' ⋯ and drag (#1887). */}
-              <FileTileActionsContext.Provider value={fileTileActions}>
-                <ChatPanelHostMemo
-                  {...chromeStable.value("chat", {
-                    chatTarget,
-                    tabPool,
-                    chatSessions,
-                    localTerminals: terminalTabs.tabs,
-                    roomId,
-                    diffStats,
-                    branchPrs,
-                    chatPanelRef,
-                    onUpdateChatSession: updateChatSession,
-                    onSetBranchPr: setBranchPr,
-                    logsRequest,
-                    devServerControls,
-                  })}
-                />
-              </FileTileActionsContext.Provider>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </ChatsMenuProvider>
-      </AddRepositoryFlowProvider>
+              {/* Chat — right panel */}
+              <ResizablePanel
+                id="chat"
+                defaultSize="0px"
+                minSize="420px"
+                maxSize="900px"
+                collapsible
+                collapsedSize="0px"
+                groupResizeBehavior="preserve-pixel-size"
+                panelRef={chatPanelRef}
+                inert={chatCollapsed}
+                onResize={(size) => setChatCollapsed(size.inPixels === 0)}
+              >
+                {/* A reply's file tiles' ⋯ and drag (#1887). */}
+                <FileTileActionsContext.Provider value={fileTileActions}>
+                  <ChatPanelHostMemo
+                    {...chromeStable.value("chat", {
+                      chatTarget,
+                      tabPool,
+                      chatSessions,
+                      localTerminals: terminalTabs.tabs,
+                      roomId,
+                      diffStats,
+                      branchPrs,
+                      chatPanelRef,
+                      onUpdateChatSession: updateChatSession,
+                      onSetBranchPr: setBranchPr,
+                      logsRequest,
+                      devServerControls,
+                    })}
+                  />
+                </FileTileActionsContext.Provider>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </ChatsMenuProvider>
+        </AddRepositoryFlowProvider>
+      </CanvasOpsContext.Provider>
     </MoveToPageContext.Provider>
   )
 }

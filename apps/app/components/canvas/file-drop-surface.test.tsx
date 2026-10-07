@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { ComponentProps } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { FileDropSurface } from "./file-drop-surface"
@@ -25,7 +26,7 @@ const member = (id: string, x: number): GroupMemberLayout => ({
   height: 200,
 })
 
-function surface() {
+function surface(extra: Partial<ComponentProps<typeof FileDropSurface>> = {}) {
   const onDrop = vi.fn()
   render(
     <FileDropSurface
@@ -39,6 +40,7 @@ function surface() {
       camera={() => ({ positionX: 100, positionY: 0, scale: 0.5 })}
       sizeOf={() => ({ width: 400, height: 300 })}
       onDrop={onDrop}
+      {...extra}
     />
   )
   return onDrop
@@ -81,5 +83,38 @@ describe("FileDropSurface (#1887)", () => {
     expect(outline.style.width).toBe("200px")
     fireEvent.drop(target, { ...at, dataTransfer: dataTransfer("f1") })
     expect(onDrop).toHaveBeenCalledWith("f1", { x: 2000, y: 600 })
+  })
+
+  it("embeds a Mockup over a Document's text where the line shows (#1888)", () => {
+    const spot = {
+      documentId: "d1",
+      pos: 12,
+      line: { left: 40, top: 80, width: 200 },
+    }
+    const embedAt = vi.fn((fileId: string) => (fileId === "m1" ? spot : null))
+    const onEmbed = vi.fn()
+    const onDrop = surface({ embedAt, onEmbed })
+    act(() => fileDrag.start("m1"))
+    const target = screen.getByTestId("file-drop-surface")
+    const at = { clientX: 120, clientY: 90 }
+    fireEvent.dragOver(target, { ...at, dataTransfer: dataTransfer("m1") })
+    const line = screen.getByTestId("file-drop-line")
+    expect(line.style.width).toBe("200px")
+    expect(screen.queryByTestId("file-drop-bar")).toBeNull()
+    fireEvent.drop(target, { ...at, dataTransfer: dataTransfer("m1") })
+    expect(embedAt).toHaveBeenCalledWith("m1", 120, 90)
+    expect(onEmbed).toHaveBeenCalledWith("m1", spot)
+    expect(onDrop).not.toHaveBeenCalled()
+  })
+
+  it("places a file that can't embed there on the canvas as before", () => {
+    const onEmbed = vi.fn()
+    const onDrop = surface({ embedAt: () => null, onEmbed })
+    act(() => fileDrag.start("f1"))
+    const target = screen.getByTestId("file-drop-surface")
+    const at = { clientX: 100 + 300 * 0.5, clientY: 50 }
+    fireEvent.drop(target, { ...at, dataTransfer: dataTransfer("f1") })
+    expect(onDrop).toHaveBeenCalledWith("f1", { groupId: "g", index: 1 })
+    expect(onEmbed).not.toHaveBeenCalled()
   })
 })
