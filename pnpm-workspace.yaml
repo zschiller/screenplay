@@ -1,3 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # An extension that needs its own dependencies is a workspace package in the
+  # app's git-ignored extensions folder (apps/app/extensions/README.md). The
+  # glob matches nothing when no extension has a package.json.
+  - "apps/app/extensions/*"
