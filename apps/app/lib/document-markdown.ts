@@ -9,6 +9,7 @@ import {
   yXmlFragmentToProsemirrorJSON,
 } from "@tiptap/y-tiptap"
 import { DocumentImage, liftImagesFromParagraphs } from "@/lib/document-image"
+import { mockupEmbedId } from "@/lib/document-embed"
 import {
   DEFAULT_MENTION_KIND,
   MENTION_KIND_REGISTRY,
@@ -32,7 +33,8 @@ import type { LayerFileKind } from "@/lib/types"
  * Both directions run Tiptap's `MarkdownManager` over
  * {@link documentExtensions}, the extension list the editor is built from, so
  * whatever a Document can hold has one markdown form: marks, lists, images,
- * and mentions, which read as `[@<name>](mention:<kind>:<id>)`.
+ * Mockup embeds, which read as `![<name>](mockup:<id>)`, and mentions, which
+ * read as `[@<name>](mention:<kind>:<id>)`.
  *
  * Isomorphic: the editor and the agent tools both import it.
  */
@@ -199,6 +201,13 @@ export function documentBodyMarkdown(
 }
 
 function relabel(node: JSONContent, labelOf: MentionLabelOf): JSONContent {
+  // A Mockup embed (#1888) names the Mockup as it's called now, too.
+  const embedded =
+    node.type === "image" ? mockupEmbedId(node.attrs?.src as string) : null
+  if (embedded) {
+    const alt = labelOf("mockup-layer", embedded)
+    return alt ? { ...node, attrs: { ...node.attrs, alt } } : node
+  }
   if (node.type === "mention") {
     const id = node.attrs?.id as string | undefined
     const label = id ? labelOf(mentionKindOf(node.attrs?.kind), id) : undefined

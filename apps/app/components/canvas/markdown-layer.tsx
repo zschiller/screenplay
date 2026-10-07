@@ -59,6 +59,7 @@ import { DocumentMention, documentExtensions } from "@/lib/document-markdown"
 import { MENTION_KIND_REGISTRY, mentionKindOf } from "@/lib/mention-kinds"
 import { MarkdownLayerMentionNodeView } from "@/components/canvas/markdown-layer-mention-node"
 import { DocumentImageNodeView } from "@/components/canvas/document-image-node"
+import { DocumentEmbedHostContext } from "@/components/canvas/mockup-embed"
 import {
   DocumentImagePicker,
   type PickedImage,
@@ -1125,7 +1126,21 @@ function MarkdownLayerImpl({
                 textSelectable ? handleCommentPointerDown : undefined
               }
             >
-              <EditorContent editor={editor} />
+              {/* Its Mockup embeds (#1888) draw at the canvas zoom and,
+                  at rest, press through to the Document as its text does. */}
+              <DocumentEmbedHostContext.Provider
+                value={{
+                  zoom,
+                  body: editing
+                    ? undefined
+                    : {
+                        bodyDragHandlers: api.bodyDragHandlers,
+                        onBodyPointerDownCapture: api.onBodyPointerDownCapture,
+                      },
+                }}
+              >
+                <EditorContent editor={editor} />
+              </DocumentEmbedHostContext.Provider>
             </div>
 
             {!editing && (

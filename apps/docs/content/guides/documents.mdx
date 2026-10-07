@@ -110,6 +110,23 @@ at half its width. No image is ever wider than the document.
 Documents show PNG, JPEG, GIF and WebP images. A chat that writes a document
 can put an image from the canvas’s files in it too.
 
+## Mockups in a document
+
+A [mockup](/guides/mockups) can sit inside a document, live, as another view of
+it: its page fills the document’s width and changes whenever the mockup does.
+Under the page, a row shows its icon and name and **Open**, which shows the
+mockup in a window over the canvas at its full size.
+
+- To put one in, drag its tile from a chat’s reply onto the document’s text. A
+  line shows the gap between paragraphs it will take.
+- Click the page to use it: its knobs and links work until you click outside
+  it or press <kbd>Esc</kbd>.
+- Click it while editing to select it, and press <kbd>Backspace</kbd> to take
+  it out of the document. Only that view goes; the mockup stays.
+- If the mockup is deleted, its name shows struck through where it was.
+
+A chat can embed a mockup in a document it writes, too.
+
 ## Ask an agent about a passage
 
 Select text in a document and click **Quote in chat** (the quote mark at the
@@ -167,8 +184,8 @@ Any chat can edit any document, whether a chat wrote it or you made it
 yourself. It can rewrite the body, append to
 it and change the title, and its edits merge live into the shared document, so
 it never overwrites what you’re typing. A chat reads a document’s formatting,
-images and mentions, each mention by its current name, and appending keeps
-them all. While a chat is changing a document, it holds it until it finishes: another
+images, embedded mockups and mentions, each mention by its current name, and
+appending keeps them all. While a chat is changing a document, it holds it until it finishes: another
 chat that tries to change it tells you who has it and carries on. Every
 document remembers the chat that changed it last. The agent’s tool calls show as **Create document**, **Rewrite
 document**, **Append to document**, **Set title** and **Read document** rows.
