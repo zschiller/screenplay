@@ -2,6 +2,7 @@ Archive of Screenplay design explorations, audits and storybooks: snapshots of t
 
 | Date | Title | Question |
 | --- | --- | --- |
+| 2026-10-07 | [Draw a Mockup or Document](2026-10-07-draw-a-mockup-or-document/) | How does the card on a drawn Mockup or Document box get from the prompt to opening an existing file? |
 | 2026-10-07 | [File-backed Documents and Mockups](2026-10-07-file-backed-documents-and-mockups/) | What would it take for a Document or Mockup to be a file, with every canvas layer only a view of it? |
 | 2026-10-07 | [Pages sidebar headings](2026-10-07-pages-sidebar-headings/) | With the Pages and Layers headings gone, how do you collapse the page list? |
 | 2026-10-07 | [Chats across pages](2026-10-07-chats-across-pages/) | When a chat’s work is on a page you’re not on, how do you get to it? |
