@@ -197,7 +197,9 @@ export async function deleteRoom(roomId: string): Promise<void> {
 export async function listCollaborators(
   roomId: string
 ): Promise<CollaboratorInfo[]> {
-  assertNotLocal()
+  // Reading the members is the multi-user surface's (comment @mentions on
+  // Headless); only inviting people is Hosted's.
+  if (!multiUserSurface) assertNotLocal()
   const userId = await requireUserId()
   await requireMember(roomId, userId)
 

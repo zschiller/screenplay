@@ -11,6 +11,8 @@
  * | `desktop`  | `host`    | off                | on        | off     |
  * | `headless` | `host`    | on                 | off       | on      |
  *
+ * Headless also sets {@link hostTunnel}: the host works over an SSH tunnel.
+ *
  * - **Identity**: who writes. `account` is many people signed in with GitHub,
  *   each with their own token. `host` is one person, the host, who runs the
  *   server on their own machine: no sign-in, a single seeded local user
@@ -64,6 +66,15 @@ export const macShell: boolean = buildProfile === "desktop"
 
 /** People watching a canvas by link on the viewer listener (Sharing). */
 export const viewers: boolean = buildProfile === "headless"
+
+/**
+ * The host reaches the server over a tunnel to two ports (Headless, #1930):
+ * the host listener, which also carries the Yjs and terminal sockets, and
+ * portless's proxy, which serves the host's own frames at
+ * `http://<name>.localhost:1355`. The configured preview exposure is then for
+ * viewers only.
+ */
+export const hostTunnel: boolean = buildProfile === "headless"
 
 /**
  * The backend switches each profile implies. A switch set in the environment

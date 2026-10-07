@@ -5,7 +5,8 @@ import path from "node:path"
 
 import { z } from "zod"
 
-import { INTERFACES, type ServerInterfaces } from "./interfaces"
+import { INTERFACES } from "./built-ins"
+import type { ServerInterfaces } from "./interfaces"
 import { parseJsonc } from "./jsonc"
 import { type InterfaceKey, implementationsOf } from "./registry"
 import type {
@@ -73,6 +74,8 @@ export interface ScreenplayConfig extends Omit<Settings, "$schema"> {
   dataFolder: string
   /** Per interface, what the file picked (or its default): one entry, or a list when the interface takes many. */
   interfaces: { [K in InterfaceKey]: Selection<K>[] }
+  /** The interfaces the file names; the rest are left at their defaults. */
+  named: InterfaceKey[]
 }
 
 /** A config file the server can't start with. The message names each field. */
@@ -208,6 +211,9 @@ export function parseConfig(
       caFile: outboundProxy.caFile && path.resolve(base, outboundProxy.caFile),
     },
     interfaces,
+    named: (Object.keys(INTERFACES) as InterfaceKey[]).filter(
+      (key) => values[key] !== undefined
+    ),
   }
 }
 

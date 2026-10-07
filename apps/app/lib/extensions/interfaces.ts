@@ -1,19 +1,24 @@
 import type { ComponentType } from "react"
 
-import {
-  type Fixture,
-  type FixtureBadgeProps,
-  fixtureBuiltIns,
-} from "./fixture"
+import type { CodingCli } from "@/lib/agent/harnesses/coding-cli-types"
+import type { GitHubAccess } from "@/lib/github-access/types"
+import type { PreviewExposure } from "@/lib/preview-exposure/types"
+
+import type { Fixture, FixtureBadgeProps } from "./fixture"
 import type { AnyOptions, Implementation } from "./types"
 
 /**
  * Every interface an extension can implement, registered as it lands: add the
- * interface's type here and its built-ins and config shape to `INTERFACES`.
+ * interface's type here and its built-ins and config shape to `INTERFACES`
+ * (`./built-ins.ts`). Types only, so an extension that imports them doesn't
+ * pull in the server.
  * The key is also the interface's field in the config file.
  */
 export interface ServerInterfaces {
   fixture: Fixture
+  githubAccess: GitHubAccess
+  codingCli: CodingCli
+  previewExposure: PreviewExposure
 }
 
 /** Browser pieces an extension can add, keyed like {@link ServerInterfaces}. */
@@ -32,7 +37,10 @@ export interface InterfaceSpec<T> {
   builtIns: Record<string, Implementation<T, AnyOptions>>
   /**
    * What the config file means when it leaves this interface out, written as
-   * it would be in the file (a list when `many`).
+   * it would be in the file (a list when `many`). The server only builds an
+   * interface the file names (`lib/extensions/apply.ts`); left out, each keeps
+   * the default its own module picks for the profile, which this mirrors for
+   * Headless.
    */
   defaultEntry: InterfaceEntry | InterfaceEntry[]
   /**
@@ -40,10 +48,4 @@ export interface InterfaceSpec<T> {
    * can offer several coding CLIs), instead of one `{ use }` object.
    */
   many?: boolean
-}
-
-export const INTERFACES: {
-  [K in keyof ServerInterfaces]: InterfaceSpec<ServerInterfaces[K]>
-} = {
-  fixture: { builtIns: fixtureBuiltIns, defaultEntry: { use: "plain" } },
 }

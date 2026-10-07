@@ -68,7 +68,8 @@ export function FrameDriveRelay({
       fetchToken({ refresh }).then(
         (token) => {
           if (stopped) return
-          const url = new URL(FRAME_DRIVE_PATH, websocketUrl())
+          // Appended, not resolved: on Headless the socket URL has a path.
+          const url = new URL(`${websocketUrl()}${FRAME_DRIVE_PATH}`)
           url.searchParams.set(FRAME_DRIVE_ROOM_PARAM, roomId)
           url.searchParams.set(TOKEN_PARAM, token)
           const socket = new WebSocket(url)

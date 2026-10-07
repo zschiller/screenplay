@@ -1,5 +1,6 @@
 const meta = {
   index: "Overview",
+  headless: "Headless",
   "github-oauth": "GitHub OAuth",
   database: "Database",
   "environment-variables": "Environment variables",

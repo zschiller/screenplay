@@ -34,7 +34,7 @@ export async function register(): Promise<void> {
   // A bad config file (`SCREENPLAY_CONFIG`) refuses start with a message naming
   // each field, before anything below reads it. No file: nothing to check.
   const { checkConfigAtStart } = await import("@/lib/extensions/start")
-  checkConfigAtStart()
+  await checkConfigAtStart()
 
   // Desktop only: exit if the Tauri shell that spawned us goes away, so a
   // Ctrl-C / hot-reload / crash of the shell can't leave this sidecar orphaned
@@ -85,16 +85,24 @@ export async function register(): Promise<void> {
       .onConflictDoNothing()
   }
 
+  // On Headless the host listener carries both socket servers under a path
+  // (`headless/ws-routes.mjs`), so they take any free loopback port and say
+  // which; elsewhere the client connects to their ports directly.
+  const { hostTunnel } = await import("@/lib/capabilities")
+  const { setLocalWsPort } = await import("@/headless/ws-routes.mjs")
+
   if (backendSwitch("NEXT_PUBLIC_YJS_HOST") === "local") {
     const { startLocalYjsServer } =
       await import("@/lib/yjs-host/y-websocket-server")
-    await startLocalYjsServer()
+    const yjs = await startLocalYjsServer(hostTunnel ? { port: 0 } : {})
+    setLocalWsPort("yjs", yjs.port)
   }
 
   if (isLocalSandboxBackend()) {
     const { ensureLocalTerminalServer } =
       await import("@/lib/terminal/local/server")
-    await ensureLocalTerminalServer()
+    const terminal = await ensureLocalTerminalServer()
+    setLocalWsPort("terminal", terminal.port)
   }
 
   if (buildIdentity === "host") {
