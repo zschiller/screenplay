@@ -73,6 +73,8 @@ function fakeSandboxReturning(content: string): SandboxInstance {
     worktreePath: "/vercel/sandbox",
     homeDir: "/home/vercel-sandbox",
     domain: notUsed("domain") as never,
+    internalUrl: notUsed("internalUrl") as never,
+    expose: notUsed("expose") as never,
     hostPort: notUsed("hostPort") as never,
     runCommand: (async () => cmd) as SandboxInstance["runCommand"],
     writeFiles: async () => {},

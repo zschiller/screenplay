@@ -1,0 +1,117 @@
+---
+title: Preview exposure
+description: How a browser reaches a chat’s preview when Screenplay runs on your own machine, and the built-ins for the Mac app, a company proxy, and commands like tailscale serve.
+---
+
+# Preview exposure
+
+<Only desktop />
+
+When Screenplay runs on a machine you control, every chat’s preview runs there
+too, and a browser has to reach it. **Preview exposure** decides how. It’s a
+small interface in `apps/app/lib/preview-exposure/` with three built-ins:
+
+| Built-in       | Previews bind | A browser loads                           | For                                       |
+| -------------- | ------------- | ----------------------------------------- | ----------------------------------------- |
+| `loopback`     | `127.0.0.1`   | `http://localhost:{port}`                 | The Mac app (the default)                 |
+| `url-template` | `0.0.0.0`     | an origin from a pattern                  | A proxy that gives every port its own URL |
+| `command`      | `127.0.0.1`   | an origin from a pattern, after a command | `tailscale serve`, or a company tool      |
+
+It covers only what a browser loads: each chat’s bridge proxy (the page a
+frame shows) and its frame stream. The preview itself always listens on
+`127.0.0.1`. The server never loads a browser URL either: its own checks,
+thumbnails and the agent’s page reads go to each preview’s `127.0.0.1` address,
+so they work whatever URL your browser uses. Hosted sandboxes don’t use it;
+each Vercel Sandbox has its own public URL.
+
+## The interface
+
+```ts
+interface PreviewExposure {
+  // Where browser-facing listeners bind, and the range their ports come from.
+  readonly bind: { host: string; ports?: { from: number; to: number } }
+  // Make a port reachable, once its listener is started. Idempotent.
+  expose(port: number): Promise<{ browserOrigin: string; signInUrl?: string }>
+  // Undo expose when the chat is deleted. Never throws.
+  release(port: number): Promise<void>
+}
+```
+
+`signInUrl` is for a proxy that needs a person to sign in once per port, in a
+new tab, before that port loads in a frame.
+
+### Ports
+
+With `ports` set, each chat’s browser-facing ports come from that range,
+lowest free first, and a deleted chat’s ports are the next ones handed out. A
+company proxy that asks for a sign-in per port then asks once per port, not
+once per chat. Ports a chat already holds stay its own across restarts.
+Without a range, any free port is used. When every port in the range is taken,
+a new chat fails with an error saying so: delete a chat, or widen the range.
+
+## Built-ins
+
+Each built-in takes its options as `{ use: "<id>", …options }`.
+
+### `loopback`
+
+The Mac app’s behaviour, and the default: previews bind `127.0.0.1` and load at
+`http://localhost:{port}`.
+
+| Option   | Default                   |                                                       |
+| -------- | ------------------------- | ----------------------------------------------------- |
+| `origin` | `http://localhost:{port}` | The browser origin pattern                            |
+| `ports`  | any free port             | A range, e.g. to match a fixed list of `ssh -L` ports |
+
+### `url-template`
+
+For a proxy that gives every port on the machine its own HTTPS URL. Previews
+listen on every interface so the proxy can reach them, so keep the machine’s
+ports firewalled from everything but the proxy.
+
+```jsonc
+{
+  "use": "url-template",
+  "origin": "https://{port}-box.corp.example",
+  "signInUrl": "https://{port}-box.corp.example/",
+  "ports": { "from": 20000, "to": 20199 },
+}
+```
+
+| Option      | Default       |                                                   |
+| ----------- | ------------- | ------------------------------------------------- |
+| `origin`    | required      | The browser origin pattern; must contain `{port}` |
+| `signInUrl` | none          | A page to open once per port before it loads      |
+| `bindHost`  | `0.0.0.0`     | Where the listeners bind                          |
+| `ports`     | any free port | The range ports come from                         |
+
+### `command`
+
+Runs a command to expose each port and another to release it, with `{port}`
+filled in, then loads the port at an origin from a pattern. A failed expose
+shows the command’s error on the preview; a failed release is only logged.
+
+```jsonc
+{
+  "use": "command",
+  "exposeCommand": ["corp-expose", "{port}"],
+  "releaseCommand": ["corp-expose", "--release", "{port}"],
+  "origin": "https://box.corp.example:{port}",
+}
+```
+
+| Option           | Default       |                                                   |
+| ---------------- | ------------- | ------------------------------------------------- |
+| `exposeCommand`  | required      | The command and its arguments                     |
+| `releaseCommand` | none          | Run when a chat is deleted                        |
+| `origin`         | required      | The browser origin pattern; must contain `{port}` |
+| `signInUrl`      | none          | A page to open once per port before it loads      |
+| `bindHost`       | `127.0.0.1`   | Where the listeners bind                          |
+| `ports`          | any free port | The range ports come from                         |
+
+## Picking one
+
+The server picks one as it starts, with `setPreviewExposure()`, and keeps
+`loopback` when nothing else is picked. `createPreviewExposure()` builds a
+built-in from its options and refuses ones it doesn’t recognise with a message
+naming the option.

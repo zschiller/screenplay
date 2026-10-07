@@ -6,10 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 // in server-only DB wiring at import time. These tests inject their own probe,
 // so stub the module to keep the import graph (and DATABASE_URL) out of scope.
 vi.mock("@/lib/sandbox/lifecycle", () => ({
-  probeSandboxUrl: vi.fn().mockResolvedValue(false),
+  probeWorkspacePreview: vi.fn().mockResolvedValue(false),
 }))
 
 import { useDevServerProbe } from "./use-dev-server-probe"
+
+const DEV = { sandboxName: "sb", devPort: 3000, url: "http://dev" }
 
 describe("useDevServerProbe", () => {
   beforeEach(() => {
@@ -36,7 +38,7 @@ describe("useDevServerProbe", () => {
   it("transitions waiting → ready when the dev server responds", async () => {
     const probe = vi.fn().mockResolvedValue(true)
     const { result } = renderHook(() =>
-      useDevServerProbe("http://dev", { probe, intervalMs: 10, maxProbes: 3 })
+      useDevServerProbe(DEV, { probe, intervalMs: 10, maxProbes: 3 })
     )
 
     expect(result.current.state).toBe("waiting")
@@ -45,6 +47,8 @@ describe("useDevServerProbe", () => {
     })
     expect(result.current.state).toBe("ready")
     expect(probe).toHaveBeenCalledTimes(1)
+    // The Workspace, never the URL the frame loads.
+    expect(probe).toHaveBeenCalledWith("sb", 3000)
   })
 
   it("transitions waiting → ready when the server comes up mid-probe", async () => {
@@ -54,7 +58,7 @@ describe("useDevServerProbe", () => {
       .mockResolvedValueOnce(false)
       .mockResolvedValue(true)
     const { result } = renderHook(() =>
-      useDevServerProbe("http://dev", { probe, intervalMs: 10, maxProbes: 10 })
+      useDevServerProbe(DEV, { probe, intervalMs: 10, maxProbes: 10 })
     )
 
     await act(async () => {
@@ -67,7 +71,7 @@ describe("useDevServerProbe", () => {
   it("transitions waiting → timedout after the probe window elapses", async () => {
     const probe = vi.fn().mockResolvedValue(false)
     const { result } = renderHook(() =>
-      useDevServerProbe("http://dev", { probe, intervalMs: 10, maxProbes: 3 })
+      useDevServerProbe(DEV, { probe, intervalMs: 10, maxProbes: 3 })
     )
 
     await act(async () => {
@@ -80,7 +84,7 @@ describe("useDevServerProbe", () => {
   it("restarts the probe (timedout → waiting → ready) when retry is called", async () => {
     const probe = vi.fn().mockResolvedValue(false)
     const { result } = renderHook(() =>
-      useDevServerProbe("http://dev", { probe, intervalMs: 10, maxProbes: 2 })
+      useDevServerProbe(DEV, { probe, intervalMs: 10, maxProbes: 2 })
     )
 
     await act(async () => {

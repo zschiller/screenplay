@@ -6,6 +6,11 @@ import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import {
+  loopbackExposure,
+  setPreviewExposure,
+  urlTemplateExposure,
+} from "@/lib/preview-exposure"
+import {
   LocalSandboxProvider,
   RefAlreadyOpenError,
 } from "@/lib/sandbox/local/provider"
@@ -750,5 +755,102 @@ describe("LocalSandboxProvider", () => {
         .catch(() => false)
     ).toBe(false)
     await expect(provider.get({ name: "legacy-a" })).rejects.toThrow()
+  })
+})
+
+describe("LocalSandboxProvider with a preview exposure", () => {
+  // The bridge proxy (4000) is the port a browser loads; 3000 and 7681 aren't.
+  const exposedOpts = (name: string, revision = "main") =>
+    createOpts(name, sourceRepo, {
+      source: { type: "git", url: sourceRepo, revision },
+      browserPorts: [4000],
+    })
+  let from: number
+  let released: number[]
+
+  beforeEach(() => {
+    from = 46000 + Math.floor(Math.random() * 400) * 5
+    released = []
+    const urls = urlTemplateExposure({
+      origin: "https://{port}-box.corp.example",
+      signInUrl: "https://{port}-box.corp.example/",
+      bindHost: "127.0.0.1",
+      ports: { from, to: from + 4 },
+    })
+    setPreviewExposure({
+      ...urls,
+      release: async (port) => {
+        released.push(port)
+      },
+    })
+  })
+
+  afterEach(() => {
+    setPreviewExposure(loopbackExposure())
+  })
+
+  it("takes a browser port from the range and exposes it at the pattern's origin", async () => {
+    const a = await provider.create(exposedOpts("branch-a"))
+
+    expect(a.hostPort(4000)).toBe(from)
+    expect(await a.expose(4000)).toEqual({
+      browserOrigin: `https://${from}-box.corp.example`,
+      signInUrl: `https://${from}-box.corp.example/`,
+    })
+    // The server's own address stays on loopback.
+    expect(a.internalUrl(4000)).toBe(`http://127.0.0.1:${from}`)
+  })
+
+  it("reuses a deleted Workspace's port, so its proxy sign-in still holds", async () => {
+    const a = await provider.create(exposedOpts("branch-a"))
+    await a.delete()
+    expect(released).toEqual([from])
+
+    const b = await provider.create(exposedOpts("branch-b", "feature"))
+    expect(b.hostPort(4000)).toBe(from)
+  })
+
+  it("keeps a previous run's ports for its own Workspaces", async () => {
+    await provider.create(exposedOpts("branch-a"))
+    // A restarted server: a fresh provider over the same data folder.
+    const restarted = new LocalSandboxProvider(root)
+    const b = await restarted.create(exposedOpts("branch-b", "feature"))
+    expect(b.hostPort(4000)).toBe(from + 1)
+  })
+
+  it("maps an exposed browser URL back to its internal address", async () => {
+    const a = await provider.create(exposedOpts("branch-a"))
+    await a.expose(4000)
+
+    expect(
+      await provider.internalUrlFor(
+        `https://${from}-box.corp.example/pricing?plan=pro`
+      )
+    ).toBe(`http://127.0.0.1:${from}/pricing?plan=pro`)
+    // Another origin, and a loopback URL, pass through.
+    expect(await provider.internalUrlFor("https://example.com/")).toBe(
+      "https://example.com/"
+    )
+    expect(await provider.internalUrlFor(`http://localhost:${from}/`)).toBe(
+      `http://localhost:${from}/`
+    )
+  })
+
+  it("refuses a port the Sandbox doesn't forward", async () => {
+    const a = await provider.create(exposedOpts("branch-a"))
+    expect(() => a.internalUrl(9999)).toThrow("doesn’t forward port 9999")
+    await expect(a.expose(9999)).rejects.toThrow("doesn’t forward port 9999")
+  })
+})
+
+describe("LocalSandboxProvider on loopback (the Mac app)", () => {
+  it("exposes the bridge proxy at http://localhost, as before", async () => {
+    const a = await provider.create(
+      createOpts("branch-a", sourceRepo, { browserPorts: [4000] })
+    )
+    expect(await a.expose(4000)).toEqual({
+      browserOrigin: a.domain(4000),
+    })
+    expect(a.domain(4000)).toBe(`http://localhost:${a.hostPort(4000)}`)
   })
 })

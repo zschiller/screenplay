@@ -61,3 +61,16 @@ export const sandboxProvider: SandboxProvider = selectSandboxProvider()
  * per-call branch, and it is keyed to the same `SANDBOX_BACKEND` switch.
  */
 export const usesHostGitAuth: boolean = isLocalSandboxBackend()
+
+/**
+ * The server's own address for a preview URL a browser loads (a frame's
+ * `previewDomain` plus its route), so the server never fetches a browser URL:
+ * on the local backend, a preview's exposed origin maps back to
+ * `http://127.0.0.1:<port>`. Anything else, and every URL on the hosted
+ * backend (whose previews have one public URL), comes back unchanged.
+ */
+export async function toInternalPreviewUrl(url: string): Promise<string> {
+  return isLocalSandboxBackend()
+    ? getLocalSandboxProvider().internalUrlFor(url)
+    : url
+}

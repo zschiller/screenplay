@@ -1,5 +1,7 @@
 import "server-only"
 
+import type { ExposedPort } from "@/lib/preview-exposure/types"
+
 /**
  * A git source a sandbox can be provisioned from. Credentials are optional so
  * public repos can be cloned without passing auth. When set, `username` /
@@ -78,6 +80,13 @@ export interface SandboxCreateOptions {
   name: string
   source: SandboxSource
   ports: number[]
+  /**
+   * The subset of `ports` a browser loads (the bridge proxy, the frame
+   * stream). A backend that shares the host's network takes these from the
+   * preview exposure's port range and binds them where it says; a backend
+   * with its own network ignores it.
+   */
+  browserPorts?: number[]
   /** Auto-stop after this many ms of inactivity. */
   timeout: number
   /** How long the filesystem snapshot survives once the VM stops. */
@@ -159,8 +168,26 @@ export interface SandboxInstance {
    * `/tmp`-vs-`$HOME` split.
    */
   readonly homeDir: string
-  /** Public URL for the given forwarded port. */
+  /**
+   * URL for the given forwarded port as this machine's own browser reaches it
+   * (the terminal). A preview a browser loads goes through {@link expose}.
+   */
   domain(port: number): string
+  /**
+   * Where the **server** reaches the given forwarded port: probes,
+   * thumbnails and agent page reads load this, never a browser URL. The
+   * Vercel VM's public URL on the hosted backend (the server isn't on the
+   * VM's network), `http://127.0.0.1:<hostPort>` on the local backend.
+   * Throws for a port the Sandbox doesn't forward.
+   */
+  internalUrl(port: number): string
+  /**
+   * Make the given forwarded port reachable for browsers, once its listener
+   * is started, and return the origin a browser loads it at. Idempotent. The
+   * hosted backend's public URL; on the local backend, whatever the preview
+   * exposure says. Throws for a port the Sandbox doesn't forward.
+   */
+  expose(port: number): Promise<ExposedPort>
   /**
    * Resolve a logical forwarded port to the port a process must actually
    * **bind** (and that other in-sandbox processes can reach it on). On a backend

@@ -5,6 +5,7 @@ import { frameStreamKey } from "@/lib/frame-stream/token"
 import {
   PROXY_PORT_OFFSET,
   STREAM_PORT,
+  previewListenEnv,
   sandboxStateDir,
   sessionLeader,
 } from "@/lib/sandbox/provision-internals"
@@ -25,17 +26,27 @@ const CHROME = "google-chrome"
 
 export { sharedFramesEnabled } from "@/lib/frame-stream/shared-frames"
 
-/** The stream's public WebSocket URL, or null when the Sandbox doesn't
- *  forward the stream port (it was created before shared frames). */
-export function frameStreamUrl(sandbox: SandboxInstance): string | null {
+/**
+ * The stream's WebSocket URL for the server's own connection, or null when
+ * the Sandbox doesn't forward the stream port (it was created before shared
+ * frames).
+ */
+function internalStreamUrl(sandbox: SandboxInstance): string | null {
   try {
-    return sandbox.domain(STREAM_PORT).replace(/^http/, "ws")
+    return toWs(sandbox.internalUrl(STREAM_PORT))
   } catch {
     return null
   }
 }
 
-export type FrameStreamEndpoint = { url: string }
+const toWs = (url: string) => url.replace(/^http/, "ws")
+
+export type FrameStreamEndpoint = {
+  /** Where a browser connects. */
+  url: string
+  /** Where the server connects (frame drive); never a browser URL. */
+  internalUrl: string
+}
 
 /**
  * Ensure the Workspace's Frame Stream service (#1392) is running, then return
@@ -52,22 +63,25 @@ export async function ensureFrameStream(
   devPort: number
 ): Promise<SandboxActionResult<FrameStreamEndpoint | null>> {
   return runSandboxAction(sandboxName, async (sandbox) => {
-    const url = frameStreamUrl(sandbox)
-    if (!url) return null
+    const internalUrl = internalStreamUrl(sandbox)
+    if (!internalUrl) return null
     const { FRAME_STREAM_JS } = await import("@/lib/sandbox-bridge")
     const origin = `http://127.0.0.1:${sandbox.hostPort(devPort + PROXY_PORT_OFFSET)}`
+    const listen = previewListenEnv("SCREENPLAY_STREAM_HOST")
     const stamp = createHash("sha256")
       .update(FRAME_STREAM_JS)
       .update(origin)
+      .update(JSON.stringify(listen))
       .digest("hex")
       .slice(0, 16)
     if (!(await isRunning(sandbox, stamp))) {
       await sandbox.writeFiles([
         { path: SCRIPT_PATH, content: FRAME_STREAM_JS },
       ])
-      await launch(sandbox, origin, stamp)
+      await launch(sandbox, origin, stamp, listen)
     }
-    return { url }
+    const { browserOrigin } = await sandbox.expose(STREAM_PORT)
+    return { url: toWs(browserOrigin), internalUrl }
   })
 }
 
@@ -93,7 +107,8 @@ async function isRunning(
 async function launch(
   sandbox: SandboxInstance,
   origin: string,
-  stamp: string
+  stamp: string,
+  listen: Record<string, string>
 ): Promise<void> {
   const name = sandbox.name
   await sandbox.runCommand({
@@ -114,6 +129,9 @@ async function launch(
       SCREENPLAY_STREAM_KEY: frameStreamKey(name),
       SCREENPLAY_FRAME_ORIGIN: origin,
       SCREENPLAY_CHROME: CHROME,
+      // Where the preview exposure binds browser-facing listeners (local
+      // backend); a hosted VM keeps every interface.
+      ...listen,
     },
   })
   // Answer once it listens, so the first viewer doesn't race it.

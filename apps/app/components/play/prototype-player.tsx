@@ -47,6 +47,9 @@ interface PrototypePlayerProps {
   agentId: string
   branch: string
   previewDomain: string
+  /** The Workspace's Sandbox and Dev Server Port, which the preview probe asks about. */
+  sandboxName: string
+  devPort: number
   initialRoute: string
   initialKnobValues: Record<string, unknown>
   initialSharedState: Record<string, unknown>
@@ -73,6 +76,8 @@ export function PrototypePlayer({
   agentId,
   branch,
   previewDomain,
+  sandboxName,
+  devPort,
   initialRoute,
   initialKnobValues,
   initialSharedState,
@@ -182,7 +187,13 @@ export function PrototypePlayer({
     : undefined
 
   const { state: probeState, retry: retryProbe } = useDevServerProbe(
-    livePreviewDomain || undefined
+    livePreviewDomain
+      ? {
+          sandboxName: workspace?.sandboxName ?? sandboxName,
+          devPort: workspace?.port ?? devPort,
+          url: livePreviewDomain,
+        }
+      : undefined
   )
   // The bridge's `screenplay:ready`: a real page painted, not the placeholder.
   const [contentReady, setContentReady] = useState(false)

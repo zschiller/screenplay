@@ -308,6 +308,7 @@ async function createSandbox(
       name: sandboxName,
       source,
       ports: [port, port + PROXY_PORT_OFFSET, TERMINAL_PORT, STREAM_PORT],
+      browserPorts: [port + PROXY_PORT_OFFSET, STREAM_PORT],
       timeout: SANDBOX_TIMEOUT,
       snapshotExpiration: SNAPSHOT_EXPIRATION,
       resources: { vcpus: SANDBOX_VCPUS },

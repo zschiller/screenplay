@@ -110,7 +110,13 @@ export interface DevServerControls {
 function useDevServer(agent: BranchData, controls?: DevServerControls) {
   const controllable = canControlDevServer(agent)
   const failing = usePreviewFailing(
-    agent.previewDomain || undefined,
+    agent.previewDomain
+      ? {
+          sandboxName: agent.sandboxName,
+          devPort: agent.port,
+          url: agent.previewDomain,
+        }
+      : undefined,
     controllable && !agent.devServerStoppedAt,
     agent.devServerLaunchedAt
   )

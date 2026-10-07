@@ -2,6 +2,7 @@ const meta = {
   "model-providers": "Model providers",
   "byo-harnesses": "Coding CLIs (harnesses)",
   "sandbox-provider": "Sandbox provider",
+  "preview-exposure": "Preview exposure",
   "yjs-host": "Yjs host",
   "blob-store": "Blob store",
   extensions: "Extensions",

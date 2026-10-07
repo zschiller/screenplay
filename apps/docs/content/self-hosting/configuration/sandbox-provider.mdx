@@ -116,7 +116,9 @@ can’t hibernate. The chat menu offers no sandbox restart on any build, only
 stopped preview.
 
 Previews run under portless on a per-chat port. See
-[Preview & ports](/guides/building/dev-server).
+[Preview & ports](/guides/building/dev-server). How a browser reaches them
+(where they bind, which ports they take, the URL a frame loads) is
+[Preview exposure](/self-hosting/configuration/preview-exposure).
 
 ## Adding a provider
 
@@ -149,8 +151,9 @@ daemon.
 3. Read your credentials (for example `E2B_API_KEY`) inside the factory.
 
 A `SandboxInstance` is deliberately small: `name`, `worktreePath`, `homeDir`,
-`domain(port)`, `hostPort(port)`, `runCommand`, `writeFiles`,
-`readFileToBuffer`, and `delete()`. See `apps/app/lib/sandbox/types.ts`. The
+`domain(port)`, `hostPort(port)`, `internalUrl(port)` (where the server
+reaches a port), `expose(port)` (the origin a browser loads it at),
+`runCommand`, `writeFiles`, `readFileToBuffer`, and `delete()`. See `apps/app/lib/sandbox/types.ts`. The
 agent’s tools, the logs stream, and terminals are all written against this
 interface.
 

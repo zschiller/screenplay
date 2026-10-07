@@ -65,15 +65,16 @@ export function liveDevServerPorts(opts: {
       sandboxProvider.get({ name: sandboxName, resume: false }),
     ])
     if (!isSandboxRunning(sandbox)) return null
-    return sandbox.domain(repo.devServerPort + PROXY_PORT_OFFSET)
+    // The server's own address for the preview, never a browser URL.
+    return sandbox.internalUrl(repo.devServerPort + PROXY_PORT_OFFSET)
   }
 
   return {
     async status() {
-      const [{ isSandboxRunning, sandboxProvider }, { probeSandboxUrl }] =
+      const [{ isSandboxRunning, sandboxProvider }, { probePreviewUrl }] =
         await Promise.all([
           import("@/lib/sandbox"),
-          import("@/lib/sandbox/lifecycle"),
+          import("@/lib/sandbox/preview-probe"),
         ])
       const repo = await findRepo()
       const command = repo.devScript?.trim() || "npm run dev"
@@ -107,7 +108,7 @@ export function liveDevServerPorts(opts: {
       return {
         command,
         localUrl: `http://localhost:${sandbox.hostPort(repo.devServerPort)}`,
-        answering: url ? await probeSandboxUrl(url) : false,
+        answering: url ? await probePreviewUrl(url) : false,
       }
     },
 
@@ -163,12 +164,12 @@ export function liveDevServerPorts(opts: {
     },
 
     async waitUntilAnswering() {
-      const { probeSandboxUrl } = await import("@/lib/sandbox/lifecycle")
+      const { probePreviewUrl } = await import("@/lib/sandbox/preview-probe")
       const url = await previewUrl().catch(() => null)
       if (!url) return false
       const deadline = Date.now() + ANSWER_TIMEOUT_MS
       while (Date.now() < deadline) {
-        if (await probeSandboxUrl(url)) return true
+        if (await probePreviewUrl(url)) return true
         await new Promise((resolve) => setTimeout(resolve, ANSWER_POLL_MS))
       }
       return false
