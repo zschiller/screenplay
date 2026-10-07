@@ -102,6 +102,12 @@ export function useHasWorkspaceMenu(branchId: string | null | undefined) {
   return !!branchId && !!menu?.branches.some((b) => b.id === branchId)
 }
 
+// The breadcrumb's spacing, not a list row's: a row's 8px gap lines its name
+// up under the menu's other 16px icons, but the header's glyph is a 12px mark
+// in a 16px slot, so 8px read as a wide 10px hole beside the 6px around the
+// crumb's "/". The canvas group label sets it the same way.
+const HEADER_MENTION_CLASS = "flex-initial gap-1 text-sm"
+
 /**
  * A Workspace chat's title in its header: state icon and name, renamed in
  * place, then a … with the Workspace's menu, like the canvas name's … in the
@@ -138,7 +144,7 @@ export function WorkspaceHeaderTitle({ branch }: { branch: BranchData }) {
             branch={branch}
             state={state}
             pr={false}
-            className="flex-initial text-sm"
+            className={HEADER_MENTION_CLASS}
           />
         </span>
       </WorkspaceHoverCard>
@@ -160,7 +166,7 @@ export function WorkspaceHeaderTitle({ branch }: { branch: BranchData }) {
             branch={branch}
             state={state}
             pr={false}
-            className="flex-initial text-sm"
+            className={HEADER_MENTION_CLASS}
             name={
               <EditableText
                 ref={editableRef}
