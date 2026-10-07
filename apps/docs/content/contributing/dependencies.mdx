@@ -1,0 +1,23 @@
+---
+title: Dependencies
+description: The dependency versions held back on purpose, and what has to change before each one can move.
+---
+
+# Dependencies
+
+Most dependencies move freely. The ones below are held back on purpose.
+Check what blocks one before trying to upgrade it, and run the tests with
+`--force` afterwards so Turborepo doesn’t replay a cached pass (see
+[Testing](/contributing#testing)).
+
+| Package | Held at | Why | Moves when |
+| --- | --- | --- | --- |
+| `playwright-core` | `~1.56` (app, homepage) | Cloud containers ship a pre-installed Chromium build that matches 1.56. A newer version looks for a browser that isn’t there, and screenshot runs fail. | The pre-installed browser moves |
+| `puppeteer`, `puppeteer-core` | `~25.11` | 25.11 matches `@sparticuz/chromium` 153, the Chromium the hosted app runs on. | `@sparticuz/chromium` 154 ships; bump both together |
+| `eslint` | 9 | `eslint-plugin-react`, `jsx-a11y` and `import` (through `eslint-config-next`) accept ESLint 9 at most. | Those plugins support ESLint 10 |
+| `typescript` | 6 | `typescript-eslint` doesn’t support 7 yet, and TypeScript 7 has no compiler API, which the copy check (`apps/app/lib/ui-copy/extract.ts`) and Nextra’s twoslash need. | `typescript-eslint` supports 7 and both users have a replacement for the compiler API |
+| `y-websocket` | 2 | Version 3’s server package loads `leveldown` eagerly, and `leveldown` has no Apple Silicon prebuild, which risks the desktop app’s bundled server. Its later releases also need Yjs 14. | `leveldown` loads lazily or ships the prebuild |
+| `npm` in the publish workflows | `^11.5.1` | Trusted Publishing needs 11.5.1 or later, and npm 12 raised its Node floor and broke the publish step. | You bump it deliberately with the workflow’s `node-version` |
+
+The AI SDK runs on version 7 with Anthropic tested live. OpenAI and Gemini
+haven’t been tested live on 7: try them before relying on either.
