@@ -2762,6 +2762,10 @@ export function Canvas({
                     onOpenShortcuts: openShortcutSheet,
                     stopRoomDevServers,
                     flushLayout,
+                    pages,
+                    currentPageId,
+                    onSelectPage: switchPage,
+                    onAddPage: addPage,
                   })}
                 />
                 <AddRepositoryDialog
