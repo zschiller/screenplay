@@ -10,6 +10,7 @@ import type {
   MemoryData,
   MockupLayerData,
   PageData,
+  PageViewData,
   PlanData,
   ViewportData,
   RepoData,
@@ -54,6 +55,8 @@ export const COLLECTION_KEYS = {
   /** The canvas's Pages (#1835), `lib/canvas/pages.ts`. None recorded reads
    *  as one "Page 1". */
   pages: "pages",
+  /** Each member's view of each Page (#1838), `lib/canvas/page-views.ts`. */
+  pageViews: "pageViews",
 } as const
 
 const META_KEY = "meta"
@@ -286,6 +289,9 @@ export type RoomCollections = {
   frameDriveAsks: YjsCollection<FrameDriveAsk>
   commentPositions: YjsCollection<CommentPosition>
   pages: YjsCollection<PageData>
+  pageViews: YjsCollection<PageViewData>
+  /** Where a canvas from before #1838 opened for everyone. Only read now, as
+   *  a member's first view of the first page (`lib/canvas/page-views.ts`). */
   savedViewport: YjsSingleton<ViewportData>
   /** Run a function as a single Yjs transaction (one update, one undo step). */
   transact: (fn: () => void) => void
@@ -372,6 +378,10 @@ export function createRoomCollections(doc: Y.Doc): RoomCollections {
     pages: new YjsCollection<PageData>(
       doc,
       ensureCollection(doc, COLLECTION_KEYS.pages)
+    ),
+    pageViews: new YjsCollection<PageViewData>(
+      doc,
+      ensureCollection(doc, COLLECTION_KEYS.pageViews)
     ),
     savedViewport: new YjsSingleton<ViewportData>(doc, meta, VIEWPORT_FIELD),
     transact: (fn) => doc.transact(fn),

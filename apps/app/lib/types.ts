@@ -463,6 +463,19 @@ export type PageData = {
 }
 
 /**
+ * One member's view of one Page (#1838): where their camera was when they
+ * left it. Keyed `{userId}:{pageId}` (`pageViewKey`) in the room's
+ * `pageViews` collection, so it follows them across devices.
+ */
+export type PageViewData = ViewportData & {
+  userId: string
+  pageId: string
+  /** When they were last on this page (ms); their latest is where the
+   *  canvas opens for them. */
+  seenAt: number
+}
+
+/**
  * A Notion-style markdown tile on the canvas. Lives inside an
  * `IframeLayerGroup` exactly like iframe layers do — the group anchors
  * world-space `(x, y)`, and the layer carries only its own size + title.

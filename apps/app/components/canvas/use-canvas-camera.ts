@@ -40,7 +40,7 @@ import type { LiveCamera, LiveZoom } from "./live-zoom"
  *
  * It owns the `react-zoom-pan-pinch` transform ref and the `zoom` / viewport
  * mirrors, the debounced viewport persistence (through the injected
- * `saveViewport`, a thin wrapper over `ops.saveViewport`), the presence
+ * `saveViewport`, a thin wrapper over `ops.savePageView`), the presence
  * viewport broadcast, the follow-another-user effect (writing the transform
  * from a peer's presence) and the wheel/pinch follow-break, and the Figma-style
  * wheel pan/zoom. The pure zoom-to-fit math lives in `lib/canvas/camera`; this
@@ -70,10 +70,12 @@ export interface CanvasCameraDeps {
   setPresence: (partial: Partial<CanvasPresence>) => void
   /** The signed-in user — its identity is published into awareness on mount. */
   session: ReturnType<typeof useAppSession>["data"]
-  /** Persist the viewport (a thin wrapper over `ops.saveViewport`). */
+  /** Persist the viewport (a thin wrapper over `ops.savePageView`). */
   saveViewport: (vp: ViewportData) => void
-  /** The viewport restored from the Y.Doc on first load, if any. */
-  savedViewport: ViewportData | null
+  /** Where the canvas opens (#1838): this person's view of the page it opens
+   *  on, or, with none, that page's content to fit. Null until it's known
+   *  (the session is still loading); applied once. */
+  openView: CameraView | null
   /** Local selection ids broadcast into awareness for remote selection rings. */
   overlaySelectedIds: Set<string>
   groupSelectedIframeLayerIds: Set<string>
@@ -83,6 +85,13 @@ export interface CanvasCameraDeps {
   editingDocumentLayerId: string | null
   /** Space-held arms left-click panning. */
   spaceHeld: boolean
+}
+
+/** A camera target: `viewport`, or with none, `rect` fitted (100% at the
+ *  canvas center when there's nothing to fit). */
+export interface CameraView {
+  viewport: ViewportData | null
+  rect: Rect | null
 }
 
 export interface CanvasCamera {
@@ -140,9 +149,10 @@ export interface CanvasCamera {
   /**
    * Put the camera at `viewport` at once, or, with none, fit `rect` (100% at
    * the canvas center when there's nothing to fit), with no animation:
-   * switching pages (#1835) cuts to the other page's view.
+   * switching pages (#1835) cuts to the other page's view. Returns where it
+   * put the camera; a save still pending for the page left is dropped.
    */
-  jumpTo(viewport: ViewportData | null, rect: Rect | null): void
+  jumpTo(viewport: ViewportData | null, rect: Rect | null): ViewportData | null
   /** Forwarded wheel from inside an interactive iframe (cursor-centered zoom). */
   handleIframeWheel(iframeLayerId: string, w: WheelForward): void
   /** The `TransformWrapper` props this controller owns. */
@@ -204,7 +214,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     setPresence,
     session,
     saveViewport,
-    savedViewport,
+    openView,
     overlaySelectedIds,
     groupSelectedIframeLayerIds,
     focusedIframeLayerId,
@@ -491,15 +501,40 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
     [transformRef, setPresence, setLiveCamera]
   )
 
-  // Restore the saved viewport once it arrives (covers the case where the
-  // synced viewport lands after TransformWrapper's onInit already fired).
+  // Where `view` puts the camera, given the wrapper `ref` draws into.
+  const viewportFor = useCallback(
+    (ref: ReactZoomPanPinchContentRef, view: CameraView): ViewportData => {
+      if (view.viewport) return view.viewport
+      const wrapper = ref.instance.wrapperComponent
+      const size = {
+        width: wrapper?.clientWidth ?? window.innerWidth,
+        height: wrapper?.clientHeight ?? window.innerHeight,
+      }
+      const rect = view.rect
+      if (rect && rect.width > 0 && rect.height > 0)
+        return fitRectToViewport(rect, size, {
+          padding: FIT_PADDING,
+          maxZoom: FIT_ZOOM_MAX,
+        })
+      return {
+        x: size.width / 2 - CANVAS_SIZE / 2,
+        y: size.height / 2 - CANVAS_SIZE / 2,
+        zoom: 1,
+      }
+    },
+    []
+  )
+
+  // Open the canvas once its view is known (covers the case where it lands
+  // after TransformWrapper's onInit already fired).
   useEffect(() => {
     if (viewportRestoredRef.current) return
-    if (!savedViewport) return
-    if (!transformRef.current) return
+    if (!openView) return
+    const ref = transformRef.current
+    if (!ref) return
     viewportRestoredRef.current = true
-    setCameraNow(savedViewport)
-  }, [transformRef, savedViewport, setCameraNow])
+    setCameraNow(viewportFor(ref, openView))
+  }, [transformRef, openView, setCameraNow, viewportFor])
 
   // The screenshot harness frames one Canvas several ways, so in the Fixture
   // World build it moves the camera through this handle instead of re-seeding
@@ -739,31 +774,20 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   const jumpTo = useCallback(
     (viewport: ViewportData | null, rect: Rect | null) => {
       const ref = transformRef.current
-      if (!ref) return
-      // A page switch is the person's own move: the saved viewport that
-      // lands later mustn't take it back.
+      if (!ref) return null
+      // A page switch is the person's own move: the view that lands later
+      // mustn't take it back.
       viewportRestoredRef.current = true
-      if (viewport) return setCameraNow(viewport)
-      const wrapper = ref.instance.wrapperComponent
-      const size = {
-        width: wrapper?.clientWidth ?? window.innerWidth,
-        height: wrapper?.clientHeight ?? window.innerHeight,
+      // A save still waiting belongs to the page being left.
+      if (saveViewportTimerRef.current) {
+        clearTimeout(saveViewportTimerRef.current)
+        saveViewportTimerRef.current = null
       }
-      if (rect && rect.width > 0 && rect.height > 0) {
-        return setCameraNow(
-          fitRectToViewport(rect, size, {
-            padding: FIT_PADDING,
-            maxZoom: FIT_ZOOM_MAX,
-          })
-        )
-      }
-      setCameraNow({
-        x: size.width / 2 - CANVAS_SIZE / 2,
-        y: size.height / 2 - CANVAS_SIZE / 2,
-        zoom: 1,
-      })
+      const vp = viewportFor(ref, { viewport, rect })
+      setCameraNow(vp)
+      return vp
     },
-    [transformRef, setCameraNow]
+    [transformRef, setCameraNow, viewportFor]
   )
 
   // --- Follow another user's viewport ---
@@ -960,18 +984,14 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
   // --- TransformWrapper props (init / transform / panning gates) ---
   const onInit = useCallback(
     (ref: ReactZoomPanPinchContentRef) => {
-      if (!viewportRestoredRef.current && savedViewport) {
+      if (!viewportRestoredRef.current && openView) {
         viewportRestoredRef.current = true
-        ref.setTransform(
-          savedViewport.x,
-          savedViewport.y,
-          savedViewport.zoom,
-          0
-        )
-        setZoom(savedViewport.zoom)
-        setLiveCamera(savedViewport)
-        setViewportPos({ x: savedViewport.x, y: savedViewport.y })
-        setPresence({ viewport: savedViewport })
+        const vp = viewportFor(ref, openView)
+        ref.setTransform(vp.x, vp.y, vp.zoom, 0)
+        setZoom(vp.zoom)
+        setLiveCamera(vp)
+        setViewportPos({ x: vp.x, y: vp.y })
+        setPresence({ viewport: vp })
       } else {
         const { scale, positionX, positionY } = ref.state
         setZoom(scale)
@@ -982,7 +1002,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
         })
       }
     },
-    [savedViewport, setPresence, setLiveCamera]
+    [openView, viewportFor, setPresence, setLiveCamera]
   )
 
   // A press only arms the pan: the grabbing cursor and the panning state wait
