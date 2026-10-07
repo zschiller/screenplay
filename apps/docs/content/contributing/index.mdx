@@ -129,6 +129,69 @@ pnpm db:studio   # open Drizzle Studio
 See [Database](/self-hosting/database#changing-the-schema) for the
 migration workflow.
 
+### When local dev misbehaves
+
+- **The dev indicator pulses nonstop, or Turbopack panics** with
+  “EcmascriptMergedChunkVersion … no longer exists” or “[Server HMR]
+  Subscription error”. Turbopack rebuilds on every change to a file under
+  `apps/app` that git doesn’t ignore, even one no module imports. Something is
+  writing there: any folder the app writes state to during `next dev` belongs
+  in `.gitignore` (`.pglite/`, `.data/` and `.screenplay/` already are).
+- **`next dev` hangs at “Compiling /[roomId] …”**, or a build complains that
+  `build-manifest.json` is missing after you switch between the hosted and
+  local screenshot harness. Turbopack’s on-disk cache in `apps/app/.next` is
+  stale: `rm -rf apps/app/.next` and start again.
+- **“Could not find the Next.js package”** from the docs screenshot harness.
+  Next skips `pnpm-workspace.yaml` when `$HOME` sits inside the repository,
+  which the harness does on purpose, so `apps/app/next.config.mjs` pins
+  `turbopack.root` to the repository root. Check that the pin is still there.
+
+## Testing
+
+`pnpm test` at the root runs every package’s tests through Turborepo, which
+replays cached results when a package’s inputs haven’t changed. After a
+dependency or config change, add `--force` so the tests really run:
+
+```bash
+pnpm turbo run test --filter=app --force
+```
+
+CI runs typecheck and the package tests, the app’s unit tests in three
+shards, and a browser job with Chrome, Xvfb and ffmpeg installed. A test that
+needs that browser stack must be named `*.browser.test.ts`: the unit shards
+skip that name, and `apps/app/test/browser-tests.test.ts` fails a test that
+mentions Xvfb under any other name. In the browser job,
+`SCREENPLAY_REQUIRE_BROWSER_STACK=1` turns a missing stack into a failure
+instead of a skip, so copy that check into a new browser test after its own
+stack gate.
+
+### Linux isn’t a Mac
+
+The desktop app renders in the Mac’s WKWebView, and nothing on Linux paints
+the way it does. Headless Chromium and the screenshot harness are right for
+layout, copy and behaviour, but not for pixel-level rendering:
+
+- **Text snaps to whole pixels on Linux.** Headless Chromium rounds text to
+  whole CSS pixels, so a half-pixel offset never shows in a capture, while
+  the Mac’s fractional font metrics can tip it into a visible 1px jump. To
+  show one on Linux, nudge the parent by 0.6px.
+- **WebKitGTK’s compositor isn’t Core Animation.** WebKitGTK under Xvfb
+  reproduces some WebKit layout bugs, and Playwright’s WebKit repaints its
+  screenshots in software. Neither composites or rasters layers the way the
+  Mac does: a label change that looked crisper in WebKitGTK went blurry on a
+  Mac ([PR #1775](https://github.com/zschiller/screenplay/pull/1775),
+  reverted in [PR #1776](https://github.com/zschiller/screenplay/pull/1776)).
+- **Only a real WKWebView capture proves a Mac raster or compositing fix.**
+  Capture a system WKWebView window on a Mac (`screencapture`), before and
+  after. That is how the off-centre spinner was found: WebKit gives an
+  animated `<svg>` its own layer and pivots it off the pixel grid, so
+  spinners rotate their `<path>` instead
+  ([PR #1783](https://github.com/zschiller/screenplay/pull/1783)).
+
+Zoomed frames blur on the Mac by choice; see
+[ADR 0034](https://github.com/zschiller/screenplay/blob/main/apps/app/docs/adr/0034-mac-webkit-zoom-blur-left-as-is.md)
+before trying again.
+
 ## Desktop app
 
 ```bash
@@ -210,6 +273,21 @@ about. Every
 screenshot is generated: run `pnpm --filter docs screenshots` to regenerate them
 after a UI change, and see [Docs screenshots](https://github.com/zschiller/screenplay/blob/main/apps/app/screenshots/README.md#docs-screenshots) to
 add one.
+
+## Pull requests
+
+- Open a pull request ready for review, not as a draft.
+- Before you push, merge `main` in and run the app’s full suite
+  (`pnpm --filter app test`) and `pnpm typecheck`. A pull request can be
+  merged as soon as its review looks right, before CI finishes, so a red
+  check found only by CI lands on `main`.
+- A pull request that changes what a user sees or configures updates the
+  page here that describes it, or says why not on a `Docs:` line in its
+  description.
+
+[Dependencies](/contributing/dependencies) lists the versions held back on
+purpose, and [Publishing](/contributing/publishing) covers the npm packages
+and preview deploys.
 
 ## Issues
 

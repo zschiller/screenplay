@@ -1,0 +1,58 @@
+---
+title: Publishing
+description: Publish the npm packages, recover a failed release, and opt a pull request into preview deploys.
+---
+
+# Publishing
+
+## npm packages
+
+`@screenplay.space/knobs` and `@screenplay.space/state` are published by two
+manual workflows, `publish-knobs.yml` and `publish-state.yml`. Run one from
+the Actions tab with a bump (`patch`, `minor`, `major`, `prerelease`, an
+exact version, or `none` to publish what `package.json` already says) and an
+npm dist-tag. Each run:
+
+1. checks that `main`’s version matches what’s on npm,
+2. bumps the version on a `release/screenplay-<package>-v<version>` branch
+   and pushes it,
+3. pushes the `screenplay-<package>-v<version>` tag,
+4. publishes to npm through Trusted Publishing (no npm token), and
+5. opens a “Release …” pull request. Merge it so `main` catches up.
+
+A pull request that changes a package doesn’t bump its version; publish
+after it merges. Publishing can’t be undone, so wait until the changes you
+want in a release have all merged.
+
+### Recovering from a failed run
+
+The release branch and tag are pushed **before** `npm publish`. When a run
+fails after that, the branch and tag stay behind, and the next run with the
+same bump collides with them. Before you run again, check npm and the
+repository:
+
+- If the version isn’t on npm, delete the leftover `release/…` branch and
+  tag, then run again with the same bump.
+- Or leave them and run with an explicit, higher version.
+
+If the drift check fails, `main`’s `package.json` is behind npm: merge the
+outstanding release pull request first.
+
+## Desktop app
+
+The desktop app is released from a Mac with one command; see
+[Releasing the desktop app](/contributing#releasing-the-desktop-app).
+
+## Preview deploys
+
+Production (`main`) always deploys. Preview deploys of the app, docs and
+homepage are opt-in, because they cost build credits.
+`scripts/vercel-ignore-build.sh` decides, and a pull request opts in with:
+
+- the `preview` label (every site) or `preview:app`, `preview:docs` or
+  `preview:homepage` (one site). Push, or redeploy, after adding the label.
+- `[preview]` or `[preview:<site>]` in a commit’s **subject line**. The body
+  doesn’t count. Keep the bracketed token out of a subject unless you want a
+  preview.
+
+A skipped deploy shows “Canceled by Ignored Build Step” on the pull request.
