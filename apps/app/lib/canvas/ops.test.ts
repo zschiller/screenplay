@@ -1018,16 +1018,57 @@ describe("createDocument", () => {
   })
 })
 
-describe("saveViewport", () => {
-  it("writes the viewport singleton under the canvas-ops origin", () => {
+describe("page views (#1838)", () => {
+  it("saves one member's view of one page, stamped as seen now", () => {
     const { ops, collections, doc } = makeHarness()
     const origins: unknown[] = []
     doc.on("afterTransaction", (tr) => origins.push(tr.origin))
 
-    ops.saveViewport({ x: 12, y: 34, zoom: 1.5 })
+    ops.savePageView("ann", "p2", { x: 12, y: 34, zoom: 1.5 })
 
-    expect(collections.savedViewport.get()).toEqual({ x: 12, y: 34, zoom: 1.5 })
+    expect(collections.pageViews.get("ann:p2")).toMatchObject({
+      userId: "ann",
+      pageId: "p2",
+      x: 12,
+      y: 34,
+      zoom: 1.5,
+    })
+    expect(collections.pageViews.get("ann:p2")?.seenAt).toBeTypeOf("number")
     expect(origins).toEqual([CANVAS_OPS_ORIGIN])
+  })
+
+  it("keeps two members' views of one page apart", () => {
+    const { ops, collections } = makeHarness()
+    ops.savePageView("ann", "p1", { x: 1, y: 1, zoom: 1 })
+    ops.savePageView("bob", "p1", { x: 2, y: 2, zoom: 2 })
+    ops.savePageView("ann", "p1", { x: 3, y: 3, zoom: 0.5 })
+
+    expect(collections.pageViews.get("ann:p1")).toMatchObject({
+      x: 3,
+      zoom: 0.5,
+    })
+    expect(collections.pageViews.get("bob:p1")).toMatchObject({ x: 2, zoom: 2 })
+  })
+
+  it("removes every view of a page, and every view of a member", () => {
+    const { ops, collections } = makeHarness()
+    ops.savePageView("ann", "p1", { x: 0, y: 0, zoom: 1 })
+    ops.savePageView("ann", "p2", { x: 0, y: 0, zoom: 1 })
+    ops.savePageView("bob", "p2", { x: 0, y: 0, zoom: 1 })
+    ops.savePageView("bob", "p3", { x: 0, y: 0, zoom: 1 })
+
+    ops.removePageViews("p2")
+    expect(
+      collections.pageViews
+        .toArray()
+        .map((v) => `${v.userId}:${v.pageId}`)
+        .sort()
+    ).toEqual(["ann:p1", "bob:p3"])
+
+    ops.removeMemberViews("bob")
+    expect(
+      collections.pageViews.toArray().map((v) => `${v.userId}:${v.pageId}`)
+    ).toEqual(["ann:p1"])
   })
 })
 

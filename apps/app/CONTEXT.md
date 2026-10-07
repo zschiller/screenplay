@@ -385,7 +385,11 @@ previews keep running). Pages split the Layers and nothing else: repositories,
 Memory, chats and the Coordinator stay per Canvas. A Room with no Pages
 recorded reads as one "Page 1" (`lib/canvas/pages.ts`), and a Group with no
 `pageId`, or one naming a Page that's gone, is on the first Page, so existing
-canvases open without a write. The Page a person is looking at is client state.
+canvases open without a write. The Page a person is looking at is client state;
+each member's view of each Page (and when they were last on it, so the canvas
+opens there) is saved per member and Page in the Room (`pageViews`,
+`lib/canvas/page-views.ts`). The old shared `savedViewport` is only read as
+everyone's first view of the first Page.
 _Avoid_: board, scene, sheet.
 
 **Group** (Iframe Layer Group):

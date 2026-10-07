@@ -21,7 +21,7 @@ import {
 } from "@/lib/rooms"
 import { decideRoomDeletion } from "@/lib/room-deletion"
 import { openRoom } from "@/lib/room-access"
-import { leaveRoom, teardownRoom } from "@/lib/room-teardown"
+import { leaveRoom, removeMemberViews, teardownRoom } from "@/lib/room-teardown"
 import { library as repositoryLibrary } from "@/lib/repository-library/server"
 import { yjsHost } from "@/lib/yjs-host"
 import { isLocalBuild } from "@/lib/local-mode"
@@ -185,7 +185,7 @@ export async function deleteRoom(roomId: string): Promise<void> {
   if (decision.action === "leave") {
     // Shared non-owner: drop only the deleter's membership; the Room stays
     // intact for everyone else (shared `lib/room-teardown`).
-    await leaveRoom(roomId, userId)
+    await leaveRoom(await openRoom(roomId))
     return
   }
 
@@ -259,12 +259,14 @@ export async function removeCollaborator(
     throw new Error("The owner can’t be removed.")
   }
 
+  const access = await openRoom(roomId)
   await removeMember(roomId, collaboratorId)
   const allMembers = await listMembers(roomId)
   await yjsHost.syncRoomMembers(
     roomId,
     allMembers.map((m) => ({ userId: m.userId, role: m.role }))
   )
+  await removeMemberViews(access, collaboratorId)
 
   return listCollaborators(roomId)
 }

@@ -25,6 +25,7 @@ import {
   orderedPages,
   resolvePageId,
 } from "@/lib/canvas/pages"
+import { pageViewKey } from "@/lib/canvas/page-views"
 import { lastChangedBy } from "@/lib/canvas/layer-chat"
 import { getIframeLayerSizePreset } from "@/lib/iframe-layer-sizes"
 import { routeToLabel } from "@/lib/route-utils"
@@ -43,6 +44,7 @@ import type {
   MarkdownLayerData,
   MockupLayerData,
   PageData,
+  PageViewData,
   PlanData,
   ViewportData,
   RepoData,
@@ -133,12 +135,18 @@ export type CanvasOps = {
     fields: Partial<RecordByKey[K]>
   ): void
   /**
-   * Persist the saved viewport (the singleton restored on room load). A thin
-   * verb — the viewport is its own Y.Doc singleton, not a keyed collection
-   * `patch` can address — but routing it through the seam keeps every committed
-   * canvas mutation under the uniform origin.
+   * Record `userId`'s view of `pageId` (#1838) and that they're on it now:
+   * where their camera goes when they come back, and where the canvas opens
+   * for them next time. Never a ⌘Z step.
    */
-  saveViewport(viewport: ViewportData): void
+  savePageView(userId: string, pageId: string, viewport: ViewportData): void
+  /**
+   * Drop every member's view of `pageId`, for deleting the page: call it in
+   * the delete's transaction so ⌘Z brings the views back with the page.
+   */
+  removePageViews(pageId: string): void
+  /** Drop every view `userId` has, when they leave or are removed. */
+  removeMemberViews(userId: string): void
   /**
    * Create a Repo record. Composes under one {@link batch} with
    * {@link createBranch} so a repo and its first Branch land as a single
@@ -688,10 +696,37 @@ export function createCanvasOps(
     })
   }
 
-  function saveViewport(viewport: ViewportData): void {
+  function savePageView(
+    userId: string,
+    pageId: string,
+    viewport: ViewportData
+  ): void {
     batch(() => {
-      collections.savedViewport.set(viewport)
+      collections.pageViews.set(pageViewKey(userId, pageId), {
+        userId,
+        pageId,
+        x: viewport.x,
+        y: viewport.y,
+        zoom: viewport.zoom,
+        seenAt: Date.now(),
+      })
     })
+  }
+
+  function removeViewsWhere(match: (v: PageViewData) => boolean): void {
+    batch(() => {
+      for (const v of collections.pageViews.toArray())
+        if (match(v))
+          collections.pageViews.delete(pageViewKey(v.userId, v.pageId))
+    })
+  }
+
+  function removePageViews(pageId: string): void {
+    removeViewsWhere((v) => v.pageId === pageId)
+  }
+
+  function removeMemberViews(userId: string): void {
+    removeViewsWhere((v) => v.userId === userId)
   }
 
   function createRepo(id: string, data: RepoData): void {
@@ -1520,7 +1555,9 @@ export function createCanvasOps(
   return {
     batch,
     patch,
-    saveViewport,
+    savePageView,
+    removePageViews,
+    removeMemberViews,
     createRepo,
     addChatSession,
     removeChatSession,
