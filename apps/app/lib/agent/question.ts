@@ -161,17 +161,20 @@ export interface MockupQuestion {
 /**
  * The latest question a transcript asked about a Mockup (#1644), answered or
  * not, so the page can offer it and show its answer. Null when the chat never
- * asked one about it.
+ * asked one about it. `mockupId` may be every id the Mockup goes by: its
+ * file's and its views' (#1889), since a question asked about a Mockup in
+ * the chat names its file, and one added to the canvas later shows in a view.
  */
 export function mockupQuestion(
   messages: AgentMessage[],
-  mockupId: string
+  mockupId: string | ReadonlySet<string>
 ): MockupQuestion | null {
+  const ids = typeof mockupId === "string" ? new Set([mockupId]) : mockupId
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
     if (message.role !== "tool_call" || !isQuestionCall(message)) continue
     const question = parseQuestion(message.rawInput)
-    if (question?.mockupId !== mockupId) continue
+    if (!question?.mockupId || !ids.has(question.mockupId)) continue
     const answer = questionAnswers(messages.slice(i)).get(message.toolCallId)
     return {
       toolCallId: message.toolCallId,

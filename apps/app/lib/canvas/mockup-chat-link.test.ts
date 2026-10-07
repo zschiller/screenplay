@@ -56,6 +56,13 @@ function canvas(opts: { shown?: ShownChat } = {}) {
     { id: "orphaned", title: "Old", lastChangedByChatId: "deleted-chat" },
     { id: "by-coordinator", title: "Plan", lastChangedByChatId: ROOM },
     { id: "by-hand", title: "" },
+    // A page the chat made off the canvas, since added as a view (#1889).
+    {
+      id: "page-view",
+      fileId: "page-file",
+      title: "Exploration",
+      lastChangedByChatId: "sketch-1",
+    },
   ]
   const messages = new Map<string, AgentMessage[]>()
   const listeners = new Map<string, Set<() => void>>()
@@ -192,6 +199,14 @@ describe("a question about a Mockup (#1644, #1662)", () => {
     link.answer(found, 1)
     expect(c.log).toEqual(["sketch sketch-1"])
     expect(c.sends).toEqual([["sketch-1", "Names only"]])
+  })
+
+  it("reaches a view of the page the chat asked about by its file (#1889)", () => {
+    const c = canvas()
+    c.say("sketch-1", asked("q1", "page-file"))
+    const link = c.link()
+    expect(link.question("page-view")).toMatchObject({ toolCallId: "q1" })
+    expect(link.question("sketched")).toBeNull()
   })
 
   it("answers in the Workspace chat that asked it", () => {
