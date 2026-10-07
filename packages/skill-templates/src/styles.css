@@ -30,7 +30,14 @@
     /* Switching options jumps to the new option; scroll anchoring would undo that jump */
     overflow-anchor: none;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
+}
+
+/* Outside the layers, and as `html body`, so it beats a host's own page
+   styles: an Artifact wraps the page in an unlayered `body` rule with a cream
+   background, near-black text and a system font, which any layered rule
+   loses to, so dark mode showed white text on cream. */
+html body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font: inherit;
 }
