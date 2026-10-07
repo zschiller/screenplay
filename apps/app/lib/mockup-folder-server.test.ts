@@ -145,7 +145,7 @@ describe("Mockup folders (#1886)", () => {
     ).toMatchObject({ ok: false })
   })
 
-  it("removes a folder for good only once its Mockup is gone", async () => {
+  it("removes a folder for good only once its Mockup file is gone", async () => {
     const { ops, store, folder } = setup()
     const { mockupId } = ops.createMockup({
       title: "A",
@@ -159,7 +159,11 @@ describe("Mockup folders (#1886)", () => {
     expect(await folder.purge(mockupId)).toBe(false)
     expect(store.keys()).toHaveLength(1)
 
+    // Removing its last view keeps the file, and the folder with it (#1884).
     ops.removeMockups([mockupId])
+    expect(await folder.purge(mockupId)).toBe(false)
+
+    ops.deleteFiles([mockupId])
     expect(await folder.purge(mockupId)).toBe(true)
     expect(store.keys()).toEqual([])
   })

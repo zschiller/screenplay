@@ -4,13 +4,14 @@ import { execFile } from "node:child_process"
 import { dirname, join } from "node:path"
 import { promisify } from "node:util"
 
-import { accountFiles, canvasFiles } from "@/lib/files"
+import { accountFiles, canvasFiles, fileStore } from "@/lib/files"
 import { requireUserId } from "@/lib/auth-helpers"
 import type { Files } from "./files"
 import { macShell } from "@/lib/capabilities"
 import { openRoom } from "@/lib/room-access"
 import { getRoom } from "@/lib/rooms"
-import { layerFileExports } from "./layer-file-exports"
+import { mockupFolderOn } from "@/lib/mockup-folder-server"
+import { layerFileExports, mockupFileIds } from "./layer-file-exports"
 import { mirrorFolderName, syncFileMirror, type MirrorExtra } from "./mirror"
 import { normalizeFilePath } from "./paths"
 
@@ -40,8 +41,15 @@ export async function openCanvasFileOnDesktop(
   if (!macShell) throw new Error("Only the desktop app opens files.")
   const room = await openRoom(roomId)
   const record = await getRoom(roomId)
-  // Its Documents and Mockups too (#1884), as .md and .html.
-  const extra = await room.readDoc(layerFileExports)
+  // Its Documents and Mockups too (#1884), as .md and .html: a Mockup's
+  // index.html from its folder (#1886).
+  const folder = mockupFolderOn(room, fileStore)
+  const pages = new Map<string, string>()
+  for (const id of await room.readDoc(mockupFileIds)) {
+    const page = await folder.page(id)
+    if (page) pages.set(id, page.html)
+  }
+  const extra = await room.readDoc((c) => layerFileExports(c, pages))
   await openOnDesktop(
     canvasFiles(room),
     join(

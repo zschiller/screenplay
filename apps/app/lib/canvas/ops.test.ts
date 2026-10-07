@@ -2651,10 +2651,9 @@ describe("files and views (#1883)", () => {
     expect(collections.layerFiles.has(docId)).toBe(false)
   })
 
-  it("deletes a Mockup file with its views, its page kept for ⌘Z", () => {
+  it("deletes a Mockup file with its views, and ⌘Z brings them back", () => {
     const { doc, ops, collections } = makeHarness()
     const { mockupId, groupId } = ops.createMockup({
-      html: "<p>A</p>",
       title: "Hero",
       width: 400,
       height: 300,
@@ -2670,7 +2669,7 @@ describe("files and views (#1883)", () => {
     expect(collections.iframeLayerGroups.has(groupId)).toBe(false)
     undo.undo()
     expect(collections.mockupLayers.get(viewId)?.title).toBe("Hero")
-    expect(mockupHtml(doc, mockupId).toString()).toBe("<p>A</p>")
+    expect(collections.layerFiles.has(mockupId)).toBe(true)
     undo.destroy()
   })
 
