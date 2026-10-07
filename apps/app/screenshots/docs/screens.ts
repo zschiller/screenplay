@@ -1103,6 +1103,19 @@ export const DOCS_SCREENS: DocsScreen[] = [
     focus: ["[data-sidebar-pages]"],
   }),
   screen({
+    name: "canvas-page-menu",
+    description:
+      "With the sidebar hidden, the page crumb’s menu in the canvas breadcrumb.",
+    path: ROOM,
+    cookies: canvasPanels({ sidebarPct: 0 }),
+    crop: [0, 0, 640, 300],
+    focus: MENU,
+    prepare: async (page) => {
+      await camera(page, VIEW.hero)
+      await page.getByRole("button", { name: /^Page: / }).click()
+    },
+  }),
+  screen({
     name: "canvas-move-to-page",
     description:
       "A layer row’s ⋯ menu with Move to page open, listing the other pages.",
