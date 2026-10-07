@@ -9,6 +9,8 @@ import {
 } from "@/lib/constants"
 import {
   getGroupMembers,
+  groupContentHeight,
+  groupContentWidth,
   nextGroupNumber,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
@@ -20,6 +22,7 @@ import {
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import {
   FIRST_PAGE,
+  groupPageId,
   groupsOnPage,
   nextPageName,
   orderedPages,
@@ -478,6 +481,19 @@ export type CanvasOps = {
    */
   renamePage(pageId: string, name: string): void
   /**
+   * Move a Group to page `pageId` (#1837), placed right of what's already
+   * there, top-aligned with it, so it overlaps nothing; on an empty page it
+   * keeps its spot. No-op if the Group or page is missing, or it's there.
+   */
+  moveGroupToPage(groupId: string, pageId: string): void
+  /**
+   * Move Layers to page `pageId` (#1837) in a new Group placed as
+   * {@link moveGroupToPage} places one; the Groups they leave keep the Group
+   * invariant. Layers that are all of one Group move that Group instead.
+   * Returns the id of the Group they're in on that page, if any moved.
+   */
+  moveLayersToPage(layerIds: string[], pageId: string): string | undefined
+  /**
    * @internal Not a public verb — the single Group-invariant chokepoint the
    * removal/restructure verbs (#158) route Member removal through. Exposed
    * here (behind `internal`) so those verbs and the invariant tests reach the
@@ -582,6 +598,92 @@ export function createCanvasOps(
         collections.pages.set(pageId, { ...FIRST_PAGE, name: trimmed })
       }
     })
+  }
+
+  // The recorded page `pageId`, if there is one: a canvas whose pages aren't
+  // recorded has only its first, so nothing can move off it.
+  function recordedPage(pageId: string): PageData | undefined {
+    return collections.pages.get(pageId)
+  }
+
+  // Where a `width` × `height` Group arriving on `pageId` goes: right of the
+  // page's Groups, top-aligned with the topmost; at `from` when it's empty.
+  function arrivalSpot(
+    pageId: string,
+    from: { x: number; y: number },
+    width: number,
+    height: number
+  ): { x: number; y: number } {
+    return placeNewIframeLayerGroup(
+      groupsOnPageOf(pageId),
+      collections.iframeLayers.toArray(),
+      { x: from.x + width / 2, y: from.y + height / 2 },
+      width,
+      height,
+      sizedLayersOf(collections)
+    )
+  }
+
+  function groupSize(group: IframeLayerGroupData): {
+    width: number
+    height: number
+  } {
+    const frames = collections.iframeLayers.toArray()
+    const sized = sizedLayersOf(collections)
+    return {
+      width: groupContentWidth(group, frames, sized),
+      height: groupContentHeight(group, frames, sized),
+    }
+  }
+
+  function moveGroupToPage(groupId: string, pageId: string): void {
+    batch(() => {
+      const group = collections.iframeLayerGroups.get(groupId)
+      if (!group || !recordedPage(pageId)) return
+      if (groupPageId(group, listPages()) === pageId) return
+      const { width, height } = groupSize(group)
+      const { x, y } = arrivalSpot(pageId, group, width, height)
+      collections.iframeLayerGroups.update(groupId, { pageId, x, y })
+    })
+  }
+
+  function moveLayersToPage(
+    layerIds: string[],
+    pageId: string
+  ): string | undefined {
+    let movedTo: string | undefined
+    batch(() => {
+      if (!recordedPage(pageId)) return
+      const ids = new Set(layerIds)
+      const pages = listPages()
+      const sources = collections.iframeLayerGroups
+        .toArray()
+        .filter((g) => getGroupMembers(g).some((m) => ids.has(m.id)))
+        .filter((g) => groupPageId(g, pages) !== pageId)
+      if (sources.length === 0) return
+      // All of one Group: it moves whole, keeping its name and Workspace.
+      const only = sources.length === 1 ? sources[0]! : undefined
+      if (only && getGroupMembers(only).every((m) => ids.has(m.id))) {
+        moveGroupToPage(only.id, pageId)
+        movedTo = only.id
+        return
+      }
+      const memberById = new Map(
+        sources.flatMap((g) => getGroupMembers(g)).map((m) => [m.id, m])
+      )
+      const memberIds = layerIds.filter((id) => memberById.has(id))
+      const members = memberIds.map((id) => memberById.get(id)!)
+      // The new Group has the default gap.
+      const { width, height } = groupSize({
+        ...sources[0]!,
+        members,
+        gap: undefined,
+      })
+      const spot = arrivalSpot(pageId, sources[0]!, width, height)
+      movedTo = splitToNewGroup(memberIds, spot)
+      collections.iframeLayerGroups.update(movedTo, { pageId })
+    })
+    return movedTo
   }
 
   function batch(fn: () => void): void {
@@ -1594,6 +1696,8 @@ export function createCanvasOps(
     groupsOnPage: groupsOnPageOf,
     createPage,
     renamePage,
+    moveGroupToPage,
+    moveLayersToPage,
     internal: { pruneIfEmpty },
   }
 }

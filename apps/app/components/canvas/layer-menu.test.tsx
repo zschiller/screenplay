@@ -20,6 +20,7 @@ import {
   useRegisterLayerMenu,
   type LayerMenuActions,
 } from "./layer-menu"
+import { MoveToPageContext, type MoveToPage } from "./move-to-page"
 
 // Radix's dropdown content positions itself with floating-ui, which needs a
 // ResizeObserver, and uses pointer-capture APIs jsdom doesn't implement.
@@ -250,4 +251,44 @@ describe("LayerMenu", () => {
       )
     }
   )
+})
+
+describe("Move to page (#1837)", () => {
+  const pages = [
+    { id: "p1", name: "Site", order: 0 },
+    { id: "p2", name: "Explorations", order: 1 },
+    { id: "p3", name: "Archive", order: 2 },
+  ]
+
+  function renderMenu(context: MoveToPage | null) {
+    render(
+      <MoveToPageContext.Provider value={context}>
+        <LayerMenu
+          placement="toolbar"
+          actions={frame({ moveTo: { kind: "layer", id: "frame-1" } })}
+        />
+      </MoveToPageContext.Provider>
+    )
+    press(screen.getByRole("button", { name: "Frame options" }))
+  }
+
+  it("follows Duplicate and lists every other page", async () => {
+    const move = vi.fn()
+    renderMenu({ pages, currentPageId: "p1", move })
+    expect(items().slice(0, 2)).toEqual(["Duplicate ⌘D", "Move to page"])
+
+    const trigger = screen.getByRole("menuitem", { name: "Move to page" })
+    fireEvent.keyDown(trigger, { key: "ArrowRight" })
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "Archive" })).toBeTruthy()
+    )
+    expect(screen.queryByRole("menuitem", { name: "Site" })).toBeNull()
+    fireEvent.click(screen.getByRole("menuitem", { name: "Explorations" }))
+    expect(move).toHaveBeenCalledWith({ kind: "layer", id: "frame-1" }, "p2")
+  })
+
+  it("is left out on a one-page canvas", () => {
+    renderMenu({ pages: pages.slice(0, 1), currentPageId: "p1", move: vi.fn() })
+    expect(items()).not.toContain("Move to page")
+  })
 })

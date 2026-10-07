@@ -486,6 +486,22 @@ async function centerOf(
   return found as { x: number; y: number }
 }
 
+/** Opens the second sidebar layer row's ⋯ menu and its Move to page ▸. */
+async function openRowMoveToPage(page: Page) {
+  const row = page.locator("[data-sidebar-row=row]").nth(1)
+  await row.hover()
+  await row.getByRole("button", { name: /options$/ }).click({ force: true })
+  await page
+    .getByRole("menuitem", { name: "Move to page" })
+    .hover({ timeout: 10_000 })
+  await page.keyboard.press("ArrowRight")
+  await page
+    .getByRole("menuitem", { name: "Explorations" })
+    .waitFor({ timeout: 10_000 })
+  await page.getByRole("menuitem", { name: "Explorations" }).hover()
+  await sleep(page, 300)
+}
+
 async function clickAt(page: Page, at: { x: number; y: number }, wait = 800) {
   await page.mouse.move(at.x, at.y)
   await sleep(page, 150)
@@ -1097,6 +1113,17 @@ export const DOCS_SCREENS: DocsScreen[] = [
     prepare: async (page) => {
       await camera(page, VIEW.hero)
       await page.getByRole("button", { name: /^Page: / }).click()
+    },
+  }),
+  screen({
+    name: "canvas-move-to-page",
+    description:
+      "A layer row’s ⋯ menu with Move to page open, listing the other pages.",
+    path: ROOM,
+    cookies: SIDEBAR_ONLY,
+    focus: [...MENU, "[data-sidebar-pages]"],
+    prepare: async (page) => {
+      await openRowMoveToPage(page)
     },
   }),
   screen({

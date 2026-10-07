@@ -651,6 +651,7 @@ function IframeLayerImpl({
   const menuActions: LayerMenuActions = {
     noun: "frame",
     onDuplicate,
+    moveTo: { kind: "layer", id: iframeLayer.id },
     size: onSetSize
       ? {
           width: iframeLayer.width,

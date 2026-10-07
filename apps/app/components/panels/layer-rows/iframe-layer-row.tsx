@@ -164,7 +164,11 @@ export function IframeLayerRowMenu({
     <LayerMenu
       placement="row"
       layerId={item.id}
-      actions={{ noun: "frame", onDelete: () => onRemove(item.id) }}
+      actions={{
+        noun: "frame",
+        moveTo: { kind: "layer", id: item.id },
+        onDelete: () => onRemove(item.id),
+      }}
       onRename={() => editableRef?.current?.startEditing()}
       className={cn(frameRowActionClass, isSub && "!top-1/2 -translate-y-1/2")}
     />
