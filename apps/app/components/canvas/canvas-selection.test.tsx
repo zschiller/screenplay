@@ -56,6 +56,10 @@ function renderCanvas() {
         onOpenShortcuts={vi.fn()}
         stopRoomDevServers={vi.fn()}
         flushLayout={() => Promise.resolve()}
+        pages={[{ id: "page-1", name: "Page 1", order: 0 }]}
+        currentPageId="page-1"
+        onSelectPage={vi.fn()}
+        onAddPage={vi.fn()}
       />
       <span>Checkout · desktop</span>
       {/* A Document in edit mode, as Tiptap renders it. */}

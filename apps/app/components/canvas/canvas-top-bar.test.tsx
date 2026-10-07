@@ -16,7 +16,16 @@ function doublePress(el: HTMLElement) {
   fireEvent.pointerDown(el, { button: 0 })
 }
 
-function renderBar(isOwner: boolean, onOpenShortcuts = vi.fn()) {
+const PAGES = [
+  { id: "p1", name: "Homepage", order: 0 },
+  { id: "p2", name: "Pricing", order: 1 },
+]
+
+function renderBar(
+  isOwner: boolean,
+  onOpenShortcuts = vi.fn(),
+  { sidebarCollapsed = false, onSelectPage = vi.fn(), onAddPage = vi.fn() } = {}
+) {
   render(
     <CanvasTopBar
       roomId="r1"
@@ -25,7 +34,7 @@ function renderBar(isOwner: boolean, onOpenShortcuts = vi.fn()) {
       parentFolder={null}
       currentRoomName="Checkout flow"
       onRoomRename={vi.fn()}
-      sidebarCollapsed={false}
+      sidebarCollapsed={sidebarCollapsed}
       trafficLightsPresent={false}
       sidebarPanelRef={createRef()}
       roomNameEditableRef={createRef()}
@@ -37,6 +46,10 @@ function renderBar(isOwner: boolean, onOpenShortcuts = vi.fn()) {
       onOpenShortcuts={onOpenShortcuts}
       stopRoomDevServers={vi.fn()}
       flushLayout={() => Promise.resolve()}
+      pages={PAGES}
+      currentPageId="p1"
+      onSelectPage={onSelectPage}
+      onAddPage={onAddPage}
     />
   )
 }
@@ -68,5 +81,36 @@ describe("CanvasTopBar", () => {
       expect(onOpenShortcuts).toHaveBeenCalledTimes(1)
       cleanup()
     }
+  })
+
+  it("shows the page only while the sidebar is hidden", () => {
+    renderBar(true)
+    expect(screen.queryByRole("button", { name: "Page: Homepage" })).toBeNull()
+    cleanup()
+    renderBar(true, vi.fn(), { sidebarCollapsed: true })
+    expect(screen.getByRole("button", { name: "Page: Homepage" })).toBeTruthy()
+  })
+
+  it("switches pages and adds one from the page menu", () => {
+    const onSelectPage = vi.fn()
+    const onAddPage = vi.fn()
+    const open = () =>
+      fireEvent.pointerDown(
+        screen.getByRole("button", { name: "Page: Homepage" }),
+        { button: 0, pointerType: "mouse" }
+      )
+    renderBar(true, vi.fn(), {
+      sidebarCollapsed: true,
+      onSelectPage,
+      onAddPage,
+    })
+    open()
+    const current = screen.getByRole("menuitemradio", { name: "Homepage" })
+    expect(current.getAttribute("aria-checked")).toBe("true")
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Pricing" }))
+    expect(onSelectPage).toHaveBeenCalledWith("p2")
+    open()
+    fireEvent.click(screen.getByRole("menuitem", { name: "New page" }))
+    expect(onAddPage).toHaveBeenCalledTimes(1)
   })
 })
