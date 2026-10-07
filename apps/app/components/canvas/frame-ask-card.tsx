@@ -12,9 +12,10 @@ import {
 } from "@workspace/ui/components/command"
 import {
   CaretDownIcon,
-  PencilSimpleIcon,
+  FolderOpenIcon,
   PlusIcon,
 } from "@workspace/ui/components/icons"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { InputGroupButton } from "@workspace/ui/components/input-group"
 import { cn } from "@workspace/ui/lib/utils"
 import {
@@ -28,13 +29,16 @@ import {
   type ComposerHandle,
   type ComposerSubmitPayload,
 } from "@/components/agent/composer"
+import { FILE_KIND_ICON } from "@/components/agent/file-tiles"
 import { ScrollHairline, useScrollEdges } from "@/components/scroll-hairline"
 import { WorkspaceMention } from "@/components/workspace-mention"
 import { useWorkspaceStates } from "@/hooks/use-workspace-states"
+import { hasModKey } from "@/lib/canvas/key-target"
 import { NEW_CHAT, NEW_SKETCH_CHAT, type FrameAnswerer } from "@/lib/draw-ask"
 import type {
   BranchData,
   ChatSessionData,
+  LayerFileData,
   MarkdownLayerData,
 } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
@@ -69,6 +73,25 @@ const QUESTION: Record<AskCardKind, string> = {
   mockup: "What should this mockup show?",
   document: "What should this document say?",
 }
+
+/** What a drawn box's card says about the files it can open (#1890). */
+const FILE_WORDS = {
+  mockup: {
+    open: "Open mockup",
+    search: "Search mockups…",
+    create: "New mockup",
+    untitled: "Untitled mockup",
+  },
+  document: {
+    open: "Open document",
+    search: "Search documents…",
+    create: "New document",
+    untitled: "Untitled",
+  },
+} as const
+
+/** A file a drawn box can open: a Mockup's or a Document's. */
+export type AskCardFile = Pick<LayerFileData, "id" | "title">
 
 /**
  * Where a frame sits on screen, relative to the canvas wrapper: the frame
@@ -110,9 +133,14 @@ function layerAskTarget(elementId: string): AskCardTarget | null {
  * frame and sends nothing. Its last row, New chat…, turns the card into the
  * composer, carrying what was typed when no preview matched it.
  *
- * A drawn Document's card also offers Write it myself (`onWriteMyself`): it,
- * or Esc, opens the Document for editing instead, what was typed becoming its
- * title.
+ * A drawn Mockup box or Document opens on the prompt, and when the canvas
+ * has files of its kind, Open mockup / Open document (⌘O) beside Send backs
+ * out to them (#1890): the frame card inverted. The search starts from what
+ * was typed; picking a file makes the box a view of it (`onOpen`), and New
+ * mockup… (or Esc) comes back to the prompt, carrying what was typed.
+ *
+ * On a drawn Document, Esc writes it by hand instead (`onWriteMyself`): the
+ * Document opens for editing, what was typed becoming its title.
  *
  * Per-viewer: the canvas holds which box is asking in local state, never in
  * the room doc. Enter sends; Esc or a pointer-down outside closes it, leaving
@@ -129,6 +157,8 @@ export function FrameAskCard({
   onShow,
   onSubmit,
   onWriteMyself,
+  files = [],
+  onOpen,
   onClose,
 }: {
   kind?: AskCardKind
@@ -149,24 +179,42 @@ export function FrameAskCard({
   /** Show a picked preview in the frame. */
   onShow?: (branchId: string) => void
   onSubmit: (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => void
-  /** Write it yourself instead, with what was typed so far. */
+  /** Esc on a drawn Document: write it yourself, with what was typed so far. */
   onWriteMyself?: (text: string) => void
+  /** The canvas's files of the drawn kind, for a Mockup box or Document. */
+  files?: AskCardFile[]
+  /** Make the drawn box a view of an existing file. */
+  onOpen?: (fileId: string) => void
   onClose: () => void
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [answerer, setAnswerer] = useState(defaultAnswerer)
   const [picking, setPicking] = useState(previews.length > 0 && !!onShow)
+  const fileKind = kind === "frame" ? null : kind
+  const canOpen = !!fileKind && !!onOpen && files.length > 0
+  // The open file search, and what it starts from: null on the prompt.
+  const [opening, setOpening] = useState<string | null>(null)
   const composerRef = useRef<ComposerHandle>(null)
-  // What's typed, for Write it myself to carry into the title.
+  // What's typed, for Esc's write it myself to carry into the title and the
+  // file search to start from.
   const draftRef = useRef("")
-  // Words typed into the picker that no preview matched, for the composer
-  // to start from once it's mounted.
+  // Words typed into a picker that no preview matched, or a file search, for
+  // the composer to start from once it's mounted.
   const carriedRef = useRef("")
   useEffect(() => {
-    if (picking || !carriedRef.current) return
+    if (picking || opening !== null || !carriedRef.current) return
     composerRef.current?.insertText(carriedRef.current)
     carriedRef.current = ""
-  }, [picking])
+  }, [picking, opening])
+  const openFiles = () => {
+    if (!canOpen || opening !== null) return
+    setOpening(draftRef.current.trim())
+  }
+  const backToPrompt = (text: string) => {
+    carriedRef.current = text
+    draftRef.current = ""
+    setOpening(null)
+  }
   const onCloseRef = useRef(onClose)
   const locateRef = useRef(locate)
   useEffect(() => {
@@ -247,7 +295,23 @@ export function FrameAskCard({
       // Caught on the way down: the composer claims Esc for itself (it lets
       // go of focus). An open `@` or `/` picker still takes it first.
       onKeyDownCapture={(e) => {
+        // ⌘O opens a file here, never the browser's file dialog.
+        if (
+          canOpen &&
+          e.key.toLowerCase() === "o" &&
+          hasModKey(e) &&
+          !e.altKey &&
+          !e.shiftKey
+        ) {
+          e.preventDefault()
+          e.stopPropagation()
+          openFiles()
+          return
+        }
         if (e.key !== "Escape") return
+        // The file search takes its own Esc, back to the prompt with what
+        // was typed.
+        if (opening !== null) return
         if (document.querySelector(`[${COMPOSER_POPUP_ATTRIBUTE}]`)) return
         e.preventDefault()
         e.stopPropagation()
@@ -255,7 +319,15 @@ export function FrameAskCard({
         else onClose()
       }}
     >
-      {picking && onShow ? (
+      {opening !== null && fileKind && onOpen ? (
+        <FilePicker
+          kind={fileKind}
+          files={files}
+          initialQuery={opening}
+          onOpen={onOpen}
+          onBack={backToPrompt}
+        />
+      ) : picking && onShow ? (
         <PreviewPicker
           previews={previews}
           onShow={onShow}
@@ -272,7 +344,7 @@ export function FrameAskCard({
           onModelChange={() => {}}
           onSubmit={(payload) => onSubmit(payload, answerer)}
           onChange={
-            onWriteMyself
+            onWriteMyself || canOpen
               ? (payload) => {
                   draftRef.current = payload.text
                 }
@@ -289,15 +361,22 @@ export function FrameAskCard({
             />
           }
           beforeSend={
-            onWriteMyself && (
-              <InputGroupButton
-                size="sm"
-                className="text-foreground"
-                onClick={() => onWriteMyself(draftRef.current)}
+            canOpen &&
+            fileKind && (
+              <IconButton
+                asChild
+                label={FILE_WORDS[fileKind].open}
+                shortcut="⌘O"
               >
-                <PencilSimpleIcon />
-                Write it myself
-              </InputGroupButton>
+                <InputGroupButton
+                  size="sm"
+                  className="text-foreground"
+                  onClick={openFiles}
+                >
+                  <FolderOpenIcon />
+                  {FILE_WORDS[fileKind].open}
+                </InputGroupButton>
+              </IconButton>
             )
           }
           // The card is the surface: the composer's own box goes borderless.
@@ -401,6 +480,113 @@ function PreviewPicker({
             <PlusIcon className="text-muted-foreground" />
             <span className="flex-1 truncate">
               {carry ? `New chat: “${carry}”` : "New chat…"}
+            </span>
+          </CommandItem>
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  )
+}
+
+/**
+ * The files a drawn Mockup box or Document can open instead (#1890), the
+ * running-previews picker turned around: a search over this canvas's files of
+ * the drawn kind, starting from what was typed in the prompt, then New mockup…
+ * (or New document…) pinned under them, back to the prompt. Picking a file
+ * opens it in the box. Esc goes back too. Either way what was typed goes with
+ * it, and with no file matching, the row says so (`New mockup: “…”`).
+ */
+function FilePicker({
+  kind,
+  files,
+  initialQuery,
+  onOpen,
+  onBack,
+}: {
+  kind: "mockup" | "document"
+  files: AskCardFile[]
+  initialQuery: string
+  onOpen: (fileId: string) => void
+  onBack: (text: string) => void
+}) {
+  const words = FILE_WORDS[kind]
+  const Icon = FILE_KIND_ICON[kind]
+  const [query, setQuery] = useState(initialQuery)
+  // As the previews' search: focus once the card shows.
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    let rafId = 0
+    const focusWhenShown = () => {
+      const input = inputRef.current
+      if (!input) return
+      if (getComputedStyle(input).visibility === "hidden") {
+        rafId = requestAnimationFrame(focusWhenShown)
+        return
+      }
+      input.focus()
+    }
+    rafId = requestAnimationFrame(focusWhenShown)
+    return () => cancelAnimationFrame(rafId)
+  }, [])
+  const typed = query.trim()
+  const q = typed.toLowerCase()
+  const matches = q
+    ? files.filter((f) => (f.title || words.untitled).toLowerCase().includes(q))
+    : files
+  const carry = matches.length === 0 ? typed : ""
+  const { attach, onScroll, above, below } = useScrollEdges()
+  return (
+    <Command
+      shouldFilter={false}
+      loop
+      className="bg-transparent p-0 [&_[data-slot=command-input-wrapper]]:p-1"
+      onKeyDown={(e) => {
+        if (e.key !== "Escape") return
+        e.preventDefault()
+        e.stopPropagation()
+        onBack(typed)
+      }}
+    >
+      <CommandInput
+        ref={inputRef}
+        value={query}
+        onValueChange={setQuery}
+        placeholder={words.search}
+      />
+      <CommandList className="max-h-none overflow-visible">
+        {matches.length > 0 && (
+          <div className="relative">
+            <ScrollHairline shown={above} />
+            <div
+              ref={attach}
+              onScroll={onScroll}
+              className="no-scrollbar max-h-72 overflow-y-auto px-1 pb-0.5"
+            >
+              <CommandGroup className="p-0">
+                {matches.map((f) => (
+                  <CommandItem
+                    key={f.id}
+                    value={f.id}
+                    onSelect={() => onOpen(f.id)}
+                  >
+                    <Icon />
+                    <span className="flex-1 truncate">
+                      {f.title || words.untitled}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </div>
+            <ScrollHairline shown={below} edge="bottom" />
+          </div>
+        )}
+        <CommandGroup
+          className={cn("p-1", matches.length > 0 ? "pt-0.5" : "pt-0")}
+        >
+          <CommandItem value="new" onSelect={() => onBack(typed)}>
+            <PlusIcon className="text-muted-foreground" />
+            <span className="flex-1 truncate">
+              {carry ? `${words.create}: “${carry}”` : `${words.create}…`}
             </span>
           </CommandItem>
         </CommandGroup>

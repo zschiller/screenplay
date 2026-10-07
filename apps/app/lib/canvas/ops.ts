@@ -379,7 +379,15 @@ export type CanvasOps = {
    */
   placeFile(
     fileId: string,
-    opts?: { chatId?: string; size?: { width: number; height: number } }
+    opts?: {
+      chatId?: string
+      size?: { width: number; height: number }
+      /**
+       * Start the view's own Group here instead (canvas-space top-left), as
+       * a box drawn on empty canvas does (#1890).
+       */
+      at?: { x: number; y: number }
+    }
   ): { viewId: string; groupId: string } | undefined
   /**
    * Add a view of the file `fileId` where it was dropped on the canvas
@@ -397,6 +405,16 @@ export type CanvasOps = {
    * kind's default. Undefined when the file is gone.
    */
   fileViewSize(fileId: string): { width: number; height: number } | undefined
+  /**
+   * Swap a view for a new view of the file `fileId` (#1890), the same size
+   * and in the same place in its Group, in one step: a drawn Document that
+   * opens an existing file. The old view goes, and its file with it when
+   * that was the file's only view (the drawn Document's own empty file), as
+   * Delete file would take it. Returns the new view's id, or
+   * undefined when the view, its Group or the file is gone, or the file is
+   * another kind.
+   */
+  replaceView(viewId: string, fileId: string): string | undefined
   /**
    * Remove the given Iframe Layers and drop them from any Group that held
    * them, pruning a Group emptied by the removal. Iframe Layers own no Chat
@@ -1570,7 +1588,11 @@ export function createCanvasOps(
 
   function placeFile(
     fileId: string,
-    opts: { chatId?: string; size?: { width: number; height: number } } = {}
+    opts: {
+      chatId?: string
+      size?: { width: number; height: number }
+      at?: { x: number; y: number }
+    } = {}
   ): { viewId: string; groupId: string } | undefined {
     const file = collections.layerFiles.get(fileId)
     if (!file) return undefined
@@ -1580,11 +1602,9 @@ export function createCanvasOps(
         : collections.mockupLayers
     const size = opts.size ?? fileViewSize(fileId)!
     const pageId = targetPageId() ?? listPages()[0]!.id
-    const joined = chatGroupFor(
-      collections,
-      opts.chatId ?? lastChangedBy(file),
-      pageId
-    )
+    const joined = opts.at
+      ? undefined
+      : chatGroupFor(collections, opts.chatId ?? lastChangedBy(file), pageId)
     const groups = placementGroups()
     const frames = collections.iframeLayers.toArray()
     const sized = sizedLayersOf(collections)
@@ -1599,23 +1619,25 @@ export function createCanvasOps(
       }
       const viewId = nanoid()
       const groupId = nanoid()
-      const anchor = joined
-        ? placeNewGroupBeside(
-            groups,
-            frames,
-            sized,
-            new Set([joined]),
-            size.width,
-            size.height
-          )
-        : placeNewIframeLayerGroup(
-            groups,
-            frames,
-            { x: 0, y: 0 },
-            size.width,
-            size.height,
-            sized
-          )
+      const anchor =
+        opts.at ??
+        (joined
+          ? placeNewGroupBeside(
+              groups,
+              frames,
+              sized,
+              new Set([joined]),
+              size.width,
+              size.height
+            )
+          : placeNewIframeLayerGroup(
+              groups,
+              frames,
+              { x: 0, y: 0 },
+              size.width,
+              size.height,
+              sized
+            ))
       views.addView(viewId, fileId, size)
       collections.iframeLayerGroups.set(groupId, {
         id: groupId,
@@ -1694,6 +1716,36 @@ export function createCanvasOps(
       placed = { viewId, groupId }
     })
     return placed
+  }
+
+  function replaceView(viewId: string, fileId: string): string | undefined {
+    const file = collections.layerFiles.get(fileId)
+    if (!file) return undefined
+    const kind = file.kind === "document" ? "markdown-layer" : "mockup-layer"
+    const views =
+      file.kind === "document"
+        ? collections.markdownLayers
+        : collections.mockupLayers
+    const old = views.get(viewId)
+    const group = groupHolding(kind, viewId)
+    if (!old || !group) return undefined
+    const oldFileId = old.fileId ?? viewId
+    const id = nanoid()
+    batch(() => {
+      views.addView(id, fileId, { width: old.width, height: old.height })
+      collections.iframeLayerGroups.update(group.id, {
+        members: getGroupMembers(group).map((m) =>
+          m.kind === kind && m.id === viewId ? { kind, id } : m
+        ),
+      })
+      // Its only view: the file goes too, as Delete file would take it.
+      if (views.viewIdsOf(oldFileId).every((v) => v === viewId)) {
+        views.deleteFile(oldFileId)
+      } else {
+        views.delete(viewId)
+      }
+    })
+    return id
   }
 
   function removeLayers(ids: string[]): { removedChatIds: string[] } {
@@ -2229,6 +2281,7 @@ export function createCanvasOps(
     addFileView,
     createFile,
     placeFile,
+    replaceView,
     placeFileAt,
     fileViewSize,
     removeLayers,

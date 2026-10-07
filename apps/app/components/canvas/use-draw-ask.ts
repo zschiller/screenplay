@@ -65,7 +65,7 @@ export interface DrawAskDeps {
   setSelectedGroupIds: Dispatch<SetStateAction<Set<string>>>
   setSelectedIframeLayerIds: Dispatch<SetStateAction<Set<string>>>
   setSelectedDocumentLayerIds: Dispatch<SetStateAction<Set<string>>>
-  /** Open a Document for editing, for a drawn one's Write it myself. */
+  /** Open a Document for editing, for a drawn one's Esc (write it myself). */
   setEditingDocumentLayerId: (id: string | null) => void
   /** A prompt into a Workspace's chat; its chat id, or none while it starts. */
   sendPrompt: (branchId: string, message: string) => string | undefined
@@ -104,7 +104,7 @@ export interface DrawAsk {
   /** A Document was drawn. */
   startFromDocument: (documentId: string) => void
   /**
-   * A drawn Document's Write it myself: close and open it for editing, what
+   * A drawn Document's Esc, write it myself: close and open it for editing, what
    * was typed in the card as its title.
    */
   writeDocument: (title: string) => void
@@ -120,6 +120,13 @@ export interface DrawAsk {
   show: (branchId: string) => void
   /** Send what was typed to `answerer`, and close. */
   send: (payload: ComposerSubmitPayload, answerer: FrameAnswerer) => void
+  /**
+   * Make the drawn Mockup box or Document a view of an existing file of its
+   * kind instead (#1890), selected, and close. Nothing is sent. A box becomes
+   * the view where it was drawn; a drawn Document is swapped for it in place,
+   * the empty one gone.
+   */
+  openFile: (fileId: string) => void
   close: () => void
 }
 
@@ -439,6 +446,35 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     [close, open, iframeLayers, sendMockup, sendDocument, sendFrame]
   )
 
+  const openFile = useCallback(
+    (fileId: string) => {
+      const drawn = open
+      close()
+      let viewId: string | undefined
+      if (drawn?.kind === "mockup") {
+        const { x, y, width, height } = drawn.box
+        viewId = ops.placeFile(fileId, {
+          at: { x, y },
+          size: { width, height },
+        })?.viewId
+      } else if (drawn?.kind === "document") {
+        viewId = ops.replaceView(drawn.documentId, fileId)
+      }
+      if (!viewId) return
+      setSelectedGroupIds(new Set())
+      setSelectedIframeLayerIds(new Set())
+      setSelectedDocumentLayerIds(new Set([viewId]))
+    },
+    [
+      open,
+      close,
+      ops,
+      setSelectedGroupIds,
+      setSelectedIframeLayerIds,
+      setSelectedDocumentLayerIds,
+    ]
+  )
+
   const writeDocument = useCallback(
     (title: string) => {
       const documentId = open?.kind === "document" ? open.documentId : null
@@ -462,6 +498,7 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
     startFrameChat: newChatRepoId ? startFrameChat : undefined,
     show,
     send,
+    openFile,
     close,
   }
 }

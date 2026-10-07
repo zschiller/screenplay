@@ -531,8 +531,8 @@ export interface ComposerProps {
    */
   modelSlot?: ReactNode
   /**
-   * Shown just before the send button: a drawn Document's ask card puts its
-   * Write it myself button here.
+   * Shown just before the send button: a drawn Mockup box's or Document's
+   * ask card puts its Open mockup / Open document button here (#1890).
    */
   beforeSend?: ReactNode
   /** Placeholder shown while the draft is empty. */

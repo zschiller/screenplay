@@ -2241,6 +2241,21 @@ export function Canvas({
   const askMockupBox = drawAsk.open?.kind === "mockup" ? drawAsk.open.box : null
   const askDocumentId =
     drawAsk.open?.kind === "document" ? drawAsk.open.documentId : null
+  // The files a drawn box can open instead (#1890): its kind's, but not the
+  // drawn Document's own.
+  const askMockupFiles = useMemo(
+    () => layerFiles.filter((f) => f.kind === "mockup"),
+    [layerFiles]
+  )
+  const askDocumentFiles = useMemo(() => {
+    const drawnFileId = askDocumentId
+      ? (markdownLayers.find((d) => d.id === askDocumentId)?.fileId ??
+        askDocumentId)
+      : null
+    return layerFiles.filter(
+      (f) => f.kind === "document" && f.id !== drawnFileId
+    )
+  }, [layerFiles, markdownLayers, askDocumentId])
 
   // Draw tools (Document / Frame / Mockup) — the Tool Mode sibling that turns a released
   // draft into a new Layer. Owns the in-flight draft rects the SelectionOverlay
@@ -3193,6 +3208,8 @@ export function Canvas({
                     <FrameAskCard
                       kind="mockup"
                       locate={locateMockupBox}
+                      files={askMockupFiles}
+                      onOpen={drawAsk.openFile}
                       markdownLayers={markdownLayers}
                       workspaces={agents}
                       sketchChats={sketchChats}
@@ -3211,6 +3228,8 @@ export function Canvas({
                       defaultAnswerer={drawAsk.answerer}
                       onSubmit={drawAsk.send}
                       onWriteMyself={drawAsk.writeDocument}
+                      files={askDocumentFiles}
+                      onOpen={drawAsk.openFile}
                       onClose={drawAsk.close}
                     />
                   ) : null}

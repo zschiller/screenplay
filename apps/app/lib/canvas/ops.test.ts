@@ -2705,6 +2705,66 @@ describe("files and views (#1883)", () => {
     ).toContainEqual({ kind: "markdown-layer", id: copy })
   })
 
+  it("places a view of a file at a given spot, in a Group of its own (#1890)", () => {
+    const { ops, collections } = makeHarness()
+    const fileId = ops.createFile({ kind: "mockup", title: "Hero" })
+
+    const placed = ops.placeFile(fileId, {
+      at: { x: 300, y: -40 },
+      size: { width: 390, height: 600 },
+    })!
+
+    expect(collections.mockupLayers.get(placed.viewId)).toMatchObject({
+      fileId,
+      width: 390,
+      height: 600,
+    })
+    expect(collections.iframeLayerGroups.get(placed.groupId)).toMatchObject({
+      x: 300,
+      y: -40,
+      members: [{ kind: "mockup-layer", id: placed.viewId }],
+    })
+  })
+
+  it("swaps a view for one of another file, in place, the old file gone with its last view (#1890)", () => {
+    const { doc, ops, collections, docId, groupId } = documentWithTwoViews()
+    const drawn = ops.addFileView(
+      ops.createFile({ kind: "document" }),
+      groupId,
+      { width: 300, height: 200 }
+    )!
+    const drawnFile = ops.fileOf(drawn)!.id
+    const undo = createCanvasUndo(doc)
+
+    const viewId = ops.replaceView(drawn, docId)!
+
+    expect(collections.markdownLayers.get(viewId)).toMatchObject({
+      fileId: docId,
+      width: 300,
+      height: 200,
+      title: "Plan",
+    })
+    expect(collections.iframeLayerGroups.get(groupId)?.members).toEqual([
+      { kind: "markdown-layer", id: docId },
+      { kind: "markdown-layer", id: viewId },
+    ])
+    expect(collections.markdownLayers.has(drawn)).toBe(false)
+    expect(collections.layerFiles.has(drawnFile)).toBe(false)
+    undo.undo()
+    expect(collections.markdownLayers.has(drawn)).toBe(true)
+    expect(collections.markdownLayers.has(viewId)).toBe(false)
+    undo.destroy()
+  })
+
+  it("swaps nothing for a missing view or file, or a file of another kind", () => {
+    const { ops, docId, viewId } = documentWithTwoViews()
+    const mockup = ops.createFile({ kind: "mockup", title: "Hero" })
+
+    expect(ops.replaceView("gone", docId)).toBe(undefined)
+    expect(ops.replaceView(viewId, "gone")).toBe(undefined)
+    expect(ops.replaceView(viewId, mockup)).toBe(undefined)
+  })
+
   it("adds nothing for a missing file or Group", () => {
     const { ops, docId } = documentWithTwoViews()
 
