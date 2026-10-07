@@ -1,0 +1,367 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Panel Tabs Exploration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..600&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column. The question, then a round toggle, then Today and that round's options as grey-box panel wireframes, then the reaction form. Screenplay brand: Unbounded titles, Instrument Sans UI. */
+:root{--bg:#fbfbfa;--surface:#f1f1ef;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#3f5fe0;--ok:#1f7a45;--no:#a3372b;--box:#e7e7e4;--box2:#d6d6d2;--ink:#161615;--paper:#ffffff;--orange:#e8741c;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:"Unbounded","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#8ea4f5;--ok:#5fd08e;--no:#f08a7c;--box:#262624;--box2:#363633;--ink:#f1f1ef;--paper:#171716;--orange:#f59a4a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#8ea4f5;--ok:#5fd08e;--no:#f08a7c;--box:#262624;--box2:#363633;--ink:#f1f1ef;--paper:#171716;--orange:#f59a4a;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:40px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,4vw,30px)/1.2 var(--head);letter-spacing:-.02em;margin:10px 0 12px;text-wrap:balance}
+h2{font:500 clamp(16px,2.2vw,19px)/1.3 var(--head);margin:0;text-wrap:balance}
+h3{font:600 16px/1.35 var(--sans);margin:0}
+p{margin:0}
+a{color:var(--accent)}
+blockquote{margin:0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.muted{color:var(--muted)}
+.rounds{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 13px var(--sans);border-radius:6px;padding:6px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:28px 24px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:600;color:var(--fg)}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{border:1px solid var(--line);background:var(--surface);max-height:520px;overflow:auto}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px 28px;margin:0;padding:0;list-style:none}
+.facts li{font-size:14px;line-height:1.5;padding-left:14px;position:relative;min-width:0}
+.facts li::before{content:"";position:absolute;left:0;top:.62em;width:5px;height:5px;border-radius:50%;background:var(--muted)}
+code{font:12.5px var(--mono);background:var(--surface);padding:1px 4px;border-radius:3px;overflow-wrap:anywhere}
+/* Wireframe panel */
+.wires{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:12px}
+.wf{display:flex;flex-direction:column;gap:5px;min-width:0}
+.panel{border:1px solid var(--box2);border-radius:8px;background:var(--paper);overflow:hidden;display:flex;flex-direction:column;height:330px;font:12px/1.3 var(--sans);color:var(--ink)}
+.ph{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--box2);min-height:38px}
+.crumb{color:var(--muted);white-space:nowrap}
+.ph .sp{flex:1}
+.ib{width:22px;height:22px;border-radius:5px;background:var(--box);display:grid;place-items:center;font:500 10px var(--mono);color:var(--muted);flex:none}
+.ib.on{background:var(--box2);color:var(--ink)}
+.pill{padding:3px 7px;border-radius:5px;background:var(--box);font-size:11px;white-space:nowrap}
+.strip{display:flex;align-items:stretch;gap:2px;padding:0 6px;border-bottom:1px solid var(--box2);height:32px;overflow:hidden}
+.tab{display:flex;align-items:center;gap:4px;padding:0 7px;font-size:11.5px;color:var(--muted);white-space:nowrap;border-bottom:2px solid transparent}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
+.tab .g{font:500 9.5px var(--mono)}
+.body{flex:1;padding:10px;display:flex;flex-direction:column;gap:7px;min-height:0}
+.msg{height:9px;border-radius:3px;background:var(--box)}
+.msg.u{align-self:flex-end;width:55%;height:22px;border-radius:7px}
+.msg.w80{width:80%}.msg.w60{width:60%}.msg.w90{width:90%}.msg.w40{width:40%}
+.comp{margin:0 10px 10px;border:1px solid var(--box2);border-radius:8px;padding:7px 8px;display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted)}
+.comp .sp{flex:1}
+.term{flex:1;margin:0;background:#141413;color:#d8d8d2;font:10.5px/1.45 var(--mono);padding:9px 10px;white-space:pre;overflow:hidden}
+.menu{position:absolute;top:34px;left:10px;right:34px;background:var(--paper);border:1px solid var(--box2);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);padding:4px;display:flex;flex-direction:column;gap:1px;z-index:2}
+.mi{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:5px;font-size:11.5px}
+.mi.on{background:var(--box)}
+.mi .sp{flex:1}
+.mi .k{font:500 9.5px var(--mono);color:var(--muted);width:14px;text-align:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--orange);flex:none}
+.rel{position:relative}
+.seg{display:flex;border-radius:6px;background:var(--box);padding:2px;gap:2px}
+.seg span{padding:2px 7px;border-radius:4px;font-size:11px;color:var(--muted)}
+.seg span.on{background:var(--paper);color:var(--ink);font-weight:500}
+.ttb{display:flex;align-items:center;gap:6px;padding:5px 8px;background:#1e1e1c;color:#a9a9a2;font:500 10.5px var(--sans);border-bottom:1px solid #2c2c2a}
+.ttb .sp{flex:1}
+.tb{padding:2px 7px;border-radius:4px;background:#2c2c2a;color:#e6e6e0;font:500 10.5px var(--sans);white-space:nowrap}
+.gd{width:6px;height:6px;border-radius:50%;background:#3fb96b;flex:none;display:inline-block}
+.subs{display:flex;gap:2px;padding:0 6px;border-bottom:1px solid var(--box2);height:28px;background:var(--surface)}
+.cv{border:1px solid var(--box2);border-radius:8px;background:var(--surface);height:330px;position:relative;overflow:hidden;font:11px/1.3 var(--sans);color:var(--ink)}
+.lay{position:absolute;display:flex;flex-direction:column;gap:3px}
+.lay .lb{display:flex;gap:5px;align-items:center;font-size:10.5px;white-space:nowrap}
+.lay .lb .m{color:var(--muted)}
+.fr{border:1px solid var(--box2);border-radius:4px;background:var(--paper);flex:1;display:flex;flex-direction:column;overflow:hidden}
+.fr .hero{height:34%;margin:8px;border-radius:3px;background:var(--box2)}
+.fr .ln{height:6px;margin:3px 8px;border-radius:2px;background:var(--box)}
+.fbar{display:flex;gap:4px;align-items:center;padding:4px 6px;border:1px solid var(--box2);border-radius:7px;background:var(--paper);font-size:10.5px;white-space:nowrap;align-self:center}
+.fbar .ib{width:18px;height:18px;font-size:9px}
+.lay .term{font-size:9.5px;border-radius:4px}
+.xl{outline:2px solid var(--accent);outline-offset:1px}
+.split{height:6px;display:grid;place-items:center;border-top:1px solid var(--box2);border-bottom:1px solid var(--box2);background:var(--surface)}
+.split::after{content:"";width:28px;height:2px;border-radius:2px;background:var(--box2)}
+.pstrip{display:flex;align-items:center;gap:2px;padding:0 6px;height:28px;border-bottom:1px solid var(--box2)}
+.pstrip .sp{flex:1}
+.pstrip .tab{border-bottom-width:2px}
+.slim{display:flex;align-items:center;gap:6px;padding:6px 10px;border-top:1px solid var(--box2);font-size:11px;color:var(--muted)}
+.slim .sp{flex:1}
+.note{font:500 10px/1.3 var(--mono);color:var(--accent);letter-spacing:.02em}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.pick:hover,.pick:has(input:checked){background:var(--surface)}
+.pick input{margin:3px 0 0;accent-color:var(--accent)}
+textarea{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;resize:vertical;min-height:60px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{font-size:13px;color:var(--ok)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;margin:0}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">Design exploration · 30 Sep 2026</p>
+<h1 id="q"></h1>
+<blockquote id="quote"></blockquote>
+</header>
+
+<nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+
+<section id="today"></section>
+<section id="round"></section>
+
+<section id="react">
+<div class="shead"><p class="lbl">Your reaction</p><h2 id="reactTitle"></h2><p class="muted">Pick one, or say what's missing. Copy the text and paste it back in the chat.</p></div>
+<form id="form"></form>
+<div class="row"><button type="button" id="copy" class="primary">Copy reaction</button><span class="status" id="status" role="status" aria-live="polite"></span></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk});
+const QUESTION={
+ quote:"“We should think about how useful having multiple chat tabs and terminal tabs at all even is now.” — Zack",
+ q:"Once every chat has exactly one Workspace, does a Workspace's panel still need a tab strip?",
+ slug:"panel-tabs"
+};
+
+// Wireframe helpers: grey boxes, real labels.
+const chatBody=`<div class="body"><div class="msg u"></div><div class="msg w90"></div><div class="msg w80"></div><div class="msg w60"></div><div class="msg u" style="width:40%"></div><div class="msg w80"></div><div class="msg w40"></div></div>`;
+const comp=(model)=>`<div class="comp">Ask for changes…<span class="sp"></span><span class="pill">${model}</span></div>`;
+const hdr=(title,right)=>`<div class="ph"><span class="crumb">Coordinator ›</span><b style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</b><span class="sp"></span>${right||""}</div>`;
+const tuiBody=`<pre class="term"> ✳ Welcome to Claude Code
+
+ > fix the flaky checkout test
+
+ ● Read(test/checkout.spec.ts)
+ ● Update(src/cart.ts)
+   ⎿  +4 −2
+
+ ✳ Thinking…  (esc to interrupt)</pre>`;
+const shellBody=`<pre class="term">~/checkout-polish $ pnpm test cart
+ PASS  test/cart.spec.ts (14)
+ FAIL  test/checkout.spec.ts
+   ✕ applies promo code
+
+~/checkout-polish $ █</pre>`;
+const panel=(inner,cls="")=>`<div class="panel ${cls}">${inner}</div>`;
+const wf=(cap,inner,note)=>`<div class="wf">${inner}<figcaption>${cap}</figcaption>${note?`<p class="note">${note}</p>`:""}</div>`;
+
+const TODAY_WIRE=`<div class="wires">`+
+ wf("Today · a Workspace's panel",panel(hdr("Checkout polish",`<span class="pill">PR</span>`)+`<div class="strip"><span class="tab"><span class="g">≡</span></span><span class="tab on">Fix checkout</span><span class="tab">Promo codes</span><span class="tab"><span class="g">&gt;_</span>Claude Code</span><span class="tab"><span class="g">&gt;_</span>Terminal</span><span class="tab">+▾</span></div>`+chatBody+comp("Sonnet 5.5")),"Logs pinned left, chats and terminals mixed, sticky + with a New chat / New terminal menu, history on the right")+
+ wf("After #1315 as filed",panel(hdr("Checkout polish",`<span class="pill">PR</span>`)+`<div class="strip"><span class="tab"><span class="g">≡</span></span><span class="tab on">Fix checkout</span><span class="tab"><span class="g">&gt;_</span>Claude Code</span><span class="tab"><span class="g">&gt;_</span>Terminal</span><span class="tab">+▾</span></div>`+chatBody+comp("Sonnet 5.5")),"One chat tab left; the strip now exists only for Logs and terminals")+
+`</div>`;
+
+const TODAY={
+ facts:[
+  `The strip mixes Chat Sessions and Terminal Tabs in one drag-reorderable row, with Logs pinned at the left and a Chat history menu at the right (<code>chat-panel.tsx:1049-1287</code>).`,
+  `The + button repeats whichever kind you made last; its caret offers New chat or New terminal per installed harness (<code>chat-panel.tsx:1216-1262</code>, <code>tab-kind.ts</code>). Closing the last tab respawns one (<code>tab-pool.ts</code>, never-empty rule).`,
+  `Spec #1308 / #1315 already remove several chats per Workspace: “Opening several chat tabs on one Workspace goes away; Terminal Tabs are unchanged.” Chats are reached from the Chats menu (#1317) and chat cards (#1318).`,
+  `A Terminal Tab launches a harness (Claude Code by default, <code>tab-kind.ts:DEFAULT_HARNESS_KEY</code>) or a shell in the Workspace's sandbox. It is saved per user, its scrollback dies with the sandbox, and it is not a Chat Session: the Coordinator, chat cards, steering and question cards can't see into it (<code>CONTEXT.md</code>, Terminal Tab).`,
+  `So a Claude Code terminal is a second agent editing a Workspace, which #1315 says only the owning chat may do.`,
+  `On desktop a chat can already be backed by Claude Code or Codex (the model pill's <code>harness:&lt;key&gt;</code> ids, <code>engine-select.ts</code>). Hosted runs chats in-process only, so there a terminal is the only way to use Claude Code (<code>availability.ts:15-30</code>).`,
+  `Your rule from PR #829: terminals stay beside chats, never in a separate drawer, because “terminals are used as chats when running a harness”. None of the options below move them into a drawer.`
+ ],
+ wire:TODAY_WIRE,
+ shots:[IMG("today/panel.light.png","Before #1315 · Logs, three chats, Chat history","today/panel.dark.png"),IMG("r3/today.light.png","Main after #1315 · a terminal tab open","r3/today.dark.png")]
+};
+
+const ROUNDS=[
+{n:5,feedback:"\u201cMaybe something like C actually but with the footnote style? And a nice transition on open \u2026 to maybe B.\u201d Read as: closed is round 4 C's borderless footnote, listing the terminals the way round 4 B did; open grows into round 3 B's tab strip. One design this round, recorded in motion.",
+ recWhy:"",
+ options:[
+ {id:"A",name:"Footnote that grows into the tab strip",rec:true,state:"",shots:[IMG("r5/closed.light.png","Closed · footnote","r5/closed.dark.png"),IMG("r5/open.light.png","Open · tab strip","r5/open.dark.png"),IMG("r5/transition.light.gif","Open, then close (click the footnote; caret hides)","r5/transition.dark.gif")],
+  why:"Closed, a 28px borderless line under the composer: the dev server's dot and \u201cDev server\u201d, then \u201cShell\u201d and \u201cShell 2\u201d, all muted 12px. Clicking any name opens the pane on that terminal. Opening is one 280ms motion on the product's tab ease (cubic-bezier(0.16,1,0.3,1), the curve new tabs already enter with): the pane grows from 28px to 44% of the panel, the line grows to 40px, its labels scale from 12 to 14px, hairlines fade in above and below, the selected name takes the underline and medium weight, and + with Restart, Stop and the hide caret fade up. The output fades in 80ms behind. Closing plays it backwards.",
+  cost:"Labels scale between 12 and 14px mid-motion, which needs care to stay crisp (a transform-based scale would be cheaper than animating font-size). A resizable pane also has a dragged height; the motion animates to whatever height you left it at. The full-quality MP4s are r5/transition.light.mp4 and r5/transition.dark.mp4 on this page."}
+]},
+{n:4,feedback:"\u201cCan we explore more on the bar is always there but make the collapsed state more minimal.\u201d Round 3's B is the base: open, the bar rises and becomes the pane's tab strip (round 3 B's open shot). These are only the closed bar, on the same real captures. Round 3's closed bar, for comparison, was 40px with \u201cDev server running \u00b7 2 shells\u201d, Stop and a caret.",
+ recWhy:"It's the quietest bar that is still a bar: one muted word with the state dot, the same hairline the composer already sits on, and a caret that says it opens. Stop moves into the open bar and the dot's colour carries crashes, so nothing in the closed row competes with the composer.",
+ options:[
+ {id:"A",name:"Dot, name, caret",rec:true,state:"",shots:[IMG("r4/a.light.png","A · Closed","r4/a.dark.png")],
+  why:"32px instead of 40. Just the dev server's state dot, \u201cDev server\u201d in muted 12px, and a caret to open. No Stop, no shell count: those live in the open bar. The dot turns red when the server crashes.",
+  cost:"Stopping the server takes a click to open first. Nothing says you have shells running until you open it."},
+ {id:"B",name:"The tabs, resting",state:"",shots:[IMG("r4/b.light.png","B · Closed","r4/b.dark.png")],
+  why:"Closed shows the same tabs the open bar has (Dev server, Shell, Shell 2), all inactive and muted, with no controls. Clicking a tab opens the pane on that terminal. The bar never changes shape, only the pane appears above it.",
+  cost:"The tallest and busiest of the four (40px, a word per shell). With many shells it scrolls sideways like today's strip."},
+ {id:"C",name:"A footnote under the composer",state:"picked",shots:[IMG("r4/c.light.png","C · Closed","r4/c.dark.png")],
+  why:"No border, no fill, 24px: a muted line tucked under the composer, like a status footnote, with the dot and \u201cDev server\u201d on the left and \u201c2 shells\u201d on the right. Click anywhere on it to open.",
+  cost:"It reads as part of the composer rather than a control, so it's easy to miss that it opens. No caret or controls."},
+ {id:"D",name:"A, with controls on hover",state:"",shots:[IMG("r4/d.light.png","D · Closed, hovered","r4/d.dark.png")],
+  why:"Resting it's exactly A. On hover the row takes the muted fill and shows the shell count, Restart and Stop, so stopping the server never needs the pane open.",
+  cost:"Controls that only appear on hover are hidden on touch and from anyone who doesn't think to hover. One more state to build and test."}
+]},
+{n:3,feedback:"\u201cYea I like this option the most, can we do design refinement on the UI now? E.g. do we always need the bar? How minimal can it look.\u201d Real captures of the Workspace panel at the 30% default width, restyled in the browser. The chat is Checkout polish's conversation with the live composer; the pane shows the stubbed dev server output. Today is main after #1315.",
+ notes:["The header's terminal button and \u2303\u0060 open and close the pane; dragging the divider to the bottom also closes it. Height and open/closed are remembered per person, across Workspaces.","A frame's \u201cOpen logs\u201d opens the pane on Dev server. It no longer opens by itself when the sandbox connects (today's logs tab does, chat-panel.tsx:904); a crashed dev server turns the button's dot red instead.","Dev server is a read-only terminal (tail -F of the dev server log), always first, can't be closed or renamed. Ctrl-C there doesn't stop the server; Stop does. Stopped, it keeps its output and offers Run.","+ opens a shell and selects it; \u00d7 asks first if something is running, then selection falls to the neighbour, then Dev server. Shells survive reloads and stay private to you, as Terminal Tabs do today."],
+ recWhy:"One quiet row, no tabs: it borrows the Chats menu's pattern (a menu naming what you're looking at), keeps Stop and Restart one click away, and grows to any number of shells without a strip. A is the pick if you'd rather see your shells at a glance.",
+ options:[
+ {id:"A",name:"Tab strip in the pane",state:"",shots:[IMG("r3/a-open.light.png","A · Pane open","r3/a-open.dark.png"),IMG("r3/a-closed.light.png","A · Pane closed","r3/a-closed.dark.png")],
+  why:"The pane gets its own line tab strip: Dev server with its state dot, then shells, then +. Restart and Stop are icon buttons at its right. Closed, nothing is left at the bottom: the header's terminal button carries a dot for the dev server's state.",
+  cost:"The most chrome of the four once open. The header button squeezes the Workspace title at this width (it truncates to \u201cCheckout p\u2026\u201d)."},
+ {id:"B",name:"The bar is always there",state:"picked",shots:[IMG("r3/b-open.light.png","B · Pane open","r3/b-open.dark.png"),IMG("r3/b-closed.light.png","B · Pane closed","r3/b-closed.dark.png")],
+  why:"No header button. Closed, a slim row at the bottom says the dev server is running and how many shells you have, with Stop and a caret to open. Open, that same row rises with the pane and becomes its tab strip. It answers \u201cdo we always need the bar\u201d with yes, but one line tall.",
+  cost:"A permanent 40px row under the composer, even for people who never use a terminal. The composer no longer sits on the panel's bottom edge."},
+ {id:"C",name:"One row, a terminal menu",rec:true,state:"",shots:[IMG("r3/c-open.light.png","C · Pane open","r3/c-open.dark.png")],
+  why:"Instead of tabs, a ghost menu button names the terminal you're looking at (\u201c\u25cf Dev server \u2304\u201d). Its menu lists Dev server, your shells and New shell. Restart and Stop sit at the right of the same quiet row, with no border under it. Closed looks like A: just the header button with its dot.",
+  cost:"Shells are one click deeper than with tabs, so you can't see at a glance how many you have. The header button squeezes the title as in A."},
+ {id:"D",name:"No row at all",state:"",shots:[IMG("r3/d-open.light.png","D · Pane open","r3/d-open.dark.png")],
+  why:"The most minimal: output starts right under the divider. A small floating cluster (the same terminal menu plus Stop) sits over the output's top-right corner, on the floating toolbar surface.",
+  cost:"The cluster covers the ends of long lines (here it hides part of the Fast Refresh warning). Restart moves into the menu. A floating control inside the panel is a new pattern there."}
+]},
+{n:2,feedback:"\u201cCan we explore other UI options for log and shell? I can see multiple shells being useful, esp. on hosted. Also I guess instead of logs being a tab it could be a shell itself?\u201d and \u201cEven if log is a shell I would like a run/stop button for devserver somewhere.\u201d Then: \u201cWhat about a split panel you can optionally open below chat?\u201d (added as E). Carried forward: the Workspace's one chat stays the panel's main view, shells are plain shells (several per Workspace), and harnesses run as the chat (round 1 A). Every option below makes the dev server's output a terminal and gives it Run/Stop.",recWhy:"It's the only option where you can watch the dev server or a shell while you talk to the chat, the chat itself goes tab-free as round 1 wanted, and Stop stays one click away even with the pane closed. A is the fallback if the split feels cramped.",options:[
+ {id:"A",name:"Dev server is the first terminal tab",state:"",
+  wire:`<div class="wires">`+
+   wf("A \u00b7 Dev server tab",panel(hdr("Checkout polish",`<span class="pill">PR</span>`)+`<div class="strip"><span class="tab">Checkout polish</span><span class="tab on"><span class="gd"></span>Dev server</span><span class="tab"><span class="g">&gt;_</span>Shell</span><span class="tab"><span class="g">&gt;_</span>Shell 2</span><span class="tab">+</span></div><div class="ttb"><span class="gd"></span>Running \u00b7 pnpm dev<span class="sp"></span><span class="tb">Restart</span><span class="tb">\u25a0 Stop</span></div><pre class="term">  \u25b2 Next.js 16.1  (turbopack)
+  - Local: http://localhost:3000
+ \u2713 Ready in 1.2s
+ GET /checkout 200 in 84ms
+ \u25cb Compiling /cart ...
+ \u2713 Compiled /cart in 312ms</pre>`),"The Logs icon tab becomes a labelled Dev server tab; Run/Stop in a thin bar over its output")+
+   wf("A \u00b7 a shell",panel(hdr("Checkout polish",`<span class="pill">PR</span>`)+`<div class="strip"><span class="tab">Checkout polish</span><span class="tab"><span class="gd"></span>Dev server</span><span class="tab on"><span class="g">&gt;_</span>Shell</span><span class="tab"><span class="g">&gt;_</span>Shell 2</span><span class="tab">+</span></div>`+shellBody),"+ opens another shell. The Dev server tab can't be closed")+
+  `</div>`,
+  why:"The smallest change: today's strip already sits beside the chat, and #1315's + already opens terminals only. The pinned Logs icon becomes a Dev server tab that shows the dev server's output as a terminal, with its state dot on the tab and Run, Stop and Restart in a thin bar above it. Shells are ordinary tabs after it, as many as you like.",
+  cost:"Stop is new: today there's only Restart, in the Workspace's \u22ef menu (branch-overflow-menu.tsx:320). The bar over the output is a new strip of chrome. The chat, dev server and shells all share one row, so a busy Workspace scrolls sideways as today."},
+ {id:"B",name:"Chat | Terminal switch, dev server in the header",state:"",
+  wire:`<div class="wires">`+
+   wf("B \u00b7 chat view",panel(hdr("Checkout polish",`<span class="seg"><span class="on">Chat</span><span>Terminal</span></span><span class="pill" title="Dev server running"><span class="gd"></span> \u25be</span>`)+chatBody+comp("Sonnet 5.5")),"A dev server status button is always in the header; its menu has Stop, Restart and Show output")+
+   wf("B \u00b7 terminal view",panel(hdr("Checkout polish",`<span class="seg"><span>Chat</span><span class="on">Terminal</span></span><span class="pill" title="Dev server running"><span class="gd"></span> \u25be</span>`)+`<div class="subs"><span class="tab on"><span class="gd"></span>Dev server</span><span class="tab">Shell</span><span class="tab">Shell 2</span><span class="tab">+</span></div>`+shellBody.replace('~/checkout-polish $ pnpm test cart','  \u25b2 Next.js 16.1').replace(' PASS  test/cart.spec.ts (14)',' \u2713 Ready in 1.2s').replace(' FAIL  test/checkout.spec.ts',' GET /checkout 200').replace('   \u2715 applies promo code','').replace('~/checkout-polish $ \u2588','')),"Terminals get their own strip, one level down")+
+  `</div>`,
+  why:"The chat gets the full panel, and every terminal is one click away behind the header switch, with its own strip where Dev server comes first. Run/Stop lives in a header pill that shows the dev server's state from anywhere, including while you chat, so you never have to open the output to stop it.",
+  cost:"Two levels of navigation instead of one. The header is getting busy next to the PR button. It moves terminals a step away from the chat, which is close to the split your rule on PR #829 was about, though here they're shells rather than harnesses."},
+ {id:"C",name:"Terminals live on the canvas",state:"",
+  wire:`<div class="wires">`+
+   wf("C \u00b7 canvas",`<div class="cv"><div class="lay" style="left:4%;top:5%;width:52%;height:58%"><div class="lb">Checkout \u00b7 desktop <span class="m">Checkout polish</span></div><div class="fr"><div class="hero"></div><div class="ln"></div><div class="ln" style="width:60%"></div><div class="ln" style="width:75%"></div></div></div><div class="lay" style="left:60%;top:5%;width:36%;height:40%"><div class="lb"><span class="gd"></span>Dev server<span class="sp" style="flex:1"></span><span class="pill" style="font-size:10px;padding:1px 5px">\u25a0 Stop</span></div><pre class="term">\u2713 Ready in 1.2s
+GET /checkout 200
+\u25cb Compiling /cart</pre></div><div class="lay" style="left:60%;top:52%;width:36%;height:40%"><div class="lb"><span class="g" style="font:500 9.5px var(--mono)">&gt;_</span>Shell</div><pre class="term">~ $ pnpm test cart
+ PASS (14)
+~ $ \u2588</pre></div><div class="lay" style="left:4%;top:70%;width:52%;height:24%"><div class="lb m" style="color:var(--muted)">+ Shell (toolbar tool)</div><div class="fr" style="border-style:dashed;background:transparent"></div></div></div>`,"Dev server and shells are layers beside the frames they serve; Run/Stop in the layer label")+
+  `</div>`,
+  why:"On a canvas the output can sit beside the frame it belongs to, and several shells can be open and visible at once, which the panel can't do. Everyone in the room sees the same terminals, which fits hosted multiplayer. The panel goes back to being only the chat. Run/Stop sits in the Dev server layer's label, where frames keep their other controls.",
+  cost:"A new layer kind (the layer-kind recipe, like Mockups in #1309). Terminals become shared rather than private to you (collaboration.mdx:89-91 says they're private today), and a shell is a live process, so this needs its own call. More clutter for the Coordinator to arrange."},
+ {id:"D",name:"Logs flip the frame; shells stay tabs",state:"",
+  wire:`<div class="wires">`+
+   wf("D \u00b7 frame showing its logs",`<div class="cv"><div class="lay xl" style="left:8%;top:6%;width:84%;height:70%"><div class="lb">Checkout \u00b7 desktop <span class="m">Checkout polish</span></div><pre class="term" style="flex:1">  \u25b2 Next.js 16.1
+ \u2713 Ready in 1.2s
+ GET /checkout 200 in 84ms
+ \u25cb Compiling /cart ...</pre></div><div class="lay" style="left:8%;top:82%;width:84%;align-items:center"><div class="fbar"><span class="ib">\u2190</span><span class="ib">\u2192</span><span style="padding:0 6px;color:var(--muted)">/checkout</span><span class="ib">\u21bb</span><span class="pill" style="font-size:10px"><span class="gd"></span> Logs</span><span class="pill" style="font-size:10px">\u25a0 Stop</span></div></div></div>`,"The frame bar gets Logs (swap the page for its dev server's output) and Run/Stop beside Reload")+
+   wf("D \u00b7 panel",panel(hdr("Checkout polish",`<span class="pill">PR</span>`)+`<div class="strip"><span class="tab on">Checkout polish</span><span class="tab"><span class="g">&gt;_</span>Shell</span><span class="tab"><span class="g">&gt;_</span>Shell 2</span><span class="tab">+</span></div>`+chatBody+comp("Sonnet 5.5")),"No logs in the panel; shells are tabs beside the chat")+
+  `</div>`,
+  why:"The dev server exists to serve frames, and frames already have \u201cOpen logs\u201d in their menu. So the output and Run/Stop move to the frame itself, the way a browser's devtools sit with the page: Logs in the Safari-style bar swaps the page for its server's output. The panel keeps the chat and your shells.",
+  cost:"A Workspace with no frame on the canvas has nowhere to show its logs. Several frames share one dev server, so Stop on one frame blanks them all. Adds two controls to the frame bar."},
+ {id:"E",name:"Split pane under the chat",rec:true,state:"picked",
+  wire:`<div class="wires">`+
+   wf("E \u00b7 pane closed",panel(hdr("Checkout polish",`<span class="ib" title="Terminal">&gt;_</span><span class="pill">PR</span>`)+chatBody+comp("Sonnet 5.5")+`<div class="slim"><span class="gd"></span>Dev server running<span class="sp"></span><span class="pill">\u25a0 Stop</span><span class="pill">\u2303\u0060</span></div>`),"The chat gets the whole panel. A slim status row keeps Stop in reach; the header button or \u2303\u0060 opens the pane")+
+   wf("E \u00b7 pane open",`<div class="panel" style="height:330px">`+hdr("Checkout polish",`<span class="ib on" title="Terminal">&gt;_</span><span class="pill">PR</span>`)+`<div class="body" style="flex:1.1"><div class="msg w80"></div><div class="msg w60"></div><div class="msg u"></div></div>`+comp("Sonnet 5.5")+`<div class="split"></div><div class="pstrip"><span class="tab on"><span class="gd"></span>Dev server</span><span class="tab">Shell</span><span class="tab">Shell 2</span><span class="tab">+</span><span class="sp"></span><span class="tb" style="background:var(--box);color:var(--ink)">Restart</span><span class="tb" style="background:var(--box);color:var(--ink)">\u25a0 Stop</span></div><pre class="term" style="flex:1">\u2713 Ready in 1.2s
+GET /checkout 200 in 84ms
+\u25cb Compiling /cart ...</pre></div>`,"Drag the divider to resize. Dev server first, shells after, Run/Stop at the pane's right")+
+  `</div>`,
+  why:"Your suggestion. The chat and a terminal are both visible at once, which none of A to D manage: you can watch the dev server or a test run while you talk to the chat. The pane has its own strip (Dev server first, then shells) with Restart and Run/Stop at its right, so the chat's own area never gets tabs. Closed, it folds to a slim status row that still shows whether the dev server is up and offers Stop.",
+  cost:"Chat and terminal split the panel's height, so on a short window both feel cramped. It needs a stock shadcn Resizable (vertical) in the panel. Your PR #829 rule kept terminals out of a separate drawer because harness terminals were chats; with harnesses running as the chat now, this pane only holds shells and the dev server."},
+]},
+{n:1,feedback:"",recWhy:"It is the only option where \u201cone kind of chat\u201d and \u201conly the owning chat edits a Workspace\u201d both stay true, and your reason for keeping terminals (they're chats when running a harness) is met by making the harness run the chat.",options:[
+ {id:"A",name:"Chat only, harness picks the backing",rec:true,state:"",
+  wire:`<div class="wires">`+
+   wf("A · Workspace panel",panel(hdr("Checkout polish",`<span class="ib" title="Logs">≡</span><span class="pill">PR</span>`)+chatBody+comp("Claude Code ▾")),"No strip. Logs is an icon in the header. Claude Code is picked in the model pill")+
+  `</div>`,
+  why:"The panel shows the Workspace's one chat and nothing else. Running a harness stops being a terminal and becomes a choice of what backs the chat, which desktop already has. So a Claude Code session gets a chat card, its live state, steering, question cards, and its name on the frames it makes, and the Coordinator can read it. Logs moves to one header icon button, as frames already open it from their menu.",
+  cost:"No raw shell for you in a Workspace. Hosted needs harness-backed chats running inside the sandbox, which is new work. Claude Code's own TUI features (its slash commands, its look) are gone; you get them through the chat instead."},
+ {id:"B",name:"A terminal can be the chat",state:"",
+  wire:`<div class="wires">`+
+   wf("B · Chats menu",panel(`<div class="rel">`+hdr("Coordinator",`<span class="pill">Chats ▾</span>`)+`<div class="menu"><div class="mi"><span class="k">◉</span>Coordinator</div><div class="mi on"><span class="k">○</span>Fix checkout<span class="sp"></span></div><div class="mi"><span class="k">&gt;_</span>Promo codes<span class="sp"></span><span class="dot"></span></div><div class="mi"><span class="k">&gt;_</span>Try Codex on search</div></div></div>`+`<div class="body" style="opacity:.35"><div class="msg w80"></div><div class="msg w60"></div></div>`),"Terminal chats sit in the Chats menu with a terminal glyph")+
+   wf("B · a terminal chat open",panel(hdr("Promo codes",`<span class="ib" title="Logs">≡</span><span class="pill">PR</span>`)+tuiBody),"The whole panel body is the terminal. Still one Workspace, no strip")+
+  `</div>`,
+  why:"Takes your rule literally: a terminal running a harness is a chat, so it lives where chats live. Starting a chat picks what it runs in (the built-in chat, or Claude Code or Codex in a terminal), and either way it gets its own Workspace. There is no strip, since every panel shows one thing.",
+  cost:"Brings back a choice of chat type, which #1308 removed (user story 18). A terminal chat stays opaque: no live state on its card beyond running, no question cards, no Mockup tools unless the harness gets them over MCP, and the Coordinator can't read it."},
+ {id:"C",name:"Chat, with Shell and Logs as header views",state:"",
+  wire:`<div class="wires">`+
+   wf("C · chat view",panel(hdr("Checkout polish",`<span class="seg"><span class="on">Chat</span><span>Shell</span><span>Logs</span></span>`)+chatBody+comp("Sonnet 5.5"))) +
+   wf("C · shell view",panel(hdr("Checkout polish",`<span class="seg"><span>Chat</span><span class="on">Shell</span><span>Logs</span></span>`)+shellBody),"One plain shell per Workspace, no harness launcher")+
+  `</div>`,
+  why:"Keeps a shell for the things you'd do by hand (run the tests, poke at git) but drops harnesses from terminals, so the chat stays the only agent in its Workspace. The three views are one stock segmented control in the header, replacing the strip, the + menu and Chat history.",
+  cost:"Harness users on hosted lose Claude Code until harness-backed chats run there (as in A). One shell per Workspace; a second long-running process needs the chat to run it."},
+ {id:"D",name:"Keep the strip for terminals",state:"",
+  wire:`<div class="wires">`+
+   wf("D · Workspace panel",panel(hdr("Checkout polish",`<span class="pill">PR</span>`)+`<div class="strip"><span class="tab"><span class="g">≡</span></span><span class="tab on">Fix checkout</span><span class="tab"><span class="g">&gt;_</span>Claude Code</span><span class="tab"><span class="g">&gt;_</span>Terminal</span><span class="tab">+</span></div>`+chatBody+comp("Sonnet 5.5")),"#1315 as filed. The + only opens terminals; the chat tab can't close")+
+  `</div>`,
+  why:"The smallest change: #1315 lands as filed and nothing else moves. You keep as many harness terminals and shells per Workspace as you like, next to the chat, as today.",
+  cost:"A strip whose first tab can never close and whose + only makes terminals. Harness terminals keep editing a Workspace the chat owns, outside anything the Coordinator or chat cards can see."},
+ {id:"E",name:"Outside agents drive the canvas over MCP",state:"rejected",
+  wire:`<div class="wires">`+
+   wf("E · Chats menu",panel(`<div class="rel">`+hdr("Coordinator",`<span class="pill">Chats ▾</span>`)+`<div class="menu"><div class="mi"><span class="k">◉</span>Coordinator</div><div class="mi"><span class="k">○</span>Fix checkout</div><div class="mi on"><span class="k">↗</span>Claude · Checkout project<span class="sp"></span><span class="dot"></span></div></div></div>`+`<div class="body" style="opacity:.35"><div class="msg w80"></div><div class="msg w60"></div></div>`),"A connected outside agent is listed beside Screenplay's own chats")+
+   wf("E · an outside agent open",panel(hdr("Claude · Checkout project",`<span class="pill">Open in Claude ↗</span>`)+`<div class="body"><div class="msg w80"></div><div class="msg w60"></div><div class="msg w90"></div><div class="msg w40"></div><div class="msg w80"></div></div><div class="comp">Its conversation lives in Claude<span class="sp"></span></div>`),"No composer: the panel shows what it did on the canvas and links out")+
+  `</div>`,
+  why:"Your follow-up: if the canvas speaks MCP, any orchestrator (a Claude Project, Claude Code, Codex) can drive it and bring its own agents and sandboxes. Screenplay becomes the shared canvas and viewer; the conversation stays in the outside tool. Today's MCP route is already most of the tool surface: Coordinator tools, and for a harness-backed Workspace chat its dev server, frame reads, Documents and question cards (app/api/agent/mcp/route.ts). It composes with A rather than replacing it. Rejected: a non-goal for now, since Screenplay wouldn’t know about their threads.",
+  cost:"Today that route is desktop only (it 404s on hosted, route.ts:138) and trusts a per-chat token minted by our own harness session; outside agents need a hosted endpoint with real sign-in (OAuth, as a claude.ai connector). A frame renders a Screenplay sandbox's dev server, so an outside agent's own sandbox would need a URL the browser can reach, which cloud agent containers generally don't offer (inferred, not checked). Outside agents get no chat cards, steering or “only the owning chat edits” guarantee unless they play by those rules."}
+]}
+];
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const KEY="exploration-"+QUESTION.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let current=ROUNDS[0].n;
+
+$("q").textContent=QUESTION.q;$("quote").textContent=QUESTION.quote;
+$("today").innerHTML=`<div class="shead"><p class="lbl">Today</p><h2>What main does now</h2></div><ul class="facts">`+TODAY.facts.map(f=>`<li>${f}</li>`).join("")+`</ul>`+`<div style="max-width:620px">`+shots(TODAY.shots)+`</div>`+TODAY.wire;
+$("rounds").innerHTML=`<span class="lbl">Round</span>`+ROUNDS.map(r=>`<button type="button" data-n="${r.n}">${r.n}${r===ROUNDS[0]?" · latest":""}</button>`).join("");
+$("rounds").addEventListener("click",e=>{const b=e.target.closest("button[data-n]");if(b){current=+b.dataset.n;render()}});
+
+function render(){
+ const r=ROUNDS.find(x=>x.n===current),latest=r===ROUNDS[0];
+ $("rounds").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.n===current)));
+ $("round").innerHTML=`<div class="shead"><p class="lbl">Round ${r.n}</p><h2>${r.options.length} options</h2>${r.feedback?`<blockquote>${esc(r.feedback)}</blockquote>`:""}${r.notes?`<p class="lbl" style="margin-top:6px">Open and close (proposed)</p><ul class="facts">${r.notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul>`:""}</div><div class="opts">`+
+  r.options.map(o=>`<article class="opt ${o.state}" id="r${r.n}-${o.id}"><header><span class="letter">${o.id}</span><h3>${esc(o.name)}</h3>${o.rec?'<span class="badge rec">Recommended</span>':""}${o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:""}</header>${o.wire||""}${shots(o.shots)}<p>${esc(o.why)}</p><p class="cost"><b>Cost</b> ${esc(o.cost)}</p></article>`).join("")+`</div>`+
+  (r.recWhy?`<p class="muted" style="font-size:14px"><b style="color:var(--fg);font-weight:600">Why ${r.options.find(o=>o.rec).id}.</b> ${esc(r.recWhy)}</p>`:"");
+ $("react").hidden=!latest;
+ if(latest)renderForm(r);
+}
+function renderForm(r){
+ $("reactTitle").textContent=`Round ${r.n}`;
+ const opts=r.options.map(o=>[o.id,`${o.id}: ${o.name}${o.rec?" (recommended)":""}`]).concat([["none","None of these"],["mix","A mix (say which parts below)"]]);
+ $("form").innerHTML=`<fieldset><legend>Pick</legend>`+opts.map(([v,l])=>`<label class="pick"><input type="radio" name="pick" id="pick-${v}" value="${v}"><span>${esc(l)}</span></label>`).join("")+`</fieldset>`+
+  `<p class="lbl" style="margin-top:12px">Notes</p><textarea id="note" aria-label="Notes"></textarea>`;
+ if(saved.round===r.n){const el=$("pick-"+saved.pick);if(el)el.checked=true;$("note").value=saved.note||""}
+ preview();
+}
+function build(){
+ const r=ROUNDS[0],p=$("form").querySelector("input[name=pick]:checked"),note=$("note").value.trim();
+ const o=p&&r.options.find(x=>x.id===p.value);
+ const pick=!p?"No pick yet":o?`${o.id}: ${o.name}`:p.value==="none"?"None of these":"A mix";
+ return[`Exploration: ${QUESTION.q}`,`Round ${r.n}`,`→ ${pick}`].concat(note?[`Note: ${note}`]:[]).join("\n");
+}
+function preview(){
+ $("preview").textContent=build();
+ const p=$("form").querySelector("input[name=pick]:checked");
+ try{localStorage.setItem(KEY,JSON.stringify({round:ROUNDS[0].n,pick:p?p.value:"",note:$("note").value}))}catch(e){}
+}
+$("form").addEventListener("input",preview);
+$("form").addEventListener("submit",e=>e.preventDefault());
+$("copy").addEventListener("click",()=>{
+ const text=build(),st=$("status");
+ const fallback=()=>{const p=$("preview"),r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r);st.textContent="Copy was blocked. The text is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the chat."},fallback)}catch(e){fallback()}
+});
+render();
+</script>
+
+</body></html>

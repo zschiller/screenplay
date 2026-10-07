@@ -1,0 +1,81 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Button and icon sizes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..600&family=Unbounded:wght@500&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one reading column; inventory table, then the three options, then real-screen crops side by side */
+:root{--bg:#fafafa;--fg:#111;--muted:#6b6b72;--line:#e3e3e8;--surface:#fff;--accent:#e6007e;--rec:#111;
+--display:"Unbounded",system-ui,sans-serif;--body:"Instrument Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111113;--fg:#f2f2f4;--muted:#9a9aa3;--line:#2a2a30;--surface:#18181b;--accent:#ff4fb0;--rec:#f2f2f4;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111113;--fg:#f2f2f4;--muted:#9a9aa3;--line:#2a2a30;--surface:#18181b;--accent:#ff4fb0;--rec:#f2f2f4;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--body);padding:32px 16px 64px}
+main{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+h1{font:500 27px/1.2 var(--display);margin:0;text-wrap:balance}
+h2{font:500 20px/1.25 var(--display);margin:0 0 12px}
+h3{font:500 14px/1.3 var(--body);margin:0 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+p{margin:0;max-width:68ch}
+.lede{color:var(--muted);margin-top:10px}
+.tw{overflow-x:auto;border:1px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+tr:last-child td{border-bottom:0}
+code,.m{font-family:var(--mono);font-size:13px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.opt{border:1px solid var(--line);background:var(--surface);padding:16px;display:flex;flex-direction:column;gap:8px}
+.opt.rec{border-color:var(--rec)}
+.opt h4{margin:0;font:500 17px/1.3 var(--display);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.tag{font:500 11px/1 var(--body);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--accent);color:var(--accent);padding:3px 6px}
+.opt ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+.region .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+figure{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+figcaption{font-size:12px;color:var(--muted)}
+.crop{position:relative;overflow:hidden;width:100%;max-width:100%;border:1px solid var(--line);background:#fff}
+.crop img{position:absolute;max-width:none}
+.note{font-size:13px;color:var(--muted)}
+</style>
+<main>
+<header>
+<h1>Button and icon sizes</h1>
+<p class="lede">Measured on 164 harness screens on main (2026-09-29). Icon-only buttons come in 11 box and glyph combinations across 6 box sizes and 4 glyph sizes. The sidebar and chat collapse buttons are hand-rolled 20px boxes with a 16px glyph, while toolbar buttons are 24px with a 12px glyph, so they read as a different family.</p>
+</header>
+
+<section>
+<h2>What's there today</h2>
+<div class="tw"><table>
+<thead><tr><th>Box</th><th>Glyph</th><th>Where</th><th>How it's built</th></tr></thead>
+<tbody>
+<tr><td class="m">24</td><td class="m">12</td><td>Canvas toolbar, breadcrumb ⋯, Expand chat, chat history, New chat, prototype Back/Forward</td><td><code>IconButton</code> default (<code>icon-xs</code>)</td></tr>
+<tr><td class="m">20</td><td class="m">16</td><td>Collapse sidebar, sidebar ⋯ and + actions, frame and document options, Collapse chat</td><td>Stock <code>SidebarMenuAction</code> styling, copied by hand onto the collapse buttons</td></tr>
+<tr><td class="m">28</td><td class="m">16</td><td>Dialog close, home grid and table row ⋯, memory and repo row actions in Settings</td><td><code>icon-sm</code></td></tr>
+<tr><td class="m">24</td><td class="m">14</td><td>Composer Send and Target, Copy code</td><td><code>icon-xs</code> with a <code>size-3.5</code> glyph override</td></tr>
+<tr><td class="m">20</td><td class="m">12</td><td>Chat and terminal tab close, frame Reload</td><td>Hand-sized</td></tr>
+<tr><td class="m">16</td><td class="m">16</td><td>Collapse chat in some layouts (the 20px box gets squeezed by flex)</td><td>Hand-rolled, no <code>shrink-0</code></td></tr>
+<tr><td class="m">24</td><td class="m">10</td><td>Composer Stop</td><td>Glyph override</td></tr>
+<tr><td class="m">30×25, 28×25, 16×24</td><td class="m">16, 14, 12</td><td>Grid/Table toggle, Sandbox logs tab, New chat split caret</td><td>Tabs and button-group parts</td></tr>
+</tbody></table></div>
+<p class="note" style="margin-top:10px">Text buttons have the same drift: 4 heights (20, 24, 28, 32) with 12, 14 and 16px glyphs mixed within one height, e.g. 28px buttons carry all three.</p>
+</section>
+
+<section>
+<h2>Options</h2>
+<div class="opts">
+<div class="opt rec"><h4>A · One size <span class="tag">Recommended</span></h4>
+<p>Every icon-only button is 24px with a 12px glyph (<code>IconButton</code> / <code>icon-xs</code>), in sidebars, panel headers, tabs, dialogs and page rows.</p>
+<ul><li>It's the toolbar rule you already set, applied everywhere</li><li>Sidebar actions, collapse buttons and dialog close shrink their glyph from 16 to 12</li><li>Hand-rolled buttons go away</li></ul></div>
+<div class="opt"><h4>B · Two sizes</h4>
+<p>24 / 12 in app chrome (toolbars, sidebars, panel headers, tabs). 28 / 16 (<code>icon-sm</code>) in page content and dialogs (home rows, Settings lists, dialog close).</p>
+<ul><li>Content actions stay a bit larger</li><li>Adds a rule to remember about which zone a button is in</li></ul></div>
+<div class="opt"><h4>C · One larger size</h4>
+<p>Every icon-only button is 28px with a 16px glyph (<code>icon-sm</code>).</p>
+<ul><li>Bigger targets, glyphs match the 16px row icons in the sidebar</li><li>Toolbars and pills grow: the 32px top-right pill becomes 36px</li></ul></div>
+</div>
+<p class="note" style="margin-top:12px">In every option, text buttons use stock sizes only and take the glyph their size gives them (xs 12, sm 14, default 16), with no per-icon overrides. Row status icons (the Workspace state circles) are not buttons and stay as they are.</p>
+</section>
+
+<section>
+<h2>On real screens</h2>
+<p class="lede" style="margin-bottom:16px">Harness captures of main with each option applied as a CSS override. Sidebar ⋯ and + keep their current position, so in A and B they sit a couple of pixels low; the real change fixes that.</p>
+<div style="display:flex;flex-direction:column;gap:28px">
+<section class="region"><h3>Sidebar header and row actions</h3><div class="grid"><figure><figcaption>Today</figcaption><div class="crop" style="aspect-ratio:330/280"><img src="img/canvas-agent-chat-none.png" alt="" style="width:606.06%;left:0.00%;top:0.00%"></div></figure><figure><figcaption>A · 24 / 12 everywhere</figcaption><div class="crop" style="aspect-ratio:330/280"><img src="img/canvas-agent-chat-A.png" alt="" style="width:606.06%;left:0.00%;top:0.00%"></div></figure><figure><figcaption>B · 24 / 12 chrome, 28 / 16 content</figcaption><div class="crop" style="aspect-ratio:330/280"><img src="img/canvas-agent-chat-B.png" alt="" style="width:606.06%;left:0.00%;top:0.00%"></div></figure><figure><figcaption>C · 28 / 16 everywhere</figcaption><div class="crop" style="aspect-ratio:330/280"><img src="img/canvas-agent-chat-C.png" alt="" style="width:606.06%;left:0.00%;top:0.00%"></div></figure></div></section><section class="region"><h3>Chat panel header</h3><div class="grid"><figure><figcaption>Today</figcaption><div class="crop" style="aspect-ratio:600/110"><img src="img/canvas-agent-chat-none.png" alt="" style="width:333.33%;left:-233.33%;top:0.00%"></div></figure><figure><figcaption>A · 24 / 12 everywhere</figcaption><div class="crop" style="aspect-ratio:600/110"><img src="img/canvas-agent-chat-A.png" alt="" style="width:333.33%;left:-233.33%;top:0.00%"></div></figure><figure><figcaption>B · 24 / 12 chrome, 28 / 16 content</figcaption><div class="crop" style="aspect-ratio:600/110"><img src="img/canvas-agent-chat-B.png" alt="" style="width:333.33%;left:-233.33%;top:0.00%"></div></figure><figure><figcaption>C · 28 / 16 everywhere</figcaption><div class="crop" style="aspect-ratio:600/110"><img src="img/canvas-agent-chat-C.png" alt="" style="width:333.33%;left:-233.33%;top:0.00%"></div></figure></div></section><section class="region"><h3>Canvas toolbar</h3><div class="grid"><figure><figcaption>Today</figcaption><div class="crop" style="aspect-ratio:160/64"><img src="img/canvas-agent-chat-none.png" alt="" style="width:1250.00%;left:-487.50%;top:-1925.00%"></div></figure><figure><figcaption>A · 24 / 12 everywhere</figcaption><div class="crop" style="aspect-ratio:160/64"><img src="img/canvas-agent-chat-A.png" alt="" style="width:1250.00%;left:-487.50%;top:-1925.00%"></div></figure><figure><figcaption>B · 24 / 12 chrome, 28 / 16 content</figcaption><div class="crop" style="aspect-ratio:160/64"><img src="img/canvas-agent-chat-B.png" alt="" style="width:1250.00%;left:-487.50%;top:-1925.00%"></div></figure><figure><figcaption>C · 28 / 16 everywhere</figcaption><div class="crop" style="aspect-ratio:160/64"><img src="img/canvas-agent-chat-C.png" alt="" style="width:1250.00%;left:-487.50%;top:-1925.00%"></div></figure></div></section><section class="region"><h3>Dialog close</h3><div class="grid"><figure><figcaption>Today</figcaption><div class="crop" style="aspect-ratio:240/80"><img src="img/home-move-dialog-none.png" alt="" style="width:833.33%;left:-450.00%;top:-493.75%"></div></figure><figure><figcaption>A · 24 / 12 everywhere</figcaption><div class="crop" style="aspect-ratio:240/80"><img src="img/home-move-dialog-A.png" alt="" style="width:833.33%;left:-450.00%;top:-493.75%"></div></figure><figure><figcaption>B · 24 / 12 chrome, 28 / 16 content</figcaption><div class="crop" style="aspect-ratio:240/80"><img src="img/home-move-dialog-B.png" alt="" style="width:833.33%;left:-450.00%;top:-493.75%"></div></figure><figure><figcaption>C · 28 / 16 everywhere</figcaption><div class="crop" style="aspect-ratio:240/80"><img src="img/home-move-dialog-C.png" alt="" style="width:833.33%;left:-450.00%;top:-493.75%"></div></figure></div></section></div></section></main>
+
+</body></html>

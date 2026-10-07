@@ -1,0 +1,532 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Where Workspaces Live</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@500&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: a single reading column; each option is a miniature of the canvas window (sidebar | canvas | panel) with its notes beside it. */
+:root{
+  --bg:#f6f5f7; --surface:#ffffff; --ink:#141216; --muted:#6c6772; --line:#e3e0e6;
+  --canvas:#efedf1; --accent:#e0218a; --accent-soft:#fbe3f0; --ok:#1f8a4c; --bad:#c9302c;
+  --display:"Unbounded",system-ui,sans-serif; --body:"Instrument Sans",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121014; --surface:#1b181e; --ink:#f1eef3; --muted:#9d97a4; --line:#2e2a33; --canvas:#161419; --accent:#ff4fae; --accent-soft:#3a1a2c; --ok:#4cc27d; --bad:#ff6b66; color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121014; --surface:#1b181e; --ink:#f1eef3; --muted:#9d97a4; --line:#2e2a33; --canvas:#161419; --accent:#ff4fae; --accent-soft:#3a1a2c; --ok:#4cc27d; --bad:#ff6b66; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--body)}
+.wrap{max-width:980px;margin:0 auto;padding:40px 20px 80px}
+h1{font:500 27px/1.2 var(--display);margin:0 0 10px;text-wrap:balance}
+h2{font:500 20px/1.25 var(--display);margin:0 0 6px;text-wrap:balance}
+h3{font:600 15px/1.3 var(--body);margin:18px 0 4px}
+p{margin:0 0 10px;max-width:68ch}
+.lede{color:var(--muted);font-size:16px}
+section{margin-top:56px;display:grid;gap:14px}
+.tag{justify-self:start;display:inline-block;font:500 11px/1 var(--body);letter-spacing:.06em;text-transform:uppercase;padding:5px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.tag.rec{border-color:var(--accent);color:var(--accent)}
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.shots figure{margin:0;min-width:0}
+.shots img{border:1px solid var(--line);border-radius:8px;display:block}
+figcaption{font-size:13px;color:var(--muted);margin-top:6px}
+ul{margin:0;padding-left:20px;max-width:68ch} li{margin:3px 0}
+.pros li::marker{content:"+  ";color:var(--ok)} .cons li::marker{content:"–  ";color:var(--bad)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.cols>div{min-width:0}
+@media (max-width:700px){.shots,.cols{grid-template-columns:1fr}}
+
+/* ---------- miniature app ---------- */
+.scroller{overflow-x:auto;border-radius:10px}
+.app{width:900px;height:430px;display:grid;grid-template-columns:190px 1fr 290px;border:1px solid var(--line);border-radius:10px;background:var(--canvas);font:12px/1.3 var(--body);position:relative;overflow:hidden}
+.side{background:var(--surface);border-right:1px solid var(--line);padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+.side .top{height:22px;display:flex;justify-content:flex-end;color:var(--muted)}
+.grp{display:flex;align-items:center;justify-content:space-between;font:500 10px/1 var(--mono);letter-spacing:.05em;color:var(--muted);padding:8px 6px 6px}
+.grp span.acts{letter-spacing:0;font-family:var(--body);font-size:13px;display:flex;gap:8px}
+.row{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:5px;white-space:nowrap;min-width:0}
+.row .t{flex:1;overflow:hidden;text-overflow:ellipsis}
+.row.sel{background:var(--canvas)}
+.row.ind{padding-left:22px}
+.sep{height:1px;background:var(--line);margin:6px -8px}
+.pr{font:10px/1 var(--mono);border:1px solid var(--line);border-radius:4px;padding:2px 4px;color:var(--ok)}
+.diff{font:10px/1 var(--mono);color:var(--ok)} .diff b{color:var(--bad);font-weight:400}
+.pill{color:var(--muted);display:inline-flex;align-items:center;gap:4px;font-size:11px}
+.ic{width:11px;height:11px;flex:none;display:inline-block}
+.ic.ready{border:1.3px solid var(--muted);border-radius:50%}
+.ic.work{background:radial-gradient(circle,var(--accent) 1.1px,transparent 1.4px) 0 0/3.7px 3.7px}
+.ic.spin{border:1.3px solid var(--muted);border-top-color:transparent;border-radius:50%}
+.ic.err{color:var(--bad);font-size:11px;line-height:11px;text-align:center;font-weight:700}
+.ic.frame{border:1.3px solid var(--muted);border-radius:1px;height:8px;width:12px;box-shadow:inset 0 2px 0 var(--line)}
+.ic.folder{border:1.3px solid var(--muted);border-radius:1px 3px 2px 2px;height:9px}
+.canvas{position:relative;padding:14px}
+.crumb{white-space:nowrap;position:absolute;left:12px;top:10px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--muted)}
+.crumb b{color:var(--ink);font-weight:500}
+.fr{position:absolute;background:var(--surface);border:1px solid var(--line);border-radius:3px}
+.fr::before{content:"";position:absolute;left:8px;right:8px;top:10px;height:26px;background:var(--line);border-radius:2px;opacity:.7}
+.panel{background:var(--surface);border-left:1px solid var(--line);display:flex;flex-direction:column;position:relative}
+.ph{height:38px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;padding:0 10px;white-space:nowrap}
+.ph .coll{width:12px;height:10px;border:1.3px solid var(--muted);border-radius:2px;flex:none}
+.ph .title{font-weight:500}
+.ph .dim{color:var(--muted)}
+.ph .sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:6px;padding:3px 7px;font-size:11.5px;background:var(--surface)}
+.btn.on{border-color:var(--ink)}
+.chev{color:var(--muted);font-size:10px}
+.msgs{padding:12px;display:flex;flex-direction:column;gap:9px;flex:1;overflow:hidden}
+.bub{align-self:flex-end;background:var(--canvas);border-radius:8px;padding:7px 9px;max-width:85%}
+.task{color:var(--muted);display:flex;align-items:center;gap:5px}
+.line{height:7px;border-radius:3px;background:var(--line)}
+.composer{margin:10px;border:1px solid var(--line);border-radius:8px;height:52px;color:var(--muted);padding:8px}
+.pop{position:absolute;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px -10px rgba(20,10,30,.28);padding:6px;width:250px;z-index:2;display:flex;flex-direction:column;gap:1px}
+.pop .search{border:1px solid var(--line);border-radius:6px;padding:5px 8px;color:var(--muted);margin-bottom:4px}
+.pop .grp{padding:7px 6px 5px}
+.pop .foot{border-top:1px solid var(--line);margin:4px -6px 0;padding:6px 12px 2px;color:var(--muted)}
+.check{margin-left:4px;color:var(--ink)}
+.callout{position:absolute;font:500 11px/1.2 var(--body);color:var(--accent);display:flex;align-items:center;gap:6px;z-index:3}
+.callout::before{content:"";width:16px;height:16px;border-radius:50%;border:2px solid var(--accent);background:transparent}
+.note{font-size:13px;color:var(--muted)}
+.verdict{border-left:3px solid var(--accent);padding:12px 16px;background:var(--surface);border-radius:0 8px 8px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+.tbl{overflow-x:auto}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.03em}
+
+.tabs{display:flex;gap:12px;padding:0 10px;border-bottom:1px solid var(--line);height:28px;align-items:center;color:var(--muted);font-size:11px;white-space:nowrap}
+.tabs b{color:var(--ink);font-weight:500;border-bottom:1.5px solid var(--ink);padding-bottom:6px;margin-top:6px}
+.sheet{position:absolute;left:6px;right:6px;top:44px;bottom:0;background:var(--surface);border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;box-shadow:0 -8px 24px -12px rgba(20,10,30,.35);display:flex;flex-direction:column;z-index:2}
+.scrim{position:absolute;inset:39px 0 0 0;background:var(--ink);opacity:.06;z-index:1}
+.x{color:var(--muted);font-size:12px}
+.float{position:absolute;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 34px -12px rgba(20,10,30,.35);display:flex;flex-direction:column;z-index:2;overflow:hidden}
+.app.four{grid-template-columns:170px 1fr 250px 250px}
+.panel.ws{border-left:1px solid var(--line)}
+.r2{border-top:1px solid var(--line);padding-top:8px}
+.hint{font-size:13px;color:var(--muted);max-width:68ch}
+
+.app.hub{width:960px;grid-template-columns:170px 1fr 360px 210px}
+.panel.coord{background:var(--surface);border-left:1px solid var(--line)}
+.panel.coord .row{padding:4px 6px}
+.mini{font-size:11px;color:var(--muted);padding:0 10px;display:flex;flex-direction:column;gap:6px}
+.mini p{margin:0;color:var(--ink);font-size:11px;line-height:1.35}
+.composer.sm{height:34px;margin:8px;font-size:11px}
+.cbtn{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:6px;padding:3px 7px;font-size:11.5px;position:relative}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
+.strip{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:11px;background:var(--canvas);white-space:nowrap;overflow:hidden}
+.strip .t{flex:1;overflow:hidden;text-overflow:ellipsis}
+.app.wide{grid-template-columns:180px 1fr 400px}
+
+.strips{display:grid;gap:14px}
+.hdr{width:100%;max-width:460px;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:visible;position:relative;font:13px/1.3 var(--body)}
+.hdr .ph{height:46px;padding:0 12px;gap:7px}
+.hdr .tabs{height:34px;font-size:12px}
+.hdr .tabs b{padding-bottom:9px;margin-top:9px}
+.wsb{width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;position:relative;flex:none;color:var(--ink)}
+.wsb.on{background:var(--canvas)}
+.wsb svg{width:13px;height:13px}
+.wsb .dot{position:absolute;right:2px;top:2px;width:6px;height:6px;border:1.5px solid var(--surface);box-sizing:content-box}
+.lbl{font:500 11px/1 var(--mono);color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.crumbdim{color:var(--muted)}
+.hdrwrap{display:grid;gap:6px}
+.pop.big{position:relative;margin:6px 0 0 auto;right:0;top:0;width:280px;font-size:12px}
+.pagelist{padding:6px;display:flex;flex-direction:column;gap:1px;font-size:12.5px}
+.hdr>.ph:last-child{border-bottom:0}
+.pagelist .grp{padding:8px 6px 6px}
+</style>
+
+<div class="wrap">
+  <span class="tag">Design exploration · 2026-09-29</span>
+  <h1 style="margin-top:12px">Where do Workspaces live now that the Coordinator exists?</h1>
+  <p class="lede">You asked whether the Workspaces list in the top-left sidebar feels out of place next to the Coordinator. Round 3 (first) returns to your top-right menu and fits it into the panel's navigation. Rounds 2 and 1 follow for reference.</p>
+
+  <section class="r2">
+    <span class="tag">Round 3 · back to A</span>
+    <h2>A, made to fit the panel's navigation</h2>
+    <p>Round 2 gave up too much canvas, so this keeps the layout you have: the Coordinator is the panel's home, and the sidebar keeps only the canvas's layers. The problem with round 1's A was that it added a second way to switch Workspaces. The Workspace header already had the <i>Coordinator / Checkout polish ⌃⌄</i> switcher, and the new menu sat somewhere else. Both versions below fix that the same way: <b>one Workspaces button, pinned to the far right of the panel header, in the same spot on every level.</b> The breadcrumb only tells you where you are, and the button is how you move.</p>
+    <div class="cols">
+      <div class="hdrwrap"><span class="lbl">Coordinator (home)</span><div class="hdr"><div class="ph"><span class="coll"></span><span class="title">Coordinator</span><span class="sp"></span><span class="wsb"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="2.5" width="11" height="3.2" rx=".8"/><rect x="2.5" y="6.4" width="11" height="3.2" rx=".8"/><rect x="2.5" y="10.3" width="11" height="3.2" rx=".8"/></svg><span class="dot"></span></span></div></div></div>
+      <div class="hdrwrap"><span class="lbl">In a Workspace</span><div class="hdr"><div class="ph"><span class="coll"></span><span class="crumbdim">Coordinator</span><span class="crumbdim">/</span><span class="ic ready"></span><span class="title">Checkout polish</span><span class="sp"></span><span class="diff">+214 <b>−37</b></span><span class="pr">#482 ↗</span><span class="wsb"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="2.5" width="11" height="3.2" rx=".8"/><rect x="2.5" y="6.4" width="11" height="3.2" rx=".8"/><rect x="2.5" y="10.3" width="11" height="3.2" rx=".8"/></svg><span class="dot"></span></span></div><div class="tabs"><b>Checkout polish</b><span>Terminal</span><span>Logs</span><span>＋</span></div></div></div>
+    </div>
+    <ul>
+      <li>The button is a 24px icon button (stock ghost, 13px icon) with a pink dot when a Workspace needs you, so you can see it from the Coordinator without opening anything.</li>
+      <li>In a Workspace, the ⌃⌄ after the name goes away, and the diff and PR button sit just left of the Workspaces button.</li>
+      <li>"Coordinator" in the breadcrumb still takes you home, and task rows in the Coordinator's chat still open their Workspace. Nothing about talking to the Coordinator changes.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div><span class="tag rec">A1 · recommended</span></div>
+    <h2>The button opens a menu</h2>
+    <p>A popover under the button, like today's switcher: search, Coordinator as the first row, then the Workspaces list with its + and ··· (sort, group, Open existing git branch), state sections and Done. Picking a row opens it; Esc closes the menu. The chat underneath stays where it was.</p>
+    <div class="hdrwrap" style="max-width:460px"><span class="lbl">Menu open, from home</span><div class="hdr" style="padding-bottom:10px"><div class="ph"><span class="coll"></span><span class="title">Coordinator</span><span class="sp"></span><span class="wsb on"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="2.5" width="11" height="3.2" rx=".8"/><rect x="2.5" y="6.4" width="11" height="3.2" rx=".8"/><rect x="2.5" y="10.3" width="11" height="3.2" rx=".8"/></svg><span class="dot"></span></span></div><div style="padding:0 10px"><div class="pop big">
+          <div class="search">Search workspaces…</div>
+          <div class="row"><span class="t" style="font-weight:500">Coordinator</span><span class="check">✓</span></div>
+          <div class="grp">WORKSPACES<span class="acts">··· ＋</span></div>
+          <div class="row"><span class="ic ready"></span><span class="t">Checkout polish</span><span class="pr">#482</span></div>
+          <div class="row"><span class="ic work"></span><span class="t">Empty cart state</span><span class="dot"></span></div>
+          <div class="row"><span class="ic spin"></span><span class="t">Apple Pay button</span></div>
+          <div class="row"><span class="ic err">!</span><span class="t" style="font-family:var(--mono)">gift-cards</span></div>
+          <div class="foot">Done (2) ›</div>
+        </div></div></div></div>
+    <div class="cols">
+      <div><h3>For</h3><ul class="pros">
+        <li>A quick hop: open, pick, you're back in a chat. The Coordinator's chat stays in view behind the menu.</li>
+        <li>Reuses the switcher's popover (#974), so the new work is the button and the list actions moving in.</li>
+      </ul></div>
+      <div><h3>Against</h3><ul class="cons">
+        <li>Row menus (rename, Mark as done, git) become a menu inside a menu.</li>
+        <li>Drag to reorder in a popover is fiddly.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section>
+    <div><span class="tag">A2</span></div>
+    <h2>The button opens a Workspaces page in the panel</h2>
+    <p>The same button, but the list takes over the panel as its own level, <i>Coordinator / Workspaces</i>, like a page in a stack. It has room for everything the sidebar list does today, including row menus and drag. Picking a row goes to that Workspace; "Coordinator" goes home.</p>
+    <div class="hdrwrap" style="max-width:460px"><span class="lbl">Workspaces page</span><div class="hdr"><div class="ph"><span class="coll"></span><span class="crumbdim">Coordinator</span><span class="crumbdim">/</span><span class="title">Workspaces</span><span class="sp"></span><span class="x">···</span><span class="x">＋</span><span class="wsb on"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2.5" y="2.5" width="11" height="3.2" rx=".8"/><rect x="2.5" y="6.4" width="11" height="3.2" rx=".8"/><rect x="2.5" y="10.3" width="11" height="3.2" rx=".8"/></svg><span class="dot"></span></span></div><div class="pagelist"><div class="search" style="border:1px solid var(--line);border-radius:6px;padding:6px 8px;color:var(--muted);margin-bottom:4px">Search workspaces…</div><div class="grp">WORKING</div><div class="row"><span class="ic spin"></span><span class="t">Apple Pay button</span></div><div class="grp">NEEDS YOU</div><div class="row"><span class="ic work"></span><span class="t">Empty cart state</span><span class="dot"></span></div><div class="row"><span class="ic err">!</span><span class="t" style="font-family:var(--mono)">gift-cards</span></div><div class="grp">IDLE</div><div class="row"><span class="ic ready"></span><span class="t">Checkout polish</span><span class="pr">#482</span></div><div class="foot" style="border-top:1px solid var(--line);margin:4px -6px 0;padding:6px 12px 2px;color:var(--muted)">Done (2) ›</div></div></div></div>
+    <div class="cols">
+      <div><h3>For</h3><ul class="pros">
+        <li>Full room: sort, group, drag and row menus work exactly as in the sidebar.</li>
+        <li>Fits the breadcrumb model: Workspaces is one more place the panel can be.</li>
+      </ul></div>
+      <div><h3>Against</h3><ul class="cons">
+        <li>Browsing the list hides the Coordinator's chat, and switching takes two steps: open the page, then pick.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="verdict">
+    <h2>Recommendation: A1</h2>
+    <p>You said the thing to optimize is talking to the Coordinator. A1 keeps its chat on screen the whole time: the menu drops over it for a second and goes away. One pinned button replaces both the sidebar list and the header switcher, so there's a single way to move between chats. A2 is the fallback if the list's row menus and drag feel cramped in a popover.</p>
+  </section>
+
+  <section class="r2">
+    <span class="tag">Earlier rounds</span>
+    <p class="hint">Round 2 (agent chat as the main panel) and round 1, kept for reference.</p>
+  </section>
+
+  <section class="r2">
+    <span class="tag">Round 2 · after your notes</span>
+    <h2>The agent chat gets the room, the Coordinator gets narrow</h2>
+    <p>You spend most of your time in a Workspace's chat, so it should be the main panel, always there and wider than today. The Coordinator is quiet by design: it speaks when a Workspace finishes, is blocked, or needs you. It doesn't need a full panel. Each option below makes the agent chat the panel and the Coordinator something narrow. The sidebar keeps only the canvas's layers.</p>
+    <p class="hint">Today the Coordinator is the panel's home, and opening a Workspace replaces it (Coordinator / Checkout polish breadcrumb). All three options drop that home: the panel opens on the last Workspace you used, or on + New workspace when there are none.</p>
+  </section>
+
+  <section>
+    <div><span class="tag rec">R1 · recommended</span></div>
+    <h2>A narrow Coordinator column that is also the Workspaces list</h2>
+    <p>A slim column on the right edge. On top: the Workspaces list, with + and ··· for sort, group and Open existing git branch. Below: the Coordinator's messages, short, with its composer. Clicking a row opens that Workspace in the wide chat beside it. A pink dot marks a Workspace that needs you.</p>
+    <div class="scroller"><div class="app hub">
+      <div class="side">
+        <div class="top">▭</div>
+        <div class="row"><span class="ic folder"></span><span class="t">Checkout</span><span class="pill"><span class="ic ready"></span>Checkout…</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · desktop</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · iPhone 17 Pro</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout brief</span></div>
+        <div class="row"><span class="ic folder"></span><span class="t">Cart</span><span class="pill"><span class="ic work"></span>Empty…</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Empty cart</span></div>
+        <div class="row"><span class="ic frame"></span><span class="t">Untitled frame</span></div>
+      </div>
+      <div class="canvas">
+        <div class="crumb">Marketing site / <b>Checkout flow</b> ···</div>
+        <div class="fr" style="left:14px;top:60px;width:180px;height:140px"></div>
+        <div class="fr" style="left:206px;top:60px;width:90px;height:140px"></div>
+        <div class="fr" style="left:14px;top:230px;width:180px;height:140px"></div>
+      </div>
+      <div class="panel ws"><div class="ph"><span class="ic ready"></span><span class="title">Checkout polish</span><span class="sp"></span><span class="diff">+214 <b>−37</b></span><span class="pr">#482 ↗</span></div><div class="tabs"><b>Checkout polish</b><span>Terminal</span><span>Logs</span><span>＋</span></div>
+          <div class="msgs">
+            <div class="bub">Collapse the address field on mobile and keep the summary pinned.</div>
+            <div class="task">› Read 1 file, edited 2</div>
+            <div class="line" style="width:92%"></div><div class="line" style="width:80%"></div><div class="line" style="width:55%"></div>
+            <div class="bub">Lint is still red, fix it and re-run.</div>
+            <div class="line" style="width:88%"></div><div class="line" style="width:40%"></div>
+          </div>
+          <div class="composer">Ask the agent…</div></div>
+      <div class="panel coord">
+        <div class="ph"><span class="title">Coordinator</span><span class="sp"></span><span class="x">··· ＋</span></div>
+        <div style="padding:6px 4px;display:flex;flex-direction:column;gap:1px">
+          <div class="row sel"><span class="ic ready"></span><span class="t">Checkout polish</span><span class="pr">#482</span></div>
+          <div class="row"><span class="ic work"></span><span class="t">Empty cart state</span><span class="dot"></span></div>
+          <div class="row"><span class="ic spin"></span><span class="t">Apple Pay button</span></div>
+          <div class="row"><span class="ic err">!</span><span class="t" style="font-family:var(--mono)">gift-cards</span></div>
+        </div>
+        <div class="sep" style="margin:4px 0 8px"></div>
+        <div class="mini" style="flex:1">
+          <p>Checkout polish is done: the summary stays pinned on mobile.</p>
+          <p>Empty cart state is waiting for you to approve its plan ›</p>
+        </div>
+        <div class="composer sm">Ask the Coordinator…</div>
+      </div>
+    </div></div>
+    <div class="cols">
+      <div><h3>For</h3><ul class="pros">
+        <li>One place for "what's going on": every Workspace's state and the Coordinator's news sit together, always visible.</li>
+        <li>Removes the duplicates: no sidebar list, no header switcher, and task rows shrink to the list's own rows.</li>
+        <li>Agent chat is the main thing; the Coordinator is a sidekick at about 210px, which fits its short messages.</li>
+      </ul></div>
+      <div><h3>Against</h3><ul class="cons">
+        <li>One more column: the canvas loses about 210px next to today's layout.</li>
+        <li>Plan cards and confirm cards (Open PR, Remove) would need a compact form at that width.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section>
+    <div><span class="tag">R2 · closest to your first idea</span></div>
+    <h2>The Coordinator opens from the top right</h2>
+    <p>The panel is always the agent chat. Its header keeps today's Workspace switcher on the left, now with + and ···. A <b>Coordinator</b> button at the top right, with a dot when it has news, opens it as a narrow popover over the chat. ⤢ pins it open as a column (R1's layout without the list).</p>
+    <div class="scroller"><div class="app wide">
+      <div class="side">
+        <div class="top">▭</div>
+        <div class="row"><span class="ic folder"></span><span class="t">Checkout</span><span class="pill"><span class="ic ready"></span>Checkout…</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · desktop</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · iPhone 17 Pro</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout brief</span></div>
+        <div class="row"><span class="ic folder"></span><span class="t">Cart</span><span class="pill"><span class="ic work"></span>Empty…</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Empty cart</span></div>
+        <div class="row"><span class="ic frame"></span><span class="t">Untitled frame</span></div>
+      </div>
+      <div class="canvas">
+        <div class="crumb">Marketing site / <b>Checkout flow</b> ···</div>
+        <div class="fr" style="left:14px;top:60px;width:180px;height:140px"></div>
+        <div class="fr" style="left:206px;top:60px;width:90px;height:140px"></div>
+        <div class="fr" style="left:14px;top:230px;width:180px;height:140px"></div>
+      </div>
+      <div class="panel"><div class="ph"><span class="coll"></span><span class="ic ready"></span><span class="title">Checkout polish</span><span class="chev">⌃⌄</span><span class="sp"></span><span class="diff">+214 <b>−37</b></span><span class="pr">#482 ↗</span><span class="cbtn on" style="border-color:var(--ink)">Coordinator <span class="dot"></span></span></div><div class="tabs"><b>Checkout polish</b><span>Terminal</span><span>Logs</span><span>＋</span></div>
+          <div class="msgs">
+            <div class="bub">Collapse the address field on mobile and keep the summary pinned.</div>
+            <div class="task">› Read 1 file, edited 2</div>
+            <div class="line" style="width:92%"></div><div class="line" style="width:80%"></div><div class="line" style="width:55%"></div>
+            <div class="bub">Lint is still red, fix it and re-run.</div>
+            <div class="line" style="width:88%"></div><div class="line" style="width:40%"></div>
+          </div>
+          <div class="composer">Ask the agent…</div><div class="pop" style="right:8px;top:42px;width:230px;height:300px;padding:0;overflow:hidden">
+            <div class="ph" style="height:32px"><span class="title">Coordinator</span><span class="sp"></span><span class="x">⤢</span></div>
+            <div class="mini" style="flex:1;padding-top:8px">
+              <div class="task"><span class="ic ready"></span>Checkout polish · Done ›</div>
+              <div class="task"><span class="ic work"></span>Empty cart state · Needs you ›</div>
+              <p>Empty cart state is waiting for you to approve its plan.</p>
+            </div>
+            <div class="composer sm">Ask the Coordinator…</div>
+          </div></div>
+    </div></div>
+    <div class="cols">
+      <div><h3>For</h3><ul class="pros">
+        <li>Agent chat gets the whole panel, and the canvas keeps its width.</li>
+        <li>Smallest change: the switcher exists (#974); the new piece is a button and a popover.</li>
+      </ul></div>
+      <div><h3>Against</h3><ul class="cons">
+        <li>The Coordinator's news is hidden behind a dot until you open it.</li>
+        <li>Working state for other Workspaces takes a click (switcher) or a look at the canvas's group pills.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section>
+    <div><span class="tag">R3</span></div>
+    <h2>The Coordinator as a one-line strip</h2>
+    <p>Narrow in height instead of width: a strip at the top of the agent chat shows the Coordinator's latest message. Click it to pull the Coordinator chat down over the panel; click again to put it away.</p>
+    <div class="scroller"><div class="app wide">
+      <div class="side">
+        <div class="top">▭</div>
+        <div class="row"><span class="ic folder"></span><span class="t">Checkout</span><span class="pill"><span class="ic ready"></span>Checkout…</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · desktop</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · iPhone 17 Pro</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout brief</span></div>
+        <div class="row"><span class="ic folder"></span><span class="t">Cart</span><span class="pill"><span class="ic work"></span>Empty…</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Empty cart</span></div>
+        <div class="row"><span class="ic frame"></span><span class="t">Untitled frame</span></div>
+      </div>
+      <div class="canvas">
+        <div class="crumb">Marketing site / <b>Checkout flow</b> ···</div>
+        <div class="fr" style="left:14px;top:60px;width:180px;height:140px"></div>
+        <div class="fr" style="left:206px;top:60px;width:90px;height:140px"></div>
+        <div class="fr" style="left:14px;top:230px;width:180px;height:140px"></div>
+      </div>
+      <div class="panel"><div class="ph"><span class="coll"></span><span class="ic ready"></span><span class="title">Checkout polish</span><span class="chev">⌃⌄</span><span class="sp"></span><span class="diff">+214 <b>−37</b></span><span class="pr">#482 ↗</span></div><div class="tabs"><b>Checkout polish</b><span>Terminal</span><span>Logs</span><span>＋</span></div><div class="strip"><span class="dot"></span><b style="font-weight:500">Coordinator</b><span class="t">Empty cart state is waiting for you to approve its plan</span><span class="chev">▾</span></div>
+          <div class="msgs">
+            <div class="bub">Collapse the address field on mobile and keep the summary pinned.</div>
+            <div class="task">› Read 1 file, edited 2</div>
+            <div class="line" style="width:92%"></div><div class="line" style="width:80%"></div><div class="line" style="width:55%"></div>
+            <div class="bub">Lint is still red, fix it and re-run.</div>
+            <div class="line" style="width:88%"></div><div class="line" style="width:40%"></div>
+          </div>
+          <div class="composer">Ask the agent…</div></div>
+    </div></div>
+    <div class="cols">
+      <div><h3>For</h3><ul class="pros">
+        <li>The Coordinator's latest news is always readable without a column or a click.</li>
+        <li>Agent chat and canvas keep their full size.</li>
+      </ul></div>
+      <div><h3>Against</h3><ul class="cons">
+        <li>One line holds one message; several Workspaces finishing at once get cut to the latest.</li>
+        <li>A strip at the top of a chat reads like a banner, a new pattern with no stock shadcn part behind it.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section class="verdict">
+    <h2>Recommendation: R1</h2>
+    <p>It does what you describe, a wide agent chat and a narrow Coordinator, and it also answers your first question. The Workspaces list stops floating at the top left and lives with the Coordinator, which is the thing that manages Workspaces. It's the only option where you see both at a glance: which agents are working and what the Coordinator has to say. If giving up canvas width is too much, R2 is the lighter version and can grow into R1 by pinning.</p>
+  </section>
+
+  <section class="r2">
+    <span class="tag">Round 1</span>
+    <p class="hint">The first comparison, kept for reference.</p>
+  </section>
+  <section>
+    <h2>Today</h2>
+    <p>The same Workspaces show up in three places. The sidebar lists them (top left). The Coordinator names them in task rows and replies. A Workspace's chat header has a switcher (<i>Coordinator / Checkout polish ⌃⌄</i>) that lists them again. The Coordinator's own header is only a title, and its top right is empty.</p>
+    <div class="shots">
+      <figure><img src="now-coordinator.png" alt="Canvas with the Workspaces list in the left sidebar and the Coordinator chat on the right"><figcaption>Coordinator home. Sidebar: Workspaces, divider, then the canvas's groups and frames (each group already shows its Workspace with its state icon).</figcaption></figure>
+      <figure><img src="now-picker.png" alt="A Workspace chat with its header switcher open, listing Workspaces and documents"><figcaption>A Workspace's chat: the header switcher lists the same Workspaces (#974).</figcaption></figure>
+    </div>
+    <p class="note">Captured from main (df7b548) with the screenshot harness: <code>chat-coordinator-wake</code> and <code>chat-header-workspace-picker</code>.</p>
+  </section>
+
+  <!-- ================= A ================= -->
+  <section>
+    <div><span class="tag">A · your idea</span></div>
+    <h2>A Workspaces menu at the top right of the Coordinator</h2>
+    <p>The sidebar keeps only the canvas's layers. The Coordinator header gets a <b>Workspaces</b> button on the right, showing the count and the 9-dot when an agent is working. It opens a popover holding today's list as is: rows with state icon, title and PR badge, the + and … actions, sort and group, and the Done section.</p>
+    <div class="scroller"><div class="app">
+      <div class="side">
+        <div class="top">▭</div>
+        <div class="row"><span class="ic folder"></span><span class="t">Checkout</span><span class="pill"><span class="ic ready"></span>Checkout polish</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · desktop</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · iPhone 17 Pro</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout brief</span></div>
+        <div class="row"><span class="ic folder"></span><span class="t">Cart</span><span class="pill"><span class="ic work"></span>Empty cart…</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Empty cart</span></div>
+        <div class="row"><span class="ic frame"></span><span class="t">Untitled frame</span></div>
+      </div>
+      <div class="canvas">
+        <div class="crumb">Marketing site / <b>Checkout flow</b> ···</div>
+        <div class="fr" style="left:14px;top:60px;width:200px;height:150px"></div>
+        <div class="fr" style="left:228px;top:60px;width:110px;height:150px"></div>
+        <div class="fr" style="left:14px;top:240px;width:200px;height:150px"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="coll"></span><span class="title">Coordinator</span><span class="sp"></span><span class="btn on"><span class="ic work"></span>Workspaces 4 <span class="chev">▾</span></span></div>
+        <div class="msgs">
+          <div class="bub">Pin the order summary on mobile in Checkout polish…</div>
+          <div class="line" style="width:90%"></div><div class="line" style="width:70%"></div>
+          <div class="task"><span class="ic ready"></span>Checkout polish · Done ›</div>
+          <div class="task"><span class="ic work"></span>Empty cart state · Working ›</div>
+        </div>
+        <div class="composer">Ask the Coordinator…</div>
+        <div class="pop" style="right:8px;top:42px">
+          <div class="search">Search workspaces…</div>
+          <div class="grp">WORKSPACES<span class="acts">··· ＋</span></div>
+          <div class="row"><span class="ic ready"></span><span class="t">Checkout polish</span><span class="pr">⇅ #482</span></div>
+          <div class="row"><span class="ic work"></span><span class="t">Empty cart state</span><span class="diff">+46 <b>−4</b></span></div>
+          <div class="row"><span class="ic spin"></span><span class="t">Apple Pay button</span></div>
+          <div class="row"><span class="ic err">!</span><span class="t" style="font-family:var(--mono)">gift-cards</span></div>
+          <div class="foot">Done (2) ›</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="cols">
+      <div><h3>For</h3><ul class="pros">
+        <li>Reads like Claude Projects: the Coordinator is the project chat and the Workspaces are its threads, so they hang off it.</li>
+        <li>The sidebar becomes a plain layers panel, one job per side of the screen.</li>
+        <li>The list keeps everything it has today; it only moves into a popover.</li>
+      </ul></div>
+      <div><h3>Against</h3><ul class="cons">
+        <li>Two different Workspace controls: a right-hand menu here, the left-hand switcher once you're in a Workspace. Its top right is already taken by the diff and PR button, so the menu can't follow you there.</li>
+        <li>You lose the always-visible list: seeing which agents are working takes a click (the button's 9-dot and the group pills soften this).</li>
+        <li>With the chat panel collapsed (⌘I), there's no way to reach a Workspace except through its frames.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ================= B ================= -->
+  <section>
+    <div><span class="tag rec">B · recommended</span></div>
+    <h2>One switcher in the same spot on every chat header</h2>
+    <p>Same move out of the sidebar, but the list opens from the Coordinator's <b>title</b>, using the switcher every Workspace header already has. The Coordinator becomes the first row in it. <i>Coordinator ⌃⌄</i> on home and <i>Coordinator / Checkout polish ⌃⌄</i> in a Workspace open the same popover, with the + and … actions moved in from the sidebar.</p>
+    <div class="scroller"><div class="app">
+      <div class="side">
+        <div class="top">▭</div>
+        <div class="row"><span class="ic folder"></span><span class="t">Checkout</span><span class="pill"><span class="ic ready"></span>Checkout polish</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · desktop</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout · iPhone 17 Pro</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Checkout brief</span></div>
+        <div class="row"><span class="ic folder"></span><span class="t">Cart</span><span class="pill"><span class="ic work"></span>Empty cart…</span></div>
+        <div class="row ind"><span class="ic frame"></span><span class="t">Empty cart</span></div>
+        <div class="row"><span class="ic frame"></span><span class="t">Untitled frame</span></div>
+      </div>
+      <div class="canvas">
+        <div class="crumb">Marketing site / <b>Checkout flow</b> ···</div>
+        <div class="fr" style="left:14px;top:60px;width:200px;height:150px"></div>
+        <div class="fr" style="left:228px;top:60px;width:110px;height:150px"></div>
+        <div class="fr" style="left:14px;top:240px;width:200px;height:150px"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="coll"></span><span class="title">Coordinator</span><span class="chev">⌃⌄</span><span class="sp"></span></div>
+        <div class="msgs">
+          <div class="bub">Pin the order summary on mobile in Checkout polish…</div>
+          <div class="line" style="width:90%"></div><div class="line" style="width:70%"></div>
+          <div class="task"><span class="ic ready"></span>Checkout polish · Done ›</div>
+          <div class="task"><span class="ic work"></span>Empty cart state · Working ›</div>
+        </div>
+        <div class="composer">Ask the Coordinator…</div>
+        <div class="pop" style="left:22px;top:42px">
+          <div class="search">Search workspaces and layers…</div>
+          <div class="row"><span class="t" style="font-weight:500">Coordinator</span><span class="check">✓</span></div>
+          <div class="grp">WORKSPACES<span class="acts">··· ＋</span></div>
+          <div class="row"><span class="ic ready"></span><span class="t">Checkout polish</span><span class="pr">⇅ #482</span></div>
+          <div class="row"><span class="ic work"></span><span class="t">Empty cart state</span><span class="diff">+46 <b>−4</b></span></div>
+          <div class="row"><span class="ic spin"></span><span class="t">Apple Pay button</span></div>
+          <div class="row"><span class="ic err">!</span><span class="t" style="font-family:var(--mono)">gift-cards</span></div>
+          <div class="foot">Done (2) ›</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="cols">
+      <div><h3>For</h3><ul class="pros">
+        <li>One control, one place: getting to a Workspace works the same from home or from inside another Workspace.</li>
+        <li>Smallest change: it reuses the switcher shipped in #974 and needs no new header button.</li>
+        <li>It follows the chat-switcher pattern of other agent tools (a title you click to jump between conversations).</li>
+        <li>Same benefit as A: the sidebar becomes layers only.</li>
+      </ul></div>
+      <div><h3>Against</h3><ul class="cons">
+        <li>It's not where you pictured it (top right).</li>
+        <li>Same loss as A: no always-visible list, and a collapsed chat panel hides it.</li>
+        <li>A title that opens a menu is less obvious than a labeled button; the ⌃⌄ carries it, as it already does in Workspace headers.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ================= C ================= -->
+  <section>
+    <div><span class="tag">C · keep it</span></div>
+    <h2>Leave the list in the sidebar</h2>
+    <p>No change. Most agent apps (Codex, Cursor's agents, Conductor, Claude Code desktop) list their sessions in a left sidebar with a status per row, and the chat for the selected one on the other side. Today's screen already has that shape, with the Coordinator as the panel's home.</p>
+    <div class="cols">
+      <div><h3>For</h3><ul class="pros">
+        <li>Working and needs-you states stay visible without a click.</li>
+        <li>Follows the familiar left-list convention; no new learning.</li>
+        <li>No work, and nothing from #885 (sort, group, drag) has to fit in a popover.</li>
+      </ul></div>
+      <div><h3>Against</h3><ul class="cons">
+        <li>Keeps the thing you flagged: Workspaces sit above the layers as if they were part of the canvas, while you manage them from the Coordinator on the other side.</li>
+        <li>The list still appears twice (sidebar and header switcher).</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Side by side</h2>
+    <div class="tbl"><table>
+      <tr><th></th><th>A · top-right menu</th><th>B · title switcher</th><th>C · sidebar</th></tr>
+      <tr><td>Where the list opens</td><td>Button, Coordinator header right</td><td>Title, every chat header left</td><td>Always open, sidebar top left</td></tr>
+      <tr><td>Same control inside a Workspace</td><td>No (switcher on the left)</td><td>Yes</td><td>Yes (sidebar)</td></tr>
+      <tr><td>Working state at a glance</td><td>Button's 9-dot + group pills</td><td>Group pills + task rows</td><td>Every row</td></tr>
+      <tr><td>Sidebar holds</td><td>Layers only</td><td>Layers only</td><td>Workspaces + layers</td></tr>
+      <tr><td>Size of change</td><td>New button + popover</td><td>Extend existing switcher</td><td>None</td></tr>
+    </table></div>
+  </section>
+
+  <section class="verdict">
+    <h2>Recommendation: B</h2>
+    <p>I agree with your instinct: Workspaces belong with the Coordinator, and the sidebar reads better as just the canvas's layers. I'd open them from the Coordinator's title rather than a new top-right button. Every Workspace header already has that switcher in that spot, so one control covers both, and A would leave you with two.</p>
+    <p class="note">Either way, the Workspaces list moves as it is: + to create, … for sort, group and Open existing git branch, row menus, Done section. Drag to reorder would only happen inside the popover.</p>
+  </section>
+</div>
+
+</body></html>

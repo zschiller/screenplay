@@ -1,0 +1,537 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Screenplay Architecture Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<style>
+/* Layout: one reading column; each candidate is a schematic sheet with before/after side by side */
+:root {
+  --bg: #f3f4f1; --paper: #ffffff; --ink: #17202a; --muted: #5b6672; --rule: #d9ddd8;
+  --deep: #17202a; --deep-fg: #eef1ee; --deep-sub: #9aa6b1;
+  --leak: #c2352b; --strong: #1f7a52; --explore: #a86a0c; --spec: #5b6672;
+  --accent: #2d5b86; --adr-bg: #fbf2df; --adr-fg: #6e4a08;
+  --display: "IBM Plex Serif", Georgia, serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12171c; --paper: #1a2027; --ink: #e4e8ec; --muted: #9aa5b0; --rule: #2d353e;
+  --deep: #e4e8ec; --deep-fg: #12171c; --deep-sub: #4d5863;
+  --leak: #f0776c; --strong: #5cc795; --explore: #e0a64a; --spec: #9aa5b0;
+  --accent: #82b3e0; --adr-bg: #2c2414; --adr-fg: #e9c47e; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12171c; --paper: #1a2027; --ink: #e4e8ec; --muted: #9aa5b0; --rule: #2d353e;
+  --deep: #e4e8ec; --deep-fg: #12171c; --deep-sub: #4d5863;
+  --leak: #f0776c; --strong: #5cc795; --explore: #e0a64a; --spec: #9aa5b0;
+  --accent: #82b3e0; --adr-bg: #2c2414; --adr-fg: #e9c47e; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+main { max-width: 1000px; margin: 0 auto; padding-inline: 16px; padding-block: 40px 64px; display: grid; gap: 40px; }
+h1, h2 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; }
+h1 { font-size: 32px; line-height: 1.15; }
+h2 { font-size: 22px; line-height: 1.25; }
+a { color: var(--accent); }
+code, .mono { font-family: var(--mono); font-size: 13px; }
+header { display: grid; gap: 12px; }
+.meta { color: var(--muted); font-size: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; align-items: center; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { display: inline-block; width: 22px; height: 14px; }
+.sw.mod { border: 1px solid var(--ink); }
+.sw.deep { background: var(--deep); }
+.sw.seam { border-top: 2px dashed var(--accent); height: 0; }
+.sw.leak { border-top: 2px solid var(--leak); height: 0; }
+.toc { display: grid; gap: 4px; font-size: 14px; margin: 0; padding: 0; list-style: none; }
+.toc li { display: flex; gap: 10px; align-items: baseline; }
+.toc .area { color: var(--muted); font-size: 12px; min-width: 92px; text-transform: uppercase; letter-spacing: .05em; }
+
+.area-h { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--rule); padding-bottom: 6px; margin: 8px 0 -16px; }
+article { background: var(--paper); border: 1px solid var(--rule); padding: 24px; display: grid; gap: 16px; scroll-margin-top: 16px; }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge { font-size: 12px; font-weight: 500; padding: 2px 8px; border: 1px solid currentColor; letter-spacing: .02em; }
+.b-strong { color: var(--strong); } .b-explore { color: var(--explore); } .b-spec { color: var(--spec); }
+.b-dep { color: var(--muted); font-family: var(--mono); font-weight: 400; }
+.b-bug { color: var(--leak); }
+.files { font-family: var(--mono); font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.ba { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 720px) { .ba { grid-template-columns: 1fr; } }
+.pane { border: 1px solid var(--rule); padding: 14px; min-width: 0; overflow-x: auto; display: grid; gap: 10px; align-content: start; }
+.pane-h { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.schem { display: grid; gap: 8px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.m { border: 1px solid var(--ink); padding: 5px 8px; background: var(--paper); }
+.m.leaky { border-color: var(--leak); color: var(--leak); }
+.m.ghost { border-style: dotted; color: var(--muted); border-color: var(--muted); }
+.arrow { color: var(--muted); font-family: var(--mono); text-transform: none; }
+.arrow.leak { color: var(--leak); }
+.deepbox { background: var(--deep); color: var(--deep-fg); padding: 12px; display: grid; gap: 8px; }
+.deepbox .ttl { font-weight: 600; }
+.deepbox .inner { display: flex; flex-wrap: wrap; gap: 5px; }
+.deepbox .inner span { border: 1px dotted var(--deep-sub); color: var(--deep-sub); padding: 3px 6px; font-size: 10.5px; }
+.seamline { border-top: 2px dashed var(--accent); position: relative; margin: 4px 0; }
+.seamline::after { content: "seam"; position: absolute; right: 0; top: -9px; background: var(--paper); color: var(--accent); font-size: 10px; padding-left: 6px; letter-spacing: .1em; }
+.note { font-size: 12px; color: var(--muted); text-transform: none; letter-spacing: 0; }
+pre.mermaid { margin: 0; background: transparent; text-align: center; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+dt { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding-top: 2px; }
+dd { margin: 0; max-width: 68ch; }
+@media (max-width: 560px) { dl { grid-template-columns: 1fr; } dt { padding-top: 6px; } }
+ul.wins { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.adr { background: var(--adr-bg); color: var(--adr-fg); padding: 8px 12px; font-size: 13.5px; }
+#top { border: 2px solid var(--ink); background: var(--paper); padding: 24px; display: grid; gap: 10px; }
+#top .eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--strong); font-weight: 600; }
+</style>
+
+<main>
+<header>
+  <h1>Screenplay architecture review</h1>
+  <div class="meta">zschiller/screenplay · <code>main</code> at d34af4f · 30 September 2026 · scoped to the hot spots in recent history: agent runtime, chat UI, Canvas and Workspaces</div>
+  <div class="legend">
+    <span><i class="sw mod"></i>module</span>
+    <span><i class="sw seam"></i>seam</span>
+    <span><i class="sw leak"></i>leakage</span>
+    <span><i class="sw deep"></i>deep module</span>
+  </div>
+  <ol class="toc">
+    <li><span class="area">Runtime</span><a href="#steer">Decide steerability once, on the run</a> · <a href="#usertxt">One user-turn projection</a> · <a href="#stopgate">One stop gate</a> · <a href="#engine">Engine assembly per Harness</a></li>
+    <li><span class="area">Chat UI</span><a href="#tabs">Workspace chat tabs for Canvas and player</a> · <a href="#target">One client Chat Target</a> · <a href="#catalog">Model and skill catalog</a></li>
+    <li><span class="area">Canvas</span><a href="#wstate">Workspace State</a> · <a href="#done">Done-hidden view in ops</a> · <a href="#keys">Canvas Keyboard table</a> · <a href="#terms">Terminal Tabs owner</a></li>
+  </ol>
+  <div class="note">Not re-raised: Room Access, Turn Launch, Comment Threads, Sidebar Drop (all shipped as #900–#915), Home Room/Folder actions (no new evidence).</div>
+</header>
+
+<section id="top">
+  <div class="eyebrow">Top recommendation</div>
+  <h2><a href="#steer">Decide steerability once, as a fact about the run</a></h2>
+  <p style="margin:0;max-width:70ch">Steering is where the runtime keeps breaking (#1196, #1197, #1209, and the open Codex queueing problem). Today four modules each decide whether a run takes a Steer and they disagree, so one message can land in three places depending on timing. Moving that fact onto the run gives one place to fix and one test surface for the Codex case.</p>
+</section>
+
+<!-- ============ RUNTIME ============ -->
+<div class="area-h">Agent runtime</div>
+
+<article id="steer">
+  <h2>Decide steerability once, as a fact about the run</h2>
+  <div class="badges"><span class="badge b-strong">Strong</span><span class="badge b-dep">local-substitutable</span><span class="badge b-bug">causes the Codex Steer drift</span></div>
+  <div class="files"><span>lib/agent/acp/engine-seam.ts</span><span>acp/acp-engine.ts</span><span>acp/in-process-engine.ts</span><span>acp/live-turn.ts</span><span>launch-turn.ts</span><span>turn-launch.ts</span><span>app/api/agent/stream/route.ts</span><span>lib/chat-store.ts</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before · four deciders</div>
+      <pre class="mermaid">
+flowchart TB
+  TL["Turn Launch<br/>supportsSteering → always true"]
+  EE["ExternalEngine<br/>promptQueueing? (known only after spawn)"]
+  LT["live-turn<br/>declineSteers"]
+  CS["chat-store<br/>own steerable state"]
+  TL -- "steerable: true" --> CS
+  EE -- "declineSteers" --> LT
+  LT -- "broadcast steerable:false" --> CS
+  TL -. "steered (stale)" .-> INBOX[(Steer inbox)]
+  classDef leak stroke:#c2352b,stroke-width:2px;
+  class TL,EE,LT,CS leak
+      </pre>
+    </div>
+    <div class="pane"><div class="pane-h">After · one fact on the run</div>
+      <div class="schem">
+        <div class="row"><span class="m">Engine</span><span class="arrow">— reports once at session open →</span></div>
+        <div class="deepbox"><div class="ttl">Run · steers: yes | no</div><div class="inner"><span>agentRun row</span><span>Steer inbox</span><span>refuse → queue</span></div></div>
+        <div class="seamline"></div>
+        <div class="row"><span class="m">steerRunningTurn</span><span class="m">steerable broadcast</span><span class="m">chat-store</span></div>
+        <div class="note">all read the run; <code>SteeringEngine</code>, <code>supportsSteering</code> and <code>declineSteers</code> are deleted</div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd>Both engines hard-code <code>steers = true</code> (<code>acp-engine.ts:144</code>, <code>in-process-engine.ts:70</code>), so the <code>not-steerable</code> branches in turn-launch, the stream route's 409 and chat-store are reachable only from a test fake; the real "no" arrives later from Codex's <code>promptQueueing</code> and races the "yes" Turn Launch already broadcast.</dd>
+    <dt>Solution</dt><dd>The Engine reports steers or not once, when its session opens; Turn Launch records it on the run, and every reader reads that record.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>locality: one Steer decision</li><li>dead branches become reachable, or deleted</li><li>interface shrinks: capability and port go</li><li>test: engine declines mid-turn, send queues</li></ul></dd>
+  </dl>
+</article>
+
+<article id="usertxt">
+  <h2>One user-turn projection, live and on reload</h2>
+  <div class="badges"><span class="badge b-strong">Strong</span><span class="badge b-dep">in-process</span><span class="badge b-bug">wakes likely show on reload</span></div>
+  <div class="files"><span>lib/agent/history-render.ts</span><span>history-load.ts</span><span>turn-launch.ts:254</span><span>acp/consumer-live.ts:56</span><span>lib/chat-store.ts</span><span>components/agent/agent-message.tsx:1065</span><span>lib/agent/turn-summary.ts:76</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before · three shapes, UI re-parses</div>
+      <div class="schem">
+        <div class="row"><span class="m leaky">Live echo · raw text</span><span class="m leaky">Steer echo · wire + markers</span><span class="m leaky">Reload · body, markers stripped</span></div>
+        <div class="row"><span class="arrow leak">↓ all land in <code>content: string</code></span></div>
+        <div class="row"><span class="m">UserMessage</span><span class="m">foldFinishedTurns</span><span class="m">agent-chat</span></div>
+        <div class="note">each calls <code>parseUserMessage</code> to find wakes and Delegated Messages again</div>
+      </div>
+    </div>
+    <div class="pane"><div class="pane-h">After · one projection, typed fields</div>
+      <div class="schem">
+        <div class="row"><span class="m">turn-launch echo</span><span class="m">consumer-live echo</span><span class="m">history-render</span></div>
+        <div class="row"><span class="arrow">↓</span></div>
+        <div class="deepbox"><div class="ttl">User-turn projection</div><div class="inner"><span>strip markers</span><span>wakeFrom</span><span>delegatedFrom</span><span>targeted-elements footer</span></div></div>
+        <div class="seamline"></div>
+        <div class="row"><span class="m">UI reads fields</span></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd>Reload strips the <code>[workspace update: …]</code> prefix (<code>history-render.ts:73</code>) that <code>UserMessage</code> relies on to hide wakes (<code>agent-message.tsx:1071</code>), so by reading, a reloaded Coordinator chat shows wakes as user bubbles that live never draws. Found by reading, not yet reproduced.</dd>
+    <dt>Solution</dt><dd>One module turns an echoed or persisted user record into what the UI shows, with markers as structured fields; both echoes and <code>renderHistory</code> go through it.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>test: live == reload per turn kind</li><li>locality: marker rules in one place</li><li>UI stops parsing strings</li></ul></dd>
+  </dl>
+  <div class="adr">Re-raises "one transcript projection" from the 28 September review, now with a concrete reload bug.</div>
+</article>
+
+<article id="stopgate">
+  <h2>Enforce "the turn is over" once, where the Engine drives the consumer</h2>
+  <div class="badges"><span class="badge b-explore">Worth exploring</span><span class="badge b-dep">in-process</span></div>
+  <div class="files"><span>turn-launch.ts (stopTurn)</span><span>acp/live-turn.ts:66</span><span>acp/acp-engine.ts:165-225</span><span>acp/in-process-engine.ts</span><span>acp/consumer.ts</span><span>lib/chat-store.ts:712</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before · a stop crosses six modules</div>
+      <div class="schem" style="gap:4px">
+        <div class="m">stopTurn · aborted, broadcast stopped</div>
+        <div class="m">watchdog · 250 ms poll</div>
+        <div class="m leaky">ExternalEngine · own drop flag + 2 s grace</div>
+        <div class="m leaky">in-process engine · own onChunk check</div>
+        <div class="m leaky">consumer · no gate, keeps persisting</div>
+        <div class="m leaky">chat-store · applies updates anyway</div>
+      </div>
+    </div>
+    <div class="pane"><div class="pane-h">After · one gate, engines only wind down</div>
+      <div class="schem" style="gap:4px">
+        <div class="m">stopTurn</div>
+        <div class="deepbox" style="padding:16px 12px"><div class="ttl">Drive-turn / consumer gate</div><div class="inner"><span>nothing reaches chat or log once not live</span></div></div>
+        <div class="row"><span class="m ghost">ACP cancel/close</span><span class="m ghost">AI SDK abort</span></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd>Updates emitted between the stop and the next watchdog tick land after the "Stopped" marker, live and on reload; #1209 took three rounds of hand-testing and the last fix went into ExternalEngine only.</dd>
+    <dt>Solution</dt><dd>The consumer owns "nothing after stop"; each engine keeps only its own wind-down.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>one test covers both engines</li><li>engine drop tests shrink</li></ul></dd>
+  </dl>
+</article>
+
+<article id="engine">
+  <h2>Fold Engine assembly into the Harness descriptor</h2>
+  <div class="badges"><span class="badge b-spec">Speculative</span><span class="badge b-dep">local-substitutable</span></div>
+  <div class="files"><span>acp/engine-select.ts</span><span>resolve-live-engine.ts</span><span>acp/session.ts:594</span><span>acp/spawn-session-factory.ts</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before</div>
+      <pre class="mermaid">
+flowchart LR
+  env[engineChoiceFromEnv] --> RLE[resolve-live-engine]
+  env --> ES[engine-select]
+  RLE --> SF[spawn factory<br/>Codex -c model=]
+  RLE --> EC[engine config<br/>Claude set_config_option]
+  S[session.ts<br/>detects promptQueueing]
+      </pre>
+    </div>
+    <div class="pane"><div class="pane-h">After</div>
+      <div class="schem">
+        <div class="m">resolve-live-engine</div>
+        <div class="deepbox"><div class="ttl">AcpAdapter (per Harness)</div><div class="inner"><span>how the model is applied</span><span>prompt queueing</span><span>spawn args</span></div></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd><code>harnessKeyFromModelId</code> is used only by tests, the env choice is checked twice, and #1229's one-line change touched four more files because Codex's flag is described in each.</dd>
+    <dt>Solution</dt><dd>Merge <code>engine-select</code> into <code>resolve-live-engine</code> and put per-Harness facts on <code>AcpAdapter</code>.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>locality: one Harness, one file</li><li>mostly test deletions</li></ul></dd>
+  </dl>
+  <div class="adr">Touches ADR 0006 and 0011; stays within both (the ACP seam and per-Harness model selection are kept).</div>
+</article>
+
+<!-- ============ CHAT UI ============ -->
+<div class="area-h">Chat UI</div>
+
+<article id="tabs">
+  <h2>Share Workspace chat tabs between the Canvas and the player</h2>
+  <div class="badges"><span class="badge b-strong">Strong</span><span class="badge b-dep">in-process</span><span class="badge b-bug">player misses heal</span></div>
+  <div class="files"><span>components/play/player-chat-host.tsx</span><span>components/canvas/use-tab-pool.ts</span><span>components/canvas/use-chat-sync.ts</span><span>lib/chat/tab-pool.ts</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before · a hand-copied second pool</div>
+      <pre class="mermaid">
+flowchart TB
+  C[Canvas] --> TP[useTabPool<br/>remove: inline siblings]
+  C --> CSy[useChatSync<br/>with heal]
+  P[PlayerChatHost] --> PC[own close / remove / respawn]
+  P --> PS[own stream effects<br/>no heal]
+  R[resolveTabClose<br/>12 tests]
+  TP -. "1 of 3 callers" .-> R
+  classDef leak stroke:#c2352b,stroke-width:2px;
+  class PC,PS leak
+      </pre>
+    </div>
+    <div class="pane"><div class="pane-h">After · one module per Branch</div>
+      <div class="schem">
+        <div class="row"><span class="m">Canvas</span><span class="m">PlayerChatHost</span></div>
+        <div class="deepbox"><div class="ttl">Workspace chat tabs (one Branch)</div><div class="inner"><span>resolveTabClose</span><span>respawn</span><span>chat sync + heal</span></div></div>
+        <div class="seamline"></div>
+        <div class="row"><span class="m ghost">Chat Session collections (fake in tests)</span></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd><code>player-chat-host.tsx:75-103</code> copies <code>use-chat-sync.ts</code> without the <code>/api/branch/heal</code> call, so a player that misses <code>chat-stream-end</code> keeps a stuck spinner; its close and remove (<code>:117-166</code>) and the Canvas's own <code>remove</code> skip the tested <code>resolveTabClose</code>.</dd>
+    <dt>Solution</dt><dd>Split the Tab Pool and Chat Sync from the Canvas-only parts so they serve one Branch's Chat Sessions, and route every close through <code>resolveTabClose</code>.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>leverage: two hosts, one module</li><li>player gets tests it lacks today</li><li>heal fix reaches the player</li></ul></dd>
+  </dl>
+</article>
+
+<article id="target">
+  <h2>One client Chat Target instead of three flags</h2>
+  <div class="badges"><span class="badge b-strong">Strong</span><span class="badge b-dep">in-process</span></div>
+  <div class="files"><span>components/agent/agent-chat.tsx</span><span>hooks/use-agent-chat.ts</span><span>lib/chat-store.ts:95-99, 582</span><span>components/agent/chat-panel.tsx:427</span><span>room-chat-panel.tsx</span><span>lib/chat/chat-target.ts</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before · flags through three modules</div>
+      <div class="schem">
+        <div class="row"><span class="m">RoomChatPanel</span><span class="m">ChatPanel (agent | layer)</span></div>
+        <div class="row"><span class="arrow leak">↓ sandboxName? markdownLayerId? roomTarget?</span></div>
+        <div class="row"><span class="m leaky">AgentChat · rebuilds kind, 6 isAgentChat branches</span></div>
+        <div class="row"><span class="arrow leak">↓ same flags</span></div>
+        <div class="row"><span class="m">useAgentChat</span><span class="arrow">→</span><span class="m">chatStore.send · flags → wire</span></div>
+      </div>
+    </div>
+    <div class="pane"><div class="pane-h">After · one value, one capability table</div>
+      <div class="schem">
+        <div class="row"><span class="m">any host</span><span class="arrow">→ target: agent | document | room</span></div>
+        <div class="deepbox"><div class="ttl">Chat Target (lib/chat)</div><div class="inner"><span>capabilities per kind</span><span>skills</span><span>plan mode</span><span>element picking</span><span>wire mapping</span></div></div>
+        <div class="row"><span class="m">AgentChat</span><span class="m">useAgentChat</span><span class="m">chatStore</span></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd>The server has a spec per target kind, but the client passes loose optional flags, lets <code>AgentChat</code> re-derive the kind, and has two target types with no room kind in ChatPanel; the pure <code>lib/chat/chat-target.ts</code> imports its type from a React file.</dd>
+    <dt>Solution</dt><dd>A single client Chat Target value plus a per-kind capability table; the wire mapping happens once, in the store.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>capability table tested as data</li><li>impossible flag combos disappear</li><li>seam leak into components fixed</li></ul></dd>
+  </dl>
+</article>
+
+<article id="catalog">
+  <h2>One model and skill catalog behind the Composer</h2>
+  <div class="badges"><span class="badge b-strong">Strong</span><span class="badge b-dep">ports &amp; adapters</span><span class="badge b-bug">empty state never shows in Create Branch</span></div>
+  <div class="files"><span>components/agent/composer.tsx</span><span>agent-chat.tsx</span><span>components/create-branch-dialog.tsx</span><span>components/home/default-agent-picker.tsx</span><span>lib/models-store.ts</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before · three copies, 9 props of plumbing</div>
+      <pre class="mermaid">
+flowchart LR
+  A[AgentChat] --> F1[fetch + state]
+  B[CreateBranchDialog] --> F2[fetch + state]
+  D[DefaultAgentPicker] --> F3[fetch + state]
+  F1 -- "9 props" --> CM[Composer]
+  F2 -- "no modelsLoaded" --> CM
+  classDef leak stroke:#c2352b,stroke-width:2px;
+  class F2 leak
+      </pre>
+    </div>
+    <div class="pane"><div class="pane-h">After</div>
+      <div class="schem">
+        <div class="row"><span class="m">AgentChat</span><span class="m">CreateBranchDialog</span><span class="m">DefaultAgentPicker</span></div>
+        <div class="deepbox"><div class="ttl">Model and skill catalog</div><div class="inner"><span>fetch</span><span>retry</span><span>loaded vs failed</span><span>default model</span><span>skill index</span></div></div>
+        <div class="seamline"></div>
+        <div class="row"><span class="m ghost">getModels · getDefaultModelId · getSkillMenuItems</span></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd>The same load-models-and-default logic lives in three places; <code>create-branch-dialog.tsx</code> never passes <code>modelsLoaded</code>, which defaults to false (<code>composer.tsx:479</code>), so "no coding agent detected" can never show there (checked).</dd>
+    <dt>Solution</dt><dd>One catalog module owns fetch, retry, state and default resolution; callers pass the chosen model, <code>onModelChange</code> and a skill source.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>Composer interface drops 9 props</li><li>one suite, none today</li><li>in-memory adapter in tests</li></ul></dd>
+  </dl>
+</article>
+
+<!-- ============ CANVAS ============ -->
+<div class="area-h">Canvas and Workspaces</div>
+
+<article id="wstate">
+  <h2>One Workspace State module</h2>
+  <div class="badges"><span class="badge b-strong">Strong</span><span class="badge b-dep">in-process</span></div>
+  <div class="files"><span>lib/branch/status-line.ts</span><span>lib/workspace-list-view.ts</span><span>lib/workspace-label.ts</span><span>lib/branch-busy.ts</span><span>components/workspace-mention.tsx</span><span>workspace-hover-card.tsx</span><span>agent/workspaces-menu.tsx</span><span>canvas/canvas.tsx:861</span><span>getting-started-checklist.tsx</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before · callers build the context</div>
+      <pre class="mermaid">
+flowchart TB
+  CV[canvas.tsx<br/>activeBranchIds] -- prop --> WM[Workspaces menu<br/>+ own plan lookup]
+  HC[hover card<br/>inline ctx]
+  MN[useWorkspaceStatus<br/>unmemoized]
+  GS[checklist<br/>agentWorking:false]
+  WM --> SL[workspaceStatusLine]
+  HC --> SL
+  MN --> SL
+  GS --> SL
+  classDef leak stroke:#c2352b,stroke-width:2px;
+  class GS,MN leak
+      </pre>
+    </div>
+    <div class="pane"><div class="pane-h">After · callers pass a branchId</div>
+      <div class="schem">
+        <div class="row"><span class="m">menu</span><span class="m">hover card</span><span class="m">mention</span><span class="m">checklist</span></div>
+        <div class="row"><span class="arrow">↓ workspaceState(branchId)</span></div>
+        <div class="deepbox"><div class="ttl">Workspace State</div><div class="inner"><span>label</span><span>status line</span><span>section</span><span>needs you</span><span>reads chats + plans once</span></div></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd><code>workspaceStatusLine</code> is pure, but every caller builds <code>StatusLineContext</code> itself, five different ways; <code>WorkspaceMention</code> defaults to "not working", so a caller that forgets shows the wrong state, and "Needs you" (3fbeeec) touched seven files.</dd>
+    <dt>Solution</dt><dd>One module takes a Branch plus the Room's chats and plans and returns label, status line, section and needs-you; one hook reads the Room doc.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>leverage: 5+ callers, one interface</li><li>one fixture table replaces two suites</li><li>Workspaces menu loses a prop</li></ul></dd>
+  </dl>
+</article>
+
+<article id="done">
+  <h2>Let ops verbs map the Done-hidden view back to the doc</h2>
+  <div class="badges"><span class="badge b-strong">Strong</span><span class="badge b-dep">in-process</span><span class="badge b-bug">likely misplaced drops</span></div>
+  <div class="files"><span>lib/canvas/done-workspaces.ts</span><span>canvas/canvas.tsx:391, 775</span><span>canvas/use-gesture-intent.ts:130</span><span>panels/room-sidebar.tsx:538</span><span>lib/canvas/ops.ts:994</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before · each writer must remember</div>
+      <div class="schem">
+        <div class="row"><span class="m">Canvas view (Done frames hidden)</span></div>
+        <div class="row"><span class="m">gesture reorder</span><span class="arrow">→ keepHiddenMembers →</span><span class="m">ops</span></div>
+        <div class="row"><span class="m leaky">sidebar drop</span><span class="arrow leak">→ view index →</span><span class="m">ops.moveLayerToGroup</span></div>
+        <div class="note">Group [A hidden, B, C] shows [B, C]; dropping D between B and C writes [A, D, B, C]</div>
+      </div>
+    </div>
+    <div class="pane"><div class="pane-h">After · the verb knows what is hidden</div>
+      <div class="schem">
+        <div class="row"><span class="m">gesture</span><span class="m">sidebar</span></div>
+        <div class="row"><span class="arrow">↓ view index</span></div>
+        <div class="deepbox"><div class="ttl">ops · reorder / move into Group</div><div class="inner"><span>view → doc position</span><span>hidden members kept</span></div></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd>The Canvas renders a filtered view, and only the gesture reorder calls <code>keepHiddenMembers</code>; the sidebar computes its drop index from the same view and <code>ops</code> splices it into the doc, which should misplace a drop in a Group that holds a Done Workspace's frame. Found by reading, not yet reproduced.</dd>
+    <dt>Solution</dt><dd>The ops verbs that take a view index translate it around hidden members themselves.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>no caller can forget</li><li>ops.test gains hidden-member cases</li><li>gesture special case deleted</li></ul></dd>
+  </dl>
+  <div class="adr">Builds on ADR 0001 (Canvas operations module): the rule moves into the module it describes.</div>
+</article>
+
+<article id="keys">
+  <h2>One table for Canvas Keyboard shortcuts</h2>
+  <div class="badges"><span class="badge b-explore">Worth exploring</span><span class="badge b-dep">in-process</span></div>
+  <div class="files"><span>lib/canvas/shortcuts.ts</span><span>lib/canvas/escape.ts</span><span>lib/canvas/key-target.ts</span><span>use-canvas-keyboard.ts:156-290</span><span>play/prototype-player.tsx:440-455</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before</div>
+      <div class="schem">
+        <div class="row"><span class="m">shortcuts.ts · 5 actions</span></div>
+        <div class="row"><span class="m leaky">~12 hand-written key blocks</span><span class="m leaky">player copies the ⌘I rule</span></div>
+        <div class="row"><span class="m">resolveEscape · 4 fields</span><span class="arrow">+</span><span class="m">hook · 4 more + effect switch</span></div>
+      </div>
+    </div>
+    <div class="pane"><div class="pane-h">After</div>
+      <div class="schem">
+        <div class="deepbox"><div class="ttl">Shortcut table</div><div class="inner"><span>key match</span><span>where allowed: text, composer, overlay</span><span>sheet reads it</span></div></div>
+        <div class="row"><span class="m">canvas hook · dispatch</span><span class="m">player · same matcher</span></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd><code>shortcuts.ts</code> promises the advertised key and the working key can't drift, but covers 5 of about 17 keys; the rest repeat the same modifier and focus checks, and 941ce9e touched 15 files.</dd>
+    <dt>Solution</dt><dd>One table maps each shortcut to its action and the rule for where it is allowed; the hook dispatches and the player reuses the matcher.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>table-driven test for every key</li><li>sheet and behaviour can't drift</li></ul></dd>
+  </dl>
+  <div class="adr">Stays clear of ADR 0012 (no single Canvas root hook); this deepens the keyboard module only.</div>
+</article>
+
+<article id="terms">
+  <h2>One owner for the Terminal Tabs collection</h2>
+  <div class="badges"><span class="badge b-explore">Worth exploring</span><span class="badge b-dep">ports &amp; adapters</span></div>
+  <div class="files"><span>canvas/use-terminal-tabs.ts</span><span>canvas/use-tab-pool.ts:143-165, 296-318</span><span>lib/terminal/orphan-tabs.ts</span><span>lib/terminal/restore-tabs.ts</span><span>lib/terminal-tabs-actions.ts</span></div>
+  <div class="ba">
+    <div class="pane"><div class="pane-h">Before</div>
+      <div class="schem">
+        <div class="row"><span class="m">useTerminalTabs</span><span class="arrow leak">→ raw setLocalTerminals →</span><span class="m">useTabPool</span></div>
+        <div class="row"><span class="m">create sequence ×2</span><span class="m">close · row + kill</span><span class="m leaky">prune · row only</span></div>
+      </div>
+    </div>
+    <div class="pane"><div class="pane-h">After</div>
+      <div class="schem">
+        <div class="deepbox"><div class="ttl">Terminal Tabs</div><div class="inner"><span>open</span><span>close</span><span>restore</span><span>prune</span></div></div>
+        <div class="seamline"></div>
+        <div class="row"><span class="m ghost">server actions (prod)</span><span class="m ghost">in-memory (tests)</span></div>
+      </div>
+    </div>
+  </div>
+  <dl>
+    <dt>Problem</dt><dd>The raw setter leaks to a second hook, the create sequence is copied twice, and the orphan prune deletes the row but never kills the tmux session, with nothing saying whether it should.</dd>
+    <dt>Solution</dt><dd>A Terminal Tabs module owns the list with open, close, restore and prune; persistence and session kill sit behind one adapter.</dd>
+    <dt>Wins</dt><dd><ul class="wins"><li>test: close and prune give the same guarantees</li><li>two shallow helpers absorbed</li></ul></dd>
+  </dl>
+</article>
+
+</main>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>

@@ -1,0 +1,158 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Homepage Hero Layout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@400;600&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: one wide column, captures two across so each option reads at near real size; dark only, like the homepage. */
+:root{--bg:#0a0a0a;--surface:#141414;--line:#262626;--fg:#f5f5f5;--muted:#a1a1a1;--accent:#c86bff;--ok:#4ade80;--no:#f87171;color-scheme:dark;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:Unbounded,ui-sans-serif,system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:40px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(24px,4.5vw,34px)/1.15 var(--head);letter-spacing:-.02em;margin:10px 0 12px;text-wrap:balance}
+h2{font:600 clamp(18px,2.4vw,22px)/1.25 var(--head);margin:0;text-wrap:balance}
+h3{font:500 16px/1.35 var(--sans);margin:0}
+p{margin:0}
+a{color:var(--accent)}
+blockquote{margin:0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.muted{color:var(--muted)}
+.rounds{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 13px var(--sans);border-radius:6px;padding:6px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+.opts{display:grid;grid-template-columns:1fr;gap:56px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:8px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{border:1px solid var(--line);background:var(--surface)}
+.shot img{display:block;width:100%}
+.metric{font:500 12px/1.4 var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}.metric b{color:var(--fg);font-weight:500}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.pick:hover,.pick:has(input:checked){background:var(--surface)}
+.pick input{margin:3px 0 0;accent-color:var(--accent)}
+textarea,input[type=text]{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+textarea{resize:vertical;min-height:60px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{font-size:13px;color:var(--ok)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;margin:0}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">Design exploration · 2 Oct 2026</p>
+<h1 id="q"></h1>
+<blockquote id="quote"></blockquote>
+</header>
+
+<nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+
+<section id="today"></section>
+<section id="round"></section>
+
+<section id="react">
+<div class="shead"><p class="lbl">Your reaction</p><h2 id="reactTitle"></h2><p class="muted">Pick one, or say what's missing. Copy the text and paste it back in the chat.</p></div>
+<form id="form"></form>
+<div class="row"><button type="button" id="copy" class="primary">Copy reaction</button><span class="status" id="status" role="status" aria-live="polite"></span></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
+const QUESTION={
+ quote:"i want to do some work on the homepage header section. the way things line up the headline covers a ton of the carousel and the cool dither smoke effect is barely visible",
+ q:"How should the hero lay out so the carousel and the dither smoke show around the headline?",
+ slug:"homepage-hero-layout"
+};
+const TODAY={facts:"Everything marked data-veil (headline, lede, buttons, Apple Silicon line) gets a solid veil that fades out over 190px around each line (dither-veil.ts FALL). Copies sit at 45% opacity under it. At 1440×900 only 30% of the carousel band is more than half clear (28% at 1280). The headline is Instrument Serif at 148px, two lines, 1088×272. The dither only shows as grain where the fade crosses a copy, and dim copies on black leave little for it to show against. The headline stays Instrument Serif in every option (the font thread kept Unbounded for the logo lockup only). Clear share below means the part of the carousel band where the veil is under half opacity, read from the veil canvas.",shots:[IMG("shots/today-1440.jpg","Today on main · 1440×900")]};
+const ROUNDS=[
+{n:3,feedback:"yea i kinda like headline sinking but w/ the dither cloud fading more like a uniform gradient to the bottom w/ the same cursor smoke effect",options:[
+ {id:"A",name:"Fade over the bottom row",why:"Round 2's B, with the veil no longer following the shape of the words. Instead it is one even gradient across the full width: clear above the bottom row, then solid a little below the top of the headline, over 300px. The top row runs clean, and the bottom row dissolves evenly into grain. Hovering still opens the marbled smoke hole.",cost:"The gradient is short, so most of the dither sits in one band.",state:"rejected",shots:[IMG("r3/a-1440.jpg","A · 1440×900"),IMG("r3/a-1440-peek.jpg","A · 1440×900 · pointer over the bottom row"),IMG("r3/a-1280.jpg","A · 1280×800")]},
+ {id:"B",name:"Fade over the whole carousel",why:"The same even gradient, stretched to 460px so it starts at the top of the carousel. The top row picks up light grain and the bottom row heavy grain, so the dither reads as a cloud settling toward the headline. The pointer smoke shows best here, because the hole opens into a dense area.",cost:"The top row loses some crispness, since its lower half is already grained.",rec:true,state:"picked",shots:[IMG("r3/b-1440.jpg","B · 1440×900"),IMG("r3/b-1440-peek.jpg","B · 1440×900 · pointer over the bottom row"),IMG("r3/b-1280.jpg","B · 1280×800")]},
+ {id:"C",name:"Gradient plus a halo around the words",why:"The 460px gradient only goes solid below the headline, so the carousel keeps going behind it. A tight 110px halo still hugs each word to keep it readable. More of the bottom row shows on the right of the headline.",cost:"This mixes two veils, so the bottom edge is less even than in A or B. Some grain shows between the letters of the first line.",state:"rejected",shots:[IMG("r3/c-1440.jpg","C · 1440×900"),IMG("r3/c-1440-peek.jpg","C · 1440×900 · pointer over the bottom row"),IMG("r3/c-1280.jpg","C · 1280×800")]}
+]},
+{n:2,feedback:"i kinda like c/d",options:[
+ {id:"A",name:"Headline over both rows",why:"Round 1's D with brighter copies: the headline keeps its 148px and sits in the middle of both rows. The copies are at 90% and the fade reaches 140px, so the smoke wraps the type closely and the right side of both rows is fully visible. The lede and buttons move below the carousel.",cost:"The buttons sit about 380px lower than today, under the carousel.",state:"rejected",shots:[IMG("r2/a-1440.jpg","A · 1440×900 · 52% clear"),IMG("r2/a-1280.jpg","A · 1280×800 · 56% clear")]},
+ {id:"B",name:"Headline sinks into the bottom row",why:"Round 1's C with the headline back at 148px: the top row runs clear, and the headline's first line sits over the bottom row, so that row dissolves into smoke around it. The lede and buttons follow straight after on plain black. The copies are at 90% and the fade reaches 160px.",cost:"The hero is about 130px taller than today. The buttons still fit on a 1280×800 screen.",rec:true,state:"picked",shots:[IMG("r2/b-1440.jpg","B · 1440×900 · 63% clear"),IMG("r2/b-1280.jpg","B · 1280×800 · 60% clear")]},
+ {id:"C",name:"One row above the headline",why:"Only the top row of copies, a bit larger (380px), with the headline overlapping its bottom edge. This is the shortest version: the hero ends about where today's does, and the buttons sit higher than today.",cost:"With one row there's less carousel, and the smoke only shows along that one edge.",state:"rejected",shots:[IMG("r2/c-1440.jpg","C · 1440×900 · 52% clear"),IMG("r2/c-1280.jpg","C · 1280×800 · 49% clear")]},
+ {id:"D",name:"Bigger copies, headline at the bottom",why:"A taller stage with larger copies (460px), and the headline anchored at the bottom left over the lower row, like a title card. The copies read almost at real size, and the smoke eats into the lower row around the type.",cost:"It's the tallest hero, and on a 1440×900 screen the buttons land right at the fold.",state:"rejected",shots:[IMG("r2/d-1440.jpg","D · 1440×900 · 49% clear"),IMG("r2/d-1280.jpg","D · 1280×800 · 49% clear")]}
+]},
+{n:1,feedback:"",options:[
+ {id:"A",name:"Same layout, smaller and tighter",why:"Keeps today's arrangement and only turns three dials: headline down to 108px (from 148), the veil's fade from 190px to 110px, and copies up from 45% to 70% opacity. About half the carousel band is clear (52% at 1440, from 30%), and the smoke reads as a ragged edge around the text because there is brighter content for it to break up.",cost:"The headline loses some of its poster scale. FALL becomes a prop or constant change in dither-veil.ts; the rest is classes in hero.tsx and hero-stage.css.",rec:true,state:"rejected",shots:[IMG("shots/a-1440.jpg","A · 1440×900 · 52% clear"),IMG("shots/a-1280.jpg","A · 1280×800 · 50% clear")]},
+ {id:"B",name:"Rows frame the text",why:"Splits the two carousel rows to the top and bottom of a 680px stage, with smaller copies (300px) and a 112px headline, and the text sits in the band between them. The rows are almost fully visible and the smoke shows where they meet the text band.",cost:"The text band in the middle is plain black, so the smoke is a thin edge rather than an effect, and the carousel reads more like two marquees than one canvas. Taller hero pushes Fig. 1 down.",state:"rejected",shots:[IMG("shots/b-1440.jpg","B · 1440×900 · 61% clear"),IMG("shots/b-1280.jpg","B · 1280×800 · 60% clear")]},
+ {id:"C",name:"Carousel on top, smoke into the text",why:"The carousel moves above the text at full strength (85% opacity), and the headline overlaps the bottom row so the veil dissolves that row into smoke right above the type. 80% of the band is clear, the most of any option, and the smoke is a wide, obvious seam.",cost:"The hero gets about 200px taller, so on a 1280×800 screen the buttons sit near the fold. The headline no longer sits on the canvas; it sits under it.",state:"picked",shots:[IMG("shots/c-1440.jpg","C · 1440×900 · 80% clear"),IMG("shots/c-1280.jpg","C · 1280×800 · 79% clear")]},
+ {id:"D",name:"Only the headline on the stage",why:"The headline keeps today's 148px over the carousel, but the lede and buttons move below the stage on plain background, so the veil only hugs two lines of type. Copies at 80% with a 120px fade, so the smoke wraps the headline closely and the right third of the carousel is clear.",cost:"Between 35% and 55% of the band is clear depending on width, since the big headline still spans most of it. The buttons drop below the carousel, about 400px lower than today.",state:"picked",shots:[IMG("shots/d-1440.jpg","D · 1440×900 · 55% clear"),IMG("shots/d-1280.jpg","D · 1280×800 · 35% clear")]}
+]}
+];
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const KEY="exploration-"+QUESTION.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let current=ROUNDS[0].n;
+
+$("q").textContent=QUESTION.q;$("quote").textContent=QUESTION.quote;
+$("today").innerHTML=`<div class="shead"><p class="lbl">Today</p><h2>What main does now</h2><p class="muted">${esc(TODAY.facts)}</p></div>`+shots(TODAY.shots);
+$("rounds").innerHTML=`<span class="lbl">Round</span>`+ROUNDS.map(r=>`<button type="button" data-n="${r.n}">${r.n}${r===ROUNDS[0]?" · latest":""}</button>`).join("");
+$("rounds").addEventListener("click",e=>{const b=e.target.closest("button[data-n]");if(b){current=+b.dataset.n;render()}});
+
+function render(){
+ const r=ROUNDS.find(x=>x.n===current),latest=r===ROUNDS[0];
+ $("rounds").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.n===current)));
+ $("round").innerHTML=`<div class="shead"><p class="lbl">Round ${r.n}</p><h2>${r.options.length} options</h2>${r.feedback?`<blockquote>${esc(r.feedback)}</blockquote>`:""}</div><div class="opts">`+
+  r.options.map(o=>`<article class="opt ${o.state}" id="r${r.n}-${o.id}"><header><span class="letter">${o.id}</span><h3>${esc(o.name)}</h3>${o.rec?'<span class="badge rec">Recommended</span>':""}${o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:""}</header>${shots(o.shots)}<p>${esc(o.why)}</p><p class="cost"><b>Cost</b> ${esc(o.cost)}</p></article>`).join("")+`</div>`;
+ $("react").hidden=!latest;
+ if(latest)renderForm(r);
+}
+function renderForm(r){
+ $("reactTitle").textContent=`Round ${r.n}`;
+ const opts=r.options.map(o=>[o.id,`${o.id}: ${o.name}${o.rec?" (recommended)":""}`]).concat([["none","None of these"],["mix","A mix (say which parts below)"]]);
+ $("form").innerHTML=`<fieldset><legend>Pick</legend>`+opts.map(([v,l])=>`<label class="pick"><input type="radio" name="pick" id="pick-${v}" value="${v}"><span>${esc(l)}</span></label>`).join("")+`</fieldset>`+
+  `<p class="lbl" style="margin-top:12px">Notes</p><textarea id="note" aria-label="Notes"></textarea>`;
+ if(saved.round===r.n){const el=$("pick-"+saved.pick);if(el)el.checked=true;$("note").value=saved.note||""}
+ preview();
+}
+function build(){
+ const r=ROUNDS[0],p=$("form").querySelector("input[name=pick]:checked"),note=$("note").value.trim();
+ const o=p&&r.options.find(x=>x.id===p.value);
+ const pick=!p?"No pick yet":o?`${o.id}: ${o.name}`:p.value==="none"?"None of these":"A mix";
+ return[`Exploration: ${QUESTION.q}`,`Round ${r.n}`,`→ ${pick}`].concat(note?[`Note: ${note}`]:[]).join("\n");
+}
+function preview(){
+ $("preview").textContent=build();
+ const p=$("form").querySelector("input[name=pick]:checked");
+ try{localStorage.setItem(KEY,JSON.stringify({round:ROUNDS[0].n,pick:p?p.value:"",note:$("note").value}))}catch(e){}
+}
+$("form").addEventListener("input",preview);
+$("form").addEventListener("submit",e=>e.preventDefault());
+$("copy").addEventListener("click",()=>{
+ const text=build(),st=$("status");
+ const fallback=()=>{const p=$("preview"),r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r);st.textContent="Copy was blocked. The text is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the chat."},fallback)}catch(e){fallback()}
+});
+render();
+</script>
+
+</body></html>

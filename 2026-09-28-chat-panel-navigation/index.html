@@ -1,0 +1,178 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Chat Panel Navigation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#fafafa; --surface:#fff; --line:#e4e4e7; --ink:#18181b; --ink-2:#52525b; --ink-3:#8b8b94; --accent:#4f46e5; --accent-soft:#eef0ff;
+  --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"Geist Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0c0c0e;--surface:#151518;--line:#2a2a30;--ink:#f4f4f5;--ink-2:#a1a1aa;--ink-3:#71717a;--accent:#8b8cf8;--accent-soft:#1f1f3a}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0c0c0e;--surface:#151518;--line:#2a2a30;--ink:#f4f4f5;--ink-2:#a1a1aa;--ink-3:#71717a;--accent:#8b8cf8;--accent-soft:#1f1f3a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;padding-inline:16px;padding-block:40px 80px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:32px}h2{font-size:21px}h3{font-size:15px}
+p{margin:0;max-width:70ch;color:var(--ink-2)}
+code{font-family:var(--mono);font-size:.86em;background:color-mix(in srgb,var(--line) 55%,transparent);padding:1px 5px;border-radius:4px}
+.eyebrow{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+header,section{display:flex;flex-direction:column;gap:14px}
+.opt{border-top:1px solid var(--line);padding-top:24px;display:flex;flex-direction:column;gap:14px}
+.opt .k{font-family:var(--mono);color:var(--ink-3);font-weight:500;margin-right:8px}
+.tag{font-size:11px;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:1px 9px;font-weight:600;vertical-align:middle;margin-left:8px}
+.pc{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;font-size:14px;max-width:900px}
+@media (max-width:640px){.pc{grid-template-columns:1fr}}
+.pc div::before{font-weight:600;margin-right:4px}
+.pc .p::before{content:"+";color:#16a34a}.pc .c::before{content:"−";color:var(--ink-3)}
+.shots{display:flex;flex-wrap:wrap;gap:18px}
+.shot{display:flex;flex-direction:column;gap:6px}
+.cap{font-size:12.5px;color:var(--ink-3);max-width:400px}
+
+/* ---------- the mocked app, with its own fixed light/dark tokens ---------- */
+.m{--b:#fff;--fg:#0a0a0a;--mu:#737373;--bd:#e5e5e5;--ac:#f5f5f5;--sb:#fafafa;--u:#0a0a0a;--uf:#fafafa;
+   --r1b:#fee2e2;--r1f:#b91c1c;--r2b:#fef3c7;--r2f:#92400e;--r3b:#dcfce7;--r3f:#166534;--ok:#16a34a;--run:#737373;
+   width:400px;max-width:100%;height:350px;border:1px solid var(--bd);border-radius:10px;background:var(--b);color:var(--fg);
+   font-family:var(--sans);font-size:12.5px;line-height:1.45;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.m.dk{--b:#0a0a0a;--fg:#fafafa;--mu:#a1a1a1;--bd:#262626;--ac:#262626;--sb:#171717;--u:#fafafa;--uf:#0a0a0a;
+   --r1b:#450a0a;--r1f:#fca5a5;--r2b:#422006;--r2f:#fcd34d;--r3b:#052e16;--r3f:#86efac;--ok:#4ade80;color-scheme:dark}
+.m.wide{width:560px}
+.m .hd{height:44px;display:flex;align-items:center;gap:6px;padding:0 10px;flex:none}
+.m .ic{width:18px;height:18px;display:grid;place-items:center;color:var(--mu);border-radius:5px;flex:none}
+.m .ic svg{width:14px;height:14px}
+.m .pill{font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:4px;white-space:nowrap}
+.m .hd>*,.m .btn,.m .stat{white-space:nowrap;flex-shrink:0}
+.m .p1{background:var(--r1b);color:var(--r1f)}.m .p2{background:var(--r2b);color:var(--r2f)}.m .p3{background:var(--r3b);color:var(--r3f)}
+.m .cv{font-weight:500;font-size:13px}
+.m .ud{color:var(--mu);display:inline-flex}
+.m .ud svg{width:12px;height:12px}
+.m .sep{color:var(--mu);margin:0 1px}
+.m .crumb{color:var(--mu)}
+.m .right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.m .stat{font-family:var(--mono);font-size:10px;color:var(--mu)}
+.m .btn{font-size:11px;border:1px solid var(--bd);border-radius:6px;padding:1px 7px;display:inline-flex;gap:4px;align-items:center}
+.m .tabs{display:flex;gap:14px;padding:0 10px;border-bottom:1px solid var(--bd);color:var(--mu);flex:none;font-size:12px}
+.m .tabs span{padding:6px 0}
+.m .tabs .on{color:var(--fg);box-shadow:inset 0 -1.5px 0 var(--fg)}
+.m .body{flex:1;padding:10px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.m .u{align-self:flex-end;background:var(--u);color:var(--uf);border-radius:10px;padding:6px 9px;max-width:85%}
+.m .from{align-self:flex-end;font-size:10.5px;color:var(--mu);margin-bottom:-5px;text-decoration:underline;text-decoration-color:var(--bd);text-underline-offset:2px}
+.m .card{border:1px solid var(--bd);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+.m .card .t{font-weight:500;padding:0 2px 2px}
+.m .row{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:5px}
+.m .row.hl{background:var(--ac)}
+.m .row .st{margin-left:auto;font-size:10.5px;color:var(--mu)}
+.m .row .go{color:var(--mu);font-size:11px}
+.m .dot{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+.m .dot.r{background:none;border:1.5px solid var(--mu);border-top-color:transparent;width:8px;height:8px}
+.m .a{color:var(--fg)}
+.m .comp{margin:0 10px 10px;border:1px solid var(--bd);border-radius:9px;padding:7px 9px;color:var(--mu);flex:none;font-size:12px}
+.m .pop{position:absolute;top:38px;left:30px;width:230px;background:var(--b);border:1px solid var(--bd);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);font-size:12px;z-index:3;padding:4px}
+.m .pop .in{border-bottom:1px solid var(--bd);padding:4px 6px 6px;color:var(--mu);margin:-4px -4px 4px}
+.m .pop .gh{font-size:10.5px;color:var(--mu);padding:4px 6px 2px}
+.m .pop .it{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px}
+.m .pop .it.on{background:var(--ac)}
+.m .pop .chk{width:12px;color:var(--fg);font-size:11px}
+.m .cursor{position:absolute;width:14px;height:14px;z-index:4}
+/* split layout for option D */
+.m .cols{display:flex;flex:1;min-height:0}
+.m .side{width:200px;background:var(--sb);border-right:1px solid var(--bd);padding:8px 6px;display:flex;flex-direction:column;gap:1px;font-size:12px;flex:none}
+.m .side .sh{font-size:10.5px;color:var(--mu);padding:6px 6px 3px}
+.m .side .it{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:5px}
+.m .side .it.on{background:var(--ac)}
+.m .side .ind{padding-left:18px}
+.m .pane{flex:1;display:flex;flex-direction:column;min-width:0}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Design exploration · Canvas Coordinator · ticket #866</div>
+  <h1>Chat Panel Navigation</h1>
+  <p>With a Canvas chat added, the panel now has levels: the <b>Canvas</b> chat on top, then each <b>Workspace</b> with its chat and terminal tabs, plus documents. Today the header has one flat picker (<code>TargetPicker</code>: Workspaces, then Documents) and the tab strip under it. Here are four ways to move between the levels. Each is shown at the Canvas level, inside a Workspace, and in light and dark. They all use stock shadcn parts already in the panel.</p>
+  <p>The journey to judge: you're in the Canvas chat, you open <b>hero-split</b> from the fan-out card, you nudge its agent, and you go back to the Canvas.</p>
+</header>
+
+<div id="opts"></div>
+
+<section class="opt">
+  <div class="eyebrow">What stays the same in every option</div>
+  <p>The tab strip keeps chats and terminal tabs together. The PR button and diff stats show only at the Workspace level. The Canvas level has no git controls, because it has no single branch. The left sidebar's Workspace rows keep opening that Workspace's chat.</p>
+</section>
+</div>
+
+<script>
+const I={
+ collapse:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></svg>',
+ updown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>',
+ back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+ frame:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16M9 4v16M15 4v16" opacity=".0"/><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16"/></svg>',
+ pr:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7M6 9v12"/></svg>'
+};
+const collapse=`<span class="ic">${I.collapse}</span>`;
+const canvasIcon=`<span class="ic" style="width:14px;margin-right:-2px">${I.frame}</span>`;
+const wsRight=`<span class="right"><span class="stat">+84 −12</span><span class="btn">${I.pr} Create PR</span></span>`;
+const canvasTabs=`<div class="tabs"><span class="on">Hero variants</span><span>Status</span><span>+</span></div>`;
+const wsTabs=`<div class="tabs"><span class="on">Hero split</span><span>claude</span><span>shell</span><span>+</span></div>`;
+const fanout=(hl)=>`<div class="body"><div class="u">Try three hero directions for the landing page.</div>
+ <div class="card"><span class="t">3 Workspaces in acme/storefront</span>
+ <div class="row"><span class="dot"></span><span class="pill p1">hero-bold</span><span class="st">Done</span><span class="go">›</span></div>
+ <div class="row ${hl?'hl':''}"><span class="dot"></span><span class="pill p2">hero-split</span><span class="st">Done</span><span class="go">›</span></div>
+ <div class="row"><span class="dot r"></span><span class="pill p3">hero-minimal</span><span class="st">Working</span><span class="go">›</span></div></div>
+ <div class="a">Two are ready. hero-split keeps pricing above the fold on mobile.</div></div>`;
+const wsBody=`<div class="body"><span class="from">From Canvas</span><div class="u">Build a split hero. Keep the pricing link above the fold at 390px.</div><div class="a">Done. Two columns above 768px, stacked below with pricing first.</div><div class="u">Tighten the gap under the headline.</div></div>`;
+const comp=(t)=>`<div class="comp">${t}</div>`;
+const pop=(items)=>`<div class="pop"><div class="in">Search…</div>${items}</div>`;
+const it=(on,html)=>`<div class="it ${on?'on':''}"><span class="chk">${on?'✓':''}</span>${html}</div>`;
+const gh=t=>`<div class="gh">${t}</div>`;
+function mock(dark,{hd,tabs,body,composer,extra='',wide=false,raw=null}){
+  const cls=`m ${dark?'dk':''} ${wide?'wide':''}`;
+  if(raw) return `<div class="${cls}">${raw}</div>`;
+  return `<div class="${cls}"><div class="hd">${hd}</div>${tabs}${body}${comp(composer)}${extra}</div>`;
+}
+const pillWs=`<span class="pill p2">hero-split</span>`;
+const ud=`<span class="ud">${I.updown}</span>`;
+
+const OPTIONS=[
+{k:"A",title:"Flat picker, Canvas on top",rec:false,
+ desc:"Today's picker gains a Canvas item above the Workspaces. You move between levels only through the picker. Clicking a row in the fan-out card switches to that Workspace.",
+ pros:["Smallest change: one new item in an existing list.","Stays one control and one mental model."],
+ cons:["The hierarchy is invisible, and Canvas reads as a peer of each Workspace.","Getting back to the Canvas takes two clicks and a scan of the list."],
+ shots:[
+  {cap:"Canvas level.",m:{hd:`${collapse}<span style="display:flex;align-items:center;gap:3px">${canvasIcon}<span class="cv">Canvas</span>${ud}</span>`,tabs:canvasTabs,body:fanout(true),composer:"Ask about the canvas…"}},
+  {cap:"Inside hero-split, picker open. Canvas sits on top, then Workspaces, then Documents.",m:{hd:`${collapse}${pillWs}${ud}${wsRight}`,tabs:wsTabs,body:wsBody,composer:"Ask the agent…",
+    extra:pop(it(false,`${canvasIcon}<span>Canvas</span>`)+gh("Workspaces")+it(false,'<span class="pill p1">hero-bold</span>')+it(true,'<span class="pill p2">hero-split</span>')+it(false,'<span class="pill p3">hero-minimal</span>')+gh("Documents")+it(false,"Hero comparison"))}}
+ ]},
+{k:"B",title:"Breadcrumb header",rec:true,
+ desc:"The header reads like the canvas's own top-left breadcrumb: <b>Canvas / hero-split ⇕</b>. Clicking “Canvas” goes up a level, and the last crumb stays today's picker for switching between Workspaces. At the Canvas level it's just “Canvas ⇕”.",
+ pros:["Shows where you are and how to get back in one glance, with one click up.","Matches the existing top-left canvas breadcrumb (“Marketing site / Checkout flow”)."],
+ cons:["The header gets a little longer, which squeezes the PR button on a narrow panel.","Documents also sit under “Canvas /”, a level they don't strictly belong to."],
+ shots:[
+  {cap:"Canvas level. The picker lists Workspaces and Documents to drill into.",m:{hd:`${collapse}<span class="cv">Canvas</span>${ud}`,tabs:canvasTabs,body:fanout(true),composer:"Ask about the canvas…"}},
+  {cap:"Inside hero-split. “Canvas” is a link back up, and the pill is the sibling picker.",m:{hd:`${collapse}<span class="crumb">Canvas</span><span class="sep">/</span>${pillWs}${ud}${wsRight}`,tabs:wsTabs,body:wsBody,composer:"Ask the agent…"}}
+ ]},
+{k:"C",title:"Back button",rec:false,
+ desc:"Drilling in works like a stack. Opening a Workspace from the Canvas chat shows a ‹ back button before its pill, which returns to the Canvas chat. The picker still switches between Workspaces in place.",
+ pros:["Familiar drill-in and back pattern from Claude and mobile apps.","Adds only one icon button (24px, like the other header buttons)."],
+ cons:["“Back” depends on history. Opening a Workspace from the left sidebar has nothing to go back to, so the button comes and goes.","It doesn't say what you'd go back to."],
+ shots:[
+  {cap:"Canvas level, the same as today with a Canvas pill.",m:{hd:`${collapse}<span class="cv">Canvas</span>${ud}`,tabs:canvasTabs,body:fanout(true),composer:"Ask about the canvas…"}},
+  {cap:"Inside hero-split after drilling in. The tooltip on ‹ reads “Back to Canvas”.",m:{hd:`${collapse}<span class="ic" style="color:var(--fg)">${I.back}</span>${pillWs}${ud}${wsRight}`,tabs:wsTabs,body:wsBody,composer:"Ask the agent…"}}
+ ]},
+{k:"D",title:"Left sidebar drives it",rec:false,
+ desc:"The left sidebar already lists Projects and Workspaces, so it becomes the one navigator. A <b>Canvas</b> row sits at the top of the Projects section. The panel header drops its picker and just names the current target.",
+ pros:["One place to navigate, and the hierarchy is already drawn there.","The panel header gets simpler."],
+ cons:["Doesn't work with the left sidebar collapsed (⌘B), which is common while working on the canvas.","A big change to a flow you use constantly."],
+ shots:[
+  {cap:"Left sidebar with a Canvas row selected. The panel header only names it.",wide:true,m:{wide:true,raw:`<div class="cols"><div class="side"><div class="sh">Projects</div><div class="it on">${canvasIcon} Canvas</div><div class="it">acme/storefront</div><div class="it ind"><span class="pill p1">hero-bold</span></div><div class="it ind"><span class="pill p2">hero-split</span></div><div class="it ind"><span class="pill p3">hero-minimal</span></div><div class="sh">Canvas</div><div class="it">Hero variants</div></div><div class="pane"><div class="hd">${collapse}<span class="cv">Canvas</span></div>${canvasTabs}${fanout(false)}${comp("Ask about the canvas…")}</div></div>`}}
+ ]}
+];
+const root=document.getElementById('opts');
+root.innerHTML=OPTIONS.map(o=>`<section class="opt">
+ <h2><span class="k">${o.k}</span>${o.title}${o.rec?'<span class="tag">Recommended</span>':''}</h2>
+ <p>${o.desc}</p>
+ <div class="pc">${o.pros.map(x=>`<div class="p">${x}</div>`).join('')}${o.cons.map(x=>`<div class="c">${x}</div>`).join('')}</div>
+ <div class="shots">${o.shots.flatMap(s=>[false,true].map(dk=>`<div class="shot">${mock(dk,s.m)}<span class="cap">${dk?'Dark. ':'Light. '}${s.cap}</span></div>`)).join('')}</div>
+</section>`).join('');
+</script>
+
+</body></html>

@@ -1,0 +1,118 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Type scale flip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@400&display=swap">
+<style>
+/* Layout: one sticky control bar, then a column of examples; each example stacks its three captures in one cell so a flip changes nothing but the pixels. */
+:root{
+  --bg:oklch(0.985 0 0);--panel:oklch(1 0 0);--fg:oklch(0.16 0 0);--muted:oklch(0.52 0 0);
+  --line:oklch(0 0 0 / 11%);--seg:oklch(0.955 0 0);--on:oklch(0.16 0 0);--on-fg:oklch(1 0 0);--ring:oklch(0.667 0.295 322.15);
+  --font-ui:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-title:"Unbounded",ui-sans-serif,system-ui,sans-serif;--font-code:"Geist Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:oklch(0.12 0 0);--panel:oklch(0 0 0);--fg:oklch(0.97 0 0);--muted:oklch(0.7 0 0);--line:oklch(1 0 0 / 14%);--seg:oklch(0.2 0 0);--on:oklch(0.97 0 0);--on-fg:oklch(0 0 0);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:oklch(0.12 0 0);--panel:oklch(0 0 0);--fg:oklch(0.97 0 0);--muted:oklch(0.7 0 0);--line:oklch(1 0 0 / 14%);--seg:oklch(0.2 0 0);--on:oklch(0.97 0 0);--on-fg:oklch(0 0 0);color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/20px var(--font-ui);padding-inline:16px;padding-block:0 64px}
+.wrap{max-width:980px;margin:0 auto}
+header{padding-block:32px 16px}
+h1{font:400 24px/30px var(--font-title);margin:0 0 8px;text-wrap:balance}
+.lede{color:var(--muted);max-width:62ch;margin:0}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:12px;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
+.ctl{display:flex;align-items:center;gap:8px}
+.ctl>span{color:var(--muted);font-size:12px}
+.seg{display:inline-flex;background:var(--seg);border-radius:6px;padding:2px;gap:2px}
+.seg button{all:unset;cursor:pointer;font:500 14px/20px var(--font-ui);padding:4px 10px;border-radius:4px;color:var(--fg);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--on);color:var(--on-fg)}
+.seg button:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+.seg kbd{font:400 12px/16px var(--font-code);opacity:.55;margin-left:6px}
+.legend{font:400 12px/16px var(--font-code);color:var(--muted)}
+main{display:flex;flex-direction:column;gap:32px;padding-top:24px}
+.ex{display:flex;flex-direction:column;gap:10px}
+.ex-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.ex h2{font:600 14px/20px var(--font-ui);margin:0}
+.ex p{margin:0;color:var(--muted);max-width:70ch}
+.frame{border:1px solid var(--line);border-radius:6px;background:var(--panel);overflow-x:auto;max-width:100%}
+.stack{display:grid;width:max-content;max-width:none}
+.stack img{grid-area:1/1;display:block;max-width:none;visibility:hidden}
+.stack img.on{visibility:visible}
+.tag{font:500 12px/16px var(--font-code);color:var(--muted);min-width:7ch}
+footer{margin-top:40px;color:var(--muted)}
+.ref{margin-top:16px;border:1px solid var(--line);border-radius:6px;background:var(--panel);overflow-x:auto}
+.ref table{border-collapse:collapse;width:100%;min-width:560px}
+.ref th,.ref td{text-align:left;padding:6px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.ref tr:last-child td{border-bottom:0}
+.ref th{font-weight:500;color:var(--muted);font-size:12px}
+.ref td.n{font-family:var(--font-code);font-size:12px;white-space:nowrap}
+.ref-note{color:var(--muted);margin:8px 0 0;max-width:70ch}
+details.refbox summary{cursor:pointer;font-weight:600;margin-top:16px}
+@media (prefers-reduced-motion:no-preference){.seg button{transition:background .12s,color .12s}}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Type scale flip</h1>
+  <p class="lede">The same eight spots in the real app, shot five times. Flip one example with its own toggle, or all of them at once from the bar (keys 1 to 5). Captures sit at their real size; 2× zooms in for the 1px difference.</p>
+<details class="refbox" open><summary>What other tools use</summary>
+<div class="ref"><table><thead><tr><th>Product</th><th>Main UI</th><th>Smaller</th><th>Chat or body copy</th></tr></thead><tbody><tr><td>VS Code</td><td class="n">13</td><td class="n">12 status bar, 11 pane headers</td><td>Chat 13, steps to 12 and 11</td></tr><tr><td>macOS (Apple guidelines)</td><td class="n">13</td><td class="n">12, 11, 10</td><td>n/a</td></tr><tr><td>JetBrains IDEs</td><td class="n">13</td><td class="n">12; 11 only rarely</td><td>n/a</td></tr><tr><td>GitHub Primer</td><td class="n">14</td><td class="n">12</td><td>16 for Markdown; code 13</td></tr><tr><td>Vercel Geist</td><td class="n">14</td><td class="n">13 secondary, 12 busy views</td><td>14; mono 13</td></tr><tr><td>Zed</td><td class="n">14</td><td class="n">12, 10</td><td>Agent panel 12</td></tr><tr><td>Chrome DevTools</td><td class="n">12</td><td class="n">11</td><td>n/a</td></tr></tbody></table></div>
+<p class="ref-note">Read from each product’s own token files or shipped source. Linear, Slack, Notion, Figma, Cursor and the ChatGPT and Claude apps couldn’t be checked. Two camps: 12/13 in IDE-style tools (VS Code, macOS, JetBrains) and 12/14 in web design systems (Primer, Geist, Zed). None of them uses 13/14 or a single size.</p></details>
+</header>
+<div class="bar" role="toolbar" aria-label="Compare">
+  <div class="ctl"><span>All</span><div class="seg" id="all"></div></div>
+  <div class="ctl"><span>Theme</span><div class="seg" id="theme"></div></div>
+  <div class="ctl"><span>Zoom</span><div class="seg" id="zoom"></div></div>
+  <div class="legend" id="legend"></div>
+</div>
+<main id="list"></main>
+<footer>Built on PR #1722 (tool rows, prose results and the composer already at 14px). Answer on the scale card in the thread.</footer>
+</div>
+
+<script>
+const OPTS=[{k:"a",label:"12/14",legend:"small 12px · body 14px"},{k:"b",label:"13/14",legend:"small 13px · body 14px"},{k:"d",label:"12/13",legend:"small 12px · body 13px"},{k:"e",label:"12/13 + prose 14",legend:"small 12 · body 13 · chat prose 14"},{k:"c",label:"All 13",legend:"everything 13px"}];
+const EX=[
+ {id:"rows",t:"Tool call rows",d:"Rows are body size. Under 13/14 nothing moves here; under All 13 the rows shrink."},
+ {id:"open",t:"Open tool rows",d:"Skill result in prose, file read in code. Code is the small size."},
+ {id:"composer",t:"Composer and terminal footnote",d:"Input, model and Plan buttons, footnote tabs and Stop."},
+ {id:"plan",t:"Plan with buttons",d:"Reply prose, inline code, and sm text buttons."},
+ {id:"home",t:"Home sidebar and cards",d:"Sidebar rows, the Pinned label, card titles and Edited meta."},
+ {id:"settings",t:"Settings rows",d:"Row titles, badges, version meta and sm buttons."},
+ {id:"dialog",t:"Delete dialog",d:"Description and default-size footer buttons."},
+ {id:"menu",t:"Chats menu",d:"Group labels, chat rows and diff counts."}
+];
+const W={rows:900,open:900,composer:900,plan:900,home:960,settings:1100,dialog:830,menu:664};
+let theme=(()=>{try{return localStorage.getItem("tsf-theme")}catch(e){return null}})()||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+let zoom=1;const pick={};EX.forEach(e=>pick[e.id]="a");
+
+function seg(el,items,get,set){
+  el.innerHTML="";
+  items.forEach((it,i)=>{const b=document.createElement("button");b.type="button";b.innerHTML=it.label+(it.key?`<kbd>${it.key}</kbd>`:"");
+    b.addEventListener("click",()=>{set(it.v);render()});b.dataset.v=it.v;el.appendChild(b)});
+  el._get=get;
+}
+function syncSeg(el){[...el.children].forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===String(el._get()))))}
+
+const list=document.getElementById("list");
+EX.forEach(e=>{
+  const s=document.createElement("section");s.className="ex";s.id=e.id;
+  s.innerHTML=`<div class="ex-head"><h2>${e.t}</h2><div class="ctl"><span class="tag"></span><div class="seg"></div></div></div><p>${e.d}</p><div class="frame"><div class="stack"></div></div>`;
+  const stack=s.querySelector(".stack");
+  ["light","dark"].forEach(th=>OPTS.forEach(o=>{const im=new Image();im.src=`img/${e.id}-${o.k}-${th}.webp`;im.alt=`${e.t}, ${o.label}, ${th}`;im.dataset.k=o.k;im.dataset.th=th;im.decoding="async";stack.appendChild(im)}));
+  seg(s.querySelector(".seg"),OPTS.map(o=>({label:o.label,v:o.k})),()=>pick[e.id],v=>pick[e.id]=v);
+  list.appendChild(s);
+});
+seg(document.getElementById("all"),OPTS.map((o,i)=>({label:o.label,v:o.k,key:i+1})),()=>{const v=Object.values(pick);return v.every(x=>x===v[0])?v[0]:""},v=>EX.forEach(e=>pick[e.id]=v));
+seg(document.getElementById("theme"),[{label:"Light",v:"light"},{label:"Dark",v:"dark"}],()=>theme,v=>{theme=v;try{localStorage.setItem("tsf-theme",v)}catch(e){}});
+seg(document.getElementById("zoom"),[{label:"1×",v:"1"},{label:"2×",v:"2"}],()=>String(zoom),v=>zoom=+v);
+
+function render(){
+  document.documentElement.dataset.theme=theme;
+  document.querySelectorAll(".seg").forEach(syncSeg);
+  EX.forEach(e=>{const s=document.getElementById(e.id);
+    s.querySelectorAll("img").forEach(im=>{im.classList.toggle("on",im.dataset.k===pick[e.id]&&im.dataset.th===theme);im.style.width=(W[e.id]/2*zoom)+"px"});
+    s.querySelector(".tag").textContent=OPTS.find(o=>o.k===pick[e.id]).legend;});
+  const v=Object.values(pick);document.getElementById("legend").textContent=v.every(x=>x===v[0])?OPTS.find(o=>o.k===v[0]).legend:"mixed";
+}
+addEventListener("keydown",ev=>{if(ev.metaKey||ev.ctrlKey||ev.altKey)return;const i="12345".indexOf(ev.key);if(i>=0){EX.forEach(e=>pick[e.id]=OPTS[i].k);render()}});
+render();
+</script>
+
+</body></html>

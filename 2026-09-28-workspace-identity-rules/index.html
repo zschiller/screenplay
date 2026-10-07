@@ -1,0 +1,377 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Workspace Identity Rules</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#fafaf9; --fg:#1c1917; --muted:#6b6560; --line:#e7e3df; --card:#ffffff; --accent:#0f766e; --rec:#0f766e; --recbg:#ccfbf1; --warnbg:#fef3c7; --warnfg:#92400e;
+  font-family:"Geist",ui-sans-serif,system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141312; --fg:#eeebe8; --muted:#a39d97; --line:#2c2926; --card:#1c1a18; --accent:#5eead4; --rec:#5eead4; --recbg:#042f2e; --warnbg:#3b2a07; --warnfg:#fcd34d; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#141312; --fg:#eeebe8; --muted:#a39d97; --line:#2c2926; --card:#1c1a18; --accent:#5eead4; --rec:#5eead4; --recbg:#042f2e; --warnbg:#3b2a07; --warnfg:#fcd34d; color-scheme:dark;}
+body{background:var(--bg);color:var(--fg);font-family:inherit;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:40px 80px}
+h1{font-size:28px;font-weight:600;letter-spacing:-.02em;margin:0 0 8px;text-wrap:balance}
+h2{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:56px 0 6px;text-wrap:balance}
+h3{font-size:15px;font-weight:600;margin:0}
+p{margin:0 0 10px;max-width:68ch}
+.lede{color:var(--muted);font-size:15px}
+.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px 16px;margin:18px 0 0;font-size:13px}
+nav.toc a{color:var(--accent);text-decoration:none}
+nav.toc a:hover{text-decoration:underline}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card);margin-top:14px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:720px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12px}
+tr:last-child td{border-bottom:0}
+td code,p code,li code{font-family:"Geist Mono",ui-monospace,monospace;font-size:12px}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.odd{background:var(--warnbg);color:var(--warnfg);border-color:transparent}
+.rule{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:18px 20px;margin-top:14px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.rule div{display:grid;gap:4px;align-content:start}
+.rule b{font-weight:600}
+.rule .k{font-size:12px;color:var(--muted)}
+.opt{margin-top:22px;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
+.opt>header{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;padding:14px 18px 10px}
+.opt>header p{flex-basis:100%;color:var(--muted);font-size:13px;margin:0}
+.rec{font-size:11px;font-weight:500;padding:1px 8px;border-radius:99px;background:var(--recbg);color:var(--rec)}
+.letter{font-family:"Geist Mono",monospace;font-size:13px;color:var(--muted)}
+.themes{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line)}
+@media (max-width:900px){.themes{grid-template-columns:1fr}}
+.verdict{padding:10px 18px 14px;font-size:13px;display:grid;gap:4px;border-top:1px solid var(--line)}
+.verdict span{color:var(--muted)}
+ul.plain{margin:6px 0 0;padding-left:18px;max-width:72ch}
+ul.plain li{margin:3px 0}
+
+/* ---------- App mock (own tokens, independent of page theme) ---------- */
+.app{--a-bg:#ffffff;--a-fg:#0a0a0a;--a-muted:#737373;--a-border:#e5e5e5;--a-side:#fafafa;--a-canvas:#f4f4f5;--a-pop:#ffffff;--a-acc:#f4f4f5;--a-frame:#ffffff;--a-sel:#3b82f6;
+  --pr-open:#1a7f37;--pr-merged:#8250df;--warn:#dc2626;--add:#16a34a;--del:#dc2626;
+  --teal-bg:#ccfbf1;--teal-fg:#0f766e;--vio-bg:#ede9fe;--vio-fg:#6d28d9;--ora-bg:#ffedd5;--ora-fg:#c2410c;--sky-bg:#e0f2fe;--sky-fg:#0369a1;
+  background:var(--a-bg);color:var(--a-fg);padding:14px;font-size:13px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));color-scheme:light}
+.app.dark{--a-bg:#0a0a0a;--a-fg:#fafafa;--a-muted:#a1a1a1;--a-border:#262626;--a-side:#171717;--a-canvas:#18181b;--a-pop:#171717;--a-acc:#262626;--a-frame:#27272a;
+  --pr-open:#3fb950;--pr-merged:#a371f7;--warn:#f87171;--add:#4ade80;--del:#f87171;
+  --teal-bg:#042f2e;--teal-fg:#5eead4;--vio-bg:#2e1065;--vio-fg:#c4b5fd;--ora-bg:#431407;--ora-fg:#fdba74;--sky-bg:#082f49;--sky-fg:#7dd3fc;color-scheme:dark}
+.app.dark{border-left:1px solid var(--line)}
+@media (max-width:900px){.app.dark{border-left:0;border-top:1px solid var(--line)}}
+.cell{display:grid;gap:6px;align-content:start;min-width:0}
+.cap{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--a-muted)}
+.panel{border:1px solid var(--a-border);border-radius:8px;background:var(--a-side);padding:6px;display:grid;gap:1px;min-width:0}
+.row{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:6px;min-width:0}
+.row.on{background:var(--a-acc)}
+.row .end{margin-left:auto;display:flex;align-items:center;gap:4px;font-family:"Geist Mono",monospace;font-size:10.5px;color:var(--a-muted);flex-shrink:0}
+.lbl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mono{font-family:"Geist Mono",monospace;font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:3px;border-radius:5px;padding:1px 6px;font-size:11px;font-weight:500;line-height:16px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.pill.sm{font-size:10px;padding:0 5px;line-height:15px}
+.pill.mono{font-size:10.5px}
+.tint{font-weight:500}
+.teal .pill,.pill.teal{background:var(--teal-bg);color:var(--teal-fg)} .tint.teal{color:var(--teal-fg)}
+.pill.vio{background:var(--vio-bg);color:var(--vio-fg)} .tint.vio{color:var(--vio-fg)}
+.pill.ora{background:var(--ora-bg);color:var(--ora-fg)} .tint.ora{color:var(--ora-fg)}
+.pill.sky{background:var(--sky-bg);color:var(--sky-fg)} .tint.sky{color:var(--sky-fg)}
+.ic{width:14px;height:14px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--a-muted)}
+.ic svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.pill .ic,.pill .ic svg{width:11px;height:11px}
+.ic.open{color:var(--pr-open)} .ic.merged{color:var(--pr-merged)} .ic.warn{color:var(--warn)}
+.spin svg{animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin svg{animation:none}}
+.chathead{border:1px solid var(--a-border);border-radius:8px;background:var(--a-bg);display:flex;align-items:center;gap:6px;height:36px;padding:0 10px;min-width:0}
+.chathead .crumb{color:var(--a-muted);flex-shrink:0}
+.chathead .diff{margin-left:auto;font-family:"Geist Mono",monospace;font-size:10.5px;display:flex;gap:4px;flex-shrink:0}
+.add{color:var(--add)} .del{color:var(--del)}
+.pop{border:1px solid var(--a-border);border-radius:8px;background:var(--a-pop);padding:4px;display:grid;gap:1px;box-shadow:0 4px 14px rgb(0 0 0/.06)}
+.pop .row{height:26px;font-size:12.5px}
+.chk{width:14px;flex-shrink:0;color:var(--a-fg)}
+.canvas{border:1px solid var(--a-border);border-radius:8px;background:var(--a-canvas);padding:12px;display:grid;gap:10px;min-width:0}
+.glabel{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;min-width:0}
+.frames{display:flex;gap:10px}
+.fr{flex:1;display:grid;gap:3px;min-width:0}
+.flabel{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--a-muted);min-width:0;height:17px}
+.fbox{height:52px;border-radius:4px;background:var(--a-frame);border:1px solid var(--a-border)}
+.fbox.sel{outline:1.5px solid var(--a-sel);outline-offset:0}
+.addr{display:flex;align-items:center;gap:4px;height:26px;border-radius:7px;background:var(--a-acc);padding:0 8px;font-size:11px;color:var(--a-muted);min-width:0;justify-self:center;max-width:100%}
+.addr .dot{width:6px;height:6px;border-radius:99px;background:currentColor;flex-shrink:0}
+.addr .host{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.addr .route{font-family:"Geist Mono",monospace;font-size:10.5px}
+.grip{display:grid;grid-template-columns:repeat(3,3px);gap:1.5px}
+.grip i{width:3px;height:3px;border-radius:99px;background:currentColor;opacity:.75}
+.small-dot svg circle{fill:currentColor;stroke:none}
+.prc{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:500;flex-shrink:0;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--a-muted);font-family:"Geist",ui-sans-serif,system-ui,sans-serif}
+.prc .ic,.prc .ic svg{width:12px;height:12px}
+.prc.badge{border:1px solid var(--a-border);border-radius:5px;padding:0 5px;line-height:16px;background:var(--a-bg)}
+.prc.state{border-radius:99px;padding:0 7px 0 5px;line-height:17px;color:#fff}
+.prc.state .ic{color:#fff}
+.prc.state.open{background:#1f883d} .prc.state.merged{background:#8250df}
+.app.dark .prc.state.open{background:#238636} .app.dark .prc.state.merged{background:#8957e5}
+.fit{display:flex;flex-wrap:wrap;align-items:center;column-gap:6px;row-gap:12px;height:18px;overflow:hidden;min-width:0}
+.fit.grow{flex:1}
+.fit>*{max-width:100%;min-width:0}
+.end.fit{flex:1;justify-content:flex-end;margin-left:0}
+.nm{display:inline-flex;align-items:center;gap:2px;min-width:0;max-width:100%}
+.row>.lbl{flex-shrink:0;max-width:55%}
+.addr .fit{flex-shrink:1}
+.end .pill,.end .lbl{font-family:"Geist",ui-sans-serif,system-ui,sans-serif;font-size:11px}
+.flabel .pill,.glabel .pill,.flabel>.lbl.tint,.glabel>.lbl.tint{flex-shrink:100;min-width:40px}
+.flabel>.lbl:first-child,.glabel>.lbl:first-child{flex-shrink:1;min-width:max-content}
+.chathead>.lbl,.chathead>.pill{flex-shrink:1}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Design exploration · Screenplay</div>
+  <h1>One way to show a Workspace</h1>
+  <p class="lede">A Workspace shows up in eleven places. Some draw it as a colour pill, one as a dot and coloured text, some as a plain title, and the status icon appears on some and not others. This page lists what ships today, proposes one rule for colour and one for status, and shows each option in light and dark.</p>
+  <nav class="toc"><a href="#decided">Decided</a><a href="#today">Today</a><a href="#rule">Proposed rule</a><a href="#colour">Question 1: colour</a><a href="#status">Question 2: status</a><a href="#done">Question 3: Done</a><a href="#pr">Question 4: PR state</a><a href="#inflight">Effect on work in flight</a></nav>
+
+
+  <h2 id="decided">Decided, 28 Sep</h2>
+  <div class="rule">
+    <div><span class="k">Colour</span><b>None anywhere</b><span>Plain Workspace names on every surface. The pills, the address bar dot, the Workspace menu's colour item and <code>colorIndex</code> go away.</span></div>
+    <div><span class="k">State icon</span><b>Everywhere, Workspace state only</b><span>Every mention leads with the same icon: setting up, agent working, ready, stopped, failed, done. Never PR state.</span></div>
+    <div><span class="k">PR</span><b>Outline badge after the name</b><span>The stock outline Badge with the GitHub-coloured icon and #N, the same on every surface, dropped before the name ever truncates.</span></div>
+    <div><span class="k">Done</span><b>Marked from the Workspace menu</b><span>"Mark as done" spins down the dev server and hides the Workspace's frames: a group on it hides whole, exception frames hide on their own. Chats are kept, and Reopen brings everything back where it was. Merging a PR does not mark it Done.</span></div>
+    <div><span class="k">Chat header</span><b>Keeps its PR button</b><span>The one exception to the PR badge: the header's right-hand PR control (#799) stays, and no badge follows the name there.</span></div>
+    <div><span class="k">Done in the sidebar</span><b>Collapsed "Done (N)" section</b><span>At the bottom of the Workspaces list, opened with a click. Done rows use a muted check circle.</span></div>
+  </div>
+  <div id="finalOpt"></div>
+
+  <h2 id="today">What ships today</h2>
+  <p>Read from <code>main</code> at 9659977 plus open PR #959. Highlighted cells are where the surface breaks from its neighbours.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Surface</th><th>How the name is drawn</th><th>Status</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Sidebar Workspaces list rows</td><td>Plain title (mono when untitled)</td><td>Leading icon; #963 makes it state only and moves the PR to the row end</td><td><code>room-sidebar.tsx</code></td></tr>
+      <tr><td>Hover card header (PR #959)</td><td>Plain title</td><td>Status in words under the title</td><td><code>workspace-hover-card.tsx</code></td></tr>
+      <tr><td>Chat header</td><td><span class="tag odd">Colour pill</span> after "Coordinator /"</td><td><span class="tag odd">None</span></td><td><code>chat-panel.tsx</code> TargetPill</td></tr>
+      <tr><td>Chat header picker list</td><td><span class="tag odd">Colour pill</span></td><td><span class="tag odd">Spinner at the row end, only while busy</span></td><td><code>chat-panel.tsx</code> TargetPicker</td></tr>
+      <tr><td>Frame Workspace switcher list (label and address bar)</td><td><span class="tag odd">Colour pill</span></td><td>Leading icon (busy, PR, or branch)</td><td><code>workspace-list.tsx</code></td></tr>
+      <tr><td>Canvas group label (#868)</td><td>Colour pill</td><td>None; #871 adds an icon for merged, closed, deleted, errored</td><td><code>group-label.tsx</code></td></tr>
+      <tr><td>Exception frame label, group of one</td><td>Colour pill with switcher chevron</td><td>None</td><td><code>iframe-layer-label.tsx</code></td></tr>
+      <tr><td>Canvas list (sidebar layers): group and exception frame rows</td><td>Small colour pill at the row end</td><td>None</td><td><code>iframe-layer-row.tsx</code>, <code>room-sidebar.tsx</code></td></tr>
+      <tr><td>Address bar host (#867)</td><td><span class="tag odd">Dot and coloured text</span></td><td>None</td><td><code>frame-nav.tsx</code></td></tr>
+      <tr><td>Remove repository dialog</td><td><span class="tag odd">Colour pill</span></td><td><span class="tag odd">Text chip ("Running", "Stopped")</span></td><td><code>delete-repo-dialog.tsx</code></td></tr>
+      <tr><td>Create workspaces dialog</td><td>Nothing yet (the Workspace doesn't exist)</td><td>None</td><td><code>create-branch-dialog.tsx</code></td></tr>
+    </tbody>
+  </table></div>
+  <p style="margin-top:12px">So the sidebar, where you spend the most time with Workspaces, dropped colour in #881, while three other lists of the same Workspaces kept it. Status appears in two lists but in three different forms.</p>
+
+  <h2 id="rule">Proposed rule</h2>
+  <p>Sort every surface into one of two roles. The role decides what it shows.</p>
+  <div class="rule">
+    <div><span class="k">The Workspace is the subject</span><b>Plain title</b><span>Lists of Workspaces (sidebar, both switchers, the chat picker, dialogs) and headers that name the current one (chat header, hover card). You are looking at Workspaces, so the name is enough.</span></div>
+    <div><span class="k">Something else points at it</span><b>Colour pill</b><span>Canvas group labels, exception frame labels, their Canvas list rows, and the address bar host. Here the frame or group is the subject and the pill says which Workspace it runs on; colour is what lets you scan a busy canvas.</span></div>
+    <div><span class="k">Status</span><b>Workspace state, never PR state</b><span>The icon is always the Workspace's own state from #963: setting up, agent working, ready, stopped, failed, and Done (question 3). PR state appears only as the PR number at the end of a list row. Where the icon appears is question 2.</span></div>
+  </div>
+
+  <h2 id="colour">Question 1: where colour appears</h2>
+  <p><span class="rec" style="background:var(--warnbg);color:var(--warnfg)">Decided 28 Sep: D, no colour anywhere</span></p>
+  <p>Each option shows the same five surfaces: sidebar rows, chat header with its picker open, a canvas group with an exception frame, the address bar, and the Canvas list. Status follows the recommended rule in all four so only colour changes.</p>
+  <div id="colourOpts"></div>
+
+  <h2 id="status">Question 2: where the status icon appears</h2>
+  <p><span class="rec" style="background:var(--warnbg);color:var(--warnfg)">Decided: S3, everywhere</span></p>
+  <p>All three use colour option D, your pick, so only status changes. With no colour, the status icon is the only thing that sets a Workspace mention apart. In the sample the group runs on "Checkout polish" (agent working, PR #482 open) and the Payment frame is an exception on "Apple Pay button", which is Done (PR #479 merged).</p>
+  <div id="statusOpts"></div>
+
+
+  <h2 id="pr">Question 4: how PR state is drawn</h2>
+  <p><span class="rec" style="background:var(--warnbg);color:var(--warnfg)">Decided: P2, outline badge</span></p>
+  <p>One PR treatment everywhere: after the Workspace name in headers, canvas labels, the Canvas list and the address bar, and at the end of list rows (replacing the line count). It is the first thing to go when there isn't room: the name never truncates to make room for it, so in the mockups the narrow Payment frame label drops it while the wider group label keeps it. Draft and closed PRs follow the same shape in GitHub's grey and red.</p>
+  <div id="prOpts"></div>
+
+  <h2 id="done">Question 3: what makes a Workspace Done</h2>
+  <p><span class="rec" style="background:var(--warnbg);color:var(--warnfg)">Decided: marked from the menu only</span></p>
+  <p>Today there is no Done. A Workspace's status is only its sandbox state (creating, starting, running, error, stopped). #885 wants the list grouped by Working, Needs you and Done, and #890's task rows show done, but neither says what makes a Workspace done. Each option below uses the same state icon, a muted check circle, and sorts the row under Done when grouping ships.</p>
+  <div class="opt"><div class="themes" id="doneMock"></div>
+  <div class="verdict">
+    <div><b>Merged PR</b> <span>Done happens by itself when the Workspace's PR merges. No new control, but work that never gets a PR (a spike, a prototype) can't be Done.</span></div>
+    <div><b>Marked from the menu</b> <span>"Mark as done" in the Workspace … menu (and "Reopen" to undo). It stops the sandbox, keeps chats and frames. Nothing happens by itself.</span></div>
+    <div><b>Both (recommended)</b> <span>Merging marks it Done; the menu covers everything else. The merged purple icon stays at the row end, the check circle leads.</span></div>
+  </div></div>
+
+  <h2 id="inflight">Effect on work in flight (D, with S2 if picked)</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Work</th><th>What changes</th></tr></thead>
+    <tbody>
+      <tr><td>PR #959 hover card</td><td>Small. The header is already a plain title with state in words; it still wraps the canvas labels, which become plain text instead of pills.</td></tr>
+      <tr><td>#963 row status (thread in flight)</td><td>None for the sidebar row. Its leading icon becomes the one icon set every other surface uses; Done (question 3) adds a check circle to it.</td></tr>
+      <tr><td>#869 group switcher</td><td>Its list (<code>WorkspaceCommandList</code>) drops the pill and its PR leading icon for the #963 row: state icon, plain title, PR number at the end.</td></tr>
+      <tr><td>#870 moving frames between groups</td><td>Whatever it shows for a frame's Workspace is a plain name, not a pill.</td></tr>
+      <tr><td>#871 group pill status</td><td>Rewritten: no pill, and the icon is Workspace state (Done, stopped, failed) instead of merged or closed PR state.</td></tr>
+      <tr><td>#872 group hover highlight</td><td>None; with no colour, hover highlighting is the main way to see which frames share a Workspace.</td></tr>
+      <tr><td>Shipped: #867 address bar, #868 group label, #792 menu</td><td>The address bar loses its dot and tint, group and exception labels lose the pill, and the Workspace menu's colour item and <code>colorIndex</code> go away.</td></tr>
+    </tbody>
+  </table></div>
+  
+</div>
+
+<script>
+const P={
+  pr:'<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/>',
+  merge:'<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/>',
+  chev:'<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  warn:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  spin:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  dot:'<circle cx="12" cy="12" r="4"/>',
+  stopped:'<circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/>',
+  done:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  frame:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>',
+  group:'<rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/>'
+};
+const svg=(k,cls='')=>`<span class="ic ${cls}"><svg viewBox="0 0 24 24">${P[k]}</svg></span>`;
+const grip='<span class="ic"><span class="grip">'+'<i></i>'.repeat(9)+'</span></span>';
+const W=[
+  {name:'Checkout polish',c:'teal',state:'working',pr:{n:482,s:'open'}},
+  {name:'Empty cart state',c:'vio',state:'ready',diff:[12,3]},
+  {name:'Apple Pay button',c:'ora',state:'done',pr:{n:479,s:'merged'}},
+  {name:'gift-cards',c:'sky',state:'setup',mono:true},
+];
+const byName=n=>W.find(w=>w.name===n);
+function stateIcon(w){
+  if(w.state==='setup')return svg('spin','spin');
+  if(w.state==='working')return grip;
+  if(w.state==='done')return svg('done');
+  if(w.state==='stopped')return svg('stopped');
+  if(w.state==='failed')return svg('warn','warn');
+  return svg('dot','small-dot');
+}
+function attention(w){ return ['done','stopped','failed'].includes(w.state)?stateIcon(w):''; }
+function prChip(w,mode){
+  if(!w.pr||!mode)return '';
+  const ic=svg(w.pr.s==='merged'?'merge':'pr',mode==='state'?'':w.pr.s);
+  const word=w.pr.s==='merged'?'Merged':'Open';
+  if(mode==='state')return `<span class="prc state ${w.pr.s}">${ic}${word} #${w.pr.n}</span>`;
+  return `<span class="prc ${mode}">${ic}#${w.pr.n}</span>`;
+}
+function prEnd(w,mode){
+  if(mode&&w.pr)return prChip(w,mode);
+  if(w.pr)return svg(w.pr.s==='merged'?'merge':'pr',w.pr.s)+`<span>#${w.pr.n}</span>`;
+  if(w.diff)return `<span class="add">+${w.diff[0]}</span><span class="del">-${w.diff[1]}</span>`;
+  return '';
+}
+/* name renderers */
+function nameAs(w,mode,{size='',icon=''}={}){
+  const mono=w.mono?' mono':'';
+  if(mode==='pill')return `<span class="pill ${w.c}${size?' '+size:''}${mono}">${icon}${w.name}</span>`;
+  if(mode==='tint')return `<span class="lbl tint ${w.c}${mono}" style="display:inline-flex;align-items:center;gap:4px">${icon}${w.name}</span>`;
+  return `<span class="lbl${mono}" style="display:inline-flex;align-items:center;gap:4px">${icon}${w.name}</span>`;
+}
+/* cfg: list (rows, pickers), title (chat header), ref (canvas, canvas list), addr ; status: lists|attn|always|none for refs */
+function scene(cfg,theme){
+  const st=cfg.status; // S1 lists only, S2 attention on refs, S3 always
+  const refIcon=w=> st==='S1'?'' : st==='S3' ? stateIcon(w) : attention(w);
+  const titleIcon=w=> st==='S3'?stateIcon(w):(st==='S2'?attention(w):'');
+  const rows=W.map((w,i)=>`<div class="row${i===0?' on':''}">${stateIcon(w)}<span class="fit grow">${nameAs(w,cfg.list)}<span class="end">${prEnd(w,cfg.pr)}</span></span></div>`).join('');
+  const cp=byName('Checkout polish');
+  const picker=W.filter(w=>w.state!=='setup').map((w,i)=>`<div class="row">${`<span class="chk">${i===0?'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">'+P.check+'</svg>':''}</span>`}${stateIcon(w)}<span class="fit grow">${nameAs(w,cfg.list,{size:'sm'})}<span class="end">${prEnd(w,cfg.pr)}</span></span></div>`).join('');
+  const ap=byName('Apple Pay button');
+  const ec=byName('Empty cart state');
+  const refMode=cfg.ref;
+  const refName=(w,extra)=>refMode==='none'?`<span class="lbl" style="display:inline-flex;align-items:center;gap:4px;color:var(--a-muted)">${refIcon(w)}${w.name}</span>`:nameAs(w,refMode,{size:'sm',icon:refIcon(w)});
+  const addrHost=w=>{
+    if(cfg.addr==='pill')return nameAs(w,'pill',{size:'sm',icon:refIcon(w)})+svg('chev');
+    if(cfg.addr==='tint')return `<span class="host tint ${w.c}"><span class="dot"></span>${refIcon(w)}<span class="lbl">${w.name}</span></span>`+svg('chev');
+    return `<span class="host" style="color:var(--a-fg)">${refIcon(w)}<span class="lbl">${w.name}</span></span>`+svg('chev');
+  };
+  return `<div class="app ${theme}">
+    <div class="cell"><span class="cap">Sidebar · Workspaces</span><div class="panel">${rows}</div></div>
+    <div class="cell"><span class="cap">Chat header and picker</span>
+      <div class="chathead"><span class="crumb">Coordinator /</span><span class="fit grow"><span class="nm">${cfg.title==='pill'?nameAs(cp,'pill',{size:'sm',icon:titleIcon(cp)}):nameAs(cp,cfg.title,{icon:titleIcon(cp)})}${svg('chev')}</span>${prChip(cp,cfg.pr)}</span></div>
+      <div class="pop">${picker}</div></div>
+    <div class="cell"><span class="cap">Canvas group, exception frame, address bar</span>
+      <div class="canvas">
+        <div class="glabel"><span class="lbl">Checkout flow</span><span class="fit">${refName(cp)}${prChip(cp,cfg.pr)}</span></div>
+        <div class="frames">
+          <div class="fr"><div class="flabel"><span class="lbl">Cart</span></div><div class="fbox"></div></div>
+          <div class="fr"><div class="flabel"><span class="lbl">Payment</span><span class="fit">${refName(ap)}${prChip(ap,cfg.pr)}</span></div><div class="fbox sel"></div></div>
+        </div>
+        <div class="addr"><span class="fit"><span class="nm">${addrHost(ap)}</span>${prChip(ap,cfg.pr)}</span><span class="route">/checkout/pay</span></div>
+      </div></div>
+    <div class="cell"><span class="cap">Canvas list</span><div class="panel">
+      <div class="row">${svg('group')}<span class="lbl">Checkout flow</span><span class="end fit">${refName(cp)}${prChip(cp,cfg.pr)}</span></div>
+      <div class="row" style="padding-left:24px">${svg('frame')}<span class="lbl">Cart</span></div>
+      <div class="row" style="padding-left:24px">${svg('frame')}<span class="lbl">Payment</span><span class="end fit">${refName(ap)}${prChip(ap,cfg.pr)}</span></div>
+    </div></div>
+  </div>`;
+}
+function block(o){
+  return `<section class="opt" id="${o.id}"><header><span class="letter">${o.letter}</span><h3>${o.title}</h3>${o.rec?'<span class="rec">Recommended</span>':''}<p>${o.desc}</p></header>
+  <div class="themes">${scene(o.cfg,'light')}${scene(o.cfg,'dark')}</div>
+  <div class="verdict"><div><b>For</b> <span>${o.pro}</span></div><div><b>Against</b> <span>${o.con}</span></div></div></section>`;
+}
+const colour=[
+  {id:'colour-a',letter:'A',title:'Rows plain, references wear the pill',rec:true,cfg:{list:'plain',title:'plain',ref:'pill',addr:'pill',status:'S2'},
+   desc:'Lists and headers show the plain title. Anything on the canvas that points at a Workspace shows the stock pill, including the address bar host.',
+   pro:'Keeps #881\'s plain sidebar and #868\'s pill. One visual per role, and the chat header reads as a breadcrumb.',
+   con:'The sidebar row and the canvas pill for the same Workspace look different; the #793 hover cross-highlight is what ties them together.'},
+  {id:'colour-b',letter:'B',title:'The pill everywhere',cfg:{list:'pill',title:'pill',ref:'pill',addr:'pill',status:'S2'},
+   desc:'Every surface uses the same pill, sidebar rows included.',
+   pro:'Most literal consistency: the colour you see on the canvas is on the sidebar row too.',
+   con:'Reverses the plain-title pick for sidebar rows (#881). Lists become a column of coloured blocks.'},
+  {id:'colour-c',letter:'C',title:'Tinted name everywhere, no pill',cfg:{list:'tint',title:'tint',ref:'tint',addr:'tint',status:'S2'},
+   desc:'Drop the pill background. The name itself takes the Workspace colour wherever it appears, like today\'s address bar.',
+   pro:'Lightest weight; colour is only a tint on the name, as the frame-label exploration concluded.',
+   con:'Replaces the stock pill picked for group labels, and tinted text is harder to read in lists, especially orange and yellow in light mode.'},
+  {id:'colour-d',letter:'D',title:'No colour anywhere',cfg:{list:'plain',title:'plain',ref:'none',addr:'plain',status:'S2'},
+   desc:'Plain names on every surface. Canvas labels show the Workspace in muted text.',
+   pro:'Calmest canvas, nothing to reconcile.',
+   con:'Loses the at-a-glance colour you asked to keep for branch association, and makes the per-Workspace colour setting pointless.'}
+];
+const status=[
+  {id:'status-s1',letter:'S1',title:'Lists only',cfg:{list:'plain',title:'plain',ref:'none',addr:'plain',status:'S1'},
+   desc:'The state icon leads every list row. Canvas labels, the address bar and the chat header never carry one.',
+   pro:'Canvas labels stay a plain name.',
+   con:'A group still pointed at a Done or stopped Workspace looks the same as a live one; this drops what #871 asks for.'},
+  {id:'status-s2',letter:'S2',title:'Lists always, elsewhere only when it needs you',rec:true,cfg:{list:'plain',title:'plain',ref:'none',addr:'plain',status:'S2'},
+   desc:'Lists always lead with the state icon. Canvas labels, the address bar and the chat header add it only when the Workspace is Done, stopped or failed.',
+   pro:'Close to #871, widened to every canvas label. The canvas stays quiet while things are healthy.',
+   con:'A label gains an icon when a Workspace finishes or stops; that is the point, but it is one more thing to read.'},
+  {id:'status-s3',letter:'S3',title:'Everywhere, always',cfg:{list:'plain',title:'plain',ref:'none',addr:'plain',status:'S3'},
+   desc:'Every canvas label and header carries the same state icon as the list row, including the spinner and 9-dot.',
+   pro:'Every Workspace mention is identical.',
+   con:'Busy canvas: an animated 9-dot beside every group label while the agent works, repeated per group and exception.'}
+];
+document.getElementById('colourOpts').innerHTML=colour.map(block).join('');
+function doneScene(theme){
+  const r=(ic,n,end,on)=>`<div class="row${on?' on':''}">${ic}<span class="lbl">${n}</span><span class="end">${end}</span></div>`;
+  return `<div class="app ${theme}"><div class="cell"><span class="cap">Sidebar · grouped by state (#885)</span><div class="panel">
+   <div class="row" style="height:22px"><span class="cap">Working</span></div>
+   ${r(grip,'Checkout polish',svg('pr','open')+'<span>#482</span>',true)}
+   <div class="row" style="height:22px"><span class="cap">Needs you</span></div>
+   ${r(svg('dot','small-dot'),'Empty cart state','<span class="add">+12</span><span class="del">-3</span>')}
+   <div class="row" style="height:22px"><span class="cap">Done</span></div>
+   ${r(svg('done'),'Apple Pay button',svg('merge','merged')+'<span>#479</span>')}
+   ${r(svg('done'),'Pricing spike','')}
+  </div></div>
+  <div class="cell"><span class="cap">Workspace … menu</span><div class="pop">
+   <div class="row">Open prototype player</div><div class="row">Rename…</div><div class="row">${svg('done')}Mark as done</div><div class="row" style="color:var(--warn)">Delete</div>
+  </div></div></div>`;
+}
+document.getElementById('doneMock').innerHTML=doneScene('light')+doneScene('dark');
+document.getElementById('statusOpts').innerHTML=status.map(block).join('');
+const prq=[
+  {id:'pr-p1',letter:'P1',title:'Icon and number',rec:true,cfg:{list:'plain',title:'plain',ref:'none',addr:'plain',status:'S2',pr:'plain'},
+   desc:'The PR icon in GitHub\'s state colour and #N, with no container. The same thing #963 puts at the row end, repeated after the name everywhere else.',
+   pro:'Lightest; already what the sidebar row shows, and GitHub\'s colours stay the one place colour means something.',
+   con:'On the canvas it can read as part of the name when the two sit close together.'},
+  {id:'pr-p2',letter:'P2',title:'Outline badge',cfg:{list:'plain',title:'plain',ref:'none',addr:'plain',status:'S2',pr:'badge'},
+   desc:'The stock shadcn outline Badge holding the coloured icon and #N.',
+   pro:'Clearly a separate object from the name, and still a stock component.',
+   con:'Adds a bordered box to every row that has a PR; lists get busier.'},
+  {id:'pr-p3',letter:'P3',title:'GitHub state label',cfg:{list:'plain',title:'plain',ref:'none',addr:'plain',status:'S2',pr:'state'},
+   desc:'GitHub\'s own filled label: green "Open", purple "Merged", with the number.',
+   pro:'Instantly familiar from GitHub, and readable without knowing the icons.',
+   con:'The loudest thing on any surface it appears on; with colour gone everywhere else, it becomes the only filled colour.'}
+];
+document.getElementById('prOpts').innerHTML=prq.map(block).join('');
+document.getElementById('finalOpt').innerHTML=block({id:'final',letter:'D + S3 + P2',title:'All picks together',cfg:{list:'plain',title:'plain',ref:'none',addr:'plain',status:'S3',pr:'badge'},
+ desc:'Plain names, the Workspace state icon on every mention, and the outline PR badge where it fits. "Apple Pay button" was marked Done after its PR merged.',
+ pro:'One way to draw a Workspace everywhere: icon, name, PR badge.',
+ con:'Nothing on the canvas tells two Workspaces apart except the name; hover highlighting (#872) carries that.'});
+</script>
+
+</body></html>

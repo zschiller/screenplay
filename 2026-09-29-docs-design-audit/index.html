@@ -1,0 +1,156 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Docs Design Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@400&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column of findings, each a before/after pair in the viewer's theme, matching Screenplay's Editorial language */
+:root {
+  --bg: #ffffff; --fg: #000000; --muted: #6b6b6b; --line: rgb(0 0 0 / 0.12);
+  --tile: #f5f5f5; --accent: oklch(0.56 0.259 326);
+  --display: "Unbounded", "Instrument Sans", system-ui, sans-serif;
+  --body: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #000000; --fg: #ffffff; --muted: #a3a3a3; --line: rgb(255 255 255 / 0.14);
+  --tile: #111111; --accent: oklch(0.72 0.284 330); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #000000; --fg: #ffffff; --muted: #a3a3a3; --line: rgb(255 255 255 / 0.14);
+  --tile: #111111; --accent: oklch(0.72 0.284 330); color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 16px/1.6 var(--body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 48px 96px; }
+.label { font: 400 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1, h2 { font-family: var(--display); font-weight: 400; letter-spacing: -0.03em; text-wrap: balance; margin: 0; }
+h1 { font-size: 27px; line-height: 1.15; margin-top: 8px; }
+h2 { font-size: 20px; line-height: 1.25; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+header { display: grid; gap: 14px; }
+.lede { color: var(--fg); }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 8px; }
+.seg { display: inline-flex; background: var(--tile); padding: 3px; border-radius: 2px; gap: 2px; }
+.seg button { font: 500 13px var(--body); color: var(--muted); background: transparent; border: 0; padding: 4px 10px; border-radius: 2px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--bg); color: var(--fg); box-shadow: 0 0 0 1px var(--line); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.index { margin-top: 32px; border-top: 1px solid var(--line); }
+.index a { display: grid; grid-template-columns: 44px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--fg); text-decoration: none; }
+.index a:hover span:last-child { color: var(--accent); }
+.index .label { padding-top: 3px; }
+section.f { margin-top: 72px; display: grid; gap: 14px; scroll-margin-top: 24px; }
+.meta { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+.rule { font: 400 12px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 2px; padding: 1px 6px; }
+.fix { border-left: 2px solid var(--accent); padding-left: 12px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 6px; }
+.pair.stack { grid-template-columns: 1fr; }
+figure { margin: 0; min-width: 0; display: grid; gap: 6px; align-content: start; }
+figure .shot { background: var(--tile); border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+figure img { display: block; width: 100%; height: auto; }
+.sp-dark { display: none; }
+body[data-shots="dark"] .sp-light { display: none; }
+body[data-shots="dark"] .sp-dark { display: block; }
+.note { color: var(--muted); font-size: 14px; }
+.out { margin-top: 72px; display: grid; gap: 10px; }
+.out ul { margin: 0; padding-left: 18px; max-width: 68ch; }
+code { font: 13.5px var(--mono); background: var(--tile); border: 1px solid var(--line); border-radius: 2px; padding: 0 4px; }
+@media (max-width: 720px) { .pair { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="label">Screenplay · Docs · Design audit · 29 Sep 2026</div>
+    <h1>The docs site against the app's design system</h1>
+    <p class="lede">The docs run on Nextra 4 and still wear most of Nextra's own chrome: its cool grey palette, tinted callouts, a single "⌘K" keycap, frosted-glass menus and a pink search highlight. Each finding below is prototyped as CSS on a production build of <code>apps/docs</code> (so search works), shown before and after at 1440px. Every fix stays inside the current layout.</p>
+    <div class="controls">
+      <span class="label">Screenshots</span>
+      <div class="seg" role="group" aria-label="Screenshot theme">
+        <button id="t-light" aria-pressed="true" data-t="light">Light</button>
+        <button id="t-dark" aria-pressed="false" data-t="dark">Dark</button>
+      </div>
+    </div>
+    <nav class="index" id="index" aria-label="Findings"></nav>
+  </header>
+  <main id="findings"></main>
+  <section class="out">
+    <div class="label">Left alone</div>
+    <ul>
+      <li>Nextra's built-in chrome icons (theme sun/moon, sidebar collapse, pager chevrons, file tree, external-link arrows) can't be swapped without replacing Nextra components. Callout icons can, so they're in f5.</li>
+      <li>The blue logo mark and serif wordmark (decided in #1009), the h2 hairline, the step counters and the sidebar, which #1011 already themed.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const F = [
+  { id: "f1", t: "Search box: one Kbd per key, stock Input", rule: "Kbd per key", shot: "search",
+    p: "The hint is Nextra's own <kbd>: one bordered, uppercase mono cap reading \"⌘K\" (\"CTRL K\" off the Mac). The field is a grey filled box with no border, unlike any input in the app.",
+    fix: "Render ⌘ and K as two caps in a KbdGroup with the app's Kbd look (muted fill, sans, 20px, no border), Ctrl + K off the Mac, hidden while there's a query. The field takes the stock Input look: hairline border, transparent fill, 32px, the stock focus ring." },
+  { id: "f2", t: "Search results: solid popover, no pink fills", rule: "Signal palette · no tints", shot: "results",
+    p: "Matches are white text on a hot-pink fill, the active row is a pink tint, the panel is frosted glass that lets the page show through, and the group heading is bold uppercase sans.",
+    fix: "Solid popover surface with the page's border, the group heading in the mono label recipe, the active row on the neutral accent (bg-accent), and matched words in magenta ink with no fill." },
+  { id: "f3", t: "Keys in the text use the app's Kbd", rule: "Kbd per key", shot: "kbd",
+    p: "Every <kbd> in the guides is styled in globals.css as a bordered keycap with a 2px bottom edge in mono. It reads as a different component from the Kbd in the app and its screenshots.",
+    fix: "Restyle the docs' kbd to match packages/ui Kbd: bg-muted, text-muted-foreground, 12px medium, h-5, no border. The font is already handled by PR #1094 (system-ui for kbd). The pages already write one kbd per key." },
+  { id: "f4", t: "Neutral greys instead of Nextra's blue-grey", rule: "Neutral tokens", shot: "page",
+    p: "Body text, headings, breadcrumbs, table stripes, the footer and the Copy page button come from Nextra's gray and slate scales, which lean blue (body text is lab 27 / −1.5 / −15.7). Next to the app's pure black and white it looks dull and off-brand, most visibly in dark mode.",
+    fix: "Override Nextra's --x-color-gray-* and --x-color-slate-* with the neutral scale, and set article text to the foreground (black / white)." },
+  { id: "f5", t: "Callouts as the stock outline Alert", rule: "Ink / outline / fill · Phosphor", shot: "callout",
+    p: "Info callouts are a blue tint with blue text and a blue border; warnings are an amber tint with amber text. Blue isn't in the palette, and tinted banners were removed from the app in #1079.",
+    fix: "Outline only: border-border, no fill, regular foreground text, and a coloured icon (info in magenta ink, warning in amber ink) using Phosphor Info and Warning via the Callout icon prop. Links keep the link colour." },
+  { id: "f6", t: "Tables as the stock shadcn Table", rule: "Stock shadcn", shot: "table",
+    p: "Nextra draws a full grid with vertical lines, zebra stripes (blue-grey in dark mode), centred bold headers and a table that stops short of the column.",
+    fix: "Full-width table, left-aligned medium-weight headers, row dividers only, no stripes, 14px cells with 8px padding, the stock Table look." },
+  { id: "f7", t: "Cards: padded text, title first, no grey fill", rule: "Stock shadcn", shot: "cards",
+    p: "On the Introduction page the card descriptions sit flush against the card's left edge with no padding, under a bold title, on a grey fill with a drop shadow.",
+    fix: "Title first (medium weight), description under it in muted text, 16px padding, hairline border, no fill or shadow, neutral hover fill." },
+  { id: "f8", t: "Tabs: stock line tabs in the foreground colour", rule: "Stock shadcn", shot: "tabs",
+    p: "The active tab label and its underline are magenta, so the tab reads like a link.",
+    fix: "Stock Tabs line variant: active label and underline in the foreground, inactive labels muted, medium weight." },
+  { id: "f9", t: "Code blocks in the terminal's colours", rule: "Terminal / logs palette", shot: "code",
+    p: "Code uses Shiki's GitHub themes: blue, purple, navy and red tokens that match nothing else in the product.",
+    fix: "Colour code with the same ANSI palette the terminal tab and logs panel use (apps/app/lib/terminal/ansi-palette.ts): keywords magenta, strings green, functions blue, numbers and constants cyan, comments bright black, the rest in the foreground, on the page background with a hairline border. Export the palette from one place so docs and app can't drift." },
+  { id: "f10", t: "Copy page and theme menus: inverted stock DropdownMenu", rule: "Inverted menus", shot: "copy", shot2: "theme",
+    p: "Both menus are Nextra listboxes: frosted glass, a thick pink focus ring around the open menu, and the page's own theme. The Copy page split button has a grey-filled chevron half.",
+    fix: "Match the app's DropdownMenu: solid inverted surface (dark in light mode, light in dark mode), no ring on open, neutral highlight on the focused row. The split button becomes a stock outline button pair with a hairline divider." },
+  { id: "f11", t: "\"On This Page\" in the mono label recipe", rule: "Section labels", shot: "page",
+    p: "The table-of-contents heading is bold, Title Case sans, while every other section label on the page (the sidebar groups) is the mono uppercase recipe.",
+    fix: "\"ON THIS PAGE\" in Geist Mono 11px, 0.08em tracking, muted, same as the sidebar labels." },
+  { id: "f12", t: "Breadcrumb: muted, and gone on top-level pages", rule: "Restraint", shot: "page",
+    p: "Top-level pages show a bold one-item breadcrumb that repeats the title right above it (\"Quickstart\" over \"Quickstart\"). On nested pages the current crumb is bold black.",
+    fix: "Hide the breadcrumb when it has one item; elsewhere render every crumb in regular weight, muted foreground." },
+  { id: "f13", t: "Footer on the page background", rule: "Neutral tokens", shot: "footer",
+    p: "The footer is a grey band (blue-grey in light mode, #1a1a1a in dark) under a black or white page.",
+    fix: "Footer on the page background with the hairline above it and muted text." },
+  { id: "f14", t: "Sidebar: the current page as a stock active row", rule: "Stock shadcn", shot: "sidebar",
+    p: "The current page is magenta text with a 2px magenta bar that sits 8px left of the text column and runs the full row height, so it reads as a stray line rather than a selection.",
+    fix: "Use the stock SidebarMenuButton active state the app's own sidebar uses: neutral sidebar-accent fill across the row, foreground text in medium weight, 2px corners, no bar and no magenta. Hover takes the same fill." },
+  { id: "f15", t: "Search may not work on the deployed docs", rule: "Bug · inferred", shot: null,
+    p: "Nextra 4 search needs a Pagefind index built after next build. apps/docs has no postbuild step and nothing in the repo runs pagefind, so the deployed site very likely shows \"Failed to load search index\" (what dev shows). I couldn't reach the deployment from here to confirm.",
+    fix: "Add pagefind as a dev dependency and a postbuild script (pagefind --site .next/server/app --output-path public/_pagefind), gitignore the output, and check search on the Vercel preview." },
+];
+const img = (name, mode) => `<figure><span class="label">${mode === "before" ? "Before" : "After"}</span><div class="shot"><img class="sp-light" src="shots/${name}.${mode}.light.png" alt="${mode} (light)" loading="lazy"><img class="sp-dark" src="shots/${name}.${mode}.dark.png" alt="${mode} (dark)" loading="lazy"></div></figure>`;
+const wide = n => ["page", "footer", "kbd", "code", "table", "callout", "tabs", "cards"].includes(n);
+const pair = n => `<div class="pair${wide(n) ? " stack" : ""}">${img(n, "before")}${img(n, "after")}</div>`;
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+document.getElementById("index").innerHTML = F.map(f => `<a href="#${f.id}"><span class="label">${f.id}</span><span>${esc(f.t)}</span></a>`).join("");
+document.getElementById("findings").innerHTML = F.map(f => `
+  <section class="f" id="${f.id}">
+    <div class="meta"><span class="label">${f.id}</span><span class="rule">${esc(f.rule)}</span></div>
+    <h2>${esc(f.t)}</h2>
+    <p>${esc(f.p)}</p>
+    <p class="fix">${esc(f.fix)}</p>
+    ${f.shot ? pair(f.shot) : ""}${f.shot2 ? pair(f.shot2) : ""}
+    ${f.shot === "page" ? '<p class="note">This shot shows several fixes at once (f4, f5, f10, f11, f12).</p>' : ""}
+  </section>`).join("");
+function setShots(t) {
+  document.body.dataset.shots = t;
+  for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.t === t));
+  try { localStorage.setItem("shots", t) } catch (e) {}
+}
+for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => setShots(b.dataset.t));
+let initial = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+const forced = document.documentElement.dataset.theme; if (forced) initial = forced;
+try { initial = localStorage.getItem("shots") || initial } catch (e) {}
+setShots(initial);
+</script>
+
+</body></html>

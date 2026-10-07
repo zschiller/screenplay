@@ -1,0 +1,223 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>App Product Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fafafa;--surface:#ffffff;--ink:#111;--muted:#666;--line:#e4e4e4;--soft:#f2f2f2;
+  --accent:#e0218a;--accent-ink:#000;--good:#15803d;--bad:#dc2626;--code:#f4f4f4;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0a0a0a;--surface:#141414;--ink:#f2f2f2;--muted:#9a9a9a;--line:#2a2a2a;--soft:#1c1c1c;
+    --accent:#ff4fb0;--good:#4ade80;--bad:#f87171;--code:#1c1c1c;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0a0a0a;--surface:#141414;--ink:#f2f2f2;--muted:#9a9a9a;--line:#2a2a2a;--soft:#1c1c1c;
+  --accent:#ff4fb0;--good:#4ade80;--bad:#f87171;--code:#1c1c1c;color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Instrument Sans",system-ui,sans-serif;padding-bottom:88px}
+main{max-width:1120px;margin:0 auto;padding:40px 16px}
+h1,h2{font-family:Unbounded,sans-serif;font-weight:600;letter-spacing:-.01em;margin:0}
+h1{font-size:27px}
+h2{font-size:20px;line-height:1.3}
+code,.mono{font-family:"Geist Mono",ui-monospace,monospace;font-size:13px}
+code{background:var(--code);padding:1px 5px;border-radius:4px}
+a{color:inherit}
+.lede{color:var(--muted);max-width:760px;margin:12px 0 0}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:24px 0 8px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:14px;padding:6px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.toc{columns:2;column-gap:32px;margin:24px 0 8px;padding:0;list-style:none;font-size:14px}
+.toc li{break-inside:avoid;padding:3px 0;display:flex;gap:10px}
+.toc .n{font-family:"Geist Mono",monospace;color:var(--muted);min-width:22px}
+.toc a{text-decoration:none}.toc a:hover{text-decoration:underline}
+.f{min-width:0;overflow-wrap:anywhere;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px;margin:24px 0}
+.fh{display:flex;gap:14px;align-items:flex-start;justify-content:space-between}
+.num{font-family:"Geist Mono",monospace;color:var(--muted);font-size:13px;margin-bottom:6px}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-left:6px;color:var(--muted);vertical-align:1px}
+.tag.high{border-color:var(--accent);color:var(--accent)}
+.pick{display:flex;gap:8px;align-items:center;font-size:14px;white-space:nowrap;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.pick input{accent-color:var(--accent);width:16px;height:16px;margin:0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px}
+.cols h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;font-weight:500}
+.cols p,.cols ul{margin:0 0 8px}
+.cols ul{padding-left:18px}
+.figs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;align-items:start}
+.figs.wide{grid-template-columns:1fr}
+figure{margin:0}
+figure img{width:100%;height:auto;max-height:620px;object-fit:contain;display:block;border:1px solid var(--line);border-radius:8px;background:var(--soft)}
+figcaption{font-size:13px;color:var(--muted);margin-top:6px}
+figcaption b{color:var(--ink);font-weight:500}
+.refs{overflow-wrap:anywhere;margin-top:14px;font-size:13px;color:var(--muted)}
+td{overflow-wrap:anywhere}
+table{border-collapse:collapse;width:100%;font-size:14px;margin-top:16px}
+th,td{text-align:left;border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.also{margin-top:32px}
+.also ul{padding-left:18px}
+.dock{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:12px 16px}
+.dock .in{max-width:1120px;margin:0 auto;display:flex;gap:12px;align-items:center;justify-content:space-between}
+.btn{font:inherit;font-size:14px;border-radius:8px;padding:7px 14px;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:var(--bg)}
+.btn:disabled{opacity:.4;cursor:default}
+@media (max-width:760px){
+  .cols,.figs{grid-template-columns:1fr}
+  .toc{columns:1}
+  .fh{flex-direction:column}
+  h1{font-size:24px}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>App product audit</h1>
+  <p class="lede">A product-level pass over the app: flows, missing paths, and concepts that don't hang together. There are 15 findings, ranked by how much they block real work. Each has the current screen, a mockup built by editing the app in a scratch copy (nothing is committed), and a recommendation. Tick the ones worth filing and copy your picks at the bottom. Visual nits and interaction polish are covered by the other audit threads, and anything already ticketed or rejected is left out.</p>
+  <div class="bar">
+    <span style="font-size:14px;color:var(--muted)">Screenshots</span>
+    <div class="seg" id="shots"><button data-t="light" aria-pressed="true">Light</button><button data-t="dark" aria-pressed="false">Dark</button></div>
+    <span style="font-size:14px;color:var(--muted);margin-left:12px">Page</span>
+    <div class="seg" id="page"><button data-t="auto" aria-pressed="true">Auto</button><button data-t="light" aria-pressed="false">Light</button><button data-t="dark" aria-pressed="false">Dark</button></div>
+  </div>
+  <ol class="toc" id="toc"></ol>
+  <div id="list"></div>
+  <section class="also f">
+    <h2>Also noticed, lower priority</h2>
+    <ul>
+      <li>The hosted app has no first-run checklist the way desktop onboarding does; a new hosted canvas relies on the empty state alone (finding 9 helps).</li>
+      <li>Play mode opens in the external browser, which the docs don't mention. That belongs to the docs audit.</li>
+      <li>The docs still say frames appear "when the server is up"; frames now appear straight away with a booting state.</li>
+    </ul>
+  </section>
+</main>
+<div class="dock"><div class="in"><span id="count" style="font-size:14px;color:var(--muted)">No picks yet</span><button class="btn" id="copy" disabled>Copy picks</button></div></div>
+<script>
+const F=[
+{id:"f01",t:"On desktop the Coordinator can't start Workspaces, and tells people to switch to a model that doesn't exist",impact:"high",
+p:`<p>The desktop app only offers harness models (Claude Code, Codex). With those, the Coordinator's <code>create_workspaces</code>, <code>open_pull_request</code> and <code>remove_workspace</code> tools are refused, so asks like "add Apple Pay and gift cards" or "try three variants" fail with a red error. The refusal says to switch to a built-in model, which the desktop build doesn't have, and the Coordinator's system prompt never mentions the limit.</p><p>Starting Workspaces is the Coordinator's main job, so on desktop its headline ask doesn't work.</p>`,
+fix:`<p>When a harness model calls one of these tools, raise the same plan card the built-in engine shows (Approve / Request changes) and end the harness turn. Approving runs the plan and resumes the Coordinator with the outcome. The card and the pause already exist for Workspace agents on the ACP engine.</p><p>Also drop the stale "delete it from the sidebar" copy in both refusal strings.</p>`,
+refs:"app/api/mcp/route.ts withoutPlanGates, harnessGateRefusal, line 165 · lib/agent/room-tools.ts:320 · lib/agent/acp-engine.ts:125-153 planPause (precedent) · desktop.env:39 AGENT_ENGINE=external · lib/agent/config.ts:246-251",
+figs:[["f01-before","Today: the step fails and the reply points at a model that isn't there"],["f01-after","Proposed: the same plan card the built-in engine shows"]]},
+{id:"f02",t:"⌘Z doesn't undo canvas edits, so deleting a frame or document is permanent",impact:"high",
+p:`<p>Deleting a frame or a document has no confirm, and ⌘Z does nothing afterwards. Canvas edits are committed with a dedicated transaction origin that the undo manager isn't tracking, so they never enter the undo stack. I checked this in the app: select "Checkout brief", press Delete, press ⌘Z, and it stays gone.</p>`,
+fix:`<p>Track the canvas-ops origin in the room's undo manager. It is a one-line change and the mockup is the real fix running: ⌘Z brings the document back.</p>`,
+refs:"lib/yjs/react.ts (UndoManager trackedOrigins) · lib/canvas/ops.ts CANVAS_OPS_ORIGIN",
+figs:[["f02-before","Today: after Delete then ⌘Z, Checkout brief is still gone"],["f02-after","With the fix: ⌘Z restores it"]]},
+{id:"f03",t:"Nothing on the canvas opens a Workspace's chat",impact:"high",
+p:`<p>The group pill and the frame's address bar both switch which Workspace a frame shows, and selecting a frame leaves the panel alone. To talk to the agent behind a frame you have to go to the Workspaces menu and find it by name. The pinned-Workspaces spec promised the canvas would keep opening its Workspace.</p>`,
+fix:`<p>Add an "Open chat" button to the Workspace hover card, which already appears on the group pill, the frame pill and the address bar. The Workspaces button stays where it is in the Coordinator header.</p>`,
+refs:"components/workspace-hover-card.tsx · spec #1152 story 26",
+figs:[["f03-before","Today: the hover card describes the Workspace but can't open it"],["f03-after","Proposed: a stock outline button at the bottom of the card"]]},
+{id:"f04",t:"\"Needs you\" counts open PRs but misses plans waiting for approval",impact:"high",
+p:`<p>The Workspaces dot and the Needs you section count every Workspace with an open PR, so the dot is lit as long as any PR is open. Meanwhile a Workspace whose plan is waiting for approval sits under Idle, even though the Coordinator's task card calls exactly that state "Needs you".</p>`,
+fix:`<p>Needs you means the person has to act: a plan waiting, a failed setup, or a PR that is blocked (the PR status we already track). An open PR on its own is idle.</p>`,
+refs:"lib/workspace-list-view.ts workspaceSection · components/agent/workspaces-menu.tsx anyWorkspaceNeedsYou",
+figs:[["f04-before","Today: Checkout polish needs you because it has a PR; Empty cart state, whose plan is waiting, is idle"],["f04-after","Proposed: the waiting plan needs you and the healthy PR is idle"]]},
+{id:"f05",t:"After a PR merges, the Workspace never winds down",impact:"medium",
+p:`<p>Once a Workspace's PR merges, its dev server keeps running and its menu still leads with "Create pull request". Nothing suggests Mark as done, and the Coordinator has no tool to do it, so finished Workspaces pile up in the list.</p>`,
+fix:`<p>When the PR is merged and the agent is idle, lead the Workspace menu with Mark as done. A later step could let the Coordinator mark Workspaces done when asked.</p>`,
+refs:"components/panels/branch-overflow-menu.tsx workspaceMenuLead",
+figs:[["f05-before","Today: Pricing tiers (PR merged) leads with Create pull request"],["f05-after","Proposed: Mark as done leads once the PR has merged"]]},
+{id:"f06",t:"Untitled Workspaces are indistinguishable",impact:"medium",
+p:`<p>Every Workspace created without a task reads "New Workspace", including ones opened from an existing git branch, which get no title at all. On a canvas with a few of them, the menu, the group pills and the Coordinator's task cards all show the same name.</p>`,
+fix:`<p>A Workspace opened from an existing branch takes a readable title from that branch (<code>map-view</code> becomes "Map view"; the branch itself stays hidden). Bare new ones are numbered: New Workspace, New Workspace 2.</p>`,
+refs:"createBranchFromGitBranch (sets no title) · Workspace auto-naming",
+figs:[["f06-before","Today: six rows, all \"New Workspace\""],["f06-after","Proposed: titles from the opened branch, numbers for the rest"]]},
+{id:"f07",t:"Only a document's own chat can write a document",impact:"medium",
+p:`<p>Asking the Coordinator to "write a launch checklist" makes an empty document: its <code>create_document</code> tool takes only a title, and Workspace agents can only read documents. To fill it you must find the document under Documents in the Workspaces menu and ask its own chat. Selecting a document on the canvas doesn't target it either.</p>`,
+fix:`<p>Give the Coordinator the document write tools that document chats already have, so create and fill is one ask.</p>`,
+refs:"lib/agent/room-tools.ts create_document · document chat tools",
+figs:[["f07-before","Today: an empty Launch checklist and a reply sending you to its chat"],["f07-after","Proposed: the Coordinator writes it in the same turn (reply text illustrative)"]]},
+{id:"f08",t:"\"Done\" means two different things",impact:"medium",
+p:`<p>A Coordinator task card says "Done" with a check when the agent finishes a turn. Mark as done, with a check circle, means the Workspace is wrapped up and hidden. Someone reading "Checkout polish ✓ Done" in the Coordinator will expect it in the Done section, and it isn't there.</p>`,
+fix:`<p>Call the task state "Finished". Done stays reserved for Mark as done.</p>`,
+refs:"lib/agent/workspace-task.ts task state labels",
+figs:[["f08-before","Today: the task card says Done"],["f08-after","Proposed: Finished"],["f08b-before","Workspace Done, a different thing, in the same panel"]]},
+{id:"f09",t:"The empty canvas offers a frame before a repository",impact:"medium",
+p:`<p>A new canvas offers "Add a frame" and "Add a document". With no repository, a frame can only show "No Workspace / Choose a workspace", with nothing to choose. The step that makes a canvas useful, adding a repository, only appears in the side panel, and the Coordinator can't be reached until it's done.</p>`,
+fix:`<p>Lead the empty state with Add repository as the primary action and keep Add a document as the secondary. Drop Add a frame until there's a Workspace to show.</p>`,
+refs:"components/canvas/canvas-empty-state.tsx",
+figs:[["f09-before","Today: frame first"],["f09-after","Proposed: repository first"],["f09b-before","What Add a frame makes on an empty canvas"]]},
+{id:"f10",t:"There's no way to add a frame for a Workspace",impact:"medium",
+p:`<p>A frame drawn with F starts with no Workspace. Show all routes stays disabled until routes have been visited. Workspaces the Coordinator creates put their frames at the canvas origin, often off screen. There's already code to add a frame for a Workspace, but nothing calls it.</p>`,
+fix:`<p>Add "Add frame" to the View section of the Workspace menu. It adds a frame for that Workspace next to its group, placed where you can see it.</p>`,
+refs:"addIframeLayerForAgent (unwired) · components/panels/branch-overflow-menu.tsx",
+figs:[["f10-before","Today: no way to get a frame from here"],["f10-after","Proposed: Add frame under Open in browser"]]},
+{id:"f11",t:"Mark as done hides the whole group, documents included",impact:"medium",
+p:`<p>Marking Checkout polish as done hides the entire Checkout group, including Checkout brief, a document nobody marked done. Frames from other Workspaces in the same group disappear too.</p>`,
+fix:`<p>Hide only the frames showing the Workspace that was marked done. Documents and other Workspaces' frames stay.</p>`,
+refs:"lib/canvas/done-workspaces.ts",
+figs:[["f12-before","Today: Checkout brief disappears with the group"],["f12-after","Proposed: the brief stays"]]},
+{id:"f12",t:"Adding a second repository is buried",impact:"low",
+p:`<p>Every Add repository button disappears once a canvas has one repository. The only path left is … → Settings → Repositories, which few people will find.</p>`,
+fix:`<p>Add "Add repository…" to the Workspaces … menu, next to Open existing git branch.</p>`,
+refs:"components/agent/workspaces-menu.tsx",
+figs:[["f13-before","Today: no Add repository here"],["f13-after","Proposed: Add repository… at the end"]]},
+{id:"f13",t:"Presets don't round-trip",impact:"low",
+p:`<p>"Save as a preset" is on by default and silently overwrites a preset with the same repository. "Open folder" skips the preset list, and there's no way to save a canvas repository's settings back to a preset. The preset's name is labelled "Label" in one place and "Preset name" in another.</p>`,
+fix:`<p>When a preset for this repository exists, say so and make the checkbox "Update the storefront preset", off by default. Use "Preset name" everywhere.</p>`,
+refs:"components/repo-add-settings.tsx savePreset (default true) · repo-configs-actions.ts:26-38",
+figs:[["f14-before","Today: on by default, overwrites silently"],["f14-after","Proposed: names the preset it would change, off by default"]]},
+{id:"f14",t:"Settings is hard to reach from a canvas",impact:"low",
+p:`<p>There's no ⌘, and no app menu item for Settings. The composer tells people to "add one in Settings" when no coding agent is found, without a link. Both the canvas … menu and the Settings page are called "Settings", though one is canvas settings. Connect GitHub in the repository picker navigates away mid-flow.</p>`,
+fix:`<p>Split the canvas menu into "Canvas settings" and "Settings ⌘,", bind ⌘, globally, and make the composer's "Settings" a link.</p>`,
+refs:"components/canvas/canvas-top-bar.tsx · components/agent/composer.tsx:922",
+figs:[["f15-before","Today: one Settings item"],["f15-after","Proposed: Canvas settings, and Settings with ⌘,"]]},
+{id:"f15",t:"Vocabulary drift",impact:"low",
+p:`<p>Several names for the same thing, collected here so they can be fixed in one pass.</p>`,
+fix:`<p>Pick one term per row and use it everywhere.</p>`,
+table:[["Frame without a Workspace","\"Untitled frame\", \"No Workspace\", \"Choose a workspace\"","\"No Workspace\" and \"Choose a Workspace\""],
+["Opening a PR","Create PR, Create pull request, open_pull_request","Create pull request"],
+["Agent default","Default agent, Default model","Default model"],
+["Workspaces search","\"Search workspaces…\" in a menu that also lists the Coordinator and Documents","Search…"],
+["Terminal empty state","Says \"chat or a terminal\" but offers only New chat","Offer both, or say chat"],
+["Capitalisation","\"Add a Document\", \"New workspace from here…\", \"when a workspace is created\"","Document, Workspace"]]},
+];
+const pageKey="app-product-audit";
+let shotTheme="light";
+try{shotTheme=localStorage.getItem(pageKey+":shots")||"light"}catch(e){}
+let picks=new Set();
+try{picks=new Set(JSON.parse(localStorage.getItem(pageKey+":picks")||"[]"))}catch(e){}
+const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+function render(){
+  document.getElementById("toc").innerHTML=F.map((f,i)=>`<li><span class="n">${i+1}</span><a href="#${f.id}">${f.t}</a></li>`).join("");
+  document.getElementById("list").innerHTML=F.map((f,i)=>{
+    const figs=f.figs?`<div class="figs">${f.figs.map(([k,c])=>{const kind=k.endsWith("after")?"Proposed":"Today";return `<figure><img loading="lazy" data-k="${k}" src="img/${k}-${shotTheme}.webp" alt="${esc(c)}"><figcaption><b>${kind}.</b> ${c.replace(/^(Today|Proposed|With the fix): ?/,"")}</figcaption></figure>`}).join("")}</div>`:"";
+    const table=f.table?`<table><thead><tr><th>Concept</th><th>Today</th><th>Suggested</th></tr></thead><tbody>${f.table.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`:"";
+    return `<article class="f" id="${f.id}"><div class="fh"><div><div class="num">${String(i+1).padStart(2,"0")}<span class="tag ${f.impact==="high"?"high":""}">${f.impact} impact</span></div><h2>${f.t}</h2></div>
+    <label class="pick"><input type="checkbox" data-i="${i}" ${picks.has(f.id)?"checked":""}>File it</label></div>
+    <div class="cols"><div><h3>Problem</h3>${f.p}</div><div><h3>Recommendation</h3>${f.fix}</div></div>${table}${figs}
+    ${f.refs?`<div class="refs mono">${esc(f.refs)}</div>`:""}</article>`}).join("");
+  document.querySelectorAll(".pick input").forEach(cb=>cb.onchange=()=>{const id=F[cb.dataset.i].id;cb.checked?picks.add(id):picks.delete(id);save();count()});
+  count();
+}
+function save(){try{localStorage.setItem(pageKey+":picks",JSON.stringify([...picks]))}catch(e){}}
+function count(){const n=picks.size;document.getElementById("count").textContent=n?`${n} picked`:"No picks yet";document.getElementById("copy").disabled=!n}
+document.getElementById("copy").onclick=async()=>{
+  const lines=F.map((f,i)=>picks.has(f.id)?`${i+1}. ${f.t}`:null).filter(Boolean);
+  const txt="File these from the app product audit:\n"+lines.join("\n");
+  try{await navigator.clipboard.writeText(txt)}catch(e){const t=document.createElement("textarea");t.value=txt;document.body.appendChild(t);t.select();document.execCommand("copy");t.remove()}
+  const b=document.getElementById("copy");b.textContent="Copied";setTimeout(()=>b.textContent="Copy picks",1500);
+};
+function setShots(t){shotTheme=t;try{localStorage.setItem(pageKey+":shots",t)}catch(e){}
+  document.querySelectorAll("#shots button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.t===t));
+  document.querySelectorAll("img[data-k]").forEach(im=>im.src=`img/${im.dataset.k}-${t}.webp`)}
+document.querySelectorAll("#shots button").forEach(b=>b.onclick=()=>setShots(b.dataset.t));
+document.querySelectorAll("#page button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#page button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  if(b.dataset.t==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",b.dataset.t);
+  setShots(b.dataset.t==="auto"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):b.dataset.t)});
+render();setShots(shotTheme);
+</script>
+</body>
+</html>
+
+</body></html>

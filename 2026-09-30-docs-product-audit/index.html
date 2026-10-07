@@ -1,0 +1,494 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Docs Product Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column, findings as numbered entries grouped by impact tier, with a sticky index on wide screens. */
+:root {
+  --bg: #fbfaf9; --surface: #ffffff; --fg: #1b1a1c; --muted: #6b6870; --line: #e6e3e6;
+  --accent: #c2186b; --accent-soft: #fbe7f1;
+  --high: #c2186b; --med: #9a5b00; --low: #58606b;
+  --code-bg: #f2f0f2;
+  --display: "Instrument Serif", Georgia, serif;
+  --body: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121113; --surface: #1a191b; --fg: #eeebee; --muted: #9d99a1; --line: #2c2a2e;
+  --accent: #ff5fa8; --accent-soft: #3a1628; --high: #ff5fa8; --med: #e8a33d; --low: #a0a7b1; --code-bg: #232124; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121113; --surface: #1a191b; --fg: #eeebee; --muted: #9d99a1; --line: #2c2a2e;
+  --accent: #ff5fa8; --accent-soft: #3a1628; --high: #ff5fa8; --med: #e8a33d; --low: #a0a7b1; --code-bg: #232124; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); padding-inline: 16px; padding-block: 40px 80px }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 220px minmax(0,1fr); gap: 48px }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0,1fr) } nav.index { display: none } }
+nav.index { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 13px; max-height: calc(100vh - 48px); overflow: auto }
+nav.index a { display: block; color: var(--muted); text-decoration: none; padding: 3px 0; line-height: 1.35 }
+nav.index a:hover { color: var(--fg) }
+nav.index .tier { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--fg); margin: 16px 0 4px }
+main { min-width: 0; max-width: 720px }
+h1 { font: 400 44px/1.1 var(--display); margin: 0 0 12px; text-wrap: balance }
+h2 { font: 400 30px/1.2 var(--display); margin: 56px 0 8px; text-wrap: balance }
+h3 { font: 600 18px/1.35 var(--body); margin: 0; text-wrap: balance }
+p { margin: 0 }
+.lede { color: var(--muted); font-size: 16px }
+.meta { font: 12px var(--mono); color: var(--muted); margin-bottom: 20px }
+code { font: 13px var(--mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere }
+a { color: var(--accent) }
+.summary { display: grid; gap: 10px; margin-top: 24px; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px }
+.summary ol { margin: 0; padding-left: 20px; display: grid; gap: 6px }
+.finding { padding: 28px 0; border-top: 1px solid var(--line); display: grid; gap: 12px; scroll-margin-top: 24px }
+.head { display: flex; gap: 12px; align-items: baseline }
+.num { font: 500 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 28px }
+.tag { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border: 1px solid currentColor; border-radius: 999px; white-space: nowrap }
+.tag.high { color: var(--high) } .tag.med { color: var(--med) } .tag.low { color: var(--low) }
+.pages { font: 12px var(--mono); color: var(--muted) }
+.block { display: grid; gap: 4px }
+.label { font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+blockquote { margin: 0; padding: 8px 14px; border-left: 2px solid var(--line); color: var(--muted); font-size: 14px }
+ul.tight { margin: 0; padding-left: 18px; display: grid; gap: 4px }
+.rec { background: var(--accent-soft); padding: 10px 14px; border-radius: 8px; font-size: 14px }
+.rec strong { color: var(--accent) }
+.tree { font: 13px/1.7 var(--mono); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; overflow-x: auto; white-space: pre }
+.tree b { color: var(--accent); font-weight: 500 }
+table { border-collapse: collapse; width: 100%; font-size: 14px }
+.tablewrap { overflow-x: auto }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+</style>
+
+<div class="wrap">
+<nav class="index" aria-label="Findings">
+  <div class="tier">Summary</div>
+  <a href="#summary">Top picks</a>
+  <a href="#ia">Proposed sidebar</a>
+  <div class="tier">High</div>
+  <a href="#f1">1 · Coordinator missing from the intro</a>
+  <a href="#f2">2 · Desktop Coordinator limits hidden</a>
+  <a href="#f3">3 · Document selection flow doesn't exist</a>
+  <a href="#f4">4 · Play mode promises it can't keep</a>
+  <a href="#f5">5 · Agent chat page does three jobs</a>
+  <a href="#f6">6 · Quickstart gaps</a>
+  <div class="tier">Medium</div>
+  <a href="#f7">7 · "Hosted" names nothing real</a>
+  <a href="#f8">8 · No FAQ, privacy or troubleshooting</a>
+  <a href="#f9">9 · Comments → agent undocumented</a>
+  <a href="#f10">10 · Tool rows table half missing</a>
+  <a href="#f11">11 · Ctrl claim wrong for panels</a>
+  <a href="#f12">12 · Frame toolbar out of date</a>
+  <a href="#f13">13 · Chat details drifted</a>
+  <a href="#f14">14 · Naming rules contradict</a>
+  <a href="#f15">15 · Canvas settings has no home</a>
+  <div class="tier">Low</div>
+  <a href="#f16">16 · Contributor pages in user nav</a>
+  <a href="#f17">17 · Desktop release story stale</a>
+  <a href="#f18">18 · Self-hosting reference gaps</a>
+  <a href="#f19">19 · Package docs nits</a>
+  <a href="#f20">20 · Settings and home nits</a>
+  <div class="tier">Also</div>
+  <a href="#bugs">Product bugs spotted</a>
+  <a href="#skipped">Checked and left out</a>
+</nav>
+
+<main>
+<div class="meta">Screenplay docs · product-level audit · main at 2e4ec6f · 30 Sep 2026</div>
+<h1>Docs Product Audit</h1>
+<p class="lede">Does <code>apps/docs</code> explain the product as it is today? I read all 39 pages and checked every concrete claim against the app code. The guides are mostly accurate, detailed and current with the last day of merges. The problems are at the top and the edges. The Coordinator, now the product's front door, is missing from the pages that introduce the product. Desktop users are promised Coordinator features that only the web app has. A few features are documented but don't exist, and a few real ones aren't documented. Findings are ranked by how much they would mislead a new user. Nothing from the visual docs audit (#1096–#1110) is repeated here, and no tickets are filed.</p>
+
+<section class="summary" id="summary">
+  <div class="label">If you pick five</div>
+  <ol>
+    <li><a href="#f1">Put the Coordinator into the Introduction and Core concepts</a>, including the concepts diagram.</li>
+    <li><a href="#f2">Say plainly that the desktop Coordinator can't start workspaces, try variants, open PRs or remove workspaces</a>, and what to do instead.</li>
+    <li><a href="#f3">Remove the document "select text, send to agent" sections</a> (or wire the code up). They describe UI that isn't there.</li>
+    <li><a href="#f5">Split Agent chat into a Coordinator page and a Workspace chat page</a>, which also fixes where memory lives.</li>
+    <li><a href="#f4">Fix play mode's link and knob-sync claims.</a></li>
+  </ol>
+</section>
+
+<h2>High impact</h2>
+
+<article class="finding" id="f1">
+  <div class="head"><span class="num">01</span><h3>The Coordinator is missing from the Introduction and Core concepts</h3><span class="tag high">High</span></div>
+  <div class="pages">index.mdx · concepts.mdx · components/diagram/diagrams.tsx</div>
+  <div class="block"><div class="label">Today</div>
+    <p>Since #1182 the first thing a new user does is ask the Coordinator. The Quickstart says so. The two pages that explain what Screenplay is don't mention it:</p>
+    <blockquote>You drive the agent from a chat panel beside it and watch the previews update as it works. <em>(index.mdx)</em></blockquote>
+    <blockquote>The agent does the coding. Every workspace has a chat panel where you give it instructions… <em>(concepts.mdx, Agent)</em></blockquote>
+    <p>The concepts diagram shows Canvas, Repository, Workspace, Frame and Document, with no agent at all. Canvas memory is explained only deep in the Agent chat guide. Groups get one sentence under Frame and read as frame-only, though they hold documents too. The "Names you'll see in the code" table lacks Coordinator → Room Target, Group → Iframe Layer Group and Agent → Engine.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <ul class="tight">
+      <li>Introduction: rewrite the opening sentence around the real loop. For example: "Ask the Coordinator for a change. It hands the work to a workspace's agent, and you watch the app change in a live frame." Add a bullet: <strong>Ask in one place.</strong> The Coordinator sees the whole canvas and sends work to each workspace.</li>
+      <li>Core concepts: add a <strong>Coordinator</strong> section between Canvas and Repository (one chat per canvas, sees everything, never edits code, sends work to workspace agents). Add <strong>Memory</strong> as a short section. Rename "Agent" to "Workspace agent". Give Group its own short section.</li>
+      <li>Diagram: add the Coordinator on the canvas, with arrows to each workspace's agent.</li>
+      <li>Names table: add the three missing rows.</li>
+    </ul>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do this first. Everything else in the guides already assumes the Coordinator, so the intro is the only place it's out of step.</p>
+</article>
+
+<article class="finding" id="f2">
+  <div class="head"><span class="num">02</span><h3>Desktop users are promised Coordinator features that only the web app has</h3><span class="tag high">High</span></div>
+  <div class="pages">guides/agent.mdx · quickstart.mdx · building/skills.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <p>On desktop, every chat runs through a coding CLI, and the Coordinator's plan-gated tools (create workspaces, open PR, remove workspace) refuse over MCP (<code>app/api/agent/mcp/route.ts:139</code>). The docs mention this once, at the end of a subsection:</p>
+    <blockquote>When the Coordinator runs on a desktop harness (Claude Code or Codex), it can't show you a plan or a confirm card yet, so it can't start workspaces, open pull requests or remove workspaces there.</blockquote>
+    <p>So the Quickstart's desktop reader reads "Starting workspaces" and "Trying something several ways" as things they can do, and neither works for them. "Desktop harness" reads as one option among others, though desktop has no built-in models. The list leaves out opencode.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <ul class="tight">
+      <li>Tag <em>Starting workspaces</em>, <em>Pull requests and removing workspaces</em> and <em>Trying something several ways</em> with the same inline "Web app only" marker used elsewhere.</li>
+      <li>Replace the buried sentence with a callout at the top of the Coordinator section: "On the desktop app the Coordinator can read, arrange and send work to existing workspaces. To start new ones, use <strong>+</strong> in the Workspaces menu. To open a PR or delete a workspace, use the workspace's <strong>…</strong> menu."</li>
+      <li>Quickstart "Keep going": point to the Workspaces menu for a second workspace (it already does), and link to the variants section only with the web-app note.</li>
+      <li>skills.mdx: note that <code>screenplay-try-variants</code> needs the web app.</li>
+    </ul>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Fix the docs now. Whether the desktop Coordinator should get plan and confirm cards is a separate product question. The refusal text the Coordinator relays is also wrong on desktop; see <a href="#bugs">bugs</a>.</p>
+</article>
+
+<article class="finding" id="f3">
+  <div class="head"><span class="num">03</span><h3>"Select text in a document to send it to the agent" describes UI that doesn't exist</h3><span class="tag high">High</span></div>
+  <div class="pages">guides/documents.mdx · guides/collaboration.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <blockquote>Select text in a document to reference it in a chat… On the hosted app this is the <strong>Send to agent</strong> button in the comment box. On desktop, where comments aren't stored, it's the box's main action.</blockquote>
+    <blockquote>On a document, select text to comment on it. The comment quotes the text and its line numbers.</blockquote>
+    <p><code>MarkdownLayer</code> declares <code>onStartInlineComment</code> and the canvas passes it in, but the component never reads it (<code>components/canvas/markdown-layer.tsx:300</code>, props at 387–422). The selection toolbar only has formatting buttons. Nothing creates a document comment draft, so there's no way to comment on document text or send a selection to the agent, on either build.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <ul class="tight">
+      <li>Either wire the prop up (a Comment button in the selection toolbar), or delete "Sending a selection to the agent" from documents.mdx and the document bullet and <strong>Send to agent</strong> sentence from collaboration.mdx.</li>
+      <li>The collaboration.mdx intro callout also links to this section; remove the link.</li>
+    </ul>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Delete the sections now. Wiring the feature is a separate call for you, and the docs shouldn't promise it meanwhile.</p>
+</article>
+
+<article class="finding" id="f4">
+  <div class="head"><span class="num">04</span><h3>Play mode promises shareable links and synced knobs it doesn't have</h3><span class="tag high">High</span></div>
+  <div class="pages">guides/play-mode.mdx · index.mdx · building/knobs.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <blockquote>The URL carries the route and knob values, so a copied link opens exactly what you're looking at.</blockquote>
+    <blockquote>Values stay in sync with the canvas.</blockquote>
+    <blockquote>Use it to test a flow properly, present a prototype, or pass a link to someone to try.</blockquote>
+    <p>The URL is set once when the player opens and never updated (<code>use-frame-actions.ts:152</code>; nothing in <code>components/play/</code> writes the URL). Player knob values are local state and never touch the room (<code>prototype-player.tsx:83</code>). On desktop the player opens in your browser at a local address, so "pass a link to someone" only works on the web app. The Introduction's "<strong>Hand it to someone.</strong> Open any preview full screen in play mode" has the same problem.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <ul class="tight">
+      <li>play-mode.mdx: "The link opens the player on the route and knob values the frame had when you opened it." Drop "stay in sync with the canvas": "Knob changes in the player apply to the player only."</li>
+      <li>Say it opens in a new browser tab (on desktop, your default browser), and that links work for people with access to the canvas on the web app.</li>
+      <li>Introduction: change the bullet to "<strong>Try it full screen.</strong> Open any workspace as a clickable prototype in play mode."</li>
+    </ul>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Fix the copy. If live URLs or synced knobs in the player are wanted, that's a product ticket.</p>
+</article>
+
+<article class="finding" id="f5">
+  <div class="head"><span class="num">05</span><h3>The Agent chat page does three jobs, and the Coordinator is half of it</h3><span class="tag high">High</span></div>
+  <div class="pages">guides/agent.mdx (340 lines) · guides/_meta.ts</div>
+  <div class="block"><div class="label">Today</div>
+    <p>"Agent chat" opens with the Coordinator (about 150 lines: messaging, starting workspaces, confirm cards, variants, wakes, memory), then switches to workspace chat (tabs, composer, models, skills, targeting, plan mode, tool rows, naming). Memory, a canvas-wide setting, lives inside it. Several statements are true of one chat kind but read as general: "Each target has its own set of tabs" (the Coordinator has one chat and no tab strip; documents have no Sandbox logs). The sidebar has no entry that says "Coordinator", so it can't be found by scanning the nav.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <ul class="tight">
+      <li>New page <strong>The Coordinator</strong>: what it sees, arranging and undo, messages to workspaces and task cards, starting workspaces (web app), confirm cards, variants, wakes, memory.</li>
+      <li>Rename the rest <strong>Workspace chat</strong>: tabs, composer, models, mentions, skills, targeting, plan mode, following the work, naming. Add a short "Other chats" note on what the Coordinator and document chats lack (no tabs, Plan, <kbd>/</kbd> or crosshair in the Coordinator; no sandbox in documents).</li>
+      <li>See the <a href="#ia">proposed sidebar</a> for where both go.</li>
+    </ul>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do it together with #1. It's mostly moving text, and the links to <code>/guides/agent#the-coordinator</code> need redirecting.</p>
+</article>
+
+<article class="finding" id="f6">
+  <div class="head"><span class="num">06</span><h3>The Quickstart has gaps that stop people before step one</h3><span class="tag high">High</span></div>
+  <div class="pages">quickstart.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <ul class="tight">
+      <li>"<strong>macOS</strong>. Download the latest <code>Screenplay.dmg</code>." The build is Apple Silicon only, and the file is <code>Screenplay_&lt;version&gt;_aarch64.dmg</code> (<code>apps/desktop/scripts/release.mjs:207</code>). Intel Mac users find out after downloading.</li>
+      <li>"A local folder or any git repository." The folder has to be a git checkout; a plain folder fails with "Not a git repository" (<code>lib/sandbox/local/worktree.ts:279</code>).</li>
+      <li>The sentence about <strong>New canvas</strong> is split by a stray blank line before <code>&lt;kbd&gt;N&lt;/kbd&gt;</code> and renders as two paragraphs.</li>
+      <li>"Or pick <strong>Use a device code</strong>" only shows in builds with a GitHub client ID and when <code>gh</code> has no token.</li>
+      <li>The page mentions a <strong>Get started</strong> checklist but never names its three steps (Add a repository, Ask the Coordinator for a change, Open the Workspace), which match the Quickstart's own steps.</li>
+      <li>The step-5 screenshot reuses <code>hero</code>, which shows the workspace chat. The step describes the panel staying on the Coordinator with a task card.</li>
+      <li>There's no mention of updating: the desktop app has no auto-update, so users need to know to download new releases.</li>
+    </ul>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <ul class="tight">
+      <li>"A Mac with Apple silicon (M1 or later)." Link to the Releases page and name the file pattern.</li>
+      <li>"A git repository: a local clone, or one on GitHub."</li>
+      <li>Remove the stray blank line.</li>
+      <li>Say the checklist's three steps match this page's steps.</li>
+      <li>Add a new docs screenshot of the Coordinator with a task card after the first ask.</li>
+      <li>End with one line: "Screenplay doesn't update itself yet. Download new versions from GitHub Releases."</li>
+    </ul>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Small edits with a high payoff. Ship them in one PR.</p>
+</article>
+
+<h2>Medium impact</h2>
+
+<article class="finding" id="f7">
+  <div class="head"><span class="num">07</span><h3>"Hosted" names a product that doesn't exist</h3><span class="tag med">Medium</span></div>
+  <div class="pages">every guide · index.mdx · homepage FAQ</div>
+  <div class="block"><div class="label">Today</div>
+    <p>The Introduction calls it the "Self-hosted web app". Every other page says "the hosted app" and tags sections <em>Hosted</em> or <em>Hosted only</em>. The homepage says "Deploy the web app". There's no hosted Screenplay to sign up for, so "the hosted app" reads like a SaaS the reader can't find.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Use "the web app" everywhere, introduced once as "the web app, which you deploy yourself". Change the <em>Hosted</em> tags to <em>Web app</em>. Keep "Self-hosting" as the section name for operators.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do it. It's a find-and-replace across about 12 pages, and it matches the homepage.</p>
+</article>
+
+<article class="finding" id="f8">
+  <div class="head"><span class="num">08</span><h3>No FAQ, privacy or troubleshooting page</h3><span class="tag med">Medium</span></div>
+  <div class="pages">missing pages</div>
+  <div class="block"><div class="label">Today</div>
+    <p>The homepage FAQ answers "Does my code leave my machine?" (no, on desktop) and "What does it cost?" (nothing; bring your own subscriptions or keys). The docs answer neither. Fixes for common problems are scattered across callouts on five pages: "No coding agent detected" (agent), a preview that never loads and <code>DevServerPortIgnoredError</code> (frames, dev-server), "One branch, one workspace" (workspaces), and Turborepo stripping <code>PORT</code> (dev-server).</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <ul class="tight">
+      <li>Add <strong>Troubleshooting</strong> under Using Screenplay, collecting those callouts as symptom → fix, and linking back.</li>
+      <li>Add a short <strong>Privacy &amp; data</strong> section: where desktop data lives (<code>~/.screenplay</code>, local database), that model calls go through your own CLI login, and what the web app stores (from the self-hosting table).</li>
+      <li>Link both from the Introduction's "Where to go next".</li>
+    </ul>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Troubleshooting yes. Put privacy on the Introduction page as a short section, not a separate page.</p>
+</article>
+
+<article class="finding" id="f9">
+  <div class="head"><span class="num">09</span><h3>Sending comment threads to the agent is a real feature with no docs</h3><span class="tag med">Medium</span></div>
+  <div class="pages">guides/collaboration.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <p>The Comments panel has checkboxes and a <strong>Send N to agent</strong> button (<code>comments-panel.tsx:402</code>). A thread's <strong>…</strong> menu has <strong>Send to agent</strong>, and threads show an agent status or "Addressed" chip. None of this is documented. The docs describe the document version (see <a href="#f3">#3</a>), which doesn't exist, and skip the frame version, which does.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Add "Send comments to the agent" to collaboration.mdx: pick threads in the Comments panel and send them to the workspace's agent, which works through them; each thread shows its status. Mention it in the Introduction's "Point, don't describe" bullet.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do it. It's the strongest review-to-fix loop the web app has.</p>
+</article>
+
+<article class="finding" id="f10">
+  <div class="head"><span class="num">10</span><h3>The tool rows table covers only workspace chats</h3><span class="tag med">Medium</span></div>
+  <div class="pages">guides/agent.mdx, Following the work</div>
+  <div class="block"><div class="label">Today</div>
+    <p>The table lists 10 rows. The Coordinator has its own 17 rows (Read canvas, Read Workspace chat, View frame, Save to memory, Create frames, Move group, Undo changes, Create Workspaces, Stop Workspace, Open pull request…), and document chats have Rewrite document, Append to document and Set title (<code>agent-message.tsx:132</code>). Canvas-change rows also show a result line. #1193 made desktop CLIs use these same labels and hide ToolSearch, and changed no docs.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>After the split in <a href="#f5">#5</a>, give each page its own table. On the Coordinator page, group the rows as Read, Arrange and Workspaces rather than listing all 17. Say the labels are the same on desktop CLIs.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do it with #5.</p>
+</article>
+
+<article class="finding" id="f11">
+  <div class="head"><span class="num">11</span><h3>"Use Ctrl wherever you see ⌘" is wrong for the panel shortcuts</h3><span class="tag med">Medium</span></div>
+  <div class="pages">guides/keyboard-shortcuts.mdx · guides/collaboration.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <p>⌘B, ⌘I, ⌘. and the three ⌘-drag modifiers check <code>metaKey</code> only (<code>use-canvas-keyboard.ts:191–219</code>, <code>use-canvas-gesture.ts:205</code>). A web app user on Windows or Linux can't toggle panels from the keyboard. ⌘I also does nothing while the composer has focus. Cursor chat (<kbd>/</kbd>) works on desktop, but collaboration.mdx says desktop has no cursors. Home's <kbd>N</kbd> and <kbd>/</kbd> and the player's <kbd>C</kbd> aren't in the shortcuts page.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Fix the code to accept Ctrl, since the page's promise is the right behaviour. Until then, footnote those rows. Add Home and Player sections to the page. Hide cursor chat on desktop, or drop the claim in collaboration.mdx.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Treat as a small bug fix plus doc additions.</p>
+</article>
+
+<article class="finding" id="f12">
+  <div class="head"><span class="num">12</span><h3>The frame toolbar description is a version behind</h3><span class="tag med">Medium</span></div>
+  <div class="pages">guides/frames.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <ul class="tight">
+      <li>The table puts <strong>Record flow</strong> after the address. It now sits inside the address bar, before Reload (#1146), and Reload hides while recording.</li>
+      <li>"<strong>Reload</strong>… is highlighted when hot reload has disconnected." Reload is always muted. A coloured status dot at the start of the address shows Disconnected, Loading, Preview failed or Workspace stopped (<code>frame-nav.tsx:61</code>), and none of it is documented.</li>
+      <li>A frame with <strong>No Workspace</strong> has no toolbar or address bar at all. Not said.</li>
+      <li>Device names differ: the menu says "Desktop 4K", "Desktop", "iPad Pro 13″ (M4)", "iPad mini (A17 Pro)".</li>
+    </ul>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Rewrite the table to match the order in the bar: Back, Forward, Address (status dot, workspace, route, record, reload), Interact, Knobs, More. Add a line on the status dot, and copy the device labels from <code>lib/iframe-layer-sizes.ts</code>.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do it.</p>
+</article>
+
+<article class="finding" id="f13">
+  <div class="head"><span class="num">13</span><h3>Chat details have drifted from the app</h3><span class="tag med">Medium</span></div>
+  <div class="pages">guides/agent.mdx · guides/workspaces.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <ul class="tight">
+      <li>Queued messages: the docs say the button becomes <strong>Queue message</strong>, but not that each queued message shows as a row above the input with <strong>Edit</strong> and remove, sent in order. <em>Note:</em> steering (#1189, #1190) will replace this for Claude Code and the built-in agent. Its spec already includes the docs change, so fix this only if steering stalls.</li>
+      <li>"When the server is up, a frame appears on the canvas and the panel switches to chat." The frame appears at once and is zoomed to. The panel shows logs while it starts.</li>
+      <li>Task cards: "<strong>Failed</strong>" only means the sandbox errored. A turn that errored reads <strong>Done</strong>. <strong>Sending</strong> and <strong>Removed</strong> states aren't listed.</li>
+      <li>The workspace menu "groups the rest under <strong>View</strong>, <strong>Git</strong> and <strong>Manage</strong>". The groups have no labels, just dividers.</li>
+      <li>"A pink dot on it": the dot is on the Workspaces button, not the Coordinator crumb. The same dot is "magenta" on another page.</li>
+      <li>Pasting an image is refused ("Images can't be attached yet"). Worth one line so people don't try.</li>
+    </ul>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Fix each sentence in place. Drop the menu group names, and say "pink" everywhere.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Fold into the #5 rewrite.</p>
+</article>
+
+<article class="finding" id="f14">
+  <div class="head"><span class="num">14</span><h3>Naming rules contradict each other</h3><span class="tag med">Medium</span></div>
+  <div class="pages">guides/agent.mdx · guides/workspaces.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <ul class="tight">
+      <li>agent.mdx's example title is "Hero Gradient &amp; Trust Line". Titles are sentence case, as workspaces.mdx shows ("Add pricing FAQ").</li>
+      <li>"The first message in its first chat titles the workspace… renames the branch to match." Not for workspaces the Coordinator planned, which take the plan's title, or for <strong>Open existing git branch</strong>, whose branch is never renamed.</li>
+      <li>"Needs you" means failed setup or an open PR in the Workspaces menu, and a plan waiting for approval on a task card. Each page is right on its own, but the same label means two things.</li>
+    </ul>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Keep one naming section (in Workspaces › Titles) that lists the three cases. Fix the example. Note the two meanings of "Needs you" where each appears, or raise renaming one of them as a product question.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Fix the docs. The two meanings of "Needs you" are worth a look on the product side.</p>
+</article>
+
+<article class="finding" id="f15">
+  <div class="head"><span class="num">15</span><h3>Canvas settings has no page of its own</h3><span class="tag med">Medium</span></div>
+  <div class="pages">guides/canvas.mdx · guides/repositories.mdx · guides/settings.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <p>canvas.mdx describes <strong>Settings</strong> as "the canvas's repositories". Canvas settings also has <strong>Memory</strong>, which is documented only inside the Agent chat page. settings.mdx is about your own settings and points away. A reader looking for "where do I change this canvas's settings" has to piece it together.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>In canvas.mdx, say "Settings: the canvas's repositories and memory", linking both. Keep memory's full text on the Coordinator page (#5) and give it a short mention in Concepts (#1). No new page needed.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do it. It's two sentences.</p>
+</article>
+
+<h2>Low impact</h2>
+
+<article class="finding" id="f16">
+  <div class="head"><span class="num">16</span><h3>Contributor pages sit in the user and operator navigation</h3><span class="tag low">Low</span></div>
+  <div class="pages">screenshots.mdx · development.mdx · self-hosting/configuration/local-build.mdx · deploying-to-vercel.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <p><strong>Screenshots</strong> (about 290 lines on the fixture world, <code>--hosted</code> captures and the design-polish ticket process) is a public docs page with no frontmatter title or description. development.mdx opens a section with "Design-polish tickets ship before/after screenshots on the PR." local-build.mdx is written for people changing the code (<code>isLocalBuild</code>, issue links) but sits under the operator's Configuration menu. deploying-to-vercel.mdx documents this repo's own preview labels.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Move Screenshots to <code>apps/app/screenshots/README.md</code> and keep one paragraph in Development that links to it. Move local-build under Contributing. Cut the preview-label section from the operator guide.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do it. Agents read the repo README just as well, and the public docs get shorter.</p>
+</article>
+
+<article class="finding" id="f17">
+  <div class="head"><span class="num">17</span><h3>The desktop release story describes a CI workflow that doesn't exist</h3><span class="tag low">Low</span></div>
+  <div class="pages">self-hosting/configuration/desktop-app.mdx · development.mdx · apps/desktop/README.md</div>
+  <div class="block"><div class="label">Today</div>
+    <p>"Signing and notarization are driven by <code>APPLE_*</code> secrets read by Tauri's bundler." There's no <code>desktop-release.yml</code>, and there never was. Releases run locally with <code>pnpm --filter desktop release patch</code>, which needs Node 23 or later, <code>apps/desktop/.env.release</code> and <code>gh</code>. Development's command list leaves the release command out.</p>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Replace the paragraph with the real release command and its requirements, in Development rather than Self-hosting. Fix the desktop README too.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do it.</p>
+</article>
+
+<article class="finding" id="f18">
+  <div class="head"><span class="num">18</span><h3>Self-hosting reference gaps</h3><span class="tag low">Low</span></div>
+  <div class="pages">self-hosting/*</div>
+  <div class="block"><div class="label">Today</div>
+    <ul class="tight">
+      <li>The environment variables page says "every variable" but its table lacks <code>SCREENPLAY_ACP_HARNESS</code>, <code>LOCAL_BLOB_DIR</code>, <code>LOCAL_BLOB_BASE_URL</code>, <code>YJS_PERSISTENCE_DIR</code>, <code>NEXT_PUBLIC_YJS_WS_PORT</code>, <code>TAURI_CONTROL_URL</code>, <code>SCREENPLAY_DESKTOP</code> and <code>PORT</code>. They're mentioned on other pages, which is all <code>env-docs.test.ts</code> checks.</li>
+      <li><code>AGENT_DEFAULT_MODEL</code> "must name a configured provider". It actually falls back to the first enabled model.</li>
+      <li>The overview says hosting can be "anything that runs Next.js", but Vercel Sandbox authenticates only through Vercel's OIDC token. Off Vercel there's no documented way to keep sandboxes authenticated beyond about 12 hours.</li>
+      <li>local-build.mdx's "all four flags" leaves out the other flags <code>desktop.env</code> sets. database.mdx's "Changing the schema" leaves out regenerating <code>drizzle/local</code> for desktop.</li>
+    </ul>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Add the missing table rows, or split them into an "Internal" table. Correct the fallback. Add a note on sandbox auth off Vercel. Add the desktop migration step.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Worth doing before anyone else self-hosts. The test could also check that each variable has a table row.</p>
+</article>
+
+<article class="finding" id="f19">
+  <div class="head"><span class="num">19</span><h3>Knobs and shared-state package nits</h3><span class="tag low">Low</span></div>
+  <div class="pages">building/shared-state.mdx · building/knobs.mdx · building/dev-server.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <ul class="tight">
+      <li>The shared-state "Without React" example imports <code>subscribeSharedState</code>, which is missing from the package's <code>index.d.ts</code>, so TypeScript users get an error. This is a package bug.</li>
+      <li>"Bundlers strip the messaging code from production builds." The package says it's inert, and stripping is up to the minifier.</li>
+      <li><code>getKnobValue</code> is exported and undocumented.</li>
+      <li>dev-server.mdx says <code>npx portless proxy start</code>. The code's comment says <code>portless service install</code>. Needs checking.</li>
+    </ul>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>Add the type. Change "strip" to "the code does nothing in production". Document <code>getKnobValue</code> in one line. Confirm the portless command.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Do the type fix. The rest is optional.</p>
+</article>
+
+<article class="finding" id="f20">
+  <div class="head"><span class="num">20</span><h3>Settings, home and canvas nits</h3><span class="tag low">Low</span></div>
+  <div class="pages">guides/settings.mdx · guides/home.mdx · guides/canvas.mdx · guides/terminals.mdx · guides/repositories.mdx</div>
+  <div class="block"><div class="label">Today</div>
+    <ul class="tight">
+      <li>Settings: the Coding agents row the docs call "opencode" is labelled "opencode (Vercel AI Gateway)" in the app. Presets also have <strong>Duplicate</strong>. GitHub shows <strong>Signed out</strong> / <strong>Sign in</strong> and <strong>Re-run sign-in</strong> states. The device-code option depends on the build.</li>
+      <li>Home: the sidebar's <strong>Docs</strong> link isn't mentioned. Search results in table view show <strong>Location</strong> instead of Created.</li>
+      <li>Canvas: the <strong>…</strong> menu shows Rename to the owner only. The collapsed-panel <strong>Expand chat</strong> and <strong>Expand sidebar</strong> buttons, and the Get started checklist at the foot of the sidebar, aren't described.</li>
+      <li>Terminals: <strong>+</strong> remembers the last CLI you opened.</li>
+      <li>Repositories: <strong>Files to copy</strong> shows only for local folders, not GitHub or clone URLs.</li>
+    </ul>
+  </div>
+  <div class="block"><div class="label">Proposed fix</div>
+    <p>One sentence each, in place.</p>
+  </div>
+  <p class="rec"><strong>Recommendation:</strong> Batch into one cleanup PR.</p>
+</article>
+
+<h2 id="ia">Proposed sidebar</h2>
+<p>Today "Using Screenplay" is a flat list of 12 guides, ordered by UI object, with no entry for the Coordinator. This keeps every page and adds three. New or renamed pages are highlighted.</p>
+<div class="tree" role="img" aria-label="Proposed docs sidebar structure">Get started
+  Introduction             <b>(Coordinator in the opening, privacy &amp; data section)</b>
+  Quickstart
+  Core concepts            <b>(+ Coordinator, Memory, Group)</b>
+Using Screenplay
+  <b>The Coordinator</b>          <b>(new, split from Agent chat)</b>
+  Workspaces
+  <b>Workspace chat</b>           <b>(renamed from Agent chat)</b>
+  Terminal tabs
+  The canvas
+  Frames
+  Documents
+  Play mode
+  Sharing &amp; collaboration  <b>(+ Send comments to the agent)</b>
+  Home &amp; organizing
+  Settings
+  Keyboard shortcuts
+  <b>Troubleshooting</b>          <b>(new)</b>
+Building for Screenplay
+  Dev server &amp; ports · Knobs · Shared state · Agent skills
+Self-hosting
+  Overview · GitHub OAuth · Database · Environment variables · Deploying to Vercel · Configuration
+Contributing
+  Development              <b>(+ desktop release, local build)</b>
+  <s>Screenshots</s>              <b>(moved to the repo README)</b></div>
+<p style="margin-top:12px">The order under Using Screenplay follows the first-run path: ask the Coordinator, see its workspace, talk to that workspace, then arrange the canvas.</p>
+
+<h2 id="bugs">Product bugs spotted along the way</h2>
+<p>These are outside a docs audit, but they turned up while checking claims. Not ticketed.</p>
+<div class="tablewrap"><table>
+  <thead><tr><th>What</th><th>Where</th></tr></thead>
+  <tbody>
+    <tr><td>The desktop Coordinator's refusal tells users to "delete it from the sidebar" (the sidebar is layers only since #1157) and to "switch the Coordinator's model to a built-in one" (desktop has none). <code>remove_workspace</code>'s description says "the sidebar's Delete" too.</td><td><code>app/api/agent/mcp/route.ts:165, 174</code>; <code>lib/agent/room-tools.ts:320</code></td></tr>
+    <tr><td>⌘B, ⌘I, ⌘. and the drag modifiers ignore Ctrl on Windows and Linux.</td><td><code>use-canvas-keyboard.ts:191–219</code></td></tr>
+    <tr><td>⌘B inside a document you're editing collapses the sidebar.</td><td><code>use-canvas-keyboard.ts:191</code></td></tr>
+    <tr><td>The <strong>Share</strong> button shows to non-owners, whose invites then fail on the server.</td><td><code>canvas.tsx:2118</code>; <code>lib/rooms-actions.ts:198</code></td></tr>
+    <tr><td>A non-owner can double-click to rename the canvas. The server refuses and the name silently reverts.</td><td><code>canvas.tsx:322</code></td></tr>
+    <tr><td>The composer's "no coding agent" text says to restart; installing from Settings needs no restart.</td><td><code>composer.tsx:921</code></td></tr>
+    <tr><td><code>CONTEXT.md</code> still calls Room Target "planned", and has no Memory or fresh-workspace entry.</td><td><code>apps/app/CONTEXT.md:462</code></td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="skipped">Checked and left out</h2>
+<ul class="tight">
+  <li>Steering (#1189–#1192) isn't merged yet, and its spec already requires the chat docs change. The queue text is accurate today.</li>
+  <li>First run (#1182, merged in PR #1188): the Quickstart matches the code, apart from the items in #6.</li>
+  <li>Workspaces menu in the panel header (#1157), task cards (#1153) and mid-chat model switching: the docs already match.</li>
+  <li>Visual and styling issues on the docs site are covered by #1096–#1110 and aren't repeated.</li>
+  <li>Verified accurate: the Workspaces menu, sort and group, hover card, Mark as done, Delete, Restart, Plan mode, model picker, Create workspaces dialog, home views and menus, zoom menu and tools, groups, preview states, knobs types, the shared-state rules, the setup gate, and most of Self-hosting.</li>
+</ul>
+</main>
+</div>
+
+</body></html>

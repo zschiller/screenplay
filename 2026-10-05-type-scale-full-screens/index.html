@@ -1,0 +1,99 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Type scale full screens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@400&display=swap">
+<style>
+/* One sticky bar, then one full app screen per section; both options stack in one grid cell so flipping changes only pixels. */
+:root{
+  --bg:oklch(0.985 0 0);--panel:oklch(1 0 0);--fg:oklch(0.16 0 0);--muted:oklch(0.52 0 0);
+  --line:oklch(0 0 0 / 11%);--seg:oklch(0.955 0 0);--on:oklch(0.16 0 0);--on-fg:oklch(1 0 0);--ring:oklch(0.667 0.295 322.15);
+  --font-ui:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-title:"Unbounded",ui-sans-serif,system-ui,sans-serif;--font-code:"Geist Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:oklch(0.12 0 0);--panel:oklch(0 0 0);--fg:oklch(0.97 0 0);--muted:oklch(0.7 0 0);--line:oklch(1 0 0 / 14%);--seg:oklch(0.2 0 0);--on:oklch(0.97 0 0);--on-fg:oklch(0 0 0);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:oklch(0.12 0 0);--panel:oklch(0 0 0);--fg:oklch(0.97 0 0);--muted:oklch(0.7 0 0);--line:oklch(1 0 0 / 14%);--seg:oklch(0.2 0 0);--on:oklch(0.97 0 0);--on-fg:oklch(0 0 0);color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/20px var(--font-ui);padding-inline:16px;padding-block:0 64px}
+.wrap{max-width:1512px;margin:0 auto}
+header{padding-block:32px 16px}
+h1{font:400 24px/30px var(--font-title);margin:0 0 8px;text-wrap:balance}
+.lede{color:var(--muted);max-width:70ch;margin:0}
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:12px;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
+.ctl{display:flex;align-items:center;gap:8px}
+.ctl>span{color:var(--muted);font-size:12px}
+.seg{display:inline-flex;background:var(--seg);border-radius:6px;padding:2px;gap:2px}
+.seg button{all:unset;cursor:pointer;font:500 14px/20px var(--font-ui);padding:4px 10px;border-radius:4px;color:var(--fg);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--on);color:var(--on-fg)}
+.seg button:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+.seg kbd{font:400 12px/16px var(--font-code);opacity:.55;margin-left:6px}
+.legend{font:400 12px/16px var(--font-code);color:var(--muted)}
+main{display:flex;flex-direction:column;gap:40px;padding-top:24px}
+.ex{display:flex;flex-direction:column;gap:10px}
+.ex-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.ex h2{font:600 14px/20px var(--font-ui);margin:0}
+.ex p{margin:0;color:var(--muted);max-width:80ch}
+.frame{border:1px solid var(--line);border-radius:6px;background:var(--panel);overflow:auto;max-width:100%}
+.stack{display:grid}
+.stack img{grid-area:1/1;display:block;width:100%;height:auto;visibility:hidden}
+.frame.actual .stack{width:max-content}
+.frame.actual .stack img{width:1512px;max-width:none}
+.stack img.on{visibility:visible}
+.tag{font:500 12px/16px var(--font-code);color:var(--muted)}
+footer{margin-top:40px;color:var(--muted)}
+</style>
+<div class="wrap">
+<header>
+  <h1>Type scale full screens</h1>
+  <p class="lede">The two finalists on ten whole screens of the app, shot at a 1512px-wide window. Flip one screen with its own toggle, or every screen from the bar (keys 1 and 2). “Actual size” shows them at real pixels; “Fit” shrinks them to your window.</p>
+</header>
+<div class="bar" role="toolbar" aria-label="Compare">
+  <div class="ctl"><span>All</span><div class="seg" id="all"></div></div>
+  <div class="ctl"><span>Theme</span><div class="seg" id="theme"></div></div>
+  <div class="ctl"><span>Size</span><div class="seg" id="zoom"></div></div>
+  <div class="legend" id="legend"></div>
+</div>
+<main id="list"></main>
+<footer>Built on PR #1722 after the rebase. Tell me in the thread which one to build.</footer>
+</div>
+<script>
+const OPTS=[{k:"d",label:"12/13",legend:"small 12 · everything else 13"},{k:"e",label:"12/13 + prose 14",legend:"small 12 · UI 13 · chat prose 14"}];
+const EX=[
+ {id:"canvas-agent-chat",t:"Chat with a finished turn",d:"Reply prose next to the turn summary and composer."},
+ {id:"canvas-plan-review",t:"Plan waiting for approval",d:"A long Markdown plan with Approve and Request changes."},
+ {id:"open-hosted",t:"Open tool rows",d:"A skill result in prose and a file read in code."},
+ {id:"canvas-chat-question",t:"Question card",d:"Prose question with one button per option."},
+ {id:"terminal",t:"Terminal open",d:"Tabs and footnote under the chat."},
+ {id:"home-recents",t:"Home",d:"Sidebar, card titles and Edited meta."},
+ {id:"settings-coding-agents",t:"Settings, Agent",d:"Row titles, descriptions and buttons."},
+ {id:"canvas-settings",t:"Canvas settings",d:"Repositories list and its rows."},
+ {id:"workspaces-menu",t:"Chats menu",d:"Group labels, chat rows and diff counts."},
+ {id:"confirm-delete-canvas",t:"Delete dialog",d:"Description and footer buttons."}
+];
+let theme=(()=>{try{return localStorage.getItem("tsfull-theme")}catch(e){return null}})()||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+let zoom="fit";const pick={};EX.forEach(e=>pick[e.id]="e");
+function seg(el,items,get,set){el.innerHTML="";items.forEach(it=>{const b=document.createElement("button");b.type="button";b.innerHTML=it.label+(it.key?`<kbd>${it.key}</kbd>`:"");b.dataset.v=it.v;b.addEventListener("click",()=>{set(it.v);render()});el.appendChild(b)});el._get=get}
+function syncSeg(el){[...el.children].forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===String(el._get()))))}
+const list=document.getElementById("list");
+EX.forEach(e=>{
+  const s=document.createElement("section");s.className="ex";s.id=e.id;
+  s.innerHTML=`<div class="ex-head"><h2>${e.t}</h2><div class="ctl"><span class="tag"></span><div class="seg"></div></div></div><p>${e.d}</p><div class="frame"><div class="stack"></div></div>`;
+  const st=s.querySelector(".stack");
+  ["light","dark"].forEach(th=>OPTS.forEach(o=>{const im=new Image();im.src=`img/${e.id}-${o.k}-${th}.webp`;im.alt=`${e.t}, ${o.label}, ${th}`;im.dataset.k=o.k;im.dataset.th=th;im.loading="lazy";im.decoding="async";st.appendChild(im)}));
+  seg(s.querySelector(".seg"),OPTS.map(o=>({label:o.label,v:o.k})),()=>pick[e.id],v=>pick[e.id]=v);
+  list.appendChild(s);
+});
+seg(document.getElementById("all"),OPTS.map((o,i)=>({label:o.label,v:o.k,key:i+1})),()=>{const v=Object.values(pick);return v.every(x=>x===v[0])?v[0]:""},v=>EX.forEach(e=>pick[e.id]=v));
+seg(document.getElementById("theme"),[{label:"Light",v:"light"},{label:"Dark",v:"dark"}],()=>theme,v=>{theme=v;try{localStorage.setItem("tsfull-theme",v)}catch(e){}});
+seg(document.getElementById("zoom"),[{label:"Fit",v:"fit"},{label:"Actual size",v:"actual"}],()=>zoom,v=>zoom=v);
+function render(){
+  document.documentElement.dataset.theme=theme;
+  document.querySelectorAll(".seg").forEach(syncSeg);
+  EX.forEach(e=>{const s=document.getElementById(e.id);s.querySelector(".frame").classList.toggle("actual",zoom==="actual");
+    s.querySelectorAll("img").forEach(im=>im.classList.toggle("on",im.dataset.k===pick[e.id]&&im.dataset.th===theme));
+    s.querySelector(".tag").textContent=OPTS.find(o=>o.k===pick[e.id]).legend});
+  const v=Object.values(pick);document.getElementById("legend").textContent=v.every(x=>x===v[0])?OPTS.find(o=>o.k===v[0]).legend:"mixed";
+}
+addEventListener("keydown",ev=>{if(ev.metaKey||ev.ctrlKey||ev.altKey)return;const i="12".indexOf(ev.key);if(i>=0){EX.forEach(e=>pick[e.id]=OPTS[i].k);render()}});
+render();
+</script>
+
+</body></html>

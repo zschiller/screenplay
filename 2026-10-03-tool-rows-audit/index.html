@@ -1,0 +1,504 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Tool Rows Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..600&family=Unbounded:wght@500&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one reading column; Now/Proposed shot pairs sit side by side, stacking on phones. */
+:root {
+  --bg: #fafaf9;
+  --surface: #ffffff;
+  --fg: #141414;
+  --muted: #6b6b6b;
+  --line: #e4e4e2;
+  --accent: #c026d3;
+  --good: #15803d;
+  --bad: #dc2626;
+  --code-bg: #f1f1ef;
+  --display: "Unbounded", "Instrument Sans", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0a0a; --surface: #121212; --fg: #f2f2f2; --muted: #9a9a9a;
+    --line: #2a2a2a; --accent: #f0abfc; --good: #4ade80; --bad: #f87171; --code-bg: #1d1d1d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a0a0a; --surface: #121212; --fg: #f2f2f2; --muted: #9a9a9a;
+  --line: #2a2a2a; --accent: #f0abfc; --good: #4ade80; --bad: #f87171; --code-bg: #1d1d1d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.55 var(--body); padding-inline: 16px; }
+main { max-width: 1040px; margin-inline: auto; padding-block: 40px 96px; display: flex; flex-direction: column; gap: 48px; }
+h1, h2 { font-family: var(--display); font-weight: 500; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 27px; }
+h2 { font-size: 20px; }
+h3 { font-size: 14px; margin: 0; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+code { font: 12px var(--mono); background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+a { color: inherit; text-decoration-color: var(--accent); text-underline-offset: 2px; }
+.lede { display: flex; flex-direction: column; gap: 12px; }
+.lede p { color: var(--muted); }
+.meta { font-size: 12px; color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 16px; }
+.tag { font: 600 12px var(--body); color: var(--accent); white-space: nowrap; }
+.findings { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.finding { display: grid; grid-template-columns: 48px 1fr; gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+.finding > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.finding .cite { font-size: 12px; color: var(--muted); }
+.toggle { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; align-self: flex-start; background: var(--surface); }
+.toggle button { font: 500 12px var(--body); border: 0; background: none; color: var(--muted); padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.toggle button:focus-visible, .call input:focus-visible + span, .copy:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.pair figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pair figcaption { font: 600 12px var(--body); color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.pair img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; display: block; }
+body[data-shots="light"] .s-dark, body[data-shots="dark"] .s-light { display: none !important; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.now { color: var(--muted); }
+td .h { color: var(--fg); }
+.hide { color: var(--good); font-weight: 600; }
+details { border-top: 1px solid var(--line); padding-block: 10px; }
+details summary { cursor: pointer; font-weight: 600; }
+details > .table-wrap { margin-top: 10px; }
+.calls { display: flex; flex-direction: column; gap: 16px; }
+.call { border: 1px solid var(--line); border-radius: 10px; padding: 16px; background: var(--surface); display: flex; flex-direction: column; gap: 10px; }
+.call fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.call legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
+.call label { display: grid; grid-template-columns: 20px 1fr; gap: 6px; align-items: start; cursor: pointer; }
+.call label input { margin: 3px 0 0; accent-color: var(--accent); }
+.call .rec { font-size: 12px; color: var(--accent); font-weight: 600; margin-left: 6px; }
+.call .why { font-size: 12px; color: var(--muted); }
+textarea { width: 100%; min-height: 44px; font: 13px var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; resize: vertical; }
+.copybar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; position: sticky; bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); padding-block: 12px; border-top: 1px solid var(--line); }
+.copy { font: 600 14px var(--body); background: var(--fg); color: var(--bg); border: 0; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+#copied { font-size: 12px; color: var(--muted); }
+#picks-text { display: none; width: 100%; font: 12px var(--mono); }
+ul.plain { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; max-width: 72ch; }
+@media (max-width: 720px) { .pair { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.trio figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.trio figcaption { font: 600 12px var(--body); color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.trio img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; display: block; }
+.round { border-left: 2px solid var(--accent); padding-left: 12px; display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 860px) { .trio { grid-template-columns: 1fr; } }
+</style>
+
+<main>
+  <header class="lede">
+    <h1>Tool rows audit</h1>
+    <p>Every tool call that can show up as a row in a chat: the hosted agent, Claude Code and Codex on the desktop, Frame Drive, and the Coordinator. Shots come from the real app through the screenshot harness. Nothing is ticketed or built.</p>
+    <div class="round">
+      <span class="tag">Round 4</span>
+      <p>Your note on round 3: an open row should flip to the page background with full-strength text. Prototyped below for every open row, including the ones that stay open because they failed. It takes the page's own background, so it's white in light mode and black in dark. The rows' closed state is unchanged.</p>
+    </div>
+    <p class="meta">main at 84298fb · claude-agent-acp 0.54.1 · codex-acp 2.0.1 · prototype patch in project files at <code>tool-rows-audit/prototype.patch</code></p>
+  </header>
+
+  <section aria-labelledby="r4">
+    <h2 id="r4">Open rows on the page background</h2>
+    <div class="toggle" role="group" aria-label="Screenshot theme">
+      <button type="button" data-v="light">Light</button>
+      <button type="button" data-v="dark">Dark</button>
+    </div>
+    <h3>Workspace chat on Claude Code</h3>
+    <div class="pair">
+      <figure><figcaption>Round 3</figcaption><img class="s-light" src="img/open-claude-code-light-r3.webp" alt="Claude Code rows open, round 3, light"><img class="s-dark" src="img/open-claude-code-dark-r3.webp" alt="Claude Code rows open, round 3, dark"></figure>
+      <figure><figcaption>Round 4</figcaption><img class="s-light" src="img/open-claude-code-light-r4.webp" alt="Claude Code rows open on the page background, light"><img class="s-dark" src="img/open-claude-code-dark-r4.webp" alt="Claude Code rows open on the page background, dark"></figure>
+    </div>
+    <h3>Workspace chat, hosted agent</h3>
+    <div class="pair">
+      <figure><figcaption>Round 3</figcaption><img class="s-light" src="img/open-hosted-light-r3.webp" alt="Hosted rows open, round 3, light"><img class="s-dark" src="img/open-hosted-dark-r3.webp" alt="Hosted rows open, round 3, dark"></figure>
+      <figure><figcaption>Round 4</figcaption><img class="s-light" src="img/open-hosted-light-r4.webp" alt="Hosted rows open on the page background, light"><img class="s-dark" src="img/open-hosted-dark-r4.webp" alt="Hosted rows open on the page background, dark"></figure>
+    </div>
+    <h3>Coordinator</h3>
+    <div class="pair">
+      <figure><figcaption>Round 3</figcaption><img class="s-light" src="img/open-coordinator-light-r3.webp" alt="Coordinator rows open, round 3, light"><img class="s-dark" src="img/open-coordinator-dark-r3.webp" alt="Coordinator rows open, round 3, dark"></figure>
+      <figure><figcaption>Round 4</figcaption><img class="s-light" src="img/open-coordinator-light-r4.webp" alt="Coordinator rows open on the page background, light"><img class="s-dark" src="img/open-coordinator-dark-r4.webp" alt="Coordinator rows open on the page background, dark"></figure>
+    </div>
+    <p class="meta">The change lives in the shared disclosure every chat section uses, so reasoning, subagent groups and plans flip the same way when opened. Hover no longer tints an open row's header.</p>
+  </section>
+
+  <section aria-labelledby="r3">
+    <h2 id="r3">Open rows in colour (round 3)</h2>
+    <p>Code a row read is highlighted for its file type. Command output and logs keep their own colours when they have them (Vitest's, for one) and otherwise mark error lines red, warnings yellow and pass ticks green. Markdown results (a skill, a fetched page, the canvas summary, a Workspace's chat) render as markdown at chat size, with headings kept at row size. Search hits and file lists stay plain mono.</p>
+    <div class="toggle" role="group" aria-label="Screenshot theme">
+      <button type="button" data-v="light">Light</button>
+      <button type="button" data-v="dark">Dark</button>
+    </div>
+
+    <h3>Edited lines in a diff</h3>
+    <p>Now, the edited lines switch to full-strength text while the rest of the diff is muted, so they glare. Both options keep the tinted rows and the coloured + and −.</p>
+    <div class="trio">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/diff-light-now.webp" alt="Diff now, light"><img class="s-dark" src="img/diff-dark-now.webp" alt="Diff now, dark"></figure>
+      <figure><figcaption>A · Syntax colours</figcaption><img class="s-light" src="img/diff-light-a.webp" alt="Diff with syntax colours on every line, light"><img class="s-dark" src="img/diff-dark-a.webp" alt="Diff with syntax colours on every line, dark"></figure>
+      <figure><figcaption>B · Green and red text</figcaption><img class="s-light" src="img/diff-light-b.webp" alt="Diff with green and red edited lines, light"><img class="s-dark" src="img/diff-dark-b.webp" alt="Diff with green and red edited lines, dark"></figure>
+    </div>
+
+    <h3>Workspace chat on Claude Code</h3>
+    <div class="pair">
+      <figure><figcaption>Round 2</figcaption><img class="s-light" src="img/open-claude-code-light-r2a.webp" alt="Claude Code rows open, round 2, light"><img class="s-dark" src="img/open-claude-code-dark-r2a.webp" alt="Claude Code rows open, round 2, dark"></figure>
+      <figure><figcaption>Round 3</figcaption><img class="s-light" src="img/open-claude-code-light-r3.webp" alt="Claude Code rows open with colour, light"><img class="s-dark" src="img/open-claude-code-dark-r3.webp" alt="Claude Code rows open with colour, dark"></figure>
+    </div>
+
+    <h3>Workspace chat, hosted agent</h3>
+    <div class="pair">
+      <figure><figcaption>Round 2</figcaption><img class="s-light" src="img/open-hosted-light-r2a.webp" alt="Hosted rows open, round 2, light"><img class="s-dark" src="img/open-hosted-dark-r2a.webp" alt="Hosted rows open, round 2, dark"></figure>
+      <figure><figcaption>Round 3</figcaption><img class="s-light" src="img/open-hosted-light-r3.webp" alt="Hosted rows open with colour, light"><img class="s-dark" src="img/open-hosted-dark-r3.webp" alt="Hosted rows open with colour, dark"></figure>
+    </div>
+
+    <h3>Coordinator</h3>
+    <div class="pair">
+      <figure><figcaption>Round 2</figcaption><img class="s-light" src="img/open-coordinator-light-r2a.webp" alt="Coordinator rows open, round 2, light"><img class="s-dark" src="img/open-coordinator-dark-r2a.webp" alt="Coordinator rows open, round 2, dark"></figure>
+      <figure><figcaption>Round 3</figcaption><img class="s-light" src="img/open-coordinator-light-r3.webp" alt="Coordinator rows open with colour, light"><img class="s-dark" src="img/open-coordinator-dark-r3.webp" alt="Coordinator rows open with colour, dark"></figure>
+    </div>
+
+    <ul class="plain meta">
+      <li>Highlighting covers the common file types (TypeScript, JavaScript, CSS, JSON, HTML, Markdown, Python, Go, Rust, shell, YAML, SQL and a few more); anything else stays plain.</li>
+      <li>Highlighting adds lowlight as a direct dependency of the app. It's already installed under rehype-highlight, which the chat uses for code blocks.</li>
+      <li>Hosted command output has no ANSI colours today, because our sandbox doesn't run commands with colour forced on. Those outputs get the error, warning and pass marks only.</li>
+      <li>A diff highlights each line on its own, so a line inside a multi-line string or comment can colour wrongly.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="shots">
+    <h2 id="shots">Closed rows: one typeface (round 2, decided: UI font)</h2>
+    <p>Same labels as round 1 (readable verb plus what it acted on), with the subject in the row's own type and colour. A sets the whole row in the UI font; B sets the whole row in mono. Either way nothing in a row switches face or colour.</p>
+    <div class="toggle" role="group" aria-label="Screenshot theme">
+      <button type="button" data-v="light">Light</button>
+      <button type="button" data-v="dark">Dark</button>
+    </div>
+
+    <h3>Frame Drive</h3>
+    <div class="trio">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/drive-light-now.webp" alt="Frame Drive rows now, light"><img class="s-dark" src="img/drive-dark-now.webp" alt="Frame Drive rows now, dark"></figure>
+      <figure><figcaption>A · UI font</figcaption><img class="s-light" src="img/drive-light-r2a.webp" alt="Frame Drive rows, all UI font, light"><img class="s-dark" src="img/drive-dark-r2a.webp" alt="Frame Drive rows, all UI font, dark"></figure>
+      <figure><figcaption>B · Mono</figcaption><img class="s-light" src="img/drive-light-r2b.webp" alt="Frame Drive rows, all mono, light"><img class="s-dark" src="img/drive-dark-r2b.webp" alt="Frame Drive rows, all mono, dark"></figure>
+    </div>
+
+    <h3>Workspace chat on Claude Code</h3>
+    <div class="trio">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/claude-code-light-now.webp" alt="Claude Code rows now, light"><img class="s-dark" src="img/claude-code-dark-now.webp" alt="Claude Code rows now, dark"></figure>
+      <figure><figcaption>A · UI font</figcaption><img class="s-light" src="img/claude-code-light-r2a.webp" alt="Claude Code rows, all UI font, light"><img class="s-dark" src="img/claude-code-dark-r2a.webp" alt="Claude Code rows, all UI font, dark"></figure>
+      <figure><figcaption>B · Mono</figcaption><img class="s-light" src="img/claude-code-light-r2b.webp" alt="Claude Code rows, all mono, light"><img class="s-dark" src="img/claude-code-dark-r2b.webp" alt="Claude Code rows, all mono, dark"></figure>
+    </div>
+
+    <h3>Coordinator on Claude Code</h3>
+    <div class="trio">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/coordinator-light-now.webp" alt="Coordinator rows now, light"><img class="s-dark" src="img/coordinator-dark-now.webp" alt="Coordinator rows now, dark"></figure>
+      <figure><figcaption>A · UI font</figcaption><img class="s-light" src="img/coordinator-light-r2a.webp" alt="Coordinator rows, all UI font, light"><img class="s-dark" src="img/coordinator-dark-r2a.webp" alt="Coordinator rows, all UI font, dark"></figure>
+      <figure><figcaption>B · Mono</figcaption><img class="s-light" src="img/coordinator-light-r2b.webp" alt="Coordinator rows, all mono, light"><img class="s-dark" src="img/coordinator-dark-r2b.webp" alt="Coordinator rows, all mono, dark"></figure>
+    </div>
+
+    <h3>Workspace chat on Codex</h3>
+    <div class="pair">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/codex-light-now.webp" alt="Codex rows now, light"><img class="s-dark" src="img/codex-dark-now.webp" alt="Codex rows now, dark"></figure>
+      <figure><figcaption>A · UI font</figcaption><img class="s-light" src="img/codex-light-r2a.webp" alt="Codex rows, all UI font, light"><img class="s-dark" src="img/codex-dark-r2a.webp" alt="Codex rows, all UI font, dark"></figure>
+    </div>
+
+    <h3>Workspace chat, hosted agent</h3>
+    <div class="pair">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/hosted-light-now.webp" alt="Hosted rows now, light"><img class="s-dark" src="img/hosted-dark-now.webp" alt="Hosted rows now, dark"></figure>
+      <figure><figcaption>A · UI font</figcaption><img class="s-light" src="img/hosted-light-r2a.webp" alt="Hosted rows, all UI font, light"><img class="s-dark" src="img/hosted-dark-r2a.webp" alt="Hosted rows, all UI font, dark"></figure>
+    </div>
+    <p class="meta">Keys stay Kbd caps in both, which the Kbd rule sets in the UI font. Typed text keeps its quotes (Type “ada@example.com”) so a space or an empty string still reads.</p>
+  </section>
+
+  <section aria-labelledby="open">
+    <h2 id="open">Open rows (round 2)</h2>
+    <p>Every row that expands, opened. Proposed keeps code (file contents, diffs, command output, logs, search hits) in mono, sets prose results in the UI font, and stops rows from opening onto text that only repeats their label.</p>
+
+    <h3>Workspace chat on Claude Code</h3>
+    <div class="pair">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/open-claude-code-light-now.webp" alt="Claude Code rows open now, light"><img class="s-dark" src="img/open-claude-code-dark-now.webp" alt="Claude Code rows open now, dark"></figure>
+      <figure><figcaption>Proposed</figcaption><img class="s-light" src="img/open-claude-code-light-r2a.webp" alt="Claude Code rows open, proposed, light"><img class="s-dark" src="img/open-claude-code-dark-r2a.webp" alt="Claude Code rows open, proposed, dark"></figure>
+    </div>
+
+    <h3>Workspace chat, hosted agent</h3>
+    <div class="pair">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/open-hosted-light-now.webp" alt="Hosted rows open now, light"><img class="s-dark" src="img/open-hosted-dark-now.webp" alt="Hosted rows open now, dark"></figure>
+      <figure><figcaption>Proposed</figcaption><img class="s-light" src="img/open-hosted-light-r2a.webp" alt="Hosted rows open, proposed, light"><img class="s-dark" src="img/open-hosted-dark-r2a.webp" alt="Hosted rows open, proposed, dark"></figure>
+    </div>
+
+    <h3>Frame Drive</h3>
+    <div class="pair">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/open-drive-light-now.webp" alt="Frame Drive rows open now, light"><img class="s-dark" src="img/open-drive-dark-now.webp" alt="Frame Drive rows open now, dark"></figure>
+      <figure><figcaption>Proposed</figcaption><img class="s-light" src="img/open-drive-light-r2a.webp" alt="Frame Drive rows open, proposed, light"><img class="s-dark" src="img/open-drive-dark-r2a.webp" alt="Frame Drive rows open, proposed, dark"></figure>
+    </div>
+
+    <h3>Coordinator</h3>
+    <div class="pair">
+      <figure><figcaption>Now</figcaption><img class="s-light" src="img/open-coordinator-light-now.webp" alt="Coordinator rows open now, light"><img class="s-dark" src="img/open-coordinator-dark-now.webp" alt="Coordinator rows open now, dark"></figure>
+      <figure><figcaption>Proposed</figcaption><img class="s-light" src="img/open-coordinator-light-r2a.webp" alt="Coordinator rows open, proposed, light"><img class="s-dark" src="img/open-coordinator-dark-r2a.webp" alt="Coordinator rows open, proposed, dark"></figure>
+    </div>
+
+    <div class="findings">
+      <div class="finding"><span class="tag">O1</span><div><p>Screenshots never show. View frame and Look at frame open onto an empty box, because the body only renders text blocks and drops images. Proposed shows the screenshot the agent looked at, up to 192px tall.</p><span class="cite">components/agent/agent-message.tsx:547 ("non-text blocks are deferred polish")</span></div></div>
+      <div class="finding"><span class="tag">O2</span><div><p>Hosted file reads keep their line-number gutter, and a wrapped line breaks the columns ("1 import …", then "2", "3 export …"). Only Claude Code's <code>→</code> gutter is stripped, not the hosted agent's tab gutter.</p><span class="cite">agent-message.tsx:457 (cleanToolText)</span></div></div>
+      <div class="finding"><span class="tag">O3</span><div><p>Prose results are set in mono like a log: the canvas summary, a Workspace's chat, a skill's text, a page's elements. Proposed sets them in the UI font; code-like output stays mono.</p><span class="cite">agent-message.tsx:553 (every text block is a &lt;pre&gt; in font-mono)</span></div></div>
+      <div class="finding"><span class="tag">O4</span><div><p>Some rows open onto text that only repeats their label: "Launching skill: frontend-design", "Did click on button "Pay now"…", "Created mockup "Sticky summary" (id m1)…". Proposed makes these rows plain lines with no chevron, as finished canvas changes already are (PR #1231). A step that failed still opens.</p><span class="cite">agent-message.tsx:683 (hasContent)</span></div></div>
+      <div class="finding"><span class="tag">O5</span><div><p>An edit's diff repeats the file's absolute path in a header strip under a row that already names the file. Proposed drops the strip when the row edits one file.</p><span class="cite">agent-message.tsx:486 (DiffBlock)</span></div></div>
+      <div class="finding"><span class="tag">O6</span><div><p>A failed command turns its whole output red, a wall of red for a lint run. Proposed keeps the red icon on the row and sets the output in the normal muted colour.</p><span class="cite">agent-message.tsx:553</span></div></div>
+      <div class="finding"><span class="tag">O7</span><div><p>A Claude Code call to one of our tools shows its JSON input until the result arrives, then swaps to the result. When a result comes back empty, the row opens onto raw JSON. Not changed in the prototype; proposed: never show the input JSON.</p><span class="cite">claude-agent-acp tools.js "Other" case</span></div></div>
+      <div class="finding"><span class="tag">O8</span><div><p>Hosted command output starts with "Exit code: 0", which says nothing when the command passed. Not changed in the prototype; proposed: show the exit code only when it isn't 0.</p><span class="cite">lib/agent/tools.ts run_command</span></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="find">
+    <h2 id="find">Row label findings (round 1)</h2>
+    <p class="meta">P = product (wrong or missing), H = hierarchy, N = visual nit. File references are on main at 84298fb.</p>
+    <div class="findings">
+      <div class="finding"><span class="tag">P1</span><div><p>On Codex every Screenplay tool renders as its raw id (<code>mcp.screenplay.read_canvas</code>) with the terminal icon, and the folded summary counts it as an "other tool". codex-acp 2.0.1 titles MCP calls <code>mcp.&lt;server&gt;.&lt;tool&gt;</code> and nests the input under <code>arguments</code>; <code>bareToolName</code> only knows the older <code>Tool: server/tool</code> form.</p><span class="cite">lib/agent/tool-name.ts:13 · codex-acp dist/index.js McpToolCallReporter. Read from the adapter's source, not seen live on the Mac.</span></div></div>
+      <div class="finding"><span class="tag">P2</span><div><p>Workspace chats on Claude Code show <code>ToolSearch</code> at the start of most turns. PR #1193 hid it in the Coordinator only.</p><span class="cite">lib/agent/tool-name.ts:65, :92</span></div></div>
+      <div class="finding"><span class="tag">P3</span><div><p>Claude Code reads and edits show the absolute path (<code>/Users/zack/checkout/app/…</code>) instead of the repo-relative path the adapter's own title already has.</p><span class="cite">agent-message.tsx:392 (toolPath)</span></div></div>
+      <div class="finding"><span class="tag">P4</span><div><p>Searches name the folder, not the search: "Grep app", "Search code app"; <code>glob</code> and <code>find_code_files</code> show no pattern at all.</p><span class="cite">agent-message.tsx:325 (toolDetail falls back to toolPath)</span></div></div>
+      <div class="finding"><span class="tag">P5</span><div><p>Claude Code tools without a mapping print as raw names or shell syntax: <code>ToolSearch</code>, <code>Skill</code>, <code>NotebookEdit</code>, "Ready to code?", <code>grep -n "position: sticky" app</code>, and web search as a bare quoted string.</p><span class="cite">claude-agent-acp dist/tools.js · agent-message.tsx:434 (KIND_VERB)</span></div></div>
+      <div class="finding"><span class="tag">P6</span><div><p>Codex titles come through with quotes ("Read file 'app/…'"), and command rows show the shell wrapper <code>/bin/zsh -lc '…'</code>.</p><span class="cite">agent-message.tsx ToolCallRow (execute detail is rawInput.command)</span></div></div>
+      <div class="finding"><span class="tag">P7</span><div><p>Click rows show the CSS selector the agent pointed with. The step's result already names the element, so the row can say Click Pay now.</p><span class="cite">agent-message.tsx:341 (driveDetail) · lib/frame-drive/tools.ts:450</span></div></div>
+      <div class="finding"><span class="tag">P8</span><div><p>Coordinator rows don't name what they acted on: Read Workspace chat, Read Workspace diff, Stop Workspace, View frame, Read document.</p><span class="cite">agent-message.tsx:325</span></div></div>
+      <div class="finding"><span class="tag">P9</span><div><p>Seven hosted tools have no label or icon: <code>grep</code>, <code>glob</code>, <code>create_mockup</code>, <code>read_mockup</code>, <code>update_mockup</code>, <code>start_chat</code>, <code>send_to_chat</code>.</p><span class="cite">agent-message.tsx:113, :168</span></div></div>
+      <div class="finding"><span class="tag">H1</span><div><p>A "show me" drive is a stack of ten or more rows while the person watches it happen in the frame.</p><span class="cite">Frame Drive shots</span></div></div>
+      <div class="finding"><span class="tag">H2</span><div><p>Codex's "Compact conversation" and Claude Code's "Ready to code?" are harness housekeeping shown as work.</p><span class="cite">codex-acp CompactionReporter · claude-agent-acp ExitPlanMode</span></div></div>
+      <div class="finding"><span class="tag">N1</span><div><p>Every row mixes the UI font (verb) with mono (subject), and round 1 added foreground colour on top. Round 2 drops both.</p><span class="cite">agent-message.tsx ToolCallRow (detail is a &lt;code&gt;)</span></div></div>
+      <div class="finding"><span class="tag">N2</span><div><p>The terminal icon is the fallback for anything unmapped, so Skill, Start chat and every Codex MCP call look like shell commands.</p><span class="cite">agent-message.tsx:243, :644</span></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="inv">
+    <h2 id="inv">Every tool, now and proposed</h2>
+    <p class="meta">Labels only; shown here in the page's own type. "Hide" means the row is left out unless it failed.</p>
+
+    <details>
+      <summary>Frame Drive</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Tool</th><th>Now</th><th>Proposed</th></tr></thead>
+        <tbody>
+          <tr><td>frame_start_driving</td><td class="now">Start driving</td><td>Start driving Checkout · desktop (frame name, not in the prototype)</td></tr>
+          <tr><td>frame_open</td><td class="now">Open frame /checkout</td><td>Open frame /checkout</td></tr>
+          <tr><td>frame_elements</td><td class="now">Read frame elements</td><td>Read the page</td></tr>
+          <tr><td>frame_click</td><td class="now">Click main &gt; section … button.btn…</td><td>Click Pay now (the element the result names, else its text, else the selector's last step, else "at 412, 300"); no chevron</td></tr>
+          <tr><td>frame_type</td><td class="now">Type ada@example.com</td><td>Type “ada@example.com”</td></tr>
+          <tr><td>frame_key</td><td class="now">Press key Cmd+k</td><td>Press ⌘ K as Kbd caps</td></tr>
+          <tr><td>frame_scroll</td><td class="now">Scroll</td><td>Scroll down</td></tr>
+          <tr><td>frame_select</td><td class="now">Pick option GB</td><td>Pick GB</td></tr>
+          <tr><td>frame_drag</td><td class="now">Drag a → b</td><td>Drag Card 1 to Done</td></tr>
+          <tr><td>frame_screenshot</td><td class="now">Look at frame (opens empty)</td><td>Look at frame (opens onto the screenshot)</td></tr>
+          <tr><td>frame_stop_driving</td><td class="now">Stop driving</td><td>Stop driving</td></tr>
+          <tr><td>mcp.screenplay.frame_* (Codex)</td><td class="now">mcp.screenplay.frame_click</td><td>Same as hosted</td></tr>
+        </tbody>
+      </table></div>
+    </details>
+
+    <details>
+      <summary>Claude Code built-in tools</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Tool</th><th>Now</th><th>Proposed</th></tr></thead>
+        <tbody>
+          <tr><td>ToolSearch</td><td class="now">ToolSearch</td><td class="hide">Hide</td></tr>
+          <tr><td>Skill</td><td class="now">Skill</td><td>Read skill frontend-design; no chevron</td></tr>
+          <tr><td>Read</td><td class="now">Read 2 lines /Users/zack/…/summary.tsx</td><td>Read 2 lines app/checkout/summary.tsx</td></tr>
+          <tr><td>Edit, Write</td><td class="now">Edit /Users/zack/…</td><td>Edit app/checkout/summary.tsx</td></tr>
+          <tr><td>Bash</td><td class="now">Run command pnpm test summary</td><td>Unchanged</td></tr>
+          <tr><td>Grep</td><td class="now">grep -n "position: sticky" app</td><td>Search position: sticky</td></tr>
+          <tr><td>Glob</td><td class="now">Find app **/*.css</td><td>Find files **/*.css</td></tr>
+          <tr><td>WebFetch</td><td class="now">Fetch https://developer.mozilla.org/…</td><td>Fetch developer.mozilla.org/en-US/…</td></tr>
+          <tr><td>WebSearch</td><td class="now">"css sticky inside overflow hidden"</td><td>Search the web css sticky inside overflow hidden</td></tr>
+          <tr><td>NotebookEdit</td><td class="now">NotebookEdit</td><td>Edit notebook x.ipynb</td></tr>
+          <tr><td>ExitPlanMode</td><td class="now">Ready to code?</td><td class="hide">Hide</td></tr>
+          <tr><td>Task / Agent, TodoWrite</td><td class="now">Subagent group / plan</td><td>Unchanged</td></tr>
+          <tr><td>Any other tool</td><td class="now">Its PascalCase name</td><td>Split into words: "Notebook edit"</td></tr>
+        </tbody>
+      </table></div>
+    </details>
+
+    <details>
+      <summary>Codex</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Codex title</th><th>Now</th><th>Proposed</th></tr></thead>
+        <tbody>
+          <tr><td>Read file '…'</td><td class="now">Read file 'app/checkout/summary.tsx'</td><td>Read app/checkout/summary.tsx</td></tr>
+          <tr><td>Search for '…' in …</td><td class="now">Search for 'position: sticky' in app</td><td>Search position: sticky</td></tr>
+          <tr><td>List files in '…'</td><td class="now">List files in 'app/checkout'</td><td>List files app/checkout</td></tr>
+          <tr><td>A shell command</td><td class="now">Run command /bin/zsh -lc 'pnpm test'</td><td>Run command pnpm test</td></tr>
+          <tr><td>Editing files</td><td class="now">Editing files</td><td>Edit app/checkout/summary.tsx (from its diff)</td></tr>
+          <tr><td>Web search: …</td><td class="now">Web search: css sticky…</td><td>Search the web css sticky…</td></tr>
+          <tr><td>mcp.screenplay.&lt;tool&gt;</td><td class="now">mcp.screenplay.read_dev_server_logs</td><td>Read dev server logs</td></tr>
+          <tr><td>View Image …</td><td class="now">View Image /var/folders/…/screenshot-1.png</td><td>Look at image screenshot-1.png</td></tr>
+          <tr><td>Compact conversation</td><td class="now">Compact conversation</td><td class="hide">Hide</td></tr>
+          <tr><td>mcp__screenplay__startup (failed)</td><td class="now">Startup</td><td>Screenplay's tools didn't start</td></tr>
+        </tbody>
+      </table></div>
+    </details>
+
+    <details>
+      <summary>Hosted agent and Coordinator</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Tool</th><th>Now</th><th>Proposed</th></tr></thead>
+        <tbody>
+          <tr><td>grep, search_code</td><td class="now">Grep app / Search code app</td><td>Search position: sticky</td></tr>
+          <tr><td>glob, find_code_files</td><td class="now">Glob / Find files</td><td>Find files **/*.css</td></tr>
+          <tr><td>create_mockup, update_mockup</td><td class="now">Create mockup, pencil icon</td><td>Create mockup Sticky summary, mockup icon; no chevron</td></tr>
+          <tr><td>read_mockup</td><td class="now">Read mockup</td><td>Read mockup, mockup icon</td></tr>
+          <tr><td>read_workspace_chat / diff</td><td class="now">Read Workspace chat / diff</td><td>Read chat in Checkout polish / Read changes in Checkout polish</td></tr>
+          <tr><td>stop_workspace</td><td class="now">Stop Workspace</td><td>Stop Empty cart state</td></tr>
+          <tr><td>start_chat</td><td class="now">Start chat, terminal icon</td><td>Start chat Pricing page sketch, chat icon</td></tr>
+          <tr><td>send_to_chat</td><td class="now">Send to chat, terminal icon</td><td>Send to chat, chat icon</td></tr>
+          <tr><td>view_frame, read_document</td><td class="now">View frame / Read document</td><td>Name the frame or document (not in the prototype)</td></tr>
+          <tr><td>Everything else</td><td class="now">Already readable (PR #1193, #1231)</td><td>Unchanged</td></tr>
+        </tbody>
+      </table></div>
+    </details>
+    <p class="meta">Left alone on purpose: the bordered row style (picked for the Coordinator in PR #1193), subagent groups, and plan and question cards.</p>
+  </section>
+
+  <section aria-labelledby="calls">
+    <h2 id="calls">Calls for you</h2>
+    <p>Pick one option per call, add a note if you like, then copy your picks and paste them in the thread. The row font is decided (UI font), so it's no longer a call.</p>
+    <form class="calls" id="calls-form">
+      <div class="call">
+        <fieldset>
+          <legend>1. How should a diff's edited lines be coloured?</legend>
+          <label><input type="radio" name="c1" value="A" id="c1a" checked><span>A. Syntax colours like every other line, on the green or red tint <span class="rec">Recommended</span></span></label>
+          <label><input type="radio" name="c1" value="B" id="c1b"><span>B. Green text on added lines, red text on removed ones</span></label>
+          <label><input type="radio" name="c1" value="N" id="c1n"><span>None of these</span></label>
+        </fieldset>
+        <p class="why">A is GitHub's diff: the tint and the + and − mark the change, and the code still reads as code. B shouts louder and loses the syntax colours on exactly the lines you want to read.</p>
+        <textarea id="c1-note" aria-label="Note for call 1" placeholder="Note (optional)"></textarea>
+      </div>
+      <div class="call">
+        <fieldset>
+          <legend>2. Do the colours and markdown in round 3 look right?</legend>
+          <label><input type="radio" name="c2" value="A" id="c2a" checked><span>A. Yes, as shown <span class="rec">Recommended</span></span></label>
+          <label><input type="radio" name="c2" value="B" id="c2b"><span>B. Yes, but quieter: keep logs plain unless they carry their own ANSI colours</span></label>
+          <label><input type="radio" name="c2" value="N" id="c2n"><span>None of these</span></label>
+        </fieldset>
+        <p class="why">The log marks are a guess from words like "error" and "warn"; B drops the guessing and only shows colours a tool printed.</p>
+        <textarea id="c2-note" aria-label="Note for call 2" placeholder="Note (optional)"></textarea>
+      </div>
+      <div class="call">
+        <fieldset>
+          <legend>3. Should a row open when its result only repeats the label?</legend>
+          <label><input type="radio" name="c3" value="A" id="c3a" checked><span>A. No: a plain line with no chevron, unless it failed <span class="rec">Recommended</span></span></label>
+          <label><input type="radio" name="c3" value="B" id="c3b"><span>B. Yes, as now</span></label>
+          <label><input type="radio" name="c3" value="N" id="c3n"><span>None of these</span></label>
+        </fieldset>
+        <p class="why">A chevron promises something new. Finished canvas changes already work this way.</p>
+        <textarea id="c3-note" aria-label="Note for call 3" placeholder="Note (optional)"></textarea>
+      </div>
+      <div class="call">
+        <fieldset>
+          <legend>4. How should a file path show?</legend>
+          <label><input type="radio" name="c4" value="A" id="c4a" checked><span>A. The repo-relative path, app/checkout/summary.tsx <span class="rec">Recommended</span></span></label>
+          <label><input type="radio" name="c4" value="B" id="c4b"><span>B. The file name only, summary.tsx, full path on hover</span></label>
+          <label><input type="radio" name="c4" value="N" id="c4n"><span>None of these</span></label>
+        </fieldset>
+        <p class="why">A keeps two files with the same name apart and matches the hosted agent today.</p>
+        <textarea id="c4-note" aria-label="Note for call 4" placeholder="Note (optional)"></textarea>
+      </div>
+      <div class="call">
+        <fieldset>
+          <legend>5. How should a Frame Drive show in chat?</legend>
+          <label><input type="radio" name="c5" value="A" id="c5a"><span>A. One row per step, with the labels above</span></label>
+          <label><input type="radio" name="c5" value="B" id="c5b" checked><span>B. Steps fold into one row, "Drove Checkout · desktop · 8 steps", which opens to the steps <span class="rec">Recommended</span></span></label>
+          <label><input type="radio" name="c5" value="N" id="c5n"><span>None of these</span></label>
+        </fieldset>
+        <p class="why">The person is watching the frame during a drive, so ten rows repeat what they just saw. B builds on A's labels.</p>
+        <textarea id="c5-note" aria-label="Note for call 5" placeholder="Note (optional)"></textarea>
+      </div>
+      <div class="call">
+        <fieldset>
+          <legend>6. Where should harness housekeeping hide (ToolSearch, Compact conversation, Ready to code?)</legend>
+          <label><input type="radio" name="c6" value="A" id="c6a" checked><span>A. Every chat, unless it failed <span class="rec">Recommended</span></span></label>
+          <label><input type="radio" name="c6" value="B" id="c6b"><span>B. The Coordinator only, as now</span></label>
+          <label><input type="radio" name="c6" value="N" id="c6n"><span>None of these</span></label>
+        </fieldset>
+        <p class="why">None of them says anything about the work; a failed one still shows.</p>
+        <textarea id="c6-note" aria-label="Note for call 6" placeholder="Note (optional)"></textarea>
+      </div>
+      <div class="call">
+        <fieldset>
+          <legend>7. How should a pressed key show?</legend>
+          <label><input type="radio" name="c7" value="A" id="c7a" checked><span>A. Kbd caps, one per key: Press ⌘ K <span class="rec">Recommended</span></span></label>
+          <label><input type="radio" name="c7" value="B" id="c7b"><span>B. Plain text in the row's type: Press Cmd K</span></label>
+          <label><input type="radio" name="c7" value="N" id="c7n"><span>None of these</span></label>
+        </fieldset>
+        <p class="why">A follows the Kbd rule; the caps are sized so the row keeps its height.</p>
+        <textarea id="c7-note" aria-label="Note for call 7" placeholder="Note (optional)"></textarea>
+      </div>
+    </form>
+    <div class="copybar">
+      <button type="button" class="copy" id="copy">Copy my picks</button>
+      <span id="copied" role="status"></span>
+      <textarea id="picks-text" aria-label="Your picks" readonly></textarea>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  function pageIsDark() {
+    var t = root.getAttribute("data-theme");
+    if (t) return t === "dark";
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  var chosen = null;
+  try { chosen = localStorage.getItem("tool-rows-shots"); } catch (e) {}
+  function apply(v) {
+    document.body.setAttribute("data-shots", v);
+    document.querySelectorAll(".toggle button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+  }
+  apply(chosen || (pageIsDark() ? "dark" : "light"));
+  document.querySelectorAll(".toggle button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      apply(b.dataset.v);
+      try { localStorage.setItem("tool-rows-shots", b.dataset.v); } catch (e) {}
+    });
+  });
+
+  var labels = {
+    c1: "Diff edited lines", c2: "Colours and markdown", c3: "Rows that repeat their label",
+    c4: "Path", c5: "Frame Drive", c6: "Housekeeping", c7: "Keys"
+  };
+  function picks() {
+    var lines = ["Tool rows audit, round 3 picks (row font: UI font):"];
+    Object.keys(labels).forEach(function (k, i) {
+      var sel = document.querySelector('input[name="' + k + '"]:checked');
+      var v = sel ? sel.value : "?";
+      var note = document.getElementById(k + "-note").value.trim();
+      lines.push((i + 1) + ". " + labels[k] + ": " + (v === "N" ? "None of these" : v) + (note ? " (" + note + ")" : ""));
+    });
+    return lines.join("\n");
+  }
+  var out = document.getElementById("picks-text");
+  var status = document.getElementById("copied");
+  document.getElementById("copy").addEventListener("click", function () {
+    var text = picks();
+    out.value = text;
+    var fallback = function () {
+      out.style.display = "block";
+      out.focus();
+      out.select();
+      status.textContent = "Select all and copy the text below.";
+    };
+    try {
+      navigator.clipboard.writeText(text).then(function () {
+        status.textContent = "Copied. Paste it in the thread.";
+      }, fallback);
+    } catch (e) { fallback(); }
+  });
+})();
+</script>
+
+</body></html>

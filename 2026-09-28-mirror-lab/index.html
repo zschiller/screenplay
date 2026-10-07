@@ -1,0 +1,473 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Mirror Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column of findings around a two-pane live demo (host tab | mirror), like a screen-share preview. */
+:root {
+  --bg: #f5f6f4;
+  --surface: #ffffff;
+  --ink: #16201d;
+  --muted: #5d6a66;
+  --line: #dde2df;
+  --accent: #0f766e;
+  --accent-soft: #d8efec;
+  --live: #d9480f;
+  --good: #2f7d32;
+  --good-soft: #e3f1e3;
+  --bad: #b3261e;
+  --bad-soft: #f8e1df;
+  --warn: #8a5a00;
+  --warn-soft: #f6ecd2;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111615; --surface: #1a211f; --ink: #e6ecea; --muted: #9aa8a4; --line: #2c3633;
+    --accent: #3cc2b3; --accent-soft: #173a36; --live: #ff7a45;
+    --good: #7cc47f; --good-soft: #1d3320; --bad: #f28b82; --bad-soft: #3b1e1c; --warn: #e2b34f; --warn-soft: #3a2f14;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111615; --surface: #1a211f; --ink: #e6ecea; --muted: #9aa8a4; --line: #2c3633;
+  --accent: #3cc2b3; --accent-soft: #173a36; --live: #ff7a45;
+  --good: #7cc47f; --good-soft: #1d3320; --bad: #f28b82; --bad-soft: #3b1e1c; --warn: #e2b34f; --warn-soft: #3a2f14;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: flex; flex-direction: column; gap: 36px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 20px; font-weight: 600; }
+h3 { font-size: 15px; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+code, .mono { font-family: var(--font-mono); font-size: 0.9em; }
+.eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+header { display: flex; flex-direction: column; gap: 10px; }
+.lede { color: var(--muted); font-size: 16px; }
+.verdict { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; }
+
+/* demo */
+.demo { display: flex; flex-direction: column; gap: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+.control { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; font-size: 13px; color: var(--ink); background: none; border: 0; padding: 5px 11px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.seg button:focus-visible, .toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toggle { font: inherit; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
+.toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.panes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 820px) { .panes { grid-template-columns: 1fr; } }
+.pane { min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.pane-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
+.pane-bar b { font-weight: 600; }
+.pane-bar .who { margin-left: auto; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); flex: none; }
+.dot.mirror { background: var(--accent); }
+.stage { position: relative; height: 470px; background: #fff; overflow: hidden; }
+.stage iframe { border: 0; display: block; }
+#hostFrame { width: 100%; height: 470px; }
+.blocker { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 12px; cursor: not-allowed; }
+.blocker span { background: rgba(22, 32, 29, 0.86); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 6px; }
+.replayer-wrapper { position: relative; }
+.replayer-mouse { position: absolute; width: 16px; height: 16px; border-radius: 50%; background: rgba(217, 72, 15, 0.35); border: 2px solid #d9480f; transform: translate(-50%, -50%); pointer-events: none; transition: left .05s linear, top .05s linear; z-index: 2; }
+body.avery-drives .replayer-mouse { display: none; }
+.meters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 720px) { .meters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.meter { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.meter .v { font-family: var(--font-mono); font-size: 18px; font-variant-numeric: tabular-nums; }
+.meter .k { font-size: 12px; color: var(--muted); }
+.hint { font-size: 13px; color: var(--muted); }
+
+/* findings */
+section { display: flex; flex-direction: column; gap: 14px; }
+.checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 22px; }
+@media (max-width: 720px) { .checks { grid-template-columns: 1fr; } }
+.check { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; min-width: 0; }
+.pill { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; white-space: nowrap; margin-top: 2px; }
+.pill.ok { background: var(--good-soft); color: var(--good); }
+.pill.fix { background: var(--warn-soft); color: var(--warn); }
+.pill.no { background: var(--bad-soft); color: var(--bad); }
+.check p { font-size: 14px; }
+.check p b { font-weight: 600; }
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+td.n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.shots { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 720px) { .shots { grid-template-columns: 1fr; } }
+figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+figure img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; display: block; }
+figcaption { font-size: 13px; color: var(--muted); }
+ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; max-width: 76ch; }
+footer { font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .replayer-mouse { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Shared live frames · prototype for #982</span>
+    <h1>Does mirroring the host's frame feel live?</h1>
+    <p class="lede">The live copy of a frame runs in one person's tab. Everyone else sees an rrweb mirror of its DOM, and when someone else drives, their clicks, typing and scrolling are forwarded to the live copy (the #981 model: the copy stays where it started).</p>
+    <div class="verdict">
+      <span class="eyebrow">Finding</span>
+      <p>Yes for ordinary UI. On the Northwind demo site the mirror kept up with every DOM change, and forwarded clicks, typing, selects, keys, modals and scrolling all landed on the host. A click showed up on the driver's mirror in about 0.1s plus two network trips. A static page costs nothing once loaded. It falls short on canvas and WebGL, cross-origin embeds, and assets on the owner's <code>localhost</code>, and the live copy only runs while the host's tab does.</p>
+    </div>
+  </header>
+
+  <section class="demo" aria-labelledby="try">
+    <h2 id="try">Try it</h2>
+    <p class="hint">Both panes run in this page. The left one is the real frame; the right one is Avery's mirror, rebuilt from recorded DOM events that pass through a fake network. Switch the driver to Avery and use the mirror.</p>
+    <div class="controls">
+      <div class="control">Driving
+        <div class="seg" role="group" aria-label="Who is driving">
+          <button type="button" id="driveZack" aria-pressed="true">Zack</button>
+          <button type="button" id="driveAvery" aria-pressed="false">Avery</button>
+        </div>
+      </div>
+      <div class="control">Network delay each way
+        <div class="seg" role="group" aria-label="Network delay" id="latency">
+          <button type="button" data-ms="0" aria-pressed="false">0 ms</button>
+          <button type="button" data-ms="40" aria-pressed="true">40 ms</button>
+          <button type="button" data-ms="120" aria-pressed="false">120 ms</button>
+          <button type="button" data-ms="250" aria-pressed="false">250 ms</button>
+        </div>
+      </div>
+      <button type="button" class="toggle" id="scripts" aria-pressed="false">Let the mirror run scripts (canvas)</button>
+    </div>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-bar"><span class="dot" aria-hidden="true"></span><b>Zack's tab</b><span>the live copy runs here</span><span class="who" id="hostWho">You are driving</span></div>
+        <div class="stage">
+          <iframe id="hostFrame" title="The live frame"></iframe>
+          <div class="blocker" id="hostBlocker" hidden><span>Avery is driving. Her input is forwarded here.</span></div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="pane-bar"><span class="dot mirror" aria-hidden="true"></span><b>Avery's mirror</b><span>rebuilt from the host's DOM</span><span class="who" id="mirrorWho">Zack is driving</span></div>
+        <div class="stage" id="mirrorStage">
+          <div id="mirror"></div>
+          <div class="blocker" id="mirrorBlocker"><span>Watching. Switch the driver to Avery to use the mirror.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="meters" aria-live="polite">
+      <div class="meter"><span class="v" id="mBytes">0</span><span class="k">sent to each viewer, per second</span></div>
+      <div class="meter"><span class="v" id="mEvents">0</span><span class="k">DOM events per second</span></div>
+      <div class="meter"><span class="v" id="mSnap">0</span><span class="k">joining snapshot</span></div>
+      <div class="meter"><span class="v" id="mTrip">–</span><span class="k">Avery's last click, until her mirror showed it</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="checks">
+    <h2 id="checks">What came through</h2>
+    <p class="hint">Scripted in Chromium against the Northwind demo site plus a lab page, with a host tab and two watchers (<code>measure.mjs</code> on the prototype branch).</p>
+    <div class="checks">
+      <div class="check"><span class="pill ok">Works</span><p><b>Clicks, links, SPA navigation.</b> Buttons, the Monthly/Annual toggle, <code>&lt;details&gt;</code>, links that change the route.</p></div>
+      <div class="check"><span class="pill ok">Works</span><p><b>Forms.</b> Text fields, select, checkbox, range. The host is the source of truth; the driver's typing echoes locally.</p></div>
+      <div class="check"><span class="pill ok">Works</span><p><b>Modals.</b> React portals, and native <code>&lt;dialog&gt;</code> in the top layer.</p></div>
+      <div class="check"><span class="pill ok">Works</span><p><b>Scrolling</b> of the page and of inner scroll boxes, mirrored to every watcher.</p></div>
+      <div class="check"><span class="pill ok">Works</span><p><b>Only the driver's input lands.</b> Input a non-driver sent anyway was dropped by the host.</p></div>
+      <div class="check"><span class="pill ok">Works</span><p><b>CSS animations and hover.</b> Animations play on each mirror by themselves. Watchers see <code>:hover</code> from the host's pointer; the host's own frame doesn't get <code>:hover</code> from forwarded input, only JS mouse events.</p></div>
+      <div class="check"><span class="pill fix">Fixed</span><p><b>Seven rrweb live-mode gaps</b> on the mirror side: late joiners saw a blank page, input listeners dropped on each rebuild, echoes ate keystrokes, closed dialogs froze the mirror, CSS animations stayed paused, no wheel scrolling, Escape closed only the mirror's dialog.</p></div>
+      <div class="check"><span class="pill no">Breaks</span><p><b>Canvas and WebGL</b> are blank unless the mirror may run scripts. On a blank-origin iframe that means the canvas app's origin, so the mirror needs its own sandbox origin.</p></div>
+      <div class="check"><span class="pill no">Breaks</span><p><b>Dragging a range thumb</b> hung the mirror tab in headless Chromium while scripts were off (a bare sandboxed iframe does the same). With scripts on it worked.</p></div>
+      <div class="check"><span class="pill no">Breaks</span><p><b>Cross-origin iframes</b> (maps, video players, payment widgets) mirror as empty boxes. The recorder can't see inside them.</p></div>
+      <div class="check"><span class="pill no">Breaks</span><p><b>Assets on the owner's <code>localhost</code></b>. Fonts, images and video are fetched by each viewer from the snapshot's URLs, so a viewer of a Mac-hosted room gets fallback fonts, reflowed text and broken media.</p></div>
+      <div class="check"><span class="pill no">Breaks</span><p><b>Browser-only acts</b> need a real user gesture and can't be forwarded: clipboard, file pickers, popups, fullscreen, audio. Code that checks <code>isTrusted</code> ignores forwarded input.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="cost">
+    <h2 id="cost">What it costs</h2>
+    <p class="hint">Bytes the host sends per viewer, measured at the relay. Gzip stands in for WebSocket compression.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Page</th><th>Joining snapshot</th><th>Steady, raw</th><th>Steady, gzip</th><th>What moves</th></tr></thead>
+        <tbody>
+          <tr><td>Home, idle</td><td class="n">18 KB (4.3 KB gz)</td><td class="n">0 B/s</td><td class="n">0 B/s</td><td>Nothing changes, nothing is sent</td></tr>
+          <tr><td>Pricing, driver scrolls and moves</td><td class="n">18 KB (4.4 KB gz)</td><td class="n">0.5 KB/s</td><td class="n">0.1 KB/s</td><td>Pointer and scroll positions</td></tr>
+          <tr><td>Lab, canvas off</td><td class="n">30 KB (6.2 KB gz)</td><td class="n">11.7 KB/s</td><td class="n">0.4 KB/s</td><td>A 10 Hz clock and a bar resized every frame</td></tr>
+          <tr><td>Lab, canvas at 4 fps</td><td class="n">32 KB (9.6 KB gz)</td><td class="n">24 KB/s</td><td class="n">4.1 KB/s</td><td>Plus two canvases as WebP stills</td></tr>
+          <tr><td>Lab, canvas at 15 fps</td><td class="n">32 KB (13 KB gz)</td><td class="n">53 KB/s</td><td class="n">12 KB/s</td><td>Canvas stills dominate</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Network delay each way</th><th>Click on the mirror until the mirror shows it (median of 6)</th></tr></thead>
+        <tbody>
+          <tr><td class="n">0 ms</td><td class="n">114 ms</td></tr>
+          <tr><td class="n">40 ms</td><td class="n">164 ms</td></tr>
+          <tr><td class="n">100 ms</td><td class="n">298 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">The 0 ms figure includes the test driver's own click overhead; the host acknowledged forwarded input in 6 to 30 ms. A late joiner gets the last snapshot plus every event since, which grows without bound on an animated page, so the host has to re-snapshot periodically or on join.</p>
+  </section>
+
+  <section aria-labelledby="shots">
+    <h2 id="shots">Where it falls short</h2>
+    <div class="shots">
+      <figure><img src="img/canvas-host.png" alt="The host's frame: the Canvas 2D card shows animated bars and the WebGL card a purple fill." width="1100" height="341"><figcaption>Host: canvas and WebGL render.</figcaption></figure>
+      <figure><img src="img/canvas-mirror.png" alt="The mirror of the same moment: the Canvas 2D and WebGL cards are empty." width="1100" height="341"><figcaption>Mirror with scripts off: both are empty. The clock reads the same time on both.</figcaption></figure>
+      <figure><img src="img/font-mirror.png" alt="The mirror of the lab page with the Inter font, text wrapping as on the host." width="1100" height="420"><figcaption>A viewer who can reach the dev server sees the host's fonts.</figcaption></figure>
+      <figure><img src="img/font-remote.png" alt="The same page for a viewer who cannot reach the owner's localhost: a fallback font, wider text and different wrapping." width="1100" height="420"><figcaption>A viewer who can't reach the owner's <code>localhost</code> gets a fallback font and different wrapping.</figcaption></figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="need">
+    <h2 id="need">What the mirrored route would need</h2>
+    <ul class="plain">
+      <li>The recorder and input replay in the Sandbox Bridge. It is already injected on hosted and on the Mac, so every frame would have it.</li>
+      <li>The event stream on the room's socket as ephemeral messages, not in the Yjs document, with a fresh snapshot for each joiner.</li>
+      <li>The mirror on its own sandbox origin, so it can run scripts for canvas, WebGL and sliders without reaching the canvas app.</li>
+      <li>For rooms shared from the Mac, the owner's dev-server assets proxied through the share gateway. The sibling exploration of sharing from the Mac owns that path.</li>
+      <li>The host tab kept running. Browsers slow hidden tabs (timers to once a second, animation frames stopped), and a minimized Mac app window is likely to be throttled the same way. This wasn't measured here.</li>
+    </ul>
+  </section>
+
+  <footer>Tested in Chromium on Linux, not in the Mac app's WebKit view. Source: <code>apps/app/lib/live-frame/mirror.prototype/</code> on the branch <code>claude/project-thread-frt10a</code>.</footer>
+</div>
+
+<script src="rrweb.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id)
+  const LAB = `<!doctype html><html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#0f172a;background:#fff}
+nav{position:sticky;top:0;display:flex;gap:14px;align-items:center;padding:10px 16px;background:rgba(255,255,255,.92);border-bottom:1px solid #eef0f4}
+nav b{margin-right:auto}nav a{color:#475569;text-decoration:none;font-size:13px}nav a.on{color:#4f46e5;font-weight:600}
+main{padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.card{border:1px solid #eef0f4;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+h3{margin:0;font-size:13px}.btn{font:inherit;font-size:13px;background:#4f46e5;color:#fff;border:0;border-radius:8px;padding:6px 10px;cursor:pointer}
+.btn.out{background:#fff;color:#4f46e5;border:1px solid #c7d2fe}.muted{color:#64748b;font-size:12px}
+input:not([type]),select{font:inherit;font-size:13px;width:100%;padding:5px 7px;border:1px solid #d7dbe3;border-radius:7px}
+.price{font-size:26px;font-weight:700}.seg{display:flex;border:1px solid #d7dbe3;border-radius:8px;overflow:hidden}.seg button{font:inherit;font-size:12px;border:0;background:#fff;padding:5px 8px;cursor:pointer}.seg button.on{background:#4f46e5;color:#fff}
+.pulse{display:inline-block;background:#4f46e5;color:#fff;border-radius:99px;padding:2px 9px;font-size:12px;animation:p 1s ease-in-out infinite}@keyframes p{50%{transform:scale(1.2);opacity:.6}}
+.list{height:74px;overflow:auto;width:100%;border:1px solid #eef0f4;border-radius:8px;padding:4px 8px;font-size:12px}
+.back{position:fixed;inset:0;background:rgba(15,23,42,.45);display:grid;place-items:center}.modal{background:#fff;border-radius:12px;padding:16px;width:240px;display:flex;flex-direction:column;gap:8px}
+canvas{width:100%;height:60px;border-radius:6px}
+</style></head><body>
+<nav><b>Northwind</b><a href="#" class="on" id="navPlans">Plans</a><a href="#" id="navLab">Lab</a></nav>
+<main id="plans">
+<div class="card"><h3>Growth plan</h3><div class="seg"><button id="monthly" class="on">Monthly</button><button id="annual">Annual</button></div><div class="price" id="price">$49<span class="muted">/mo</span></div><button class="btn" id="trial">Start trial</button></div>
+<div class="card"><h3>Your details</h3><input id="name" placeholder="Your name"><select id="seats"><option>1 seat</option><option selected>5 seats</option><option>20 seats</option></select><label class="muted"><input type="checkbox" id="updates"> Email me updates</label><div class="muted" id="echo">Hello, stranger</div></div>
+<div class="card"><h3>Live bits</h3><span class="pulse">Live</span><div class="muted">Clock: <span id="clock"></span></div><button class="btn out" id="count">Clicked 0 times</button></div>
+<div class="card"><h3>Scroll box</h3><div class="list">${Array.from({ length: 30 }, (_, i) => `<div>Event #${i + 1} · page_view</div>`).join("")}</div><details><summary class="muted">More</summary><div class="muted">Opened by a click.</div></details></div>
+<div class="card"><h3>Canvas</h3><canvas id="cv" width="220" height="60"></canvas></div>
+</main>
+<main id="lab" hidden><div class="card"><h3>Lab page</h3><div class="muted">A second route, reached by a link click.</div><button class="btn out" id="toPlans">Back to plans</button></div></main>
+<div id="modalRoot"></div>
+<script src="rrweb.js"><\/script>
+<script>
+const $=(id)=>document.getElementById(id);let annual=false,n=0
+function price(){ $("price").firstChild.textContent = annual ? "$39" : "$49"; $("monthly").className = annual ? "" : "on"; $("annual").className = annual ? "on" : "" }
+$("monthly").onclick=()=>{annual=false;price()};$("annual").onclick=()=>{annual=true;price()}
+$("count").onclick=()=>{$("count").textContent="Clicked "+(++n)+" times"}
+function echo(){ $("echo").textContent="Hello, "+($("name").value||"stranger")+" · "+$("seats").value+($("updates").checked?" · updates on":"") }
+$("name").addEventListener("input",echo);$("seats").addEventListener("change",echo);$("updates").addEventListener("change",echo)
+$("trial").onclick=()=>{ $("modalRoot").innerHTML='<div class="back" id="back"><div class="modal"><b>Start your trial</b><span class="muted">14 days of Growth. Press Escape or Close.</span><button class="btn" id="close">Close</button></div></div>'; $("close").onclick=closeModal }
+function closeModal(){ $("modalRoot").innerHTML="" }
+addEventListener("keydown",(e)=>{ if(e.key==="Escape") closeModal() })
+function go(lab){ $("plans").hidden=lab; $("lab").hidden=!lab; $("navLab").className=lab?"on":""; $("navPlans").className=lab?"":"on" }
+$("navLab").onclick=(e)=>{e.preventDefault();go(true)};$("navPlans").onclick=(e)=>{e.preventDefault();go(false)};$("toPlans").onclick=()=>go(false)
+setInterval(()=>{ $("clock").textContent=new Date().toISOString().slice(11,22) },100)
+const g=$("cv").getContext("2d");(function f(t){g.fillStyle="#eef2ff";g.fillRect(0,0,220,60);g.fillStyle="#4f46e5";for(let i=0;i<11;i++){const h=8+40*(.5+.5*Math.sin(t/400+i/2));g.fillRect(6+i*19,54-h,12,h)}requestAnimationFrame(f)})(0)
+window.__stop = rrweb.record({ emit:(e)=>parent.__fromHost(e), recordCanvas:true, sampling:{canvas:4, mousemove:50, scroll:100, input:"last"}, dataURLOptions:{type:"image/webp",quality:.6} })
+<\/script></body></html>`
+
+  // ---- forwarding (same logic as forwarding.js on the prototype branch) ----
+  const TEXT = new Set(["", "text", "search", "email", "url", "tel", "password", "number"])
+  const isText = (el) => el && (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && TEXT.has((el.getAttribute("type") || "").toLowerCase())))
+  const COMMAND = new Set(["Escape", "Enter", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"])
+  function captureInput(ev, idOf) {
+    const t = ev.target
+    const el = t.nodeType === 1 ? t : t.parentElement
+    const rel = () => { const r = el.getBoundingClientRect(); return { ox: r.width ? (ev.clientX - r.left) / r.width : 0.5, oy: r.height ? (ev.clientY - r.top) / r.height : 0.5 } }
+    switch (ev.type) {
+      case "click": return { kind: "click", id: idOf(el), ...rel() }
+      case "pointermove": return el ? { kind: "move", id: idOf(el), ...rel() } : null
+      case "input": return isText(t) || t.type === "range" ? { kind: "value", id: idOf(t), value: t.value } : null
+      case "change": return t.tagName === "SELECT" ? { kind: "value", id: idOf(t), value: t.value } : null
+      case "keydown": return isText(t) && !COMMAND.has(ev.key) ? null : { kind: "key", id: idOf(t), key: ev.key, code: ev.code }
+      case "scroll": { const doc = t.nodeType === 9 ? t : null; const s = doc ? doc.scrollingElement : t; return { kind: "scroll", id: idOf(doc || t), x: s.scrollLeft, y: s.scrollTop } }
+    }
+    return null
+  }
+  let lastHover = null
+  function applyInput(win, nodeOf, m) {
+    const node = m.id == null ? null : nodeOf(m.id)
+    const at = (el) => { const r = el.getBoundingClientRect(); return { clientX: r.left + m.ox * r.width, clientY: r.top + m.oy * r.height } }
+    const base = (el) => ({ bubbles: true, cancelable: true, composed: true, view: win, button: 0, ...at(el) })
+    if (m.kind === "click" && node && node.nodeType === 1) {
+      const b = base(node)
+      node.dispatchEvent(new win.PointerEvent("pointerdown", { ...b, pointerId: 1, isPrimary: true }))
+      node.dispatchEvent(new win.MouseEvent("mousedown", b))
+      node.focus?.({ preventScroll: true })
+      node.dispatchEvent(new win.PointerEvent("pointerup", { ...b, pointerId: 1, isPrimary: true }))
+      node.dispatchEvent(new win.MouseEvent("mouseup", b))
+      node.dispatchEvent(new win.MouseEvent("click", { ...b, detail: 1 }))
+    } else if (m.kind === "move" && node && node.nodeType === 1) {
+      const b = base(node)
+      if (lastHover !== node) { node.dispatchEvent(new win.MouseEvent("mouseover", b)); lastHover = node }
+      node.dispatchEvent(new win.MouseEvent("mousemove", b))
+    } else if (m.kind === "value" && node) {
+      const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(node), "value")?.set
+      setter ? setter.call(node, m.value) : (node.value = m.value)
+      node.dispatchEvent(new win.Event("input", { bubbles: true }))
+      node.dispatchEvent(new win.Event("change", { bubbles: true }))
+    } else if (m.kind === "key") {
+      const target = (node && node.nodeType === 1 && node) || win.document.activeElement || win.document.body
+      const init = { key: m.key, code: m.code, bubbles: true, cancelable: true, view: win }
+      target.dispatchEvent(new win.KeyboardEvent("keydown", init))
+      target.dispatchEvent(new win.KeyboardEvent("keyup", init))
+    } else if (m.kind === "scroll" && node) {
+      node.nodeType === 9 ? win.scrollTo(m.x, m.y) : node.scrollTo(m.x, m.y)
+    }
+  }
+
+  // ---- the room: driver, fake network, meters ----
+  let driver = "Zack"
+  let latency = 40
+  let scripts = false
+  let replayer = null
+  let backlog = []
+  const sent = []
+  const hostFrame = $("hostFrame")
+  const later = (fn) => (latency ? setTimeout(fn, latency) : fn())
+
+  window.__fromHost = (e) => {
+    const size = JSON.stringify(e).length
+    if (e.type === 4) backlog = []
+    backlog.push(e)
+    if (e.type === 2) $("mSnap").textContent = (size / 1024).toFixed(1) + " KB"
+    else sent.push([performance.now(), size])
+    const arrived = performance.now()
+    later(() => deliver(e, arrived))
+  }
+
+  let pendingTrip = null
+  function deliver(e) {
+    if (!replayer) return
+    if (isStaleEcho(e)) return
+    replayer.addEvent(e)
+    if (pendingTrip && pendingTrip.applied && e.type === 3) {
+      const t0 = pendingTrip.t0
+      pendingTrip = null
+      requestAnimationFrame(() => { $("mTrip").textContent = Math.round(performance.now() - t0) + " ms" })
+    }
+  }
+
+  setInterval(() => {
+    const now = performance.now()
+    while (sent.length && now - sent[0][0] > 2000) sent.shift()
+    const bytes = sent.reduce((a, [, s]) => a + s, 0) / 2
+    $("mBytes").textContent = bytes >= 1024 ? (bytes / 1024).toFixed(1) + " KB" : Math.round(bytes) + " B"
+    $("mEvents").textContent = String(Math.round(sent.length / 2))
+  }, 500)
+
+  // ---- the mirror ----
+  const ECHO_QUIET_MS = 1000
+  const localEdits = new Map()
+  const isStaleEcho = (e) => driver === "Avery" && e.type === 3 && e.data.source === 5 && performance.now() - (localEdits.get(e.data.id) ?? -Infinity) < ECHO_QUIET_MS
+
+  function attach(doc) {
+    const idOf = (node) => replayer.getMirror().getId(node)
+    const forward = (ev) => {
+      if (driver !== "Avery") return
+      const input = captureInput(ev, idOf)
+      if (!input || input.id == null || input.id < 0) return
+      if (input.kind === "value") localEdits.set(input.id, performance.now())
+      if (input.kind === "click") pendingTrip = { t0: performance.now(), applied: false }
+      const trip = input.kind === "click" ? pendingTrip : null
+      later(() => {
+        const win = hostFrame.contentWindow
+        if (driver !== "Avery") return // the host only takes the driver's input
+        applyInput(win, (id) => win.rrweb.record.mirror.getNode(id), input)
+        if (trip) trip.applied = true
+      })
+    }
+    doc.addEventListener("click", (ev) => {
+      const t = ev.target
+      if (!(t.tagName === "INPUT" && t.type !== "checkbox" && t.type !== "radio") && t.tagName !== "SELECT") ev.preventDefault()
+      forward(ev)
+    }, true)
+    doc.addEventListener("submit", (ev) => ev.preventDefault(), true)
+    for (const type of ["input", "change", "keydown"]) doc.addEventListener(type, forward, true)
+    let lastMove = 0
+    doc.addEventListener("pointermove", (ev) => { const now = performance.now(); if (now - lastMove > 50) { lastMove = now; forward(ev) } }, true)
+    let queued = null
+    doc.addEventListener("scroll", (ev) => { if (queued) return; queued = ev; requestAnimationFrame(() => { forward(queued); queued = null }) }, true)
+  }
+
+  function buildMirror() {
+    const root = $("mirror")
+    if (replayer) { try { replayer.destroy() } catch {} }
+    root.textContent = ""
+    const events = backlog.slice()
+    replayer = new rrweb.Replayer([], { root, liveMode: true, mouseTail: false, useVirtualDom: false, UNSAFE_replayCanvas: scripts, triggerFocus: true })
+    replayer.startLive(events.length ? events[events.length - 1].timestamp + 1 : Date.now())
+    for (const e of events) replayer.addEvent(e)
+    replayer.iframe.style.pointerEvents = "auto"
+    replayer.iframe.removeAttribute("scrolling")
+    attach(replayer.iframe.contentDocument)
+    replayer.on("fullsnapshot-rebuilded", () => attach(replayer.iframe.contentDocument))
+    fit()
+  }
+  // The mirror replays at the host frame's size; both panes are the same width.
+  function fit() {
+    if (!replayer) return
+    replayer.iframe.style.width = hostFrame.clientWidth + "px"
+    replayer.iframe.style.height = hostFrame.clientHeight + "px"
+  }
+  addEventListener("resize", fit)
+  setInterval(() => {
+    const doc = replayer?.iframe.contentDocument
+    if (!doc) return
+    doc.documentElement?.classList.remove("rrweb-paused")
+  }, 200)
+
+  hostFrame.addEventListener("load", () => setTimeout(buildMirror, 50))
+  hostFrame.srcdoc = LAB
+
+  // ---- controls ----
+  function setDriver(name) {
+    driver = name
+    $("driveZack").setAttribute("aria-pressed", String(name === "Zack"))
+    $("driveAvery").setAttribute("aria-pressed", String(name === "Avery"))
+    $("hostBlocker").hidden = name === "Zack"
+    $("mirrorBlocker").hidden = name === "Avery"
+    $("hostWho").textContent = name === "Zack" ? "You are driving" : "Avery is driving"
+    $("mirrorWho").textContent = name === "Avery" ? "You are driving" : "Zack is driving"
+    document.body.classList.toggle("avery-drives", name === "Avery")
+  }
+  $("driveZack").onclick = () => setDriver("Zack")
+  $("driveAvery").onclick = () => setDriver("Avery")
+  for (const b of $("latency").querySelectorAll("button")) {
+    b.onclick = () => {
+      latency = Number(b.dataset.ms)
+      for (const o of $("latency").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b))
+    }
+  }
+  $("scripts").onclick = () => {
+    scripts = !scripts
+    $("scripts").setAttribute("aria-pressed", String(scripts))
+    hostFrame.contentWindow.rrweb.record.takeFullSnapshot(true)
+    setTimeout(buildMirror, latency + 30)
+  }
+  setDriver("Zack")
+})()
+</script>
+
+</body></html>

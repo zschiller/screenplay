@@ -1,0 +1,120 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Workspace Row Status</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --page:#f6f6f4;--fg:#1b1b1d;--muted:#6c6c73;--line:#e2e2de;
+  --side:#fafafa;--side-fg:#2a2a2e;--side-muted:#7a7a80;--row-hover:#ececeb;
+  --ok:#1a7f37;--bad:#cf222e;--merged:#8250df;--open:#1a7f37;--closed:#cf222e;
+  --note:#2563eb;
+  --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--page:#0f0f11;--fg:#ececee;--muted:#9a9aa2;--line:#2a2a2f;
+  --side:#171717;--side-fg:#e6e6e8;--side-muted:#8e8e95;--row-hover:#262629;
+  --ok:#3fb950;--bad:#f85149;--merged:#a371f7;--open:#3fb950;--closed:#f85149;--note:#7ea6ff;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--page:#0f0f11;--fg:#ececee;--muted:#9a9aa2;--line:#2a2a2f;
+  --side:#171717;--side-fg:#e6e6e8;--side-muted:#8e8e95;--row-hover:#262629;
+  --ok:#3fb950;--bad:#f85149;--merged:#a371f7;--open:#3fb950;--closed:#f85149;--note:#7ea6ff;
+}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--fg);font:15px/1.55 var(--sans);padding-inline:20px;padding-block:36px 64px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:32px}
+h1{font-size:26px;font-weight:600;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:15px;font-weight:600;margin:0}
+p{margin:0;max-width:68ch;color:var(--muted)}
+.eyebrow{font:500 11.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:20px}
+.col{display:flex;flex-direction:column;gap:10px}
+.side{background:var(--side);border:1px solid var(--line);border-radius:10px;padding:10px 8px;display:flex;flex-direction:column;gap:2px;max-width:320px}
+.sec{font-size:12px;color:var(--side-muted);padding:4px 8px 6px}
+.row{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:6px;font-size:14px;color:var(--side-fg)}
+.row.sel{background:var(--row-hover)}
+.row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t.m{font:13px var(--mono)}
+.ic{width:16px;height:16px;flex:none;display:flex;align-items:center;justify-content:center}
+.ic svg{width:16px;height:16px}
+.ic.s svg{width:14px;height:14px}
+.end{flex:none;display:flex;align-items:center;gap:4px;font:11px var(--mono)}
+.add{color:var(--ok)}.del{color:var(--bad)}
+.pr{display:flex;align-items:center;gap:3px;font:500 11px var(--mono)}
+.pr svg{width:12px;height:12px}
+.c-open{color:var(--open)}.c-merged{color:var(--merged)}.c-closed{color:var(--closed)}.c-bad{color:var(--bad)}.c-mut{color:var(--side-muted)}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-weight:500;font-size:12.5px;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+td .ic{display:inline-flex;vertical-align:-3px;margin-right:6px}
+.note{font-size:13.5px;color:var(--muted)}
+</style>
+
+<div class="wrap">
+  <header class="col">
+    <span class="eyebrow">Mockup · Workspace rows · 28 Sep 2026</span>
+    <h1>Status up front, pull request at the end</h1>
+    <p>Today the row's leading icon mixes two things: the Workspace's state (setting up, agent working, failed) and its pull request (open, merged, closed). This moves the pull request to the row's end, where the line count sits, so the leading icon only says what the Workspace is doing.</p>
+  </header>
+
+  <section class="pair">
+    <div class="col"><h2>Today</h2>
+      <div class="side">
+        <div class="sec">Workspaces</div>
+        <div class="row sel"><span class="ic c-open" data-i="pr"></span><span class="t">Checkout polish</span><span class="end"><span class="add">+214</span><span class="del">-37</span></span></div>
+        <div class="row"><span class="ic c-mut" data-i="branch"></span><span class="t">Empty cart state</span><span class="end"><span class="add">+46</span><span class="del">-4</span></span></div>
+        <div class="row"><span class="ic s c-mut" data-i="spin"></span><span class="t">Apple Pay button</span></div>
+        <div class="row"><span class="ic c-merged" data-i="merge"></span><span class="t">Pricing tiers</span><span class="end"><span class="add">+88</span><span class="del">-120</span></span></div>
+        <div class="row"><span class="ic s c-bad" data-i="warn"></span><span class="t m">gift-cards</span></div>
+      </div>
+    </div>
+    <div class="col"><h2>Proposed</h2>
+      <div class="side">
+        <div class="sec">Workspaces</div>
+        <div class="row sel"><span class="ic s c-mut" data-i="dot"></span><span class="t">Checkout polish</span><span class="end"><span class="pr c-open"><span data-i="pr"></span>#482</span></span></div>
+        <div class="row"><span class="ic s c-mut" data-i="dot"></span><span class="t">Empty cart state</span><span class="end"><span class="add">+46</span><span class="del">-4</span></span></div>
+        <div class="row"><span class="ic s c-mut" data-i="spin"></span><span class="t">Apple Pay button</span></div>
+        <div class="row"><span class="ic s c-mut" data-i="dot"></span><span class="t">Pricing tiers</span><span class="end"><span class="pr c-merged"><span data-i="merge"></span>#470</span></span></div>
+        <div class="row"><span class="ic s c-bad" data-i="warn"></span><span class="t m">gift-cards</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="col">
+    <h2>What each slot shows</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Workspace state</th><th>Leading icon</th><th>Row end</th></tr></thead>
+      <tbody>
+        <tr><td>Setting up or restarting</td><td><span class="ic s c-mut" data-i="spin"></span>Spinner</td><td>Nothing</td></tr>
+        <tr><td>Agent working</td><td><span class="ic s c-mut" data-i="grip"></span>9-dot activity spinner</td><td>Line count, or the pull request</td></tr>
+        <tr><td>Ready</td><td><span class="ic s c-mut" data-i="dot"></span>Small muted circle</td><td>Line count, or the pull request</td></tr>
+        <tr><td>Stopped</td><td><span class="ic s c-mut" data-i="stop"></span>Dashed circle</td><td>Nothing</td></tr>
+        <tr><td>Setup failed</td><td><span class="ic s c-bad" data-i="warn"></span>Warning, click for the error</td><td>Nothing</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">A pull request takes the line count's place and keeps GitHub's colours: green open, purple merged, red closed. The line count stays in the hover card. Hovering the row still swaps the end slot for the … menu, as today.</p>
+  </section>
+</div>
+
+<script>
+var P={
+ pr:'<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/>',
+ merge:'<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/>',
+ branch:'<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+ spin:'<path class="spin" style="transform-origin:12px 12px" d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+ warn:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+ dot:'<circle cx="12" cy="12" r="6"/>',
+ stop:'<circle cx="12" cy="12" r="7" stroke-dasharray="3 3"/>',
+ grip:'<g fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.8"/><circle cx="12" cy="6" r="1.8"/><circle cx="18" cy="6" r="1.8"/><circle cx="6" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="18" cy="12" r="1.8"/><circle cx="6" cy="18" r="1.8"/><circle cx="12" cy="18" r="1.8"/><circle cx="18" cy="18" r="1.8"/></g>'
+};
+document.querySelectorAll('[data-i]').forEach(function(el){
+  el.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+P[el.dataset.i]+'</svg>';
+});
+</script>
+
+</body></html>

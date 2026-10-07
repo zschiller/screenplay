@@ -1,0 +1,439 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Design Polish Round 3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;700&display=swap">
+<style>
+:root{
+  --page:#fbfaff; --ink:#17151f; --soft:#5f5b6e; --faint:#8d889c; --rule:#e7e4ef; --panel:#ffffff;
+  --pin:#c026d3; --pin-soft:#fae8ff; --ok:#15803d; --no:#b91c1c;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --page:#111016; --ink:#eeecf4; --soft:#aaa5ba; --faint:#7d788d; --rule:#2a2833; --panel:#18171e;
+    --pin:#e879f9; --pin-soft:#3b0d44; --ok:#4ade80; --no:#f87171;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --page:#111016; --ink:#eeecf4; --soft:#aaa5ba; --faint:#7d788d; --rule:#2a2833; --panel:#18171e;
+  --pin:#e879f9; --pin-soft:#3b0d44; --ok:#4ade80; --no:#f87171;
+}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--ink);font:15px/1.55 "Schibsted Grotesk",ui-sans-serif,system-ui,sans-serif;margin:0;padding-inline:20px;padding-block:40px 80px}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:34px;font-weight:700;letter-spacing:-.02em}
+h2{font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding-bottom:10px;border-bottom:1px solid var(--rule)}
+h3{font-size:19px;font-weight:700;letter-spacing:-.01em}
+p{margin:0;max-width:68ch}
+code{font:13px "Geist Mono",ui-monospace,monospace;color:var(--soft)}
+a{color:var(--pin)}
+.intro{display:flex;flex-direction:column;gap:14px}
+.lede{color:var(--soft);font-size:16px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;color:var(--faint);font-size:13px}
+.index{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px 28px;margin:0;padding:0;list-style:none;counter-reset:i}
+.index li{display:flex;gap:10px;padding:6px 0;border-bottom:1px dashed var(--rule);font-size:14px}
+.index li span{color:var(--faint);font-variant-numeric:tabular-nums;min-width:1.6em}
+.index a{color:var(--ink);text-decoration:none}
+.index a:hover{color:var(--pin)}
+.group{display:flex;flex-direction:column;gap:40px}
+.f{display:flex;flex-direction:column;gap:14px;scroll-margin-top:24px}
+.fh{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.num{font:500 13px "Geist Mono",monospace;color:var(--pin);background:var(--pin-soft);border-radius:4px;padding:1px 6px}
+.where{font-size:13px;color:var(--faint)}
+.change b{font-weight:500}
+.note{font-size:14px;color:var(--soft);border-left:2px solid var(--pin);padding-left:12px}
+.rows{display:flex;flex-direction:column;gap:10px}
+.row{display:grid;grid-template-columns:64px 1fr;gap:12px;align-items:start}
+.row>.lab{font:500 12px "Geist Mono",monospace;color:var(--faint);padding-top:10px;text-transform:uppercase;letter-spacing:.06em}
+.row.after>.lab{color:var(--pin)}
+.stage{display:grid;grid-template-columns:1fr 1fr;gap:10px;min-width:0}
+.excl{margin:0;padding-left:18px;color:var(--soft);display:flex;flex-direction:column;gap:6px;max-width:75ch}
+@media (max-width:720px){.stage{grid-template-columns:1fr}.row{grid-template-columns:1fr}.row>.lab{padding-top:0}}
+
+/* ---------- mock UI: stock shadcn neutral tokens ---------- */
+.ui{--bg:#fff;--fg:#0a0a0a;--card:#fff;--muted:#f5f5f5;--mfg:#737373;--bd:#e5e5e5;--acc:#f5f5f5;--pri:#171717;--pfg:#fafafa;--ok:#16a34a;--no:#dc2626;
+  --or-bg:#ffedd5;--or-fg:#c2410c;--bl-bg:#e0f2fe;--bl-fg:#0369a1;--gr-bg:#dcfce7;--gr-fg:#15803d;--sel:#d946ef;
+  background:var(--bg);color:var(--fg);font:13px/1.45 "Geist",ui-sans-serif,system-ui,sans-serif;border:1px solid var(--rule);border-radius:10px;padding:16px;min-width:0;overflow:hidden;position:relative}
+.ui.dk{color-scheme:dark;--bg:#0a0a0a;--fg:#fafafa;--card:#171717;--muted:#262626;--mfg:#a3a3a3;--bd:rgba(255,255,255,.1);--acc:#262626;--pri:#e5e5e5;--pfg:#171717;--ok:#4ade80;--no:#f87171;
+  --or-bg:#431407;--or-fg:#fb923c;--bl-bg:#082f49;--bl-fg:#38bdf8;--gr-bg:#052e16;--gr-fg:#4ade80;--sel:#e879f9}
+.ui .tag{position:absolute;top:6px;right:8px;font:500 10px "Geist Mono",monospace;color:var(--mfg);letter-spacing:.06em;text-transform:uppercase}
+.ui .mono{font-family:"Geist Mono",ui-monospace,monospace}
+.ui .mfg{color:var(--mfg)}
+.ui .btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;font-weight:500;font-size:13px;border:1px solid transparent;white-space:nowrap}
+.ui .btn.sm{height:28px;padding:0 10px;font-size:12px}
+.ui .btn.out{border-color:var(--bd);background:var(--bg)}
+.ui .btn.pri{background:var(--pri);color:var(--pfg)}
+.ui .btn.ghost{background:transparent}
+.ui .kbd{display:inline-flex;align-items:center;justify-content:center;height:20px;min-width:20px;padding:0 4px;border-radius:4px;background:var(--muted);color:var(--mfg);font-size:11px;font-family:"Geist",sans-serif}
+.ui .btn.pri .kbd{background:rgba(255,255,255,.18);color:var(--pfg)}
+.ui.dk .btn.pri .kbd{background:rgba(0,0,0,.12)}
+.ui .kg{display:inline-flex;gap:2px}
+.ui .pill{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font:12px "Geist Mono",monospace}
+.ui .or{background:var(--or-bg);color:var(--or-fg)} .ui .bl{background:var(--bl-bg);color:var(--bl-fg)} .ui .gr{background:var(--gr-bg);color:var(--gr-fg)}
+.ui .pop{background:var(--card);border:1px solid var(--bd);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.08);padding:4px;min-width:0}
+.ui .item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;min-width:0}
+.ui .item.on{background:var(--acc)}
+.ui .grp-up{padding:4px 8px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mfg)}
+.ui .grp{padding:6px 8px 2px;font-size:12px;color:var(--mfg);font-weight:500}
+.ui .sep{height:1px;background:var(--bd);margin:4px -4px}
+.ui svg{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ui .ico{color:var(--mfg)}
+.ui .r{margin-left:auto}
+.ui .add{color:var(--ok)} .ui .del{color:var(--no)}
+.ui .tabs{display:flex;align-items:stretch;gap:4px;height:36px;border-bottom:1px solid var(--bd);margin:0 -16px;padding:0 10px}
+.ui .tab{display:flex;align-items:center;gap:6px;padding:0 8px;font-size:12px;color:var(--mfg);position:relative;white-space:nowrap}
+.ui .tab.on{color:var(--fg);font-weight:500}
+.ui .tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--fg)}
+.ui .clip{overflow:hidden;text-overflow:ellipsis}
+.ui .hdr{display:flex;align-items:center;gap:8px;margin:-4px 0 10px}
+.ui .guide{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--sel);opacity:.8}
+.ui .term{font:12px/1.55 "Geist Mono",monospace}
+.ui .cyan{color:#0891b2} .ui.dk .cyan{color:#22d3ee}
+.ui .field{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ui .input{height:32px;border:1px solid var(--bd);border-radius:6px;padding:0 10px;display:flex;align-items:center}
+.ui .swatch{width:44px;height:22px;border-radius:4px;border:3px solid var(--card);outline:1px solid var(--bd);background:#4f46e5}
+.ui .slider{height:4px;border-radius:2px;background:var(--muted);position:relative}
+.ui .slider i{position:absolute;left:0;top:0;bottom:0;width:48%;background:var(--pri);border-radius:2px}
+.ui .slider b{position:absolute;left:48%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:var(--bg);border:1px solid var(--pri)}
+.ui .switch{width:32px;height:18px;border-radius:9px;background:var(--pri);position:relative}
+.ui .switch b{position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--bg)}
+.ui .toolbar{display:inline-flex;align-items:center;gap:2px;padding:4px;border:1px solid var(--bd);border-radius:10px;background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.ui .tb{width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
+.ui .tb.solid{background:var(--pri);color:var(--pfg)}
+.ui .tb.soft{background:var(--acc)}
+.ui .vr{width:1px;height:18px;background:var(--bd);margin:0 4px}
+.ui .card{border:1px solid var(--bd);border-radius:10px;padding:14px;background:var(--card)}
+.ui .step-heavy{border:2px solid var(--fg)}
+.ui .step-soft{box-shadow:0 1px 3px rgba(0,0,0,.06),0 0 0 3px var(--muted)}
+.ui .badge{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:4px;background:var(--muted);color:var(--mfg);font-size:11px}
+.ui .num{font-variant-numeric:tabular-nums}
+.ui .dim{margin-left:auto;padding-left:12px;color:var(--mfg);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ui .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px}
+.ui .kv dt{color:var(--mfg)} .ui .kv dd{margin:0}
+.ui .seg{display:inline-flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden}
+.ui .seg span{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;font-size:12px;color:var(--mfg);border-left:1px solid var(--bd)}
+.ui .seg span:first-child{border-left:0}
+.ui .seg span.on{background:var(--acc);color:var(--fg)}
+.ui .lights{display:flex;gap:6px}
+.ui .lights i{width:10px;height:10px;border-radius:50%;display:block}
+.ui .site{border-top:1px solid var(--bd);display:flex;align-items:center;gap:12px;height:36px;padding:0 12px;background:#fff;color:#0f172a;font-size:12px}
+.ui .logo{width:14px;height:14px;border-radius:4px;background:linear-gradient(135deg,#4f46e5,#06b6d4)}
+.ui .strip{height:26px;display:flex;align-items:center;padding:0 10px;background:#fff}
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h1>Design Polish Round 3</h1>
+    <p class="lede">A visual audit of the 50 docs screenshots (light and dark, as refreshed by #886). Each item is a small fix inside the current UX, with a before and after mockup in both themes. Nothing here changes behaviour.</p>
+    <div class="meta"><span>Source: <code>apps/docs/public/screenshots</code> at 8aeb138</span><span>15 proposed tickets</span><span>Mockups use the app's stock shadcn neutral tokens</span></div>
+  </header>
+
+  <nav aria-label="Proposed tickets">
+    <ol class="index">
+      <li><span>1</span><a href="#t1">One Kbd per key in Create workspaces</a></li>
+      <li><span>2</span><a href="#t2">Chat tabs show more of their title</a></li>
+      <li><span>3</span><a href="#t3">Terminal tab label in the chat font</a></li>
+      <li><span>4</span><a href="#t4">Terminal and logs share the chat gutter</a></li>
+      <li><span>5</span><a href="#t5">Chat header diff counts in green and red</a></li>
+      <li><span>6</span><a href="#t6">Picker group headings in the stock style</a></li>
+      <li><span>7</span><a href="#t7">Device lists show each size once</a></li>
+      <li><span>8</span><a href="#t8">Element hover card reads cleanly</a></li>
+      <li><span>9</span><a href="#t9">One Knobs panel layout on canvas and in the player</a></li>
+      <li><span>10</span><a href="#t10">Home breadcrumb uses the canvas separator</a></li>
+      <li><span>11</span><a href="#t11">Theme picker as a stock toggle group</a></li>
+      <li><span>12</span><a href="#t12">New preset button beside the section title</a></li>
+      <li><span>13</span><a href="#t13">Setup: lighter border on the current step</a></li>
+      <li><span>14</span><a href="#t14">Doc toolbar: stock pressed state</a></li>
+      <li><span>15</span><a href="#t15">Player: prototype clears the window controls</a></li>
+    </ol>
+  </nav>
+
+  <!-- ================= CHAT PANEL ================= -->
+  <section class="group">
+    <h2>Chat panel</h2>
+
+    <article class="f" id="t1">
+      <div class="fh"><span class="num">1</span><h3>One Kbd per key in Create workspaces</h3></div>
+      <p class="where">Screen: new-workspace-multi · <code>create-branch-dialog.tsx:303</code></p>
+      <p>"Add another" shows <b>⌘↵</b> as one key cap, which breaks the house rule of one Kbd per key.</p>
+      <p class="change"><b>Change:</b> render ⌘ and ↵ as two caps in a <code>KbdGroup</code>. The single ↵ on the primary button stays.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="btn out"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add another <span class="kbd">⌘↵</span></span><span class="btn pri">Create 2 workspaces <span class="kbd">↵</span></span></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="btn out"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add another <span class="kg"><span class="kbd">⌘</span><span class="kbd">↵</span></span></span><span class="btn pri">Create 2 workspaces <span class="kbd">↵</span></span></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t2">
+      <div class="fh"><span class="num">2</span><h3>Chat tabs show more of their title</h3></div>
+      <p class="where">Screens: hero, play-agent, new-tab-menu, doc-chat · <code>chat-panel.tsx:289</code> (<code>max-w-[100px]</code>)</p>
+      <p>Tab titles cut off at 100px even when the strip is mostly empty ("Hero Gradient &…", "Launch Checkli…").</p>
+      <p class="change"><b>Change:</b> raise the label cap to 180px. Tabs still shrink to their 100px minimum when the strip fills up.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24"><path d="M4 6h1M9 6h11M4 12h1M9 12h11M4 18h1M9 18h11"/></svg></span><span class="tab on"><span class="clip" style="max-width:100px">Hero Gradient &amp; Trust Line</span></span><span class="tab"><span class="clip" style="max-width:100px">Pricing FAQ</span></span><span class="tab">+</span></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div class="tabs"><span class="tab"><svg viewBox="0 0 24 24"><path d="M4 6h1M9 6h11M4 12h1M9 12h11M4 18h1M9 18h11"/></svg></span><span class="tab on"><span class="clip" style="max-width:180px">Hero Gradient &amp; Trust Line</span></span><span class="tab"><span class="clip" style="max-width:180px">Pricing FAQ</span></span><span class="tab">+</span></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t3">
+      <div class="fh"><span class="num">3</span><h3>Terminal tab label in the chat font</h3></div>
+      <p class="where">Screen: terminal · <code>chat-panel.tsx:347</code></p>
+      <p>Terminal tabs sit beside chat tabs (terminals are chats when running a harness), but their label is monospace, so the strip mixes two fonts.</p>
+      <p class="change"><b>Change:</b> use the same sans label as chat tabs. The terminal icon already tells them apart.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div class="tabs"><span class="tab">New chat</span><span class="tab on"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg><span class="mono">Terminal</span></span><span class="tab">+</span></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div class="tabs"><span class="tab">New chat</span><span class="tab on"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>Terminal</span><span class="tab">+</span></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t4">
+      <div class="fh"><span class="num">4</span><h3>Terminal and logs share the chat gutter</h3></div>
+      <p class="where">Screens: terminal, logs, hero · <code>use-terminal-pane.ts:320</code> (8px), <code>logs-panel.tsx:305</code> (12px, <code>leading-relaxed</code>)</p>
+      <p>Chat text starts 16px in, logs 12px, terminal 8px, so switching tabs makes the text jump sideways. Logs also use looser line spacing than the terminal.</p>
+      <p class="change"><b>Change:</b> inset terminal and logs text to the chat's 16px gutter, and give logs the terminal's line height. The dashed line marks the chat gutter.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui" style="padding:12px 0 12px 0"><span class="guide" style="left:16px"></span><div class="term" style="padding-left:8px"><div><span class="cyan">~/customer-stories</span> $ npm run build</div><div>&gt; vite build</div><div class="mfg">✓ built in 812ms</div></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui" style="padding:12px 0 12px 0"><span class="guide" style="left:16px"></span><div class="term" style="padding-left:16px"><div><span class="cyan">~/customer-stories</span> $ npm run build</div><div>&gt; vite build</div><div class="mfg">✓ built in 812ms</div></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t5">
+      <div class="fh"><span class="num">5</span><h3>Chat header diff counts in green and red</h3></div>
+      <p class="where">Screens: hero, plan-card, target-picker, frame-branch-picker · <code>chat-panel.tsx:945</code></p>
+      <p>The sidebar and the Workspace picker show <b>+3 -0</b> in green and red. The chat header shows the same numbers in muted grey with a different minus sign.</p>
+      <p class="change"><b>Change:</b> colour the header counts with the same success and destructive tokens and the same characters.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div class="hdr" style="margin:0"><span class="pill or">hero-gradient-trust-line</span><span class="r mono mfg" style="font-size:11px">+3 −0</span><span class="btn out sm">Create PR</span></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div class="hdr" style="margin:0"><span class="pill or">hero-gradient-trust-line</span><span class="r mono" style="font-size:11px"><span class="add">+3</span> <span class="del">-0</span></span><span class="btn out sm">Create PR</span></div></div>
+        </div></div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ================= PICKERS ================= -->
+  <section class="group">
+    <h2>Composer and pickers</h2>
+
+    <article class="f" id="t6">
+      <div class="fh"><span class="num">6</span><h3>Picker group headings in the stock style</h3></div>
+      <p class="where">Screens: composer-mention, composer-skills, play-device-menu · <code>mention-list.tsx:76</code>, <code>skill-mention-list.tsx:88,107</code>, <code>player-hud.tsx:321</code></p>
+      <p>Three pickers use tiny tracked uppercase headings ("DOCUMENTS", "SKILLS", "DESKTOP") and an uppercase "APP" badge. Every other menu (sort, frame device size, Workspace picker) uses the stock title-case label.</p>
+      <p class="change"><b>Change:</b> use the stock menu label style everywhere and show the skill's source as plain muted text.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div class="pop" style="max-width:340px"><div class="grp-up">Skills</div><div class="item on" style="align-items:flex-start"><svg class="ico" viewBox="0 0 24 24" style="margin-top:2px"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg><div style="min-width:0"><div>screenplay-add-knob</div><div class="mfg clip" style="white-space:nowrap;font-size:12px">Add interactive controls that show up in a popover…</div></div><span class="r badge" style="font-size:9px;letter-spacing:.06em">APP</span></div></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div class="pop" style="max-width:340px"><div class="grp">Skills</div><div class="item on" style="align-items:flex-start"><svg class="ico" viewBox="0 0 24 24" style="margin-top:2px"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg><div style="min-width:0"><div>screenplay-add-knob</div><div class="mfg clip" style="white-space:nowrap;font-size:12px">Add interactive controls that show up in a popover…</div></div><span class="r mfg" style="font-size:12px">App</span></div></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t7">
+      <div class="fh"><span class="num">7</span><h3>Device lists show each size once</h3></div>
+      <p class="where">Screens: device-size-menu, play-device-menu, project-settings · <code>device-size-menu.tsx:61</code>, <code>player-hud.tsx:334</code>, <code>iframe-layer-size-select.tsx:60</code></p>
+      <p>Rows read "Laptop · 1280 × 800 &nbsp;1280×800": the size appears in the name and again in the column. In the player the column also isn't aligned, so sizes zig-zag down the list.</p>
+      <p class="change"><b>Change:</b> drop the size from the preset names and keep one right-aligned size column in all three lists (frame menu, player, project settings select).</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div class="pop" style="max-width:320px"><div class="grp">Desktop</div>
+            <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>Desktop · 4K<span class="dim" style="margin-left:6px">3840×2160</span></div>
+            <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>Desktop · 1920 × 1080<span class="dim" style="margin-left:6px">1920×1080</span></div>
+            <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>MacBook Pro 16″<span class="dim" style="margin-left:6px">1728×1117</span></div>
+            <div class="item on"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>Laptop · 1280 × 800<span class="dim" style="margin-left:6px">1280×800</span></div></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div class="pop" style="max-width:320px"><div class="grp">Desktop</div>
+            <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>Desktop 4K<span class="dim">3840×2160</span></div>
+            <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>Desktop<span class="dim">1920×1080</span></div>
+            <div class="item"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>MacBook Pro 16″<span class="dim">1728×1117</span></div>
+            <div class="item on"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>Laptop<span class="dim">1280×800</span><svg viewBox="0 0 24 24" style="margin-left:8px"><path d="m5 12 5 5 9-10"/></svg></div></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t8">
+      <div class="fh"><span class="num">8</span><h3>Element hover card reads cleanly</h3></div>
+      <p class="where">Screen: composer-element-hover · <code>element-token-node.tsx</code></p>
+      <p>The selector breaks mid-word ("nth-of-t / ype(1)"), and "Route /" and "Frame Home" are the same grey as their values.</p>
+      <p class="change"><b>Change:</b> let the selector wrap only between its parts, in smaller muted mono, and show Route and Frame as a label/value list like the delete dialog's Removes/Keeps.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div class="pop" style="padding:12px;max-width:300px"><div class="mono" style="word-break:break-all">#root &gt; div &gt; main &gt; section:nth-of-type(1) &gt; div:nth-of-type(1) &gt; a:nth-of-type(1)</div><div class="mfg" style="margin-top:8px">Route&nbsp; /</div><div class="mfg">Frame&nbsp; Home</div></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div class="pop" style="padding:12px;max-width:300px"><div class="mono mfg" style="font-size:11px;line-height:1.6">#root&nbsp;&gt; div&nbsp;&gt; main&nbsp;&gt; section:nth-of-type(1)&nbsp;&gt; div:nth-of-type(1)&nbsp;&gt; a:nth-of-type(1)</div><dl class="kv" style="margin:10px 0 0"><dt>Route</dt><dd class="mono">/</dd><dt>Frame</dt><dd>Home</dd></dl></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t9">
+      <div class="fh"><span class="num">9</span><h3>One Knobs panel layout on canvas and in the player</h3></div>
+      <p class="where">Screens: knobs-popover, play-knobs · <code>knobs-popover.tsx:132</code>, <code>player-knobs.tsx:55</code></p>
+      <p>The canvas popover has no header and ends in a full-width "Reset to defaults" outline button. The player panel has a "Knobs · Reset" header, then a tall empty band below the last control.</p>
+      <p class="change"><b>Change:</b> both use the player's header (title left, ghost Reset right) and both hug their content, scrolling only past a max height.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start">
+            <div class="pop" style="padding:12px;width:190px;display:flex;flex-direction:column;gap:10px"><div class="field">Accent color<span class="swatch"></span></div><div class="field">Show logos<span class="switch"><b></b></span></div><span class="btn out sm" style="justify-content:center;color:var(--mfg)">Reset to defaults</span></div>
+            <div class="pop" style="padding:0;width:190px"><div class="field" style="padding:8px 12px;border-bottom:1px solid var(--bd);font-size:12px;font-weight:500">Knobs<span class="mfg" style="font-weight:400">Reset</span></div><div style="padding:12px;display:flex;flex-direction:column;gap:10px;height:120px"><div class="field">Accent color<span class="swatch"></span></div><div class="field">Show logos<span class="switch"><b></b></span></div></div></div>
+          </div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start">
+            <div class="pop" style="padding:0;width:190px"><div class="field" style="padding:8px 12px;border-bottom:1px solid var(--bd);font-size:12px;font-weight:500">Knobs<span class="mfg" style="font-weight:400">Reset</span></div><div style="padding:12px;display:flex;flex-direction:column;gap:10px"><div class="field">Accent color<span class="swatch"></span></div><div class="field">Show logos<span class="switch"><b></b></span></div></div></div>
+            <div class="pop" style="padding:0;width:190px"><div class="field" style="padding:8px 12px;border-bottom:1px solid var(--bd);font-size:12px;font-weight:500">Knobs<span class="mfg" style="font-weight:400">Reset</span></div><div style="padding:12px;display:flex;flex-direction:column;gap:10px"><div class="field">Accent color<span class="swatch"></span></div><div class="field">Show logos<span class="switch"><b></b></span></div></div></div>
+          </div></div>
+        </div></div>
+      </div>
+      <p class="note">Left is the canvas popover, right is the player panel. After the change they are the same component.</p>
+    </article>
+  </section>
+
+  <!-- ================= HOME & SETTINGS ================= -->
+  <section class="group">
+    <h2>Home, settings and setup</h2>
+
+    <article class="f" id="t10">
+      <div class="fh"><span class="num">10</span><h3>Home breadcrumb uses the canvas separator</h3></div>
+      <p class="where">Screens: home-folder vs hero · <code>folder-breadcrumb.tsx</code> (stock <code>BreadcrumbSeparator</code>)</p>
+      <p>The same path reads "All files › Marketing" on home and "All files / Northwind marketing site" on the canvas.</p>
+      <p class="change"><b>Change:</b> pass "/" as the separator's child on home so both breadcrumbs match.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div style="font-size:22px;display:flex;gap:12px;align-items:center"><span class="mfg">All files</span><svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="m9 6 6 6-6 6"/></svg><span>Marketing</span></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div style="font-size:22px;display:flex;gap:12px;align-items:center"><span class="mfg">All files</span><span class="mfg" style="opacity:.6">/</span><span>Marketing</span></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t11">
+      <div class="fh"><span class="num">11</span><h3>Theme picker as a stock toggle group</h3></div>
+      <p class="where">Screen: settings · <code>settings-view.tsx:187</code></p>
+      <p>Theme is three separate buttons, with the selected one as a solid black primary button. It reads as a call to action, not a choice.</p>
+      <p class="change"><b>Change:</b> use the stock <code>ToggleGroup</code> (outline variant, one joined control, selected item on the accent fill).</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap"><span>Theme</span><div style="display:flex;gap:8px"><span class="btn pri sm">☼ Light</span><span class="btn out sm mfg">☾ Dark</span><span class="btn out sm mfg">▭ System</span></div></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap"><span>Theme</span><div class="seg"><span class="on">☼ Light</span><span>☾ Dark</span><span>▭ System</span></div></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t12">
+      <div class="fh"><span class="num">12</span><h3>New preset button beside the section title</h3></div>
+      <p class="where">Screen: settings-presets · <code>repo-configs-panel.tsx:126</code></p>
+      <p>"New preset" floats alone under the list, right-aligned, far from the title it belongs to.</p>
+      <p class="change"><b>Change:</b> put it in the section header row, top-aligned with the title, as a small outline button.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div style="font-weight:600;font-size:15px">Project presets</div><div class="mfg" style="font-size:12px;margin-bottom:10px">Saved setup, dev, port and env vars for each project.</div><div class="card" style="padding:10px 12px"><div>northwind-web <span class="mfg">web</span></div><div class="mono mfg clip" style="font-size:11px;white-space:nowrap">npm install · npm run dev -- --port $PORT</div></div><div style="display:flex;justify-content:flex-end;margin-top:10px"><span class="btn pri sm">+ New preset</span></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px"><div style="min-width:0"><div style="font-weight:600;font-size:15px">Project presets</div><div class="mfg" style="font-size:12px">Saved setup, dev, port and env vars for each project.</div></div><span class="btn out sm r">+ New preset</span></div><div class="card" style="padding:10px 12px"><div>northwind-web <span class="mfg">web</span></div><div class="mono mfg clip" style="font-size:11px;white-space:nowrap">npm install · npm run dev -- --port $PORT</div></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t13">
+      <div class="fh"><span class="num">13</span><h3>Setup: lighter border on the current step</h3></div>
+      <p class="where">Screen: setup-gate (light) · <code>harness-setup-panel.tsx</code> / setup gate</p>
+      <p>In light mode the current step card has a 2px near-black border, the heaviest outline in the app. Dark mode already shows it as a soft grey.</p>
+      <p class="change"><b>Change:</b> keep the normal 1px border and mark the current step with a faint muted ring, matching the dark-mode weight.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div class="card step-heavy"><div style="display:flex;gap:8px;align-items:center"><b style="font-weight:600">Connect GitHub</b><span class="badge">Optional</span></div><div class="mfg" style="font-size:12px;margin:6px 0 10px">Browse your repositories and open pull requests from Screenplay.</div><span class="btn pri sm">Sign in to GitHub</span> <span class="btn ghost sm">Skip</span></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div class="card step-soft"><div style="display:flex;gap:8px;align-items:center"><b style="font-weight:600">Connect GitHub</b><span class="badge">Optional</span></div><div class="mfg" style="font-size:12px;margin:6px 0 10px">Browse your repositories and open pull requests from Screenplay.</div><span class="btn pri sm">Sign in to GitHub</span> <span class="btn ghost sm">Skip</span></div></div>
+        </div></div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ================= DOCS & PLAYER ================= -->
+  <section class="group">
+    <h2>Docs and player</h2>
+
+    <article class="f" id="t14">
+      <div class="fh"><span class="num">14</span><h3>Doc toolbar: stock pressed state</h3></div>
+      <p class="where">Screen: doc-selection-toolbar</p>
+      <p>The active list button is a solid black tile, much louder than the rest of the floating toolbar.</p>
+      <p class="change"><b>Change:</b> use the stock <code>Toggle</code> pressed style (accent fill, foreground icon).</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui"><div class="toolbar"><span class="tb" style="width:auto;padding:0 8px;color:var(--mfg);font-size:12px">Bullet list ▾</span><span class="vr"></span><span class="tb"><b>B</b></span><span class="tb"><i>I</i></span><span class="tb"><s>S</s></span><span class="vr"></span><span class="tb solid"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></span><span class="tb"><svg viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg></span></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui"><div class="toolbar"><span class="tb" style="width:auto;padding:0 8px;color:var(--mfg);font-size:12px">Bullet list ▾</span><span class="vr"></span><span class="tb"><b>B</b></span><span class="tb"><i>I</i></span><span class="tb"><s>S</s></span><span class="vr"></span><span class="tb soft"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></span><span class="tb"><svg viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg></span></div></div>
+        </div></div>
+      </div>
+    </article>
+
+    <article class="f" id="t15">
+      <div class="fh"><span class="num">15</span><h3>Player: prototype clears the window controls</h3></div>
+      <p class="where">Screens: play-desktop, play-agent · <code>prototype-player.tsx</code></p>
+      <p>In the desktop player the prototype runs under the traffic lights, so its logo sits behind the yellow and green buttons.</p>
+      <p class="change"><b>Change:</b> start the stage 28px down, leaving a plain strip in the stage colour behind the window controls. No toolbar or controls go in it; the corner HUD stays as it is.</p>
+      <div class="rows">
+        <div class="row"><span class="lab">Before</span><div class="stage">
+          <div class="ui" style="padding:0"><div style="position:relative"><div class="lights" style="position:absolute;left:10px;top:13px"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div><div class="site" style="border-top:0;padding-left:30px"><span class="logo"></span><b>Northwind</b><span style="color:#64748b">Product</span><span style="color:#64748b">Pricing</span></div></div></div>
+        </div></div>
+        <div class="row after"><span class="lab">After</span><div class="stage">
+          <div class="ui" style="padding:0"><div class="strip"><div class="lights"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div></div><div class="site"><span class="logo"></span><b>Northwind</b><span style="color:#64748b">Product</span><span style="color:#64748b">Pricing</span></div></div>
+        </div></div>
+      </div>
+      <p class="note">#804 was rejected partly for a 48px band above the stage. This is only the window-control clearance, with nothing in it. It's a separate question for you.</p>
+    </article>
+  </section>
+
+  <section class="group">
+    <h2>Left out on purpose</h2>
+    <ul class="excl">
+      <li>Frame labels, the Workspace switcher and the under-frame bar: in flight in #867–#872.</li>
+      <li>Sidebar Projects tree, project menu and Project settings: #884 replaces the tree and #883 moves repositories to Canvas settings.</li>
+      <li>Workspace pills and colours (#790 rejected), the home header toolbar, and the Canvas chat (#865).</li>
+      <li>Tooltips peeking out behind open menus (project-menu, ws-menu, add-project-menu): the screenshots predate the fix in #878.</li>
+      <li>"Loading…" in the Default agent select (settings-coding-agents): a capture timing issue, not a design one.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+// Render every mockup in light and dark: clone each light .ui into a dark sibling.
+document.querySelectorAll('.stage').forEach(function(stage){
+  var light = stage.querySelector('.ui');
+  if(!light) return;
+  var t1=document.createElement('span');t1.className='tag';t1.textContent='Light';light.appendChild(t1);
+  var dark = light.cloneNode(true);
+  dark.classList.add('dk');
+  dark.querySelector('.tag').textContent='Dark';
+  stage.appendChild(dark);
+});
+</script>
+
+</body></html>

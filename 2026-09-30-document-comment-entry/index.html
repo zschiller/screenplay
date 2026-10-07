@@ -1,0 +1,174 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Document Comment Entry</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one column. The question, a round toggle, Today, then the round's lettered options, then the reaction form. Screenplay's own brand: black and white ink, Unbounded titles, Instrument Sans UI, the canvas's fuchsia selection colour as the one accent. */
+:root{--bg:#ffffff;--surface:#f7f7f7;--line:#e3e3e3;--fg:#0a0a0a;--muted:#6b6b6b;--accent:#b10fb6;--ok:#16803c;--no:#b3261e;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:"Unbounded","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000000;--surface:#111111;--line:#2a2a2a;--fg:#f5f5f5;--muted:#a3a3a3;--accent:#ea5cf0;--ok:#4ade80;--no:#f87171;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#000000;--surface:#111111;--line:#2a2a2a;--fg:#f5f5f5;--muted:#a3a3a3;--accent:#ea5cf0;--ok:#4ade80;--no:#f87171;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:44px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,4vw,30px)/1.2 var(--head);letter-spacing:-.01em;margin:10px 0 14px;text-wrap:balance}
+h2{font:500 clamp(17px,2.2vw,20px)/1.3 var(--head);margin:0;text-wrap:balance}
+h3{font:600 16px/1.35 var(--sans);margin:0}
+p{margin:0}
+a{color:var(--accent)}
+code{font:500 12.5px var(--mono);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+blockquote{margin:0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.muted{color:var(--muted)}
+.rounds{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 13px var(--sans);border-radius:6px;padding:6px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:16px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:80ch}
+.opts{display:flex;flex-direction:column;gap:48px}
+.opt{display:flex;flex-direction:column;gap:12px;min-width:0}
+.opt header{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 18px var(--head);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.opt p{max-width:78ch}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:600;color:var(--fg)}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{border:1px solid var(--line);background:var(--surface);overflow:hidden}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.note{font-size:14px;color:var(--muted);border-left:2px solid var(--accent);padding-left:12px;max-width:80ch}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.pick:hover,.pick:has(input:checked){background:var(--surface)}
+.pick input{margin:3px 0 0;accent-color:var(--accent)}
+textarea{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;resize:vertical;min-height:60px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{font-size:13px;color:var(--ok)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;margin:0}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">Design exploration · 30 Sep 2026 · issue #1198</p>
+<h1 id="q"></h1>
+<blockquote id="quote"></blockquote>
+</header>
+
+<nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+
+<section id="decision"><div class="shead"><p class="lbl acc">Decided · 30 Sep 2026</p><h2>A and C for comments, D for the agent, desktop too</h2></div><p style="max-width:78ch">Comment comes from the toolbar's Comment button (A, web) and from the Comment tool (C, web). Sending to an agent is D: Reply in chat quotes the passage into whichever chat the panel is showing, on the web and on desktop. Built in <a href="https://github.com/zschiller/screenplay/issues/1242">#1242</a> (Comment button), <a href="https://github.com/zschiller/screenplay/issues/1243">#1243</a> (Reply in chat) and <a href="https://github.com/zschiller/screenplay/issues/1244">#1244</a> (Comment tool).</p></section>
+<section id="today"></section>
+<section id="round"></section>
+
+<section id="react">
+<div class="shead"><p class="lbl">Your reaction</p><h2 id="reactTitle"></h2><p class="muted">Pick one, or say what's missing. Copy the text and paste it back in the chat.</p></div>
+<form id="form"></form>
+<div class="row"><button type="button" id="copy" class="primary">Copy reaction</button><span class="status" id="status" role="status" aria-live="polite"></span></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk});
+const I=(name,cap)=>IMG(`img/${name}.light.webp`,cap,`img/${name}.dark.webp`);
+const QUESTION={
+ quote:"Should Comment and Send to agent come back as items in the formatting toolbar, or somewhere else? Does desktop get it too, or only the web app (comments are web-app only today)?",
+ q:"When someone selects text in a Document, where do Comment and Send to agent live?",
+ slug:"doc-comment-entry-1198"
+};
+const TODAY={
+ facts:[
+  "Selecting text in a Document shows only the formatting toolbar: Turn into, Bold, Italic, Strikethrough, Code and the two lists. It is the shared floating toolbar shell, 36px tall and 319px wide, with 28px icon buttons (markdown-layer.tsx:925).",
+  "The toolbar only exists while the Document is being edited. Outside editing, its text can't be selected at all (pointer events are off, markdown-layer.tsx:892).",
+  "Until #691 (5 July) the same bubble held one button: Comment on the web, Send to agent on desktop. Everything behind it still works: the canvas composer opens at the Document's right edge with the quote and line number. On the web its main action is Comment with a small arrow for Send to agent; on desktop its main action is Send to agent (comments.tsx:770, 780). Send to agent opens a fresh chat on that Document.",
+  "Saved threads show as a yellow highlight with a numbered pin at the Document's right edge. The Comment tool (C) is web-only; desktop has none (canvas-toolbar.tsx:78).",
+ ],
+ note:"One thing was off in the real composer and is fixed in every option's shots: the selection disappeared as soon as the composer took focus, so you lost sight of what you were commenting on. The options keep the passage highlighted in the thread colour while the composer is open.",
+
+ shots:[I("today-toolbar.web","Today · Web · text selected"),I("today-toolbar.desktop","Today · Desktop · text selected"),I("today-thread.web","Today · Web · a saved thread"),I("today-thread-open.web","Today · Web · thread opened")]
+};
+const ROUNDS=[
+{n:1,feedback:"",options:[
+ {id:"A",name:"Two icons at the end of the toolbar",rec:true,state:"picked",
+  why:"The smallest fix inside today's toolbar. After the list buttons, a hairline and two icon buttons: Comment, with the same speech bubble as the Comment tool, and Send to agent, with the arrow the composer already uses for it. Desktop shows only Send to agent. Each opens today's composer at the right edge with that action as the main button, and the toolbar steps aside while you type.",
+  cost:"The toolbar grows from 319 to 392px. On the web, Comment and Send to agent open the same composer with a different main button, so there are two ways into one box.",
+  shots:[I("A-toolbar.web","A · Web · hovering Comment"),I("A-composer.web","A · Web · after Comment"),I("A-toolbar.desktop","A · Desktop · hovering Send to agent"),I("A-composer.desktop","A · Desktop · after Send to agent")]},
+ {id:"B",name:"A button in the margin",state:"rejected",
+  why:"Google Docs puts Add comment in the margin beside the selection, not in the formatting bar. Here one icon button sits just outside the Document's right edge, level with the selection, exactly where the thread's pin will land. The formatting toolbar stays formatting only. On the web it is Comment and the composer's arrow sends to the agent; on desktop it is Send to agent.",
+  cost:"A new floating element on the canvas, outside the Document's own bounds, where it can sit over a neighbouring frame when layers are close together. On the web, Send to agent is one step deeper.",
+  shots:[I("B-toolbar.web","B · Web · hovering the margin button"),I("B-composer.web","B · Web · after clicking it"),I("B-toolbar.desktop","B · Desktop · hovering the margin button"),I("B-composer.desktop","B · Desktop · after clicking it")]},
+ {id:"C",name:"Comment with the Comment tool",state:"picked",
+  why:"Comments on frames already start from the Comment tool. With it on (C), dragging across Document text selects it without entering editing, and the composer opens on release. The formatting toolbar stays formatting only, and people reviewing a Document never have to start editing it to leave a note.",
+  cost:"New behaviour: Document text has to become selectable in Comment mode. Desktop has no Comment tool, so desktop would get nothing unless the tool comes back there as Send to agent. The shot fakes the selection with a script.",
+  shots:[I("C-composer.web","C · Web · Comment tool on, text dragged")]},
+ {id:"D",name:"Reply in chat",state:"picked",
+  why:"Claude and Cursor let you quote a passage into the chat you already have open. Here the toolbar ends with Comment (web only) and Reply in chat. Reply in chat drops the passage into the Coordinator's composer as a removable quote with the Document's name and line, and you ask there instead of in a box on the canvas.",
+  cost:"A new quote attachment in the chat composer. Send to agent stops opening a fresh chat on the Document and goes to the Coordinator instead. The quote card in the shots is drawn by a script.",
+  shots:[I("D-toolbar.web","D · Web · hovering Reply in chat"),I("D-chat.web","D · Web · after Reply in chat"),I("D-toolbar.desktop","D · Desktop · hovering Reply in chat"),I("D-chat.desktop","D · Desktop · after Reply in chat")]}
+]}
+];
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const KEY="exploration-"+QUESTION.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let current=ROUNDS[0].n;
+
+$("q").textContent=QUESTION.q;$("quote").textContent=QUESTION.quote;
+$("today").innerHTML=`<div class="shead"><p class="lbl">Today</p><h2>What main does now</h2></div><ul class="facts">${TODAY.facts.map(f=>`<li>${esc(f)}</li>`).join("")}</ul>`+shots(TODAY.shots)+`<p class="note">${esc(TODAY.note)}</p>`;
+$("rounds").innerHTML=`<span class="lbl">Round</span>`+ROUNDS.map(r=>`<button type="button" data-n="${r.n}">${r.n}${r===ROUNDS[0]?" · latest":""}</button>`).join("");
+$("rounds").addEventListener("click",e=>{const b=e.target.closest("button[data-n]");if(b){current=+b.dataset.n;render()}});
+
+function render(){
+ const r=ROUNDS.find(x=>x.n===current),latest=r===ROUNDS[0];
+ $("rounds").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.n===current)));
+ $("round").innerHTML=`<div class="shead"><p class="lbl">Round ${r.n}</p><h2>${r.options.length} options</h2>${r.feedback?`<blockquote>${esc(r.feedback)}</blockquote>`:`<p class="muted">Every option is the real app with a local patch, shot on the web and desktop builds in both themes. Recommended: A, because it answers the question inside the toolbar that's already there and reuses the composer, icons and wiring as they are.</p>`}</div><div class="opts">`+
+  r.options.map(o=>`<article class="opt ${o.state}" id="r${r.n}-${o.id}"><header><span class="letter">${o.id}</span><h3>${esc(o.name)}</h3>${o.rec?'<span class="badge rec">Recommended</span>':""}${o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:""}</header>${shots(o.shots)}<p>${esc(o.why)}</p><p class="cost"><b>Cost</b> ${esc(o.cost)}</p></article>`).join("")+`</div>`;
+ $("react").hidden=!latest;
+ if(latest)renderForm(r);
+}
+function renderForm(r){
+ $("reactTitle").textContent=`Round ${r.n}`;
+ const opts=r.options.map(o=>[o.id,`${o.id}: ${o.name}${o.rec?" (recommended)":""}`]).concat([["none","None of these"],["mix","A mix (say which parts below)"]]);
+ $("form").innerHTML=`<fieldset><legend>Pick</legend>`+opts.map(([v,l])=>`<label class="pick"><input type="radio" name="pick" id="pick-${v}" value="${v}"><span>${esc(l)}</span></label>`).join("")+`</fieldset>`+
+  `<p class="lbl" style="margin-top:12px">Notes</p><textarea id="note" aria-label="Notes"></textarea>`;
+ if(saved.round===r.n){const el=$("pick-"+saved.pick);if(el)el.checked=true;$("note").value=saved.note||""}
+ preview();
+}
+function build(){
+ const r=ROUNDS[0],p=$("form").querySelector("input[name=pick]:checked"),note=$("note").value.trim();
+ const o=p&&r.options.find(x=>x.id===p.value);
+ const pick=!p?"No pick yet":o?`${o.id}: ${o.name}`:p.value==="none"?"None of these":"A mix";
+ return[`Exploration: ${QUESTION.q}`,`Round ${r.n}`,`→ ${pick}`].concat(note?[`Note: ${note}`]:[]).join("\n");
+}
+function preview(){
+ $("preview").textContent=build();
+ const p=$("form").querySelector("input[name=pick]:checked");
+ try{localStorage.setItem(KEY,JSON.stringify({round:ROUNDS[0].n,pick:p?p.value:"",note:$("note").value}))}catch(e){}
+}
+$("form").addEventListener("input",preview);
+$("form").addEventListener("submit",e=>e.preventDefault());
+$("copy").addEventListener("click",()=>{
+ const text=build(),st=$("status");
+ const fallback=()=>{const p=$("preview"),r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r);st.textContent="Copy was blocked. The text is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the chat."},fallback)}catch(e){fallback()}
+});
+render();
+</script>
+
+</body></html>

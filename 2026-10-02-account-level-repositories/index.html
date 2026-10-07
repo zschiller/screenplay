@@ -1,0 +1,322 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Account-level repositories</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@500;600&display=swap">
+<!-- Optional: a Google Fonts <link> for the repo's brand faces, then point --sans/--head/--mono at them. -->
+<style>
+/* Layout: one column. The question, then a round toggle, then Today and that round's options, then the reaction form and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#2f5bd3;--mark:oklch(0.74 0.182 55);--ok:#1f7a45;--no:#a3372b;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded","Instrument Sans",ui-sans-serif,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:40px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(24px,4.5vw,34px)/1.15 var(--head);letter-spacing:-.02em;margin:10px 0 12px;text-wrap:balance}
+h2{font:600 clamp(18px,2.4vw,22px)/1.25 var(--head);margin:0;text-wrap:balance}
+h3{font:500 16px/1.35 var(--sans);margin:0}
+p{margin:0}
+a{color:var(--accent)}
+blockquote{margin:0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.muted{color:var(--muted)}
+.rounds{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 13px var(--sans);border-radius:6px;padding:6px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{border:1px solid var(--line);background:var(--surface);max-height:480px;overflow:auto}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.pick:hover,.pick:has(input:checked){background:var(--surface)}
+.pick input{margin:3px 0 0;accent-color:var(--accent)}
+textarea,input[type=text]{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+textarea{resize:vertical;min-height:60px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{font-size:13px;color:var(--ok)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;margin:0}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+.opts{grid-template-columns:1fr!important;gap:48px!important}
+.wfs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
+.wf{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;font:13px/1.45 var(--sans);min-width:0}
+.wf .t{font:600 15px/1.2 var(--head);letter-spacing:-.01em}
+.wf .crumb{color:var(--muted);font-size:12px}
+.wf .sub{color:var(--muted);font-size:12px}
+.wf .list{border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column}
+.wf .r{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);min-width:0}
+.wf .r:first-child{border-top:0}
+.wf .r .nm{flex:1;min-width:110px;display:flex;flex-direction:column}
+.wf .r .nm b{font-weight:500}
+.wf .r .nm i{font-style:normal;color:var(--muted);font-size:12px;font-family:var(--mono);overflow-wrap:anywhere}
+.wf .b{border:1px solid var(--line);border-radius:5px;padding:2px 8px;font-size:12px;white-space:nowrap}
+.wf .b.p{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.wf .b.g{border-color:transparent;color:var(--muted)}
+.wf .tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px;white-space:nowrap}
+.wf .tag.n{color:var(--accent);border-color:currentColor}
+.wf .sw{width:26px;height:15px;border-radius:9px;background:var(--line);position:relative;flex:none}
+.wf .sw:after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:var(--bg)}
+.wf .sw.on{background:var(--fg)}.wf .sw.on:after{left:13px}
+.wf .sec{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 10px 0}
+.wf .note{background:var(--surface);border-radius:6px;padding:8px 10px;font-size:12px}
+.wf .foot{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.wf .field{border:1px solid var(--line);border-radius:5px;padding:5px 8px;color:var(--muted);font-family:var(--mono);font-size:12px}
+.wf .chk{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:12px}
+.wf .ck{width:12px;height:12px;border:1px solid var(--muted);border-radius:3px}
+.wf .gone{text-decoration:line-through;color:var(--muted)}
+.wf .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mark);margin-left:6px;vertical-align:middle}
+.wf .b.hasdot{position:relative}.wf .b.hasdot:after{content:"";position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:var(--mark)}
+.wf .tip{align-self:flex-start;background:var(--fg);color:var(--bg);font-size:12px;border-radius:5px;padding:3px 8px}
+.wf .av{width:18px;height:18px;border-radius:50%;background:var(--surface);border:1px solid var(--line);font-size:10px;display:inline-grid;place-items:center;flex:none;color:var(--fg)}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">Design exploration · 2 Oct 2026 · desktop and hosted</p>
+<h1 id="q"></h1>
+<blockquote id="quote"></blockquote>
+</header>
+
+<nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+
+<section id="today"></section>
+<section id="round"></section>
+
+<section id="react">
+<div class="shead"><p class="lbl">Your reaction</p><h2 id="reactTitle"></h2><p class="muted">Pick one, or say what's missing. Copy the text and paste it back in the chat.</p></div>
+<form id="form"></form>
+<div class="row"><button type="button" id="copy" class="primary">Copy reaction</button><span class="status" id="status" role="status" aria-live="polite"></span></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk});
+const WF=(cap,html)=>({cap,wf:`<div class="wf">${html}</div>`});
+const row=(name,sub,right)=>`<div class="r"><span class="nm"><b>${name}</b>${sub?`<i>${sub}</i>`:""}</span>${right||""}</div>`;
+const tag=(t,n)=>`<span class="tag${n?" n":""}">${t}</span>`;
+const btn=(t,k)=>`<span class="b${k?" "+k:""}">${t}</span>`;
+const EDIT=btn("Edit")+btn("⋯");
+const QUESTION={
+ quote:"Zack: \"it just feels a little weird on the desktop ver. to have to 'add a repo' i already configured\" … \"we need to explore what that looks like\" … \"in both the canvas and in the settings\"",
+ q:"How do Settings and the Canvas show repositories that now live on your account?",
+ slug:"account-repos-desktop"
+};
+const TODAY={facts:"Settings › Repository presets lists saved presets (Edit, ⋯, New preset) that are \"applied when you add it to a canvas\". Canvas settings › Repositories lists that canvas's own copies with Add repository. The add picker shows presets first, then GitHub repositories. The copy is one-way, so editing either never updates the other. Agreed already: on desktop, canvas copies link to your account repository, edits update every canvas, and deleting in Settings leaves canvases an unlinked copy. Hosted is unchanged.",shots:[
+ IMG("today/settings-presets-light.png","Today · Settings › Repository presets","today/settings-presets-dark.png"),
+ IMG("today/canvas-settings-light.png","Today · Canvas settings › Repositories","today/canvas-settings-dark.png"),
+ IMG("today/add-project-github-light.png","Today · Add repository picker","today/add-project-github-dark.png")]};
+
+const SETTINGS=`<span class="t">Repositories</span><span class="sub">Your repositories and how to run them. Canvases that use one stay in sync.</span>
+<div class="list">${row("acme/storefront","pnpm install · pnpm dev",tag("3 canvases")+EDIT)}${row("acme/web","npm ci · npm run dev",tag("1 canvas")+EDIT)}${row("acme/design-system","pnpm install · pnpm storybook",tag("No canvases")+EDIT)}</div>
+<div class="foot">${btn("+ New repository")}</div>`;
+const DELETE=`<span class="t">Delete acme/storefront?</span><span class="sub">It's on 3 canvases. They keep their copy, but it stops getting your edits.</span><div class="foot">${btn("Cancel","g")}${btn("Delete","p")}</div>`;
+const EDITFORM=(where)=>`<span class="crumb">${where}</span><span class="t">storefront</span><span class="field">pnpm install</span><span class="field">pnpm dev --port $PORT</span><div class="note">Saving updates storefront on 3 canvases.</div><div class="foot">${btn("Cancel","g")}${btn("Save","p")}</div>`;
+
+
+const SETTINGS2=`<span class="t">Repositories</span><span class="sub">Your repositories and how to run them.</span>
+<div class="list">${row("acme/storefront","pnpm install · pnpm dev",EDIT)}${row("acme/web","npm ci · npm run dev",EDIT)}${row("acme/design-system","pnpm install · pnpm storybook",EDIT)}</div>
+<div class="foot">${btn("+ New repository")}</div>`;
+const SW=(on,extra)=>(extra||"")+btn("Edit","g")+`<span class="sw${on?" on":""}"></span>`;
+const CANVAS2=(rows,sub)=>`<span class="crumb">Canvas settings / Repositories</span><span class="sub">${sub||"Turn on the repositories this canvas uses."}</span><div class="list">${rows}</div><div class="foot">${btn("+ New repository")}</div>`;
+const FORM=(crumb,note,foot)=>`<span class="crumb">${crumb}</span><span class="t">storefront</span><span class="field">pnpm install</span><span class="field">pnpm dev --port $PORT</span>${note?`<div class="note">${note}</div>`:""}<div class="foot">${foot}</div>`;
+
+const CK=(t,on)=>`<span class="chk"><span class="ck"${on?' style="background:var(--fg)"':""}></span>${t}</span>`;
+const F3=(crumb,mid,foot)=>`<span class="crumb">${crumb}</span><span class="t">storefront</span><span class="field">pnpm install</span><span class="field">pnpm dev --port $PORT</span>${mid||""}<div class="foot">${foot}</div>`;
+const LIST3=CANVAS2(row("acme/storefront","Customized here",btn("Reset","g")+SW(1))+row("acme/web","npm ci · npm run dev",SW(1))+row("acme/design-system","pnpm install · pnpm storybook",SW(0)));
+const HOSTED3=(mid,foot)=>F3("Hosted · shared canvas · added by Mia",mid,foot);
+
+const NAMEDOT=n=>`${n}<span class="dot" title="Customized for this canvas"></span>`;
+const ROWS4=(first)=>first+row("acme/web","npm ci · npm run dev",SW(1))+row("acme/design-system","pnpm install · pnpm storybook",SW(0));
+const FORM4=(foot)=>F3("Canvas settings / Repositories / storefront",CK("Also update Settings and my other canvases"),foot);
+
+const DOTN=n=>`${n}<span class="dot" title="Customized for this canvas"></span>`;
+const AV=c=>`<span class="av">${c}</span>`;
+const DESK5=(foot,top)=>`<span class="crumb">Canvas settings / Repositories</span><span class="sub">Turn on the repositories this canvas uses.</span>${top||""}<div class="list">${row(DOTN("acme/storefront"),"pnpm install · pnpm dev",SW(1))}${row("acme/web","npm ci · npm run dev",SW(1))}${row("acme/design-system","pnpm install · pnpm storybook",SW(0))}</div>${foot}`;
+const HOST5=`<span class="crumb">Hosted · shared canvas</span><div class="list"><span class="sec">On this canvas</span>${row(DOTN("acme/storefront"),"pnpm install · pnpm dev",AV("M")+SW(1))}${row("acme/web","npm ci · npm run dev",AV("Z")+SW(1))}<span class="sec">Your other repositories</span>${row("acme/design-system","pnpm install · pnpm storybook",SW(0))}</div>`;
+const SET5=(foot)=>`<span class="t">Repositories</span><span class="sub">Your repositories and how to run them.</span><div class="list">${row("acme/storefront","pnpm install · pnpm dev",EDIT)}${row("acme/web","npm ci · npm run dev",EDIT)}${row("acme/design-system","pnpm install · pnpm storybook",EDIT)}</div>${foot}`;
+const PICK5=`<span class="t">New repository</span><span class="field">Search or paste a clone URL…</span><div class="list"><span class="sec">GitHub</span>${row("acme/docs","")}${row("acme/mobile","")}</div><div class="foot">${btn("Open folder…")}</div>`;
+const CONF5=`<span class="crumb">New repository / acme/docs</span><span class="t">docs</span><span class="field">pnpm install</span><span class="field">pnpm dev --port $PORT</span><div class="note">Saved to your repositories and turned on for this canvas.</div><div class="foot">${btn("Cancel","g")}${btn("Add","p")}</div>`;
+const ROUNDS=[
+{n:5,feedback:"Zack picked A with an orange dot, then: \"lets continue the other thing\". Rounds 1–4 settled the canvas list (switches, scripts subtitle, orange customized dot, avatar for who added on hosted) and editing (local, with an unchecked save-to-all box). This round: how a repository you haven't set up yet gets onto your list, from a canvas and from Settings, and what a shared hosted canvas lists.",options:[
+ {id:"A",name:"New repository button",rec:true,state:"picked",
+  why:"Both lists end with New repository. It opens today's picker (GitHub, clone URL, or a folder on desktop), then today's settings form with detected scripts. Adding from a canvas saves it to your repositories and switches it on there; adding from Settings only saves it. On a shared hosted canvas, the list splits into On this canvas (anyone's, with their avatar) and Your other repositories (switched off).",
+  cost:"Closest to today: the picker and form already exist, minus the Repository presets section and the Save as preset checkbox. The hosted split adds two small section labels.",
+  shots:[WF("A · Desktop canvas",DESK5(`<div class="foot">${btn("+ New repository")}</div>`)),
+   WF("A · Picker",PICK5),WF("A · Settings form",CONF5),
+   WF("A · Hosted canvas",HOST5+`<div class="foot">${btn("+ New repository")}</div>`),
+   WF("A · Settings › Repositories",SET5(`<div class="foot">${btn("+ New repository")}</div>`))]},
+ {id:"B",name:"Search at the top",state:"",
+  why:"The canvas list opens with a search field. Typing filters your repositories; below them, matching GitHub repositories appear with an Add button, so finding and adding are one field. Settings gets the same field. Picking a GitHub result opens the settings form, as in A.",
+  cost:"A search field is overkill for a list of three or four, and mixing your repositories with GitHub results in one list blurs which ones are set up. New pattern in Canvas settings.",
+  shots:[WF("B · Desktop canvas, typing",`<span class="crumb">Canvas settings / Repositories</span><span class="field">doc</span><div class="list"><span class="sec">Your repositories</span>${row("acme/design-system","pnpm install · pnpm storybook",SW(0))}<span class="sec">GitHub</span>${row("acme/docs","",btn("Add"))}</div>`),
+   WF("B · Settings form",CONF5)]},
+ {id:"C",name:"Settings creates, canvases switch",state:"",
+  why:"New repositories are only created in Settings. A canvas list only switches existing ones on and off, and its footer is a link to Settings › Repositories. One place creates, one place uses.",
+  cost:"Adding a new repo from a canvas takes a trip to Settings and back, which is the extra step this exploration set out to remove. An empty canvas on a fresh install has nothing to switch on.",
+  shots:[WF("C · Desktop canvas",DESK5(`<div class="foot">${btn("Manage in Settings")}</div>`)),
+   WF("C · Settings › Repositories",SET5(`<div class="foot">${btn("+ New repository")}</div>`))]}
+]},
+
+{n:4,feedback:"Zack: \"i don't love the 'customized here' subtitle maybe a colored dot or something instead?\" … \"i just don't like the way that the subtitle is used in multiple ways\" … \"but seeing who added a repo is important\". Round 3's checkbox is assumed. Each option gives the subtitle one job and shows who added the repo on hosted. Zack picked A with an orange dot (the attention fill) instead of magenta; the shots now show orange.",options:[
+ {id:"A",name:"Subtitle is the scripts",rec:true,state:"picked",
+  why:"The subtitle always shows how the repository runs (setup · dev), on every row and in both builds. Customized is a small orange dot after the name, with a tooltip. Who added it is an avatar at the start of the row's controls on hosted, with their name on hover; desktop has no avatar, because it's always you. Reset to Settings lives in the edit form's footer.",
+  cost:"Reset is inside Edit. The avatar is new on this row, though the app already shows member avatars elsewhere.",
+  shots:[WF("A · Desktop canvas",CANVAS2(ROWS4(row(NAMEDOT("acme/storefront"),"pnpm install · pnpm dev",SW(1))))),
+   WF("A · Hosted canvas",CANVAS2(row(NAMEDOT("acme/storefront"),"pnpm install · pnpm dev",`<span class="av" title="Added by Mia">M</span>`+SW(1))+row("acme/web","npm ci · npm run dev",`<span class="av" title="Added by you">Z</span>`+SW(1)))),
+   WF("A · Hovering",`<div class="list">${row(NAMEDOT("acme/storefront"),"pnpm install · pnpm dev",`<span class="av">M</span>`+SW(1))}</div><span class="tip">Customized for this canvas</span><span class="tip">Added by Mia</span>`),
+   WF("A · Edit, with Reset",FORM4(btn("Reset to Settings","g")+btn("Cancel","g")+btn("Save","p")))]},
+ {id:"B",name:"Subtitle is who added",state:"",
+  why:"On hosted the subtitle always says who added the repository (\"Added by Mia\", \"Added by you\"), and the scripts move into Edit. Customized is the same dot after the name. On desktop, where it's always you, the subtitle is the GitHub name instead (acme/storefront), as Canvas settings shows today.",
+  cost:"The subtitle means different things on desktop and hosted, and the run scripts are no longer visible at a glance.",
+  shots:[WF("B · Hosted canvas",CANVAS2(row(NAMEDOT("storefront"),"Added by Mia",SW(1))+row("web","Added by you",SW(1)))),
+   WF("B · Desktop canvas",CANVAS2(row(NAMEDOT("storefront"),"acme/storefront",SW(1))+row("web","acme/web",SW(1))+row("design-system","acme/design-system",SW(0)))),
+   WF("B · Edit, with Reset",FORM4(btn("Reset to Settings","g")+btn("Cancel","g")+btn("Save","p")))]},
+ {id:"C",name:"Reset is the marker",state:"",
+  why:"The subtitle is the scripts, as in A. No dot: a customized row grows a Reset button next to Edit, and that's the signal. Who added it is the same avatar as A on hosted.",
+  cost:"Easy to miss at a glance, the row's controls shift when it becomes customized, and Reset needs a confirm because it's one click from losing changes.",
+  shots:[WF("C · Hosted canvas",CANVAS2(row("acme/storefront","pnpm install · pnpm dev",btn("Reset","g")+`<span class="av">M</span>`+SW(1))+row("acme/web","npm ci · npm run dev",`<span class="av">Z</span>`+SW(1)))),
+   WF("C · Reset confirm",`<span class="t">Reset storefront?</span><span class="sub">This canvas goes back to Mia's settings for storefront.</span><div class="foot">${btn("Cancel","g")}${btn("Reset","p")}</div>`)]}
+]},
+{n:3,feedback:"Zack: \"i feel like B but with the option to save to all as well is sort of a middle ground from where we are, and could also genuinely work for the hosted ver. too?\" So: a canvas Edit changes this canvas (Customized here, with Reset), plus a way to save to all. Same design on desktop and hosted. Hosted rule: a canvas copy links to the account of whoever turned it on, so only that person can save to all; a teammate's edit stays on the shared canvas, which is how hosted works today. This round: how Save to all appears.",options:[
+ {id:"A",name:"Checkbox under the fields",rec:true,state:"picked",
+  why:"One Save button, as today. Under the fields, an unchecked \"Also update Settings and my other canvases\" box. Left alone, the edit stays on this canvas and the row reads Customized here. Checked, it updates your repository in Settings and every canvas that uses it, and clears their customizations. On a shared hosted canvas where someone else turned the repository on, the box is replaced by a line naming who can.",
+  cost:"A stock Checkbox in the form. Saving to all overwrites other canvases' customizations, so the checkbox label has to say \"other canvases\" plainly.",
+  shots:[WF("A · Edit from a canvas",F3("Canvas settings / Repositories / storefront",CK("Also update Settings and my other canvases"),btn("Cancel","g")+btn("Save","p"))),
+   WF("A · Canvas settings › Repositories",LIST3),
+   WF("A · Hosted, teammate's repository",HOSTED3(`<span class="sub">Changes apply to this canvas. Only Mia can update everywhere.</span>`,btn("Cancel","g")+btn("Save","p"))),
+   WF("A · Delete in Settings",DELETE)]},
+ {id:"B",name:"Two buttons",state:"",
+  why:"The footer has Save and Save to all side by side, Save being the primary. It's round 2's C with B's Customized here state. Every save shows both choices, so nobody misses that saving to all exists.",
+  cost:"Two save buttons on every edit, which is the question-on-every-save cost from round 2. On a teammate's repository, Save to all is hidden.",
+  shots:[WF("B · Edit from a canvas",F3("Canvas settings / Repositories / storefront","",btn("Cancel","g")+btn("Save to all")+btn("Save","p"))),
+   WF("B · Canvas settings › Repositories",LIST3),
+   WF("B · Hosted, teammate's repository",HOSTED3("",btn("Cancel","g")+btn("Save","p"))),
+   WF("B · Delete in Settings",DELETE)]},
+ {id:"C",name:"Push from the row",state:"",
+  why:"Edit always saves to this canvas. A customized row then offers Save to all next to Reset, so pushing a change everywhere is a deliberate second step, taken after you've seen it work on this canvas.",
+  cost:"Saving to all takes two steps, and the action lives on the list, not the form. The row holds three controls when customized.",
+  shots:[WF("C · Edit from a canvas",F3("Canvas settings / Repositories / storefront","",btn("Cancel","g")+btn("Save","p"))),
+   WF("C · Canvas settings › Repositories",CANVAS2(row("acme/storefront","Customized here",btn("Reset","g")+btn("Save to all","g")+SW(1))+row("acme/web","npm ci · npm run dev",SW(1))+row("acme/design-system","pnpm install · pnpm storybook",SW(0)))),
+   WF("C · Hosted, teammate's repository",CANVAS2(row("acme/storefront","Customized here · added by Mia",btn("Reset","g")+SW(1))+row("acme/web","npm ci · npm run dev",SW(1)))),
+   WF("C · Delete in Settings",DELETE)]}
+]},
+
+{n:2,feedback:"Zack picked B: \"i feel like switch per canvas is good. would the edit button there edit local to canvas b/c that is basically what we have rn w/ presets? i don't think the canvas count is needed at the top level in settings we can just warn on delete?\" Settings drops the canvas counts; delete still warns. This round: what Edit does on a canvas.",options:[
+ {id:"A",name:"Edit applies everywhere",rec:true,state:"",
+  why:"Edit on a canvas opens the same form as Settings, and saving updates the repository on every canvas that has it switched on. That removes the drift you get today, where a canvas copy and its preset quietly differ. When one canvas really needs different settings, ⋯ › Duplicate makes a second repository (say \"storefront-api\") that you switch on there instead. That's the same mechanism that lets one GitHub repo appear twice today.",
+  cost:"A canvas can't quietly diverge, so a one-off tweak means a duplicate. The form needs one line saying the save applies everywhere.",
+  shots:[WF("A · Canvas settings › Repositories",CANVAS2(row("acme/storefront","pnpm install · pnpm dev",SW(1))+row("acme/web","npm ci · npm run dev",SW(1))+row("acme/design-system","pnpm install · pnpm storybook",SW(0)))),
+   WF("A · Edit from a canvas",FORM("Canvas settings / Repositories / storefront","Changes apply on every canvas that uses storefront.",btn("Cancel","g")+btn("Save","p"))),
+   WF("A · ⋯ on a canvas row",`<div class="list">${row("Edit","")}${row("Duplicate…","A copy you can change for this canvas")}${row("Open in Settings","")}</div>`),
+   WF("A · Settings › Repositories",SETTINGS2),WF("A · Delete in Settings",DELETE)]},
+ {id:"B",name:"Customize for this canvas",state:"picked",
+  why:"Edit on a canvas changes this canvas only, like presets do today, and the row marks it as Customized here with Reset to Settings. Edits made in Settings still reach every canvas that hasn't customized that repository. Edit in Settings is the shared one.",
+  cost:"Two sources of truth again: a customized canvas stops getting Settings edits until you reset it, which is today's drift with a label on it. Needs a customized state on the row and a reset action.",
+  shots:[WF("B · Canvas settings › Repositories",CANVAS2(row("acme/storefront","Customized here",SW(1))+row("acme/web","npm ci · npm run dev",SW(1))+row("acme/design-system","pnpm install · pnpm storybook",SW(0)))),
+   WF("B · Edit from a canvas",FORM("Canvas settings / Repositories / storefront","Only this canvas. Settings edits stop reaching it until you reset.",btn("Reset to Settings","g")+btn("Cancel","g")+btn("Save","p"))),
+   WF("B · Settings › Repositories",SETTINGS2)]},
+ {id:"C",name:"Ask on save",state:"picked",
+  why:"Edit on a canvas opens the shared form, and Save asks where the change goes: this canvas only, or everywhere. Choosing this canvas only makes it customized, like B; choosing everywhere works like A.",
+  cost:"A question on every save from a canvas, and the customized state from B still has to exist. Most saves will be \"everywhere\", so the question mostly gets in the way.",
+  shots:[WF("C · Edit from a canvas",FORM("Canvas settings / Repositories / storefront","",btn("Cancel","g")+btn("Save for this canvas")+btn("Save everywhere","p"))),
+   WF("C · Canvas settings › Repositories",CANVAS2(row("acme/storefront","Customized here",SW(1))+row("acme/web","npm ci · npm run dev",SW(1))+row("acme/design-system","pnpm install · pnpm storybook",SW(0)))),
+   WF("C · Settings › Repositories",SETTINGS2)]}
+]},
+
+{n:1,feedback:"",options:[
+ {id:"A",name:"One list, two doors",rec:true,state:"",
+  why:"Settings keeps the full list, renamed from Repository presets to Repositories, with a count of canvases on each row. Canvas settings keeps its list of the repositories this canvas uses, and Edit there opens the same form as Settings, with a line saying how many canvases the save updates. Add repository lists your repositories first; one that's new gets saved to Settings on the way in, so the Save as preset checkbox goes away. ⋯ on a canvas row offers Remove from canvas, which leaves it in Settings. A copy left behind by a delete says so and offers Save to Settings.",
+  cost:"Smallest change: both panes keep their shape and the picker loses a checkbox. Rows gain a canvas count, plus one new row state for an unlinked copy.",
+  shots:[WF("A · Settings › Repositories",SETTINGS),
+   WF("A · Canvas settings › Repositories",`<span class="crumb">Canvas settings / Repositories</span><span class="sub">Repositories this canvas uses. Edits apply on every canvas that uses them.</span><div class="list">${row("storefront","acme/storefront · also on 2 canvases",EDIT)}${row("web","acme/web · not in your repositories",btn("Save to Settings")+btn("⋯"))}</div><div class="foot">${btn("+ Add repository","p")}</div>`),
+   WF("A · Add repository",`<span class="t">Add repository</span><span class="field">Search or paste a clone URL…</span><div class="list"><span class="sec">Your repositories</span>${row("acme/storefront","",tag("On this canvas"))}${row("acme/design-system","")}<span class="sec">GitHub</span>${row("acme/docs","")}${row("acme/mobile","")}</div><div class="foot">${btn("Open folder…")}</div>`),
+   WF("A · Edit, from either door",EDITFORM("Canvas settings / Repositories / storefront")),
+   WF("A · Delete in Settings",DELETE)]},
+ {id:"B",name:"Switch on per canvas",state:"picked",
+  why:"Canvas settings shows every repository you have, each with a switch for whether this canvas uses it. Turning one on is the whole add step, and New repository creates it in Settings and switches it on here. Edit sits beside each switch and opens the shared form. Settings is the same as A.",
+  cost:"Turning a repository off while it has Workspaces needs a confirm. The list grows with every repository you configure, including ones this canvas will never use. Adding the same GitHub repo twice (web and api) shows up as two switches.",
+  shots:[WF("B · Settings › Repositories",SETTINGS),
+   WF("B · Canvas settings › Repositories",`<span class="crumb">Canvas settings / Repositories</span><span class="sub">Turn on the repositories this canvas uses.</span><div class="list">${row("acme/storefront","pnpm install · pnpm dev",btn("Edit","g")+`<span class="sw on"></span>`)}${row("acme/web","npm ci · npm run dev",btn("Edit","g")+`<span class="sw on"></span>`)}${row("acme/design-system","pnpm install · pnpm storybook",btn("Edit","g")+`<span class="sw"></span>`)}</div><div class="foot">${btn("+ New repository")}</div>`),
+   WF("B · Turning one off",`<span class="t">Stop using acme/web here?</span><span class="sub">2 Workspaces on this canvas use it. They keep running until you mark them Done.</span><div class="foot">${btn("Cancel","g")}${btn("Turn off","p")}</div>`),
+   WF("B · Delete in Settings",DELETE)]},
+ {id:"C",name:"Settings owns editing",state:"",
+  why:"Settings is the only place to add or edit a repository. Canvas settings › Repositories becomes a short list of the repositories this canvas uses, with Manage in Settings. A repository joins a canvas when a chat picks it in the New chat picker, which lists all of yours, so there's no Add repository on the canvas at all.",
+  cost:"Editing from a canvas takes two hops and leaves the canvas. The canvas pane is nearly empty. A new canvas with no repositories relies on the New chat picker, which the Empty canvas with no repo work is changing too. The furthest from today.",
+  shots:[WF("C · Settings › Repositories",SETTINGS),
+   WF("C · Canvas settings › Repositories",`<span class="crumb">Canvas settings / Repositories</span><span class="sub">Used on this canvas. Chats add a repository when they pick it.</span><div class="list">${row("storefront","acme/storefront")}${row("web","acme/web")}</div><div class="foot">${btn("Manage in Settings")}</div>`),
+   WF("C · New chat picker",`<span class="t">New chat</span><span class="field">Ask the agent…</span><div class="list"><span class="sec">Repository</span>${row("acme/storefront","",tag("On this canvas"))}${row("acme/design-system","",tag("Adds to canvas",1))}${row("No repository","Mockups and documents only")}</div>`),
+   WF("C · Delete in Settings",DELETE)]}
+]}
+];
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const shots=list=>list&&list.length&&list[0].wf!==undefined?`<div class="wfs">`+list.map(i=>`<figure>${i.wf}<figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:list&&list.length?`<div class="shots">`+list.map(i=>`<figure><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const KEY="exploration-"+QUESTION.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let current=ROUNDS[0].n;
+
+$("q").textContent=QUESTION.q;$("quote").textContent=QUESTION.quote;
+$("today").innerHTML=`<div class="shead"><p class="lbl">Today</p><h2>What main does now</h2><p class="muted">${esc(TODAY.facts)}</p></div>`+shots(TODAY.shots);
+$("rounds").innerHTML=`<span class="lbl">Round</span>`+ROUNDS.map(r=>`<button type="button" data-n="${r.n}">${r.n}${r===ROUNDS[0]?" · latest":""}</button>`).join("");
+$("rounds").addEventListener("click",e=>{const b=e.target.closest("button[data-n]");if(b){current=+b.dataset.n;render()}});
+
+function render(){
+ const r=ROUNDS.find(x=>x.n===current),latest=r===ROUNDS[0];
+ $("rounds").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.n===current)));
+ $("round").innerHTML=`<div class="shead"><p class="lbl">Round ${r.n}</p><h2>${r.options.length} options</h2>${r.feedback?`<blockquote>${esc(r.feedback)}</blockquote>`:""}</div><div class="opts">`+
+  r.options.map(o=>`<article class="opt ${o.state}" id="r${r.n}-${o.id}"><header><span class="letter">${o.id}</span><h3>${esc(o.name)}</h3>${o.rec?'<span class="badge rec">Recommended</span>':""}${o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:""}</header>${shots(o.shots)}<p>${esc(o.why)}</p><p class="cost"><b>Cost</b> ${esc(o.cost)}</p></article>`).join("")+`</div>`;
+ $("react").hidden=!latest;
+ if(latest)renderForm(r);
+}
+function renderForm(r){
+ $("reactTitle").textContent=`Round ${r.n}`;
+ const opts=r.options.map(o=>[o.id,`${o.id}: ${o.name}${o.rec?" (recommended)":""}`]).concat([["none","None of these"],["mix","A mix (say which parts below)"]]);
+ $("form").innerHTML=`<fieldset><legend>Pick</legend>`+opts.map(([v,l])=>`<label class="pick"><input type="radio" name="pick" id="pick-${v}" value="${v}"><span>${esc(l)}</span></label>`).join("")+`</fieldset>`+
+  `<p class="lbl" style="margin-top:12px">Notes</p><textarea id="note" aria-label="Notes"></textarea>`;
+ if(saved.round===r.n){const el=$("pick-"+saved.pick);if(el)el.checked=true;$("note").value=saved.note||""}
+ preview();
+}
+function build(){
+ const r=ROUNDS[0],p=$("form").querySelector("input[name=pick]:checked"),note=$("note").value.trim();
+ const o=p&&r.options.find(x=>x.id===p.value);
+ const pick=!p?"No pick yet":o?`${o.id}: ${o.name}`:p.value==="none"?"None of these":"A mix";
+ return[`Exploration: ${QUESTION.q}`,`Round ${r.n}`,`→ ${pick}`].concat(note?[`Note: ${note}`]:[]).join("\n");
+}
+function preview(){
+ $("preview").textContent=build();
+ const p=$("form").querySelector("input[name=pick]:checked");
+ try{localStorage.setItem(KEY,JSON.stringify({round:ROUNDS[0].n,pick:p?p.value:"",note:$("note").value}))}catch(e){}
+}
+$("form").addEventListener("input",preview);
+$("form").addEventListener("submit",e=>e.preventDefault());
+$("copy").addEventListener("click",()=>{
+ const text=build(),st=$("status");
+ const fallback=()=>{const p=$("preview"),r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r);st.textContent="Copy was blocked. The text is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the chat."},fallback)}catch(e){fallback()}
+});
+render();
+</script>
+
+</body></html>

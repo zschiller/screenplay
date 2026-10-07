@@ -1,0 +1,281 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Primitive Names</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one reading column; a verdict table up top, then one entry per primitive with the market's words as rows and the pick marked in pink. */
+:root {
+  --bg: #fbfbfc;
+  --surface: #ffffff;
+  --fg: #111114;
+  --muted: #5d5d68;
+  --line: #e4e4ea;
+  --pink: #e0007a;
+  --keep: #0a7d3c;
+  --consider: #a35a00;
+  --change: #c4002e;
+  --display: "Unbounded", "Helvetica Neue", Arial, sans-serif;
+  --ui: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0d10; --surface: #16161b; --fg: #f1f1f4; --muted: #a0a0ad; --line: #2a2a33;
+    --pink: #ff3fa4; --keep: #3ddc84; --consider: #ffb547; --change: #ff5c7a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0d10; --surface: #16161b; --fg: #f1f1f4; --muted: #a0a0ad; --line: #2a2a33;
+  --pink: #ff3fa4; --keep: #3ddc84; --consider: #ffb547; --change: #ff5c7a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--ui); padding: 48px 20px 80px; }
+main { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 27px; line-height: 1.2; }
+h2 { font-size: 20px; line-height: 1.25; }
+h3 { font-size: 17px; line-height: 1.3; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--muted); }
+header { display: flex; flex-direction: column; gap: 12px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 16px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td a { color: inherit; }
+.v { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1.5px solid currentColor; white-space: nowrap; }
+.v.keep { color: var(--keep); } .v.consider { color: var(--consider); } .v.change { color: var(--change); }
+.entry { display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid var(--line); }
+.entry-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.def { color: var(--muted); }
+.market { display: grid; grid-template-columns: minmax(150px, 210px) 1fr; gap: 6px 16px; font-size: 14px; }
+.market dt { color: var(--muted); }
+.market dd { margin: 0; min-width: 0; }
+.term { font-weight: 600; }
+.rec { display: flex; flex-direction: column; gap: 6px; }
+.rec strong { font-weight: 600; }
+.opts { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.opts li { display: grid; grid-template-columns: 110px 1fr; gap: 12px; }
+.opts li .n { font-weight: 600; }
+.pick { color: var(--pink); }
+.pick-tag { font-size: 12px; font-weight: 600; color: var(--pink); border: 1.5px solid var(--pink); border-radius: 999px; padding: 0 7px; margin-left: 6px; }
+.callout { border: 1.5px solid var(--line); border-radius: 10px; padding: 16px 18px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+code { font-family: var(--mono); font-size: 13px; }
+.sources { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; padding: 0; margin: 0; list-style: none; }
+.sources a { color: var(--muted); }
+@media (max-width: 560px) {
+  .market { grid-template-columns: 1fr; gap: 2px; }
+  .market dd { margin-bottom: 8px; }
+  .opts li { grid-template-columns: 1fr; gap: 2px; }
+}
+</style>
+
+<main>
+<header>
+  <div class="eyebrow">Screenplay · naming audit · 6 October 2026</div>
+  <h1>What should we call our primitives?</h1>
+  <p>I compared every primitive a person sees in Screenplay with what design canvases (Figma, Sketch, Penpot, Framer, Miro, tldraw), AI design tools (Google Stitch, Figma Make, Magic Patterns), AI app builders (v0, Lovable) and coding-agent tools (Cursor, Codex, Devin, Conductor) call the same idea.</p>
+  <p><strong>Short answer:</strong> most of our names already match the market. Frame and mockup are the right pair, and “artifact” would be a step backwards. Two things are worth changing: Play mode has two names, and group is the one name a Figma user reads differently.</p>
+</header>
+
+<section>
+  <h2>At a glance</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Today</th><th>What others mostly say</th><th>Call</th></tr></thead>
+    <tbody>
+      <tr><td><a href="#canvas">Canvas</a></td><td>canvas, board, project, file</td><td><span class="v keep">Keep</span></td></tr>
+      <tr><td><a href="#coordinator">Coordinator</a></td><td>orchestrator, supervisor, manager, lead agent</td><td><span class="v keep">Keep</span></td></tr>
+      <tr><td><a href="#chat">Chat</a></td><td>chat, session, task, workspace, agent</td><td><span class="v keep">Keep</span></td></tr>
+      <tr><td><a href="#frame">Frame</a></td><td>frame, board, artboard, preview, screen, browser</td><td><span class="v keep">Keep</span></td></tr>
+      <tr><td><a href="#mockup">Mockup</a></td><td>artifact, design, screen, prototype, mockup</td><td><span class="v keep">Keep</span></td></tr>
+      <tr><td><a href="#group">Group</a></td><td>section (Figma), frame (Miro, tldraw), stack</td><td><span class="v consider">Consider Section</span></td></tr>
+      <tr><td><a href="#document">Document</a></td><td>doc, page, spec, plan</td><td><span class="v keep">Keep</span></td></tr>
+      <tr><td><a href="#play">Play mode / prototype player</a></td><td>present, preview, view mode</td><td><span class="v change">One name: Play mode</span></td></tr>
+      <tr><td><a href="#knobs">Knobs</a></td><td>controls, properties, variables</td><td><span class="v keep">Keep</span></td></tr>
+      <tr><td><a href="#live">Go live / Interact</a></td><td>spotlight, follow, live share</td><td><span class="v keep">Keep</span></td></tr>
+      <tr><td><a href="#rest">Agent, memory, skills, files, repository, terminal tabs</a></td><td>the same words</td><td><span class="v keep">Keep</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Each primitive</h2>
+
+  <article class="entry" id="canvas">
+    <div class="entry-head"><h3>Canvas</h3><span class="v keep">Keep</span></div>
+    <p class="def">The container for one piece of work: an infinite surface with its chats, frames, mockups and documents. Code calls it Room.</p>
+    <dl class="market">
+      <dt>Google Stitch, Magic Patterns</dt><dd><span class="term">canvas</span>, in exactly our sense: the infinite surface the AI lays screens out on.</dd>
+      <dt>Figma</dt><dd><span class="term">file</span> (the canvas is the surface inside it)</dd>
+      <dt>Miro, FigJam</dt><dd><span class="term">board</span></dd>
+      <dt>v0, ChatGPT, Claude</dt><dd><span class="term">project</span> for the container of chats</dd>
+      <dt>ChatGPT, Gemini</dt><dd><span class="term">Canvas</span> means a side-by-side editor for one document or file, a different idea</dd>
+    </dl>
+    <p class="rec"><span><strong>Why keep:</strong> the newest AI design tools converged on “canvas” for this exact thing. “Project” would collide with the GitHub word our users already use, and we deliberately dropped it as a label (#880). The ChatGPT and Gemini meaning is a different product shape and hasn’t confused anyone we know of.</span></p>
+  </article>
+
+  <article class="entry" id="coordinator">
+    <div class="entry-head"><h3>Coordinator</h3><span class="v keep">Keep</span></div>
+    <p class="def">The canvas’s own chat. It starts chats, sends them work and arranges the canvas, and makes nothing itself.</p>
+    <dl class="market">
+      <dt>Microsoft Magentic-One</dt><dd><span class="term">Orchestrator</span></dd>
+      <dt>LangGraph</dt><dd><span class="term">supervisor</span></dd>
+      <dt>CrewAI</dt><dd><span class="term">manager agent</span></dd>
+      <dt>Anthropic research system</dt><dd><span class="term">lead agent</span> with subagents</dd>
+      <dt>Miro, Stitch</dt><dd><span class="term">Sidekicks</span>, <span class="term">design agent</span> (one assistant that also does the work)</dd>
+    </dl>
+    <p class="rec"><span><strong>Why keep:</strong> every alternative is framework vocabulary that people building agents know and people designing products don’t. “Coordinator” is plain English and says what makes ours different: it delegates instead of doing the work. “Orchestrator” is the only real contender, and it reads as infrastructure.</span></p>
+  </article>
+
+  <article class="entry" id="chat">
+    <div class="entry-head"><h3>Chat</h3><span class="v keep">Keep</span></div>
+    <p class="def">One branch of a repository in its own sandbox, with its own agent, preview and terminals. Code calls it Branch.</p>
+    <dl class="market">
+      <dt>v0, ChatGPT, Claude</dt><dd><span class="term">chat</span>, grouped under a project</dd>
+      <dt>Conductor</dt><dd><span class="term">workspace</span>: a git worktree with its own branch, agent, terminal and PR. The closest match to ours, and the word you already ruled out.</dd>
+      <dt>Cursor</dt><dd><span class="term">agent</span> / <span class="term">cloud agent</span> (renamed from background agent)</dd>
+      <dt>OpenAI Codex, Google Jules</dt><dd><span class="term">task</span></dd>
+      <dt>Devin, Claude Code on the web</dt><dd><span class="term">session</span></dd>
+    </dl>
+    <p class="rec"><span><strong>Why keep:</strong> the market splits five ways, so no word is standard. “Task” and “session” suggest something that ends, and ours carries several pull requests over time. “Agent” would blur the chat with the AI inside it. “Chat” is what people start, find and rename, and it matches the most widely used products.</span></p>
+  </article>
+
+  <article class="entry" id="frame">
+    <div class="entry-head"><h3>Frame</h3><span class="v keep">Keep</span></div>
+    <p class="def">A live preview of one route of one chat’s app at a device size. It’s a real browser you can click through.</p>
+    <dl class="market">
+      <dt>Figma, Framer</dt><dd><span class="term">frame</span>: the device-sized rectangle a screen is designed in, with device presets</dd>
+      <dt>Sketch</dt><dd>replaced artboards with <span class="term">frames</span> in 2025</dd>
+      <dt>Penpot</dt><dd><span class="term">board</span> (renamed from artboard)</dd>
+      <dt>v0, Lovable</dt><dd><span class="term">preview</span> for the running app</dd>
+      <dt>Stitch, Magic Patterns</dt><dd><span class="term">screen</span></dd>
+      <dt>Miro, tldraw, Excalidraw</dt><dd><span class="term">frame</span> means a container that groups other things</dd>
+    </dl>
+    <p class="rec"><span><strong>Why keep:</strong> Figma and now Sketch made “frame” the standard name for a screen-sized rectangle on a canvas, so designers read ours correctly at first sight. The iframe echo is a bonus for engineers. The words also split cleanly already: the preview is the running app, and a frame is a window onto it. The whiteboard meaning (a grouping container) is the one risk, and it points at Group below.</span></p>
+    <ul class="opts">
+      <li><span class="n pick">Frame<span class="pick-tag">Pick</span></span><span>The canvas word for a screen: designers know it from Figma and Sketch, and it sits naturally beside mockup and document.</span></li>
+      <li><span class="n">Browser</span><span>Says “live and clickable” better than anything else, and the docs already describe frames as “real browsers”. But in agent tools a browser is the agent’s own tool (Cursor’s built-in browser, Devin’s browser tab), a live mockup runs in a browser too, so it doesn’t set frames apart, and canvas verbs get awkward: the Browser tool, “drop a browser”, “3 browsers in this group”. Better kept as the word that explains what a frame is.</span></li>
+      <li><span class="n">Preview</span><span>What v0 and Lovable call the running app, and already our word for it. Using it for the frame too would make “Restart preview” ambiguous.</span></li>
+      <li><span class="n">Screen</span><span>Fits a single page, but one frame clicks through many screens.</span></li>
+    </ul>
+  </article>
+
+  <article class="entry" id="mockup">
+    <div class="entry-head"><h3>Mockup</h3><span class="v keep">Keep</span></div>
+    <p class="def">A self-contained page a chat draws on the canvas to show a design option. Clickable, with knobs and shared state, and it can go live. It isn’t the real app.</p>
+    <dl class="market">
+      <dt>Claude</dt><dd><span class="term">Artifact</span>: any generated output shown beside the chat (code, documents, pages, diagrams)</dd>
+      <dt>ChatGPT, Gemini</dt><dd><span class="term">Canvas</span></dd>
+      <dt>Stitch, Magic Patterns</dt><dd><span class="term">screen</span> / <span class="term">design</span></dd>
+      <dt>Figma Make</dt><dd><span class="term">Make file</span>; marketed as a <span class="term">prototype</span></dd>
+      <dt>Miro</dt><dd><span class="term">Prototypes</span></dd>
+      <dt>tldraw “make real”</dt><dd><span class="term">preview shape</span>: AI-written HTML in an iframe on the canvas, mechanically the same as ours</dd>
+      <dt>Balsamiq, Moqups, Uizard</dt><dd><span class="term">mockup</span> (usually static and lower fidelity)</dd>
+    </dl>
+    <div class="callout">
+      <strong>On “artifact”</strong>
+      <p>It’s the strongest-known term for AI-made output, which is also the problem. It’s one vendor’s product name, and our copy rules keep that vendor out of the UI. In the tools our users live in, an artifact is a build output (GitHub Actions artifacts, CI artifacts) and shows up next to pull requests every day. And on a canvas, frames and documents are artifacts too, so the word doesn’t tell a mockup apart from anything else.</p>
+    </div>
+    <ul class="opts">
+      <li><span class="n pick">Mockup<span class="pick-tag">Pick</span></span><span>Says “a picture of the idea, not the real app”, which is the one thing that has to be clear next to a frame. Slight risk that it sounds static, but the page shows people it’s clickable within seconds.</span></li>
+      <li><span class="n">Artifact</span><span>Vendor-branded, collides with CI artifacts, and doesn’t separate it from frames or documents.</span></li>
+      <li><span class="n">Prototype</span><span>Collides with the prototype player, which plays the real app, the opposite of a mockup.</span></li>
+      <li><span class="n">Design</span><span>Stitch’s word, but too broad: frames and documents are designs too, and “a design” is awkward in sentences.</span></li>
+      <li><span class="n">Sketch</span><span>Collides with the Sketch app and implies drawing by hand.</span></li>
+      <li><span class="n">Screen</span><span>Fits single pages but not a whole flow inside one mockup, and frames are screens too.</span></li>
+    </ul>
+  </article>
+
+  <article class="entry" id="group">
+    <div class="entry-head"><h3>Group</h3><span class="v consider">Consider Section</span></div>
+    <p class="def">A labelled row of frames, documents and mockups laid out left to right. Every layer lives in one, and it names its chat once when all its frames share one.</p>
+    <dl class="market">
+      <dt>Figma, FigJam</dt><dd><span class="term">section</span>: a labelled area that holds frames on the canvas. A Figma <span class="term">group</span> is an unlabelled bundle of layers with no box of its own.</dd>
+      <dt>Miro, tldraw, Excalidraw</dt><dd><span class="term">frame</span> (taken)</dd>
+      <dt>Sketch, Framer</dt><dd><span class="term">stack</span>: an auto-layout row or column</dd>
+      <dt>Penpot</dt><dd>nested <span class="term">boards</span></dd>
+    </dl>
+    <p class="rec"><span><strong>Why consider:</strong> this is the one name a Figma user reads differently. To them a group has no label, no layout and no box, and ours has all three, which is exactly what Figma calls a section. “Stack” describes the row layout but not the label. Renaming touches the canvas, layer menus and docs, so it’s worth doing only if people have actually tripped on it. If not, Group stays.</span></p>
+  </article>
+
+  <article class="entry" id="document">
+    <div class="entry-head"><h3>Document</h3><span class="v keep">Keep</span></div>
+    <p class="def">A rich-text page on the canvas for specs, checklists, notes and plans.</p>
+    <dl class="market">
+      <dt>Miro, Google</dt><dd><span class="term">Doc</span></dd>
+      <dt>Notion</dt><dd><span class="term">page</span></dd>
+      <dt>Cursor, Kiro</dt><dd><span class="term">plan</span>, <span class="term">spec</span> (agent-written, single purpose)</dd>
+    </dl>
+    <p class="rec"><span><strong>Why keep:</strong> universal. “Doc” is the common short form if a tool label ever needs it; “page” would clash with a frame’s page and a mockup’s page.</span></p>
+  </article>
+
+  <article class="entry" id="play">
+    <div class="entry-head"><h3>Play mode / prototype player</h3><span class="v change">One name: Play mode</span></div>
+    <p class="def">A chat’s app full screen with no canvas, for testing a flow or presenting. The docs call it both “Play mode” and “the prototype player”, and the menu says “Open in prototype player”.</p>
+    <dl class="market">
+      <dt>Figma</dt><dd><span class="term">Present</span>, started from a ▶ play button</dd>
+      <dt>Framer, Webflow</dt><dd><span class="term">Preview</span> (taken by us for the running app)</dd>
+      <dt>Penpot</dt><dd><span class="term">View mode</span></dd>
+    </dl>
+    <p class="rec"><span><strong>Why change:</strong> two names for one thing, and “prototype” is wrong for it: it plays the real app, while the thing people would call a prototype is a mockup. “Play mode” matches the ▶ and the ▶ in the tab title. Menu items would read “Open in Play mode”.</span></p>
+  </article>
+
+  <article class="entry" id="knobs">
+    <div class="entry-head"><h3>Knobs</h3><span class="v keep">Keep</span></div>
+    <p class="def">Live controls an app declares (sliders, switches, colours) that sync to everyone on the canvas.</p>
+    <dl class="market">
+      <dt>Storybook</dt><dd><span class="term">Controls</span> (its old addon was called Knobs)</dd>
+      <dt>Framer</dt><dd><span class="term">property controls</span></dd>
+      <dt>Figma</dt><dd><span class="term">variables</span>, <span class="term">component properties</span></dd>
+    </dl>
+    <p class="rec"><span><strong>Why keep:</strong> “Controls” is the current standard, but we already use “control” for taking over a live frame (“Ask for control”, “Ana has control”) and for the player’s control bar. Knobs stays distinct and short.</span></p>
+  </article>
+
+  <article class="entry" id="live">
+    <div class="entry-head"><h3>Go live and Interact</h3><span class="v keep">Keep</span></div>
+    <p class="def">Interact lets you click inside a frame or mockup. Go live moves it to one shared browser that everyone on the canvas sees.</p>
+    <dl class="market">
+      <dt>Figma</dt><dd><span class="term">Spotlight</span>, <span class="term">follow</span> (follow a person’s view)</dd>
+      <dt>Miro</dt><dd><span class="term">Bring everyone to me</span></dd>
+      <dt>VS Code</dt><dd><span class="term">Live Share</span></dd>
+    </dl>
+    <p class="rec"><span><strong>Why keep:</strong> the others share a person’s view; ours shares a page. “Go live” with a Live badge says that well, and “Interact” is the plain verb for clicking inside something on a canvas.</span></p>
+  </article>
+
+  <article class="entry" id="rest">
+    <div class="entry-head"><h3>Agent, memory, skills, files, repository, terminal tabs</h3><span class="v keep">Keep</span></div>
+    <p class="def">Everything else matches the market word for word.</p>
+    <dl class="market">
+      <dt>Agent</dt><dd>Cursor, Replit, Stitch (“design agent”), Codex</dd>
+      <dt>Memory</dt><dd>ChatGPT and Claude memory, Windsurf memories; Cursor says “rules”</dd>
+      <dt>Skills</dt><dd>the Agent Skills format, used across coding agents</dd>
+      <dt>Files</dt><dd>project files in ChatGPT; v0 and Claude projects hold files too</dd>
+      <dt>Repository, terminal</dt><dd>GitHub’s and every editor’s words</dd>
+    </dl>
+  </article>
+</section>
+
+<section>
+  <h2>Sources</h2>
+  <ul class="sources">
+    <li><a href="https://sketch.com/blog/frames">Sketch: frames replace artboards</a></li>
+    <li><a href="https://help.penpot.app/user-guide/objects">Penpot: boards</a></li>
+    <li><a href="https://www.conductor.build/docs/guides/parallel-agents/run-multiple-claude-code-sessions">Conductor: workspaces</a></li>
+    <li><a href="https://cursor.com/help/ai-features/background-agents">Cursor: background and cloud agents</a></li>
+    <li><a href="https://alternativeto.net/news/2026/3/you-can-now-use-google-stitch-to-vibe-design-uis-on-an-infinite-canvas-using-your-voice">Google Stitch: infinite canvas, screens, design agent</a></li>
+    <li><a href="https://www.figma.com/make">Figma Make</a></li>
+    <li><a href="https://miro.com/blog/whats-new-may-2026/">Miro: Sidekicks, Prototypes, Docs</a></li>
+    <li><a href="https://0jo2xuhypsg.v0.build/docs/projects">v0: projects and chats</a></li>
+    <li><a href="https://magicpatterns.com/docs">Magic Patterns</a></li>
+    <li><a href="https://tldraw.dev/docs/ai">tldraw: make real and the preview shape</a></li>
+    <li>Agent framework terms (Magentic-One, LangGraph, CrewAI, Storybook Controls) from their public docs, not re-checked for this page.</li>
+  </ul>
+</section>
+</main>
+
+</body></html>

@@ -1,0 +1,212 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Main.dc.html": {
+      "h": 600,
+      "title": "1A · Task rows (picked)",
+      "w": 880,
+      "x": 0,
+      "y": 0
+    },
+    "Q1B.dc.html": {
+      "h": 600,
+      "title": "1B · Inline Workspace pills",
+      "w": 880,
+      "x": 960,
+      "y": 0
+    },
+    "Q1C.dc.html": {
+      "h": 600,
+      "title": "1C · One status card",
+      "w": 880,
+      "x": 1920,
+      "y": 0
+    },
+    "Q2A.dc.html": {
+      "h": 600,
+      "title": "2A · Collapsed row (picked)",
+      "w": 880,
+      "x": 0,
+      "y": 1000
+    },
+    "Q2B.dc.html": {
+      "h": 600,
+      "title": "2B · Labelled bubble",
+      "w": 880,
+      "x": 960,
+      "y": 1000
+    },
+    "Q2C.dc.html": {
+      "h": 600,
+      "title": "2C · Canvas as an author",
+      "w": 880,
+      "x": 1920,
+      "y": 1000
+    },
+    "Q3A.dc.html": {
+      "h": 600,
+      "title": "3A · Breadcrumb (picked)",
+      "w": 880,
+      "x": 0,
+      "y": 2000
+    },
+    "Q3B.dc.html": {
+      "h": 600,
+      "title": "3B · Back button",
+      "w": 880,
+      "x": 960,
+      "y": 2000
+    },
+    "Q3C.dc.html": {
+      "h": 600,
+      "title": "3C · Canvas in the switcher",
+      "w": 880,
+      "x": 1920,
+      "y": 2000
+    },
+    "Q4A.dc.html": {
+      "h": 600,
+      "title": "4A · Event line",
+      "w": 880,
+      "x": 0,
+      "y": 3000
+    },
+    "Q4B.dc.html": {
+      "h": 600,
+      "title": "4B · No marker (picked)",
+      "w": 880,
+      "x": 960,
+      "y": 3000
+    },
+    "Q4C.dc.html": {
+      "h": 600,
+      "title": "4C · Workspace row on the reply",
+      "w": 880,
+      "x": 1920,
+      "y": 3000
+    },
+    "Q5A.dc.html": {
+      "h": 680,
+      "title": "5A · Plan card twin",
+      "w": 880,
+      "x": 0,
+      "y": 4000
+    },
+    "Q5B.dc.html": {
+      "h": 680,
+      "title": "5B · One row",
+      "w": 880,
+      "x": 960,
+      "y": 4000
+    },
+    "Q5C.dc.html": {
+      "h": 680,
+      "title": "5C · Alert",
+      "w": 880,
+      "x": 1920,
+      "y": 4000
+    },
+    "Q5D.dc.html": {
+      "h": 680,
+      "title": "5D · Buttons under the reply",
+      "w": 880,
+      "x": 2880,
+      "y": 4000
+    },
+    "Q6A.dc.html": {
+      "h": 680,
+      "title": "6A · Approve / Deny",
+      "w": 880,
+      "x": 0,
+      "y": 5200
+    },
+    "Q6B.dc.html": {
+      "h": 680,
+      "title": "6B · The action as the verb",
+      "w": 880,
+      "x": 960,
+      "y": 5200
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-09-28T15:20:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "r1": {
+      "kind": "title1",
+      "maxW": 2800,
+      "text": "1 · How Workspace work shows in the Coordinator chat",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "r2": {
+      "kind": "title1",
+      "maxW": 2800,
+      "text": "2 · A Coordinator message inside a Workspace chat",
+      "w": 240,
+      "x": 0,
+      "y": 740
+    },
+    "r3": {
+      "kind": "title1",
+      "maxW": 2800,
+      "text": "3 · Getting back to the Coordinator",
+      "w": 240,
+      "x": 0,
+      "y": 1740
+    },
+    "r4": {
+      "kind": "title1",
+      "maxW": 2800,
+      "text": "4 · A reply the Coordinator sent on its own",
+      "w": 240,
+      "x": 0,
+      "y": 2740
+    },
+    "r5": {
+      "kind": "title1",
+      "maxW": 3760,
+      "text": "5 · The confirm card (open a PR, remove a Workspace)",
+      "w": 240,
+      "x": 0,
+      "y": 3740
+    },
+    "r6": {
+      "kind": "title1",
+      "maxW": 1840,
+      "text": "6 · Its button labels",
+      "w": 240,
+      "x": 0,
+      "y": 4940
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Q1B.dc.html",
+    "Q1C.dc.html",
+    "Q2A.dc.html",
+    "Q2B.dc.html",
+    "Q2C.dc.html",
+    "Q3A.dc.html",
+    "Q3B.dc.html",
+    "Q3C.dc.html",
+    "Q4A.dc.html",
+    "Q4B.dc.html",
+    "Q4C.dc.html",
+    "Q5A.dc.html",
+    "Q5B.dc.html",
+    "Q5C.dc.html",
+    "Q5D.dc.html",
+    "Q6A.dc.html",
+    "Q6B.dc.html"
+  ],
+  "pages": [],
+  "title": "Coordinator chat panel"
+}

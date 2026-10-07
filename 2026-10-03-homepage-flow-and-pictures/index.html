@@ -1,0 +1,361 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Homepage Flow and Pictures</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@500&display=swap">
+<style>
+/* Layout: phone first, one column. Question, then tabs (open round / Today / Earlier rounds). Each question is a deck of cards (Today, A, B…) swiped one at a time on a phone and side by side on wide screens. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:oklch(0.52 0.25 322);--ok:#1f7a45;--no:#a3372b;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded",var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace;--stick:0px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:oklch(0.72 0.25 322);--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:oklch(0.72 0.25 322);--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:24px calc(112px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:24px}
+@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:32px}}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);letter-spacing:-.015em;margin:8px 0 10px;text-wrap:balance}
+h2{font:600 clamp(17px,4.4vw,21px)/1.28 var(--head);margin:0;text-wrap:balance}
+h3{font:500 16px/1.35 var(--sans);margin:0}
+p{margin:0;max-width:72ch}
+a{color:var(--accent)}
+code{font:13px var(--mono)}
+.muted{color:var(--muted)}
+blockquote{margin:0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+button{font:500 13px/1.2 var(--sans);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);-webkit-tap-highlight-color:transparent}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
+button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px;min-width:0}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:80ch;font-size:14px}
+/* Tabs: the open round, Today, earlier rounds */
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:var(--bg);display:flex;gap:4px;border-bottom:1px solid var(--line);margin-inline:-16px;padding:8px 16px;overflow-x:auto;scrollbar-width:none}
+@media (min-width:720px){.tabs{margin-inline:-24px;padding-inline:24px}}
+.tabs button{border-color:transparent;background:transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg)}
+/* Folded blocks: In every option, each earlier round */
+details.fold{border:1px solid var(--line);border-radius:10px}
+details.fold>summary{list-style:none;cursor:pointer;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:"Show";grid-row:1/span 2;grid-column:2;font:500 13px var(--sans);color:var(--muted)}
+details.fold[open]>summary::after{content:"Hide"}
+details.fold>summary .sum{font-size:14px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+details.fold[open]>summary .sum{display:none}
+details.fold>.body{padding:14px 14px 16px;display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line)}
+.ledger{display:flex;flex-direction:column;gap:8px}
+/* A question and its options */
+.question{display:flex;flex-direction:column;gap:12px;min-width:0}
+.question+.question{margin-top:20px}
+.qhead{display:flex;flex-direction:column;gap:4px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:20px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.opt.today .letter{color:var(--muted)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.choose{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.choose button{min-width:112px}
+.choose button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.choose button[aria-pressed="true"]::before{content:"✓ "}
+/* Deck: chips pinned under the tabs; the track swipes one card at a time on a phone and becomes a grid on wide screens */
+.chips{position:sticky;top:var(--stick);z-index:4;background:var(--bg);display:flex;gap:6px;padding-block:8px;margin-top:-8px;overflow-x:auto;scrollbar-width:none}
+.chips button{min-width:44px;padding-inline:12px;font-family:var(--mono)}
+.chips button[aria-current="true"]{border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.chips button::after{content:" ✓";color:var(--ok);visibility:hidden}
+.chips button.chosen::after{visibility:visible}
+.track{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;align-items:start}
+.track::-webkit-scrollbar,.chips::-webkit-scrollbar,.tabs::-webkit-scrollbar{display:none}
+.track>.opt{scroll-snap-align:start;scroll-snap-stop:always}
+@media (min-width:900px){.chips{display:none}.track{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));overflow:visible;gap:20px}}
+/* Captures: the viewer's theme only, tap to enlarge */
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:0;background:var(--surface);cursor:zoom-in;min-height:0}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dialog.lb{padding:0;border:0;background:transparent;max-width:100vw;max-height:100dvh;width:100vw;height:100dvh}
+dialog.lb::backdrop{background:rgb(0 0 0/.86)}
+dialog.lb .in{width:100%;height:100%;overflow:auto;display:grid;place-items:center;padding:16px;cursor:zoom-out}
+dialog.lb img{max-width:none;background:var(--surface)}
+@media (min-width:720px){dialog.lb img{max-width:100%}}
+/* Bottom bar: picks so far, a note, Copy */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+@media (min-width:720px){.bar{padding-inline:24px}}
+.bar .in{max-width:1032px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.bar .row{display:flex;align-items:center;gap:8px}
+.bar .picks{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bar .picks b{color:var(--fg);font-weight:500}
+.bar textarea{width:100%;font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:72px}
+#copy{min-width:132px}
+.bar #out{font:12.5px/1.5 var(--mono)}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+/* Wireframes of the page's sections and of the figures */
+.wf{display:flex;flex-direction:column;gap:4px;font-size:12.5px;line-height:1.35}
+.wf .s{position:relative;border:1px solid var(--line);background:var(--surface);padding:7px 10px;display:flex;flex-direction:column;gap:1px}
+.wf .s .e,.fg b{font:500 10px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.wf .s b{font-weight:500}
+.wf .s .f{color:var(--muted)}
+.wf .s.chg,.wf .s.new,.wf .steps.chg span{border:1px dashed var(--accent)}
+.wf .s.new{background:transparent}
+.wf .s.gone{opacity:.5;text-decoration:line-through}
+.m{position:absolute;top:6px;right:8px;font:500 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.wf .s.gone .m{color:var(--muted)}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:4px;margin-top:-1px}
+.steps span{border:1px solid var(--line);padding:6px 8px;font-size:11.5px;min-width:0}
+.figs{display:flex;flex-direction:column;gap:6px}
+.fg{position:relative;border:1px solid var(--line);background:var(--surface);padding:9px 10px;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.fg.new,.fg.chg{border:1px dashed var(--accent)}
+.fg.same .m{color:var(--muted)}
+.fg>span:not(.m){color:var(--fg)}
+</style>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk});
+const PAGE={date:"3 Oct 2026",slug:"homepage-flow-2026-10-03",
+ quote:"we need to rework the homepage examples and flow again. the ui has changed a lot",
+ q:"What should the homepage's sections and pictures be, now that the app has changed?"};
+// Wireframe helpers: s(eyebrow, title, figure, mark) where mark is "" | "chg" | "new" | "gone"
+const s=(e,t,f,m="")=>`<div class="s ${m}"><span class="e">${e}</span><b>${t}</b>${f?`<span class="f">${f}</span>`:""}${m?`<span class="m">${{chg:"Changed",new:"New",gone:"Removed"}[m]}</span>`:""}</div>`;
+const steps=(a,m="")=>`<div class="steps ${m}">${a.map(x=>`<span>${x}</span>`).join("")}</div>`;
+const wf=rows=>`<div class="wf">${rows.join("")}</div>`;
+const fig=(t,d,m="")=>`<div class="fg ${m}"><b>${t}</b><span>${d}</span>${m?`<span class="m">${{chg:"Changed",new:"New",same:"As today"}[m]||""}</span>`:""}</div>`;
+const figs=a=>`<div class="figs">${a.join("")}</div>`;
+const HERO=s("Hero","Every branch, side by side.","Carousel, then Fig. 1: Coordinator + three versions");
+const PROB=s("The problem","Three versions means three setups and three tabs.","Terminal vs two frames");
+const FAQ=s("FAQ","Before you start.","");
+const CTA=s("CTA","Try it on your own repository.","");
+const TODAY={
+ facts:[
+  "Order at 1280px wide: Hero + Fig. 1 (1472px) · The problem (746) · How it works, 4 steps (854) · Before you build (792) · For teams (1092) · Features, 6 cards (656) · FAQ (734) · CTA (661). About 7,000px in all.",
+  "Figures were refreshed to the current chrome in PR #1572 this morning, but the story they tell is from before today's changes.",
+  "<b>Untrue now:</b> Step 4 opens the pull request from a Chats menu row's ⋯, and the menu shows +. The Chats menu is now a list with search only; Create pull request is in the chat's header and menu (PR #1562).",
+  "<b>Untrue now:</b> the For teams card “Shared live frames” says each frame is one browser everyone watches. Frames now open as each person's own copy, and Go live puts everyone on one browser, marked by an outlined Live badge (PRs #1546, #1580).",
+  "<b>Missing:</b> drawing a frame and typing what it should show is now one of the two ways a chat starts (Frame tool, F). The page only shows asking the Coordinator.",
+  "<b>Missing:</b> memory, files and skills (canvas and account), the / menu with sources, and attaching files to a message. None of it appears anywhere.",
+  "<b>Copy rule:</b> since today, chat is the thing; “workspace” is only for code and previews. Fig. 1's caption (“Three Workspaces”), Steps 1–2 and For teams lead with Workspace.",
+ ],
+ html:wf([HERO,PROB,s("How it works","From one prompt to several running versions.","")+steps(["1 Add a repository","2 Ask for versions","3 Compare them live","4 Open a pull request"]),s("Before you build","Settle the idea before the agents write code.","Mockups · Documents · Plan mode, live frame beside a Take"),s("For teams","Host it and build together.","“Sam has control” + comment thread; 6 perks"),s("Features","Built for comparing what your agents build.","Live sandboxes · Coordinator · Pick elements · Knobs · Your agents · Runs on your Mac"),FAQ,CTA]),
+ shots:[IMG("today/s0.jpg","Today · Hero and Fig. 1"),IMG("today/s2.jpg","Today · How it works"),IMG("today/s3.jpg","Today · Before you build"),IMG("today/s4.jpg","Today · For teams"),IMG("today/s5.jpg","Today · Features"),IMG("today/s1.jpg","Today · The problem")]
+};
+const ROUNDS=[
+{n:5,feedback:"“drawing is the wrong way to describe it you're literally just putting a prompt box into a rectangle” · “i think the thing to emphasize is you promot to create mockups, make changes to your app, or write documents all in the same canvas … i think thats better framing? think about it for me” · “one thing to emphasize w/ mockups is the agent sketches by referencing your real code” · “same w/ docs” · “i feel like the order is wrong, doc first for plan it, sketch it, build it? and ‘at the size of a box’ is so weird” · “the copy is a bit repetitive … i like the framing tho”",every:[
+ "My take: it's the better framing. Running agents on branches isn't new; seeing a sketch, the running app and the plan next to each other, all from the same kind of prompt, is. It's also what “side by side” in the hero really means.",
+ "How it works becomes four steps, one per thing you can ask for, in the order you'd use them, then shipping: <b>Documents</b> · Plan it, <b>Mockups</b> · Sketch it, <b>Your app</b> · Build it, <b>Ship</b> · Ship it.",
+ "Intro in every option: “Type a prompt anywhere on the canvas and an agent makes it right there. It reads your code first, so whatever it makes fits your app.”",
+ "<b>Tighter copy:</b> the real-code point is said once, in the intro, and each step says only what is new. Plan it: “A plan or a spec, written as a document next to the work. It stays current as things change.” Sketch it: “Mockups made with your own components, styles and copy. Compare a few takes before anything gets built.” Build it: “The change runs live on a branch of its own, right beside the other versions.” Ship it: “Open a pull request for the version you keep.” The Read rows in the first two pictures show the agent opening your code.",
+ "<b>Before you build goes away</b>, since its Mockups and Documents are now steps here. Plan mode loses its spot; it could become a Features card, or go. The page gets about 700px shorter than round 3.",
+ "Asking the Coordinator for several versions moves out of the steps. Fig. 1 under the headline still shows it, and the intro's last line says it.",
+],questions:[
+ {key:"how",title:"How it works: mockups, app changes, documents",intro:"Same steps and pictures; the options differ in the headline.",options:[
+  {id:"A",name:"Plan it, sketch it, build it.",rec:true,state:"",shots:[IMG("r5/r5-a.jpg","A · How it works")],
+   why:"The headline is the first three step titles, so the section reads as one idea, and it uses plain verbs with no product terms.",
+   cost:"Doesn't name the canvas; the intro does."},
+  {id:"B",name:"Plans, mockups and app changes on one canvas.",rec:false,state:"",shots:[IMG("r5/r5-b.jpg","B · How it works")],
+   why:"Says the point outright: three kinds of result, one place.",
+   cost:"Reads like a feature list rather than something you do."},
+  {id:"C",name:"Ask for a plan, a mockup or a change.",rec:false,state:"",shots:[IMG("r5/r5-c.jpg","C · How it works")],
+   why:"Leads with the one action, asking, and the three things it can make.",
+   cost:"Close to the intro's first sentence, so the two repeat each other."}
+ ]}
+]},
+{n:4,feedback:"“start from a frame is weird copy it is jargon and specific to the app. rework that section”",every:[
+ "Same four columns and pictures as round 3 (shown under Earlier rounds). Only the words change.",
+ "Steps say what people do, without app terms: <b>One version</b> · Draw a screen, <b>Or a few</b> · Ask for versions, <b>Then</b> · Compare them live, <b>Ship</b> · Open a pull request.",
+ "Step bodies drop frame, chat, Coordinator and header: “Drag out a box the size of a phone or a desktop and say what it should show. An agent builds it on a branch of its own.” · “Describe one change and ask for a few takes on it. Each one gets its own agent and its own branch.” · “The versions appear side by side as they build. Click through each one and try it at phone size.” · “Keep going with the version you want, then open its pull request from its chat.”",
+ "The pictures still show the app's own labels (Frame, New chat), since they're the real UI.",
+],questions:[
+ {key:"how",title:"How it works, in plain words",intro:"The options differ in the section's headline and intro.",options:[
+  {id:"A",name:"Draw it, or describe it.",rec:true,state:"",shots:[IMG("r4/r4-a.jpg","A · How it works")],
+   why:"Names the two ways in with two plain verbs, so the headline matches the first two steps. Intro: “Drag out a screen on the canvas and say what goes in it, or describe one change and get a few versions of it. Each runs live, side by side.”",
+   cost:"Doesn't say “versions” in the headline; the intro carries it."},
+  {id:"B",name:"From one prompt to several running versions.",rec:false,state:"",shots:[IMG("r4/r4-b.jpg","B · How it works")],
+   why:"Goes back to today's headline and intro on main, which you've lived with, and lets the steps introduce drawing.",
+   cost:"The headline only covers the second way in; drawing one screen isn't several versions."},
+  {id:"C",name:"Ask once, compare every version.",rec:false,state:"",shots:[IMG("r4/r4-c.jpg","C · How it works")],
+   why:"Leads with the outcome. Intro: “Say what you want, by drawing where it goes or by describing it. Your agents build each version on its own branch, and you try them side by side.”",
+   cost:"Restates the hero headline's promise rather than saying how it works."}
+ ]}
+]},
+{n:3,feedback:"Round 2: four columns for How it works, and a picture for each multiplayer perk. The Memory and skills sign-off had no answer yet, so it's in here too.",every:[
+ "Order: Hero · The problem · How it works · Before you build · <b>Memory and skills</b> · For teams · Features · FAQ · CTA. About 8,300px at 1280px wide (today about 7,000).",
+ "Copy now leads with chats: Fig. 1 reads “Three versions on one canvas”; the Coordinator card, both FAQ answers that said Workspace, and For teams' intro say chat.",
+ "Live frames show the outlined Live badge (PR #1580). A frame the agent has control of keeps its ring and hides its handles (PR #1588).",
+ "The nav anchors still land: How it works is #how, For teams is #self-hosting. The new section is #memory and isn't in the nav.",
+ "On a phone the Memory and skills picture scales to about 56%, so its text is small; every other picture reads as today's do.",
+],questions:[
+ {key:"all",title:"",intro:"",options:[
+  {id:"P",name:"The whole homepage with every pick",state:"",shots:[IMG("r3/s0.jpg","1 · Hero and Fig. 1"),IMG("r3/s1.jpg","2 · The problem (as today)"),IMG("r3/s2.jpg","3 · How it works"),IMG("r3/s3.jpg","4 · Before you build (as today)"),IMG("r3/s4.jpg","5 · Memory and skills (new)"),IMG("r3/s5.jpg","6 · For teams"),IMG("r3/s6.jpg","7 · Features"),IMG("r3/s7.jpg","8 · FAQ"),IMG("r3/s8.jpg","9 · Closing call to action"),IMG("r3/phone-how.jpg","Phone · How it works"),IMG("r3/phone-memory.jpg","Phone · Memory and skills"),IMG("r3/phone-self-hosting.jpg","Phone · For teams")],
+   why:"Every section of the page at 1280px, top to bottom, plus the three changed sections on a 390px phone. Looks good means I'll open the pull request with these changes, the docs line and before and after screenshots.",cost:""}
+ ]}
+]},
+{n:2,feedback:"Round 1: flow B and pictures C. Then: “i think we should illustrate multiplayer hosted more”",every:[
+ "Real excerpts drawn in the homepage's own components, captured from a scratch copy of the page at 1280px. Nothing is committed.",
+ "How it works is titled “Start from a frame or from a question.” Its steps: Draw a frame, Or ask for versions, Compare them live, Open a pull request (from the chat's header).",
+ "Copy leads with chats. For teams says “Every chat runs in its own cloud sandbox”, and its first perk is now <b>Live frames</b>: frames open as each person's own copy, and Go live puts everyone on one browser, marked by the outlined Live badge (PR #1580).",
+ "UI in the pictures says Agent, never Claude, and has no sparkle icon. Northwind's hero versions stay the thread through every picture.",
+],questions:[
+ {key:"how",title:"How it works, with two ways in",intro:"Same steps and pictures; the question is how the two starting points sit.",options:[
+  {id:"A",name:"Four columns, the two starts first",rec:true,state:"picked",shots:[IMG("r2/how-a.jpg","A · How it works, 871px tall (today 854)")],
+   why:"Keeps today's four-column grid and height. The eyebrows say what's going on: Start · Draw, Start · Ask, Then, Ship.",
+   cost:"The drawn-frame picture is small at 320px, so the ask card covers most of the new frame."},
+  {id:"B",name:"Two starts side by side, with “or”",rec:false,state:"",shots:[IMG("r2/how-b.jpg","B · How it works, 1322px tall")],
+   why:"The two starting points get wide pictures under one rule with “or” on it, then Compare and Ship sit in a second row.",
+   cost:"About 450px taller than today, and Compare's picture sits small in a wide cell."}
+ ]},
+ {key:"context",title:"Memory and skills",intro:"The new section from flow B, after Before you build. One option, so this is a sign-off.",options:[
+  {id:"P",name:"Tell one chat, and every chat knows.",state:"",shots:[IMG("r2/context.jpg","Memory and skills, 940px tall")],
+   why:"Laid out like Before you build: four items (Memory, Files, Skills, Attachments) beside one picture. The picture is the Dark hero chat: a message with brand-guide.pdf attached, <b>Save to canvas memory</b> with the rule it kept, and the / menu showing skills from Canvas, Account and Built in.",
+   cost:""}
+ ]},
+ {key:"teams",title:"Showing hosted multiplayer",intro:"Your ask: illustrate multiplayer hosted more.",options:[
+  {id:"A",name:"One big shared canvas",rec:false,state:"",shots:[IMG("r2/teams-a.jpg","A · For teams, 1350px tall (today 1092)")],
+   why:"For teams opens on one full-width picture with everything at once: the people pill and Share, the Split layout frame live with the Live badge, Maya's and Jo's cursors, a comment pin, and the chat naming who sent each message. The six perks stay as text below.",
+   cost:"One busy picture; the agent taking control isn't in it."},
+  {id:"B",name:"A picture for each perk",rec:true,state:"picked",shots:[IMG("r2/teams-b.jpg","B · For teams, 1582px tall")],
+   why:"The four multiplayer perks each get their own picture, in a two-by-two grid: a frame gone live with the Live badge and two cursors, <b>Agent has control</b> with faded handles and its Click and Type steps, a comment thread on a button, and a shared chat naming Maya and Sam. Repositories and model providers stay text.",
+   cost:"For teams grows by about 490px, and it becomes the page's longest section."},
+  {id:"C",name:"Multiplayer in the first picture",rec:false,state:"",shots:[IMG("r2/teams-c-fig.jpg","C · Fig. 1 on the hosted app"),IMG("r2/teams-c.jpg","C · For teams as today, copy fixed")],
+   why:"Fig. 1 under the headline shows the hosted canvas: the people pill with Share, Maya's and Jo's cursors, Split layout live with the Live badge, and Maya named over the ask in the Coordinator. For teams keeps today's picture.",
+   cost:"The first picture shows hosted chrome that people on the Mac app won't see."}
+ ]}
+]},
+{n:1,feedback:"",every:[
+ "The hero stays: “Every branch, side by side.”, the carousel and Fig. 1 (the Coordinator starting three versions of the Northwind hero). Fig. 1 is still true.",
+ "The Northwind hero story stays the thread through every picture: Gradient headline, Split layout, Dark hero.",
+ "Step 4 opens the pull request from the chat's header, since the Chats menu is now only a list.",
+ "For teams says frames open as each person's own copy and Go live puts everyone on one browser, with the Live tag and faces.",
+ "Copy leads with chats; “workspace” only where it means the code and the preview. UI in pictures says Agent, never Claude.",
+ "Always dark, plain copy, HTML excerpts, no sparkle icon. The new-canvas name and repositories step isn't shown, since it isn't built yet.",
+],questions:[
+ {key:"flow",title:"Section flow",intro:"Dashed rows change or are new. Grey rows are as today.",options:[
+  {id:"A",name:"Same sections, made true",rec:false,state:"",
+   html:wf([HERO,PROB,s("How it works","From one prompt to several running versions.","")+steps(["1 Add a repository","2 Draw a frame or ask","3 Compare them live","4 Open a pull request"],"chg"),s("Before you build","Settle the idea before the agents write code.",""),s("For teams","Host it and build together.","Live frames perk rewritten for Go live","chg"),s("Features","Built for comparing what your agents build.","“The Coordinator” card becomes “Memory, files and skills”","chg"),FAQ,CTA]),
+   why:"Keeps today's order and fixes what's untrue. Step 2 becomes “Draw a frame or ask”: draw a frame and say what it should show, or ask the Coordinator for several versions. Memory, files and skills get one Features card.",
+   cost:"Smallest change, but the new ways chats keep context get one card of 30 words, and Step 2 has to explain two starting points in one caption."},
+  {id:"B",name:"Two ways in, and a context section",rec:true,state:"picked",
+   html:wf([HERO,PROB,s("How it works","Start from a frame or from a question.","")+steps(["Draw a frame · say what it should show","Ask the Coordinator · several versions at once","Compare them live","Open a pull request"],"chg"),s("Before you build","Settle the idea before the agents write code.","Mockups now go live"),s("Every chat remembers","Tell it once.","Memory · Files · Skills · Attach files, with a composer picture","new"),s("For teams","Host it and build together.","Live frames perk rewritten for Go live","chg"),s("Features","Built for comparing what your agents build.","As today"),FAQ,CTA]),
+   why:"How it works shows the two real starting points side by side as Steps 1 and 2, the way the app now works (PR #1562), then compare and ship. A new section after Before you build covers what carries between chats: account and canvas memory, files, skills from the / menu with where each comes from, and files attached to a message.",
+   cost:"Adds a section (about 700px) and a new figure. Step 1 “Add a repository” moves into Step 1's caption, since you can't draw a frame without one."},
+  {id:"C",name:"One change, start to finish",rec:false,state:"",
+   html:wf([HERO,PROB,s("How it works","One change, start to finish.","Five steps, each with its picture","chg")+steps(["Start · draw a frame or ask","Shape it · mockups, documents, plan","Build and compare","Show it together · Go live (hosted)","Ship · pull request"],"chg"),s("Before you build","","Folded into “Shape it”","gone"),s("For teams","Host it and build together.","Perks only; Go live moves into the story","chg"),s("Features","Built for comparing what your agents build.","Memory, files and skills join here","chg"),FAQ,CTA]),
+   why:"Merges How it works and Before you build into one longer story of the hero change: start it, shape it with mockups and a plan, build the versions, look at one together live, and open the pull request.",
+   cost:"Biggest rewrite. Step 4 is hosted-only, so the desktop reader meets a step they can't do; it needs a Hosted tag. For teams loses its strongest picture to the story."},
+ ]},
+ {key:"pictures",title:"What the pictures show",intro:"Which moments get a picture. Fig. 1 and the problem picture stay in every option.",options:[
+  {id:"A",name:"Today's pictures, made true",rec:false,state:"",
+   html:figs([fig("Step 2","The Coordinator's chat with three chat cards working","same"),fig("Step 4","The Split layout chat's header with Create pull request","chg"),fig("For teams","“Sam has control” and Maya's comment thread","same")]),
+   why:"Only the Step 4 picture changes, from the Chats menu's ⋯ to the chat header.",
+   cost:"Drawing a frame and everything new today stays words only."},
+  {id:"B",name:"Show the new starting point and Go live",rec:false,state:"",
+   html:figs([fig("Drawing a frame","A phone-sized frame just drawn beside the Split layout, asking what it should show: “Make the hero work on phones”, New chat beside Send","new"),fig("Step 4","Chat header with Create pull request","chg"),fig("For teams","The frame live: Live tag with three faces, Go live filled, Maya's comment thread open","chg")]),
+   why:"Pictures the two moments that changed most: a chat starting from a drawn frame (whose size becomes the viewport, so it gets the mobile layout) and a frame gone live for the team.",
+   cost:"Two excerpts to redraw. Memory, files and skills stay words only."},
+  {id:"C",name:"B, plus a chat's context",rec:true,state:"picked",
+   html:figs([fig("Drawing a frame","As B","new"),fig("For teams","As B: Live tag with faces","chg"),fig("Context","A chat with a “Save to canvas memory” row, then the composer with a screenshot attached and the / menu open: each skill ending in Repository, Canvas, Account or Built in","new")]),
+   why:"Adds one picture for what carries between chats, drawn from the composer people already see. It fits wherever the flow pick puts that content: a Features card (A), its own section (B) or the story (C).",
+   cost:"Three excerpts to draw, one of them a new composer and menu excerpt the page doesn't have yet."},
+ ]}
+]}
+];
+
+(()=>{
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const latest=ROUNDS[0],past=ROUNDS.slice(1);
+const SIGN=[["ok","Looks good"],["changes","Needs changes"]];
+const signoff=q=>q.options.length===1;
+const KEY="exploration-"+PAGE.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+const state=saved.round===latest.n?{picks:saved.picks||{},note:saved.note||""}:{picks:{},note:""};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({round:latest.n,...state}))}catch(e){}};
+
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><button type="button" class="shot${i.dk?" has-dk":""}" data-lt="${esc(i.p)}" data-dk="${esc(i.dk||"")}" aria-label="Enlarge ${esc(i.cap)}"><img class="lt" src="${esc(i.p)}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${esc(i.dk)}" alt="" aria-hidden="true" loading="lazy">`:""}</button><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const badges=o=>(o.rec?'<span class="badge rec">Recommended</span>':"")+(o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:"");
+const choose=(q,o)=>`<div class="choose">`+(signoff(q)?SIGN:[[o.id,"Pick "+o.id]]).map(([v,l])=>`<button type="button" data-q="${esc(q.key)}" data-v="${esc(v)}" data-label="${esc(l)}">${esc(l)}</button>`).join("")+`</div>`;
+const card=(q,o,live)=>`<article class="opt ${o.state||""}" data-id="${esc(o.id)}"><header><span class="letter">${esc(o.id)}</span><h3>${esc(o.name)}</h3>${badges(o)}</header>${o.html||""}${shots(o.shots)}${o.why?`<p>${o.why}</p>`:""}${o.cost?`<p class="cost"><b>Cost</b> ${o.cost}</p>`:""}${live?choose(q,o):""}</article>`;
+const hasToday=TODAY.compare!==false&&((TODAY.shots&&TODAY.shots.length)||TODAY.html);
+const todayCard=`<article class="opt today" data-id="Today"><header><span class="letter">Today</span><h3>What main does now</h3></header>${TODAY.html||""}<p class="cost">Captures of every section are on the Today tab.</p></article>`;
+function question(r,q,i,live){
+ const n=r.questions.length;
+ const head=(q.title||n>1)?`<div class="qhead">${n>1?`<p class="lbl acc">Question ${i+1} of ${n}</p>`:""}${q.title?`<h2>${esc(q.title)}</h2>`:""}${q.intro?`<p class="muted">${q.intro}</p>`:""}</div>`:"";
+ if(!live)return `<div class="question">${head}<div class="opts">${q.options.map(o=>card(q,o,false)).join("")}</div></div>`;
+ const ids=(hasToday?["Today"]:[]).concat(q.options.map(o=>o.id));
+ return `<div class="question" data-q="${esc(q.key)}">${head}<div class="chips" aria-label="Options">`+ids.map(id=>`<button type="button" data-go="${esc(id)}">${esc(id)}</button>`).join("")+`</div><div class="track">${hasToday?todayCard:""}${q.options.map(o=>card(q,o,true)).join("")}</div></div>`;
+}
+const fold=(title,sum,body,open)=>`<details class="fold"${open?" open":""}><summary><span class="lbl">${title}</span><span class="sum">${esc(sum)}</span></summary><div class="body">${body}</div></details>`;
+const list=items=>`<ul class="facts">${[].concat(items).map(x=>`<li>${x}</li>`).join("")}</ul>`;
+const outcome=r=>{const p=r.questions.flatMap(q=>q.options.filter(o=>o.state==="picked").map(o=>signoff(q)?`Signed off ${o.name}`:`${o.id}: ${o.name}`));return p.length?p.join(" · "):"No pick"};
+const Q=latest.questions;
+const openTitle=Q.length>1?`${Q.length} questions`:signoff(Q[0])?"Sign off":`${Q[0].options.length} options`;
+
+document.body.insertAdjacentHTML("afterbegin",`<div class="wrap">
+<header><div class="top"><p class="lbl acc">Design exploration · ${esc(PAGE.date)}</p><button type="button" class="ghost" id="theme">Dark</button></div><h1>${esc(PAGE.q)}</h1><blockquote>${esc(PAGE.quote)}</blockquote></header>
+<nav class="tabs" aria-label="Sections"><button type="button" data-tab="now" aria-selected="true">Round ${latest.n}</button><button type="button" data-tab="today" aria-selected="false">Today</button>${past.length?`<button type="button" data-tab="past" aria-selected="false">Earlier rounds · ${past.length}</button>`:""}</nav>
+<section data-panel="now"><div class="shead"><p class="lbl acc">Round ${latest.n} · open</p><h2>${openTitle}</h2></div>${latest.feedback?`<blockquote>${latest.feedback}</blockquote>`:""}${latest.every?fold("In every option",latest.every[0].replace(/<[^>]+>/g,""),list(latest.every),ROUNDS.length===1):""}${Q.map((q,i)=>question(latest,q,i,true)).join("")}</section>
+<section data-panel="today" hidden><div class="shead"><p class="lbl">Today</p><h2>What main does now</h2></div>${TODAY.facts?list(TODAY.facts):""}${TODAY.html||""}${shots(TODAY.shots)}</section>
+${past.length?`<section data-panel="past" hidden><div class="shead"><p class="lbl">Earlier rounds</p><h2>Newest first</h2></div><div class="ledger">${past.map(r=>fold(`Round ${r.n}`,outcome(r),(r.feedback?`<blockquote>${r.feedback}</blockquote>`:"")+(r.every?list(r.every):"")+r.questions.map((q,i)=>question(r,q,i,false)).join(""))).join("")}</div></section>`:""}
+</div>
+<div class="bar"><div class="in"><textarea id="note" aria-label="Note" placeholder="Anything to add" hidden></textarea><textarea id="out" aria-label="Reaction to copy" readonly hidden></textarea><div class="row"><div class="picks" id="picks" role="status" aria-live="polite"></div><button type="button" id="noteBtn">Note</button><button type="button" class="primary" id="copy">Copy reaction</button></div></div></div>
+<dialog class="lb" id="lb"><div class="in"><img alt=""></div></dialog>`);
+document.documentElement.style.setProperty("--stick",`calc(env(safe-area-inset-top,0px) + ${document.querySelector(".tabs").offsetHeight}px)`);
+
+const answer=q=>{const v=state.picks[q.key];return !v?"":signoff(q)?SIGN.find(s=>s[0]===v)[1]:`${v}: ${q.options.find(o=>o.id===v).name}`};
+function build(){
+ const lines=Q.map(q=>{const a=answer(q),name=signoff(q)?q.options[0].name:q.title;return "→ "+(name?name+": ":"")+(a||"No pick yet")});
+ return [`Exploration: ${PAGE.q}`,`Round ${latest.n}`,...lines].concat(state.note.trim()?[`Note: ${state.note.trim()}`]:[]).join("\n");
+}
+function sync(){
+ const done=Q.filter(q=>state.picks[q.key]);
+ $("picks").innerHTML=done.length?done.map(q=>`<b>${esc(Q.length>1?answer(q).split(":")[0]:answer(q))}</b>`).join(" · ")+(Q.length>1?` · ${done.length} of ${Q.length} answered`:""):Q.length>1?`0 of ${Q.length} answered`:signoff(Q[0])?"Sign off or say what to change":"No pick yet";
+ document.querySelectorAll(".choose button").forEach(b=>{const on=state.picks[b.dataset.q]===b.dataset.v;b.setAttribute("aria-pressed",on);if(b.dataset.label.startsWith("Pick "))b.textContent=on?"Picked":b.dataset.label});
+ document.querySelectorAll(".question[data-q]").forEach(el=>el.querySelectorAll(".chips button").forEach(c=>{const q=Q.find(x=>x.key===el.dataset.q),v=state.picks[el.dataset.q];c.classList.toggle("chosen",!!v&&(v===c.dataset.go||signoff(q)&&c.dataset.go!=="Today"))}));
+ save();
+}
+const openNote=()=>{const n=$("note");n.hidden=false;n.focus()};
+document.addEventListener("click",e=>{
+ const b=e.target.closest(".choose button");
+ if(b){const k=b.dataset.q;state.picks[k]=state.picks[k]===b.dataset.v?undefined:b.dataset.v;if(state.picks[k]==="changes")openNote();sync();return}
+ const go=e.target.closest(".chips button");
+ if(go){const t=go.closest(".question").querySelector(".track"),c=t.querySelector(`.opt[data-id="${CSS.escape(go.dataset.go)}"]`);t.scrollTo({left:c.offsetLeft-t.offsetLeft,behavior:"smooth"});return}
+ const tab=e.target.closest(".tabs button");
+ if(tab){document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected",x===tab));document.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);scrollTo({top:0});return}
+ const s=e.target.closest(".shot");
+ if(s){const dark=getComputedStyle(s.querySelector(".lt")).display==="none";$("lb").querySelector("img").src=dark&&s.dataset.dk?s.dataset.dk:s.dataset.lt;$("lb").showModal();return}
+ if(e.target.closest("#lb"))$("lb").close();
+});
+// The chip follows the swipe, and on a phone the track takes the height of the card in view
+document.querySelectorAll(".track").forEach(t=>{
+ const chips=[...t.previousElementSibling.querySelectorAll("button")],cards=[...t.children];
+ const mark=()=>{const i=Math.min(cards.length-1,Math.round(t.scrollLeft/(t.clientWidth+16)));chips.forEach((c,j)=>c.setAttribute("aria-current",j===i));t.style.height=getComputedStyle(t.previousElementSibling).display==="none"?"":cards[i].offsetHeight+"px"};
+ t.addEventListener("scroll",()=>requestAnimationFrame(mark),{passive:true});addEventListener("resize",mark);t.querySelectorAll("img").forEach(im=>im.addEventListener("load",mark));mark();
+});
+$("noteBtn").addEventListener("click",()=>{const n=$("note");n.hidden=!n.hidden;if(!n.hidden)n.focus()});
+$("note").value=state.note;if(state.note)$("note").hidden=false;
+$("note").addEventListener("input",e=>{state.note=e.target.value;save()});
+$("copy").addEventListener("click",()=>{
+ const text=build(),b=$("copy"),done=t=>{b.textContent=t;setTimeout(()=>b.textContent="Copy reaction",1800)};
+ const fallback=()=>{const o=$("out");o.hidden=false;o.value=text;o.select();done("Select and copy")};
+ try{navigator.clipboard.writeText(text).then(()=>done("Copied"),fallback)}catch(e){fallback()}
+});
+// Light / Dark switch, so the other theme's captures are one tap away
+const root=document.documentElement,mq=matchMedia("(prefers-color-scheme: dark)");
+const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":mq.matches;
+const label=()=>$("theme").textContent=isDark()?"Light":"Dark";
+$("theme").addEventListener("click",()=>{root.dataset.theme=isDark()?"light":"dark";label()});label();
+sync();
+})();
+</script>
+
+</body></html>

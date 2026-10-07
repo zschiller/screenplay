@@ -1,0 +1,258 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Hero dither options</title>
+<!-- Optional: a Google Fonts <link> for the repo's brand faces, then point --sans/--head/--mono at them. -->
+<style>
+/* Layout: phone first, one column at every width. Round tabs under the question, in time order (Today, Round 1, Round 2…) and opening on the newest; each question shows one option at a time behind a segmented A/B/C control that sticks to the top while you read. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#2f5bd3;--ok:#1f7a45;--no:#a3372b;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+/* Switching options jumps to the new option; scroll anchoring would undo that jump */
+html{overflow-anchor:none}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:880px;margin:0 auto;padding-inline:16px;padding-block:24px calc(96px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:20px}
+@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:24px}}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);letter-spacing:-.015em;margin:8px 0 10px;text-wrap:balance}
+h2{font:600 clamp(17px,4.4vw,21px)/1.28 var(--head);margin:0;text-wrap:balance}
+h3{font:500 17px/1.35 var(--sans);margin:0;text-wrap:balance}
+p{margin:0;max-width:72ch}
+a{color:var(--accent)}
+code{font:13px var(--mono)}
+.muted{color:var(--muted)}
+blockquote{margin:0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+button{font:500 13px/1.2 var(--sans);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);-webkit-tap-highlight-color:transparent}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
+button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:16px;min-width:0}
+ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px;max-width:72ch;font-size:14px;line-height:1.5}
+ul.facts li::marker{color:var(--muted)}
+/* Round tabs: quiet underline navigation */
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{border:0;border-radius:0;background:transparent;color:var(--muted);padding:10px 0 9px;min-height:40px;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px}
+.tabs button:hover{color:var(--fg)}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
+.mark{font-size:12px;line-height:1}
+.mark.rec{width:6px;height:6px;border-radius:50%;background:currentColor}
+.mark.rec{color:var(--accent)}
+.mark.ok{color:var(--ok)}
+.mark.no{color:var(--no)}
+/* Stuck, the control keeps a page-coloured margin so content never shows around its corners */
+.otabs{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:5;box-shadow:0 0 0 8px var(--bg),-16px 0 0 8px var(--bg),16px 0 0 8px var(--bg)}
+/* Round tabs fade at whichever edge hides rounds */
+.rtabs.less{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px);mask-image:linear-gradient(90deg,transparent,#000 40px)}
+.rtabs.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+.rtabs.more.less{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,transparent,#000 40px calc(100% - 40px),transparent)}
+/* The owner's feedback shows three lines until opened */
+.said{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.said blockquote.clamp{overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.said button{padding:0;min-height:0;border:0;background:none;color:var(--muted);text-decoration:underline;text-underline-offset:3px;margin-left:14px}
+/* Option tabs are a segmented control, so they read as the main control and the round row as navigation */
+.otabs{display:flex;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-block:4px}
+.otabs button{flex:1;justify-content:center;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:600 15px/1 var(--mono);min-height:36px;padding:0}
+.otabs button:hover{color:var(--fg)}
+.otabs button[aria-selected="true"]{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--line),0 1px 2px rgb(0 0 0/.06)}
+.rtabs{gap:16px}
+.rtabs button{font-size:13px;min-height:34px;padding:8px 0 7px}
+/* Folded block: In every option */
+details.fold{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+details.fold>summary{list-style:none;cursor:pointer;padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:12px}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:"Show";font:500 13px var(--sans);color:var(--muted)}
+details.fold[open]>summary::after{content:"Hide"}
+details.fold>.body{padding:0 0 14px}
+/* A question and its options */
+.question{display:flex;flex-direction:column;gap:14px;min-width:0}
+.question+.question{margin-top:16px;padding-top:20px;border-top:1px solid var(--fg)}
+.qhead{display:flex;flex-direction:column;gap:4px}
+.opt{display:flex;flex-direction:column;gap:12px;min-width:0}
+.opt header{display:flex;flex-direction:column;gap:6px}
+.opt .tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.letter{font:600 13px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid currentColor;border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent)}
+.badge.picked{color:var(--ok)}
+.badge.rejected{color:var(--no)}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.choose{display:flex;gap:8px;flex-wrap:wrap}
+.choose button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+/* Captures: the viewer's theme only, tap to enlarge */
+.shots{display:flex;flex-direction:column;gap:12px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:0;background:var(--surface);cursor:zoom-in;min-height:0}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dialog.lb{padding:0;border:0;background:transparent;max-width:100vw;max-height:100dvh;width:100vw;height:100dvh}
+dialog.lb::backdrop{background:rgb(0 0 0/.86)}
+dialog.lb .in{width:100%;height:100%;overflow:auto;display:grid;place-items:center;padding:16px;cursor:zoom-out}
+dialog.lb img{max-width:none;background:var(--surface)}
+@media (min-width:720px){dialog.lb img{max-width:100%}}
+/* Bottom bar: picks so far, a note, Copy */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+@media (min-width:720px){.bar{padding-inline:24px}}
+.bar .in{max-width:832px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.bar .row{display:flex;align-items:center;gap:8px}
+.bar .picks{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bar .picks b{color:var(--fg);font-weight:500}
+.bar textarea{width:100%;font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:72px}
+.bar #out{font:12.5px/1.5 var(--mono)}
+/* Copy keeps its width while it says Copied: both labels share one grid cell */
+#copy{display:inline-grid}
+#copy>span{grid-area:1/1}
+#copy>span[aria-hidden]{visibility:hidden}
+img[src$="zoom.png"]{image-rendering:pixelated}
+</style>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
+const PAGE={
+ date:"4 October 2026",
+ slug:"hero-dither-algorithms",
+ quote:"can u visualize a few other dither algos and what they would look like",
+ q:"Which dither should the hero veil use?"
+};
+const SH=(m,l)=>[IMG(`r1/${m}-desktop.jpg`,`${l} · 1440×900`),IMG(`r1/${m}-zoom.png`,`${l} · close-up of the fade right of the headline, grains at 2×`),IMG(`r1/${m}-phone.jpg`,`${l} · phone 390×844`)];
+const TODAY={facts:[
+ "The veil is <code>dither-veil.ts</code>: one grain per 1.5 CSS px on retina (2 px elsewhere), each grain fully on or off, no greys.",
+ "The threshold per grain is interleaved gradient noise (<code>ign()</code>, dither-veil.ts:61), a cheap formula that scatters grain like blue noise.",
+ "It ramps from clear to solid over the 200px above the headline (NEAR, hero-stage.tsx:114) and again at the far side under the nav (FAR 0.58), with a grain-free band in the middle.",
+ "It holds still; only the cursor’s fluid opens it, and the peek reuses the same thresholds, so the grain never crawls.",
+ "Shots on this page use reduced motion so every option sits over the same copies at the same moment."
+],shots:SH("ign","Today")};
+const ROUNDS=[
+{n:1,feedback:"",every:[
+ "Only the threshold pattern changes. The ramp, the clear middle band, the grain size, the on/off grains and the cursor peek all stay as they are.",
+ "Everything stays static: no idle shimmer or marbling."
+],questions:[
+ {key:"algo",title:"",intro:"Four other ways to decide which grains are on. The close-up is where the difference shows; at full size they read as texture.",options:[
+  {id:"A",name:"Bayer grid",rec:true,state:"picked",
+   why:"Ordered dither from an 8×8 Bayer matrix: the fade builds up as a regular crosshatch of dots and lines, the classic early-computer look. It reads as deliberate pattern rather than noise, and it is the most visibly different from today at normal viewing size.",
+   cost:"Mid-tones show a visible checker and a faint grid that some may read as retro. Costs nothing: a 64-entry table instead of <code>ign()</code>, and the peek works exactly as today.",
+   shots:SH("bayer","A · Bayer")},
+  {id:"B",name:"Floyd–Steinberg",state:"rejected",
+   why:"Error diffusion: each grain passes its rounding error on to its neighbours, so the fade holds the most tonal detail and edges of the copies stay crisp through it. Its grain has short wavy runs (“worms”) rather than dots.",
+   cost:"Up close it looks a lot like today. The peek has to re-diffuse the grains under the cursor every frame, and because one grain’s choice ripples to its neighbours, the grain around the cursor would crawl as the fluid moves (expected from how it works, not filmed here).",
+   shots:SH("fs","B · Floyd–Steinberg")},
+  {id:"C",name:"Atkinson",state:"rejected",
+   why:"The early-Mac variant of error diffusion: it only passes on three quarters of the error, so light parts drop out and dark parts close up sooner. The fade turns contrasty and graphic, with a crisper line where it goes solid.",
+   cost:"The fade gets shorter: the near side goes solid earlier, so a little less of the bottom row shows. Same peek re-diffusion and crawl as B.",
+   shots:SH("atkinson","C · Atkinson")},
+  {id:"D",name:"Halftone dots",state:"rejected",
+   why:"A clustered-dot screen at 45°, like print: dots on a fixed grid swell from specks to touching as the veil thickens. The biggest grain of the four, so it reads from across the room.",
+   cost:"Heavy. It is close to the “heavy halftone” look that came with the rejected light-mode copies, and the dots blur small text on the copies the most. The peek works as today.",
+   shots:SH("halftone","D · Halftone")}
+ ]}
+]}
+];
+
+(()=>{
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const latest=ROUNDS[0];
+const SIGN=[["ok","Looks good"],["changes","Needs changes"]];
+const signoff=q=>q.options.length===1;
+const KEY="exploration-"+PAGE.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+const state=saved.round===latest.n?{picks:saved.picks||{},note:saved.note||""}:{picks:{},note:""};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({round:latest.n,...state}))}catch(e){}};
+
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><button type="button" class="shot${i.dk?" has-dk":""}" data-lt="${esc(i.p)}" data-dk="${esc(i.dk||"")}" aria-label="Enlarge ${esc(i.cap)}"><img class="lt" src="${esc(i.p)}" alt="${esc(i.cap)}">${i.dk?`<img class="dk" src="${esc(i.dk)}" alt="" aria-hidden="true">`:""}</button><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const list=items=>`<ul class="facts">${[].concat(items).map(x=>`<li>${x}</li>`).join("")}</ul>`;
+const badges=o=>(o.rec?'<span class="badge rec">Recommended</span>':"")+(o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:"");
+const choose=(q,o)=>`<div class="choose">`+(signoff(q)?SIGN:[[o.id,"Pick "+o.id]]).map(([v,l])=>`<button type="button" data-q="${esc(q.key)}" data-v="${esc(v)}">${esc(l)}</button>`).join("")+`</div>`;
+const card=(q,o,live,qid)=>`<article class="opt ${o.state||""}" id="${qid}-${esc(o.id)}" role="tabpanel"><header>${signoff(q)?"":`<span class="letter">Option ${esc(o.id)}</span>`}<h3>${esc(o.name)}</h3>${o.rec||o.state?`<div class="tags">${badges(o)}</div>`:""}</header>${o.html||""}${shots(o.shots)}${o.why?`<p>${o.why}</p>`:""}${o.cost?`<p class="cost"><b>Cost</b> ${o.cost}</p>`:""}${live?choose(q,o):""}</article>`;
+// Option tabs: letter only; a dot marks the recommendation, a tick the pick
+const mark=o=>o.state==="picked"?'<span class="mark ok" aria-label="picked">✓</span>':o.state==="rejected"?'<span class="mark no" aria-label="rejected">✕</span>':o.rec?'<span class="mark rec" aria-label="recommended"></span>':"";
+function question(r,q,i,live){
+ const n=r.questions.length,qid=`r${r.n}-${q.key}`;
+ const head=(q.title||n>1)?`<div class="qhead">${n>1?`<p class="lbl acc">Question ${i+1} of ${n}</p>`:""}${q.title?`<h2>${esc(q.title)}</h2>`:""}${q.intro?`<p class="muted">${q.intro}</p>`:""}</div>`:"";
+ if(signoff(q))return `<div class="question">${head}${card(q,q.options[0],live,qid)}</div>`;
+ const first=(q.options.find(o=>o.state==="picked")||q.options[0]).id;
+ return `<div class="question" data-q="${esc(q.key)}" data-live="${live}">${head}<div class="otabs" role="tablist" aria-label="Options">`+q.options.map(o=>`<button type="button" role="tab" data-opt="${esc(o.id)}" aria-controls="${qid}-${esc(o.id)}" aria-selected="${o.id===first}">${esc(o.id)}${mark(o)}</button>`).join("")+`</div>`+q.options.map(o=>card(q,o,live,qid).replace('role="tabpanel"',`role="tabpanel"${o.id===first?"":" hidden"}`)).join("")+`</div>`;
+}
+const outcome=r=>{const p=r.questions.flatMap(q=>q.options.filter(o=>o.state==="picked").map(o=>signoff(q)?"signed off":`picked ${o.id}`));return p.length?p.join(", "):"no pick"};
+function round(r,live){
+ const Q=r.questions;
+ const status=live?"open":outcome(r);
+ return `<section data-panel="r${r.n}"${live?"":" hidden"}><p class="lbl${live?" acc":""}">Round ${r.n} · ${esc(status)}</p>${r.feedback?`<div class="said"><blockquote class="clamp">${r.feedback}</blockquote><button type="button" hidden>Show all</button></div>`:""}${r.every?`<details class="fold"><summary><span class="lbl">In every option</span></summary><div class="body">${list(r.every)}</div></details>`:""}${Q.map((q,i)=>question(r,q,i,live)).join("")}</section>`;
+}
+const Q=latest.questions;
+
+document.body.insertAdjacentHTML("afterbegin",`<div class="wrap">
+<header><div class="top"><p class="lbl acc">Design exploration · ${esc(PAGE.date)}</p><button type="button" class="ghost" id="theme">Dark</button></div><h1>${esc(PAGE.q)}</h1><blockquote>${esc(PAGE.quote)}</blockquote></header>
+<nav class="tabs rtabs" role="tablist" aria-label="Rounds"><button type="button" role="tab" data-tab="today" aria-selected="false">Today</button>${[...ROUNDS].reverse().map(r=>`<button type="button" role="tab" data-tab="r${r.n}" aria-selected="${r===latest}">Round ${r.n}</button>`).join("")}</nav>
+${ROUNDS.map((r,i)=>round(r,i===0)).join("")}
+<section data-panel="today" hidden><p class="lbl">Today · what main does now</p>${TODAY.facts?list(TODAY.facts):""}${shots(TODAY.shots)}${TODAY.html||""}</section>
+</div>
+<div class="bar"><div class="in"><textarea id="note" aria-label="Note" placeholder="Anything to add" hidden></textarea><textarea id="out" aria-label="Reaction to copy" readonly hidden></textarea><div class="row"><div class="picks" id="picks" role="status" aria-live="polite"></div><button type="button" id="noteBtn">Note</button><button type="button" class="primary" id="copy"><span id="copyLabel">Copy reaction</span><span aria-hidden="true">Copy reaction</span></button></div></div></div>
+<dialog class="lb" id="lb"><div class="in"><img alt=""></div></dialog>`);
+
+const answer=q=>{const v=state.picks[q.key];return !v?"":signoff(q)?SIGN.find(s=>s[0]===v)[1]:`${v}: ${q.options.find(o=>o.id===v).name}`};
+function build(){
+ const lines=Q.map(q=>{const a=answer(q),name=signoff(q)?q.options[0].name:q.title;return "→ "+(name?name+": ":"")+(a||"No pick yet")});
+ return [`Exploration: ${PAGE.q}`,`Round ${latest.n}`,...lines].concat(state.note.trim()?[`Note: ${state.note.trim()}`]:[]).join("\n");
+}
+function sync(){
+ const done=Q.filter(q=>state.picks[q.key]);
+ $("picks").innerHTML=done.length?done.map(q=>`<b>${esc(Q.length>1?answer(q).split(":")[0]:answer(q))}</b>`).join(" · ")+(Q.length>1?` · ${done.length} of ${Q.length} answered`:""):Q.length>1?`0 of ${Q.length} answered`:signoff(Q[0])?"Sign off or say what to change":"No pick yet";
+ document.querySelectorAll(".choose button").forEach(b=>b.setAttribute("aria-pressed",state.picks[b.dataset.q]===b.dataset.v));
+ // The open round's option tabs tick the owner's pick
+ document.querySelectorAll('.question[data-live="true"]').forEach(el=>el.querySelectorAll(".otabs button").forEach(t=>{
+  const o=Q.find(x=>x.key===el.dataset.q).options.find(x=>x.id===t.dataset.opt);
+  t.innerHTML=esc(o.id)+(state.picks[el.dataset.q]===o.id?'<span class="mark ok" aria-label="your pick">✓</span>':mark(o))}));
+ save();
+}
+// Feedback longer than three lines gets Show all; the round tabs fade when some are off screen
+const fit=()=>{document.querySelectorAll(".said").forEach(d=>{const q=d.firstElementChild;if(q.classList.contains("clamp"))d.lastElementChild.hidden=q.scrollHeight<=q.clientHeight+1});const t=document.querySelector(".rtabs");t.classList.toggle("more",t.scrollWidth-t.scrollLeft>t.clientWidth+1);t.classList.toggle("less",t.scrollLeft>1)};
+document.querySelector(".rtabs").addEventListener("scroll",fit,{passive:true});addEventListener("resize",fit);
+const openNote=()=>{const n=$("note");n.hidden=false;n.focus()};
+document.addEventListener("click",e=>{
+ const b=e.target.closest(".choose button");
+ if(b){const k=b.dataset.q;state.picks[k]=state.picks[k]===b.dataset.v?undefined:b.dataset.v;if(state.picks[k]==="changes")openNote();sync();return}
+ const ot=e.target.closest(".otabs button");
+ if(ot){const qel=ot.closest(".question"),bar=ot.parentElement;
+  bar.querySelectorAll("button").forEach(x=>x.setAttribute("aria-selected",x===ot));
+  qel.querySelectorAll(":scope>.opt").forEach(p=>p.hidden=p.id!==ot.getAttribute("aria-controls"));
+  // When the tabs are stuck to the top, start the new option from its beginning
+  const stuck=bar.getBoundingClientRect().top<=parseFloat(getComputedStyle(bar).top)+1;
+  if(stuck)scrollTo({top:scrollY+qel.querySelector(":scope>.opt:not([hidden])").getBoundingClientRect().top-bar.offsetHeight-12,behavior:"instant"});
+  return}
+ const more=e.target.closest(".said button");
+ if(more){const q=more.previousElementSibling,open=q.classList.toggle("clamp");more.textContent=open?"Show all":"Show less";return}
+ const tab=e.target.closest(".rtabs button");
+ if(tab){document.querySelectorAll(".rtabs button").forEach(x=>x.setAttribute("aria-selected",x===tab));document.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);fit();return}
+ const s=e.target.closest(".shot");
+ if(s){const dark=getComputedStyle(s.querySelector(".lt")).display==="none";$("lb").querySelector("img").src=dark&&s.dataset.dk?s.dataset.dk:s.dataset.lt;$("lb").showModal();return}
+ if(e.target.closest("#lb"))$("lb").close();
+});
+$("noteBtn").addEventListener("click",()=>{const n=$("note");n.hidden=!n.hidden;if(!n.hidden)n.focus()});
+$("note").value=state.note;if(state.note)$("note").hidden=false;
+$("note").addEventListener("input",e=>{state.note=e.target.value;save()});
+$("copy").addEventListener("click",()=>{
+ const text=build(),l=$("copyLabel"),done=()=>{l.textContent="Copied";setTimeout(()=>l.textContent="Copy reaction",1800)};
+ const fallback=()=>{const o=$("out");o.hidden=false;o.value=text;o.select()};
+ try{navigator.clipboard.writeText(text).then(done,fallback)}catch(e){fallback()}
+});
+// Light / Dark switch, so the other theme's captures are one tap away
+const root=document.documentElement,mq=matchMedia("(prefers-color-scheme: dark)");
+const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":mq.matches;
+const label=()=>$("theme").textContent=isDark()?"Light":"Dark";
+$("theme").addEventListener("click",()=>{root.dataset.theme=isDark()?"light":"dark";label()});label();
+// The round row starts scrolled to the newest round
+{const t=document.querySelector(".rtabs");t.scrollLeft=t.scrollWidth}
+sync();fit();
+})();
+</script>
+
+</body></html>

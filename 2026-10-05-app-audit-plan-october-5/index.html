@@ -1,0 +1,97 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>App Audit Plan, October 5</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column. Lede, then the PR sequence as numbered rows, then the exploration, the answer to the P4 note, and oversight. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#c4108a;--med:#a15c00;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#ff4fc8;--med:#f0a640;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#ff4fc8;--med:#f0a640;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans);margin:0}
+.wrap{max-width:860px;margin:0 auto;padding-inline:16px;padding-block:32px 64px;display:flex;flex-direction:column;gap:20px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);margin:6px 0 8px;text-wrap:balance}
+h2{font:600 19px/1.3 var(--head);margin:16px 0 0}
+h3{font:500 16px/1.4 var(--sans);margin:0}
+p{margin:0;max-width:72ch}
+.muted{color:var(--muted)}
+a{color:var(--accent)}
+code{font:12.5px var(--mono);overflow-wrap:anywhere}
+ol.seq{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.pr{border-top:1px solid var(--line);padding:16px 0;display:grid;grid-template-columns:2.2em minmax(0,1fr);gap:4px 10px}
+.n{font:600 14px var(--mono);color:var(--accent)}
+.pr .body{display:flex;flex-direction:column;gap:6px;min-width:0}
+.meta{font:500 11px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.box{background:var(--surface);border-radius:8px;padding:12px 14px;font-size:14px;display:flex;flex-direction:column;gap:6px}
+</style>
+<div class="wrap">
+<header>
+<p class="lbl">Combined plan · app · 5 Oct 2026</p>
+<h1>App audit plan</h1>
+<p class="muted">Built from your picks on the <a href="https://claude.ai/artifact/Sqrqz7u6MpDRTjdJsSTun6">app design audit</a>. You answered both calls and skipped nothing, so there is no decisions page. That gives 8 PRs and 1 exploration covering all 18 findings. None of them waits on anything, so all eight can start together.</p>
+</header>
+
+<h2>The sequence</h2>
+<ol class="seq">
+<li class="pr"><span class="n">1</span><div class="body"><h3>Visual nits, already built</h3><p class="meta">Built patch · 8 files · class changes only</p><ul>
+<li>N1 B: the composer’s / skills list goes inverted, so all four @ and / lists match. The patch built A, so this PR keeps <code>inverted</code> on the three lists that have it, drops the patch’s N1 hunks and adds it to <code>skill-mention-list.tsx</code>.</li>
+<li>N2: Files tree rows step 32px inside folders too (<code>gap-0 py-0</code>).</li>
+<li>N3: the empty chat titles use Unbounded 17px, like the other empty states.</li>
+<li>N4: Add memory under the list is an outline button.</li>
+<li>N5: Manage in Settings is <code>size="sm"</code>, the same height as New repository.</li>
+<li>N6: the save card shows the skill name in the UI font.</li>
+<li>N7: headings in a skill’s text show at 14px semibold, like the Plan card.</li>
+</ul><p class="muted">Starts from <code>design-audit-2026-10-05/app-nits.patch</code>, which still applies cleanly on main.</p></div></li>
+<li class="pr"><span class="n">2</span><div class="body"><h3>Arrow keys stop answering question cards</h3><p class="meta">Bug · small</p><ul>
+<li>H1: the arrow keys only move focus. A click, Enter or Space sends the answer. If the send fails, the card unlocks again.</li>
+</ul></div></li>
+<li class="pr"><span class="n">3</span><div class="body"><h3>Chats with no repository show working and needs-you</h3><p class="meta">Bug · small</p><ul>
+<li>P1: sketch chats feed the Chats dot. Their rows get the same spinner and orange dot that workspace rows get.</li>
+</ul></div></li>
+<li class="pr"><span class="n">4</span><div class="body"><h3>A live mockup doesn’t pretend to answer</h3><p class="meta">Bug · medium · touches skill-templates</p><ul>
+<li>P2: the bridge tells the page whether it can answer. When it can’t, <code>answer()</code> returns false and the templates keep the pick on the page with “Answer in the chat”.</li>
+</ul></div></li>
+<li class="pr"><span class="n">5</span><div class="body"><h3>Memory: saves that fail say so, and deletes ask first</h3><p class="meta">Small</p><ul>
+<li>P3: the dialog stays open while it saves. If the save fails, it shows “Couldn’t save the memory. Try again.” instead of losing the text.</li>
+<li>H4: Delete asks first, using the confirm that skills and files use: “Chats stop reading it.”</li>
+</ul></div></li>
+<li class="pr"><span class="n">6</span><div class="body"><h3>Skills: deletes wait for a press, and replacing says so</h3><p class="meta">Medium</p><ul>
+<li>P4 A: <code>delete_skill</code> shows a card with a Delete button, like the save card. Nothing is deleted until someone presses it.</li>
+<li>P5: the save card says “Replaces the canvas skill” or “Replaces your account skill” when a skill with that name is already saved there.</li>
+<li>P6: quoted YAML descriptions are unquoted, with one test each.</li>
+</ul></div></li>
+<li class="pr"><span class="n">7</span><div class="body"><h3>Deleting an upload says what breaks</h3><p class="meta">Copy · small</p><ul>
+<li>P7: for files under <code>uploads/</code>, the confirm adds “Documents and messages that show it lose it.”</li>
+</ul></div></li>
+<li class="pr"><span class="n">8</span><div class="body"><h3>Create PR without GitHub points to Settings</h3><p class="meta">Small · desktop</p><ul>
+<li>H3: when the repository is on GitHub but there’s no GitHub connection, Create PR shows disabled with the tooltip “Connect GitHub in Settings to open pull requests”. It stays hidden for repositories that aren’t on GitHub.</li>
+</ul></div></li>
+</ol>
+
+<h2>Exploration</h2>
+<div class="box"><p><b>H2: how people find out chats take files.</b> Your note asked for a design exploration. Options to compare include a paperclip button in the composer footer, a hint in the placeholder, and a drop target that shows while dragging.</p></div>
+
+<h2>Your note on P4</h2>
+<div class="box">
+<p><b>Can an agent delete a skill today?</b> Yes. Every chat has <code>delete_skill</code>, and the prompt tells it to use it (<code>lib/agent/config.ts:219</code>). It runs straight away with no card (<code>lib/agent/skill-tools.ts:195-213</code>). That includes Claude Code and Codex chats on the Mac: Screenplay pre-allows every tool on its server, so Claude Code doesn’t ask either (<code>lib/agent/coordinator-mcp.ts:29-31, 126</code>).</p>
+<p><b>Can Claude Code do it on its own?</b> Not with a skill tool. It has no tool for deleting skills, but it can remove a skill folder under <code>~/.claude/skills</code> with a shell command. In its default mode it asks your permission first.</p>
+<p><b>Should it?</b> I’d keep the ability and put it behind the card, which is your pick A. “Delete that skill” in a chat is the natural way to ask, and it mirrors saving: the agent proposes and you press.</p>
+</div>
+
+<h2>Worth your oversight</h2>
+<ul>
+<li>N1 B goes back on the 29 Sep call (<a href="https://github.com/zschiller/screenplay/pull/1075">PR #1075</a>) that @ and / lists match the page. All four lists will open dark in light mode and light in dark mode. I’ve updated the design rules in memory to match.</li>
+<li>PR 4 changes the shared templates package, so every App Skill page gets rebuilt.</li>
+<li>PR 6 changes what a Claude Code chat on the Mac does when you ask it to delete a skill. It now shows a card instead of deleting.</li>
+<li>Each PR updates the docs pages it changes (memory, skills, files, workspaces) or adds a Docs line.</li>
+</ul>
+
+<h2>Merged and dropped</h2>
+<ul>
+<li>Nothing was skipped or merged across audits. The docs audit’s Chats menu and skills copy findings stay in the docs plan.</li>
+</ul>
+</div>
+
+</body></html>

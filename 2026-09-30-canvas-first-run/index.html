@@ -1,0 +1,307 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Canvas First Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=Unbounded:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one reading column; each option is a three-step storyboard of small app screens drawn in Screenplay's own UI language. */
+:root{
+  --bg:#fafafa; --fg:#111; --muted:#6b6b70; --line:#e4e4e7; --card:#fff;
+  --accent:#e6007e; --canvas:#f4f4f5; --panel:#fff; --chip:#f1f1f3; --frame:#fff; --ink:#111; --ok:#16a34a;
+  --display:"Unbounded",system-ui,sans-serif; --ui:"Instrument Sans",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#000; --fg:#f4f4f5; --muted:#a1a1aa; --line:#27272a; --card:#0c0c0e; --canvas:#111113; --panel:#000; --chip:#232327; --frame:#18181b; --ink:#f4f4f5; --accent:#ff3aa7; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#000; --fg:#f4f4f5; --muted:#a1a1aa; --line:#27272a; --card:#0c0c0e; --canvas:#111113; --panel:#000; --chip:#232327; --frame:#18181b; --ink:#f4f4f5; --accent:#ff3aa7; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--ui);padding-inline:20px;padding-block:40px 80px}
+main{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{font-family:var(--display);font-weight:500;text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:27px} h2{font-size:20px} h3{font-size:15px;font-family:var(--ui);font-weight:600}
+p{margin:0;max-width:68ch}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+section{display:flex;flex-direction:column;gap:18px}
+.lead{font-size:17px}
+.muted{color:var(--muted)}
+ol.facts,ul.list{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.shots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.shots figure{margin:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+.shots img{border:1px solid var(--line);border-radius:8px;display:block;width:100%}
+figcaption{font-size:13px;color:var(--muted)}
+.rec{border:1px solid var(--ink);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:10px;background:var(--card)}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);vertical-align:middle;margin-left:8px;font-family:var(--ui)}
+.tag.pick{background:var(--accent);border-color:var(--accent);color:#000}
+.opt{display:flex;flex-direction:column;gap:14px;padding-top:28px;border-top:1px solid var(--line)}
+.board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.step{display:flex;flex-direction:column;gap:8px;min-width:0}
+.step .cap{font-size:13px}
+.step .cap b{font-weight:600}
+.pc{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.pc div{min-width:0}
+.pc h3{margin-bottom:6px}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:640px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.tw{overflow-x:auto}
+code{font-family:var(--mono);font-size:13px;background:var(--chip);padding:1px 5px;border-radius:4px}
+
+/* ---- mini app screens ---- */
+.scr{aspect-ratio:16/10.5;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:grid;grid-template-columns:1fr 46%;background:var(--canvas);font-size:9px;line-height:1.35;max-width:100%}
+.scr .sd{display:none}
+.scr .sd .r{display:flex;gap:4px;align-items:center;white-space:nowrap;overflow:hidden}
+.scr .cv{position:relative;display:flex;align-items:center;justify-content:center;padding:10px;min-width:0}
+.scr .pn{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.pn .hd{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600;gap:4px;white-space:nowrap}
+.pn .hd .ws{font-weight:400;color:var(--muted);display:flex;align-items:center;gap:3px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block}
+.pn .bd{flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.pn .bd.center{justify-content:center;align-items:center;text-align:center}
+.pn .cmp{margin:6px;border:1px solid var(--line);border-radius:6px;padding:6px;color:var(--muted);min-height:30px}
+.pn .cmp.hot{border-color:var(--ink);color:var(--fg)}
+.pn .ttl{font-weight:600;font-size:10px}
+.st{border:1px solid var(--line);border-radius:5px;padding:2px 6px;color:var(--fg)}
+.btn{border:1px solid var(--line);border-radius:5px;padding:2px 7px;display:inline-block;background:var(--panel)}
+.btn.pri{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.bub{align-self:flex-end;background:var(--chip);border-radius:7px;padding:4px 7px;max-width:85%}
+.msg{max-width:95%}
+.task{background:var(--chip);border-radius:6px;padding:5px 7px;display:flex;flex-direction:column;gap:2px}
+.task .t{display:flex;justify-content:space-between;gap:4px;font-weight:600}
+.task .s{color:var(--muted);font-weight:400}
+.plan{border:1px solid var(--line);border-radius:6px;padding:6px;display:flex;flex-direction:column;gap:4px}
+.row{display:flex;gap:4px;flex-wrap:wrap}
+.fr{width:88%;display:flex;flex-direction:column;gap:3px}
+.fr .lb{display:flex;gap:4px;align-items:center;color:var(--muted);white-space:nowrap;overflow:hidden}
+.fr .lb b{color:var(--fg);font-weight:500}
+.fr .body{background:var(--frame);border:1px solid var(--line);aspect-ratio:16/10;display:flex;flex-direction:column;overflow:hidden}
+.fr .body.load{align-items:center;justify-content:center;color:var(--muted);gap:3px}
+.site-nav{display:flex;justify-content:space-between;padding:3px 5px;border-bottom:1px solid var(--line);font-size:6px}
+.site-hero{margin:5px;background:#4f46e5;color:#fff;padding:8px 6px;font-weight:600;font-size:8px;border-radius:2px}
+.site-l{margin:3px 5px;height:4px;background:var(--line);border-radius:2px}
+.spin{width:7px;height:7px;border:1.2px solid var(--muted);border-top-color:transparent;border-radius:50%;display:inline-block}
+.grip{display:inline-grid;grid-template-columns:repeat(3,2px);gap:1px}
+.grip i{width:2px;height:2px;background:var(--accent);border-radius:50%}
+.mono{font-family:var(--mono)}
+.empty{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);text-align:center}
+.empty .h{font-family:var(--display);color:var(--fg);font-size:10px}
+.hl{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+@media (max-width:760px){.board,.shots,.pc{grid-template-columns:1fr}.scr{font-size:10px}}
+@media (prefers-reduced-motion:no-preference){}
+</style>
+
+<main>
+<header style="display:flex;flex-direction:column;gap:12px">
+  <div class="eyebrow">Screenplay · first-run exploration · 30 Sep 2026</div>
+  <h1>Getting started in a canvas</h1>
+  <p class="lead">Should a new canvas start by showing you a running Workspace, or by asking the Coordinator for a change? Three flows, drawn from what the app does today, with a recommendation.</p>
+</header>
+
+<section>
+  <div class="eyebrow">What happens today</div>
+  <h2>The first run skips the Coordinator entirely</h2>
+  <ol class="facts">
+    <li><b>New canvas</b> lands on “This canvas is empty” with Add a frame, Add a Document and Add a repository. The chat panel starts closed, so its “Add a repository to get started” state is never seen.</li>
+    <li><b>Adding a repository</b> (Canvas settings) immediately starts a Workspace with a random branch name like <span class="mono">quiet-harbor</span>, places its frame, and zooms to it. When the sandbox is up the panel opens on <em>that Workspace's</em> chat.</li>
+    <li><b>The checklist</b> teaches Workspace-first: Add a repository, Start a Workspace, Open its frame.</li>
+    <li><b>The Coordinator</b> is only met by clicking back to it. Its empty state (“Ask about this canvas”, with starters like “Which Workspaces have a PR?”) is about reading a busy canvas, which means nothing on a new one.</li>
+    <li>If you do ask the Coordinator for a change while that fresh Workspace sits there, nothing tells it whether to use it or plan a new one. (Inferred from its system prompt; it only knows “a Workspace that fits”.)</li>
+  </ol>
+  <div class="shots">
+    <figure><img src="canvas-empty.jpg" alt="Empty canvas with Add a frame, Add a Document and Add a repository"><figcaption>1 · New canvas, panel closed</figcaption></figure>
+    <figure><img src="canvas-getting-started-frame.jpg" alt="Canvas after adding a repository: quiet-harbor frame starting its dev server, checklist step 3 of 3"><figcaption>2 · After Add repository: a random-named Workspace starts</figcaption></figure>
+    <figure><img src="chat-coordinator.jpg" alt="Coordinator panel with Ask about this canvas empty state"><figcaption>3 · Coordinator home, tuned for a busy canvas</figcaption></figure>
+  </div>
+  <p class="muted">One fact shapes every option: in Screenplay, seeing the app means running a Workspace (a sandbox and dev server). There is no free “look at main”. So “see first” always means starting a Workspace before you know what it is for.</p>
+</section>
+
+<section class="rec">
+  <div class="eyebrow">Recommendation</div>
+  <h2>C · See first, ask the Coordinator</h2>
+  <p>Keep today's instant Workspace so the app is on the canvas within a minute, but land the panel on the Coordinator instead of jumping into the Workspace. Your first ask goes straight into that fresh Workspace, which then names itself after the ask. Nothing sits idle, there is no plan card for a single change, and the Coordinator is the home from the first minute, which is where #1152 was heading.</p>
+</section>
+
+<!-- Option A -->
+<div class="opt">
+  <h2>A · See first, work in the Workspace <span class="tag">today, tidied</span></h2>
+  <p>Adding a repository starts a Workspace and the panel opens its chat, like today. You type your change right there and the Workspace names itself after your first message. The Coordinator matters once there are several Workspaces.</p>
+  <div class="board">
+    <div class="step">
+      <div class="scr">
+        <div class="sd"><div class="r">▢ storefront</div><div class="r muted mono">quiet-harbor</div></div>
+        <div class="cv"><div class="fr"><div class="lb"><b>storefront</b><span class="spin"></span><span class="mono">quiet-harbor</span></div><div class="body load"><span class="spin"></span>Starting dev server</div></div></div>
+        <div class="pn"><div class="hd"><span>‹ <span class="mono">quiet-harbor</span></span><span class="ws">Workspaces</span></div>
+          <div class="bd center"><div class="ttl">Ask for a change</div><div class="muted">The agent works on this branch.</div></div>
+          <div class="cmp hot">Make the hero headline shorter</div></div>
+      </div>
+      <div class="cap"><b>1.</b> Repo added. The panel is on the random-named Workspace.</div>
+    </div>
+    <div class="step">
+      <div class="scr">
+        <div class="sd"><div class="r">▢ storefront</div><div class="r"><span class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></span> Shorter hero</div></div>
+        <div class="cv"><div class="fr"><div class="lb"><b>storefront</b><span class="grip"><i></i><i></i><i></i></span>Shorter hero headline</div><div class="body"><div class="site-nav"><b>storefront</b><span>Shop Cart</span></div><div class="site-hero">Everything for the kitchen</div><div class="site-l"></div><div class="site-l" style="width:60%"></div></div></div></div>
+        <div class="pn"><div class="hd"><span>‹ Shorter hero</span><span class="ws">Workspaces</span></div>
+          <div class="bd"><div class="bub">Make the hero headline shorter</div><div class="msg muted">Reading <span class="mono">app/page.tsx</span>…</div></div>
+          <div class="cmp">Ask for a change…</div></div>
+      </div>
+      <div class="cap"><b>2.</b> First message runs here and names the Workspace.</div>
+    </div>
+    <div class="step">
+      <div class="scr">
+        <div class="sd"><div class="r">▢ storefront</div></div>
+        <div class="cv"><div class="fr"><div class="lb"><b>storefront</b>Shorter hero headline</div><div class="body"><div class="site-nav"><b>storefront</b><span>Shop Cart</span></div><div class="site-hero">Kitchen, sorted</div><div class="site-l"></div></div></div></div>
+        <div class="pn"><div class="hd"><span>‹ Shorter hero</span><span class="ws hl">Workspaces <span class="dot"></span></span></div>
+          <div class="bd"><div class="task"><div class="t">Coordinator</div></div><div class="task"><div class="t">＋ New Workspace</div></div></div>
+          <div class="cmp">Ask for a change…</div></div>
+      </div>
+      <div class="cap"><b>3.</b> The second task starts from the Workspaces menu. The Coordinator is one row in it.</div>
+    </div>
+  </div>
+  <div class="pc">
+    <div><h3>Good</h3><ul class="list"><li>Fastest path from repo to a change, and it's what the app already does.</li><li>You spend your time in the agent chat, where most work happens.</li><li>Close to other agentic tools with workspaces, which start you in a workspace chat.</li></ul></div>
+    <div><h3>Costs</h3><ul class="list"><li>The Coordinator stays invisible until you go looking, so people never learn it exists.</li><li>Contradicts the “Coordinator is the panel's home” direction.</li><li>If you only wanted to look, a random-named Workspace is left behind.</li></ul></div>
+  </div>
+</div>
+
+<!-- Option B -->
+<div class="opt">
+  <h2>B · Ask first, in the Coordinator</h2>
+  <p>Adding a repository starts nothing. The panel is the Coordinator, asking what should change. Your ask becomes a plan card, and approving it creates the Workspace and its frame. This is the Claude Projects model: project chat first, threads come from it.</p>
+  <div class="board">
+    <div class="step">
+      <div class="scr">
+        <div class="sd"><div class="r muted">No frames yet</div></div>
+        <div class="cv"><div class="empty"><div class="h">storefront is ready</div><div>Ask the Coordinator for a change and its Workspace will appear here.</div></div></div>
+        <div class="pn"><div class="hd"><span>Coordinator</span><span class="ws">Workspaces</span></div>
+          <div class="bd center"><div class="ttl">What should change in storefront?</div><div class="muted">Each change gets its own Workspace with a live preview.</div></div>
+          <div class="cmp hot">Make the hero headline shorter</div></div>
+      </div>
+      <div class="cap"><b>1.</b> Repo added. Nothing runs yet; nothing to look at.</div>
+    </div>
+    <div class="step">
+      <div class="scr">
+        <div class="sd"><div class="r muted">No frames yet</div></div>
+        <div class="cv"><div class="empty"><div class="h">storefront is ready</div></div></div>
+        <div class="pn"><div class="hd"><span>Coordinator</span><span class="ws">Workspaces</span></div>
+          <div class="bd"><div class="bub">Make the hero headline shorter</div>
+            <div class="plan"><b>Create 1 Workspace:</b><div><b>Shorter hero headline</b> · storefront</div><div class="muted">Shorten the homepage hero headline.</div><div class="row"><span class="btn pri">Approve</span><span class="btn">Request changes</span></div></div></div>
+          <div class="cmp">Ask the Coordinator…</div></div>
+      </div>
+      <div class="cap"><b>2.</b> A plan card, even for one change.</div>
+    </div>
+    <div class="step">
+      <div class="scr">
+        <div class="sd"><div class="r">▢ storefront</div><div class="r"><span class="spin"></span> Shorter hero</div></div>
+        <div class="cv"><div class="fr"><div class="lb"><b>storefront</b><span class="spin"></span>Shorter hero headline</div><div class="body load"><span class="spin"></span>Starting dev server</div></div></div>
+        <div class="pn"><div class="hd"><span>Coordinator</span><span class="ws">Workspaces</span></div>
+          <div class="bd"><div class="bub">Make the hero headline shorter</div><div class="task"><div class="t">Shorter hero headline <span class="s">Starting</span></div><div class="s">Make the hero headline shorter</div></div></div>
+          <div class="cmp">Ask the Coordinator…</div></div>
+      </div>
+      <div class="cap"><b>3.</b> Approved. The Workspace and frame appear, then you wait for the sandbox.</div>
+    </div>
+  </div>
+  <div class="pc">
+    <div><h3>Good</h3><ul class="list"><li>The Coordinator is the front door, matching Claude Projects and #1152.</li><li>No Workspace exists without a purpose; every one has a real title.</li></ul></div>
+    <div><h3>Costs</h3><ul class="list"><li>You can't see the app before describing a change to it. For a visual tool that's backwards.</li><li>Two waits back to back: approve the plan, then wait for the sandbox.</li><li>An extra click (Approve) for the most common case, one change.</li></ul></div>
+  </div>
+</div>
+
+<!-- Option C -->
+<div class="opt">
+  <h2>C · See first, ask the Coordinator <span class="tag pick">Recommended</span></h2>
+  <p>Adding a repository starts one Workspace on the default branch, like today, so the app appears on the canvas. The panel stays on the Coordinator. Your first ask goes straight into that fresh Workspace (no plan card, since nothing new is created), and it names itself after the ask. Later asks that need a new Workspace get a plan card as they do now.</p>
+  <div class="board">
+    <div class="step">
+      <div class="scr">
+        <div class="sd"><div class="r">▢ storefront</div><div class="r muted">New Workspace</div></div>
+        <div class="cv"><div class="fr"><div class="lb"><b>storefront</b>New Workspace</div><div class="body"><div class="site-nav"><b>storefront</b><span>Shop Cart</span></div><div class="site-hero">Everything for the kitchen</div><div class="site-l"></div><div class="site-l" style="width:60%"></div></div></div></div>
+        <div class="pn"><div class="hd"><span>Coordinator</span><span class="ws">Workspaces</span></div>
+          <div class="bd center"><div class="ttl">What should change in storefront?</div><div class="muted">Your first ask runs in the Workspace on the canvas.</div></div>
+          <div class="cmp hot">Make the hero headline shorter</div></div>
+      </div>
+      <div class="cap"><b>1.</b> Repo added. The app is running; the panel is the Coordinator.</div>
+    </div>
+    <div class="step">
+      <div class="scr">
+        <div class="sd"><div class="r">▢ storefront</div><div class="r"><span class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></span> Shorter hero</div></div>
+        <div class="cv"><div class="fr"><div class="lb"><b>storefront</b><span class="grip"><i></i><i></i><i></i></span>Shorter hero headline</div><div class="body"><div class="site-nav"><b>storefront</b><span>Shop Cart</span></div><div class="site-hero">Everything for the kitchen</div><div class="site-l"></div><div class="site-l" style="width:60%"></div></div></div></div>
+        <div class="pn"><div class="hd"><span>Coordinator</span><span class="ws">Workspaces</span></div>
+          <div class="bd"><div class="bub">Make the hero headline shorter</div><div class="task hl"><div class="t">Shorter hero headline <span class="s">Working</span></div><div class="s">Make the hero headline shorter</div></div></div>
+          <div class="cmp">Ask the Coordinator…</div></div>
+      </div>
+      <div class="cap"><b>2.</b> The ask runs in the Workspace already on screen. Its task card opens its chat.</div>
+    </div>
+    <div class="step">
+      <div class="scr">
+        <div class="sd"><div class="r">▢ storefront</div><div class="r">Shorter hero</div><div class="r"><span class="spin"></span> Cart banner</div></div>
+        <div class="cv"><div class="fr" style="width:95%"><div class="lb"><b>storefront</b>Shorter hero headline</div><div class="body"><div class="site-nav"><b>storefront</b><span>Shop Cart</span></div><div class="site-hero">Kitchen, sorted</div><div class="site-l"></div></div></div></div>
+        <div class="pn"><div class="hd"><span>Coordinator</span><span class="ws">Workspaces <span class="dot"></span></span></div>
+          <div class="bd"><div class="task"><div class="t">Shorter hero headline <span class="s">Done</span></div></div><div class="bub">Also add a promo banner on /cart</div>
+            <div class="plan"><b>Create 1 Workspace:</b><div><b>Cart promo banner</b> · storefront</div><div class="row"><span class="btn pri">Approve</span><span class="btn">Request changes</span></div></div></div>
+          <div class="cmp">Ask the Coordinator…</div></div>
+      </div>
+      <div class="cap"><b>3.</b> A second, separate ask gets a plan card for a new Workspace, as today.</div>
+    </div>
+  </div>
+  <div class="pc">
+    <div><h3>Good</h3><ul class="list"><li>You see the app right away, and the sandbox you started to look is the one that does the first job.</li><li>Coordinator is the home from minute one, with no extra click for the first change.</li><li>Stays inside decisions already made: creating Workspaces still goes through a plan; sending to one that exists still acts right away.</li></ul></div>
+    <div><h3>Costs</h3><ul class="list"><li>The first reply lands in the Workspace chat while you're on the Coordinator; you follow the task card (or the frame) to see it.</li><li>Needs a clear rule so the Coordinator reuses the fresh Workspace instead of planning a new one.</li></ul></div>
+  </div>
+</div>
+
+<section>
+  <div class="eyebrow">Side by side</div>
+  <div class="tw"><table>
+    <thead><tr><th></th><th>A · Workspace chat</th><th>B · Ask first</th><th>C · See, then ask</th></tr></thead>
+    <tbody>
+      <tr><td>App visible after adding a repo</td><td>Yes</td><td>Only after an ask is approved</td><td>Yes</td></tr>
+      <tr><td>Steps to the first change</td><td>Type</td><td>Type, Approve</td><td>Type</td></tr>
+      <tr><td>Where the panel lands</td><td>Workspace chat</td><td>Coordinator</td><td>Coordinator</td></tr>
+      <tr><td>Workspace left idle if you only look</td><td>Yes</td><td>No</td><td>Yes (same as today)</td></tr>
+      <tr><td>Size of the change</td><td>Small</td><td>Medium</td><td>Small</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="eyebrow">What C changes in the app</div>
+  <h2>Small changes inside today's flow</h2>
+  <ul class="list">
+    <li><b>Don't switch the panel on repo add.</b> Today the Workspace is selected once its sandbox streams logs (<code>use-chat-target.ts</code>, the LogProbe in <code>canvas.tsx</code>). For the repo-add Workspace, keep the Coordinator selected.</li>
+    <li><b>Open the panel on a new canvas.</b> It starts closed today, which hides both “Add a repository to get started” and the Coordinator.</li>
+    <li><b>Coordinator empty state for a fresh canvas.</b> When no Workspace has been asked anything yet: “What should change in storefront?” and “Your first ask runs in the Workspace on the canvas.” The current starters stay for busy canvases.</li>
+    <li><b>One rule in the Coordinator's prompt.</b> A Workspace nobody has messaged yet takes the next ask through <code>send_to_workspace</code>; it names itself on that first turn, as today.</li>
+    <li><b>Checklist steps.</b> Add a repository, Ask the Coordinator for a change, Open the Workspace.</li>
+    <li><b>Label the untouched Workspace “New Workspace”</b> instead of its random branch name until its first turn names it (the branch name stays in the hover card).</li>
+  </ul>
+</section>
+
+<section>
+  <div class="eyebrow">Added after Zack's feedback</div>
+  <h2>Adding the first repository without Canvas settings</h2>
+  <p>Today every Add repository outside settings opens the full Canvas settings dialog, and it stays open after the repository is added.</p>
+  <div class="tw"><table>
+    <thead><tr><th></th><th>Today (desktop)</th><th>Proposed</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Click Add a repository: Canvas settings opens</td><td>Click Add a repository: Open folder / Open GitHub repository menu</td></tr>
+      <tr><td>2</td><td>Click Add repository inside settings</td><td>Pick the folder or repository</td></tr>
+      <tr><td>3</td><td>Choose Open folder or GitHub, then pick</td><td>Back on the canvas: the app starts in a frame, panel on the Coordinator</td></tr>
+      <tr><td>4</td><td>Configure repository: confirm scripts, Add repository</td><td class="muted">(run settings detected; change them later in Canvas settings)</td></tr>
+      <tr><td>5</td><td>Close Canvas settings yourself</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">Run settings are already detected from the repository (build info plus a model pass over its README and manifests), so the Configure step mostly asks you to confirm a guess. If the guess is wrong the dev server fails in the frame, which should offer Edit run settings.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Also from Zack's feedback</div>
+  <h2>Never show a branch as a Workspace's name</h2>
+  <p>A Workspace with no title falls back to its branch name everywhere (one rule, in the Workspace label). It becomes “New Workspace” instead, in the regular UI font, until its first turn names it.</p>
+</section>
+
+<section>
+  <div class="eyebrow">One follow-up for B or C</div>
+  <h2>After the first ask, should the panel follow into the Workspace?</h2>
+  <p><b>Stay</b> (recommended): the panel stays on the Coordinator with the task card, like every other delegated ask since #1153; the frame shows progress. <b>Follow</b>: the first ask on a new canvas opens that Workspace's chat, so you watch the agent work, then Back returns to the Coordinator.</p>
+</section>
+</main>
+
+</body></html>

@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Screenplay</title>
+<style>
+:root{color-scheme:light dark;--background:#fff;--foreground:#000}
+@media (prefers-color-scheme:dark){:root{--background:#000;--foreground:#fff}}
+:root[data-t=light]{--background:#fff;--foreground:#000;color-scheme:light}
+:root[data-t=dark]{--background:#000;--foreground:#fff;color-scheme:dark}
+html,body{margin:0;height:100%;background:var(--background);color:var(--foreground)}
+.wrap{height:100%;display:grid;place-items:center}
+.stage{position:relative;overflow:hidden}
+.stage canvas{position:absolute;left:0;top:0;image-rendering:pixelated}
+.status{opacity:1}
+:root[data-manual] .status{opacity:1;animation:none}
+@keyframes in{to{opacity:1}}
+</style>
+</head>
+<body>
+<main class="wrap"><div class="status" role="status" aria-label="Starting Screenplay"><div class="stage" id="stage"><canvas id="c"></canvas></div></div></main>
+<script>
+/**
+ * A small stable-fluids solver (Stam's semi-Lagrangian scheme) on a coarse
+ * grid, for the hero veil's mouse peek. The pointer stirs the velocity and
+ * drops dye, the dye is how far the veil opens, and each cell also carries
+ * the coordinates of the "material" it holds, so a pattern drawn from those
+ * coordinates gets swirled like marbled paper.
+ *
+ * Units are grid cells and steps. Each step also keeps the state before
+ * it (`prev*`), so a caller stepping at a fixed rate can draw the frames in
+ * between by blending the two. Everything decays back to rest, so a still
+ * hero costs nothing: `step` returns early once the fluid is idle, and
+ * otherwise only works on the region that's stirred.
+ */
+function createFluid(w        , h        ) {
+  const n = w * h
+  const vx = new Float32Array(n)
+  const vy = new Float32Array(n)
+  const dye = new Float32Array(n)
+  const mx = new Float32Array(n)
+  const my = new Float32Array(n)
+  const prevDye = new Float32Array(n)
+  const prevMx = new Float32Array(n)
+  const prevMy = new Float32Array(n)
+  let prevLit                                          = null
+  const curl = new Float32Array(n)
+  const div = new Float32Array(n)
+  const pressure = new Float32Array(n)
+  let active = false
+  /** Bounds of the cells holding dye, in cells: [x0, y0, x1, y1]. */
+  let lit                                          = null
+  // The cells the solver works on this step, [x0, y0, x1, y1], kept 1 cell
+  // in from the edge. Outside it everything is at rest.
+  const M = 12
+  const box = [0, 0, 0, 0]
+  // The stirred cells, grown by each splat and recomputed each step.
+  let hot                                          = null
+  const grow = (c        , r        ) => {
+    if (!hot) hot = [c, r, c, r]
+    else {
+      if (c < hot[0]) hot[0] = c
+      if (r < hot[1]) hot[1] = r
+      if (c > hot[2]) hot[2] = c
+      if (r > hot[3]) hot[3] = r
+    }
+  }
+
+  function rest() {
+    vx.fill(0)
+    vy.fill(0)
+    dye.fill(0)
+    for (let r = 0, i = 0; r < h; r++) {
+      for (let c = 0; c < w; c++, i++) {
+        mx[i] = c
+        my[i] = r
+      }
+    }
+    lit = null
+    hot = null
+    active = false
+    keep()
+  }
+  // Remembers the state as it is now as the one before the next step.
+  function keep() {
+    prevDye.set(dye)
+    prevMx.set(mx)
+    prevMy.set(my)
+    prevLit = lit && [...lit]
+  }
+  rest()
+
+  // Carries every field along the velocity by looking back to where each
+  // cell's contents came from. One pass for all five: where to look and how
+  // to blend there is the same for each.
+  const fields = 5
+  const carried = new Float32Array(n * fields)
+  function advect() {
+    const all = [vx, vy, dye, mx, my]
+    const [x0, y0, x1, y1] = box                                    
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
+        let x = c - vx[i] 
+        let y = r - vy[i] 
+        x = x < 0 ? 0 : x > w - 1.001 ? w - 1.001 : x
+        y = y < 0 ? 0 : y > h - 1.001 ? h - 1.001 : y
+        const xi = x | 0
+        const yi = y | 0
+        const fx = x - xi
+        const fy = y - yi
+        const j = yi * w + xi
+        for (let f = 0; f < fields; f++) {
+          const a = all[f] 
+          const top = a[j]  + (a[j + 1]  - a[j] ) * fx
+          const bot = a[j + w]  + (a[j + w + 1]  - a[j + w] ) * fx
+          carried[f * n + i] = top + (bot - top) * fy
+        }
+      }
+    }
+    for (let f = 0; f < fields; f++) {
+      const a = all[f] 
+      for (let r = y0; r <= y1; r++) {
+        const from = f * n + r * w
+        a.set(carried.subarray(from + x0, from + x1 + 1), r * w + x0)
+      }
+    }
+  }
+
+  // Pushes the swirls back up that the coarse grid would otherwise smooth
+  // away, so the stirring curls instead of just smearing.
+  function confine(strength        ) {
+    for (let r = box[1] ; r <= box[3] ; r++) {
+      for (let c = box[0] , i = r * w + c; c <= box[2] ; c++, i++) {
+        curl[i] = (vy[i + 1]  - vy[i - 1]  - vx[i + w]  + vx[i - w] ) / 2
+      }
+    }
+    for (let r = Math.max(box[1] , 2); r <= Math.min(box[3] , h - 3); r++) {
+      const c0 = Math.max(box[0] , 2)
+      for (
+        let c = c0, i = r * w + c0;
+        c <= Math.min(box[2] , w - 3);
+        c++, i++
+      ) {
+        const gx = (Math.abs(curl[i + 1] ) - Math.abs(curl[i - 1] )) / 2
+        const gy = (Math.abs(curl[i + w] ) - Math.abs(curl[i - w] )) / 2
+        const len = Math.hypot(gx, gy) + 1e-5
+        vx[i]  += strength * (gy / len) * curl[i] 
+        vy[i]  -= strength * (gx / len) * curl[i] 
+      }
+    }
+  }
+
+  // Viscosity: each cell's velocity is pulled toward its neighbours', so
+  // the fluid moves as a thick body instead of breaking into ripples.
+  const thick = new Float32Array(n * 2)
+  function diffuse(amount        ) {
+    const [x0, y0, x1, y1] = box                                    
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
+        thick[i] =
+          vx[i]  +
+          amount *
+            ((vx[i - 1]  + vx[i + 1]  + vx[i - w]  + vx[i + w] ) / 4 - vx[i] )
+        thick[n + i] =
+          vy[i]  +
+          amount *
+            ((vy[i - 1]  + vy[i + 1]  + vy[i - w]  + vy[i + w] ) / 4 - vy[i] )
+      }
+    }
+    for (let r = y0; r <= y1; r++) {
+      const at = r * w
+      vx.set(thick.subarray(at + x0, at + x1 + 1), at + x0)
+      vy.set(thick.subarray(n + at + x0, n + at + x1 + 1), at + x0)
+    }
+  }
+
+  // Makes the velocity swirl rather than spread out or bunch up.
+  function project() {
+    const [x0, y0, x1, y1] = box                                    
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
+        div[i] = (vx[i + 1]  - vx[i - 1]  + vy[i + w]  - vy[i - w] ) / 2
+      }
+    }
+    pressure.fill(0)
+    for (let k = 0; k < 12; k++) {
+      for (let r = y0; r <= y1; r++) {
+        for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
+          pressure[i] =
+            (pressure[i - 1]  +
+              pressure[i + 1]  +
+              pressure[i - w]  +
+              pressure[i + w]  -
+              div[i] ) /
+            4
+        }
+      }
+    }
+    for (let r = y0; r <= y1; r++) {
+      for (let c = x0, i = r * w + c; c <= x1; c++, i++) {
+        vx[i]  -= (pressure[i + 1]  - pressure[i - 1] ) / 2
+        vy[i]  -= (pressure[i + w]  - pressure[i - w] ) / 2
+      }
+    }
+  }
+
+  return {
+    vx,
+    vy,
+    get lit() {
+      return lit
+    },
+    get active() {
+      return active
+    },
+    /** How much dye each cell holds. */
+    get dye() {
+      return dye
+    },
+    /** The same, before the last step. */
+    prevDye,
+    prevMx,
+    prevMy,
+    get prevLit() {
+      return prevLit
+    },
+    keep,
+    /** Where the material now in each cell started out, in cells. */
+    get mx() {
+      return mx
+    },
+    get my() {
+      return my
+    },
+    /**
+     * Stirs the fluid around (x, y) by (dx, dy) and drops `amount` of dye
+     * within `radius`, all in cells.
+     */
+    splat(
+      x        ,
+      y        ,
+      dx        ,
+      dy        ,
+      radius        ,
+      amount        
+    ) {
+      for (
+        let r = Math.max(0, Math.floor(y - radius));
+        r <= Math.min(h - 1, Math.ceil(y + radius));
+        r++
+      ) {
+        for (
+          let c = Math.max(0, Math.floor(x - radius));
+          c <= Math.min(w - 1, Math.ceil(x + radius));
+          c++
+        ) {
+          const d = Math.hypot(c - x, r - y)
+          if (d > radius) continue
+          grow(c, r)
+          if (!lit) lit = [c, r, c, r]
+          else {
+            lit[0] = Math.min(lit[0], c)
+            lit[1] = Math.min(lit[1], r)
+            lit[2] = Math.max(lit[2], c)
+            lit[3] = Math.max(lit[3], r)
+          }
+          const i = r * w + c
+          // The solver leaves the cells along the edge alone, so a push
+          // there would never die down and would keep stirring its
+          // neighbours for good. They take dye only.
+          if (c > 0 && r > 0 && c < w - 1 && r < h - 1) {
+            const push = Math.exp(-(d * d) / (radius * radius * 0.25))
+            vx[i]  += dx * push
+            vy[i]  += dy * push
+          }
+          const e = Math.min((radius - d) / (radius * 0.65), 1)
+          dye[i] = Math.max(
+            dye[i] ,
+            Math.min(dye[i]  + amount * e * e * (3 - 2 * e), 1)
+          )
+        }
+      }
+      active = true
+    },
+    /** One step of motion; a no-op once everything has settled. */
+    step() {
+      if (!active || !hot) return
+      box[0] = Math.max(1, hot[0] - M)
+      box[1] = Math.max(1, hot[1] - M)
+      box[2] = Math.min(w - 2, hot[2] + M)
+      box[3] = Math.min(h - 2, hot[3] + M)
+      confine(0.1)
+      diffuse(0.8)
+      project()
+      advect()
+      let b             = null
+      hot = null
+      for (let r = box[1] ; r <= box[3] ; r++) {
+        for (let c = box[0] , i = r * w + c; c <= box[2] ; c++, i++) {
+          vx[i]  *= 0.975
+          vy[i]  *= 0.975
+          // The marbling slowly relaxes back to its unstirred pattern.
+          mx[i]  += (c - mx[i] ) * 0.012
+          my[i]  += (r - my[i] ) * 0.012
+          dye[i]  *= 0.962
+          if (
+            Math.abs(vx[i] ) + Math.abs(vy[i] ) > 0.005 ||
+            Math.abs(mx[i]  - c) + Math.abs(my[i]  - r) > 0.05
+          )
+            grow(c, r)
+          if (dye[i]  < 0.02) {
+            dye[i] = 0
+            continue
+          }
+          grow(c, r)
+          if (!b) b = [c, r, c, r]
+          else {
+            if (c < b[0]) b[0] = c
+            if (c > b[2]) b[2] = c
+            b[3] = r
+          }
+        }
+      }
+      // The cells along the edge only ever hold dye, which fades in place.
+      const fade = (c        , r        ) => {
+        const i = r * w + c
+        if (!dye[i]) return
+        dye[i]  *= 0.962
+        if (dye[i]  < 0.02) {
+          dye[i] = 0
+          return
+        }
+        grow(c, r)
+        if (!b) b = [c, r, c, r]
+        else {
+          if (c < b[0]) b[0] = c
+          if (r < b[1]) b[1] = r
+          if (c > b[2]) b[2] = c
+          if (r > b[3]) b[3] = r
+        }
+      }
+      for (let c = 0; c < w; c++) {
+        fade(c, 0)
+        fade(c, h - 1)
+      }
+      for (let r = 1; r < h - 1; r++) {
+        fade(0, r)
+        fade(w - 1, r)
+      }
+      lit = b
+      if (!hot) rest()
+    },
+    /** Drops everything back to rest, e.g. for a still frame. */
+    rest,
+  }
+}
+// Launch spinner prototype: the homepage hero's veil ingredients (Bayer 8x8
+// grains at 1.5 CSS px, createFluid, marbled bands) driven by a stirrer that
+// moves on its own instead of the pointer.
+const Q = new URLSearchParams(location.search)
+const OPT = Q.get("o") || "a"
+if (Q.get("t")) document.documentElement.dataset.t = Q.get("t")
+const MANUAL = Q.has("manual")
+if (MANUAL) document.documentElement.dataset.manual = ""
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches || Q.has("still")
+
+const perm = new Uint8Array(512)
+{ let s = 7; const a = [...Array(256).keys()]
+  for (let i = 255; i > 0; i--) { s = (s * 16807) % 2147483647; const j = s % (i + 1); [a[i], a[j]] = [a[j], a[i]] }
+  for (let i = 0; i < 512; i++) perm[i] = a[i & 255] }
+const hash = (x, y) => perm[(perm[x & 255] + y) & 255] / 255
+const noise = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf)
+  const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1)
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v }
+const BAYER = new Float32Array(64)
+for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { let v = 0
+  for (let bit = 1; bit <= 4; bit <<= 1) v = v * 4 + [0, 2, 3, 1][(y & bit ? 1 : 0) * 2 + (x & bit ? 1 : 0)]
+  BAYER[y * 8 + x] = (v + 0.5) / 64 }
+const ss = (k) => { k = k < 0 ? 0 : k > 1 ? 1 : k; return k * k * (3 - 2 * k) }
+
+// Per option: box (CSS px), fluid cell (CSS px), and how the stirrer moves.
+const CFG = {
+  // A Orbit: one stirrer circles; its fading dye trail is the spinner.
+  a: { box: 72, g: 2, period: 1100, stirrers: 1, orbit: 18, rad: 4, amt: 0.35, push: 1.3, decay: 0.935 },
+  // B Ring: Loader2's arc in grain; the head stirs the marbling as it turns.
+  b: { box: 40, g: 2, period: 1000, stirrers: 1, orbit: 12, rad: 2.4, amt: 0, push: 1.4 },
+  // C Pool: a disc of grain kept turning by two stirrers, like the hero
+  // under a slow circling cursor.
+  c: { box: 136, g: 2.5, period: 2600, stirrers: 2, orbit: 26, rad: 7, amt: 0.14, push: 1.6 },
+  // Round 2: no dye. The surface is the page; only the water the stirrer
+  // disturbs shows, as grain drawn from how far it was carried.
+  ra: { box: 96, g: 2, period: 1100, stirrers: 1, orbit: 16, rad: 3.5, amt: 0, push: 0.9, relax: 0.12, damp: 0.86 },
+  rb: { box: 96, g: 2, period: 1100, stirrers: 1, orbit: 16, rad: 3.5, amt: 0, push: 0.9, relax: 0.12, damp: 0.86 },
+  rc: { box: 144, g: 2, period: 2400, stirrers: 2, orbit: 28, rad: 4.5, amt: 0, push: 0.8, relax: 0.06, damp: 0.88 },
+  // Round 3: A bigger and stirred harder. wob sways the stirrer in and out
+  // of its circle so the line keeps breaking.
+  rd: { box: 128, g: 2, period: 1100, stirrers: 1, orbit: 28, rad: 6, amt: 0, push: 1.6, relax: 0.1, damp: 0.88, wob: 0, lines: [0.35, 0.9] },
+  re: { box: 144, g: 2, period: 1100, stirrers: 1, orbit: 30, rad: 7, amt: 0, push: 2.2, relax: 0.08, damp: 0.9, wob: 5, lines: [0.4, 1, 2] },
+  rf: { box: 168, g: 2, period: 1200, stirrers: 1, orbit: 34, rad: 8, amt: 0, push: 3, relax: 0.07, damp: 0.91, wob: 9, lines: [0.45, 1.1, 2.2, 4] },
+  // Round 4: round 3's A, plus a ripple surface under the whole window that
+  // the stirrer also disturbs, so rings roll out across the page.
+  wa: { ease: 1500, box: 128, g: 2, period: 1100, stirrers: 1, orbit: 28, rad: 6, amt: 0, push: 1.6, relax: 0.1, damp: 0.88, wob: 0, lines: [0.35, 0.9], wave: { damp: 0.984, amp: 1 } },
+  wb: { ease: 1500, box: 128, g: 2, period: 1100, stirrers: 1, orbit: 28, rad: 6, amt: 0, push: 1.6, relax: 0.1, damp: 0.88, wob: 0, lines: [0.35, 0.9], wave: { damp: 0.997, amp: 1 } },
+  wc: { ease: 1500, box: 128, g: 2, period: 1100, stirrers: 1, orbit: 28, rad: 6, amt: 0, push: 1.6, relax: 0.1, damp: 0.88, wob: 0, lines: [0.35, 0.9], wave: { damp: 0.997, amp: 1.6 }, noCore: true },
+  // Round 5: no stirrer. The water in the centre bobs up and down and the
+  // rings it sends out fade before they get far.
+  ba: { ease: 1500, box: 128, g: 2, period: 1100, stirrers: 1, orbit: 0, rad: 1, amt: 0, push: 0, noCore: true, wave: { hz: 30, damp: 0.972, th: 0.006, gain: 40, bob: { hz: 1.4, amp: 0.25, r: 2.5 } } },
+  bb: { ease: 1500, box: 128, g: 2, period: 1100, stirrers: 1, orbit: 0, rad: 1, amt: 0, push: 0, noCore: true, wave: { hz: 30, damp: 0.972, th: 0.02, gain: 30, bob: { hz: 2.2, amp: 0.25, r: 2 } } },
+  bc: { ease: 1500, box: 128, g: 2, period: 1100, stirrers: 1, orbit: 0, rad: 1, amt: 0, push: 0, noCore: true, wave: { hz: 30, damp: 0.972, th: 0.02, gain: 30, bob: { hz: 2.2, amp: 0.25, r: 2, drift: 8 } } },
+  // Round 6: round 3's A, eased in from still water, reacting to the cursor.
+  // ca: the cursor stirs the water around the spinner. cb: the whole window
+  // is water. cc: the cursor doesn't stir; the spinner leans toward it.
+  ca: { ease: 1500, box: 360, g: 2, period: 1100, stirrers: 1, orbit: 28, rad: 6, amt: 0, push: 1.6, relax: 0.1, damp: 0.88, wob: 0, lines: [0.35, 0.9], cursor: 2.5 },
+  cb: { ease: 1500, box: "window", g: 2, period: 1100, stirrers: 1, orbit: 28, rad: 6, amt: 0, push: 1.6, relax: 0.1, damp: 0.88, wob: 0, lines: [0.35, 0.9], cursor: 2.5, noVig: true },
+  cc: { ease: 1500, box: 240, g: 2, period: 1100, stirrers: 1, orbit: 28, rad: 6, amt: 0, push: 1.6, relax: 0.1, damp: 0.88, wob: 0, lines: [0.35, 0.9], lean: 28 },
+  // Round 7: C's lean, with the hero's flow: the stirrer chases its circle
+  // the way the hero's peek chases the pointer, pushes by how far it moved
+  // (x1.6), and the water keeps the hero's own damping and slow relaxing,
+  // with no extra calming. g is the fluid's cell size: the hero's is 8px.
+  la: { lw: 0.1, ease: 1500, box: 320, g: 4, period: 1100, stirrers: 1, orbit: 28, rad: 3, amt: 0, hero: 1.6, relax: 0.05, damp: 0.92, lines: [0.5, 1.3], lean: 28 },
+  lb: { lw: 0.1, ease: 1500, box: 320, g: 6, period: 1100, stirrers: 1, orbit: 28, rad: 2.4, amt: 0, hero: 1.6, relax: 0.05, damp: 0.92, lines: [0.5, 1.3], lean: 28 },
+  lc: { lw: 0.1, ease: 1500, box: 320, g: 4, period: 1100, stirrers: 1, orbit: 28, rad: 3, amt: 0, hero: 1.6, relax: 0.03, damp: 0.95, lines: [0.5, 1.3], lean: 28 },
+  // Round 8: round 7's A at three larger sizes; the stirrer, its reach and
+  // the lean scale with the circle.
+  sa: { soft: [0.55, 0.7, 1.4], lw: 0.1, ease: 1500, box: 400, g: 4, period: 1100, stirrers: 1, orbit: 40, rad: 4, amt: 0, hero: 1.6, relax: 0.05, damp: 0.92, lines: [0.5, 1.3], lean: 34 },
+  sb: { soft: [0.55, 0.7, 1.4], lw: 0.1, ease: 1500, box: 480, g: 4, period: 1200, stirrers: 1, orbit: 52, rad: 5, amt: 0, hero: 1.6, relax: 0.05, damp: 0.92, lines: [0.5, 1.3], lean: 40 },
+  sc: { soft: [0.55, 0.7, 1.4], lw: 0.1, ease: 1500, box: 560, g: 4, period: 1300, stirrers: 1, orbit: 64, rad: 6, amt: 0, hero: 1.6, relax: 0.05, damp: 0.92, lines: [0.5, 1.3], lean: 46 },
+  // sx: sb crisp, as round 7.
+  sx: { lw: 0.1, ease: 1500, box: 480, g: 4, period: 1200, stirrers: 1, orbit: 52, rad: 5, amt: 0, hero: 1.6, relax: 0.05, damp: 0.92, lines: [0.5, 1.3], lean: 40 },
+  sd: { soft: [0.55, 0.7, 1.4], lw: 0.1, ease: 1500, box: 480, g: 4, period: 1200, stirrers: 1, orbit: 52, rad: 5, amt: 0, hero: 1.6, relax: 0.05, damp: 0.92, lines: [0.5, 1.3], lean: 40 },
+  se: { soft: [0.4, 0.55, 0.8], lw: 0.18, ease: 1500, box: 480, g: 4, period: 1200, stirrers: 1, orbit: 52, rad: 5, amt: 0, hero: 1.6, relax: 0.05, damp: 0.92, lines: [0.5, 1.3], lean: 40 },
+}[OPT]
+
+const stage = document.getElementById("stage"), canvas = document.getElementById("c")
+const ctx = canvas.getContext("2d")
+const dpr = Math.min(devicePixelRatio || 1, 2)
+const cell = dpr >= 2 ? 1.5 : 2
+if (CFG.box === "window") { CFG.box = Math.ceil(Math.max(innerWidth, innerHeight) / 8) * 8; document.documentElement.style.overflow = "hidden" }
+const B = CFG.box, cols = Math.round(B / cell), rows = cols
+if (CFG.noVig) stage.style.cssText = `position:fixed;left:${(innerWidth - B) / 2}px;top:${(innerHeight - B) / 2}px`
+stage.style.width = stage.style.height = `${cols * cell}px`
+canvas.width = cols; canvas.height = rows
+canvas.style.width = canvas.style.height = `${cols * cell}px`
+const img = ctx.createImageData(cols, rows)
+const G = CFG.g, gw = Math.ceil(B / G) + 2
+const fluid = createFluid(gw, gw)
+const cx = B / 2, cy = B / 2
+let rgb = [0, 0, 0]
+function readInk() {
+  const c = getComputedStyle(document.documentElement).getPropertyValue("--foreground").trim()
+  const x = document.createElement("canvas").getContext("2d"); x.fillStyle = c; x.fillRect(0, 0, 1, 1)
+  rgb = [...x.getImageData(0, 0, 1, 1).data.slice(0, 3)]
+}
+readInk()
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", readInk)
+
+let clock = 0, into = 0, lastAng = null
+// With ease, the surface starts still and the stirrer winds up from rest:
+// its speed follows a smoothstep over EASE ms, so its angle is that curve's
+// integral, and its push grows the same way.
+const EASE = CFG.ease || 0
+const wind = (t) => { if (!EASE || t >= EASE) return t - EASE / 2; if (t <= 0) return 0
+  const u = t / EASE; return EASE * (u * u * u - (u * u * u * u) / 2) }
+const strength = (t) => (EASE ? ss(t / EASE) : 1)
+const angAt = (t) => (wind(t) / CFG.period) * Math.PI * 2 - Math.PI / 2
+// The cursor, in the stage's CSS px, and where it was last step.
+const cur = { x: 0, y: 0, on: false, px: 0, py: 0, fresh: true }
+addEventListener("pointermove", (e) => { const r = stage.getBoundingClientRect(); cur.x = e.clientX - r.left; cur.y = e.clientY - r.top; cur.on = true })
+document.documentElement.addEventListener("pointerleave", () => { cur.on = false; cur.fresh = true })
+// Where the stirrer circles: the centre, or with lean, eased toward the cursor.
+const hub = { x: B / 2, y: B / 2 }
+const sp = { x: 0, y: 0, on: false }
+function stir(t) {
+  fluid.keep()
+  if (CFG.lean) {
+    let tx = B / 2, ty = B / 2
+    if (cur.on) { const dx = cur.x - B / 2, dy = cur.y - B / 2, d = Math.hypot(dx, dy) || 1
+      const m = CFG.lean * (1 - Math.exp(-d / 300)); tx += (dx / d) * m; ty += (dy / d) * m }
+    hub.x += (tx - hub.x) * 0.08; hub.y += (ty - hub.y) * 0.08
+  }
+  if (CFG.cursor && cur.on) {
+    // Like the hero's peek: stir along the path the cursor moved since last
+    // step, so a fast swipe leaves an unbroken wake.
+    if (cur.fresh) { cur.px = cur.x; cur.py = cur.y; cur.fresh = false }
+    const dx = (cur.x - cur.px) / G, dy = (cur.y - cur.py) / G
+    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 1.5))
+    for (let n = 1; n <= steps; n++)
+      fluid.splat(cur.px / G + (dx * n) / steps, cur.py / G + (dy * n) / steps, (dx * CFG.cursor) / steps, (dy * CFG.cursor) / steps, CFG.rad * 1.4, 0.001 / steps)
+    cur.px = cur.x; cur.py = cur.y
+  }
+  if (CFG.hero) {
+    // Chase the point on the circle, eased like the hero's peek; the orbit
+    // is widened so the eased path lands on the circle's radius.
+    const a = angAt(t), R = CFG.orbit / 0.85
+    const tx = hub.x + Math.cos(a) * R, ty = hub.y + Math.sin(a) * R
+    if (!sp.on) { sp.x = tx; sp.y = ty; sp.on = true }
+    const px = sp.x, py = sp.y
+    sp.x += (tx - sp.x) * 0.3; sp.y += (ty - sp.y) * 0.3
+    const dx = (sp.x - px) / G, dy = (sp.y - py) / G, f = strength(t)
+    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 1.5))
+    for (let n = 1; n <= steps; n++)
+      fluid.splat(px / G + (dx * n) / steps, py / G + (dy * n) / steps, (dx * CFG.hero * f) / steps, (dy * CFG.hero * f) / steps, CFG.rad, 0.001 / steps)
+  }
+  for (let s = 0; s < (CFG.hero ? 0 : CFG.stirrers); s++) {
+    const off = (s * Math.PI * 2) / CFG.stirrers
+    const a0 = angAt(t - 40) + off, a1 = angAt(t) + off
+    const steps = 3
+    for (let n = 1; n <= steps; n++) {
+      const a = a0 + ((a1 - a0) * n) / steps
+      const R = CFG.orbit + (CFG.wob || 0) * Math.sin(a * 3 + Math.sin(a * 1.7) * 2)
+      const x = (hub.x + Math.cos(a) * R) / G, y = (hub.y + Math.sin(a) * R) / G
+      const f = strength(t), tx = -Math.sin(a) * CFG.push * f / steps, ty = Math.cos(a) * CFG.push * f / steps
+      // B carries no dye of its own: a whisper keeps the solver awake.
+      fluid.splat(x, y, tx, ty, CFG.rad, (CFG.amt || 0.001) / steps)
+    }
+  }
+  fluid.step()
+  if (CFG.damp) for (let i = 0; i < fluid.vx.length; i++) { fluid.vx[i] *= CFG.damp; fluid.vy[i] *= CFG.damp }
+  if (CFG.relax) { const { mx, my } = fluid
+    for (let r = 0, i = 0; r < gw; r++) for (let c = 0; c < gw; c++, i++) { mx[i] += (c - mx[i]) * CFG.relax; my[i] += (r - my[i]) * CFG.relax } }
+  if (CFG.lines || OPT === "rb" || OPT === "rc") caustic()
+  if (CFG.decay) for (let i = 0; i < fluid.dye.length; i++) fluid.dye[i] *= CFG.decay
+}
+
+// How much the carried surface bunches up or spreads out at each node: the
+// mapping's area change, |det J - 1|, which is where refraction focuses light.
+const focus = new Float32Array(gw * gw), prevFocus = new Float32Array(gw * gw)
+function caustic() {
+  const { mx, my } = fluid
+  prevFocus.set(focus)
+  for (let r = 1; r < gw - 1; r++) for (let c = 1; c < gw - 1; c++) { const i = r * gw + c
+    const a = (mx[i + 1] - mx[i - 1]) / 2, b = (mx[i + gw] - mx[i - gw]) / 2
+    const d = (my[i + 1] - my[i - 1]) / 2, e = (my[i + gw] - my[i - gw]) / 2
+    focus[i] = Math.abs(a * e - b * d - 1) }
+}
+const P = (x, y) => Math.sin(noise(x * 0.06, y * 0.06) * 12)
+function lerp(a, j, fx, fy) { const top = a[j] + (a[j + 1] - a[j]) * fx
+  const bot = a[j + gw] + (a[j + gw + 1] - a[j + gw]) * fx; return top + (bot - top) * fy }
+
+function draw(t, blend) {
+  const { dye, prevDye, mx, my, prevMx, prevMy } = fluid
+  const data = img.data, phase = (t / 1000) * 1.6, ts = t / 1000
+  const head = angAt(t)
+  for (let r = 0, i = 0; r < rows; r++) {
+    const py = r * cell + cell / 2
+    for (let c = 0; c < cols; c++, i++) {
+      const px = c * cell + cell / 2
+      const gx = px / G, gy = py / G, x0 = gx | 0, y0 = gy | 0, fx = gx - x0, fy = gy - y0, j = y0 * gw + x0
+      if (CFG.lines && focus[j] < 0.05 && prevFocus[j] < 0.05 && focus[j + 1] < 0.05 && focus[j + gw] < 0.05 && focus[j + gw + 1] < 0.05) { data[i * 4 + 3] = 0; continue }
+      const p = lerp(prevDye, j, fx, fy) * (1 - blend) + lerp(dye, j, fx, fy) * blend
+      const ux = lerp(prevMx, j, fx, fy) * (1 - blend) + lerp(mx, j, fx, fy) * blend
+      const uy = lerp(prevMy, j, fx, fy) * (1 - blend) + lerp(my, j, fx, fy) * blend
+      const w = noise(ux * G * 0.05 + ts * 0.35, uy * G * 0.05 - ts * 0.28)
+      const band = Math.sin(w * 16 + phase)
+      const dx = px - cx, dy = py - cy, rad = Math.hypot(dx, dy)
+      let k = 0
+      if (OPT === "a") {
+        k = p * (1.15 + 0.75 * band)
+      } else if (OPT === "b") {
+        // Loader2: a 300° arc, solid at the head, dissolving behind it.
+        let behind = (head - Math.atan2(dy, dx)) % (Math.PI * 2); if (behind < 0) behind += Math.PI * 2
+        const along = 1 - behind / (Math.PI * 2 * 0.85)
+        const ring = 1 - Math.abs(rad - CFG.orbit) / 3.6
+        k = ring > 0 && along > 0 ? Math.min(ring * 1.6, 1) * (along ** 1.4 * 1.25) * (1 + 0.35 * band) : 0
+      } else if (OPT === "ra") {
+        // Ripples: contour bands of how far the water moved, so a stir
+        // reads as rings spreading off the stirrer's path.
+        const m = Math.hypot(ux - gx, uy - gy)
+        k = ss((m - 0.12) / 0.7) * (0.6 + 0.4 * Math.sin(m * 5 - phase * 2))
+      } else if (CFG.lines) {
+        // Bigger stirs focus the light over wide patches, so only the
+        // contours of that focusing draw, the net of lines on a pool floor.
+        const f = lerp(prevFocus, j, fx, fy) * (1 - blend) + lerp(focus, j, fx, fy) * blend
+        let l = 0
+        for (const th of CFG.lines) { const z = (f - th) / (th * (CFG.lw || 0.22)); l = Math.max(l, Math.exp(-z * z)) }
+        k = l * 1.15 * ss(f / CFG.lines[0])
+        // Softer, like the hero's veil: the focus shades in as an even
+        // ramp, so most of it sits between clear and solid and the Bayer
+        // crosshatch shows, with the contour lines only half filled on top.
+        if (CFG.soft) k = Math.max(l * CFG.soft[0], CFG.soft[1] * (1 - Math.exp(-Math.max(f - 0.1, 0) / CFG.soft[2])))
+      } else if (OPT === "rb") {
+        const f = lerp(prevFocus, j, fx, fy) * (1 - blend) + lerp(focus, j, fx, fy) * blend
+        k = ss((f - 0.04) * 5)
+      } else if (OPT === "rc") {
+        // Pool: the same focusing lines over a wider, slower stir, so they
+        // linger and fold into each other.
+        const f = lerp(prevFocus, j, fx, fy) * (1 - blend) + lerp(focus, j, fx, fy) * blend
+        k = ss((f - 0.06) * 4)
+      } else {
+        // A disc that eases out to clear at its rim, as the veil eases in.
+        const edge = 1 - rad / (B / 2 - 2)
+        const disc = edge > 0 ? Math.min(edge * 2.2, 1) ** 2.4 : 0
+        k = disc * (0.42 + 0.3 * band) + p * 0.9 * disc
+      }
+      if (OPT[0] === "r" || (OPT[0] === "c" && !CFG.noVig)) { const e = 1 - rad / (B / 2 - 4); k *= e <= 0 ? 0 : Math.min(e * 2.5, 1) }
+      data[i * 4] = rgb[0]; data[i * 4 + 1] = rgb[1]; data[i * 4 + 2] = rgb[2]
+      data[i * 4 + 3] = ss(k) > BAYER[(r & 7) * 8 + (c & 7)] ? 255 : 0
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+}
+
+// The ripple surface: a height field on a coarse grid over the whole
+// window, stepped at 60Hz by the wave equation. The stirrer presses it down
+// where it passes; the rings that spread from there bend the light, and the
+// grain shows where they focus it (where the surface curves up, -∇²h > 0).
+let wave = null
+if (CFG.wave) {
+  const WC = 4, wv = document.createElement("canvas")
+  wv.style.cssText = "position:fixed;left:0;top:0;image-rendering:pixelated;pointer-events:none"
+  document.body.prepend(wv)
+  const wctx = wv.getContext("2d")
+  const VW = innerWidth, VH = innerHeight
+  const wcols = Math.ceil(VW / cell), wrows = Math.ceil(VH / cell)
+  wv.width = wcols; wv.height = wrows
+  wv.style.width = `${wcols * cell}px`; wv.style.height = `${wrows * cell}px`
+  const wimg = wctx.createImageData(wcols, wrows)
+  const nx = Math.ceil(VW / WC) + 3, ny = Math.ceil(VH / WC) + 3
+  let h = new Float32Array(nx * ny), hp = new Float32Array(nx * ny)
+  const lap = new Float32Array(nx * ny)
+  // Rings fade out before they reach the edges, so nothing bounces back.
+  const edge = new Float32Array(nx * ny)
+  for (let r = 0; r < ny; r++) for (let c = 0; c < nx; c++) {
+    const d = Math.min(c, r, nx - 1 - c, ny - 1 - r) / 20
+    edge[r * nx + c] = d >= 1 ? 1 : d <= 0 ? 0 : 1 - (1 - d) * (1 - d) * 0.25 }
+  const ox = VW / 2 - B / 2, oy = VH / 2 - B / 2
+  let wt = 0
+  wave = {
+    step(t) {
+      const bob = CFG.wave.bob
+      if (bob) {
+        // The centre rises and falls; with drift it also wanders a little,
+        // so the rings aren't perfectly concentric.
+        const tt = wind(t) / 1000
+        const x = (VW / 2 + (bob.drift ? Math.sin(tt * 0.9) * bob.drift : 0)) / WC + 1
+        const y = (VH / 2 + (bob.drift ? Math.sin(tt * 1.3 + 1) * bob.drift * 0.7 : 0)) / WC + 1
+        const push = strength(t) * bob.amp * Math.sin(tt * Math.PI * 2 * bob.hz)
+        const R = Math.ceil(bob.r * 2)
+        for (let r = Math.floor(y) - R; r <= Math.ceil(y) + R; r++) for (let c = Math.floor(x) - R; c <= Math.ceil(x) + R; c++) {
+          const d2 = (c - x) ** 2 + (r - y) ** 2
+          h[r * nx + c] += push * Math.exp(-d2 / (bob.r * bob.r)) }
+      }
+      for (let s = 0; s < (bob ? 0 : CFG.stirrers); s++) {
+        const a = angAt(t) + (s * Math.PI * 2) / CFG.stirrers
+        const R = CFG.orbit + (CFG.wob || 0) * Math.sin(a * 3 + Math.sin(a * 1.7) * 2)
+        const x = (ox + cx + Math.cos(a) * R) / WC + 1, y = (oy + cy + Math.sin(a) * R) / WC + 1
+        for (let r = Math.floor(y - 4); r <= Math.ceil(y + 4); r++) for (let c = Math.floor(x - 4); c <= Math.ceil(x + 4); c++) {
+          const d2 = (c - x) ** 2 + (r - y) ** 2
+          h[r * nx + c] -= strength(t) * CFG.wave.amp * 0.6 * Math.exp(-d2 / 2) }
+      }
+            for (let r = 1; r < ny - 1; r++) for (let c = 1, i = r * nx + 1; c < nx - 1; c++, i++) {
+        // Nine points, so rings stay round instead of squaring off.
+        const avg = (4 * (h[i - 1] + h[i + 1] + h[i - nx] + h[i + nx]) + h[i - nx - 1] + h[i - nx + 1] + h[i + nx - 1] + h[i + nx + 1]) / 20
+        hp[i] = (2 * avg - hp[i]) * CFG.wave.damp * edge[i] }
+      const sw = hp; hp = h; h = sw
+    },
+    draw() {
+      for (let r = 1; r < ny - 1; r++) for (let c = 1, i = r * nx + 1; c < nx - 1; c++, i++)
+        lap[i] = h[i - 1] + h[i + 1] + h[i - nx] + h[i + nx] - 4 * h[i]
+      const d = wimg.data
+      for (let r = 0, i = 0; r < wrows; r++) {
+        const gy = (r * cell + cell / 2) / WC + 1, y0 = gy | 0, fy = gy - y0
+        for (let c = 0; c < wcols; c++, i++) {
+          const gx = (c * cell + cell / 2) / WC + 1, x0 = gx | 0, fx = gx - x0, j = y0 * nx + x0
+          const top = lap[j] + (lap[j + 1] - lap[j]) * fx, bot = lap[j + nx] + (lap[j + nx + 1] - lap[j + nx]) * fx
+          const L = -(top + (bot - top) * fy)
+          const k = ss((L - (CFG.wave.th || 0.04)) * (CFG.wave.gain || 4))
+          d[i * 4] = rgb[0]; d[i * 4 + 1] = rgb[1]; d[i * 4 + 2] = rgb[2]
+          d[i * 4 + 3] = k > BAYER[(r & 7) * 8 + (c & 7)] ? 255 : 0 }
+      }
+      wctx.putImageData(wimg, 0, 0)
+    },
+    advance(ms, clock) { const dt = 1000 / (CFG.wave.hz || 60); wt += ms; while (wt >= dt) { this.step(clock - wt); wt -= dt } },
+  }
+  if (CFG.noCore) canvas.style.visibility = "hidden"
+}
+
+function advance(ms) {
+  if (wave) wave.advance(ms, clock + ms)
+  clock += ms; into += ms
+  while (into >= 40) { stir(clock - into + 40); into -= 40 }
+  draw(clock, into / 40)
+  if (wave) wave.draw()
+}
+// Warm up so the first frame already shows a full trail.
+if (!EASE) for (let k = 0; k < (CFG.wave ? 100 : 40); k++) advance(40)
+if (MANUAL || reduce) { draw(clock, 1); window.__tick = advance }
+else { let last = performance.now()
+  const frame = (now) => { advance(Math.min(now - last, 120)); last = now; requestAnimationFrame(frame) }
+  requestAnimationFrame(frame) }
+</script>
+</body>
+</html>

@@ -1,0 +1,347 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Toolbar create flows</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..600&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column. The question, a round toggle, Today (captures + per-tool flows), then each option as a toolbar strip, storyboards and a flow table, then the reaction form. Screenplay brand: Unbounded titles, Instrument Sans UI. */
+:root{--bg:#f6f6f5;--surface:#ececea;--card:#ffffff;--line:#dcdcd8;--fg:#121212;--muted:#5f5f5a;--accent:#3b4cf0;--ok:#16824a;--no:#b8342a;--hi:#ff7a1a;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:"Unbounded","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0b;--surface:#1a1a1a;--card:#121212;--line:#2f2f2d;--fg:#f2f2f0;--muted:#a2a29d;--accent:#8b97ff;--ok:#5fd08e;--no:#f08a7c;--hi:#ff9a4d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0b0b;--surface:#1a1a1a;--card:#121212;--line:#2f2f2d;--fg:#f2f2f0;--muted:#a2a29d;--accent:#8b97ff;--ok:#5fd08e;--no:#f08a7c;--hi:#ff9a4d;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:44px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,4vw,30px)/1.2 var(--head);letter-spacing:-.01em;margin:10px 0 14px;text-wrap:balance}
+h2{font:500 clamp(17px,2.2vw,20px)/1.3 var(--head);margin:0;text-wrap:balance}
+h3{font:600 16px/1.35 var(--sans);margin:0}
+p{margin:0}
+a{color:var(--accent)}
+blockquote{margin:0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);max-width:70ch}
+.muted{color:var(--muted)}
+.rounds{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 13px var(--sans);border-radius:6px;padding:6px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button[aria-pressed="true"],button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:16px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+.facts{display:flex;flex-direction:column;gap:6px;max-width:75ch}
+.facts li{color:var(--muted)} .facts li b{color:var(--fg);font-weight:500}
+.facts code{font:12.5px var(--mono)}
+ul{margin:0;padding-left:18px}
+.opts{display:flex;flex-direction:column;gap:36px}
+.opt{display:flex;flex-direction:column;gap:12px;min-width:0;padding-top:20px;border-top:1px solid var(--line)}
+.opt:first-child{border-top:0;padding-top:0}
+.opt header{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 15px var(--head);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .boards{opacity:.55}
+.why{max-width:75ch}
+.cost{font-size:14px;color:var(--muted);max-width:75ch}
+.cost b{font-weight:600;color:var(--fg)}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px;align-items:start}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:5px}
+.shot{border:1px solid var(--line);background:var(--surface);overflow:hidden}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.boards{display:flex;flex-direction:column;gap:14px}
+.board{display:flex;flex-direction:column;gap:6px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px}
+.step svg{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:4px;background:var(--surface)}
+.step p{font-size:12.5px;line-height:1.45;color:var(--muted);margin-top:5px}
+.step p b{color:var(--fg);font-weight:600}
+/* wireframe ink, all from tokens */
+.pl{fill:var(--surface)} .cd{fill:var(--card);stroke:var(--line);stroke-width:1}
+.ln{stroke:var(--muted);stroke-width:1;fill:none} .ink{fill:var(--fg)} .mt{fill:var(--muted)}
+.ic{stroke:currentColor;fill:none;stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round}
+.act{fill:var(--fg)} .acti{color:var(--bg)} .idle{color:var(--fg)}
+.new{fill:none;stroke:var(--hi);stroke-width:1.2;stroke-dasharray:3 2}
+.dash{fill:none;stroke:var(--accent);stroke-width:1.2;stroke-dasharray:4 3}
+.sel{fill:none;stroke:var(--accent);stroke-width:1.4}
+.wt{font:500 7px var(--sans);fill:var(--fg)} .wm{font:400 6.5px var(--sans);fill:var(--muted)} .wh{font:600 8px var(--head);fill:var(--fg)}
+.blk{fill:var(--line)}
+.hot{fill:var(--hi)}
+.tblw{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:13.5px}
+th,td{text-align:left;vertical-align:top;padding:8px 12px;border-top:1px solid var(--line)}
+thead th{border-top:0;font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--surface)}
+td:first-child{font-weight:600;white-space:nowrap}
+td.chg{box-shadow:inset 2px 0 var(--hi)}
+.key{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);align-items:center}
+.key i{display:inline-block;width:18px;height:10px;vertical-align:middle;margin-right:6px}
+.key .k1{border:1.2px dashed var(--hi)} .key .k2{box-shadow:inset 2px 0 var(--hi);background:var(--surface)}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.pick:hover,.pick:has(input:checked){background:var(--surface)}
+.pick input{margin:3px 0 0;accent-color:var(--accent)}
+textarea{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;resize:vertical;min-height:60px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{font-size:13px;color:var(--ok)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;margin:0}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">Design exploration · 2 Oct 2026</p>
+<h1 id="q"></h1>
+<blockquote id="quote"></blockquote>
+</header>
+
+<nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+
+<section id="today"></section>
+<section id="round"></section>
+
+<section id="react">
+<div class="shead"><p class="lbl">Your reaction</p><h2 id="reactTitle"></h2><p class="muted">Pick one, or say what's missing. Copy the text and paste it back in the chat.</p></div>
+<form id="form"></form>
+<div class="row"><button type="button" id="copy" class="primary">Copy reaction</button><span class="status" id="status" role="status" aria-live="polite"></span></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+/* ---------- wireframe kit (SVG, 200x130 per step, coloured from tokens) ---------- */
+const IC={
+ sel:'<path class="ic" d="M-3 -4 L-3 4 L-0.8 1.9 L1 5 L2.2 4.4 L0.4 1.3 L3.4 1.1 Z"/>',
+ frame:'<path class="ic" d="M-4 -1.5V-4H-1.5M1.5 -4H4V-1.5M4 1.5V4H1.5M-1.5 4H-4V1.5"/>',
+ mock:'<rect class="ic" x="-4" y="-4" width="8" height="8" rx="1"/><path class="ic" d="M-4 1.5 L-1 -1 L1.5 1 L4 -1.2"/>',
+ doc:'<path class="ic" d="M-3 -4.5H1.2L3.5 -2.2V4.5H-3Z M-1.4 0.3H1.9 M-1.4 2.3H1.9"/>',
+ com:'<path class="ic" d="M-4 -3.5H4V2.2H-0.8L-3 4.3V2.2H-4Z"/>',
+ make:'<path class="ic" d="M0 -4.5 L1.1 -1.1 L4.5 0 L1.1 1.1 L0 4.5 L-1.1 1.1 L-4.5 0 L-1.1 -1.1Z"/>'
+};
+const TB=(x,y,tools,active,nw=[])=>{ // floating toolbar pill centred on x
+ const w=tools.length*14+6,x0=x-w/2;
+ return `<rect class="cd" x="${x0}" y="${y}" width="${w}" height="18" rx="3"/>`+tools.map((t,i)=>{
+  const cx=x0+3+7+i*14,on=t===active,isNew=nw.includes(t);
+  return `${on?`<rect class="act" x="${cx-6}" y="${y+3}" width="12" height="12" rx="2"/>`:""}${isNew?`<rect class="new" x="${cx-6.5}" y="${y+2.5}" width="13" height="13" rx="2"/>`:""}<g transform="translate(${cx} ${y+9})" class="${on?"acti":"idle"}">${IC[t]}</g>`}).join("");
+};
+const T=(x,y,s,c="wt",a="start")=>`<text class="${c}" x="${x}" y="${y}" text-anchor="${a}">${s}</text>`;
+const R=(x,y,w,h,c="cd",rx=2)=>`<rect class="${c}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"/>`;
+const CUR=(x,y)=>`<path class="ink" d="M${x} ${y} l0 9 l2.4 -2.2 l1.7 3.4 l1.3 -.6 l-1.7 -3.3 l3.3 -.2 Z"/>`;
+const COMPOSER=(x,y,w,ph,target)=>R(x,y,w,22,"cd",3)+T(x+5,y+9,ph,"wm")+(target?`${R(x+4,y+13,target.length*3.4+8,7,"pl",2)}${T(x+8,y+18.5,target,"wm")}`:"")+`<circle class="ink" cx="${x+w-7}" cy="${y+15}" r="3.2"/>`;
+const LINES=(x,y,w,n=3)=>Array.from({length:n},(_,i)=>R(x,y+i*6,w*(i===n-1?.6:1),2.4,"blk",1)).join("");
+const PAGE=(x,y,w,h)=>R(x+4,y+4,w-8,h*.22,"blk",1)+LINES(x+4,y+h*.35,w-8,3);
+const SPIN=(x,y)=>`<circle class="ln" cx="${x}" cy="${y}" r="3.2" stroke-dasharray="12 8"/>`;
+const PANEL=(lines)=>R(150,0,50,130,"cd",0)+T(154,10,"Coordinator","wm")+lines;
+const svg=inner=>`<svg viewBox="0 0 200 130" role="img" aria-hidden="true"><rect class="pl" x="0" y="0" width="200" height="130"/>${inner}</svg>`;
+const S=(draw,cap)=>({draw,cap});
+
+/* ---------- content ---------- */
+const QUESTION={
+ quote:"lets do some design thinking on whether or not even being able to create smth w/ the toolbar makes sense, it kinda doesn't but kinda does? like what is the expected user flow when making smth from the toolbar for each thing, should mockup be on the toolbar? what if u drew a rect for a mockup and then it asked for a prompt immediately? idk",
+ q:"What should drawing something from the toolbar do for each kind of layer, and which kinds belong there?",
+ slug:"toolbar-create-flows"
+};
+const IMG=(p,cap,dk)=>({p,cap,dk});
+const TODAY={
+ facts:[
+  "<b>Toolbar:</b> Select (V), Frame (F), Document (D), and Comment (C) on web only. It is the shared floating toolbar, bottom centre (<code>components/canvas/canvas-toolbar.tsx:38</code>). No Mockup tool.",
+  "<b>Frame:</b> click or drag places an empty frame (click gives the default size, drag sets it) that says \"No Workspace. Choose a Workspace from the frame's title\" (<code>use-draw-tool.ts:160</code>, <code>frame-status.tsx:40</code>). It can only show a Workspace that already exists. Nothing starts.",
+  "<b>Document:</b> click or drag places a blank Document already in edit mode (480×640 on a click). It has no owner, and Send to agent goes to the foreground chat. This is the one tool that makes something whole by hand.",
+  "<b>Comment:</b> places a comment thread (web only). Also a complete act by hand.",
+  "<b>Mockup:</b> only a chat makes one, through <code>create_mockup</code>. It lands beside that chat's other layers, and the tool takes a size but no position (<code>lib/agent/mockup-tools.ts:48</code>). <code>createMockup</code> already accepts an <code>anchor</code> (<code>lib/canvas/ops.ts:966</code>).",
+  "<b>Chats:</b> every chat gets exactly one Workspace when it starts. Chats start from the Coordinator composer, Chats menu, New chat, or the prompt-first New Workspace dialog. The Coordinator places layers, and a chat's frame appears when its Workspace boots.",
+  "<b>Another view of a running Workspace:</b> Duplicate on the frame menu, or the Group's trailing + while Frame is armed."
+ ],
+ shots:[IMG("today/toolbar.light.png","Today · toolbar (local build)","today/toolbar.dark.png"),IMG("today/nw.light.png","Today · a drawn frame","today/nw.dark.png"),IMG("today/emptyc.light.png","Today · empty canvas","today/emptyc.dark.png"),IMG("today/armed.light.png","Today · F pressed","today/armed.dark.png")],
+ flows:[["Frame","Place an empty box, open its title, pick an existing Workspace. A dead end if none fits; to get new work you leave the canvas for chat."],["Document","Place it and type. Complete."],["Comment","Place it and type. Complete (web)."],["Mockup","Not on the toolbar. Ask a chat in words; it chooses size and place."]]
+};
+
+const CANVAS_BG=`${R(10,14,54,40)}${PAGE(12,16,50,36)}${T(10,11,"Checkout","wm")}${R(72,14,54,40)}${PAGE(74,16,50,36)}${T(72,11,"Empty cart","wm")}`;
+
+const ROUNDS=[
+{n:3,feedback:"Zack: \"yea lets do a round really honing in on how this looks and feels.\" Settled so far: drawing a Frame or a Mockup opens an ask card centred on the box at UI scale. Its chip shows who answers, the selected layer's chat or else a new chat. Esc on an empty Mockup prompt removes the box. A frame left unanswered shows the No Workspace screen with a Start a chat button. These are real captures of the app with the card injected; this round is only about the card's look.",
+ shared:[IMG("r3/U-today.light.png","Today · an unanswered frame","r3/U-today.dark.png"),IMG("r3/U-after.light.png","All options · plus Start a chat, which reopens the card","r3/U-after.dark.png")],
+ options:[
+ {id:"A",name:"Mini composer",rec:true,
+  tools:["sel","frame","mock","doc","com"],nw:["mock"],boards:[],
+  shots:[IMG("r3/A-frame.light.png","Frame · new chat","r3/A-frame.dark.png"),IMG("r3/A-mockup.light.png","Mockup · Empty cart selected, so its chat answers","r3/A-mockup.dark.png")],
+  why:"The chat composer itself, lifted onto the floating surface: the same field, the chip where the model pill sits, and the same Send button. Nothing new to learn, it grows for a long prompt, and the chip has room to read in full. It's the closest match to how chat already looks.",
+  cost:"The biggest of the three, so it covers the most of the box's neighbours while it's open. In dark mode it reads as a black card with only its outline, the same as the panel composer.",
+  flows:[["Frame","Card = the composer (field above, chip and Send below).",1],["Mockup","Same card; the chip names the selected layer's chat.",1],["Document","Unchanged."],["Comment","Unchanged (web)."]]},
+ {id:"B",name:"One-line bar",
+  tools:["sel","frame","mock","doc","com"],nw:["mock"],boards:[],
+  shots:[IMG("r3/B-frame.light.png","Frame · new chat","r3/B-frame.dark.png"),IMG("r3/B-mockup.light.png","Mockup · Empty cart selected","r3/B-mockup.dark.png")],
+  why:"The floating toolbar's shell holding one line: prompt, chip, Send. It's the lightest and covers the least, and it sits in the same family as the toolbar and frame bar, like Figma's or tldraw's inline prompt.",
+  cost:"A one-line field is cramped for anything but a short ask, and a long chip name squeezes the prompt. Growing to more lines needs a rule for when it turns into A.",
+  flows:[["Frame","Card = one line: prompt, chip, Send.",1],["Mockup","Same bar; the chip names the selected layer's chat.",1],["Document","Unchanged."],["Comment","Unchanged (web)."]]},
+ {id:"C",name:"Composer with a header",
+  tools:["sel","frame","mock","doc","com"],nw:["mock"],boards:[],
+  shots:[IMG("r3/C-frame.light.png","Frame · header shows what and the size","r3/C-frame.dark.png"),IMG("r3/C-mockup.light.png","Mockup · Empty cart selected","r3/C-mockup.dark.png")],
+  why:"A's composer under a small header that says what you're making and its size (\"New frame · 390 × 844\") with an Esc key on the right. It confirms the box became a viewport and says how to back out.",
+  cost:"The tallest card, and the header repeats what the box and toolbar already show. The size can be off the dashed box's own label instead.",
+  flows:[["Frame","Card = header (New frame · size, Esc) over the composer.",1],["Mockup","Same card, header says New mockup.",1],["Document","Unchanged."],["Comment","Unchanged (web)."]]}
+]},
+{n:2,feedback:"Zack: \"i like a combo of B + D?\" Carried into this round: Frame and a new Mockup tool are on the toolbar. Drawing either asks for a prompt right away, and what you ask for fills the box. A frame you leave unanswered stays, and its body keeps asking the way D's does: show a Workspace, or start a chat. A Mockup box you leave unanswered is removed, since there is nothing to show. The question this round: where does the ask live?",options:[
+ {id:"A",name:"Ask in the box",state:"rejected",
+  tools:["sel","frame","mock","doc","com"],nw:["mock"],
+  why:"The box's own body is the ask, from the moment you let go: a Workspace list on top and a focused composer under it. It's the same surface while you draw it and later, so there's one thing to learn. Mockup boxes show only the composer, since a Mockup can't show a Workspace.",
+  cost:"The ask scales with the canvas. At 25% zoom it's unreadable, and a phone-sized box is too narrow for the list and the composer. It needs a zoom-to-box on draw, or a minimum size.",
+  boards:[{title:"Draw, ask, leave",steps:[
+   S(svg(CANVAS_BG+`<rect class="dash" x="20" y="64" width="80" height="42" rx="3"/>`+CUR(100,105)+TB(150,108,["sel","frame","mock","doc","com"],"frame",["mock"])),"<b>Drag a box</b> with F."),
+   S(svg(CANVAS_BG+R(20,64,80,42)+T(24,72,"Show a Workspace","wm")+R(24,74,72,6,"pl",1)+T(27,78.5,"Checkout","wm")+COMPOSER(24,82,72,"Start a chat…","New chat")+TB(150,108,["sel","frame","mock","doc","com"],"frame",["mock"])),"<b>The body asks</b>, composer focused."),
+   S(svg(CANVAS_BG+R(20,64,80,42)+T(24,72,"Show a Workspace","wm")+R(24,74,72,6,"pl",1)+T(27,78.5,"Checkout","wm")+COMPOSER(24,82,72,"Start a chat…")+T(20,61,"Untitled frame","wm")+TB(150,108,["sel","frame","mock","doc","com"],"sel",["mock"])),"<b>Click away</b> and nothing changes. It's still asking."),
+  ]}],
+  flows:[["Frame","Draw it, and the box body asks (list + composer). Answer now or later, in the same place.",1],["Mockup","Draw it, and the box body is a composer. Esc on empty removes the box.",1],["Document","Unchanged."],["Comment","Unchanged (web)."]]
+ },
+ {id:"B",name:"Ask under the box",state:"rejected",
+  tools:["sel","frame","mock","doc","com"],nw:["mock"],
+  why:"When you let go, a composer card appears at screen size in the slot under the box, where the frame bar sits for a selected frame (the same portal, iframe-layer.tsx:529). It's readable at any zoom and doesn't depend on the box size. A Show a Workspace button in the card opens D's list. If you click away, the card goes, and the frame's body shows D's empty state: the Workspace list plus a Start a chat button that brings the card back.",
+  cost:"A new card in the frame-bar slot, on the shared floating surface. The list appears in two places (the card's menu and the empty body), and both use the existing WorkspaceCommandList. For a Mockup, the card has no Show button.",
+  boards:[{title:"Draw, ask, leave",steps:[
+   S(svg(CANVAS_BG+`<rect class="dash" x="20" y="64" width="40" height="44" rx="3"/>`+CUR(60,107)+TB(150,108,["sel","frame","mock","doc","com"],"frame",["mock"])),"<b>Drag a box</b>, any size."),
+   S(svg(CANVAS_BG+`<rect class="dash" x="20" y="62" width="40" height="38" rx="3"/>`+COMPOSER(10,104,100,"What should this be?","New chat")+R(70,116,24,7,"blk",2)+T(72,121.5,"Show ⌄","wm")),"<b>A card opens under it</b>, at screen size."),
+   S(svg(CANVAS_BG+R(20,64,48,44)+T(23,72,"Show","wm")+T(25,81,"Checkout","wm")+T(25,89,"Empty cart","wm")+R(23,95,42,9,"cd",2)+T(44,101.5,"Start a chat","wm","middle")+T(20,61,"Untitled frame","wm")+TB(150,108,["sel","frame","mock","doc","com"],"sel",["mock"])),"<b>Click away:</b> D's empty frame, with Start a chat to reopen the card."),
+  ]},{title:"Mockup",steps:[
+   S(svg(CANVAS_BG+`<rect class="dash" x="20" y="64" width="70" height="40" rx="3"/>`+COMPOSER(14,108,96,"Sketch an empty cart","Empty cart")),"<b>Same card</b>, no Show button. The chip offers the selected layer's chat."),
+   S(svg(CANVAS_BG+R(20,64,70,40)+`<circle class="mt" cx="50" cy="84" r="1.6"/><circle class="mt" cx="55" cy="84" r="1.6"/><circle class="mt" cx="60" cy="84" r="1.6"/>`+T(20,61,"Sketching…","wm")+TB(150,108,["sel","frame","mock","doc","com"],"sel",["mock"])),"<b>Enter:</b> the chat sketches into the box."),
+   S(svg(CANVAS_BG+TB(150,108,["sel","frame","mock","doc","com"],"sel",["mock"])+T(55,86,"(box removed)","wm","middle")),"<b>Esc on an empty prompt</b> removes the box."),
+  ]}],
+  flows:[["Frame","Draw it, and a card under it asks (composer + Show a Workspace). Unanswered, the body keeps D's list and Start a chat.",1],["Mockup","Draw it, and the same card asks, without Show. Esc on empty removes the box.",1],["Document","Unchanged."],["Comment","Unchanged (web)."]]
+ },
+ {id:"C",name:"Ask in the panel",state:"rejected",
+  tools:["sel","frame","mock","doc","com"],nw:["mock"],
+  why:"The canvas gets no new composer. Drawing focuses the panel's composer and drops a token for the box into it, the same element token the composer already uses (composer.tsx:85): \"Make ▢ Untitled frame into…\". Sending goes to the Coordinator, which starts the chat that fills the box, so the Coordinator still only delegates. The box body shows D's Workspace list, so you can point it at existing work without typing.",
+  cost:"Your eye jumps from where you drew to the panel. It doesn't work with the panel collapsed, unless drawing opens it. Answers always go through the Coordinator, so sending a Mockup to a specific chat means saying so in words.",
+  boards:[{title:"Draw, ask, leave",steps:[
+   S(svg(CANVAS_BG+`<rect class="dash" x="20" y="64" width="56" height="40" rx="3"/>`+CUR(76,103)+PANEL(COMPOSER(152,100,46,"Ask…"))+TB(108,108,["sel","frame","mock","doc","com"],"frame",["mock"])),"<b>Drag a box.</b>"),
+   S(svg(CANVAS_BG+R(20,64,56,40)+`<rect class="sel" x="20" y="64" width="56" height="40" rx="2"/>`+T(24,74,"Show a","wm")+T(24,82,"Workspace","wm")+PANEL(R(152,96,46,26,"cd",3)+R(155,99,28,7,"pl",2)+T(157,104.5,"▢ Untitled","wm")+T(155,114,"mobile","wm"))+TB(108,108,["sel","frame","mock","doc","com"],"sel",["mock"])),"<b>The panel composer</b> gets a token for the box, focused."),
+   S(svg(CANVAS_BG+R(20,64,56,40)+SPIN(48,82)+T(48,93,"Booting","wm","middle")+T(20,61,"Mobile checkout","wm")+PANEL(R(152,30,46,16,"cd",2)+T(155,40,"Mobile chec…","wm"))+TB(108,108,["sel","frame","mock","doc","com"],"sel",["mock"])),"<b>The Coordinator starts the chat</b> that fills it."),
+  ]}],
+  flows:[["Frame","Draw it, and the panel composer gets a token for it. The body shows D's list.",1],["Mockup","Draw it, and the panel composer gets a token. The Coordinator picks or starts the chat.",1],["Document","Unchanged."],["Comment","Unchanged (web)."]]
+ },
+ {id:"D",name:"Centred on the box, at UI scale",rec:true,state:"picked",
+  tools:["sel","frame","mock","doc","com"],nw:["mock"],
+  why:"Zack's follow-up. A's place, with B's size: when you let go, the ask card floats centred on the box you drew, in screen space at UI scale (12/14px, the shared floating surface), so it reads the same at 25% or 200% zoom and on a phone-sized box. Your eye stays where you drew. The card holds only the composer. Pointing a frame at an existing Workspace stays in its label's Choose a workspace dropdown, because an in-body Workspace picker was rejected before (PR #844, #798). If you click away, the card goes and the frame shows today's No Workspace screen with one added Start a chat button that brings the card back.",
+  cost:"At low zoom the card is bigger than the box and covers its neighbours while it's open, which is fine for a focused moment. It renders through a screen-space portal like the frame bar. D's in-body list shrinks to one button, so the two ways in (label for existing work, button for new work) live in different spots.",
+  boards:[{title:"Draw, ask, leave",steps:[
+   S(svg(CANVAS_BG+`<rect class="dash" x="40" y="66" width="22" height="38" rx="2"/>`+CUR(62,103)+T(40,63,"390 × 844 at 25%","wm")+TB(150,108,["sel","frame","mock","doc","com"],"frame",["mock"])),"<b>Drag a small box</b> while zoomed out."),
+   S(svg(CANVAS_BG+`<rect class="dash" x="40" y="66" width="22" height="38" rx="2"/>`+R(11,69,80,32,"cd",3)+T(15,78,"What should this be?","wm")+R(15,84,26,7,"blk",2)+T(17,89.5,"New chat","wm")+`<circle class="ink" cx="84" cy="94" r="3.2"/>`+TB(150,108,["sel","frame","mock","doc","com"],"frame",["mock"])),"<b>The card centres on the box</b> at full UI size, over its neighbours."),
+   S(svg(CANVAS_BG+R(40,66,22,38)+R(32,86,38,10,"cd",2)+T(51,92.5,"Start a chat","wm","middle")+T(40,63,"Untitled frame","wm")+T(90,63,"Choose ⌄","wm")+TB(150,108,["sel","frame","mock","doc","com"],"sel",["mock"])),"<b>Click away:</b> No Workspace screen plus Start a chat. Existing work stays in the label dropdown."),
+  ]}],
+  flows:[["Frame","Draw it, and the ask card centres on the box at UI scale. Unanswered, the body adds Start a chat; existing Workspaces stay in the label dropdown.",1],["Mockup","Same card. Esc on empty removes the box.",1],["Document","Unchanged."],["Comment","Unchanged (web)."]]
+ }
+]},
+{n:1,feedback:"",options:[
+ {id:"A",name:"Hands only",state:"rejected",
+  tools:["sel","doc","com"],nw:[],
+  why:"The toolbar keeps only what a person finishes by hand: Documents and Comments. Anything a model makes, whether a build or a Mockup, starts as words in chat, and its layers appear where the Coordinator puts them. This is how Claude and ChatGPT treat artifacts: you never draw an empty one. The Frame tool goes because a drawn frame can't make anything happen. You can't start work from it, only point it at work that already exists.",
+  cost:"F and \"Add a frame\" leave the toolbar and the empty state. You can't pick a spot or size before work exists. A second view of a Workspace stays on Duplicate and the Group +. The smallest change, and it removes rather than adds.",
+  boards:[{title:"Getting something new built or sketched",steps:[
+   S(svg(CANVAS_BG+PANEL(COMPOSER(152,100,46,"Sketch 2 takes…"))+TB(75,108,["sel","doc","com"],"sel")),"<b>Ask in chat.</b> The toolbar has nothing for models to make."),
+   S(svg(CANVAS_BG+R(10,64,40,30)+PAGE(12,66,36,26)+R(56,64,40,30)+PAGE(58,66,36,26)+T(10,61,"Take A","wm")+T(56,61,"Take B","wm")+PANEL(R(152,30,46,16,"cd",2)+T(155,40,"chat card","wm"))+TB(75,108,["sel","doc","com"],"sel")),"<b>The chat places them.</b> Mockups land beside its other layers."),
+   S(svg(CANVAS_BG+R(30,64,60,40)+LINES(36,72,48,4)+`<rect class="sel" x="30" y="64" width="60" height="40" rx="2"/>`+TB(75,108,["sel","doc","com"],"doc")),"<b>Documents and Comments stay.</b> Draw, type, done."),
+  ]}],
+  flows:[["Frame","Gone from the toolbar. New work: ask in chat. Another view: Duplicate.",1],["Document","Unchanged."],["Comment","Unchanged (web)."],["Mockup","Not on the toolbar. Ask in chat."]]
+ },
+ {id:"B",name:"Draw, then prompt",rec:true,state:"picked",
+  tools:["sel","frame","mock","doc","com"],nw:["mock"],
+  why:"Your idea, applied to every tool a model fills. Drawing a Frame or a Mockup leaves a dashed box with a composer inside it that asks what it should be. Enter starts the work, and the result fills the box you drew. The box gives the agent the one thing words are bad at, the viewport: draw a phone-sized box and you get a mobile take. A chip on the composer names who answers: a new chat by default, or the chat that owns the layer you had selected. Esc on an empty prompt removes the box. This is tldraw's Make Real and Flora's blocks, and it turns Frame from a dead end into a way to start work.",
+  cost:"An inline composer on the canvas (the existing Composer in a small floating card). The Coordinator owns layout, so this adds one exception: a box you drew keeps its place. A Mockup from a new chat still boots a whole Workspace, per one chat per Workspace. create_mockup gains an optional slot to fill.",
+  boards:[
+   {title:"Frame: start new work in place",steps:[
+    S(svg(CANVAS_BG+`<rect class="dash" x="20" y="64" width="34" height="56" rx="3"/>`+CUR(54,119)+T(22,61,"390 × 844","wm")+TB(110,108,["sel","frame","mock","doc","com"],"frame",["mock"])),"<b>Drag a box</b> with F. Its size is the device."),
+    S(svg(CANVAS_BG+`<rect class="dash" x="20" y="64" width="34" height="56" rx="3"/>`+COMPOSER(60,78,84,"What should this be?","New chat")+TB(110,108,["sel","frame","mock","doc","com"],"frame",["mock"])),"<b>A composer opens</b> beside the box, focused. New chat by default."),
+    S(svg(CANVAS_BG+R(20,64,34,56)+SPIN(37,88)+T(37,98,"Booting","wm","middle")+T(20,61,"Mobile checkout","wm")+PANEL(R(152,30,46,16,"cd",2)+T(155,40,"Mobile chec…","wm"))+TB(110,108,["sel","frame","mock","doc","com"],"sel",["mock"])),"<b>A chat starts.</b> Its Workspace previews in that box, and its card shows in the Coordinator."),
+   ]},
+   {title:"Mockup: sketch into a box",steps:[
+    S(svg(CANVAS_BG+`<rect class="dash" x="10" y="64" width="70" height="44" rx="3"/>`+COMPOSER(86,72,84,"Sketch an empty cart","Empty cart")+`<rect class="sel" x="72" y="14" width="54" height="40" rx="2"/>`+TB(110,108,["sel","frame","mock","doc","com"],"mock",["mock"])),"<b>With Empty cart selected,</b> draw a box. The chip offers that chat."),
+    S(svg(CANVAS_BG+R(10,64,70,44)+`<circle class="mt" cx="40" cy="84" r="1.6"/><circle class="mt" cx="45" cy="84" r="1.6"/><circle class="mt" cx="50" cy="84" r="1.6"/>`+T(10,61,"Sketching…","wm")+TB(110,108,["sel","frame","mock","doc","com"],"sel",["mock"])),"<b>That chat writes the HTML</b> into the box (9-dot, as it's model work)."),
+    S(svg(CANVAS_BG+R(10,64,70,44)+PAGE(12,66,66,40)+T(10,61,"Take A","wm")+R(52,55.5,28,7,"pl",2)+T(55,61,"Current ⌄","wm")+TB(110,108,["sel","frame","mock","doc","com"],"sel",["mock"])),"<b>A Mockup</b>, with its status, owned by that chat."),
+   ]}
+  ],
+  flows:[["Frame","Draw a box, type what to build, Enter. A new chat starts and previews there. Picking an existing Workspace stays in the frame title.",1],["Mockup","On the toolbar (M). Draw a box, type, Enter. The selected layer's chat sketches it, else a new chat.",1],["Document","Unchanged."],["Comment","Unchanged (web)."]]
+ },
+ {id:"C",name:"One prompt tool",state:"rejected",
+  tools:["sel","make","doc","com"],nw:["make"],
+  why:"You shouldn't have to know whether you want a Frame or a Mockup before you ask. One tool covers both: draw a box and type. The Coordinator reads the prompt and decides. \"Try three empty cart ideas\" becomes Mockups, \"build the mobile checkout\" becomes a chat with a frame, and if it's unclear it asks in a question card. The result fills the box. This is how FigJam and Miro's AI tools work: one entry point, the system picks the shape.",
+  cost:"The Coordinator becomes the router for canvas drawing, so the outcome is less predictable than B. A wrong guess costs a whole Workspace. It needs a new icon and a name (Make? Ask?). The Frame tool and its \"pick a Workspace\" use go away (Duplicate covers it).",
+  boards:[{title:"One box, the Coordinator picks",steps:[
+   S(svg(CANVAS_BG+`<rect class="dash" x="10" y="64" width="80" height="44" rx="3"/>`+COMPOSER(96,72,84,"3 empty cart ideas","Coordinator")+TB(110,108,["sel","make","doc","com"],"make",["make"])),"<b>Draw and type.</b> It always goes to the Coordinator."),
+   S(svg(CANVAS_BG+`<rect class="dash" x="10" y="64" width="80" height="44" rx="3"/>`+PANEL(R(152,26,46,26,"cd",2)+T(155,35,"Sketch as","wm")+T(155,44,"Mockups?","wt"))+TB(75,108,["sel","make","doc","com"],"sel",["make"])),"<b>The Coordinator decides</b>, or asks when it can't tell."),
+   S(svg(CANVAS_BG+R(10,64,25,44)+PAGE(11,65,23,42)+R(37,64,25,44)+PAGE(38,65,23,42)+R(64,64,25,44)+PAGE(65,65,23,42)+TB(110,108,["sel","make","doc","com"],"sel",["make"])),"<b>The takes fill the box</b>, split into as many as it made."),
+  ]}],
+  flows:[["Frame","Replaced by the prompt tool. Another view: Duplicate.",1],["Mockup","Through the prompt tool, when the Coordinator judges it a sketch.",1],["Document","Unchanged."],["Comment","Unchanged (web)."]]
+ },
+ {id:"D",name:"The empty frame asks",state:"picked",
+  tools:["sel","frame","doc","com"],nw:[],
+  why:"The smallest change. The toolbar stays as it is and Mockups stay chat-only. The dead end is the empty frame, so fix that: its body lists the Workspaces you could show, with a composer under them, \"Or start a chat here…\". Drawing a frame still places it first. You then either point it at existing work or start new work in it. Mockups stay off the toolbar because a Mockup is a chat's answer, not a container you fill.",
+  cost:"Still two steps (place, then decide). A composer inside a frame is small at low zoom. No way to start a sketch from the canvas. The pieces built here are the same ones B needs, so it can grow into B.",
+  boards:[{title:"Frame: point it, or start something",steps:[
+   S(svg(CANVAS_BG+R(20,64,70,50)+T(22,61,"Untitled frame","wm")+TB(125,108,["sel","frame","doc","com"],"frame")),"<b>Place a frame</b> as today."),
+   S(svg(CANVAS_BG+R(20,64,70,50)+T(25,73,"Show a Workspace","wm")+R(25,76,60,6,"pl",1)+T(28,80.5,"Checkout","wm")+R(25,83,60,6,"pl",1)+T(28,87.5,"Empty cart","wm")+COMPOSER(25,92,60,"Or start a chat here…")+TB(125,108,["sel","frame","doc","com"],"sel")),"<b>Its body offers both:</b> pick a Workspace, or type to start one."),
+   S(svg(CANVAS_BG+R(20,64,70,50)+SPIN(55,86)+T(55,97,"Booting","wm","middle")+T(22,61,"Mobile checkout","wm")+TB(125,108,["sel","frame","doc","com"],"sel")),"<b>Typed:</b> a chat starts and previews there."),
+  ]}],
+  flows:[["Frame","Place it. In its body, pick a Workspace or type to start a chat there.",1],["Document","Unchanged."],["Comment","Unchanged (web)."],["Mockup","Not on the toolbar. Ask in chat."]]
+ }
+]}
+];
+
+/* ---------- render ---------- */
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const flowTable=rows=>`<div class="tblw"><table><thead><tr><th>Tool</th><th>What drawing it does</th></tr></thead><tbody>`+rows.map(([k,v,c])=>`<tr><td>${esc(k)}</td><td class="${c?"chg":""}">${esc(v)}</td></tr>`).join("")+`</tbody></table></div>`;
+const toolbarStrip=(tools,nw)=>`<figure><div style="max-width:220px">${`<svg viewBox="0 0 ${tools.length*14+16} 26" role="img" aria-label="Toolbar: ${tools.join(", ")}" style="display:block;width:100%;height:auto">`+TB((tools.length*14+16)/2,4,tools,"sel",nw)+`</svg>`}</div><figcaption>Toolbar</figcaption></figure>`;
+const KEY="exploration-"+QUESTION.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let current=ROUNDS[0].n;
+
+$("q").textContent=QUESTION.q;$("quote").textContent=QUESTION.quote;
+$("today").innerHTML=`<div class="shead"><p class="lbl">Today</p><h2>What main does now</h2></div><ul class="facts">${TODAY.facts.map(f=>`<li>${f}</li>`).join("")}</ul>`+shots(TODAY.shots)+`<p class="lbl" style="margin-top:6px">Flow per tool, today</p>`+flowTable(TODAY.flows)+
+ `<p class="muted" style="max-width:75ch">Read: Document and Comment make sense on the toolbar because a person finishes them by hand. Frame and Mockup are filled by a model, so a drawn box has nothing to fill it. That's the \"kinda doesn't\". The options differ on whether drawing should start the model.</p>`;
+$("rounds").innerHTML=`<span class="lbl">Round</span>`+ROUNDS.map(r=>`<button type="button" data-n="${r.n}">${r.n}${r===ROUNDS[0]?" · latest":""}</button>`).join("");
+$("rounds").addEventListener("click",e=>{const b=e.target.closest("button[data-n]");if(b){current=+b.dataset.n;render()}});
+
+function render(){
+ const r=ROUNDS.find(x=>x.n===current),latest=r===ROUNDS[0];
+ $("rounds").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.n===current)));
+ $("round").innerHTML=`<div class="shead"><p class="lbl">Round ${r.n}</p><h2>${r.options.length} options</h2>${r.feedback?`<blockquote>${esc(r.feedback)}</blockquote>`:""}${r.shared?shots(r.shared):""}<div class="key"><span><i class="k1"></i>new on the toolbar</span><span><i class="k2"></i>changed from today</span><span>Storyboards are wireframes; the Coordinator panel is the strip on the right.</span></div></div><div class="opts">`+
+  r.options.map(o=>`<article class="opt ${o.state||""}" id="r${r.n}-${o.id}"><header><span class="letter">${o.id}</span><h3>${esc(o.name)}</h3>${o.rec?'<span class="badge rec">Recommended</span>':""}${o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:""}</header>`+
+  toolbarStrip(o.tools,o.nw)+
+  shots(o.shots)+`<div class="boards">${(o.boards||[]).map(b=>`<div class="board"><p class="lbl">${esc(b.title)}</p><div class="steps">${b.steps.map(s=>`<div class="step">${s.draw}<p>${s.cap}</p></div>`).join("")}</div></div>`).join("")}</div>`+
+  `<p class="why">${esc(o.why)}</p>`+flowTable(o.flows)+`<p class="cost"><b>Cost</b> ${esc(o.cost)}</p></article>`).join("")+`</div>`;
+ $("react").hidden=!latest;
+ if(latest)renderForm(r);
+}
+function renderForm(r){
+ $("reactTitle").textContent=`Round ${r.n}`;
+ const opts=r.options.map(o=>[o.id,`${o.id}: ${o.name}${o.rec?" (recommended)":""}`]).concat([["none","None of these"],["mix","A mix (say which parts below)"]]);
+ $("form").innerHTML=`<fieldset><legend>Pick</legend>`+opts.map(([v,l])=>`<label class="pick"><input type="radio" name="pick" id="pick-${v}" value="${v}"><span>${esc(l)}</span></label>`).join("")+`</fieldset>`+
+  `<p class="lbl" style="margin-top:12px">Notes</p><textarea id="note" aria-label="Notes"></textarea>`;
+ if(saved.round===r.n){const el=$("pick-"+saved.pick);if(el)el.checked=true;$("note").value=saved.note||""}
+ preview();
+}
+function build(){
+ const r=ROUNDS[0],p=$("form").querySelector("input[name=pick]:checked"),note=$("note").value.trim();
+ const o=p&&r.options.find(x=>x.id===p.value);
+ const pick=!p?"No pick yet":o?`${o.id}: ${o.name}`:p.value==="none"?"None of these":"A mix";
+ return[`Exploration: ${QUESTION.q}`,`Round ${r.n}`,`→ ${pick}`].concat(note?[`Note: ${note}`]:[]).join("\n");
+}
+function preview(){
+ $("preview").textContent=build();
+ const p=$("form").querySelector("input[name=pick]:checked");
+ try{localStorage.setItem(KEY,JSON.stringify({round:ROUNDS[0].n,pick:p?p.value:"",note:$("note").value}))}catch(e){}
+}
+$("form").addEventListener("input",preview);
+$("form").addEventListener("submit",e=>e.preventDefault());
+$("copy").addEventListener("click",()=>{
+ const text=build(),st=$("status");
+ const fallback=()=>{const p=$("preview"),r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r);st.textContent="Copy was blocked. The text is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the chat."},fallback)}catch(e){fallback()}
+});
+render();
+</script>
+
+</body></html>

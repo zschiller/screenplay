@@ -1,0 +1,402 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Frame Label Studies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f6f5f7; --ink:#1d1b20; --ink2:#5b5763; --ink3:#8b8693; --rule:#e2dfe6; --card:#ffffff;
+  --accent:#a21caf; --accent-soft:#fae8ff;
+  --app-bg:#fafafa; --app-side:#fafafa; --app-fg:#171717; --app-fg70:rgba(23,23,23,.7); --app-muted:#737373;
+  --app-border:#e5e5e5; --app-frame:#ffffff; --app-accent:#f0f0f0; --app-mutedbg:#f2f2f2; --app-pop:#ffffff;
+  --sel:#d946ef; --fixture:#6366f1; --fixture2:#0ea5e9; --skel:#e5e7eb; --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04); --popshadow:0 8px 24px rgba(0,0,0,.12);
+  --ws-cp-bg:#fee2e2; --ws-cp-fg:#b91c1c; --ws-cp-solid:#ef4444;
+  --ws-ec-bg:#fef3c7; --ws-ec-fg:#b45309; --ws-ec-solid:#f59e0b;
+  --ws-gc-bg:#d1fae5; --ws-gc-fg:#047857; --ws-gc-solid:#10b981;
+  --ws-ap-bg:#e0e7ff; --ws-ap-fg:#4338ca; --ws-ap-solid:#6366f1;
+  --ok:#16a34a; --bad:#dc2626; --warn:#d97706; --pr:#16a34a;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#141317; --ink:#ece9f0; --ink2:#aca7b4; --ink3:#7d7886; --rule:#2c2931; --card:#1c1a20;
+    --accent:#e879f9; --accent-soft:#3b0f40;
+    --app-bg:#0f0f0f; --app-side:#141414; --app-fg:#fafafa; --app-fg70:rgba(250,250,250,.7); --app-muted:#a3a3a3;
+    --app-border:#2a2a2a; --app-frame:#1a1a1a; --app-accent:#262626; --app-mutedbg:#262626; --app-pop:#1c1c1c;
+    --sel:#e879f9; --skel:#2e2e33; --shadow:0 1px 3px rgba(0,0,0,.5); --popshadow:0 8px 24px rgba(0,0,0,.6);
+    --ws-cp-bg:#450a0a; --ws-cp-fg:#fca5a5;
+    --ws-ec-bg:#451a03; --ws-ec-fg:#fcd34d;
+    --ws-gc-bg:#022c22; --ws-gc-fg:#6ee7b7;
+    --ws-ap-bg:#1e1b4b; --ws-ap-fg:#a5b4fc;
+    --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; --pr:#4ade80;
+  }
+}
+:root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#141317; --ink:#ece9f0; --ink2:#aca7b4; --ink3:#7d7886; --rule:#2c2931; --card:#1c1a20;
+    --accent:#e879f9; --accent-soft:#3b0f40;
+    --app-bg:#0f0f0f; --app-side:#141414; --app-fg:#fafafa; --app-fg70:rgba(250,250,250,.7); --app-muted:#a3a3a3;
+    --app-border:#2a2a2a; --app-frame:#1a1a1a; --app-accent:#262626; --app-mutedbg:#262626; --app-pop:#1c1c1c;
+    --sel:#e879f9; --skel:#2e2e33; --shadow:0 1px 3px rgba(0,0,0,.5); --popshadow:0 8px 24px rgba(0,0,0,.6);
+    --ws-cp-bg:#450a0a; --ws-cp-fg:#fca5a5;
+    --ws-ec-bg:#451a03; --ws-ec-fg:#fcd34d;
+    --ws-gc-bg:#022c22; --ws-gc-fg:#6ee7b7;
+    --ws-ap-bg:#1e1b4b; --ws-ap-fg:#a5b4fc;
+    --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; --pr:#4ade80;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 "IBM Plex Sans",system-ui,sans-serif;padding-inline:20px;padding-block:40px 80px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+h1{font-size:34px;line-height:1.15;font-weight:600;letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance}
+h2{font-size:22px;line-height:1.3;font-weight:600;margin:0;text-wrap:balance}
+h3{font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin:0 0 6px}
+p{margin:0;max-width:70ch}
+.lede{color:var(--ink2);font-size:17px;max-width:64ch}
+.mono,code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.88em}
+.eyebrow{font:500 12px "IBM Plex Mono",ui-monospace,monospace;color:var(--accent);letter-spacing:.04em}
+.intro{display:flex;flex-direction:column;gap:16px}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px}
+nav.toc a{font:500 13px "IBM Plex Sans",system-ui,sans-serif;color:var(--ink2);text-decoration:none;border:1px solid var(--rule);border-radius:999px;padding:3px 10px;background:var(--card)}
+nav.toc a:hover{color:var(--accent);border-color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:18px;scroll-margin-top:20px}
+.head{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.num{font:600 14px "IBM Plex Mono",ui-monospace,monospace;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 8px}
+.idea{color:var(--ink2);font-size:16px;max-width:72ch}
+.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.notes ul{margin:0;padding-left:18px;color:var(--ink2);font-size:14px;display:flex;flex-direction:column;gap:5px}
+.notes p{color:var(--ink2);font-size:14px}
+@media (max-width:820px){.notes{grid-template-columns:1fr}}
+hr{border:0;border-top:1px solid var(--rule);margin:0;width:100%}
+.think{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 32px}
+.think div{border-top:1px solid var(--rule);padding-top:12px}
+.think b{display:block;font-weight:600;margin-bottom:4px}
+.think p{color:var(--ink2);font-size:14.5px}
+@media (max-width:760px){.think{grid-template-columns:1fr}}
+.verdict{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:22px 24px;display:flex;flex-direction:column;gap:12px}
+.verdict p{color:var(--ink2)}
+.verdict p b{color:var(--ink)}
+.round1{font-size:14px;color:var(--ink2);border-left:2px solid var(--rule);padding-left:14px}
+
+/* mock app */
+.stage{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--app-bg)}
+.app{display:grid;grid-template-columns:250px 1fr;min-width:880px;font-family:Inter,system-ui,sans-serif;color:var(--app-fg)}
+.app.nosb{grid-template-columns:1fr;min-width:640px}
+.side{background:var(--app-side);border-right:1px solid var(--app-border);padding:14px 10px;display:flex;flex-direction:column;gap:2px;font-size:12px}
+.sgl{font-size:11px;color:var(--app-muted);padding:10px 6px 4px}
+.srow{display:flex;align-items:center;gap:7px;height:26px;padding:0 6px;border-radius:6px;white-space:nowrap;overflow:hidden;min-width:0}
+.srow.sub{margin-left:14px}.srow.sub3{margin-left:28px}
+.srow.tree{margin-left:14px;border-left:1px solid var(--app-border);border-radius:0 6px 6px 0;padding-left:10px}
+.srow.active{background:var(--app-accent)}
+.srow .nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.srow .grow,.grow{flex:1}
+.srow .aside{color:var(--app-muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+svg.i{flex:none;width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;color:var(--app-muted)}
+svg.i.s{width:11px;height:11px}
+.diff{font:500 10.5px "IBM Plex Mono",ui-monospace,monospace;white-space:nowrap}.diff .a{color:var(--ok)}.diff .d{color:var(--bad)}
+.pill{display:inline-flex;align-items:center;gap:3px;font:500 10px/1 "IBM Plex Mono",ui-monospace,monospace;padding:3px 5px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.pill.cp{background:var(--ws-cp-bg);color:var(--ws-cp-fg)}.pill.ec{background:var(--ws-ec-bg);color:var(--ws-ec-fg)}.pill.gc{background:var(--ws-gc-bg);color:var(--ws-gc-fg)}.pill.ap{background:var(--ws-ap-bg);color:var(--ws-ap-fg)}
+.bt{font:500 10.5px "IBM Plex Mono",ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tx-cp{color:var(--ws-cp-fg)}.tx-ec{color:var(--ws-ec-fg)}.tx-gc{color:var(--ws-gc-fg)}.tx-ap{color:var(--ws-ap-fg)}
+.canvas{position:relative;padding:22px 26px 30px;display:flex;flex-direction:column;gap:26px;background-image:radial-gradient(color-mix(in srgb,var(--app-fg) 9%,transparent) 1px,transparent 1px);background-size:14px 14px}
+.grp{display:flex;flex-direction:column;gap:4px;position:relative}
+.glabel{font-size:11px;color:var(--app-muted);display:flex;align-items:center;gap:5px;height:18px;white-space:nowrap}
+.gsrc{display:inline-flex;align-items:center;gap:4px;padding:1px 4px 1px 3px;border-radius:5px}
+.gsrc.hov{background:var(--app-accent)}
+.frames{display:flex;gap:18px;align-items:flex-start}
+.fw{display:flex;flex-direction:column;gap:4px;position:relative;flex:none}
+.flabel{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;color:var(--app-fg70);height:18px;white-space:nowrap;overflow:hidden;min-width:0}
+.flabel .nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.flabel .bt{flex-shrink:4}
+.flabel.sel .nm{color:var(--sel)}
+.frame{background:var(--app-frame);border:1px solid var(--app-border);border-radius:2px;position:relative;overflow:hidden}
+.frame.sel{outline:1.5px solid var(--sel)}
+.frame .hd{height:12px;border-bottom:1px solid var(--app-border);display:flex;align-items:center;padding:0 6px;font:600 5.5px Inter,system-ui,sans-serif;color:var(--app-fg)}
+.frame .hero{background:var(--fixture);margin:8px;height:30px;border-radius:2px;color:#fff;font:600 8px Inter,system-ui,sans-serif;display:flex;align-items:center;padding-left:6px}
+.frame .hero.alt{background:var(--fixture2)}
+.frame .sk{margin:0 8px 5px;height:5px;border-radius:2px;background:var(--skel)}
+.bar{position:absolute;left:50%;transform:translateX(-50%);top:calc(100% + 8px);display:flex;align-items:center;gap:2px;padding:3px;background:var(--app-frame);border:1px solid var(--app-border);border-radius:9px;box-shadow:var(--shadow);z-index:2;white-space:nowrap}
+.ib{width:22px;height:22px;display:grid;place-items:center;border-radius:5px;color:var(--app-muted)}
+.ib svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.vr{width:1px;height:14px;background:var(--app-border);margin:0 3px}
+.field{display:flex;align-items:center;gap:0;height:22px;background:var(--app-mutedbg);border-radius:6px;padding:0 6px 0 4px;font:400 10.5px "IBM Plex Mono",ui-monospace,monospace;color:var(--app-muted);min-width:270px}
+.field .host{display:inline-flex;align-items:center;gap:3px;padding:2px 4px;border-radius:4px;font-weight:500}
+.field .host.open{background:var(--app-frame);box-shadow:0 0 0 1px var(--app-border)}
+.field .path{color:var(--app-fg70)}
+.field svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.field .grow{min-width:14px}
+.field .rec{width:7px;height:7px;border-radius:50%;background:var(--bad);margin-left:7px}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.d-cp{background:var(--ws-cp-solid)}.d-ec{background:var(--ws-ec-solid)}.d-gc{background:var(--ws-gc-solid)}.d-ap{background:var(--ws-ap-solid)}
+.pop{position:absolute;z-index:4;width:268px;background:var(--app-pop);border:1px solid var(--app-border);border-radius:8px;box-shadow:var(--popshadow);font-size:12px;overflow:hidden}
+.pop .in{display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-bottom:1px solid var(--app-border);color:var(--app-muted)}
+.pop .it{display:flex;align-items:center;gap:7px;height:28px;margin:2px 4px;padding:0 6px;border-radius:5px}
+.pop .it.on{background:var(--app-accent)}
+.pop .ft{border-top:1px solid var(--app-border);padding:7px 10px;color:var(--app-muted);font-size:11px}
+.seg{display:inline-flex;background:var(--app-mutedbg);border-radius:6px;padding:2px;gap:2px}
+.seg span{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:4px;font:500 10px "IBM Plex Mono",ui-monospace,monospace;color:var(--app-muted)}
+.seg span.dot{height:7px;width:7px;padding:0;border-radius:50%}
+.seg span.on{background:var(--app-frame);color:var(--app-fg);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.lane{display:flex;flex-direction:column;gap:6px}
+.lanehd{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--app-muted);height:20px}
+.ghost{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:6px;font-size:11.5px;color:var(--app-fg70);font-weight:500}
+.ghost.out{border:1px dashed var(--app-border)}
+.crumb{position:absolute;top:10px;left:12px;display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;background:var(--app-frame);border:1px solid var(--app-border);border-radius:9px;box-shadow:var(--shadow);font-size:11.5px;white-space:nowrap}
+.crumb .m{color:var(--app-muted)}
+.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.mini .stage .app{min-width:300px}
+.mini .canvas{padding:16px;gap:14px;min-height:230px}
+.mini .cap{font-size:13px;color:var(--ink2);margin-top:8px}
+.mini .cap b{color:var(--ink)}
+@media (max-width:900px){.mini{grid-template-columns:1fr}}
+.colorrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sw{width:14px;height:14px;border-radius:50%}
+table{border-collapse:collapse;font-size:14px;width:100%;min-width:680px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-weight:600;font-size:12px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em}
+td:first-child{font-weight:600;white-space:nowrap}
+.tw{overflow-x:auto}
+
+:root{--merged:#8250df}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--merged:#a371f7}}
+:root[data-theme="dark"]{--merged:#a371f7}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:900px){.trio{grid-template-columns:1fr}}
+.trio .app{min-width:300px}
+.trio .canvas{padding:16px;gap:14px}
+.cap{font-size:13.5px;color:var(--ink2);margin-top:8px}
+.cap b{color:var(--ink)}
+.pill{display:inline-block;line-height:1;vertical-align:middle}
+.srow .pill,.flabel .pill{flex-shrink:4;min-width:40px}
+.srow .nm,.flabel .nm{flex-shrink:1}
+.rec-tag{font:600 11px "IBM Plex Mono",ui-monospace,monospace;color:var(--accent);margin-left:6px}
+.pop .sec{font-size:10.5px;color:var(--app-muted);padding:6px 10px 2px}
+.pop hr{border:0;border-top:1px solid var(--app-border);margin:4px 0;width:auto}
+.tip{position:absolute;z-index:3;background:var(--app-fg);color:var(--app-bg);font:500 10.5px Inter,system-ui,sans-serif;padding:4px 7px;border-radius:5px;white-space:nowrap}
+.srow.hl{background:var(--app-accent)}
+.glabel .pill{font-size:9.5px;padding:2px 4px}
+.flabel .pill{font-size:9.5px;padding:2px 4px}
+.steps{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 32px}
+.steps div{border-top:1px solid var(--rule);padding-top:12px}
+.steps b{display:block;margin-bottom:4px}
+.steps p{color:var(--ink2);font-size:14.5px}
+@media (max-width:760px){.steps{grid-template-columns:1fr}}
+ol.plain{margin:0;padding-left:20px;color:var(--ink2);display:flex;flex-direction:column;gap:6px;max-width:72ch}
+ol.plain b{color:var(--ink)}
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <span class="eyebrow">Screenplay · frame labels · round 3</span>
+    <h1>Frame label studies</h1>
+    <p class="lede">You picked groups plus the address bar. A group owns a Workspace and names it once. A single frame switches from its address bar. A frame label mentions a Workspace only when that frame differs from its group. This round works through every state that direction has to handle.</p>
+    <nav class="toc" aria-label="Sections">
+      <a href="#rest">At rest</a><a href="#treat">Group label treatment</a><a href="#group">Switching a group</a><a href="#frame">Switching one frame</a><a href="#side">Sidebar</a><a href="#edges">Edge cases</a><a href="#model">Model</a><a href="#open">Open questions</a>
+    </nav>
+  </header>
+
+  <section id="rest">
+    <div class="head"><span class="num">1</span><h2>At rest</h2></div>
+    <p class="idea">Three groups and a single frame. Checkout is all on one Workspace, so only its group label mentions it. In Cart, one frame was switched on its own, so that frame's label carries its Workspace. Order confirmation is a group of one; groups of one have no group label today, so the frame label carries the Workspace. The route is gone from every unselected label, since the selected frame's address bar and the frame body both show it.</p>
+    <div id="m-rest"></div>
+    <div class="notes">
+      <div><h3>What got lighter</h3><ul><li>Eight frame labels, and only two mention a Workspace, both for a reason.</li><li>No stubs. Wherever the Workspace shows, it shows in full.</li><li>No route pills on labels or sidebar rows.</li></ul></div>
+      <div><h3>What stayed</h3><ul><li>The Workspace pill is the same element as in the Workspace list, so the colour link to the sidebar holds.</li><li>Names, group labels and their positions don't move.</li></ul></div>
+      <div><h3>What's new</h3><ul><li>A pill on the group label line.</li><li>The idea that a group has a Workspace.</li></ul></div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section id="treat">
+    <div class="head"><span class="num">2</span><h2>How the group label shows its Workspace</h2></div>
+    <p class="idea">Three weights for the same information. I'd use the pill: it's the element that already stands for a Workspace in the sidebar, so the two read as the same thing, and it needs no new style.</p>
+    <div class="trio" id="m-treat"></div>
+  </section>
+
+  <hr>
+
+  <section id="group">
+    <div class="head"><span class="num">3</span><h2>Switching a group</h2></div>
+    <p class="idea">Hovering the group's pill shows the up-down chevron, the same affordance the route pill uses today. Pressing it opens the Workspace list you already have, with status and diff. Picking one moves every frame that follows the group; each keeps its route, state and size. Frames switched on their own stay put, and the menu says so before you pick.</p>
+    <div id="m-group"></div>
+    <div class="steps">
+      <div><b>What moves</b><p>Every frame that follows the group. Documents in the group are unaffected.</p></div>
+      <div><b>What doesn't</b><p>A frame switched on its own. The footer names it so the result isn't a surprise.</p></div>
+      <div><b>Everyone sees it</b><p>The group's Workspace lives in the canvas, like a frame's does today, so a switch shows for everyone on the canvas.</p></div>
+      <div><b>Undo</b><p>One switch is one undo step, however many frames it moved.</p></div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section id="frame">
+    <div class="head"><span class="num">4</span><h2>Switching one frame</h2></div>
+    <p class="idea">The selected frame's address bar starts with its Workspace, like the site in a browser's address bar. Pressing it opens the same list. Picking something other than the group's Workspace makes that frame an exception, and its label gains the pill. For a frame that's already an exception, the first item returns it to the group.</p>
+    <div id="m-frame"></div>
+    <div class="notes">
+      <div><h3>Why the address bar</h3><ul><li>It's the one control that is always about one frame.</li><li>A browser keeps the path when you change the host, which is exactly what switching does.</li><li>It replaces today's hidden stub, so the feature gets easier to find, not harder.</li></ul></div>
+      <div><h3>The host segment</h3><ul><li>It uses the Workspace's text colour and a dot, not a filled pill, so the field still reads as one address.</li><li>A long branch name truncates from the end. The path always shows in full.</li></ul></div>
+      <div><h3>Without selecting</h3><ul><li>An exception's own pill on its label is also a switcher, so you can send it back without selecting it.</li><li>A frame that follows its group has nothing to press on its label; you select it and use the address bar.</li></ul></div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section id="side">
+    <div class="head"><span class="num">5</span><h2>Sidebar</h2></div>
+    <p class="idea">The Canvas list mirrors the canvas. A group row ends with its Workspace pill. Frame rows are names, except exceptions, which end with theirs. Hovering a Workspace row lights up the groups and frames that use it, the cross-highlight you kept from #793, now at group level too.</p>
+    <div id="m-side"></div>
+  </section>
+
+  <hr>
+
+  <section id="edges">
+    <div class="head"><span class="num">6</span><h2>Edge cases</h2></div>
+    <div class="trio" id="m-edges"></div>
+    <div class="steps" style="margin-top:8px">
+      <div><b>Dragging a frame into a group</b><p>It takes the group's Workspace, keeping its route and state. If it was an exception, it stays one. Dragging a frame out on its own keeps the Workspace it had and shows it on its label, since a group of one has no group label.</p></div>
+      <div><b>Merging two groups</b><p>The merged group keeps the Workspace of the group you dropped onto. Frames from the other group that were on a different Workspace become exceptions, so nothing changes what it shows.</p></div>
+      <div><b>A group of documents only</b><p>No Workspace, no pill. The first frame added to it sets it.</p></div>
+      <div><b>New frames</b><p>A frame added to a group follows it. A frame created by a new Workspace (the seeded frames) starts a new group on that Workspace, as it does now.</p></div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section id="model">
+    <div class="head"><span class="num">7</span><h2>What changes underneath</h2></div>
+    <ol class="plain">
+      <li><b>Groups get a Workspace.</b> <span class="mono">IframeLayerGroupData</span> gains an optional <span class="mono">branchId</span>. A frame's <span class="mono">branchId</span> becomes an exception: set only when it differs from its group.</li>
+      <li><b>Existing canvases convert on load.</b> A group whose frames all share one Workspace takes it, and their own values clear. A mixed group takes its leftmost frame's Workspace, and the rest become exceptions. Nothing changes on screen.</li>
+      <li><b>Switching reuses today's code.</b> Assigning a Workspace already keeps route and state per frame. A group switch runs it for each following frame in one transaction.</li>
+      <li><b>Groups of one keep today's behaviour.</b> The Workspace shows on the frame label because there is no group label to put it on.</li>
+    </ol>
+    <p style="color:var(--ink2)">If you want to build it, I'd split it into four tickets: the model and conversion, the group label and its switcher, the address bar host, and the sidebar rows.</p>
+  </section>
+
+  <hr>
+
+  <section id="open">
+    <h2>Open questions</h2>
+    <ol class="plain">
+      <li><b>Pill, dot and text, or muted text on the group label?</b> I recommend the pill.</li>
+      <li><b>Should a group switch also move exceptions?</b> I recommend no, and naming them in the menu footer.</li>
+      <li><b>Should the address bar show the Workspace for frames that follow their group?</b> I recommend yes, so the switcher is always in the same place.</li>
+    </ol>
+    <p class="round1">Rounds 1 and 2 are in this page's version history.</p>
+  </section>
+</div>
+
+<script>
+const P = {
+  frame:'<path d="M4 8h16M4 16h16M8 4v16M16 4v16"/>',
+  doc:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  pr:'<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v7M18 15.5V9a3 3 0 0 0-3-3h-4"/>',
+  merged:'<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M8 7.5c3 3 5 4.5 7.5 4.5"/>',
+  branch:'<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M6 3v12.5M18 8.5A9 9 0 0 1 9 17.5"/>',
+  warn:'<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
+  ptr:'<path d="m4 4 7 17 2.5-7.5L21 11z"/>',
+  l:'<path d="m15 18-6-6 6-6"/>', r:'<path d="m9 18 6-6-6-6"/>',
+  rl:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  knobs:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  chev:'<path d="m7 15 5 5 5-5M7 9l5-5 5 5"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+};
+const ic=(k,style='',cls='i')=>`<svg class="${cls}" viewBox="0 0 24 24" style="${style}">${P[k]}</svg>`;
+const WS={
+  cp:{ref:'checkout-polish',icon:ic('pr','color:var(--pr)'),diff:['+214','-37']},
+  ap:{ref:'apple-pay-button',icon:ic('branch'),diff:['+88','-12']},
+  ec:{ref:'empty-cart-state',icon:ic('branch'),diff:['+46','-4']},
+  gc:{ref:'gift-cards',icon:ic('warn','color:var(--bad)'),diff:null},
+};
+const pill=k=>`<span class="pill ${k}">${WS[k].ref}</span>`;
+const btxt=k=>`<span class="bt tx-${k}">${WS[k].ref}</span>`;
+const diff=k=>WS[k].diff?`<span class="diff"><span class="a">${WS[k].diff[0]}</span> <span class="d">${WS[k].diff[1]}</span></span>`:'';
+const wsRow=(k,hl=false)=>`<div class="srow tree ${hl?'hl':''}">${WS[k].icon}${pill(k)}<span class="grow"></span>${diff(k)}</div>`;
+const projects=(keys,hl)=>`<div class="sgl">Projects</div><div class="srow">${ic('folder')}<span class="nm">acme/storefront</span></div>${keys.map(k=>wsRow(k,k===hl)).join('')}<div class="sgl">Canvas</div>`;
+const srow=(name,{active=false,right='',icon='frame',hl=false,sub=true}={})=>`<div class="srow ${sub?'sub':''} ${active?'active':''} ${hl?'hl':''}">${ic(icon)}<span class="nm">${name}</span><span class="grow"></span>${right}</div>`;
+const grow=(name,right='',hl=false)=>`<div class="srow ${hl?'hl':''}">${ic('folder')}<span class="nm">${name}</span><span class="grow"></span>${right}</div>`;
+const barHtml=(field)=>`<div class="bar"><span class="ib"><svg viewBox="0 0 24 24">${P.ptr}</svg></span><span class="vr"></span><span class="ib"><svg viewBox="0 0 24 24">${P.l}</svg></span><span class="ib"><svg viewBox="0 0 24 24">${P.r}</svg></span>${field}<span class="vr"></span><span class="ib"><svg viewBox="0 0 24 24">${P.knobs}</svg></span><span class="ib"><svg viewBox="0 0 24 24">${P.more}</svg></span></div>`;
+const hostField=(k,route,open=false)=>`<span class="field"><span class="host ${open?'open':''} tx-${k}"><span class="dot d-${k}"></span>${WS[k].ref}<svg viewBox="0 0 24 24" style="width:9px;height:9px">${P.chev}</svg></span><span class="path">${route}</span><span class="grow"></span><svg viewBox="0 0 24 24">${P.rl}</svg><span class="rec"></span></span>`;
+function frame({name,label,w=160,h=100,route='/checkout',ws='cp',sel=false,alt=false,bar='',doc=false}){
+  const body=doc?`<div style="padding:8px;font:600 8px Inter,system-ui,sans-serif">${name}</div><div class="sk" style="width:80%"></div><div class="sk" style="width:65%"></div>`
+    :`<div class="hd">${WS[ws].ref}</div><div class="hero ${alt?'alt':''}">${route}</div><div class="sk" style="width:70%"></div><div class="sk" style="width:55%"></div>`;
+  return `<div class="fw" style="width:${w}px"><div class="flabel ${sel?'sel':''}">${label??`<span class="nm">${name}</span>`}</div><div class="frame ${sel?'sel':''}" style="height:${h}px">${body}</div>${bar}</div>`;
+}
+const glabel=(name,k,{hover=false,style='pill',icon=''}={})=>{
+  if(!k) return `<div class="glabel">${name}</div>`;
+  const src=style==='pill'?pill(k):style==='dot'?`<span class="dot d-${k}"></span>${btxt(k)}`:`<span class="bt" style="color:var(--app-muted)">${WS[k].ref}</span>`;
+  return `<div class="glabel">${name}<span class="gsrc ${hover?'hov':''}" style="padding:0 2px">${icon}${src}${hover?ic('chev','','i s'):''}</span></div>`;
+};
+function popover({title,items,on,foot,style,top=''}){
+  return `<div class="pop" style="${style}"><div class="in">${ic('search','','i s')}<span>${title}</span></div>${top}
+    ${items.map(k=>`<div class="it ${k===on?'on':''}">${WS[k].icon}${pill(k)}<span class="grow"></span>${diff(k)}${k===on?ic('check','color:var(--app-fg)','i s'):''}</div>`).join('')}
+    ${foot?`<div class="ft">${foot}</div>`:''}</div>`;
+}
+const stage=(side,canvas,canvasStyle='')=>`<div class="stage"><div class="app"><aside class="side">${side}</aside><div class="canvas" style="${canvasStyle}">${canvas}</div></div></div>`;
+const bare=(canvas,minW=300)=>`<div class="stage"><div class="app nosb" style="min-width:${minW}px"><div class="canvas">${canvas}</div></div></div>`;
+const grp=(label,frames,style='')=>`<div class="grp" style="${style}">${label}<div class="frames">${frames}</div></div>`;
+const exc=(name,k)=>`<span class="nm">${name}</span>${pill(k)}`;
+
+// 1 at rest
+const sideRest=projects(['cp','ap','ec','gc'])
+  +grow('Checkout',pill('cp'))+srow('Cart')+srow('Shipping',{active:true})+srow('Pay')+srow('Checkout brief',{icon:'doc'})
+  +grow('Cart',pill('ec'))+srow('Empty cart')+srow('Gift card balance',{right:pill('gc')})
+  +srow('Order confirmation',{sub:false,right:pill('ap')});
+const canvasRest=
+  grp(glabel('Checkout','cp'),frame({name:'Cart',route:'/cart'})+frame({name:'Shipping',route:'/checkout/shipping',sel:true,bar:barHtml(hostField('cp','/checkout/shipping'))})+frame({name:'Pay',route:'/checkout/pay'})+frame({name:'Checkout brief',doc:true,w:120}),'padding-bottom:34px')
+  +`<div style="display:flex;gap:40px;align-items:flex-start">`
+  +grp(glabel('Cart','ec'),frame({name:'Empty cart',route:'/cart',ws:'ec',w:170})+frame({label:exc('Gift card balance','gc'),route:'/gift-cards',ws:'gc',w:210}))
+  +grp('<div class="glabel"></div>',frame({label:exc('Order confirmation','ap'),route:'/checkout/done',ws:'ap',alt:true,w:200}))
+  +`</div>`;
+document.getElementById('m-rest').innerHTML=stage(sideRest,canvasRest);
+
+// 2 treatments
+const treat=[
+  {s:'pill',t:'<b>The Workspace pill.</b> Same element as the Workspace row in the sidebar.<span class="rec-tag">Recommended</span>'},
+  {s:'dot',t:'<b>Dot and coloured text.</b> Lighter, but a second way to draw a Workspace.'},
+  {s:'muted',t:'<b>Muted text.</b> Lightest. Loses the colour link to the sidebar.'},
+];
+document.getElementById('m-treat').innerHTML=treat.map(x=>`<div>${bare(
+  grp(glabel('Checkout','cp',{style:x.s}),frame({name:'Cart',route:'/cart',w:110,h:70})+frame({name:'Shipping',route:'/checkout/shipping',w:110,h:70}))
+  +grp(glabel('Cart','ec',{style:x.s}),frame({name:'Empty cart',route:'/cart',ws:'ec',w:110,h:70})+frame({label:x.s==='pill'?exc('Gift card…','gc'):x.s==='dot'?`<span class="nm">Gift card…</span><span class="dot d-gc"></span>${btxt('gc')}`:`<span class="nm">Gift card…</span><span class="bt" style="color:var(--app-muted)">gift-cards</span>`,route:'/gift-cards',ws:'gc',w:150,h:70})),290)}<p class="cap">${x.t}</p></div>`).join('');
+
+// 3 switching a group
+const canvasGroup=`<div class="grp" style="padding-bottom:10px">${glabel('Cart','ec',{hover:true})}<div class="frames">${frame({name:'Empty cart',route:'/cart',ws:'ec',w:190,h:120})+frame({name:'Cart · mobile',route:'/cart',ws:'ec',w:90,h:120})+frame({label:exc('Gift card balance','gc'),route:'/gift-cards',ws:'gc',w:210,h:120})}</div>
+  ${popover({title:'Show Cart from…',items:['ec','cp','ap'],on:'ec',foot:'Moves 2 frames. Each keeps its route and state.<br>Gift card balance stays on gift-cards.',style:'left:26px;top:22px'})}</div><div style="height:130px"></div>`;
+document.getElementById('m-group').innerHTML=stage(projects(['cp','ap','ec','gc'])+grow('Cart',pill('ec'))+srow('Empty cart')+srow('Cart · mobile')+srow('Gift card balance',{right:pill('gc')}),canvasGroup);
+
+// 4 switching one frame
+const followTop=`<div class="sec">Group</div><div class="it">${ic('undo','','i')}<span>Follow Cart</span><span class="grow"></span>${pill('ec')}</div><hr><div class="sec">This frame only</div>`;
+const canvasFrame=`<div class="grp">${glabel('Cart','ec')}<div class="frames">${frame({name:'Empty cart',route:'/cart',ws:'ec',w:190,h:120})
+  +frame({label:exc('Gift card balance','gc'),route:'/gift-cards',ws:'gc',w:240,h:120,sel:true,bar:barHtml(hostField('gc','/gift-cards',true))})}</div>
+  ${popover({title:'Show this frame from…',items:['gc','ec','cp'],on:'gc',top:followTop,style:'left:250px;top:212px'})}</div><div style="height:250px"></div>`;
+document.getElementById('m-frame').innerHTML=stage(projects(['cp','ap','ec','gc'])+grow('Cart',pill('ec'))+srow('Empty cart')+srow('Gift card balance',{active:true,right:pill('gc')}),canvasFrame);
+
+// 5 sidebar hover
+const sideHover=projects(['cp','ap','ec','gc'],'cp')
+  +grow('Checkout',pill('cp'),true)+srow('Cart',{hl:true})+srow('Shipping',{hl:true})+srow('Pay',{hl:true})+srow('Checkout brief',{icon:'doc'})
+  +grow('Cart',pill('ec'))+srow('Empty cart')+srow('Gift card balance',{right:pill('gc')})
+  +grow('Mobile checkout',pill('ap'))+srow('Cart')+srow('Pay',{right:pill('cp'),hl:true});
+const canvasSide=grp(glabel('Checkout','cp'),frame({name:'Cart',route:'/cart',w:130,h:84})+frame({name:'Shipping',route:'/checkout/shipping',w:130,h:84})+frame({name:'Pay',route:'/checkout/pay',w:130,h:84}))
+  +grp(glabel('Mobile checkout','ap'),frame({name:'Cart',route:'/cart',ws:'ap',alt:true,w:80,h:120})+frame({label:exc('Pay','cp'),route:'/checkout/pay',w:140,h:120}));
+document.getElementById('m-side').innerHTML=stage(sideHover,canvasSide)+'<p class="cap">Hovering <b>checkout-polish</b> in the Workspace list highlights the Checkout group and the one Mobile checkout frame that is an exception on it.</p>';
+
+// 6 edges
+const edges=[
+  {c:grp(`<div class="glabel">New flow<span class="gsrc" style="padding:0 2px;color:var(--app-muted)">Choose a workspace${ic('chev','','i s')}</span></div>`,
+     `<div class="fw" style="width:120px"><div class="flabel"><span class="nm">Untitled frame</span></div><div class="frame" style="height:80px;display:grid;place-items:center;font-size:8px;color:var(--app-muted)">No Workspace</div></div><div class="fw" style="width:120px"><div class="flabel"><span class="nm">Untitled frame</span></div><div class="frame" style="height:80px;display:grid;place-items:center;font-size:8px;color:var(--app-muted)">No Workspace</div></div>`),
+   t:'<b>No Workspace yet.</b> The group label uses today\'s "Choose a workspace" dropdown, and frames keep the existing No Workspace screen.'},
+  {c:grp(`<div class="glabel">Checkout<span class="gsrc" style="padding:0 2px">${ic('merged','color:var(--merged)','i s')}${pill('cp')}${ic('chev','','i s')}</span></div>`,frame({name:'Cart',route:'/cart',w:120,h:80})+frame({name:'Pay',route:'/checkout/pay',w:120,h:80})),
+   t:'<b>Workspace merged or deleted.</b> The pill gains the status icon from the Workspace list (purple for merged). Frames keep their last capture, and one switch on the group moves the whole flow.'},
+  {c:grp(glabel('Checkout','cp'),frame({name:'Cart',route:'/cart',w:110,h:80})+`<div class="fw" style="width:110px;opacity:.85"><div class="flabel"><span class="nm">Empty cart</span></div><div class="frame" style="height:80px;outline:1.5px dashed var(--sel)"><div class="hd">checkout-polish</div><div class="hero">/cart</div></div></div>`),
+   t:'<b>Dragging a frame in.</b> It takes the group\'s Workspace while you drag, so you see the result before you drop. An exception keeps its own.'},
+];
+document.getElementById('m-edges').innerHTML=edges.map(e=>`<div>${bare(e.c,290)}<p class="cap">${e.t}</p></div>`).join('');
+</script>
+
+</body></html>

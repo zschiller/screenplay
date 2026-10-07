@@ -1,0 +1,229 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Status Colour Rule</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; each decision is a strip of Today / Options, every mockup shown in a light and a dark app panel. */
+:root {
+  --bg: oklch(0.985 0 0); --fg: oklch(0.15 0 0); --muted: oklch(0.5 0 0);
+  --line: oklch(0 0 0 / 10%); --panel: oklch(1 0 0); --accent: oklch(0.56 0.259 326);
+  --f-display: "Instrument Serif", Georgia, serif;
+  --f-body: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --f-mono: "Geist Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: oklch(0.1 0 0); --fg: oklch(0.96 0 0); --muted: oklch(0.7 0 0);
+  --line: oklch(1 0 0 / 14%); --panel: oklch(0.14 0 0); --accent: oklch(0.667 0.295 322.15); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: oklch(0.1 0 0); --fg: oklch(0.96 0 0); --muted: oklch(0.7 0 0);
+  --line: oklch(1 0 0 / 14%); --panel: oklch(0.14 0 0); --accent: oklch(0.667 0.295 322.15); color-scheme: dark }
+
+/* App tokens, copied from packages/ui globals.css after PR #1072. Fixed per panel. */
+.app-l { --a-bg: oklch(1 0 0); --a-fg: oklch(0 0 0); --a-muted: oklch(0.975 0 0); --a-mfg: oklch(0.556 0 0); --a-border: oklch(0 0 0 / 12%);
+  --d: oklch(0.56 0.226 27); --d-fill: oklch(0.66 0.225 27); --s: oklch(0.56 0.16 148); --s-fill: oklch(0.82 0.235 148);
+  --w: oklch(0.6 0.139 60); --w-fill: oklch(0.88 0.179 95); }
+.app-d { --a-bg: oklch(0 0 0); --a-fg: oklch(1 0 0); --a-muted: oklch(0.14 0 0); --a-mfg: oklch(0.708 0 0); --a-border: oklch(1 0 0 / 16%);
+  --d: oklch(0.66 0.225 27); --d-fill: oklch(0.66 0.225 27); --s: oklch(0.82 0.235 148); --s-fill: oklch(0.82 0.235 148);
+  --w: oklch(0.88 0.179 95); --w-fill: oklch(0.88 0.179 95); }
+
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--f-body); }
+.wrap { max-width: 960px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; }
+h1 { font: 400 2.6rem/1.1 var(--f-display); margin: 0 0 .4rem; text-wrap: balance; }
+h2 { font: 400 1.7rem/1.2 var(--f-display); margin: 0 0 .3rem; text-wrap: balance; }
+h3 { font: 600 .78rem/1.3 var(--f-body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 .5rem; }
+p { margin: 0 0 .8rem; max-width: 66ch; }
+.lede { color: var(--muted); font-size: 1.05rem; }
+code { font: .85em var(--f-mono); }
+section { padding-block: 2.2rem; border-top: 1px solid var(--line); }
+.rule { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 1rem; }
+.rule > div { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; min-width: 0; }
+.rule b { display: block; font-size: 1.05rem; margin-bottom: .2rem; }
+.rule p { font-size: .9rem; color: var(--muted); margin: 0; }
+.tbl { overflow-x: auto; margin-top: 1rem; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; min-width: 620px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+.tag { font: 500 .75rem var(--f-mono); padding: 1px 6px; border-radius: 3px; border: 1px solid var(--line); white-space: nowrap; }
+.tag.bad { color: var(--accent); border-color: currentColor; }
+.opts { display: grid; gap: 14px; margin-top: 1rem; }
+.opt { display: grid; grid-template-columns: 170px 1fr; gap: 16px; align-items: start; }
+.opt .label { min-width: 0; }
+.opt .label b { display: block; }
+.opt .label span { font-size: .85rem; color: var(--muted); }
+.rec { display: inline-block; font: 600 .7rem var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-top: .2rem; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-width: 0; }
+.stage { background: var(--a-bg); color: var(--a-fg); border: 1px solid var(--line); border-radius: 4px; padding: 18px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; min-height: 72px; min-width: 0; font: 13px/1.4 var(--f-body); }
+@media (max-width: 640px) { .opt { grid-template-columns: 1fr; } .pair { grid-template-columns: 1fr; } }
+
+/* Mock app pieces */
+.bar { display: flex; align-items: center; height: 24px; border-radius: 4px; background: var(--a-muted); color: var(--a-mfg); padding: 0 2px 0 8px; gap: 8px; font: 12px var(--f-mono); width: 230px; max-width: 100%; }
+.bar .route { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar .route em { font-style: normal; color: var(--a-mfg); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--d-fill); flex: none; }
+.stop { width: 20px; height: 20px; display: grid; place-items: center; flex: none; }
+.stop i { width: 8px; height: 8px; border-radius: 1.5px; background: var(--d-fill); display: block; }
+.bar.tint { background: color-mix(in oklch, var(--d) 10%, transparent); color: var(--d); }
+.bar.tint .route em { color: var(--d); }
+.bar.quiet { color: var(--a-fg); }
+.bar.outline { background: transparent; box-shadow: inset 0 0 0 1px var(--d); color: var(--a-fg); }
+.bar.fill { background: var(--d-fill); color: #000; }
+.bar.fill .route em { color: #000; }
+.bar.fill .dot, .bar.fill .stop i { background: #000; }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; border-radius: 4px; font: 500 11px var(--f-body); white-space: nowrap; }
+.chip svg { width: 11px; height: 11px; flex: none; }
+.chip.t-s { background: color-mix(in oklch, var(--s) 12%, transparent); color: var(--s); }
+.chip.t-d { background: color-mix(in oklch, var(--d) 12%, transparent); color: var(--d); }
+.chip.t-n { background: var(--a-muted); color: var(--a-mfg); }
+.chip.o { box-shadow: inset 0 0 0 1px var(--a-border); color: var(--a-fg); }
+.chip.o .s { color: var(--s); } .chip.o .d { color: var(--d); } .chip.o .w { color: var(--w); }
+.chip.ink { padding: 0; }
+.chip.ink.s { color: var(--s); } .chip.ink.d { color: var(--d); } .chip.ink.w { color: var(--w); }
+.chip.f-s { background: var(--s-fill); color: #000; } .chip.f-d { background: var(--d-fill); color: #000; } .chip.f-w { background: var(--w-fill); color: #000; }
+
+.box { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 4px; font-size: 12px; width: 100%; max-width: 280px; }
+.box svg { width: 13px; height: 13px; flex: none; margin-top: 1px; }
+.box.tint { background: color-mix(in oklch, var(--d) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--d) 30%, transparent); color: var(--d); }
+.box.o { box-shadow: inset 0 0 0 1px var(--a-border); color: var(--a-fg); }
+.box.o svg.d { color: var(--d); } .box.o svg.w { color: var(--w); }
+.box.oi.dd { color: var(--d); } .box.oi.ww { color: var(--a-fg); }
+.box.oi { box-shadow: inset 0 0 0 1px var(--a-border); }
+.box.oi.ww svg { color: var(--w); }
+.box.f-d { background: var(--d-fill); color: #000; } .box.f-w { background: var(--w-fill); color: #000; }
+.col { display: flex; flex-direction: column; gap: 8px; align-items: center; width: 100%; }
+.note { font-size: .88rem; color: var(--muted); margin-top: .8rem; }
+.qs { counter-reset: q; }
+</style>
+
+<div class="wrap">
+  <h1>Status colour rule</h1>
+  <p class="lede">After the Signal palette landed, status colour shows up in four different ways: tint, outline, fill and plain coloured text. Recording is a red tint, the lost-work warning is an outline, the plan and settings chips are tints, and pins and dots are fills. This page proposes one rule and asks three questions where the rule could go either way.</p>
+
+  <section>
+    <h3>The proposed rule</h3>
+    <h2>Three treatments, no tints</h2>
+    <div class="rule">
+      <div><b>Ink</b><p>Coloured text or icon on the normal surface. For a status word or icon that stands alone: PR state, <code>+46 −4</code>, the sidebar warning icon, inline errors under a field.</p></div>
+      <div><b>Outline</b><p>Border, regular text, coloured icon. For any box that carries a status message: chips, badges and banners. Same as the <code>#482</code> PR chip and the lost-work banner today.</p></div>
+      <div><b>Fill</b><p>Solid neon with black on it. Only for small marks (dots, pins, the record dot, the done circle) and the one active mode button (Interact). Never behind a sentence.</p></div>
+    </div>
+    <p class="note">Tints (<code>bg-*/10</code>) go away. Two exceptions stay tinted because the tint is the content, not a status: diff added and removed lines in the chat, and the canvas inspect overlay in the player.</p>
+  </section>
+
+  <section>
+    <h3>Audit</h3>
+    <h2>Where colour sits today</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Surface</th><th>File</th><th>Today</th><th>Under the rule</th></tr></thead>
+      <tbody>
+        <tr><td>Recording address bar</td><td><code>frame-nav.tsx</code></td><td><span class="tag bad">tint</span> red bar, red text</td><td>Question 1</td></tr>
+        <tr><td>Record dot and stop square</td><td><code>frame-nav.tsx</code></td><td><span class="tag">fill</span></td><td>Fill (unchanged)</td></tr>
+        <tr><td>Plan “Approved” badge</td><td><code>agent-message.tsx</code></td><td><span class="tag bad">tint</span> green</td><td>Question 2</td></tr>
+        <tr><td>Plan “Changes requested” badge</td><td><code>agent-message.tsx</code>, Badge <code>destructive</code></td><td><span class="tag bad">tint</span> red</td><td>Question 2</td></tr>
+        <tr><td>Turn summary “1 failed” chip</td><td><code>agent-message.tsx</code></td><td><span class="tag bad">tint</span> red</td><td>Question 2</td></tr>
+        <tr><td>Settings “On” chip</td><td><code>settings-row.tsx</code></td><td><span class="tag bad">tint</span> green</td><td>Question 2</td></tr>
+        <tr><td>“3 uncommitted” chip</td><td><code>delete-repo-dialog.tsx</code></td><td><span class="tag">outline</span></td><td>Outline (unchanged)</td></tr>
+        <tr><td>Chat error box</td><td><code>agent-message.tsx</code></td><td><span class="tag bad">tint</span> red box, red text</td><td>Question 3</td></tr>
+        <tr><td>Lost-work warning banner</td><td><code>delete-facts.tsx</code></td><td><span class="tag">outline</span> amber icon</td><td>Question 3</td></tr>
+        <tr><td>Destructive menu item hover</td><td>stock <code>dropdown-menu.tsx</code></td><td><span class="tag">tint</span> hover only</td><td>Keep (stock shadcn)</td></tr>
+        <tr><td>Delete button</td><td>stock <code>button.tsx</code></td><td><span class="tag">outline</span> red text</td><td>Keep</td></tr>
+        <tr><td>Comment pins, unread dots, status dots, setup done</td><td>several</td><td><span class="tag">fill</span></td><td>Fill (unchanged)</td></tr>
+        <tr><td>Interact button</td><td><code>iframe-layer.tsx</code></td><td><span class="tag">fill</span> hot pink</td><td>Fill (unchanged)</td></tr>
+        <tr><td>PR state, diff counts, Workspace state icons, toasts</td><td>several</td><td><span class="tag">ink</span></td><td>Ink (unchanged)</td></tr>
+        <tr><td>Diff added and removed lines</td><td><code>agent-message.tsx</code></td><td><span class="tag">tint</span></td><td>Keep (exception)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h3>Question 1</h3>
+    <h2>How should the address bar look while recording?</h2>
+    <p>Today it turns into a pale red tint with red text. The pulsing dot and stop square are already fills.</p>
+    <div class="opts">
+      <div class="opt"><div class="label"><b>Today</b><span>Red tint, red text</span></div>
+        <div class="pair">
+          <div class="stage app-l"><div class="bar tint"><span class="dot"></span><span class="route">/cart <em>· 2 screens</em></span><span class="stop"><i></i></span></div></div>
+          <div class="stage app-d"><div class="bar tint"><span class="dot"></span><span class="route">/cart <em>· 2 screens</em></span><span class="stop"><i></i></span></div></div>
+        </div></div>
+      <div class="opt"><div class="label"><b>A. Quiet</b><span>Normal grey bar, regular text. Only the pulsing dot and stop square are red.</span><br><span class="rec">Recommended</span></div>
+        <div class="pair">
+          <div class="stage app-l"><div class="bar quiet"><span class="dot"></span><span class="route">/cart <em>· 2 screens</em></span><span class="stop"><i></i></span></div></div>
+          <div class="stage app-d"><div class="bar quiet"><span class="dot"></span><span class="route">/cart <em>· 2 screens</em></span><span class="stop"><i></i></span></div></div>
+        </div></div>
+      <div class="opt"><div class="label"><b>B. Outline</b><span>Red border around the bar, regular text.</span></div>
+        <div class="pair">
+          <div class="stage app-l"><div class="bar outline"><span class="dot"></span><span class="route">/cart <em>· 2 screens</em></span><span class="stop"><i></i></span></div></div>
+          <div class="stage app-d"><div class="bar outline"><span class="dot"></span><span class="route">/cart <em>· 2 screens</em></span><span class="stop"><i></i></span></div></div>
+        </div></div>
+      <div class="opt"><div class="label"><b>C. Fill</b><span>Solid red bar with black text, like a recording pill. Loudest.</span></div>
+        <div class="pair">
+          <div class="stage app-l"><div class="bar fill"><span class="dot"></span><span class="route">/cart <em>· 2 screens</em></span><span class="stop"><i></i></span></div></div>
+          <div class="stage app-d"><div class="bar fill"><span class="dot"></span><span class="route">/cart <em>· 2 screens</em></span><span class="stop"><i></i></span></div></div>
+        </div></div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Question 2</h3>
+    <h2>How should status chips look?</h2>
+    <p>Plan “Approved” and “Changes requested”, the turn summary’s “1 failed”, and the settings “On” chip are tinted. The “3 uncommitted” chip and the sidebar PR chip are already outline.</p>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.2 8.2l1.9 1.9 3.8-3.9" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+      <symbol id="x" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+      <symbol id="warn" viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 6.5v3.2M8 11.3v.3" stroke="currentColor" stroke-width="1.3"/></symbol>
+      <symbol id="err" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.8v3.6M8 10.6v.4" stroke="currentColor" stroke-width="1.3"/></symbol>
+    </svg>
+    <div class="opts">
+      <div class="opt"><div class="label"><b>Today</b><span>Mixed tints and outlines</span></div>
+        <div class="pair">
+          <div class="stage app-l"><span class="chip t-s"><svg><use href="#ok"/></svg>Approved</span><span class="chip t-d"><svg><use href="#x"/></svg>Changes requested</span><span class="chip t-d">1 failed</span><span class="chip t-s">On</span><span class="chip o">3 uncommitted</span></div>
+          <div class="stage app-d"><span class="chip t-s"><svg><use href="#ok"/></svg>Approved</span><span class="chip t-d"><svg><use href="#x"/></svg>Changes requested</span><span class="chip t-d">1 failed</span><span class="chip t-s">On</span><span class="chip o">3 uncommitted</span></div>
+        </div></div>
+      <div class="opt"><div class="label"><b>A. Outline</b><span>Border, regular text, coloured icon. Chips without an icon get one.</span><br><span class="rec">Recommended</span></div>
+        <div class="pair">
+          <div class="stage app-l"><span class="chip o"><svg class="s"><use href="#ok"/></svg>Approved</span><span class="chip o"><svg class="d"><use href="#x"/></svg>Changes requested</span><span class="chip o"><svg class="d"><use href="#err"/></svg>1 failed</span><span class="chip o"><svg class="s"><use href="#ok"/></svg>On</span><span class="chip o"><svg class="w"><use href="#warn"/></svg>3 uncommitted</span></div>
+          <div class="stage app-d"><span class="chip o"><svg class="s"><use href="#ok"/></svg>Approved</span><span class="chip o"><svg class="d"><use href="#x"/></svg>Changes requested</span><span class="chip o"><svg class="d"><use href="#err"/></svg>1 failed</span><span class="chip o"><svg class="s"><use href="#ok"/></svg>On</span><span class="chip o"><svg class="w"><use href="#warn"/></svg>3 uncommitted</span></div>
+        </div></div>
+      <div class="opt"><div class="label"><b>B. Ink only</b><span>No box. Coloured icon and text, like PR state.</span></div>
+        <div class="pair">
+          <div class="stage app-l"><span class="chip ink s"><svg><use href="#ok"/></svg>Approved</span><span class="chip ink d"><svg><use href="#x"/></svg>Changes requested</span><span class="chip ink d"><svg><use href="#err"/></svg>1 failed</span><span class="chip ink s"><svg><use href="#ok"/></svg>On</span><span class="chip ink w"><svg><use href="#warn"/></svg>3 uncommitted</span></div>
+          <div class="stage app-d"><span class="chip ink s"><svg><use href="#ok"/></svg>Approved</span><span class="chip ink d"><svg><use href="#x"/></svg>Changes requested</span><span class="chip ink d"><svg><use href="#err"/></svg>1 failed</span><span class="chip ink s"><svg><use href="#ok"/></svg>On</span><span class="chip ink w"><svg><use href="#warn"/></svg>3 uncommitted</span></div>
+        </div></div>
+      <div class="opt"><div class="label"><b>C. Fill</b><span>Solid neon chips with black text.</span></div>
+        <div class="pair">
+          <div class="stage app-l"><span class="chip f-s"><svg><use href="#ok"/></svg>Approved</span><span class="chip f-d"><svg><use href="#x"/></svg>Changes requested</span><span class="chip f-d">1 failed</span><span class="chip f-s">On</span><span class="chip f-w">3 uncommitted</span></div>
+          <div class="stage app-d"><span class="chip f-s"><svg><use href="#ok"/></svg>Approved</span><span class="chip f-d"><svg><use href="#x"/></svg>Changes requested</span><span class="chip f-d">1 failed</span><span class="chip f-s">On</span><span class="chip f-w">3 uncommitted</span></div>
+        </div></div>
+    </div>
+    <p class="note">Whichever wins also becomes the stock Badge <code>destructive</code> variant, so new badges follow it.</p>
+  </section>
+
+  <section>
+    <h3>Question 3</h3>
+    <h2>How should error and warning banners look?</h2>
+    <p>The chat error box is a red tint with red text. The lost-work warning in delete dialogs is an outline with an amber icon and regular text. They should match.</p>
+    <div class="opts">
+      <div class="opt"><div class="label"><b>Today</b><span>Error tinted, warning outlined</span></div>
+        <div class="pair">
+          <div class="stage app-l"><div class="col"><div class="box tint"><svg><use href="#err"/></svg>Claude Code exited: authentication expired</div><div class="box o"><svg class="w"><use href="#warn"/></svg>3 uncommitted files will be lost.</div></div></div>
+          <div class="stage app-d"><div class="col"><div class="box tint"><svg><use href="#err"/></svg>Claude Code exited: authentication expired</div><div class="box o"><svg class="w"><use href="#warn"/></svg>3 uncommitted files will be lost.</div></div></div>
+        </div></div>
+      <div class="opt"><div class="label"><b>A. Outline, regular text</b><span>Both get a border, a coloured icon and regular text.</span><br><span class="rec">Recommended</span></div>
+        <div class="pair">
+          <div class="stage app-l"><div class="col"><div class="box o"><svg class="d"><use href="#err"/></svg>Claude Code exited: authentication expired</div><div class="box o"><svg class="w"><use href="#warn"/></svg>3 uncommitted files will be lost.</div></div></div>
+          <div class="stage app-d"><div class="col"><div class="box o"><svg class="d"><use href="#err"/></svg>Claude Code exited: authentication expired</div><div class="box o"><svg class="w"><use href="#warn"/></svg>3 uncommitted files will be lost.</div></div></div>
+        </div></div>
+      <div class="opt"><div class="label"><b>B. Outline, coloured text</b><span>Stock shadcn destructive Alert: red text for errors. Warnings keep regular text, since amber text is hard to read on white.</span></div>
+        <div class="pair">
+          <div class="stage app-l"><div class="col"><div class="box oi dd"><svg><use href="#err"/></svg>Claude Code exited: authentication expired</div><div class="box oi ww"><svg><use href="#warn"/></svg>3 uncommitted files will be lost.</div></div></div>
+          <div class="stage app-d"><div class="col"><div class="box oi dd"><svg><use href="#err"/></svg>Claude Code exited: authentication expired</div><div class="box oi ww"><svg><use href="#warn"/></svg>3 uncommitted files will be lost.</div></div></div>
+        </div></div>
+      <div class="opt"><div class="label"><b>C. Fill</b><span>Solid neon banners with black text. Loudest, and breaks “never behind a sentence”.</span></div>
+        <div class="pair">
+          <div class="stage app-l"><div class="col"><div class="box f-d"><svg><use href="#err"/></svg>Claude Code exited: authentication expired</div><div class="box f-w"><svg><use href="#warn"/></svg>3 uncommitted files will be lost.</div></div></div>
+          <div class="stage app-d"><div class="col"><div class="box f-d"><svg><use href="#err"/></svg>Claude Code exited: authentication expired</div><div class="box f-w"><svg><use href="#warn"/></svg>3 uncommitted files will be lost.</div></div></div>
+        </div></div>
+    </div>
+  </section>
+</div>
+
+</body></html>

@@ -1,0 +1,215 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Screenplay Type Scale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@400&family=Geist+Mono:wght@400&display=swap">
+<style>
+/* Layout: one reading column for the argument, a wide viewer for the screens. Tokens follow the app (ink, magenta fill, Unbounded titles). */
+:root {
+  --bg: #ffffff; --fg: #0a0a0a; --muted: #6b6b70; --line: #e6e4e8; --panel: #f6f5f7;
+  --fill: #ff2e9a; --on-fill: #0a0a0a; --bar: #d9d6dc;
+  --title: "Unbounded", "Instrument Sans", system-ui, sans-serif;
+  --sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b0b0c; --fg: #f3f2f4; --muted: #9a98a0; --line: #26252a; --panel: #151418; --bar: #3a3840; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #0b0b0c; --fg: #f3f2f4; --muted: #9a98a0; --line: #26252a; --panel: #151418; --bar: #3a3840; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; }
+h1, h2 { font-family: var(--title); font-weight: 400; letter-spacing: -0.03em; text-wrap: balance; margin: 0; }
+h1 { font-size: 27px; line-height: 1.15; }
+h2 { font-size: 20px; line-height: 1.25; margin-top: 56px; margin-bottom: 12px; }
+p { max-width: 68ch; margin: 0 0 12px; }
+.lede { color: var(--muted); margin-top: 10px; }
+.label { font: 400 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+code { font-family: var(--mono); font-size: .88em; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); }
+th { font: 400 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+td.px { white-space: nowrap; width: 64px; }
+td.tok { white-space: nowrap; width: 150px; color: var(--muted); }
+td.n { white-space: nowrap; width: 90px; color: var(--muted); }
+.flag { color: var(--fg); background: var(--fill); color: var(--on-fill); font: 500 11px/1 var(--sans); padding: 3px 6px; border-radius: 4px; margin-left: 6px; white-space: nowrap; }
+
+/* Scale ladders */
+.props { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 8px; }
+.prop { border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.prop.rec { border-color: var(--fg); }
+.prop h3 { font: 600 16px/1.3 var(--sans); margin: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ladder { display: flex; flex-direction: column; gap: 6px; padding: 12px 0; border-block: 1px solid var(--line); }
+.rung { display: grid; grid-template-columns: 44px 1fr; align-items: baseline; gap: 10px; min-width: 0; }
+.rung .sz { font: 400 11px var(--mono); color: var(--muted); }
+.rung .s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rung.t .s { font-family: var(--title); letter-spacing: -0.03em; }
+.count { font: 500 13px var(--sans); color: var(--muted); }
+.prop ul { margin: 0; padding-left: 18px; font-size: 14px; }
+.prop li { margin: 3px 0; }
+
+/* Viewer */
+.viewer { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: var(--bg); flex-wrap: wrap; }
+.seg button { font: 500 13px/1 var(--sans); color: var(--muted); background: none; border: 0; border-radius: 6px; padding: 7px 10px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.seg button:focus-visible, .hold:focus-visible, .shot:focus-visible { outline: 2px solid var(--fill); outline-offset: 2px; }
+.hold { font: 500 13px/1 var(--sans); background: var(--fill); color: var(--on-fill); border: 0; border-radius: 8px; padding: 9px 12px; cursor: pointer; user-select: none; }
+select { font: 500 13px var(--sans); padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); max-width: 100%; }
+.stage { position: relative; background: var(--panel); }
+.shot { display: block; width: 100%; cursor: zoom-in; border: 0; padding: 0; background: none; }
+.shot img { display: block; width: 100%; height: auto; }
+.stage.zoom { overflow: auto; max-height: 80vh; }
+.stage.zoom .shot { cursor: zoom-out; width: auto; }
+.stage.zoom .shot img { width: 1512px; max-width: none; }
+.tag { position: absolute; top: 10px; left: 10px; font: 500 12px/1 var(--sans); background: var(--fg); color: var(--bg); padding: 6px 8px; border-radius: 6px; pointer-events: none; }
+.note { padding: 12px 14px; font-size: 14px; color: var(--muted); border-top: 1px solid var(--line); }
+.note b { color: var(--fg); font-weight: 600; }
+.hint { font-size: 13px; color: var(--muted); }
+.rec-box { border-left: 3px solid var(--fill); padding: 4px 0 4px 16px; margin-top: 8px; }
+</style>
+
+<div class="wrap">
+  <div class="label">Design exploration · type sizes · apps/app</div>
+  <h1 style="margin-top:8px">Fewer font sizes, none below 12px</h1>
+  <p class="lede">The app renders ten text sizes today, and the three smallest (10, 11 and 12.8px) do most of the damage: tool output, diff counts and section labels are hard to read. Below are three consolidated scales, each captured on real screens from the screenshot harness in light and dark. The Unbounded titles (27/24/20/17) stay as approved in all three.</p>
+
+  <h2>What's in use today</h2>
+  <p>Counted across <code>apps/app</code> and <code>packages/ui/src</code> on main, plus the sizes set in <code>globals.css</code>.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Size</th><th>Token</th><th>Uses</th><th>Where it appears</th></tr></thead>
+    <tbody>
+      <tr><td class="px">10px<span class="flag">too small</span></td><td class="tok">text-3xs</td><td class="n">19 in 12 files</td><td>Tool-call output and command headers in chat (mono), <code>+214 −37</code> diff counts in the chat header, sidebar and Workspace list, cursor and follow-toolbar names, the xxs Button, player HUD shortcuts, setup step numbers, Workspace mention chips.</td></tr>
+      <tr><td class="px">11px<span class="flag">too small</span></td><td class="tok">text-2xs + CSS</td><td class="n">31 in 20 files</td><td>Every mono uppercase section label (sidebar groups, menu and select labels, table heads, field labels, command groups), inline code in tool rows, chat badges, the frame address bar, code-block headers, collaboration caret labels.</td></tr>
+      <tr><td class="px">12px</td><td class="tok">text-xs</td><td class="n">141 in 66 files</td><td>Kbd, xs Buttons, Badge, menu shortcuts, the small sidebar row, captions and metadata, composer model picker, chat code blocks.</td></tr>
+      <tr><td class="px">12.8px</td><td class="tok">text-[0.8rem]</td><td class="n">1</td><td>The sm Button (stock radix-nova value, the one exception the type-scale test allows).</td></tr>
+      <tr><td class="px">14px</td><td class="tok">text-sm</td><td class="n">117 in 62 files</td><td>The body size: sidebar rows, menus, dialogs, inputs on desktop, chat messages, settings.</td></tr>
+      <tr><td class="px">16px</td><td class="tok">text-base</td><td class="n">3</td><td>Inputs and textareas below 768px (stock shadcn, stops iOS zoom), FieldLegend, document H3.</td></tr>
+      <tr><td class="px">17–27px</td><td class="tok">text-title-sm…xl</td><td class="n">11</td><td>Unbounded titles: 17 empty states and sheets, 20 dialogs and settings sections, 24 sign-in and setup, 27 page titles.</td></tr>
+      <tr><td class="px">24px</td><td class="tok">text-2xl</td><td class="n">1</td><td>The GitHub device code (mono, a special case).</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Three scales</h2>
+  <div class="props">
+    <section class="prop rec">
+      <h3>A · Two steps <span class="flag">recommended</span></h3>
+      <div class="count">12 / 14 + titles · 6 sizes · floor 12px</div>
+      <div class="ladder">
+        <div class="rung t"><span class="sz">27</span><span class="s" style="font-size:27px">Recents</span></div>
+        <div class="rung t"><span class="sz">24–17</span><span class="s" style="font-size:20px">Titles unchanged</span></div>
+        <div class="rung"><span class="sz">14</span><span class="s" style="font-size:14px">Body, rows, menus, chat, buttons</span></div>
+        <div class="rung"><span class="sz">12</span><span class="s" style="font-size:12px">Labels, captions, tool output, badges, kbd</span></div>
+      </div>
+      <ul>
+        <li>10 and 11px become 12px; the sm Button goes to 14px.</li>
+        <li>Stock shadcn's own two sizes, so components stay as shipped.</li>
+        <li>Reading size doesn't move; only the small text grows.</li>
+        <li>The last desktop 16px uses (FieldLegend, document H3) fold into 14 or 17.</li>
+      </ul>
+    </section>
+    <section class="prop">
+      <h3>B · One notch up</h3>
+      <div class="count">13 / 15 + titles · 6 sizes · floor 13px</div>
+      <div class="ladder">
+        <div class="rung t"><span class="sz">27</span><span class="s" style="font-size:27px">Recents</span></div>
+        <div class="rung t"><span class="sz">24–17</span><span class="s" style="font-size:20px">Titles unchanged</span></div>
+        <div class="rung"><span class="sz">15</span><span class="s" style="font-size:15px">Body, rows, menus, chat, buttons</span></div>
+        <div class="rung"><span class="sz">13</span><span class="s" style="font-size:13px">Labels, captions, tool output, badges</span></div>
+      </div>
+      <ul>
+        <li>Everything reads bigger, like a document app.</li>
+        <li>Sidebar labels truncate sooner and the user bubble wraps.</li>
+        <li>Overrides every shadcn component's text-sm.</li>
+      </ul>
+    </section>
+    <section class="prop">
+      <h3>C · Chrome and reading</h3>
+      <div class="count">12 / 13 / 15 + titles · 7 sizes · floor 12px</div>
+      <div class="ladder">
+        <div class="rung t"><span class="sz">27</span><span class="s" style="font-size:27px">Recents</span></div>
+        <div class="rung t"><span class="sz">24–17</span><span class="s" style="font-size:20px">Titles unchanged</span></div>
+        <div class="rung"><span class="sz">15</span><span class="s" style="font-size:15px">Chat messages, composer, documents</span></div>
+        <div class="rung"><span class="sz">13</span><span class="s" style="font-size:13px">Sidebar, menus, buttons, settings</span></div>
+        <div class="rung"><span class="sz">12</span><span class="s" style="font-size:12px">Labels, captions, tool output</span></div>
+      </div>
+      <ul>
+        <li>Denser chrome, roomier chat, like Linear or VS Code.</li>
+        <li>Three body-ish steps (13, 15, 17) sit close together.</li>
+        <li>Most churn: every text-sm has to pick a side.</li>
+      </ul>
+    </section>
+  </div>
+
+  <h2>On real screens</h2>
+  <p class="hint">Pick a scale, then hold <b>Hold for before</b> (or press B) to flip back to main. Click a screen to see it at 1:1. These are live captures with each scale applied as a stylesheet over main, so heights and truncation are real, but nothing has been retuned yet.</p>
+  <div class="viewer">
+    <div class="bar">
+      <div class="seg" role="group" aria-label="Scale" id="scale">
+        <button id="s-before" data-v="before" aria-pressed="false">Today</button>
+        <button id="s-a" data-v="a" aria-pressed="true">A · 12/14</button>
+        <button id="s-b" data-v="b" aria-pressed="false">B · 13/15</button>
+        <button id="s-c" data-v="c" aria-pressed="false">C · 12/13/15</button>
+      </div>
+      <div class="seg" role="group" aria-label="Theme" id="theme">
+        <button id="t-light" data-v="light" aria-pressed="true">Light</button>
+        <button id="t-dark" data-v="dark" aria-pressed="false">Dark</button>
+      </div>
+      <select id="screen" aria-label="Screen"></select>
+      <button class="hold" id="hold" type="button">Hold for before</button>
+    </div>
+    <div class="stage" id="stage">
+      <span class="tag" id="tag">A · 12/14</span>
+      <button class="shot" id="shot" type="button" aria-label="Toggle 1:1 zoom"><img id="img" alt=""></button>
+    </div>
+    <div class="note" id="note"></div>
+  </div>
+
+  <h2>Recommendation</h2>
+  <div class="rec-box">
+    <p><b>Go with A.</b> It removes 10, 11 and 12.8px and fixes the too-small text without touching anything that already reads well. It's also the smallest change: delete the <code>text-3xs</code> and <code>text-2xs</code> tokens, move their 50 uses to <code>text-xs</code>, put the sm Button on <code>text-sm</code>, and the type-scale test can then reject the two retired tokens too.</p>
+    <p>B is the pick if the whole app feels small, not just the metadata. C is the most tailored but adds a step and moves away from stock shadcn, which you've preferred elsewhere.</p>
+    <p>Whichever you pick, a follow-up pass retunes the few spots that got tight: tool-row truncation in chat, the diff counts beside Workspace names, and the frame address bar.</p>
+  </div>
+</div>
+
+<script>
+const SCREENS = [
+  ["canvas-chat-tool-states", "Chat · tool calls", "Tool output and command headers were 10px mono. The diff counts in the chat header were 10px too."],
+  ["canvas-agent-chat-markdown", "Chat · markdown reply", "Reply text, tables and code blocks. Code-block headers were 11px."],
+  ["chat-coordinator-tasks", "Chat · Coordinator tasks", "Coordinator task rows and their small status text."],
+  ["canvas", "Canvas · sidebar and chrome", "The WORKSPACES label (11px), diff counts and PR badge (10px), frame labels, the breadcrumb and zoom pill."],
+  ["sidebar-workspace-menu-hover", "Sidebar · Workspace hover card", "Hover card rows beside the sidebar."],
+  ["home-recents", "Home · Recents", "Section label PINNED (11px), card captions (12px)."],
+  ["settings", "Settings · General", "Settings nav, section title and the theme toggle."],
+];
+const NAMES = { before: "Today", a: "A · 12/14", b: "B · 13/15", c: "C · 12/13/15" };
+const state = { scale: "a", theme: "light", screen: SCREENS[0][0], holding: false };
+const sel = document.getElementById("screen");
+for (const [id, label] of SCREENS) { const o = document.createElement("option"); o.value = id; o.textContent = label; sel.appendChild(o); }
+try { const t = localStorage.getItem("ts-theme"); if (t) state.theme = t; } catch (e) {}
+function src(scale) { return `img/${scale}.${state.screen}.${state.theme}.webp`; }
+function render() {
+  const shown = state.holding ? "before" : state.scale;
+  document.getElementById("img").src = src(shown);
+  document.getElementById("img").alt = `${SCREENS.find(s => s[0] === state.screen)[1]}, ${NAMES[shown]}, ${state.theme}`;
+  document.getElementById("tag").textContent = NAMES[shown];
+  for (const b of document.querySelectorAll("#scale button")) b.setAttribute("aria-pressed", b.dataset.v === state.scale);
+  for (const b of document.querySelectorAll("#theme button")) b.setAttribute("aria-pressed", b.dataset.v === state.theme);
+  sel.value = state.screen;
+  document.getElementById("note").innerHTML = "<b>What to look at:</b> " + SCREENS.find(s => s[0] === state.screen)[2];
+}
+// Preload so the before/after flip is instant.
+function preload() { for (const s of ["before", "a", "b", "c"]) { const i = new Image(); i.src = src(s); } }
+document.getElementById("scale").addEventListener("click", e => { const v = e.target.dataset?.v; if (v) { state.scale = v; render(); } });
+document.getElementById("theme").addEventListener("click", e => { const v = e.target.dataset?.v; if (v) { state.theme = v; try { localStorage.setItem("ts-theme", v); } catch (err) {} render(); preload(); } });
+sel.addEventListener("change", () => { state.screen = sel.value; render(); preload(); });
+const hold = document.getElementById("hold");
+const on = () => { state.holding = true; render(); }, off = () => { if (state.holding) { state.holding = false; render(); } };
+hold.addEventListener("pointerdown", on); hold.addEventListener("pointerup", off); hold.addEventListener("pointerleave", off);
+document.addEventListener("keydown", e => { if ((e.key === "b" || e.key === "B") && !e.repeat && e.target.tagName !== "SELECT") on(); });
+document.addEventListener("keyup", e => { if (e.key === "b" || e.key === "B") off(); });
+document.getElementById("shot").addEventListener("click", () => document.getElementById("stage").classList.toggle("zoom"));
+render(); preload();
+</script>
+
+</body></html>

@@ -1,0 +1,300 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Frame Address Bar Affordances</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=Geist+Mono:wght@400;500&family=Unbounded:wght@400&display=swap">
+<style>
+/* Layout: one column of option sections; each section is a strip of app-true mock stages, a light row then a dark row. */
+:root {
+  --page: #fafafa; --ink: #0a0a0a; --soft: #5f5f66; --rule: rgba(0,0,0,.1); --tag: #c026d3; --tag-ink: #fff;
+  --f-title: "Unbounded", "Instrument Sans", system-ui, sans-serif;
+  --f-ui: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --f-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page: #0b0b0c; --ink: #f4f4f5; --soft: #a1a1aa; --rule: rgba(255,255,255,.12); --tag: #e879f9; --tag-ink: #000; color-scheme: dark } }
+:root[data-theme="dark"] { --page: #0b0b0c; --ink: #f4f4f5; --soft: #a1a1aa; --rule: rgba(255,255,255,.12); --tag: #e879f9; --tag-ink: #000; color-scheme: dark }
+body { background: var(--page); color: var(--ink); font-family: var(--f-ui); font-size: 14px; line-height: 1.5; padding-inline: 20px; padding-block: 40px 80px; }
+main { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+h1, h2 { font-family: var(--f-title); font-weight: 400; text-wrap: balance; margin: 0; }
+h1 { font-size: 27px; line-height: 1.2; }
+h2 { font-size: 20px; line-height: 1.25; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+p { margin: 0; max-width: 68ch; color: var(--soft); }
+p strong { color: var(--ink); font-weight: 600; }
+header { display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--soft); }
+.rec { font-family: var(--f-ui); font-size: 12px; font-weight: 600; background: var(--tag); color: var(--tag-ink); border-radius: 999px; padding: 2px 9px; }
+section { display: flex; flex-direction: column; gap: 16px; }
+.lede { display: flex; flex-direction: column; gap: 8px; }
+ul.notes { margin: 0; padding-left: 18px; color: var(--soft); max-width: 72ch; display: flex; flex-direction: column; gap: 4px; }
+ul.notes b { color: var(--ink); font-weight: 600; }
+.strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(470px, 100%), 1fr)); gap: 12px; }
+.cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow-x: auto; }
+.cap { font-size: 12px; color: var(--soft); }
+.cap b { color: var(--ink); font-weight: 600; }
+.rowlabel { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--soft); margin-top: 4px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 13px; min-width: 640px; width: 100%; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; font-size: 12px; color: var(--soft); }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td.bad { color: #dc2626; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) td.bad { color: #f87171 } }
+:root[data-theme="dark"] td.bad { color: #f87171 }
+
+/* ---------- App-true mock stage (fixed theme per stage) ---------- */
+.app { --bg:#fff; --fg:#000; --muted:#f7f7f7; --mfg:#7c7c7c; --border:rgba(0,0,0,.12); --pop:#fff; --success:#16a34a; --add:#16a34a; --del:#dc2626; --ring:#d946ef; --sel:rgba(217,70,239,.22); --canvas:#f2f2f2; --shadow: 0 4px 16px rgba(0,0,0,.08), 0 0 0 1px rgba(0,0,0,.08);
+  background: var(--canvas); color: var(--fg); border-radius: 10px; padding: 16px 14px; height: 206px; min-width: 460px; position: relative; overflow: hidden; font-family: var(--f-ui); }
+.app.tall { height: 318px; }
+.app.dark { --bg:#000; --fg:#fff; --muted:#242424; --mfg:#a8a8a8; --border:rgba(255,255,255,.16); --pop:#141414; --success:#4ade80; --add:#4ade80; --del:#f87171; --canvas:#0d0d0d; --shadow: 0 4px 16px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.12); }
+.app .frame { position: absolute; left: 14px; right: 14px; top: -40px; height: 44px; border-radius: 6px; background: linear-gradient(135deg,#6366f1,#8b5cf6); outline: 1.5px solid var(--ring); }
+.tb { position: absolute; top: 16px; left: 14px; display: flex; align-items: center; gap: 2px; background: var(--bg); border-radius: 8px; padding: 4px; box-shadow: var(--shadow); }
+.ib { width: 24px; height: 24px; display: grid; place-items: center; color: var(--mfg); border-radius: 6px; }
+.ib svg, .sm svg { width: 12px; height: 12px; }
+.bar { height: 24px; width: 300px; display: flex; align-items: center; background: var(--muted); color: var(--mfg); border-radius: 6px; padding: 0 2px; position: relative; }
+.bar.whole-hover { box-shadow: inset 0 0 0 1px var(--border); }
+.bar.whole-hover .route { color: var(--fg); }
+.host { height: 20px; display: flex; align-items: center; gap: 4px; padding: 0 4px; border-radius: 4px; font-size: 12px; font-weight: 500; flex-shrink: 1; min-width: 0; max-width: 176px; white-space: nowrap; }
+.host .nm { overflow: hidden; text-overflow: ellipsis; }
+.host.hv, .route.hv { background: var(--bg); color: var(--fg); }
+.host.hv .nm { color: var(--fg); }
+.st { width: 10px; height: 10px; border-radius: 50%; border: 1.25px solid currentColor; opacity: .75; flex-shrink: 0; }
+.pr { display: inline-flex; align-items: center; gap: 2px; color: var(--success); font-size: 12px; font-weight: 500; }
+.pr svg { width: 11px; height: 11px; }
+.caret { width: 9px; height: 9px; opacity: .6; flex-shrink: 0; }
+.route { flex: 1; min-width: 0; height: 20px; display: flex; align-items: center; gap: 4px; padding: 0 4px; border-radius: 4px; font-family: var(--f-mono); font-size: 12px; white-space: nowrap; }
+.route.bright { color: var(--fg); }
+.route .caret { margin-left: auto; }
+.route.edit { background: var(--bg); color: var(--fg); box-shadow: 0 0 0 2px var(--sel); cursor: text; }
+.route .selt { background: var(--sel); color: var(--fg); border-radius: 2px; }
+.route .cur { width: 1px; height: 13px; background: var(--fg); }
+.sm { width: 20px; height: 20px; display: grid; place-items: center; flex-shrink: 0; }
+.div { width: 1px; height: 16px; background: var(--border); margin: 0 3px; }
+.cursor { position: absolute; width: 14px; height: 18px; pointer-events: none; z-index: 5; }
+.pop { position: absolute; top: 56px; background: var(--pop); border-radius: 8px; box-shadow: var(--shadow); font-size: 12px; overflow: hidden; z-index: 3; }
+.pop .search { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-bottom: 1px solid var(--border); color: var(--mfg); }
+.pop .search svg { width: 12px; height: 12px; }
+.pop .search .typed { color: var(--fg); font-family: var(--f-mono); }
+.pop .grp { padding: 4px; }
+.pop .gl { font-size: 12px; color: var(--mfg); padding: 4px 8px 2px; }
+.pop .it { height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: 4px; white-space: nowrap; }
+.pop .it.on { background: var(--muted); }
+.pop .it .mono { font-family: var(--f-mono); }
+.pop .it .end { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.pop .it .chk { width: 12px; height: 12px; }
+.pop .it .dim { color: var(--mfg); }
+.pop .add { color: var(--add); } .pop .del { color: var(--del); }
+.pop hr { border: 0; border-top: 1px solid var(--border); margin: 0; }
+.hc { position: absolute; top: 56px; left: 44px; width: 210px; background: var(--pop); border-radius: 8px; box-shadow: var(--shadow); padding: 10px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; z-index: 3; }
+.hc .t { font-weight: 600; font-size: 14px; }
+.hc .k { color: var(--mfg); display: flex; justify-content: space-between; gap: 8px; }
+.hc .k span:last-child { color: var(--fg); font-family: var(--f-mono); }
+.dots { display: inline-grid; grid-template-columns: repeat(3, 2px); gap: 1.5px; flex-shrink: 0; }
+.dots i { width: 2px; height: 2px; border-radius: 50%; background: currentColor; opacity: .75; }
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">Canvas · frame bar · design exploration</span>
+    <h1>Frame address bar: Workspace and route</h1>
+    <p>The bar under a selected frame has two parts you can press: the <strong>Workspace</strong> (like a browser's host) and the <strong>route</strong> (its path). Today they look alike but answer the pointer differently. Below is what differs now, then three ways to make them agree. Every stage is drawn at app size with the real type, 24px bar and 12px icons; each option shows light then dark.</p>
+  </header>
+
+  <section id="today">
+    <div class="lede">
+      <h2>Today</h2>
+      <p>Read from <code>frame-nav.tsx</code> on main. Both parts open a popover with a search box, but little else matches.</p>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th></th><th>Workspace part</th><th>Route part</th></tr></thead>
+        <tbody>
+          <tr><td>Hover</td><td>Fills with the page colour</td><td class="bad">Only the text brightens, no fill</td></tr>
+          <tr><td>Hint</td><td>Up/down caret after the name</td><td class="bad">No caret, so it doesn't read as pressable</td></tr>
+          <tr><td>Hover card</td><td>Workspace card after a delay</td><td>None (the shared-state braces have a tooltip)</td></tr>
+          <tr><td>Click</td><td>Menu of Workspaces with search</td><td class="bad">Menu with a search box you type the route into, not the route itself</td></tr>
+          <tr><td>Menu size</td><td>288px, under the Workspace</td><td class="bad">224px, under the route, so the two menus start in different places</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="rowlabel">Light</div>
+    <div class="strip" data-opt="today" data-theme-row="light"></div>
+    <div class="rowlabel">Dark</div>
+    <div class="strip" data-opt="today" data-theme-row="dark"></div>
+  </section>
+
+  <section id="a">
+    <div class="lede">
+      <h2>A · Matched menus</h2>
+      <p>Both parts become the same kind of control: a menu button. Same fill on hover, a caret on each, and both menus drop from the bar's left edge at one width with a search box on top. The route menu stays a list you filter or type a new route into.</p>
+    </div>
+    <ul class="notes">
+      <li><b>Good:</b> smallest change; nothing new to learn.</li>
+      <li><b>Cost:</b> two carets in one field is busy, and typing a route still happens in a box under the route instead of on it.</li>
+    </ul>
+    <div class="rowlabel">Light</div>
+    <div class="strip" data-opt="a" data-theme-row="light"></div>
+    <div class="rowlabel">Dark</div>
+    <div class="strip" data-opt="a" data-theme-row="dark"></div>
+  </section>
+
+  <section id="b">
+    <div class="lede">
+      <h2>B · Pick the Workspace, type the route <span class="rec">Recommended</span></h2>
+      <p>Each part gets the affordance of what it holds, like Safari. The Workspace is picked from a list, so it stays a menu button with its caret and hover card. The route is text, so it behaves as a text field: hover fills it and shows the I-beam, a click selects the route in place, and suggestions drop under the bar at the Workspace menu's width. Enter goes, Esc puts it back.</p>
+    </div>
+    <ul class="notes">
+      <li><b>Good:</b> the difference between the parts becomes a rule you can see (caret means menu, I-beam means type), and hover fill, radius and menu position match.</li>
+      <li><b>Cost:</b> the route field needs real input behaviour (select-all on focus, Esc, blur to cancel) inside the canvas's pointer handling.</li>
+    </ul>
+    <div class="rowlabel">Light</div>
+    <div class="strip" data-opt="b" data-theme-row="light"></div>
+    <div class="rowlabel">Dark</div>
+    <div class="strip" data-opt="b" data-theme-row="dark"></div>
+  </section>
+
+  <section id="c">
+    <div class="lede">
+      <h2>C · One field, one menu</h2>
+      <p>The whole field is a single target. Hover outlines all of it; a click opens one menu with search on top, routes first and Workspaces below. The Workspace keeps its hover card, so hovering still tells you which Workspace you're on.</p>
+    </div>
+    <ul class="notes">
+      <li><b>Good:</b> no way for the two parts to disagree; one place to type.</li>
+      <li><b>Cost:</b> switching Workspace takes a scroll or a search past routes, and it hides the Workspace switch that #867 made one click.</li>
+    </ul>
+    <div class="rowlabel">Light</div>
+    <div class="strip" data-opt="c" data-theme-row="light"></div>
+    <div class="rowlabel">Dark</div>
+    <div class="strip" data-opt="c" data-theme-row="dark"></div>
+  </section>
+
+  <section id="compare">
+    <h2>Side by side</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th></th><th>A · Matched menus</th><th>B · Pick / type</th><th>C · One field</th></tr></thead>
+        <tbody>
+          <tr><td>Hover Workspace</td><td>Fill + card</td><td>Fill + card</td><td>Outline on field + card</td></tr>
+          <tr><td>Hover route</td><td>Fill</td><td>Fill + I-beam</td><td>Outline on field</td></tr>
+          <tr><td>Click Workspace</td><td>Workspace menu</td><td>Workspace menu</td><td>Combined menu</td></tr>
+          <tr><td>Click route</td><td>Route menu with search</td><td>Route selected in place, suggestions below</td><td>Combined menu</td></tr>
+          <tr><td>Carets</td><td>Two</td><td>One (Workspace)</td><td>None</td></tr>
+          <tr><td>Menu anchor</td><td>Bar's left edge, 288px</td><td>Bar's left edge, 288px</td><td>Bar's left edge, 288px</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Not in scope: back and forward, Interact, Knobs and record are being changed in PR #1145 and PR #1146 and are drawn here as they are on main.</p>
+  </section>
+</main>
+
+<script>
+const I = {
+  back: '<svg viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"><path d="M216 128H40M112 56l-72 72 72 72"/></svg>',
+  fwd: '<svg viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"><path d="M40 128h176M144 56l72 72-72 72"/></svg>',
+  reload: '<svg viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"><path d="M176 104h48V56"/><path d="M190.2 190.2a88 88 0 1 1 0-124.4L224 104"/></svg>',
+  rec: '<svg viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16"><circle cx="128" cy="128" r="88"/><circle cx="128" cy="128" r="40" fill="currentColor" stroke="none"/></svg>',
+  knobs: '<svg viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round"><path d="M40 88h72M160 88h56M40 168h32M120 168h96"/><circle cx="136" cy="88" r="24"/><circle cx="96" cy="168" r="24"/></svg>',
+  more: '<svg viewBox="0 0 256 256" fill="currentColor"><circle cx="60" cy="128" r="14"/><circle cx="128" cy="128" r="14"/><circle cx="196" cy="128" r="14"/></svg>',
+  mouse: '<svg viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linejoin="round"><path d="M72 40l40 176 24-72 72-24z"/></svg>',
+  caret: '<svg class="caret" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"><path d="M80 176l48 48 48-48M80 80l48-48 48 48"/></svg>',
+  pr: '<svg viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round"><circle cx="64" cy="200" r="24"/><circle cx="64" cy="56" r="24"/><circle cx="192" cy="200" r="24"/><path d="M64 80v96M192 176V112a32 32 0 0 0-32-32h-40M136 56l-24 24 24 24"/></svg>',
+  search: '<svg viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round"><circle cx="112" cy="112" r="72"/><path d="M168 168l56 56"/></svg>',
+  check: '<svg class="chk" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><path d="M40 136l56 56 120-128"/></svg>',
+  arrow: '<svg class="cursor" viewBox="0 0 14 18"><path d="M1 1v14l3.6-3.4 2.6 5.6 2.2-1-2.6-5.4H12z" fill="#000" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+  hand: '<svg class="cursor" viewBox="0 0 16 18"><path d="M5.5 1.5a1.2 1.2 0 0 1 2.4 0V8l.3-2.4a1.2 1.2 0 0 1 2.4.2l-.1 2.6.3-1.8a1.2 1.2 0 0 1 2.3.4l-.2 2 .3-.9a1.1 1.1 0 0 1 2.1.6c-.4 2.7-1 5-2.6 6.9H6.2C4.8 14.5 3 12.4 1.6 10.3a1.2 1.2 0 0 1 1.8-1.5l2.1 2z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/></svg>',
+  ibeam: '<svg class="cursor" viewBox="0 0 10 18"><path d="M2 1.5h2l1 1 1-1h2M5 2.5v13M2 16.5h2l1-1 1 1h2" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M2 1.5h2l1 1 1-1h2M5 2.5v13M2 16.5h2l1-1 1 1h2" fill="none" stroke="#000" stroke-width="1.2" stroke-linecap="round"/></svg>',
+};
+const dots = '<span class="dots">' + '<i></i>'.repeat(9) + '</span>';
+const st = '<span class="st"></span>';
+
+function host({hv, caret = true} = {}) {
+  return `<span class="host${hv ? ' hv' : ''}">${st}<span class="nm">Checkout polish</span><span class="pr">${I.pr}#482</span>${caret ? I.caret : ''}</span>`;
+}
+function route({hv, bright, caret, edit, typed} = {}) {
+  let inner;
+  if (edit && typed) inner = `<span>${typed}</span><span class="cur"></span>`;
+  else if (edit) inner = `<span class="selt">/checkout</span>`;
+  else inner = `<span>/checkout</span>`;
+  const cls = ['route', hv && 'hv', bright && 'bright', edit && 'edit'].filter(Boolean).join(' ');
+  return `<span class="${cls}">${inner}${caret ? I.caret : ''}</span>`;
+}
+function toolbar(bar, wholeHover) {
+  return `<div class="tb"><span class="ib">${I.back}</span><span class="ib">${I.fwd}</span><span class="div"></span>` +
+    `<div class="bar${wholeHover ? ' whole-hover' : ''}">${bar}<span class="sm" style="color:inherit">${I.reload}</span><span class="sm">${I.rec}</span></div>` +
+    `<span class="div"></span><span class="ib">${I.mouse}</span><span class="ib">${I.knobs}</span><span class="ib">${I.more}</span></div>`;
+}
+// Popovers. left = offset from stage edge; the bar starts at 14+4+24+24+7 = 73px.
+const BAR_X = 73, ROUTE_X = 73 + 2 + 136;
+function wsMenu(left = BAR_X, width = 288) {
+  return `<div class="pop" data-anchor="bar" style="width:${width}px"><div class="search">${I.search}Search workspaces…</div><div class="grp">
+    <div class="it on">${st}<span>Checkout polish</span><span class="end"><span class="pr">${I.pr}#482</span>${I.check}</span></div>
+    <div class="it">${st}<span>Empty cart state</span><span class="end"><span class="add">+46</span><span class="del">−4</span></span></div>
+    <div class="it">${dots}<span>Apple Pay button</span></div></div></div>`;
+}
+function routeMenu(left, width, {search = true, typed = '', go = false} = {}) {
+  const rows = typed
+    ? [['/checkout', true], ['/checkout/success', false]]
+    : [['/', false], ['/cart', false], ['/checkout', true]];
+  return `<div class="pop" data-anchor="${left === ROUTE_X ? 'route' : 'bar'}" style="width:${width}px">${search ? `<div class="search">${I.search}Search or type a route…</div>` : ''}<div class="grp">
+    ${rows.map(([r, on], i) => `<div class="it${i === 0 ? ' on' : ''}"><span class="mono">${r}</span>${on ? `<span class="end">${I.check}</span>` : ''}</div>`).join('')}
+    ${go ? `<div class="it"><span class="dim">Go to</span><span class="mono">${typed}</span></div>` : ''}</div></div>`;
+}
+function comboMenu() {
+  return `<div class="pop" data-anchor="bar" style="width:288px"><div class="search">${I.search}Search routes and workspaces…</div>
+    <div class="grp"><div class="gl">Routes</div>
+      <div class="it on"><span class="mono">/</span></div>
+      <div class="it"><span class="mono">/cart</span></div>
+      <div class="it"><span class="mono">/checkout</span><span class="end">${I.check}</span></div></div><hr>
+    <div class="grp"><div class="gl">Workspaces</div>
+      <div class="it">${st}<span>Checkout polish</span><span class="end"><span class="pr">${I.pr}#482</span>${I.check}</span></div>
+      <div class="it">${st}<span>Empty cart state</span><span class="end"><span class="add">+46</span><span class="del">−4</span></span></div>
+      <div class="it">${dots}<span>Apple Pay button</span></div></div></div>`;
+}
+function hoverCard() {
+  return `<div class="hc" data-anchor="host"><span class="t">Checkout polish</span><span class="k" style="justify-content:flex-start">Idle · agent finished</span>
+    <span class="k"><span>Repository</span><span>shop-web</span></span><span class="k"><span>Branch</span><span>checkout-polish</span></span><span class="k"><span>Changes</span><span><b class="add" style="font-weight:500;color:var(--add)">+128</b> <b style="font-weight:500;color:var(--del)">−31</b></span></span></div>`;
+}
+const cur = (kind, x, y) => I[kind].replace('class="cursor"', `class="cursor" data-at="${x === HOST_MID ? 'host' : 'route'}" style="top:${y}px"`);
+
+const HOST_MID = BAR_X + 60, ROUTE_MID = ROUTE_X + 30;
+const OPTS = {
+  today: [
+    ['Hover Workspace', 'Fills, then the hover card', () => toolbar(host({hv: true}) + route()) + hoverCard() + cur('hand', HOST_MID, 30)],
+    ['Hover route', 'Text brightens, no fill, no caret', () => toolbar(host() + route({bright: true})) + cur('hand', ROUTE_MID, 30)],
+    ['Click Workspace', '288px menu under the Workspace', () => toolbar(host({hv: true}) + route()) + wsMenu()],
+    ['Click route', '224px menu under the route, a box to type in', () => toolbar(host() + route({bright: true})) + routeMenu(ROUTE_X, 224)],
+  ],
+  a: [
+    ['Hover Workspace', 'Fill + caret, card after a delay', () => toolbar(host({hv: true}) + route({caret: true})) + hoverCard() + cur('hand', HOST_MID, 30)],
+    ['Hover route', '<b>Same fill</b>, caret at the end', () => toolbar(host() + route({hv: true, caret: true})) + cur('hand', ROUTE_MID, 30)],
+    ['Click Workspace', 'Menu from the bar’s left edge', () => toolbar(host({hv: true}) + route({caret: true})) + wsMenu()],
+    ['Click route', '<b>Same anchor and width</b>, search on top', () => toolbar(host() + route({hv: true, caret: true})) + routeMenu(BAR_X, 288)],
+  ],
+  b: [
+    ['Hover Workspace', 'Fill + caret, card after a delay', () => toolbar(host({hv: true}) + route()) + hoverCard() + cur('hand', HOST_MID, 30)],
+    ['Hover route', '<b>Same fill</b>, I-beam, no caret', () => toolbar(host() + route({hv: true})) + cur('ibeam', ROUTE_MID, 27)],
+    ['Click route', 'Route selected in place, suggestions below', () => toolbar(host() + route({edit: true})) + routeMenu(BAR_X, 288, {search: false})],
+    ['Type', 'Filters as you type; Enter goes, Esc restores', () => toolbar(host() + route({edit: true, typed: '/chec'})) + routeMenu(BAR_X, 288, {search: false, typed: '/chec', go: true})],
+  ],
+  c: [
+    ['Hover Workspace', 'Field outlined; card still names the Workspace', () => toolbar(host({caret: false}) + route(), true) + hoverCard() + cur('hand', HOST_MID, 30)],
+    ['Hover route', 'Whole field outlined, one target', () => toolbar(host({caret: false}) + route(), true) + cur('hand', ROUTE_MID, 30)],
+    ['Click anywhere', 'One menu: routes, then the Workspace', () => toolbar(host({caret: false}) + route(), true) + comboMenu()],
+  ],
+};
+document.querySelectorAll('.strip').forEach(strip => {
+  const dark = strip.dataset.themeRow === 'dark';
+  const tall = strip.dataset.opt === 'c';
+  strip.innerHTML = OPTS[strip.dataset.opt].map(([t, c, draw]) =>
+    `<div class="cell"><div class="app${dark ? ' dark' : ''}${tall ? ' tall' : ''}"><div class="frame"></div>${draw()}</div><div class="cap"><b>${t}.</b> ${c}</div></div>`).join('');
+});
+function place() {
+  document.querySelectorAll('.app').forEach(app => {
+    const box = app.getBoundingClientRect();
+    const find = k => app.querySelector(k === 'bar' ? '.bar' : k === 'host' ? '.host' : '.route');
+    app.querySelectorAll('[data-anchor]').forEach(el => { el.style.left = (find(el.dataset.anchor).getBoundingClientRect().left - box.left) + 'px'; });
+    app.querySelectorAll('[data-at]').forEach(el => { const r = find(el.dataset.at).getBoundingClientRect(); el.style.left = (r.left - box.left + r.width * .55) + 'px'; });
+  });
+}
+place(); document.fonts && document.fonts.ready.then(place);
+</script>
+
+</body></html>

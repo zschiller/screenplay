@@ -1,0 +1,494 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Drawing a frame prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the canvas fills the window; prototype controls float top, the tool toolbar floats bottom, like the app. */
+:root{
+  --bg:oklch(1 0 0);--fg:oklch(0 0 0);--muted:oklch(0.975 0 0);--muted-fg:oklch(0.556 0 0);
+  --border:oklch(0 0 0 / 12%);--canvas:oklch(0.965 0 0);--empty:oklch(0.93 0 0);
+  --ring:oklch(0.667 0.295 322.15);--inv-bg:oklch(0 0 0);--inv-fg:oklch(1 0 0);
+  --shadow:0 4px 16px rgb(0 0 0 / .10),0 1px 3px rgb(0 0 0 / .08);
+  --font:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:oklch(0 0 0);--fg:oklch(1 0 0);--muted:oklch(0.25 0 0);--muted-fg:oklch(0.708 0 0);
+  --border:oklch(1 0 0 / 16%);--canvas:oklch(0.12 0 0);--empty:oklch(0.2 0 0);
+  --inv-bg:oklch(1 0 0);--inv-fg:oklch(0 0 0);--shadow:0 4px 16px rgb(0 0 0 / .6);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:oklch(0 0 0);--fg:oklch(1 0 0);--muted:oklch(0.25 0 0);--muted-fg:oklch(0.708 0 0);
+  --border:oklch(1 0 0 / 16%);--canvas:oklch(0.12 0 0);--empty:oklch(0.2 0 0);
+  --inv-bg:oklch(1 0 0);--inv-fg:oklch(0 0 0);--shadow:0 4px 16px rgb(0 0 0 / .6);color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--canvas);color:var(--fg);font:13px/1.4 var(--font);overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+
+#stage{position:fixed;inset:0;touch-action:none;cursor:default}
+#stage.drawing{cursor:crosshair}
+#world{position:absolute;left:0;top:0;transform-origin:0 0}
+.frame{position:absolute}
+.flabel{position:absolute;left:0;bottom:100%;padding-bottom:6px;display:flex;gap:6px;align-items:center;white-space:nowrap;transform-origin:0 100%}
+.flabel .name{color:var(--fg)}
+.flabel .chat{color:var(--muted-fg);display:inline-flex;gap:3px;align-items:center}
+.frame.sel .flabel .name{color:var(--ring)}
+.fbody{position:absolute;inset:0;background:var(--bg);overflow:hidden;border:1px solid var(--border)}
+.frame.sel .fbody{outline:2px solid var(--ring);outline-offset:-1px}
+.fbody.empty{background:var(--empty)}
+.groupname{position:absolute;color:var(--muted-fg);white-space:nowrap}
+
+/* fake site pages inside frames */
+.site{position:absolute;inset:0;background:#fff;color:#111;font-family:var(--font);transition:opacity .25s}
+.site header{display:flex;justify-content:space-between;padding:22px 28px;border-bottom:1px solid #eee;font-size:20px}
+.site header b{font-weight:600}
+.site header span{color:#888}
+.site .hero{margin:28px;height:180px;border-radius:8px;display:flex;align-items:center;padding:0 28px;color:#fff;font-size:30px;font-weight:600}
+.site .row{display:flex;gap:20px;margin:0 28px}
+.site .card{flex:1;border:1px solid #e6e6e6;border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px}
+.site .card i{display:block;height:14px;background:#e9edf3;border-radius:3px}
+.site .card i.s{width:60%}
+.loading,.nochat{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted-fg);font-size:28px}
+.nochat h3{margin:0;font-weight:400;font-size:44px;color:var(--fg);font-family:var(--font);letter-spacing:-.01em}
+.nochat .sbtn{border:1px solid var(--border);padding:10px 22px;font-size:28px;color:var(--fg);background:var(--bg)}
+.spin{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--fg);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation-duration:3s}}
+
+#draft{position:fixed;border:1px solid var(--ring);background:color-mix(in oklch,var(--ring) 6%,transparent);pointer-events:none;display:none}
+
+/* floating UI (screen space) */
+#overlay{position:fixed;inset:0;pointer-events:none;z-index:5}
+.float{position:absolute;pointer-events:auto;background:var(--bg);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:2px}
+.bar{display:flex;align-items:center;gap:4px;padding:4px;white-space:nowrap}
+.btn{height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;font-size:14px;border-radius:2px}
+.btn:hover{background:var(--muted)}
+.btn.outline{border:1px solid var(--border)}
+.btn.primary{background:var(--fg);color:var(--bg)}
+.btn.primary:disabled{opacity:.4;cursor:default}
+.btn .car{color:var(--muted-fg)}
+.state{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--muted-fg);flex:none}
+.state.run{border:0;background:oklch(0.82 0.235 148)}
+.menu{width:320px;max-width:calc(100vw - 16px);padding:0}
+.menu input{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--border);background:transparent;padding:10px 12px;outline:none;font-size:13px}
+.menu .list{max-height:min(310px,50vh);overflow:auto;padding:4px}
+.menu .grp{font-size:12px;color:var(--muted-fg);padding:6px 8px 4px}
+.menu .it{white-space:nowrap;display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:13px;border-radius:2px;cursor:pointer}
+.menu .it.hi{background:var(--muted)}
+.menu .it .r{margin-left:auto;padding-left:12px;overflow:hidden;text-overflow:ellipsis;min-width:0;font:12px var(--mono);color:var(--muted-fg)}
+.menu .sep{height:1px;background:var(--border);margin:4px -4px}
+.menu .none{padding:10px 8px;color:var(--muted-fg)}
+.composer{width:352px;max-width:calc(100vw - 16px);padding:4px}
+.composer textarea{width:100%;box-sizing:border-box;border:0;background:transparent;resize:none;outline:none;font:14px/1.45 var(--font);padding:8px 10px;min-height:44px;color:var(--fg)}
+.composer textarea::placeholder{color:var(--muted-fg)}
+.composer .foot{display:flex;justify-content:space-between;align-items:center;padding:0 4px 4px}
+.send{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;background:var(--fg);color:var(--bg);border-radius:2px}
+.send:disabled{opacity:.4;cursor:default}
+
+/* app chrome */
+#tools{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;gap:2px;padding:4px;background:var(--bg);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:2px}
+#tools button{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:2px}
+#tools button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+#tools svg{width:18px;height:18px}
+
+#proto{position:fixed;left:12px;right:12px;top:calc(12px + env(safe-area-inset-top,0px));display:flex;flex-wrap:wrap;gap:8px;align-items:center;pointer-events:none}
+#proto > *{pointer-events:auto}
+.seg{max-width:100%;overflow-x:auto;display:flex;background:var(--inv-bg);color:var(--inv-fg);padding:3px;gap:2px;border-radius:2px}
+.seg button{height:28px;padding:0 10px;font-size:13px;border-radius:2px;opacity:.7;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--inv-fg);color:var(--inv-bg);opacity:1;font-weight:500;font-stretch:98.8%}
+.pill{background:var(--bg);border:1px solid var(--border);box-shadow:var(--shadow);height:34px;display:flex;align-items:center;gap:6px;padding:0 8px 0 10px;border-radius:2px;font-size:13px;white-space:nowrap}
+.pill select{font:inherit;color:inherit;background:transparent;border:0;outline:none;max-width:150px}
+.pill label{color:var(--muted-fg)}
+#hint{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--inv-bg);color:var(--inv-fg);padding:6px 10px;font-size:12px;border-radius:2px;white-space:nowrap;pointer-events:none;max-width:calc(100vw - 32px);overflow:hidden;text-overflow:ellipsis}
+#log{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));width:260px;max-width:calc(100vw - 24px);background:var(--bg);border:1px solid var(--border);box-shadow:var(--shadow);font-size:12px;border-radius:2px}
+#log h4{margin:0;font-size:12px;font-weight:500;padding:8px 10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;color:var(--muted-fg)}
+#log ol{margin:0;padding:6px 10px 8px 28px;max-height:120px;overflow:auto;color:var(--fg)}
+#log li{padding:1px 0}
+#log .tally{padding:0 10px 8px;color:var(--muted-fg);font-family:var(--mono)}
+kbd{font:12px var(--font);border:1px solid currentColor;border-radius:2px;padding:0 4px;opacity:.8}
+@media (max-width:720px){#log{display:none}.pill .lbl{display:none}}
+</style>
+
+<div id="stage" aria-label="Canvas"><div id="world"></div></div>
+<div id="draft"></div>
+<div id="overlay"></div>
+
+<div id="proto">
+  <div class="seg" role="group" aria-label="Option">
+    <button data-v="A">A · Show the likely one</button>
+    <button data-v="B">B · Pick from previews</button>
+    <button data-v="T">Today</button>
+  </div>
+  <div class="pill"><label for="panel" class="lbl">Chat panel</label><select id="panel"></select></div>
+  <div class="pill"><label for="running" class="lbl">Running previews</label><select id="running"><option value="many">8 running</option><option value="one">1 running</option><option value="none">None</option></select></div>
+  <button class="pill" id="reset">Reset</button>
+</div>
+
+<div id="tools" role="toolbar" aria-label="Tools">
+  <button id="t-select" aria-label="Select (V)" title="Select  V"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3l14 8-6 2-3 6z"/></svg></button>
+  <button id="t-frame" aria-label="Frame (F)" title="Frame  F"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="4.5" width="17" height="15"/><path d="M7 9V8h1M17 15v1h-1"/></svg></button>
+</div>
+<div id="hint"></div>
+<div id="log"><h4><span>What you did</span><button id="clearlog">Clear</button></h4><ol id="loglist"></ol><div class="tally" id="tally"></div></div>
+
+<script>
+// PROTOTYPE, throwaway. Answers: does drawing a frame feel right when it shows the likely preview (A) or asks from a menu (B)?
+const $=s=>document.querySelector(s)
+const CHATS=[
+  {name:"Checkout polish",route:"/checkout",hue:"#6366f1",ago:"2m"},
+  {name:"Empty cart state",route:"/cart",hue:"#0ea5e9",ago:"14m"},
+  {name:"Order receipt email",route:"/receipt",hue:"#f59e0b",ago:"1h"},
+  {name:"Promo code field",route:"/checkout",hue:"#10b981",ago:"2h"},
+  {name:"Address autocomplete",route:"/checkout/address",hue:"#ef4444",ago:"3h"},
+  {name:"Sticky order summary",route:"/checkout",hue:"#8b5cf6",ago:"5h"},
+  {name:"Apple Pay button",route:"/checkout/pay",hue:"#111827",ago:"1d"},
+  {name:"Dark mode tokens",route:"/",hue:"#64748b",ago:"2d"},
+]
+let S
+function fresh(){
+  return {
+    v:(S&&S.v)||"A", tool:"select", z:.32, px:120, py:120,
+    frames:[
+      {id:"f1",name:"Checkout · desktop",x:0,y:0,w:1280,h:800,chat:"Checkout polish",route:"/checkout",st:"ready"},
+      {id:"f2",name:"Checkout · iPhone 17 Pro",x:1340,y:0,w:402,h:874,chat:"Checkout polish",route:"/checkout",st:"ready"},
+      {id:"f3",name:"Empty cart",x:0,y:1080,w:1280,h:800,chat:"Empty cart state",route:"/cart",st:"ready"},
+    ],
+    groups:[{name:"Checkout",x:0,y:0},{name:"Cart",x:0,y:1080}],
+    sel:null, ui:null, panel:(S&&S.panel)||"Empty cart state", running:(S&&S.running)||"many",
+    extra:[], recent:CHATS.map(c=>c.name), undo:[], n:1,
+  }
+}
+S=fresh()
+
+/* ---------- data helpers ---------- */
+const running=()=>{
+  if(S.running==="none") return S.extra
+  const base=S.running==="one"?CHATS.slice(0,1):CHATS
+  return [...S.extra,...base]
+}
+const chatBy=n=>running().find(c=>c.name===n)||S.extra.find(c=>c.name===n)||CHATS.find(c=>c.name===n)
+// The likely one: the chat of what was selected before drawing, else the chat panel's, else the most recent.
+function likely(prevSel){
+  const names=running().map(c=>c.name)
+  const f=S.frames.find(x=>x.id===prevSel)
+  if(f&&f.chat&&names.includes(f.chat)) return {name:f.chat,why:"the frame you had selected"}
+  if(S.panel&&names.includes(S.panel)) return {name:S.panel,why:"the chat open in the chat panel"}
+  const r=S.recent.find(n=>names.includes(n))
+  return r?{name:r,why:"the chat used most recently"}:null
+}
+function touch(name){S.recent=[name,...S.recent.filter(n=>n!==name)]}
+function routeOf(name){ // copies the route of that chat's newest frame
+  const fs=S.frames.filter(f=>f.chat===name&&f.route)
+  return fs.length?fs[fs.length-1].route:(chatBy(name)||{}).route||"/"
+}
+
+/* ---------- log ---------- */
+let steps=0
+function log(t,count=true){
+  if(count) steps++
+  const li=document.createElement("li");li.textContent=t;$("#loglist").append(li);$("#loglist").scrollTop=1e9
+  $("#tally").textContent=`${steps} action${steps===1?"":"s"} since the last draw`
+}
+$("#clearlog").onclick=()=>{$("#loglist").innerHTML="";steps=0;$("#tally").textContent=""}
+
+/* ---------- frames ---------- */
+function show(f,name,how){
+  f.chat=name;f.route=routeOf(name);f.st="loading";touch(name)
+  render()
+  setTimeout(()=>{if(f.chat===name&&f.st==="loading"){f.st="ready";render()}},550)
+}
+function startNew(f,text){
+  const words=text.trim().replace(/[.?!]+$/,"").split(/\s+/).slice(0,4).join(" ")
+  const name=words?words[0].toUpperCase()+words.slice(1):"New chat "+(S.n++)
+  const c={name,route:"/",hue:"#14b8a6",ago:"now"}
+  f.chat=name;f.st="starting";f.route="/"
+  setTimeout(()=>{if(f.chat===name){f.st="ready";if(!S.extra.find(x=>x.name===name))S.extra.unshift(c);touch(name);render()}},2600)
+  S.extra.find(x=>x.name===name)||S.extra.unshift({...c,pending:true})
+  render()
+}
+function sitePage(f){
+  const c=chatBy(f.chat)||{hue:"#6366f1"}
+  const slug=f.chat.toLowerCase().replace(/[^a-z0-9]+/g,"-")
+  return `<div class="site"><header><b>${slug}</b><span>Shop · Cart · Account</span></header>
+  <div class="hero" style="background:${c.hue}">${f.route||"/"}</div>
+  <div class="row"><div class="card"><i></i><i class="s"></i><i></i></div><div class="card"><i class="s"></i><i></i></div></div></div>`
+}
+
+/* ---------- render ---------- */
+const world=$("#world"),overlay=$("#overlay")
+function render(){
+  world.style.transform=`translate(${S.px}px,${S.py}px) scale(${S.z})`
+  const inv=1/S.z
+  let h=""
+  for(const g of S.groups) h+=`<div class="groupname" style="left:${g.x}px;top:${g.y-44*inv}px;font-size:${13*inv}px">${g.name}</div>`
+  for(const f of S.frames){
+    let body
+    if(!f.chat) body=`<div class="fbody empty"><div class="nochat" style="font-size:${13*inv}px;gap:${8*inv}px">${f.st==="new"?"":`<h3 style="font-size:${17*inv}px">No chat</h3><button class="sbtn" data-start="${f.id}" style="font-size:${13*inv}px;padding:${4*inv}px ${10*inv}px">Start a chat</button>`}</div></div>`
+    else if(f.st==="loading") body=`<div class="fbody"><div class="loading"><div class="spin" style="width:${20*inv}px;height:${20*inv}px;border-width:${2*inv}px"></div></div></div>`
+    else if(f.st==="starting") body=`<div class="fbody"><div class="loading" style="font-size:${13*inv}px;gap:${10*inv}px"><div class="spin" style="width:${20*inv}px;height:${20*inv}px;border-width:${2*inv}px"></div>Setting up the chat…</div></div>`
+    else body=`<div class="fbody">${sitePage(f)}</div>`
+    const chatLbl=f.chat?`<span class="state ${f.st==="ready"?"run":""}" style="width:${8*inv}px;height:${8*inv}px"></span>${f.chat}`:"Choose a chat"
+    h+=`<div class="frame ${S.sel===f.id?"sel":""}" data-id="${f.id}" style="left:${f.x}px;top:${f.y}px;width:${f.w}px;height:${f.h}px">
+      <div class="flabel" style="font-size:${12*inv}px;padding-bottom:${5*inv}px;gap:${6*inv}px"><span class="name">${f.name}</span><button class="chat" data-label="${f.id}" style="gap:${4*inv}px">${chatLbl} <span style="opacity:.7">⌃</span></button></div>${body}</div>`
+  }
+  world.innerHTML=h
+  renderUI()
+  document.querySelectorAll("#proto .seg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===S.v))
+  $("#t-select").setAttribute("aria-pressed",S.tool==="select");$("#t-frame").setAttribute("aria-pressed",S.tool==="frame")
+  $("#stage").classList.toggle("drawing",S.tool==="frame")
+  $("#hint").innerHTML=S.tool==="frame"?"Drag to draw a frame, or click for a phone-sized one":(S.ui?"":"Press <kbd>F</kbd> and drag on the canvas. Select a frame first to steer the guess.")
+  $("#hint").style.display=$("#hint").innerHTML?"":"none"
+}
+function rectOf(f){return {l:S.px+f.x*S.z,t:S.py+f.y*S.z,w:f.w*S.z,h:f.h*S.z}}
+function place(el,x,y){
+  const w=el.offsetWidth,h=el.offsetHeight
+  x=Math.max(8,Math.min(x,innerWidth-w-8));y=Math.max(56,Math.min(y,innerHeight-h-60))
+  el.style.left=x+"px";el.style.top=y+"px"
+}
+
+function renderUI(){
+  const u=S.ui;overlay.innerHTML="";if(!u)return
+  const f=S.frames.find(x=>x.id===u.fid);if(!f){S.ui=null;return}
+  const r=rectOf(f)
+  if(u.kind==="bar"){
+    const el=document.createElement("div");el.className="float bar"
+    el.innerHTML=`<button class="btn" data-act="change"><span class="state ${f.st==="ready"?"run":""}"></span>${f.chat} <span class="car">⌄</span></button><button class="btn outline" data-act="new">New chat</button>`
+    overlay.append(el);place(el,r.l+r.w/2-el.offsetWidth/2,r.t+r.h+8)
+    u.anchor={x:parseFloat(el.style.left),y:parseFloat(el.style.top)+el.offsetHeight+4};u.above=parseFloat(el.style.top)-4
+    if(u.menu) menuEl(f,u.anchor.x,u.anchor.y)
+  } else if(u.kind==="menu"){
+    // The drawn frame's menu sits where today's card does, centred on the frame.
+    const at=u.at||{x:r.l+r.w/2-160,y:r.t+r.h/2-150,center:true};u.above=u.at?u.at.y-30:null
+    menuEl(f,at.x,at.y)
+  } else if(u.kind==="composer"){
+    const el=document.createElement("div");el.className="float composer"
+    const chip=u.chip||"New chat"
+    el.innerHTML=`<textarea id="ctext" rows="2" placeholder="What should this frame show?">${u.text||""}</textarea>
+      <div class="foot"><button class="btn" data-act="chip" style="padding:0 6px">${chip} <span class="car">⌄</span></button><button class="send" data-act="send" aria-label="Send" ${u.text&&u.text.trim()?"":"disabled"}>↑</button></div>`
+    overlay.append(el);place(el,r.l+r.w/2-el.offsetWidth/2,r.t+r.h/2-el.offsetHeight/2)
+    const ta=el.querySelector("textarea");ta.oninput=()=>{u.text=ta.value;el.querySelector(".send").disabled=!ta.value.trim()}
+    ta.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendComposer(f)}}
+    if(u.chipOpen){u.mode="chip";const a={x:parseFloat(el.style.left)+4,y:parseFloat(el.style.top)+el.offsetHeight+4};menuEl(f,a.x,a.y)}
+    else setTimeout(()=>{if(document.activeElement!==ta){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length)}})
+  }
+}
+
+function menuRows(f,q){
+  const u=S.ui,ql=q.trim().toLowerCase()
+  const lk=u.likely
+  let chats=running().filter(c=>!c.pending)
+  if(lk) chats=[chats.find(c=>c.name===lk),...chats.filter(c=>c.name!==lk)].filter(Boolean)
+  const m=chats.filter(c=>!ql||c.name.toLowerCase().includes(ql))
+  const rows=m.map(c=>({k:"chat",name:c.name,c}))
+  if(u.mode==="chip") rows.unshift({k:"new",label:"New chat"})
+  else if(u.newRow) rows.push({k:"new",label:ql&&!m.length?`New chat: “${q.trim()}”`:"New chat…",text:ql&&!m.length?q.trim():""})
+  return rows
+}
+function menuEl(f,x,y){
+  const u=S.ui
+  const el=document.createElement("div");el.className="float menu"
+  el.innerHTML=`<input id="mq" placeholder="${u.mode==="chip"?"Search chats…":"Search running previews…"}" autocomplete="off" value="${(u.q||"").replace(/"/g,"&quot;")}"><div class="list"></div>`
+  overlay.append(el)
+  const inp=el.querySelector("input"),list=el.querySelector(".list")
+  const draw=()=>{
+    const rows=menuRows(f,u.q||"");u.hi=Math.max(0,Math.min(u.hi||0,rows.length-1))
+    let h=""
+    rows.forEach((r,i)=>{
+      if(r.k==="new"&&u.mode!=="chip"&&rows.length>1) h+=`<div class="sep"></div>`
+      if(r.k==="chat"&&i===(u.mode==="chip"?1:0)) h+=`<div class="grp">${u.mode==="chip"?"Chats":"Running previews"}</div>`
+      h+=r.k==="new"?`<div class="it ${i===u.hi?"hi":""}" data-i="${i}">＋ ${r.label}</div>`
+        :`<div class="it ${i===u.hi?"hi":""}" data-i="${i}"><span class="state run"></span>${r.name}${f.chat===r.name?" ✓":""}<span class="r">${r.c.route}</span></div>`
+    })
+    if(!rows.length) h=`<div class="none">No running previews match.</div>`
+    list.innerHTML=h
+    list.querySelectorAll(".it").forEach(it=>{
+      it.onpointerdown=e=>e.preventDefault()
+      it.onclick=()=>pick(f,rows[+it.dataset.i],"click")
+      it.onpointermove=()=>{if(u.hi!==+it.dataset.i){u.hi=+it.dataset.i;draw()}}
+    })
+    const hi=list.querySelector(".hi");if(hi)hi.scrollIntoView({block:"nearest"})
+    u._rows=rows
+  }
+  draw()
+  if(y+el.offsetHeight>innerHeight-60&&u.above!=null) y=u.above-el.offsetHeight
+  place(el,x,y)
+  inp.oninput=()=>{u.q=inp.value;u.hi=0;draw();typed=true}
+  let typed=false
+  inp.onkeydown=e=>{
+    if(e.key==="ArrowDown"){e.preventDefault();u.hi++;draw();log("↓",true)}
+    else if(e.key==="ArrowUp"){e.preventDefault();u.hi=Math.max(0,u.hi-1);draw();log("↑",true)}
+    else if(e.key==="Enter"){e.preventDefault();if(typed){log(`Typed “${u.q}”`)};const r=u._rows[u.hi];if(r)pick(f,r,"Enter")}
+    else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();closeMenu(f,"Esc")}
+  }
+  setTimeout(()=>inp.focus())
+}
+function closeMenu(f,how){
+  const u=S.ui
+  log(how+": closed the menu",how==="Esc")
+  if(u.kind==="bar"){u.menu=false;u.q="";render();return}
+  if(u.kind==="composer"){u.chipOpen=false;u.q="";render();return}
+  const cf=S.frames.find(x=>x.id===u.fid);if(cf&&!cf.chat)cf.st="empty"
+  S.ui=null;render()
+}
+function pick(f,r,how){
+  const u=S.ui
+  if(u.mode==="chip"){ // the composer's chip
+    log(`Chip: picked ${r.k==="new"?"New chat":r.name}`)
+    u.chip=r.k==="new"?"New chat":r.name;u.chipOpen=false;u.mode=null;u.q="";render();return
+  }
+  if(r.k==="new"){
+    log(how==="Enter"?`Enter on ${r.label}`:`Clicked ${r.label}`)
+    f.chat=null;f.st="new";S.ui={kind:"composer",fid:f.id,chip:"New chat",text:r.text||""};render();return
+  }
+  log(how==="Enter"?`Enter: showed ${r.name}`:`Clicked ${r.name}`)
+  show(f,r.name);S.ui=u.kind==="bar"?{kind:"bar",fid:f.id}:null;if(S.v!=="A")S.ui=null;render()
+}
+function sendComposer(f){
+  const u=S.ui,text=(u.text||"").trim();if(!text)return
+  log(`Typed and sent “${text}” to ${u.chip}`)
+  if(u.chip==="New chat") startNew(f,text)
+  else {show(f,u.chip);toast(`Sent to ${u.chip}`)}
+  S.ui=null;render()
+}
+function toast(t){const el=document.createElement("div");el.className="float";el.style.cssText+=`;left:50%;top:60px;transform:translateX(-50%);padding:8px 12px;background:var(--inv-bg);color:var(--inv-fg);border:0`;el.textContent=t;document.body.append(el);setTimeout(()=>el.remove(),1800)}
+
+/* ---------- after a frame is drawn ---------- */
+function onDrawn(f,prevSel){
+  $("#loglist").innerHTML="";steps=0
+  log(`Drew a ${Math.round(f.w)} × ${Math.round(f.h)} frame`)
+  const lk=likely(prevSel)
+  if(!lk){ // nothing running: today's composer in every option
+    f.st="new";S.ui={kind:"composer",fid:f.id,chip:"New chat"};render()
+    log("No running preview, so the composer opened",false);return
+  }
+  if(S.v==="A"){
+    show(f,lk.name);S.ui={kind:"bar",fid:f.id}
+    log(`Showed ${lk.name}, from ${lk.why}`,false)
+  } else if(S.v==="B"){
+    f.st="new";S.ui={kind:"menu",fid:f.id,likely:lk.name,newRow:true,q:"",hi:0}
+    log(`Menu opened on ${lk.name}, from ${lk.why}`,false)
+  } else {
+    // Today: the chip starts on a selected frame's chat, else New chat
+    const pf=S.frames.find(x=>x.id===prevSel)
+    f.st="new";S.ui={kind:"composer",fid:f.id,chip:pf&&pf.chat?pf.chat:"New chat"}
+  }
+  render()
+}
+
+/* ---------- pointer ---------- */
+const stage=$("#stage"),draft=$("#draft")
+let drag=null
+stage.addEventListener("pointerdown",e=>{
+  const t=e.target
+  if(t.closest("[data-start]")){const f=S.frames.find(x=>x.id===t.closest("[data-start]").dataset.start);S.sel=f.id;S.ui={kind:"composer",fid:f.id,chip:"New chat"};log("Start a chat");render();return}
+  if(t.closest("[data-label]")){
+    const f=S.frames.find(x=>x.id===t.closest("[data-label]").dataset.label)
+    const b=t.closest("[data-label]").getBoundingClientRect()
+    S.sel=f.id;S.ui={kind:"menu",fid:f.id,at:{x:b.left,y:b.bottom+6},q:"",hi:0,likely:f.chat};log("Opened the frame title’s chat menu");render();e.preventDefault();return
+  }
+  if(S.ui){ // click away closes floating UI
+    const uf=S.frames.find(x=>x.id===S.ui.fid);if(uf&&!uf.chat)uf.st="empty"
+    if(S.ui.kind==="bar") log("Clicked away: bar closed, preview stays",false)
+    else if(S.ui.kind==="menu"&&S.v==="B") log("Clicked away: frame left empty",false)
+    S.ui=null
+  }
+  stage.setPointerCapture(e.pointerId)
+  if(S.tool==="frame"){
+    drag={kind:"draw",sx:e.clientX,sy:e.clientY,x:e.clientX,y:e.clientY,prev:S.sel}
+  } else {
+    const fe=t.closest(".frame")
+    if(fe){S.sel=fe.dataset.id;const f=S.frames.find(x=>x.id===S.sel);drag={kind:"move",f,sx:e.clientX,sy:e.clientY,ox:f.x,oy:f.y}}
+    else {S.sel=null;drag={kind:"pan",sx:e.clientX,sy:e.clientY,ox:S.px,oy:S.py}}
+  }
+  render()
+})
+stage.addEventListener("pointermove",e=>{
+  if(!drag)return
+  if(drag.kind==="draw"){
+    drag.x=e.clientX;drag.y=e.clientY
+    const l=Math.min(drag.sx,drag.x),t=Math.min(drag.sy,drag.y)
+    Object.assign(draft.style,{display:"block",left:l+"px",top:t+"px",width:Math.abs(drag.x-drag.sx)+"px",height:Math.abs(drag.y-drag.sy)+"px"})
+  } else if(drag.kind==="pan"){S.px=drag.ox+e.clientX-drag.sx;S.py=drag.oy+e.clientY-drag.sy;render()}
+  else if(drag.kind==="move"){drag.f.x=drag.ox+(e.clientX-drag.sx)/S.z;drag.f.y=drag.oy+(e.clientY-drag.sy)/S.z;render()}
+})
+stage.addEventListener("pointerup",()=>{
+  if(!drag)return
+  if(drag.kind==="draw"){
+    draft.style.display="none"
+    let w=Math.abs(drag.x-drag.sx)/S.z,h=Math.abs(drag.y-drag.sy)/S.z
+    let x=(Math.min(drag.sx,drag.x)-S.px)/S.z,y=(Math.min(drag.sy,drag.y)-S.py)/S.z
+    if(w*S.z<4&&h*S.z<4){w=402;h=874;x-=w/2;y-=h/2}
+    const f={id:"n"+Date.now(),name:"Frame",x,y,w,h,chat:null,st:"new"}
+    S.frames.push(f);S.undo.push(f.id);S.sel=f.id;S.tool="select"
+    onDrawn(f,drag.prev)
+  }
+  drag=null
+})
+stage.addEventListener("wheel",e=>{
+  e.preventDefault()
+  if(e.ctrlKey||e.metaKey){
+    const k=Math.exp(-e.deltaY*0.01),nz=Math.max(.08,Math.min(1.5,S.z*k))
+    S.px=e.clientX-(e.clientX-S.px)*nz/S.z;S.py=e.clientY-(e.clientY-S.py)*nz/S.z;S.z=nz
+  } else {S.px-=e.deltaX;S.py-=e.deltaY}
+  render()
+},{passive:false})
+
+overlay.addEventListener("click",e=>{
+  const a=e.target.closest("[data-act]");if(!a)return
+  const u=S.ui,f=S.frames.find(x=>x.id===u.fid)
+  if(a.dataset.act==="change"){u.menu=!u.menu;u.mode=null;u.q="";u.hi=0;u.likely=f.chat;log("Opened the chat menu from the bar");render()}
+  if(a.dataset.act==="new"){log("Clicked New chat");f.chat=null;f.st="new";S.ui={kind:"composer",fid:f.id,chip:"New chat"};render()}
+  if(a.dataset.act==="chip"){u.chipOpen=!u.chipOpen;u.mode="chip";u.q="";u.hi=0;log("Opened the chip");render()}
+  if(a.dataset.act==="send"){sendComposer(f)}
+})
+overlay.addEventListener("pointerdown",e=>e.stopPropagation())
+
+/* ---------- keys ---------- */
+addEventListener("keydown",e=>{
+  const typing=e.target.matches("input,textarea,select")
+  if(e.key==="Escape"){
+    if(S.ui){
+      const u=S.ui,f=S.frames.find(x=>x.id===u.fid)
+      if(u.kind==="composer"&&u.chipOpen){u.chipOpen=false;render();return}
+      if(u.kind==="bar"&&u.menu){u.menu=false;render();return}
+      if((u.kind==="composer"||u.kind==="menu")&&f&&!f.chat){f.st="empty";log("Esc: frame left empty")}
+      else if(u.kind==="bar") log("Esc: bar closed, preview stays")
+      else if(u.kind==="menu"&&f&&!f.chat){f.st="empty";log("Esc: frame left empty")}
+      S.ui=null;render();return
+    }
+    if(S.tool!=="select"){S.tool="select";render()}
+    return
+  }
+  if(typing)return
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){
+    e.preventDefault()
+    const f=S.frames.find(x=>x.id===S.undo[S.undo.length-1]);if(!f)return
+    if(f.chat){f.chat=null;f.st="empty";log("⌘Z: preview removed, frame stays")}
+    else {S.frames=S.frames.filter(x=>x!==f);S.undo.pop();log("⌘Z: frame removed")}
+    S.ui=null;render();return
+  }
+  if(e.key==="f"||e.key==="F"){S.tool="frame";S.ui=null;render()}
+  if(e.key==="v"||e.key==="V"){S.tool="select";render()}
+  if((e.key==="Backspace"||e.key==="Delete")&&S.sel){S.frames=S.frames.filter(x=>x.id!==S.sel);S.sel=null;S.ui=null;render()}
+})
+
+/* ---------- prototype controls ---------- */
+document.querySelectorAll("#proto .seg button").forEach(b=>b.onclick=()=>{S.v=b.dataset.v;S.ui=null;try{localStorage.setItem("dfp-v",S.v)}catch{}render()})
+$("#t-select").onclick=()=>{S.tool="select";render()}
+$("#t-frame").onclick=()=>{S.tool="frame";S.ui=null;render()}
+function fillPanel(){
+  const p=$("#panel");p.innerHTML=`<option value="">No chat open</option>`+CHATS.map(c=>`<option ${c.name===S.panel?"selected":""}>${c.name}</option>`).join("")
+}
+$("#panel").onchange=e=>{S.panel=e.target.value||null}
+$("#running").onchange=e=>{S.running=e.target.value;S.ui=null;render()}
+$("#reset").onclick=()=>{S=fresh();fillPanel();$("#running").value=S.running;$("#loglist").innerHTML="";steps=0;$("#tally").textContent="";fit();render()}
+function fit(){ // fit the seeded frames, leaving room on the right to draw
+  const z=Math.max(.12,Math.min(.4,(innerWidth*0.5)/1800,(innerHeight-160)/1900))
+  S.z=z;S.px=24;S.py=120
+}
+try{const v=localStorage.getItem("dfp-v");if(v)S.v=v}catch{}
+addEventListener("resize",render)
+fillPanel();fit();render()
+</script>
+
+</body></html>

@@ -1,0 +1,626 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Screenplay Design Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --paper:#f3f4f6; --sheet:#ffffff; --ink:#15171c; --muted:#5b6270; --rule:#dfe2e7;
+  --mark:#b5179e; --mark-soft:#fbe8f7; --fix:#0f6e56; --fix-soft:#e3f3ee; --chip:#e9ecf0;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#111317; --sheet:#181b20; --ink:#e8eaee; --muted:#9aa2af; --rule:#2a2f37;
+    --mark:#e879d6; --mark-soft:#3a1a35; --fix:#5fd0ad; --fix-soft:#123229; --chip:#232830;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#111317; --sheet:#181b20; --ink:#e8eaee; --muted:#9aa2af; --rule:#2a2f37;
+  --mark:#e879d6; --mark-soft:#3a1a35; --fix:#5fd0ad; --fix-soft:#123229; --chip:#232830;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.6 "IBM Plex Sans",system-ui,-apple-system,sans-serif;padding-inline:16px;padding-block:32px 80px}
+.wrap{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:64px}
+h1,h2,h3{text-wrap:balance;line-height:1.25;margin:0}
+h1{font-size:32px;font-weight:600;letter-spacing:-.01em}
+h2{font-size:23px;font-weight:600}
+h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+p{margin:0;max-width:70ch;text-wrap:pretty}
+code{font-family:"Geist Mono",ui-monospace,monospace;font-size:.86em}
+header.top{display:flex;flex-direction:column;gap:14px}
+.lede{color:var(--muted);font-size:16px}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px}
+nav.toc a{font-size:13px;color:var(--ink);text-decoration:none;background:var(--chip);padding:4px 10px;border-radius:999px}
+nav.toc a.flag{background:var(--mark-soft);color:var(--mark)}
+nav.toc a:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+section.area{display:flex;flex-direction:column;gap:20px;scroll-margin-top:16px}
+.area-head{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--rule);padding-top:28px}
+.flagged{font-size:12px;font-weight:500;color:var(--mark)}
+.thesis{font-size:17px}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.ba.stack{grid-template-columns:1fr}
+@media (max-width:760px){.ba{grid-template-columns:1fr}}
+.pane{display:flex;flex-direction:column;gap:8px;min-width:0}
+.tag{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.tag.b{color:var(--mark)} .tag.a{color:var(--fix)}
+.pane img{display:block;width:100%;height:auto;border-radius:10px;border:1px solid var(--rule);background:#fff}
+.stage{background:#e9eaec;border-radius:10px;border:1px solid var(--rule);padding:24px 16px;display:flex;justify-content:center;align-items:flex-start;overflow-x:auto}
+.stage.white{background:#fafafa}
+.cap{font-size:13px;color:var(--muted)}
+.changes{display:flex;flex-direction:column;gap:10px}
+ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+li{max-width:72ch}
+.tickets{display:flex;flex-direction:column;background:var(--sheet);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.t{display:grid;grid-template-columns:48px 1fr;gap:2px 12px;padding:12px 16px;border-top:1px solid var(--rule)}
+.t:first-child{border-top:0}
+.t .id{font-family:"Geist Mono",monospace;font-size:13px;color:var(--muted);padding-top:2px}
+.t .name{font-weight:600}
+.t .out{grid-column:2;color:var(--muted);font-size:14px}
+.t .dep{grid-column:2;font-size:12px;font-family:"Geist Mono",monospace;color:var(--muted)}
+.t .dep b{font-weight:500;color:var(--ink)}
+.system{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:12px}
+footer{color:var(--muted);font-size:13px;border-top:1px solid var(--rule);padding-top:20px}
+
+/* ============ MOCKUP SURFACE: the app's own light tokens ============ */
+.m{--bg:#fff;--fg:#0a0a0a;--mu:#737373;--bd:#e5e5e5;--soft:#f5f5f5;--pri:#171717;--des:#dc2626;--des-soft:#fef2f2;--warn:#b45309;--warn-soft:#fffbeb;--ok:#15803d;--ok-soft:#f0fdf4;--info:#2563eb;
+  --s1:#6366f1;--s2:#0891b2;--s3:#7c3aed;--s4:#64748b;
+  color-scheme:light;font-family:"Geist",ui-sans-serif,system-ui,sans-serif;font-size:14px;line-height:1.45;color:var(--fg);-webkit-font-smoothing:antialiased}
+.m *{box-sizing:border-box}
+.m .mono{font-family:"Geist Mono",ui-monospace,monospace;font-size:12px}
+.m .mu{color:var(--mu)}
+.m .btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;font:500 13px "Geist",sans-serif;border:1px solid var(--bd);background:var(--bg);color:var(--fg);white-space:nowrap}
+.m .btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.m .btn.des{background:var(--des);border-color:var(--des);color:#fff}
+.m .btn.ghost{border-color:transparent;background:transparent}
+.m .btn.sm{height:28px;padding:0 10px;font-size:12px}
+.m .dlg{width:440px;max-width:100%;background:var(--bg);border-radius:14px;box-shadow:0 0 0 1px rgba(0,0,0,.06),0 12px 32px rgba(0,0,0,.14);display:flex;flex-direction:column;gap:16px;padding:20px}
+.m .dlg h4{margin:0;font-size:16px;font-weight:600;letter-spacing:-.005em}
+.m .dlg p{margin:0;color:var(--mu);font-size:14px}
+.m .foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+.m .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
+.m .facts dt{color:var(--mu)} .m .facts dd{margin:0}
+.m .callout{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:var(--warn-soft);color:var(--warn);font-size:13px}
+.m .check{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.m .box{width:16px;height:16px;border:1.5px solid #a3a3a3;border-radius:4px;flex:none;margin-top:2px}
+.m .sw{width:8px;height:8px;border-radius:2px;flex:none;display:inline-block}
+.m .chip{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:6px;font-size:12px;font-weight:500;background:var(--soft);color:var(--mu);white-space:nowrap}
+.m .chip.ok{background:var(--ok-soft);color:var(--ok)}
+.m .chip.warn{background:var(--warn-soft);color:var(--warn)}
+.m .chip.err{background:var(--des-soft);color:var(--des)}
+.m .dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
+.m .rows{display:flex;flex-direction:column;border:1px solid var(--bd);border-radius:10px}
+.m .row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--bd)}
+.m .row:first-child{border-top:0}
+.m .grow{flex:1;min-width:0}
+.m .ic{width:16px;height:16px;flex:none;color:var(--mu)}
+.m svg{display:block}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <h1>Screenplay design review, round 2</h1>
+  <p class="lede">This is a visual pass. Each area pairs a screenshot of today with a mockup of the proposed screen, built from the app's own tokens: Geist, the neutral palette and the 10px radius. The notes under each pair list the concrete visual changes, and the tickets follow.</p>
+  <nav class="toc" aria-label="Areas">
+    <a class="flag" href="#dialogs">Dialogs</a>
+    <a class="flag" href="#signin">Sign-in</a>
+    <a class="flag" href="#setup">Setup</a>
+    <a class="flag" href="#settings">Settings</a>
+    <a class="flag" href="#comments">Comments</a>
+    <a href="#sidebar">Sidebar</a>
+    <a href="#frames">Frames</a>
+    <a href="#chat">Agent chat</a>
+    <a href="#play">Play mode</a>
+    <a href="#home">Home</a>
+    <a href="#system">Shared rules</a>
+  </nav>
+</header>
+
+<!-- ================= DIALOGS ================= -->
+<section class="area" id="dialogs">
+  <div class="area-head">
+    <span class="flagged">You flagged this</span>
+    <h2>Delete workspace and Remove project</h2>
+    <p class="thesis">Four weights compete in a small box: a grey footer band, a heavy focus ring, a pale-red button and a bordered option card. The one thing that matters, what you're about to lose, isn't on screen.</p>
+  </div>
+
+  <div class="ba">
+    <div class="pane"><span class="tag b">Today</span><img src="img/dw.webp" alt="Delete workspace dialog today" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage m">
+        <div class="dlg">
+          <h4>Delete “checkout-polish”?</h4>
+          <dl class="facts">
+            <dt>Removes</dt><dd>3 chats, 2 frames and the Workspace's sandbox</dd>
+            <dt>Keeps</dt><dd><span class="mono">origin/checkout-polish</span> and PR #482</dd>
+          </dl>
+          <div class="callout"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2 1.5 13.5h13L8 2Z"/><path d="M8 6.5v3M8 11.5v.01"/></svg><span>2 commits haven't been pushed. They'll be lost.</span></div>
+          <label class="check"><span class="box"></span><span>Also delete the branch on GitHub<br><span class="mu" style="font-size:13px">Closes PR #482</span></span></label>
+          <div class="foot"><span class="btn">Cancel</span><span class="btn des">Delete workspace</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ba">
+    <div class="pane"><span class="tag b">Today</span><img src="img/rp.webp" alt="Remove project dialog today" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage m">
+        <div class="dlg">
+          <h4>Remove “storefront” from this canvas?</h4>
+          <p>Its 4 Workspaces and their frames are removed. Nothing on GitHub changes unless you tick the box.</p>
+          <div class="rows">
+            <div class="row"><span class="sw" style="background:var(--s1)"></span><span class="grow">Mobile checkout <span class="mono mu">checkout-polish</span></span><span class="chip">PR #482</span></div>
+            <div class="row"><span class="sw" style="background:var(--s2)"></span><span class="grow">Empty cart <span class="mono mu">empty-cart-state</span></span><span class="chip warn">2 unpushed</span></div>
+            <div class="row"><span class="sw" style="background:var(--s3)"></span><span class="grow">Apple Pay <span class="mono mu">apple-pay-button</span></span><span class="chip">Clean</span></div>
+            <div class="row"><span class="sw" style="background:var(--s4)"></span><span class="grow">Gift cards <span class="mono mu">gift-cards</span></span><span class="chip">Clean</span></div>
+          </div>
+          <label class="check"><span class="box"></span><span>Also delete these 4 branches on GitHub</span></label>
+          <div class="foot"><span class="btn">Cancel</span><span class="btn des">Remove project</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>Drop the grey footer band. Buttons sit on the dialog's own surface, and there's 20px of padding all round instead of the mix of 24 and 16 used today.</li>
+      <li>The destructive button becomes solid red with white text. Today's pale-red fill reads as the secondary action.</li>
+      <li>No focus ring on open. Focus goes to Cancel, but the ring appears only for keyboard users.</li>
+      <li>The option is a left-aligned checkbox in the body's own type size. This replaces the bordered card with a centred title and a near-white switch.</li>
+      <li>The title names the thing in quotes. The body becomes a two-row Removes and Keeps list, so the eye lands on facts, not a paragraph.</li>
+      <li>Warnings use an amber callout, and only when they're true.</li>
+      <li>Workspace lists are real rows with a colour swatch, a title and a state chip, not a grey monospace block.</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">D1</span><span class="name">Delete workspace and Remove project redesign</span><span class="out">The layouts above, including the unpushed-commit and PR checks behind them.</span><span class="dep">blocked by <b>#724</b></span></div>
+    <div class="t"><span class="id">D2</span><span class="name">One dialog anatomy</span><span class="out">Every dialog gets 20px padding, a 16px/600 title, no footer band, a solid destructive button, keyboard-only focus rings and left-aligned option rows. Covers New workspace, Recreate, Delete canvas and Delete folder too.</span><span class="dep">blocked by <b>#724</b></span></div>
+    <div class="t"><span class="id">D3</span><span class="name">New canvas without a dialog</span><span class="out">Create "Untitled", open it, and put focus in the title.</span><span class="dep">None</span></div>
+  </div>
+</section>
+
+<!-- ================= SIGN-IN ================= -->
+<section class="area" id="signin">
+  <div class="area-head">
+    <span class="flagged">You flagged this</span>
+    <h2>Sign-in</h2>
+    <p class="thesis">A small logo, a wordmark and a grey paragraph float in a lot of white. The paragraph wraps unevenly and leaves one word alone on its last line.</p>
+  </div>
+  <div class="ba">
+    <div class="pane"><span class="tag b">Today</span><img src="img/signin.webp" alt="Sign-in today" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage white m" style="padding:40px 16px">
+        <div style="width:360px;max-width:100%;display:flex;flex-direction:column;align-items:center;gap:20px;text-align:center">
+          <div style="width:44px;height:44px;border-radius:12px;background:#1167e8;position:relative"><span style="position:absolute;left:12px;top:15px;width:5px;height:5px;border-radius:50%;background:#0b1020"></span><span style="position:absolute;right:12px;top:13px;width:5px;height:5px;border-radius:50%;background:#0b1020"></span><span style="position:absolute;left:16px;top:22px;width:12px;height:6px;border:2.5px solid #0b1020;border-top:0;border-radius:0 0 8px 8px"></span></div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:22px;font-weight:600;letter-spacing:-.015em;text-wrap:balance">Design on a canvas of your live app</div>
+            <div class="mu" style="font-size:15px;text-wrap:balance;max-width:34ch;margin:0 auto">Every frame is a running preview. Ask an agent to change it, and review the result together.</div>
+          </div>
+          <span class="btn pri" style="height:40px;padding:0 18px;font-size:14px"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.83-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>Continue with GitHub</span>
+          <div class="mu" style="font-size:12px;text-wrap:balance;max-width:36ch">Screenplay clones your repositories and pushes commits on your behalf.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>One screen instead of two: the signed-out landing and the sign-in page merge.</li>
+      <li>A 22px headline replaces the "Screenplay" wordmark that repeats the logo. The logo goes up to 44px.</li>
+      <li>The pitch is 15px with <code>text-wrap: balance</code> and a 34ch measure, so it wraps in even lines. The permissions note drops to 12px under the button, where it explains the button.</li>
+      <li>A 40px primary button: a clear target, one size up from the 32px default.</li>
+      <li>App-wide rule: every centred block of copy (entry screens, empty states) gets <code>text-wrap: balance</code> and a max width.</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">O1</span><span class="name">One sign-in screen and balanced centred copy</span><span class="out">The layout above, plus balance and measure on every centred text block in the app.</span><span class="dep">None</span></div>
+  </div>
+</section>
+
+<!-- ================= SETUP ================= -->
+<section class="area" id="setup">
+  <div class="area-head">
+    <span class="flagged">You flagged this</span>
+    <h2>Desktop setup</h2>
+    <p class="thesis">Four identical bordered cards, each with an icon, a dot, a title, a sentence and a black button. Nothing stands out, so the page reads as a wall, and a skipped step looks finished.</p>
+  </div>
+  <div class="ba">
+    <div class="pane"><span class="tag b">Today</span><img src="img/setup.webp" alt="Setup today" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage white m" style="padding:28px 16px">
+        <div style="width:420px;max-width:100%;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span class="mu" style="font-size:12px;font-weight:500">Step 2 of 2</span>
+            <div style="font-size:20px;font-weight:600;letter-spacing:-.01em">Set up Screenplay</div>
+          </div>
+          <div class="row" style="border:1px solid var(--bd);border-radius:10px;padding:10px 12px">
+            <svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#15803d"/><path d="m5 8.2 2 2 4-4.2" stroke="#fff" stroke-width="1.6" fill="none"/></svg>
+            <span class="grow">Coding agent <span class="mu">· Claude Code, signed in</span></span>
+            <span class="btn ghost sm">Change</span>
+          </div>
+          <div style="border:1px solid var(--pri);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:10px;align-items:center">
+              <span style="width:20px;height:20px;border-radius:50%;border:1.5px solid var(--pri);font-size:11px;font-weight:600;display:grid;place-items:center">2</span>
+              <span style="font-weight:600">Connect GitHub</span><span class="chip">Optional</span>
+            </div>
+            <div class="mu" style="font-size:13px;padding-left:30px">Browse your repositories and open pull requests from Screenplay. You can add a project from a folder or clone URL without it.</div>
+            <div style="display:flex;gap:8px;padding-left:30px"><span class="btn pri">Install GitHub CLI and connect</span><span class="btn ghost">Skip</span></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="mu" style="font-size:12px">You can change these later in Settings.</span>
+            <span class="btn pri" style="opacity:.35">Finish</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>Only the current step is expanded, with a dark 1px border so it reads as active. Finished steps shrink to one 40px row with a green tick and the choice made.</li>
+      <li>One agent is preselected and marked Recommended. The other agents appear only after "Change", so step 1 is one card, not three.</li>
+      <li>Skip sits next to the primary button as a ghost button. A skipped step gets a grey dash, never the tick.</li>
+      <li>"Step 2 of 2" above a 20px title replaces the logo plus a two-line paragraph.</li>
+      <li>Buttons say exactly what happens ("Install GitHub CLI and connect"). No "&amp;".</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">O2</span><span class="name">Setup as a stepper</span><span class="out">Collapsing steps, a recommended agent, a distinct skipped state, and the layout above.</span><span class="dep">None</span></div>
+    <div class="t"><span class="id">O3</span><span class="name">First canvas after setup</span><span class="out">Finish opens a new canvas whose empty state is a three-step checklist, with Add project as the primary button.</span><span class="dep">blocked by <b>O2</b></span></div>
+    <div class="t"><span class="id">O4</span><span class="name">Add project dialog</span><span class="out">Tabs for GitHub, Local folder and URL. Presets as quick-pick chips. A detected-settings summary card with Edit.</span><span class="dep">None</span></div>
+  </div>
+</section>
+
+<!-- ================= SETTINGS ================= -->
+<section class="area" id="settings">
+  <div class="area-head">
+    <span class="flagged">You flagged this</span>
+    <h2>Settings</h2>
+    <p class="thesis">Every row is a full-width card with a thick border, so the page is a stack of equal boxes. Rows are titled by their state ("Not installed"), and the presets repeat each repo name twice.</p>
+  </div>
+  <div class="ba stack">
+    <div class="pane"><span class="tag b">Today</span><img src="img/settings.webp" alt="Settings today" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage white m" style="padding:0;justify-content:stretch">
+        <div style="display:grid;grid-template-columns:180px 1fr;width:100%;min-width:620px">
+          <div style="border-right:1px solid var(--bd);padding:20px 12px;display:flex;flex-direction:column;gap:2px;font-size:13px">
+            <span style="padding:6px 10px">General</span>
+            <span style="padding:6px 10px;background:var(--soft);border-radius:6px;font-weight:500">Coding agents</span>
+            <span style="padding:6px 10px">GitHub</span>
+            <span style="padding:6px 10px">Project presets</span>
+            <span style="padding:6px 10px">Account</span>
+          </div>
+          <div style="padding:20px 24px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:18px;font-weight:600">Coding agents</div><div class="mu" style="font-size:13px">The CLI that backs chats and terminals on this device.</div></div>
+            <div style="display:flex;gap:12px;align-items:center"><span style="font-size:13px;width:110px">Default agent</span><span class="btn" style="width:220px;justify-content:space-between">Claude Code · Opus 4.8 <span class="mu">⌄</span></span></div>
+            <div class="rows">
+              <div class="row" style="padding:12px 14px"><span class="grow"><b style="font-weight:500">Claude Code</b> <span class="chip ok" style="margin-left:6px">Signed in</span><br><span class="mu" style="font-size:12px">v2.4.1 · ~/.local/bin/claude</span></span><span class="btn sm">Manage</span></div>
+              <div class="row" style="padding:12px 14px"><span class="grow"><b style="font-weight:500">Codex</b> <span class="chip" style="margin-left:6px">Not installed</span></span><span class="btn sm">Install</span></div>
+              <div class="row" style="padding:12px 14px"><span class="grow"><b style="font-weight:500">opencode</b> <span class="mu" style="font-size:12px">via Vercel AI Gateway</span> <span class="chip" style="margin-left:6px">Not installed</span></span><span class="btn sm">Install</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>A left nav replaces one long scroll. Each section fits on one screen.</li>
+      <li>Rows sit in one bordered group with 1px dividers, not one card per row. That halves the border ink.</li>
+      <li>A row is titled by the thing, with its state as a chip (green only when it's working). The description line carries facts (version, path), not a sentence repeating the title.</li>
+      <li>Every row action is the same outline small button. Today some are black-filled and one is outline, for no reason a reader can see.</li>
+      <li>The one real decision, the default agent and model, gets a labelled control at the top.</li>
+      <li>Preset cards show what they set (setup command, dev command, port, env count) instead of repeating the repo name under a caption with that same name.</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">S1</span><span class="name">Settings layout and rows</span><span class="out">Left nav, grouped rows, titles by thing, state chips, a consistent row button, and an Account section.</span><span class="dep">blocked by <b>#736</b></span></div>
+    <div class="t"><span class="id">S2</span><span class="name">Default agent and model</span><span class="out">A default in Settings that new chats and Workspaces use.</span><span class="dep">None</span></div>
+    <div class="t"><span class="id">S3</span><span class="name">Preset cards</span><span class="out">A summary of what each preset sets, Duplicate, and an explainer in the empty state.</span><span class="dep">blocked by <b>#736</b></span></div>
+  </div>
+</section>
+
+<!-- ================= COMMENTS ================= -->
+<section class="area" id="comments">
+  <div class="area-head">
+    <span class="flagged">You flagged this</span>
+    <h2>Comments</h2>
+    <p class="thesis">Today a comment is a white avatar bubble that expands into a 320px card over the app, with a bare textarea. It doesn't say where it points, and nothing lists comments anywhere.</p>
+  </div>
+  <p class="cap">No "Today" image: the desktop build strips comments, so the harness can't capture them (ticket M5 fixes that). The mockup shows a pin on a frame, its thread, and the panel.</p>
+  <div class="stage m" style="padding:24px 16px">
+    <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;width:100%;min-width:720px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px"><span class="sw" style="background:var(--s1)"></span><b style="font-weight:500">Mobile checkout</b><span class="mono mu">/checkout</span><span class="chip" style="margin-left:auto">2 more on /cart</span></div>
+        <div style="position:relative;background:#fff;border:1px solid var(--bd);border-radius:8px;height:300px;overflow:hidden">
+          <div style="margin:18px;height:54px;border-radius:8px;background:#6366f1"></div>
+          <div style="margin:0 18px;display:grid;grid-template-columns:2fr 1fr;gap:12px"><div style="height:110px;border:1px solid var(--bd);border-radius:8px"></div><div style="height:110px;border:1px solid var(--bd);border-radius:8px;outline:2px solid #f59e0b;outline-offset:2px"></div></div>
+          <div style="position:absolute;left:calc(66% + 10px);top:120px;width:26px;height:26px;border-radius:13px 13px 13px 3px;background:#f59e0b;color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.2)">3</div>
+          <div style="position:absolute;right:12px;top:60px;width:250px;background:#fff;border-radius:10px;box-shadow:0 0 0 1px rgba(0,0,0,.06),0 10px 28px rgba(0,0,0,.16);padding:12px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:6px"><span class="chip mono" style="font-size:11px">/checkout · Order summary</span><span class="mu" style="margin-left:auto;font-size:12px">Resolve</span></div>
+            <div style="display:flex;gap:8px"><span style="width:22px;height:22px;border-radius:50%;background:#e0e7ff;flex:none"></span><div style="font-size:13px"><b style="font-weight:500">Zack</b> <span class="mu" style="font-size:12px">4m</span><br>Summary should stick to the bottom under 768px.</div></div>
+            <div style="display:flex;gap:8px"><span style="width:22px;height:22px;border-radius:50%;background:#171717;flex:none"></span><div style="font-size:13px"><b style="font-weight:500">Agent</b> <span class="chip ok" style="font-size:11px;height:18px">Addressed · 3f2a91c</span><br>Pinned with position: sticky below md.</div></div>
+            <div style="border:1px solid var(--bd);border-radius:8px;padding:7px 9px;font-size:13px;color:var(--mu)">Reply…</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid var(--bd);border-radius:10px;display:flex;flex-direction:column">
+        <div style="padding:10px 12px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:6px"><b style="font-weight:600">Comments</b><span class="chip">7 open</span></div>
+        <div style="padding:8px 12px;display:flex;gap:6px;border-bottom:1px solid var(--bd)"><span class="chip" style="background:var(--pri);color:#fff">Open</span><span class="chip">Mine</span><span class="chip">Resolved</span></div>
+        <div style="padding:6px 12px 2px;font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.05em">Mobile checkout · /checkout</div>
+        <div class="row" style="border:0;align-items:flex-start;background:var(--soft)"><span class="box" style="margin-top:3px;background:var(--pri);border-color:var(--pri)"></span><span class="grow" style="font-size:13px">Summary should stick to the bottom<br><span class="chip ok" style="font-size:11px;height:18px;margin-top:4px">Addressed</span></span></div>
+        <div class="row" style="border:0;align-items:flex-start"><span class="box" style="margin-top:3px;background:var(--pri);border-color:var(--pri)"></span><span class="grow" style="font-size:13px">Apple Pay above the card form?<br><span class="chip" style="font-size:11px;height:18px;margin-top:4px">Open</span></span></div>
+        <div class="row" style="border:0;align-items:flex-start"><span class="box" style="margin-top:3px"></span><span class="grow" style="font-size:13px">Promo field collapsed by default</span></div>
+        <div style="padding:10px 12px;margin-top:auto;border-top:1px solid var(--bd)"><span class="btn pri" style="width:100%;justify-content:center">Send 2 to agent</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>The pin is a numbered teardrop in the amber comment colour, not a white avatar bubble that disappears on white frames. The element it points at gets a matching outline when the pin is open.</li>
+      <li>The thread card is a proper popover: 250px, 12px padding and the app's popover shadow. It opens beside the element instead of expanding over it.</li>
+      <li>A chip at the top of every thread shows the route and element, so you can see what the comment is about without the pin.</li>
+      <li>Agent replies look like any other reply, with a status chip (Queued, Working, Addressed with the commit).</li>
+      <li>A panel on the right lists threads grouped by frame and route, with filter chips and a sticky "Send N to agent" button.</li>
+      <li>Off-route comments become a small chip in the frame header ("2 more on /cart") instead of floating pins.</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">M1</span><span class="name">Comments that stay on the right thing</span><span class="out">Route and viewport anchors, per-viewer pin positions (today viewers overwrite each other's pins), off-route chips, and a detached state.</span><span class="dep">None</span></div>
+    <div class="t"><span class="id">M2</span><span class="name">Pin and thread card</span><span class="out">The pin and card above: edit, reopen, delete with undo, @mentions, live timestamps. Absorbs #733's restyle.</span><span class="dep">blocked by <b>#719</b>, <b>#721</b></span></div>
+    <div class="t"><span class="id">M3</span><span class="name">Comments panel</span><span class="out">A count in the top bar, the grouped list, filters, J/K navigation, and a pin toggle.</span><span class="dep">blocked by <b>M1</b></span></div>
+    <div class="t"><span class="id">M4</span><span class="name">Send comments to the agent</span><span class="out">Batch send, a status chip on each thread, and the agent's reply in the thread.</span><span class="dep">blocked by <b>M1</b>, <b>M3</b></span></div>
+    <div class="t"><span class="id">M5</span><span class="name">One comment model in play mode</span><span class="out">The same pins and card in the player, plus a scripted hosted capture so comments can be screenshotted.</span><span class="dep">blocked by <b>M1</b></span></div>
+  </div>
+</section>
+
+<!-- ================= SIDEBAR ================= -->
+<section class="area" id="sidebar">
+  <div class="area-head">
+    <h2>Room sidebar</h2>
+    <p class="thesis">Each Workspace row stacks four treatments: a status icon, a saturated pill, monospace text and red and green numbers. The pill colours come from the status palette, so the loudest thing in the sidebar is a colour that means nothing.</p>
+  </div>
+  <div class="ba">
+    <div class="pane"><span class="tag b">Today</span><img src="img/sidebar.webp" alt="Sidebar today" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage white m" style="padding:14px 10px">
+        <div style="width:280px;display:flex;flex-direction:column;gap:2px;font-size:13px">
+          <div style="display:flex;align-items:center;padding:4px 8px"><span class="mu" style="font-size:12px;font-weight:500">Projects</span><span class="mu" style="margin-left:auto">+</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 8px"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg><b style="font-weight:500">storefront</b><span class="mu mono" style="font-size:11px">acme</span></div>
+          <div style="display:flex;gap:8px;padding:6px 8px 6px 14px;background:var(--soft);border-radius:6px"><span class="sw" style="background:var(--s1);margin-top:5px"></span><span class="grow"><span style="font-weight:500">Mobile checkout</span><br><span class="mu" style="font-size:12px">PR #482 · checks passing</span></span><span class="mono mu" style="font-size:11px;margin-top:2px">+214 −37</span></div>
+          <div style="display:flex;gap:8px;padding:6px 8px 6px 14px"><span class="sw" style="background:var(--s2);margin-top:5px"></span><span class="grow">Empty cart<br><span class="mu" style="font-size:12px">Agent working</span></span><span class="mono mu" style="font-size:11px;margin-top:2px">+46 −4</span></div>
+          <div style="display:flex;gap:8px;padding:6px 8px 6px 14px"><span class="sw" style="background:var(--s3);margin-top:5px"></span><span class="grow">Apple Pay button<br><span class="mu" style="font-size:12px">Installing dependencies · 40s</span></span></div>
+          <div style="display:flex;gap:8px;padding:6px 8px 6px 14px"><span class="sw" style="background:var(--s4);margin-top:5px"></span><span class="grow">Gift cards<br><span style="font-size:12px;color:var(--des)">Setup failed · <u>Retry</u></span></span></div>
+          <div style="display:flex;align-items:center;padding:14px 8px 4px"><span class="mu" style="font-size:12px;font-weight:500">Canvas</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 8px"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1.5"/></svg>Checkout</div>
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 8px 5px 22px"><span class="sw" style="background:var(--s1)"></span><span class="grow">Checkout · desktop</span><span class="mono mu" style="font-size:11px">/checkout</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 8px 5px 22px"><span class="sw" style="background:var(--s1)"></span><span class="grow">Checkout · mobile</span><span class="mono mu" style="font-size:11px">/checkout</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 8px 5px 22px"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 2h5l3 3v9H4z"/></svg><span class="grow">Checkout brief</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>Workspace identity becomes an 8px square swatch from a palette with no red, amber or green (indigo, cyan, violet, slate). The name is plain text, not a filled pill.</li>
+      <li>Rows are two lines: a human title at 13px/500, and a muted 12px status line underneath. The status line is the only place status colour appears, and only for errors.</li>
+      <li>The diff stat goes muted monospace on the right. Today's green and red digits pull the eye on every row.</li>
+      <li>Frame rows show the full name with the swatch of their Workspace. The one-letter "c.." chip goes, and the route pill becomes muted text so the name stops truncating at "Checko…".</li>
+      <li>Section headers are 12px/500 muted with the add action on the same line, so the Projects and Canvas groups share one pattern.</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">W1</span><span class="name">Workspace titles and identity swatches</span><span class="out">The row layout above. A title from the prompt, the branch in the details, and a swatch palette separate from status.</span><span class="dep">blocked by <b>#718</b></span></div>
+    <div class="t"><span class="id">W2</span><span class="name">Workspace status line and failure recovery</span><span class="out">The second line on every row, with Retry in place on a failure, and creates that never hang.</span><span class="dep">blocked by <b>#718</b></span></div>
+    <div class="t"><span class="id">W3</span><span class="name">Workspace menu by state</span><span class="out">Twelve flat items become grouped sections led by the state's primary action.</span><span class="dep">blocked by <b>W2</b></span></div>
+    <div class="t"><span class="id">W4</span><span class="name">Frame rows and cross-highlighting</span><span class="out">Frame rows as above. Hovering a Workspace outlines its frames on the canvas.</span><span class="dep">blocked by <b>W1</b></span></div>
+    <div class="t"><span class="id">W5</span><span class="name">Saved terminal tabs survive a reload (bug)</span><span class="out">Prune orphaned tabs only once the Workspace list has loaded.</span><span class="dep">None</span></div>
+  </div>
+</section>
+
+<!-- ================= FRAMES ================= -->
+<section class="area" id="frames">
+  <div class="area-head">
+    <h2>Frames</h2>
+    <p class="thesis">Above each frame are two loose lines of text: a group label, then a chip, a title and a route pill, at slightly different sizes and baselines. When selected, a narrow vertical toolbar lands on top of the next frame.</p>
+  </div>
+  <div class="ba stack">
+    <div class="pane"><span class="tag b">Today</span><img src="img/frametop.webp" alt="Frame header and toolbar today" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage m" style="padding:24px">
+        <div style="width:640px;max-width:100%;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="mu" style="font-size:12px">Checkout</span>
+            <div style="margin-left:auto;display:flex;gap:2px;background:#fff;border-radius:8px;padding:3px;box-shadow:0 0 0 1px rgba(0,0,0,.06),0 2px 8px rgba(0,0,0,.08);font-size:12px">
+              <span class="btn ghost sm">Interact</span><span class="btn ghost sm">Knobs</span><span class="btn ghost sm">Comment</span><span class="btn ghost sm">···</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 8px;background:#fff;border:1.5px solid #c026d3;border-bottom:1px solid var(--bd);border-radius:10px 10px 0 0">
+            <span class="sw" style="background:var(--s1)"></span><b style="font-weight:500;font-size:13px">Mobile checkout</b><span class="mu" style="font-size:12px">desktop</span>
+            <span style="display:flex;gap:6px;color:var(--mu);margin-left:12px;font-size:13px">‹ ›</span>
+            <span style="flex:1;height:24px;border-radius:6px;background:var(--soft);display:flex;align-items:center;padding:0 8px" class="mono">/checkout</span>
+            <span class="mu" style="font-size:13px">↻</span><span class="dot" style="background:var(--ok)"></span>
+          </div>
+          <div style="height:170px;background:#fff;border:1.5px solid #c026d3;border-top:0;border-radius:0 0 10px 10px;padding:14px;display:flex;flex-direction:column;gap:10px">
+            <div style="height:44px;border-radius:8px;background:#6366f1"></div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px"><div style="height:80px;border:1px solid var(--bd);border-radius:8px"></div><div style="height:80px;border:1px solid var(--bd);border-radius:8px"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>The frame gets a real 34px header bar attached to its top edge: swatch, Workspace title, device, back and forward, an editable route field, reload, and a status dot. It replaces the floating label row and the route pill.</li>
+      <li>The group label becomes a 12px muted caption above the header, clearly subordinate. Today it's the same size as the frame name.</li>
+      <li>The selection toolbar is horizontal, right-aligned above the header, with text labels. It stays inside the frame's own column and never overlaps a neighbour.</li>
+      <li>The selection outline wraps the header and body as one object.</li>
+      <li>An unassigned frame shows its Workspace picker centred in the body, not a "Choose a workspace" dropdown in the label over a blank box.</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">F1</span><span class="name">Frame header bar</span><span class="out">The attached header with route navigation and status.</span><span class="dep">blocked by <b>#731</b>, <b>#732</b></span></div>
+    <div class="t"><span class="id">F2</span><span class="name">Frame toolbar placement and labels</span><span class="out">A horizontal labelled toolbar that never covers other layers. The frame menu is split from the Workspace menu.</span><span class="dep">blocked by <b>#732</b></span></div>
+    <div class="t"><span class="id">F3</span><span class="name">Interacting with a frame</span><span class="out">Double-click to interact, a visible interacting ring, and Esc to leave.</span><span class="dep">None</span></div>
+    <div class="t"><span class="id">F4</span><span class="name">Unassigned frame</span><span class="out">A picker in the frame body with New workspace.</span><span class="dep">blocked by <b>W1</b></span></div>
+  </div>
+</section>
+
+<!-- ================= CHAT ================= -->
+<section class="area" id="chat">
+  <div class="area-head">
+    <h2>Agent chat</h2>
+    <p class="thesis">The heaviest thing in the panel is your own message, a solid black bubble. The header crams a pill, a stat and a PR chip into one line, and the composer's controls are so faint they look disabled.</p>
+  </div>
+  <div class="ba">
+    <div class="pane"><span class="tag b">Today</span><img src="img/chat.webp" alt="Chat panel today" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage white m" style="padding:0">
+        <div style="width:100%;max-width:420px;display:flex;flex-direction:column;height:640px;background:#fff">
+          <div style="padding:10px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--bd)">
+            <span class="sw" style="background:var(--s1)"></span><span class="grow"><b style="font-weight:500">Mobile checkout</b><br><span class="mu" style="font-size:12px">checkout-polish · +214 −37</span></span>
+            <span class="btn sm"><span class="dot" style="background:var(--ok)"></span>PR #482</span>
+          </div>
+          <div style="display:flex;gap:16px;padding:0 12px;border-bottom:1px solid var(--bd);font-size:13px;height:36px;align-items:stretch">
+            <span style="display:flex;align-items:center;border-bottom:2px solid var(--pri);font-weight:500">Checkout polish</span>
+            <span class="mu" style="display:flex;align-items:center">Breakpoint audit <span class="dot" style="background:var(--info);margin-left:6px"></span></span>
+            <span class="mu" style="display:flex;align-items:center;margin-left:auto">+ &nbsp;⌄</span>
+          </div>
+          <div style="flex:1;padding:14px 12px;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+            <div style="align-self:flex-end;max-width:85%;background:var(--soft);border-radius:12px;padding:8px 12px;font-size:13px">Collapse the checkout into one scroll on mobile, summary pinned to the bottom.</div>
+            <div style="font-size:12px;color:var(--mu);display:flex;align-items:center;gap:6px"><span>›</span> Worked for 2m · read 3 files, edited 1, ran 2 commands <span class="chip err" style="height:18px;font-size:11px">lint failed</span></div>
+            <div style="font-size:13px;line-height:1.55">Checkout is one scroll now: <code>AddressFields</code> and <code>PaymentFields</code> share one form and <code>StickySummary</code> pins under 768px. Lint is still red because <code>StickySummary</code> isn't imported. Want me to fix it?</div>
+          </div>
+          <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+            <div style="border:1px solid var(--bd);border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 2px rgba(0,0,0,.04)">
+              <div style="display:flex;gap:6px"><span class="chip"><span class="sw" style="background:var(--s1)"></span>Checkout · mobile</span></div>
+              <div class="mu" style="font-size:13px">Ask the agent to change something…</div>
+              <div style="display:flex;align-items:center;gap:6px"><span class="btn ghost sm" style="padding:0 6px">Opus 4.8 ⌄</span><span class="btn ghost sm" style="padding:0 6px">Plan</span><span class="mu" style="font-size:12px;margin-left:auto">@ files · / skills</span><span style="width:28px;height:28px;border-radius:8px;background:var(--pri);color:#fff;display:grid;place-items:center;font-size:13px">↑</span></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mu);border-top:1px solid var(--bd);padding-top:8px">Terminal <span class="chip" style="height:18px">1</span><span style="margin-left:auto">⌃`</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>Your messages become a soft grey bubble. The agent's reply, the thing you're reading, becomes the strongest text in the panel.</li>
+      <li>The header is two lines: swatch and Workspace title, then the branch and diff in muted text. It has one PR button with a status dot. The red branch pill and the separate diff stat go.</li>
+      <li>Tabs get 36px height, a 2px underline for the active one, a blue dot for unread, and an overflow chevron instead of clipping. Terminals move to a drawer under the composer.</li>
+      <li>A finished turn's steps collapse to one muted summary line ("Worked for 2m · read 3 files…"), with a red chip only for what failed. The seven bordered cards go. Coordinate with #728, which owns tool-call rendering.</li>
+      <li>The composer: context chips on top, placeholder text that says what to do, full-contrast model and Plan controls, syntax hints moved to the right in muted text, and a solid send button.</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">C1</span><span class="name">Chat header and PR button</span><span class="out">The two-line header with one PR control.</span><span class="dep">blocked by <b>W1</b></span></div>
+    <div class="t"><span class="id">C2</span><span class="name">Message styling and turn summary</span><span class="out">A soft user bubble, a collapsed step summary, and a failure chip.</span><span class="dep">blocked by <b>#728</b></span></div>
+    <div class="t"><span class="id">C3</span><span class="name">Tabs, unread and terminal drawer</span><span class="out">Tab sizing and underline, a working unread dot, overflow, and terminals in a drawer.</span><span class="dep">None</span></div>
+    <div class="t"><span class="id">C4</span><span class="name">Composer</span><span class="out">The layout above, plus drafts kept per chat, Retry on a failed send, and queueing while the agent runs.</span><span class="dep">None</span></div>
+    <div class="t"><span class="id">C5</span><span class="name">Plan card</span><span class="out">Request changes next to Approve, and a quieter card that uses the reply's type scale instead of its own 20px title.</span><span class="dep">None</span></div>
+  </div>
+</section>
+
+<!-- ================= PLAY ================= -->
+<section class="area" id="play">
+  <div class="area-head">
+    <h2>Play mode</h2>
+    <p class="thesis">The player's only chrome is four grey icons in a floating pill in the corner. With the agent open, the pill sits on top of the send button.</p>
+  </div>
+  <div class="ba stack">
+    <div class="pane"><span class="tag b">Today</span><img src="img/playerchat.webp" alt="Player HUD over the composer" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage m" style="padding:20px 12px;justify-content:flex-start">
+        <div style="display:flex;align-items:center;gap:6px;background:#fff;border-radius:12px;padding:5px 6px;box-shadow:0 0 0 1px rgba(0,0,0,.06),0 6px 20px rgba(0,0,0,.12);font-size:13px;flex-wrap:nowrap;white-space:nowrap;flex:none">
+          <span class="btn ghost sm">←</span><span class="sw" style="background:var(--s1)"></span><b style="font-weight:500">Mobile checkout</b>
+          <span style="width:1px;height:18px;background:var(--bd);margin:0 4px"></span>
+          <span class="mono" style="background:var(--soft);border-radius:6px;padding:3px 8px">/checkout</span>
+          <span style="display:flex;background:var(--soft);border-radius:8px;padding:2px"><span style="background:#fff;border-radius:6px;padding:2px 8px;box-shadow:0 1px 2px rgba(0,0,0,.08)">Desktop</span><span class="mu" style="padding:2px 8px">Tablet</span><span class="mu" style="padding:2px 8px">Phone</span></span>
+          <span style="width:1px;height:18px;background:var(--bd);margin:0 4px"></span>
+          <span class="btn ghost sm">Knobs</span><span class="btn ghost sm">Comments 3</span><span class="btn sm">Agent</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>A top-centre bar with labels replaces the corner pill of icons. It holds back to canvas, Workspace identity, the current route, a segmented device control, then Knobs, Comments with a count, and Agent.</li>
+      <li>Panels open below the bar and push the page, so nothing overlaps the composer.</li>
+      <li>The drag handle goes: the bar has one fixed home.</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">P1</span><span class="name">Player bar</span><span class="out">The bar above, with panels that never overlap it.</span><span class="dep">blocked by <b>W1</b></span></div>
+    <div class="t"><span class="id">P2</span><span class="name">Device switch keeps your place</span><span class="out">One resizing iframe, so switching size doesn't reload to the first route.</span><span class="dep">None</span></div>
+  </div>
+</section>
+
+<!-- ================= HOME ================= -->
+<section class="area" id="home">
+  <div class="area-head">
+    <h2>Home</h2>
+    <p class="thesis">In the table view, folders and canvases are two different row designs. Names start at two x positions, row heights jump from 50px to 140px, and the dates switch between formats.</p>
+  </div>
+  <div class="ba stack">
+    <div class="pane"><span class="tag b">Today</span><img src="img/table.webp" alt="All files table today" loading="lazy"></div>
+    <div class="pane"><span class="tag a">Proposed</span>
+      <div class="stage white m" style="padding:16px">
+        <div style="width:100%;min-width:560px;font-size:13px">
+          <div style="display:grid;grid-template-columns:40px 1fr 120px 120px;gap:12px;padding:6px 8px;color:var(--mu);font-size:12px;border-bottom:1px solid var(--bd)"><span></span><span>Name</span><span>Edited</span><span>Created</span></div>
+          <div style="display:grid;grid-template-columns:40px 1fr 120px 120px;gap:12px;padding:8px;align-items:center;border-bottom:1px solid var(--bd)"><span style="width:40px;height:28px;border-radius:5px;background:var(--soft);display:grid;place-items:center"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg></span><span>Design system <span class="mu">· 3 canvases</span></span><span class="mu">Aug 26</span><span class="mu">Aug 26</span></div>
+          <div style="display:grid;grid-template-columns:40px 1fr 120px 120px;gap:12px;padding:8px;align-items:center;border-bottom:1px solid var(--bd)"><span style="width:40px;height:28px;border-radius:5px;background:var(--soft);display:grid;place-items:center"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg></span><span>Marketing site <span class="mu">· 4 canvases</span></span><span class="mu">Aug 18</span><span class="mu">Aug 18</span></div>
+          <div style="display:grid;grid-template-columns:40px 1fr 120px 120px;gap:12px;padding:8px;align-items:center;border-bottom:1px solid var(--bd)"><span style="width:40px;height:28px;border-radius:5px;border:1px dashed var(--bd);display:grid;place-items:center;font-size:10px;color:var(--mu)">—</span><span>Empty canvas</span><span class="mu">13m ago</span><span class="mu">13m ago</span></div>
+          <div style="display:grid;grid-template-columns:40px 1fr 120px 120px;gap:12px;padding:8px;align-items:center"><span style="width:40px;height:28px;border-radius:5px;background:linear-gradient(#8b5cf6 0 30%,#f1f1f4 30%)"></span><span>Onboarding</span><span class="mu">2d ago</span><span class="mu">6d ago</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="changes">
+    <h3>Visual changes</h3>
+    <ul>
+      <li>One 44px row for folders and canvases. The first column is a 40×28 thumbnail slot holding either the folder icon or a mini preview, so every name starts at the same x.</li>
+      <li>One date format: relative within a week, then "Aug 26". Today folders use 8/26/2026 while canvases use "13m ago".</li>
+      <li>Folders show their contents count. A canvas without a capture gets a dashed empty slot, not a grey block.</li>
+      <li>The grid view uses the same rule: a missing preview is a quiet dashed card with the canvas icon.</li>
+    </ul>
+  </div>
+  <div class="tickets">
+    <div class="t"><span class="id">H1</span><span class="name">Table and grid consistency</span><span class="out">The row spec above, one date format, and empty previews.</span><span class="dep">None</span></div>
+    <div class="t"><span class="id">H2</span><span class="name">Search and filter</span><span class="out">A search field in the header and a Shared-with-me filter.</span><span class="dep">None</span></div>
+    <div class="t"><span class="id">H3</span><span class="name">Moving and sharing feedback</span><span class="out">"Moved to X · Undo" toasts, breadcrumb drop targets, and a Share dialog in the new dialog anatomy.</span><span class="dep">blocked by <b>#725</b>, <b>D2</b></span></div>
+  </div>
+</section>
+
+<!-- ================= SYSTEM ================= -->
+<section class="area" id="system">
+  <div class="area-head">
+    <h2>Shared rules behind the mockups</h2>
+    <p class="thesis">Most of what looks off comes from a few missing rules, not from any one screen. These apply to every ticket above.</p>
+  </div>
+  <div class="system">
+    <ul>
+      <li><b>Identity is never status.</b> Workspace colours come from a palette of indigo, cyan, violet, slate, pink and teal. Red, amber and green mean status only (#718).</li>
+      <li><b>Fills are rare.</b> A solid fill marks the one primary action or the one selected item. Names, branches and user messages go back to plain text.</li>
+      <li><b>One border per object.</b> Group related rows inside one bordered container with dividers, instead of a card per row.</li>
+      <li><b>Two text sizes carry most of the UI:</b> 13px for content and 12px muted for metadata. 14px, 16px and 20px are for dialog body, dialog titles and page titles only (#739).</li>
+      <li><b>Balanced centred copy</b> with a max width, everywhere.</li>
+      <li><b>Floating chrome never covers content:</b> toolbars, HUDs and popovers anchor beside what they belong to.</li>
+      <li><b>Labels beat icons</b> where there's room: frame toolbar, player bar, settings actions.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  34 tickets in all (D1–D3, O1–O4, S1–S3, M1–M5, W1–W5, F1–F4, C1–C5, P1–P2, H1–H3). Each gets the ready-for-agent label and the before/after screenshot criterion, and each PR is reviewed against its mockup here. "Today" images come from <code>pnpm screenshots:shots</code> on the fixture world, 27 September 2026. The mockups are static HTML and approximate the app's tokens.
+</footer>
+</div>
+
+</body></html>

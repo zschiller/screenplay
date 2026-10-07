@@ -1,0 +1,596 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>App Interaction Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=Unbounded:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; each finding = claim, evidence (before shots), fix (mockup), recommendation. Mockups use the app's own tokens so they read as Screenplay UI. */
+:root{
+  --bg:#fbfbfa; --fg:#111; --muted:#6b6b70; --line:rgba(0,0,0,.1); --panel:#fff; --tint:#f3f3f2;
+  --accent:oklch(0.62 0.27 330); --high:oklch(0.56 0.2 27); --med:oklch(0.62 0.14 65); --low:oklch(0.55 0.02 260);
+  /* app tokens for mockups (light) */
+  --a-bg:#fff; --a-fg:#000; --a-muted:#8a8a8a; --a-mutedbg:#f7f7f7; --a-border:rgba(0,0,0,.12); --a-inv-bg:#000; --a-inv-fg:#fff; --a-inv-muted:#9a9a9a; --a-destr:oklch(0.56 0.226 27); --a-warn:oklch(0.6 0.139 60); --a-ring:oklch(0.667 0.295 322.15); --a-canvas:#f5f5f5; --a-green:oklch(0.55 0.15 150);
+  --display:"Unbounded",ui-sans-serif,system-ui,sans-serif; --sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0b0b0c; --fg:#f2f2f2; --muted:#9a9aa0; --line:rgba(255,255,255,.12); --panel:#131314; --tint:#1a1a1b;
+  --accent:oklch(0.72 0.25 330); --high:oklch(0.7 0.19 27); --med:oklch(0.8 0.15 80); --low:oklch(0.72 0.02 260);
+  --a-bg:#000; --a-fg:#fff; --a-muted:#9a9a9a; --a-mutedbg:#1c1c1c; --a-border:rgba(255,255,255,.16); --a-inv-bg:#fff; --a-inv-fg:#000; --a-inv-muted:#666; --a-destr:oklch(0.66 0.225 27); --a-warn:oklch(0.88 0.179 95); --a-canvas:#0e0e0e; --a-green:oklch(0.72 0.17 150);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b0b0c; --fg:#f2f2f2; --muted:#9a9aa0; --line:rgba(255,255,255,.12); --panel:#131314; --tint:#1a1a1b;
+  --accent:oklch(0.72 0.25 330); --high:oklch(0.7 0.19 27); --med:oklch(0.8 0.15 80); --low:oklch(0.72 0.02 260);
+  --a-bg:#000; --a-fg:#fff; --a-muted:#9a9a9a; --a-mutedbg:#1c1c1c; --a-border:rgba(255,255,255,.16); --a-inv-bg:#fff; --a-inv-fg:#000; --a-inv-muted:#666; --a-destr:oklch(0.66 0.225 27); --a-warn:oklch(0.88 0.179 95); --a-canvas:#0e0e0e; --a-green:oklch(0.72 0.17 150);
+  color-scheme:dark}
+.shot-d{display:none}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .shot-l{display:none} :root:not([data-theme="light"]) .shot-d{display:block}}
+:root[data-theme="dark"] .shot-l{display:none} :root[data-theme="dark"] .shot-d{display:block}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:48px 96px}
+h1{font:500 30px/1.15 var(--display);letter-spacing:-.01em;margin:0 0 10px;text-wrap:balance}
+h2{font:500 20px/1.25 var(--display);margin:0;text-wrap:balance}
+h3{font:600 13px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+p{margin:0}
+a{color:inherit;text-decoration-color:var(--accent);text-underline-offset:2px}
+code,.mono{font-family:var(--mono);font-size:.86em}
+.lede{max-width:68ch;color:var(--muted);display:grid;gap:10px}
+.lede strong{color:var(--fg);font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);margin-top:14px}
+.toc{margin:36px 0 12px;border-top:1px solid var(--line)}
+.toc a{display:grid;grid-template-columns:44px 64px 1fr;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line);text-decoration:none}
+.toc a:hover .t{text-decoration:underline;text-decoration-color:var(--accent)}
+.toc .n{font:500 13px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.sev{font:600 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase}
+.sev.high{color:var(--high)} .sev.med{color:var(--med)} .sev.low{color:var(--low)}
+.toc .t{min-width:0}
+.toc .where{color:var(--muted);font-size:13px}
+.f{padding-block:56px 8px;border-top:1px solid var(--line);margin-top:48px;display:grid;gap:18px;scroll-margin-top:12px}
+.fhead{display:grid;gap:8px}
+.fhead .row{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.fhead .num{font:500 13px var(--mono);color:var(--muted)}
+.claim{max-width:72ch;display:grid;gap:10px}
+.claim ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.ev{font-size:13px;color:var(--muted)}
+.ev code{color:var(--fg)}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start}
+.card{min-width:0;display:grid;gap:8px}
+.card figcaption{font-size:13px;color:var(--muted)}
+.card figcaption b{color:var(--fg);font-weight:600}
+figure{margin:0}
+.shot{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.shot img{display:block;width:100%;height:auto}
+.rec{background:var(--tint);border-radius:6px;padding:14px 16px;display:grid;gap:6px;max-width:80ch}
+.rec b{font-weight:600}
+.tag{font:500 11px var(--sans);color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:2px 8px;white-space:nowrap}
+.small{font-size:13px}
+table.t{border-collapse:collapse;width:100%;font-size:13px}
+table.t th,table.t td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.t th{font-weight:600;color:var(--muted)}
+.tw{overflow-x:auto}
+.notes{display:grid;gap:10px;margin-top:20px}
+.notes li{margin-bottom:6px}
+
+/* ---------- app mockup kit ---------- */
+.app{background:var(--a-bg);color:var(--a-fg);font:14px/1.4 var(--sans);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.app .pad{padding:14px}
+.app .canvas{background:var(--a-canvas);padding:18px;position:relative;min-height:140px}
+.app .muted{color:var(--a-muted)}
+.app .xs{font-size:12px}
+.hdr{display:flex;align-items:center;gap:8px;height:48px;padding:0 12px;border-bottom:1px solid var(--a-border)}
+.hdr .crumb{color:var(--a-muted)}
+.hdr .sp{flex:1}
+.ib{width:28px;height:28px;display:inline-grid;place-items:center;border-radius:6px;color:var(--a-muted)}
+.ib.on{background:var(--a-mutedbg);color:var(--a-fg)}
+.ib svg,.ic{width:16px;height:16px;flex:none}
+.btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--a-border);font-size:13px;font-weight:500;background:var(--a-bg);color:var(--a-fg);white-space:nowrap}
+.btn.primary{background:var(--a-fg);color:var(--a-bg);border-color:transparent}
+.btn.ghost{border-color:transparent}
+.btn.destr{color:var(--a-destr)}
+.btn[disabled]{opacity:.5}
+.menu{background:var(--a-inv-bg);color:var(--a-inv-fg);border-radius:8px;padding:4px;width:220px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.menu .it{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:5px}
+.menu .it.hl{background:rgba(127,127,127,.25)}
+.menu .it .k{margin-left:auto;color:var(--a-inv-muted);font-size:12px}
+.menu .it.destr{color:var(--a-destr)}
+.menu .sep{height:1px;background:rgba(127,127,127,.3);margin:4px -4px}
+.menu .lbl{font:11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--a-inv-muted);padding:6px 8px 2px}
+.toast{display:flex;align-items:center;gap:12px;background:var(--a-inv-bg);color:var(--a-inv-fg);border-radius:8px;padding:10px 12px 10px 14px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.2);width:max-content;max-width:100%}
+.toast .act{margin-left:8px;border:1px solid rgba(127,127,127,.45);border-radius:6px;padding:3px 8px;font-weight:500}
+.row{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:6px}
+.row.sel{background:var(--a-mutedbg)}
+.row .aux{color:var(--a-muted);font-size:13px}
+.glyph{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--a-muted);flex:none}
+.warn{color:var(--a-warn)}
+.destr{color:var(--a-destr)}
+.green{color:var(--a-green)}
+.inp{border:1px solid var(--a-border);border-radius:6px;height:30px;display:flex;align-items:center;padding:0 8px;font-size:13px}
+.inp.focus{outline:2px solid var(--a-ring);outline-offset:0}
+.caret{display:inline-block;width:1px;height:14px;background:var(--a-fg);margin-left:1px;vertical-align:-2px}
+.dialog{background:var(--a-bg);border:1px solid var(--a-border);border-radius:10px;padding:18px;width:min(360px,100%);display:grid;gap:10px;box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.dialog h4{margin:0;font:500 16px var(--display)}
+.dialog .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:4px;background:var(--a-mutedbg);border:1px solid var(--a-border);font:500 11px var(--sans);color:var(--a-muted)}
+.inv .kbd{background:rgba(127,127,127,.25);border-color:transparent;color:var(--a-inv-muted)}
+.stack{display:grid;gap:10px}
+.hstack{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.step{border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:grid;gap:6px;font-size:13px;background:var(--panel)}
+.step .k{font:500 12px var(--mono);color:var(--muted)}
+.frame{background:var(--a-bg);border:1px solid var(--a-border);height:70px;border-radius:2px}
+.frame.sel{outline:1.5px solid var(--a-ring)}
+.spin{width:14px;height:14px;border:2px solid var(--a-border);border-top-color:var(--a-fg);border-radius:50%;animation:sp 1s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.tip{background:var(--a-inv-bg);color:var(--a-inv-fg);font-size:12px;border-radius:6px;padding:5px 8px;width:max-content;max-width:260px}
+.bubble{background:var(--a-mutedbg);border-radius:10px;padding:8px 12px;margin-left:auto;width:max-content;max-width:80%}
+.errline{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--a-border);border-radius:6px;padding:8px 10px;font-size:13px}
+.errline .destr{flex:none}
+.cardm{border:1px solid var(--a-border);border-radius:8px;padding:12px;display:grid;gap:6px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:560px){.toc a{grid-template-columns:34px 1fr}.toc .sevcell{display:none}h1{font-size:24px}}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>App audit: interaction and hierarchy</h1>
+  <div class="lede">
+    <p>This pass covers how the app behaves, not how it looks: affordances, states, feedback, keyboard, and whether the same thing works the same way in every panel. Other threads cover the homepage, the docs, and the app's product-level and pixel-level issues.</p>
+    <p><strong>How it was checked.</strong> I read the app's code panel by panel and captured 76 screens and states with the harness. I then reproduced the worst bugs in the running fixture app: undo, keys leaking through menus, and the sidebar rename. Every finding below is backed by a capture or a reproduction, plus the <code>file:line</code> that causes it (finding 11 is backed by code only). Nothing already ticketed or rejected is repeated. That excludes the round 4 and 5 audits, #1169, the Workspace pills, and the in-body frame picker.</p>
+    <p><strong>How to read it.</strong> Findings are ranked by how much they hurt someone using the app. Each one has the before (light and dark follow your theme), a mockup of the fix, and one recommendation that stays inside the current UX. No tickets are filed; pick the ones you want.</p>
+  </div>
+  <div class="meta"><span>Main at <code>2e4ec6f</code></span><span>Local fixture build, 1512×982 @2x</span><span>18 findings + 14 smaller notes</span></div>
+</header>
+
+<nav class="toc" aria-label="Findings">
+  <a href="#f1"><span class="n">01</span><span class="sev high sevcell">High</span><span class="t">⌘Z doesn't undo anything on the canvas <span class="where">· canvas</span></span></a>
+  <a href="#f2"><span class="n">02</span><span class="sev high sevcell">High</span><span class="t">Canvas keys fire through open menus, dialogs and the composer <span class="where">· canvas</span></span></a>
+  <a href="#f3"><span class="n">03</span><span class="sev high sevcell">High</span><span class="t">Renaming in the sidebar drops every space <span class="where">· sidebar</span></span></a>
+  <a href="#f4"><span class="n">04</span><span class="sev high sevcell">High</span><span class="t">A Workspace waiting for plan approval looks idle everywhere except one row <span class="where">· sidebar, canvas, chat</span></span></a>
+  <a href="#f5"><span class="n">05</span><span class="sev med sevcell">Medium</span><span class="t">Deleting works four different ways <span class="where">· canvas, sidebar, settings, chat</span></span></a>
+  <a href="#f6"><span class="n">06</span><span class="sev med sevcell">Medium</span><span class="t">With a frame and a group selected, the toolbar acts on one frame <span class="where">· canvas</span></span></a>
+  <a href="#f7"><span class="n">07</span><span class="sev med sevcell">Medium</span><span class="t">One frame, two different menus <span class="where">· sidebar, frame toolbar</span></span></a>
+  <a href="#f8"><span class="n">08</span><span class="sev med sevcell">Medium</span><span class="t">A Workspace's own chat can't restart, finish or delete it <span class="where">· chat header</span></span></a>
+  <a href="#f9"><span class="n">09</span><span class="sev med sevcell">Medium</span><span class="t">A new canvas asks you to add a repository four times <span class="where">· canvas, chat panel</span></span></a>
+  <a href="#f10"><span class="n">10</span><span class="sev med sevcell">Medium</span><span class="t">Errors show HTTP codes and URLs instead of what to do <span class="where">· chat, logs</span></span></a>
+  <a href="#f11"><span class="n">11</span><span class="sev med sevcell">Medium</span><span class="t">A failed load looks like an empty state <span class="where">· composer, chat, comments</span></span></a>
+  <a href="#f12"><span class="n">12</span><span class="sev med sevcell">Medium</span><span class="t">Closing a terminal tab stops what's running; closing a chat tab doesn't <span class="where">· tab strip</span></span></a>
+  <a href="#f13"><span class="n">13</span><span class="sev med sevcell">Medium</span><span class="t">Mark as done makes frames vanish with no word and no undo <span class="where">· Workspaces menu</span></span></a>
+  <a href="#f14"><span class="n">14</span><span class="sev low sevcell">Low</span><span class="t">Create PR: two names, a hidden reason, no progress <span class="where">· chat header, menu</span></span></a>
+  <a href="#f15"><span class="n">15</span><span class="sev low sevcell">Low</span><span class="t">The Coordinator's PR card shows git branch names <span class="where">· Coordinator</span></span></a>
+  <a href="#f16"><span class="n">16</span><span class="sev low sevcell">Low</span><span class="t">⌘B in a document also collapses the sidebar <span class="where">· canvas shortcuts</span></span></a>
+  <a href="#f17"><span class="n">17</span><span class="sev low sevcell">Low</span><span class="t">Frame status screens shrink with zoom <span class="where">· frames</span></span></a>
+  <a href="#f18"><span class="n">18</span><span class="sev low sevcell">Low</span><span class="t">The same things are named differently <span class="where">· copy across panels</span></span></a>
+  <a href="#more"><span class="n">+14</span><span class="sev low sevcell">Notes</span><span class="t">Smaller issues found in code</span></a>
+</nav>
+
+<!-- F1 -->
+<section class="f" id="f1">
+  <div class="fhead"><div class="row"><span class="num">01</span><span class="sev high">High</span><span class="tag">canvas · undo</span></div>
+  <h2>⌘Z doesn't undo anything on the canvas</h2></div>
+  <div class="claim">
+    <p>The shortcut sheet lists Undo ⌘Z and Redo ⌘⇧Z, and the keyboard handler calls them, but they never restore anything. I deleted <em>Checkout · desktop</em> with Backspace, then pressed ⌘Z twice. The frame stayed gone for everyone. Moving, resizing, grouping and deleting all go through the same path, so none of them can be undone either.</p>
+    <p class="ev">Cause: <code>useYjsHistory</code> builds its <code>UndoManager</code> without <code>trackedOrigins</code> (<code>lib/yjs/react.ts:111</code>), so Yjs only records transactions whose origin is <code>null</code>. Every canvas op commits with <code>CANVAS_OPS_ORIGIN</code> (<code>lib/canvas/ops.ts:358</code>). A scratch Vitest reproduction shows the undo stack stays empty after two canvas-origin edits.</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f1-undo.light.webp" alt="Canvas after Delete then Cmd+Z twice: Checkout desktop is still missing from the sidebar and canvas"><img class="shot-d" src="shots/f1-undo.dark.webp" alt=""></div><figcaption><b>Before.</b> After Backspace, then ⌘Z twice. <em>Checkout · desktop</em> is still gone, and the next frame is selected.</figcaption></figure>
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f1-sheet.light.webp" alt="Shortcut sheet Edit group listing Undo and Redo"><img class="shot-d" src="shots/f1-sheet.dark.webp" alt=""></div><figcaption><b>Before.</b> The sheet promises Undo and Redo.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="canvas" style="display:grid;gap:14px;justify-items:start">
+      <div class="xs muted">Backspace on a frame</div>
+      <div class="toast"><span>Deleted “Checkout · desktop”</span><span class="act">Undo</span></div>
+      <div class="xs muted">⌘Z, or Undo, puts it back where it was.</div>
+    </div></div><figcaption><b>After.</b> A stock sonner toast with Undo, as comment deletes and home moves already use.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Pass <code>trackedOrigins: new Set([CANVAS_OPS_ORIGIN])</code> to the UndoManager so ⌘Z and ⌘⇧Z work for every canvas edit. Then show the Undo toast when something is deleted from the canvas. The toast matters because the frame vanishes for everyone, and the person may not know ⌘Z exists. Finding 05 builds on this.</p></div>
+</section>
+
+<!-- F2 -->
+<section class="f" id="f2">
+  <div class="fhead"><div class="row"><span class="num">02</span><span class="sev high">High</span><span class="tag">canvas · keyboard</span></div>
+  <h2>Canvas keys fire through open menus, dialogs and the composer</h2></div>
+  <div class="claim">
+    <p>The canvas listens on the whole window and only ignores keys typed into inputs, textareas and contentEditable. It doesn't check whether a menu, popover or dialog has the key. I reproduced two of the cases below; the rest are in the code.</p>
+    <ul>
+      <li><b>Backspace with a menu open deletes the frame behind it.</b> Reproduced: with the frame's … menu open, Backspace deleted <em>Checkout · desktop</em> (screenshot).</li>
+      <li><b>Escape does two things.</b> Reproduced: Escape closed the menu and also deselected the frame, so its toolbar disappeared. It does the same when it closes the zoom menu, a layer menu, a dialog or the <kbd>?</kbd> sheet, and it can also exit Focus or Create Flow.</li>
+      <li><b>Typing a menu's first letter switches tools.</b> V, F, D and C typed to jump to a menu item also change the canvas tool.</li>
+      <li><b>Space doesn't press buttons.</b> Anywhere on the canvas page, including the Canvas settings and Share dialogs, Space on a focused button, switch or checkbox arms pan mode instead.</li>
+      <li><b>Escape in the chat or Coordinator composer reaches the canvas.</b> It clears the selection or exits Focus mode, and the composer itself ignores it.</li>
+    </ul>
+    <p class="ev"><code>use-canvas-keyboard.ts:83</code> (the typing check), <code>:93</code> (Escape never checks <code>defaultPrevented</code>, which Radix sets when it closes a layer), <code>:152–176</code> (tool keys), <code>:236</code> (Space), <code>:246</code> (Delete). <code>composer.tsx:655</code> has no Escape case. Home already has the right check in <code>isTypingOrInOverlay</code> (<code>home/use-create-canvas.ts:81</code>), and <code>frame-nav.tsx:582</code> works around it for one popover only.</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f2-backspace.light.webp" alt="After Backspace with the frame menu open: Checkout desktop deleted and iPhone frame selected"><img class="shot-d" src="shots/f2-backspace.dark.webp" alt=""></div><figcaption><b>Before.</b> Menu open on <em>Checkout · desktop</em>, then Backspace. The frame is gone and the iPhone frame is selected.</figcaption></figure>
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f2-escape.light.webp" alt="After Escape closes the frame menu, the frame is also deselected"><img class="shot-d" src="shots/f2-escape.dark.webp" alt=""></div><figcaption><b>Before.</b> Menu open, then Escape. The menu closes, and the frame loses its selection and its toolbar.</figcaption></figure>
+  </div>
+  <div class="strip" aria-label="Expected behaviour">
+    <div class="step"><span class="k">Menu open · Backspace</span>Nothing happens on the canvas.</div>
+    <div class="step"><span class="k">Menu open · Esc</span>The menu closes; the frame stays selected with its toolbar.</div>
+    <div class="step"><span class="k">Composer · Esc</span>The composer blurs; the selection is kept.</div>
+    <div class="step"><span class="k">Focused button · Space</span>The button is pressed; no pan.</div>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Use one guard at the top of the canvas handler. Return when <code>e.defaultPrevented</code> is set, and for every key except Escape, also return when the target is inside a menu, dialog or popover (reuse <code>isTypingOrInOverlay</code>). Only pan on Space when the target isn't interactive. In the composer, make Escape blur the editor and stop there. Then remove the frame-nav workaround.</p></div>
+</section>
+
+<!-- F3 -->
+<section class="f" id="f3">
+  <div class="fhead"><div class="row"><span class="num">03</span><span class="sev high">High</span><span class="tag">sidebar · rename</span></div>
+  <h2>Renaming in the sidebar drops every space</h2></div>
+  <div class="claim">
+    <p>I renamed a frame from its sidebar menu and typed “Cart with coupon”. It came out as <em>Cartwithcoupon</em>. The row is a drag handle, and dnd-kit's keyboard sensor takes Space (and Enter) as “pick up” from any key that bubbles up from inside the row, the inline name field included. The same applies to documents and groups. On a focused row, Enter or Space starts a keyboard drag instead of selecting the row.</p>
+    <p class="ev"><code>room-sidebar.tsx:224–251</code> spreads the drag listeners on the whole row, and <code>EditableText</code> only stops Escape and Enter. The Workspaces menu already fixed this for its own rename field (<code>workspaces-menu.tsx:1072</code>), and so did the Workspace status icon (<code>workspace-status-icon.tsx:20</code>).</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f3-rename.light.webp" alt="Sidebar rename field reading Cartwithcoupon"><img class="shot-d" src="shots/f3-rename.dark.webp" alt=""></div><figcaption><b>Before.</b> Typed “Cart with coupon”; the spaces never arrive.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="pad stack" style="max-width:320px">
+      <div class="row"><svg class="ic muted" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2.5" y="3.5" width="11" height="9" rx="1"/></svg><span class="inp focus" style="flex:1">Cart with coupon<span class="caret"></span></span></div>
+      <div class="row"><svg class="ic muted" viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M4 2.5h5l3 3v8H4z"/></svg><span>Checkout brief</span></div>
+    </div></div><figcaption><b>After.</b> The field keeps its keys; Enter commits and Esc cancels as before.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Stop key propagation from the editing field (the same <code>onKeyDown</code> stop the Workspaces menu uses), and give each row an activator node with <code>setActivatorNodeRef</code> so only keys on the row itself start a drag.</p></div>
+</section>
+
+<!-- F4 -->
+<section class="f" id="f4">
+  <div class="fhead"><div class="row"><span class="num">04</span><span class="sev high">High</span><span class="tag">state · Workspaces</span></div>
+  <h2>A Workspace waiting for plan approval looks idle everywhere except one row</h2></div>
+  <div class="claim">
+    <p>When a Workspace's agent writes a plan and stops for approval, the Coordinator's task row says <b>Needs you</b> with an amber icon. Everywhere else it shows the idle circle: the sidebar group, the canvas group label, the Workspaces menu, and the Workspace's own chat header. The Workspaces button's “needs you” dot ignores it as well. So the one state that waits on the person is the one that's hardest to spot, unless they happen to be reading the Coordinator transcript.</p>
+    <p class="ev">“Needs you” has two definitions. The task row counts a pending plan (<code>lib/agent/workspace-task.ts:246</code>). The Workspaces menu's section and dot count only an error or an open PR (<code>lib/workspace-list-view.ts:71–80</code>). The shared state glyph has no waiting state at all (<code>lib/branch/status-line.ts:62–82</code>).</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f4-tasks.light.webp" alt="Coordinator rows say Needs you while the sidebar shows idle circles"><img class="shot-d" src="shots/f4-tasks.dark.webp" alt=""></div><figcaption><b>Before.</b> <em>Empty cart state</em> reads Needs you in the Coordinator and idle in the sidebar.</figcaption></figure>
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f4-header.light.webp" alt="Workspace chat header shows idle circle above a plan waiting for approval"><img class="shot-d" src="shots/f4-header.dark.webp" alt=""></div><figcaption><b>Before.</b> Its own header shows the idle circle above the plan that's waiting.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="pad stack">
+      <div class="xs muted">Sidebar group · Workspaces menu · chat header</div>
+      <div class="row"><svg class="ic muted" viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg><span>Cart</span><svg class="ic warn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.6v.4"/></svg><span class="aux">Empty cart state</span></div>
+      <div class="row sel"><svg class="ic warn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.6v.4"/></svg><span>Empty cart state</span><span style="margin-left:auto" class="xs"><span class="green">+46</span> <span class="destr">−4</span></span></div>
+      <div class="hdr" style="border:1px solid var(--a-border);border-radius:6px"><span class="crumb">Coordinator</span><span class="crumb">/</span><svg class="ic warn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.6v.4"/></svg><span>Empty cart state</span></div>
+      <div class="tip">Plan waiting for your approval</div>
+    </div></div><figcaption><b>After.</b> The task row's amber icon becomes a state of the shared glyph, and the hover card says why.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Add a “needs you” state to <code>workspaceStatusLine</code> when a plan is pending, drawn with the icon the task row already uses. Count it in <code>workspaceSection</code>, so the menu's Needs you section and the Workspaces dot agree with the task row. The glyph is already shared, so this is one change that shows up everywhere.</p></div>
+</section>
+
+<!-- F5 -->
+<section class="f" id="f5">
+  <div class="fhead"><div class="row"><span class="num">05</span><span class="sev med">Medium</span><span class="tag">destructive actions</span></div>
+  <h2>Deleting works four different ways</h2></div>
+  <div class="claim">
+    <p>The same act, deleting something, behaves differently depending on where it starts:</p>
+    <ul>
+      <li><b>Confirm dialog:</b> a frame, document or group deleted from the sidebar (“This cannot be undone”).</li>
+      <li><b>Instant, no undo:</b> the same frame deleted from its toolbar's “Delete frame” item or with the Delete key; a canvas memory entry (<code>canvas-memory-section.tsx:124</code>).</li>
+      <li><b>Press twice:</b> deleting a chat from History arms the button, then deletes (<code>chat-history-menu.tsx:83</code>).</li>
+      <li><b>Toast with Undo:</b> comments and home moves.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f5-confirm.light.webp" alt="Sidebar delete confirm dialog for a frame"><img class="shot-d" src="shots/f5-confirm.dark.webp" alt=""></div><figcaption><b>Before.</b> From the sidebar: a dialog. From the toolbar or the Delete key: gone at once (finding 02 shows it).</figcaption></figure>
+    <figure class="card"><div class="tw"><table class="t">
+      <thead><tr><th>What</th><th>After</th></tr></thead>
+      <tbody>
+        <tr><td>Frame, document, group (any path)</td><td>Delete at once, toast with Undo</td></tr>
+        <tr><td>Canvas memory entry</td><td>Delete at once, toast with Undo</td></tr>
+        <tr><td>Chat in History</td><td>ConfirmDialog, like presets</td></tr>
+        <tr><td>Canvas, folder, Workspace, repository, preset</td><td>ConfirmDialog (unchanged)</td></tr>
+      </tbody></table></div><figcaption><b>After.</b> One rule: if Undo can bring it back, don't ask. If it can't, confirm in the stock dialog.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Once finding 01 makes undo work, delete canvas objects at once with an Undo toast from every path, and drop the sidebar's confirm. Keep <code>ConfirmDialog</code> for what undo can't restore, and switch chat deletion from press-twice to <code>ConfirmDialog</code>. Label the toolbar item “Delete”, as the sidebar does.</p></div>
+</section>
+
+<!-- F6 -->
+<section class="f" id="f6">
+  <div class="fhead"><div class="row"><span class="num">06</span><span class="sev med">Medium</span><span class="tag">canvas · selection</span></div>
+  <h2>With a frame and a group selected, the toolbar acts on one frame</h2></div>
+  <div class="claim">
+    <p>Shift-click a group while a frame is selected. Both show the selection colour, but the frame's address-bar toolbar stays under the first frame, and its Duplicate, Device size and Delete frame act only on that frame. Two frames selected hides the toolbar correctly; a group doesn't count toward that.</p>
+    <p class="ev"><code>canvas-member-layer.tsx:331</code> and <code>:472</code> count only selected frames and documents for <code>multiSelected</code>, so <code>iframe-layer.tsx:523</code> still shows the single-frame toolbar.</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f6-selection.light.webp" alt="Frame and Cart group both selected, frame toolbar still showing"><img class="shot-d" src="shots/f6-selection.dark.webp" alt=""></div><figcaption><b>Before.</b> <em>Checkout · desktop</em> plus the <em>Cart</em> group are selected; the toolbar belongs to one frame.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="canvas" style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px">
+      <div class="stack"><span class="xs" style="color:var(--a-ring)">Checkout · desktop</span><div class="frame sel"></div></div>
+      <div class="stack"><span class="xs" style="color:var(--a-ring)">Cart</span><div class="frame sel"></div></div>
+      <div class="xs muted" style="grid-column:1/-1">No frame toolbar while more than one thing is selected. Delete, ⌘D and arrange act on the whole selection.</div>
+    </div></div><figcaption><b>After.</b> Same rule as two frames.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Include selected groups in the <code>multiSelected</code> count. It's a one-line change in both places.</p></div>
+</section>
+
+<!-- F7 -->
+<section class="f" id="f7">
+  <div class="fhead"><div class="row"><span class="num">07</span><span class="sev med">Medium</span><span class="tag">menus</span></div>
+  <h2>One frame, two different menus</h2></div>
+  <div class="claim">
+    <p>A frame's sidebar … menu has <em>Rename, Delete</em>. Its toolbar … menu has <em>Device size, Fit to content, Duplicate, Workspace, Delete frame</em>. You can't duplicate a frame from the sidebar or rename it from the toolbar, and the delete item has a different label and different behaviour in each (finding 05). Documents and groups have no menu on the canvas at all, so their Delete is only in the sidebar or on the Delete key.</p>
+    <p class="ev"><code>layer-rows/iframe-layer-row.tsx:183–205</code> compared with <code>iframe-layer.tsx:1046–1096</code>. <code>onDuplicate</code> is wired for frames only (<code>canvas-member-layer.tsx:462</code>).</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f7-sidebar.light.webp" alt="Sidebar frame menu with Rename and Delete"><img class="shot-d" src="shots/f7-sidebar.dark.webp" alt=""></div><figcaption><b>Before.</b> Sidebar menu.</figcaption></figure>
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f7-toolbar.light.webp" alt="Frame toolbar menu with Device size, Fit to content, Duplicate, Workspace, Delete frame"><img class="shot-d" src="shots/f7-toolbar.dark.webp" alt=""></div><figcaption><b>Before.</b> Toolbar menu for the same frame.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="canvas" style="display:grid;place-items:center">
+      <div class="menu inv">
+        <div class="it">Rename</div>
+        <div class="it">Duplicate<span class="k"><span class="kbd">⌘</span> <span class="kbd">D</span></span></div>
+        <div class="sep"></div>
+        <div class="it">Device size<span class="k">›</span></div>
+        <div class="it">Fit to content</div>
+        <div class="it">Workspace<span class="k">›</span></div>
+        <div class="sep"></div>
+        <div class="it destr">Delete<span class="k"><span class="kbd">⌫</span></span></div>
+      </div>
+    </div></div><figcaption><b>After.</b> One frame menu, the same in both places.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Pull the frame's items into one shared menu content and render it from the sidebar row and the toolbar. Do the same for documents and groups, and give a selected document or group the same … on its canvas label. Keep the order: edit, then view, then Delete last.</p></div>
+</section>
+
+<!-- F8 -->
+<section class="f" id="f8">
+  <div class="fhead"><div class="row"><span class="num">08</span><span class="sev med">Medium</span><span class="tag">chat header</span></div>
+  <h2>A Workspace's own chat can't restart, finish or delete it</h2></div>
+  <div class="claim">
+    <p>Inside a Workspace chat, the header shows the Workspace's name with a hover card, its line counts and its PR. To Restart, Mark as done, Recreate or Delete it, you have to go back to the Coordinator, open Workspaces, hover the row and open its …. The frame toolbar's Workspace submenu only has Open prototype player and Open in browser. You're most likely to want these actions while you're in that Workspace's chat.</p>
+    <p class="ev">The header name is a hover card only (<code>chat-panel.tsx:1389–1409</code>). The Workspaces button is left out of Workspace chats on purpose (<code>workspaces-menu.tsx:625</code>), which is right; this adds only the row's own menu.</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f8-header.light.webp" alt="Workspace chat header with name, diff and PR, no actions"><img class="shot-d" src="shots/f8-header.dark.webp" alt=""></div><figcaption><b>Before.</b> No way to act on the Workspace from here.</figcaption></figure>
+    <figure class="card"><div class="app">
+      <div class="hdr"><span class="ib"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M10 3v10"/></svg></span><span class="crumb">Coordinator</span><span class="crumb">/</span><span class="glyph"></span><span>Checkout polish</span><span class="ib on"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="4" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12" cy="8" r="1.1"/></svg></span><span class="sp"></span><span class="xs"><span class="green">+214</span> <span class="destr">−37</span></span></div>
+      <div class="canvas" style="padding:8px 60px 18px;min-height:0;background:var(--a-bg)"><div class="menu inv" style="width:200px">
+        <div class="it">Rename</div><div class="it">Open in browser</div><div class="sep"></div><div class="it">Restart dev server</div><div class="it">Mark as done</div><div class="sep"></div><div class="it destr">Delete…</div>
+      </div></div>
+    </div><figcaption><b>After.</b> A 28px … after the name opens the same menu as the Workspaces row.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Render <code>BranchOverflowMenuContent</code> from a … icon button right after the Workspace name in the header. It uses the same items as the row, with no new actions.</p></div>
+</section>
+
+<!-- F9 -->
+<section class="f" id="f9">
+  <div class="fhead"><div class="row"><span class="num">09</span><span class="sev med">Medium</span><span class="tag">empty states · hierarchy</span></div>
+  <h2>A new canvas asks you to add a repository four times</h2></div>
+  <div class="claim">
+    <p>On a fresh canvas, “Add repository” appears as:</p>
+    <ul>
+      <li>the filled button in Get started;</li>
+      <li>a row in the canvas empty state;</li>
+      <li>an outline button in the chat panel;</li>
+      <li>an Add a repository item in the Workspaces menu.</li>
+    </ul>
+    <p>That leaves nothing to show which one is the next step. The chat panel also swaps the Coordinator out entirely: its header becomes muted “No repositories” text, and there's no composer. So a canvas that only holds documents can't ask the Coordinator anything, even though its empty state says it “sees every Workspace, frame and Document”.</p>
+    <p class="ev"><code>chat-panel-host.tsx:76</code> returns nothing when there are no repositories, which falls through to the placeholder at <code>:168–197</code>.</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f9-start.light.webp" alt="Fresh canvas with Add repository in the checklist, empty state and chat panel"><img class="shot-d" src="shots/f9-start.dark.webp" alt=""></div><figcaption><b>Before.</b> A fresh canvas: three of the four prompts are on screen at once.</figcaption></figure>
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f9-docs.light.webp" alt="Documents-only canvas where the chat panel shows No repositories"><img class="shot-d" src="shots/f9-docs.dark.webp" alt=""></div><figcaption><b>Before.</b> A canvas with only documents: no Coordinator.</figcaption></figure>
+    <figure class="card"><div class="app">
+      <div class="hdr"><span class="ib"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M10 3v10"/></svg></span><b style="font-weight:500">Coordinator</b><span class="sp"></span><span class="xs muted">Workspaces ⌄</span></div>
+      <div class="pad" style="min-height:150px;display:grid;place-items:center;text-align:center"><div class="stack" style="justify-items:center"><b style="font-weight:500">Ask about this canvas</b><span class="xs muted" style="max-width:240px">The Coordinator sees every frame and document here. Add a repository and it can start Workspaces too.</span></div></div>
+      <div class="pad"><div class="inp muted" style="height:56px;align-items:flex-start;padding-top:8px">Ask the Coordinator…</div></div>
+    </div><figcaption><b>After.</b> The panel stays the Coordinator. The Get started button is the one Add repository on screen.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Always render <code>RoomChatPanel</code>. When there's no repository, its empty-state line says one can be added, with no button. Drop “Add a repository” from the canvas empty state while the Get started card is showing, so the card's filled button is the only call to action.</p></div>
+</section>
+
+<!-- F10 -->
+<section class="f" id="f10">
+  <div class="fhead"><div class="row"><span class="num">10</span><span class="sev med">Medium</span><span class="tag">error feedback</span></div>
+  <h2>Errors show HTTP codes and URLs instead of what to do</h2></div>
+  <div class="claim">
+    <p>Three chat-side errors pass the transport error straight through:</p>
+    <ul>
+      <li>“Failed to approve plan: HTTP 500”</li>
+      <li>“Couldn't stream logs (HTTP 502).”, in mono red</li>
+      <li>“The agent stopped responding: request to https://api.example.com/v1/sessions/4f9c…/prompt timed out after 120000ms”</li>
+    </ul>
+    <p>The last one has no Retry, and the plan error sits under Approve without saying that pressing it again is the retry. The failed-send row (“Not sent: The agent couldn't be reached · Retry · Edit”) already shows the pattern to follow.</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f10-plan.light.webp" alt="Failed to approve plan: HTTP 500"><img class="shot-d" src="shots/f10-plan.dark.webp" alt=""></div><figcaption><b>Before.</b> Plan approval.</figcaption></figure>
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f10-tool.light.webp" alt="Agent stopped responding with a raw URL and milliseconds"><img class="shot-d" src="shots/f10-tool.dark.webp" alt=""></div><figcaption><b>Before.</b> A run whose tools failed, then the agent stalled.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="pad stack">
+      <div class="errline"><svg class="ic destr" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.6v.4"/></svg><span style="flex:1">Couldn't approve the plan. Try again.</span><span class="btn" style="height:24px">Retry</span></div>
+      <div class="errline"><svg class="ic destr" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.6v.4"/></svg><span style="flex:1">The agent stopped responding after 2 minutes.</span><span class="btn" style="height:24px">Retry</span></div>
+      <div class="errline"><svg class="ic destr" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.6v.4"/></svg><span style="flex:1">Couldn't load the logs. The sandbox didn't answer.</span><span class="btn" style="height:24px">Retry</span></div>
+      <span class="xs muted">The raw error goes behind “Copy error”, as the setup failure card already does.</span>
+    </div></div><figcaption><b>After.</b> Say what failed and offer Retry in the row.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Map transport errors to one plain sentence plus a Retry in the same row, and keep the detail for Copy error. Use the UI font for the logs error; mono is for the log lines themselves.</p></div>
+</section>
+
+<!-- F11 -->
+<section class="f" id="f11">
+  <div class="fhead"><div class="row"><span class="num">11</span><span class="sev med">Medium</span><span class="tag">load failures</span></div>
+  <h2>A failed load looks like an empty state</h2></div>
+  <div class="claim">
+    <p>Three loads swallow their errors and then render the “nothing here” state:</p>
+    <ul>
+      <li><b>Models.</b> If the model list fails, the composer treats it as an empty catalogue. Send is disabled with the no-coding-agent message, Settings says “No coding agent installed yet”, and the New Workspace model menu stays on “Loading…”. The person is told to install something they already have.</li>
+      <li><b>Chat history.</b> If it fails, the chat shows the fresh-chat starters as if it had no messages.</li>
+      <li><b>Comments.</b> If they fail, the panel says “No comments yet. Press C to add one.”</li>
+    </ul>
+    <p class="ev"><code>agent-chat.tsx:264–277</code> (<code>.catch(() =&gt; {})</code>, then <code>modelsLoaded = true</code>); <code>lib/chat-store.ts:296–302</code>; <code>app/[roomId]/page.tsx:74</code> (<code>listThreads(...).catch(() =&gt; [])</code>).</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="step" style="min-height:120px;align-content:center"><span class="k">No capture</span>The fixture build caches the model list and history, so the harness couldn't trigger these failures. This finding rests on the three code paths above.</div><figcaption><b>Before.</b> Verified in code only.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="pad stack">
+      <div class="inp" style="height:auto;display:grid;gap:10px;padding:10px">
+        <span class="muted">Ask the agent… (@ document, / skill)</span>
+        <div class="hstack xs"><svg class="ic destr" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.6v.4"/></svg><span>Couldn't load models.</span><span class="btn ghost" style="height:24px;padding:0 6px">Retry</span></div>
+      </div>
+      <div class="errline" style="border:none;padding:0;justify-content:center;flex-direction:column;align-items:center;text-align:center;min-height:120px"><b style="font-weight:500">Couldn't load this chat</b><span class="xs muted">Its messages are safe; the request failed.</span><span class="btn">Retry</span></div>
+    </div></div><figcaption><b>After.</b> A failed load says so and offers Retry: in the composer, in the chat body (stock Empty), and in the comments panel.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Track a failed state next to each loaded flag (<code>modelsFailed</code>, <code>historyError</code>, <code>threadsFailed</code>) and render a Retry instead of the empty copy. Settings already does this with <code>LoadErrorRow</code>, so the components exist.</p></div>
+</section>
+
+<!-- F12 -->
+<section class="f" id="f12">
+  <div class="fhead"><div class="row"><span class="num">12</span><span class="sev med">Medium</span><span class="tag">tab strip</span></div>
+  <h2>Closing a terminal tab stops what's running; closing a chat tab doesn't</h2></div>
+  <div class="claim">
+    <p>Chat tabs and terminal tabs share the strip and the same ×. On a chat tab, × moves the chat to History, where you can reopen it. On a terminal tab, × deletes the tab and kills its tmux session, including a Claude Code or Codex run in progress, and it can't be reopened. Terminals are used as chats when running a harness, so this is the tab most likely to hold a long-running agent.</p>
+    <p class="ev"><code>use-tab-pool.ts:242–257</code> (delete, then <code>killTerminalSessionAction</code>). Both tabs render the same close button (<code>chat-panel.tsx:1161–1172</code>).</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f12-terminal.light.webp" alt="Terminal tab next to chat tabs"><img class="shot-d" src="shots/f12-terminal.dark.webp" alt=""></div><figcaption><b>Before.</b> Same strip, same ×, different consequence.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="canvas" style="display:grid;place-items:center;min-height:200px">
+      <div class="dialog"><h4>Close “claude”?</h4><p class="small muted">Claude Code is still running in this terminal. Closing it stops the run.</p><div class="foot"><span class="btn">Cancel</span><span class="btn destr">Close</span></div></div>
+    </div></div><figcaption><b>After.</b> Stock ConfirmDialog, only when something is running. An idle shell closes at once.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Confirm before closing a terminal whose session is running a process, using <code>ConfirmDialog</code> with the plain verb “Close”. A cheaper alternative with the same effect: when a harness is running, the × on a terminal tab reads “Stop and close” in its tooltip.</p></div>
+</section>
+
+<!-- F13 -->
+<section class="f" id="f13">
+  <div class="fhead"><div class="row"><span class="num">13</span><span class="sev med">Medium</span><span class="tag">feedback</span></div>
+  <h2>Mark as done makes frames vanish with no word and no undo</h2></div>
+  <div class="claim">
+    <p>Mark as done hides the Workspace's frames from the canvas for everyone and stops its dev server. Nothing confirms it happened or says where the frames went. Reopen exists, but only in the collapsed Done section of the Workspaces menu. Comment deletes and home moves both show a toast with Undo in this situation.</p>
+    <p class="ev"><code>branch-overflow-menu.tsx:405–412</code>, then <code>lib/branch/recovery.ts:286–300</code>. No toast is shown on this path.</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f13-done.light.webp" alt="Canvas after a Workspace is marked done: its frames are gone"><img class="shot-d" src="shots/f13-done.dark.webp" alt=""></div><figcaption><b>Before.</b> After Mark as done, the frames are simply gone.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="canvas" style="display:grid;place-items:center;min-height:140px">
+      <div class="toast"><span>Marked “Checkout polish” done. Its 2 frames are hidden.</span><span class="act">Undo</span></div>
+    </div></div><figcaption><b>After.</b> Undo calls the existing Reopen.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Show <code>toast.success</code> with an Undo action wired to <code>branchActions.reopen(id)</code>.</p></div>
+</section>
+
+<!-- F14 -->
+<section class="f" id="f14">
+  <div class="fhead"><div class="row"><span class="num">14</span><span class="sev low">Low</span><span class="tag">chat header · menu</span></div>
+  <h2>Create PR: two names, a hidden reason, no progress</h2></div>
+  <div class="claim">
+    <ul>
+      <li><b>Two names.</b> The header button says “Create PR” and the Workspace menu says “Create pull request”.</li>
+      <li><b>Hidden reason.</b> When the button is disabled, the reason (“Agent is working in this workspace…”) is only in a native <code>title</code>, which is slow to appear and unstyled. The + button next to it shows its reason in a real tooltip.</li>
+      <li><b>No progress.</b> While the PR is being created, the button disables but its label doesn't change and there's no spinner. From the menu there's no feedback at all, and a second click starts a second create.</li>
+    </ul>
+    <p class="ev"><code>chat-panel.tsx:1007–1027</code>; <code>branch-overflow-menu.tsx:372–378</code>, then <code>use-branch-actions.ts:178–196</code> (no pending guard).</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f14-header.light.webp" alt="Chat header with Create PR button"><img class="shot-d" src="shots/f14-header.dark.webp" alt=""></div><figcaption><b>Before.</b> The header's Create PR.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="pad stack" style="justify-items:end">
+      <span class="btn" disabled><span class="spin"></span>Creating PR…</span>
+      <div class="hstack"><span class="btn" disabled>Create PR</span></div>
+      <div class="tip">Wait for the agent to finish its turn</div>
+    </div></div><figcaption><b>After.</b> A regular spinner while it runs. The disabled reason goes in a Tooltip. Use “Create PR” in both places.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Keep one pending set in <code>useBranchActions</code> so the header and the menu share it. Show the spinner and “Creating PR…” while it runs, and disable the menu item. Put the disabled reason in the IconButton-style hint.</p></div>
+</section>
+
+<!-- F15 -->
+<section class="f" id="f15">
+  <div class="fhead"><div class="row"><span class="num">15</span><span class="sev low">Low</span><span class="tag">Coordinator · copy</span></div>
+  <h2>The Coordinator's PR card shows git branch names</h2></div>
+  <div class="claim">
+    <p>The confirm card for opening a pull request reads “From <code>empty-cart-state</code> into <code>main</code>, +46 −4”. That breaks the rule that git branches never appear in the UI. The Workspace name is already in the title, so the line only needs the repository and the size of the change.</p>
+    <p class="ev"><code>lib/agent/room-tools.ts:689</code>.</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f15-card.light.webp" alt="Open a pull request card showing branch refs"><img class="shot-d" src="shots/f15-card.dark.webp" alt=""></div><figcaption><b>Before.</b></figcaption></figure>
+    <figure class="card"><div class="app"><div class="pad"><div class="cardm"><b style="font-weight:500">Open a pull request for Empty cart state?</b><span class="muted small">On acme/storefront, <span class="green">+46</span> <span class="destr">−4</span>.</span><div class="hstack" style="margin-top:4px"><span class="btn primary">Open PR</span><span class="btn">Cancel</span></div></div></div></div><figcaption><b>After.</b> The repository and the change, with no refs.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Change the description to “On {repo}, {lines}.” The branch stays in the Workspace hover card, where it already is.</p></div>
+</section>
+
+<!-- F16 -->
+<section class="f" id="f16">
+  <div class="fhead"><div class="row"><span class="num">16</span><span class="sev low">Low</span><span class="tag">shortcuts</span></div>
+  <h2>⌘B in a document also collapses the sidebar</h2></div>
+  <div class="claim">
+    <p>The panel shortcuts disagree about text fields:</p>
+    <ul>
+      <li><b>⌘B</b> doesn't check for typing. In a document it makes the text bold and also collapses the sidebar. ⌘. doesn't check either.</li>
+      <li><b>⌘I</b> does check, so it can't close the chat from the composer. It italicises the draft instead, even though chat is sent as plain text.</li>
+      <li><b>Ctrl.</b> All three check only <code>metaKey</code>, so on Windows and Linux in the browser Ctrl doesn't work, while undo and zoom accept either key.</li>
+    </ul>
+    <p class="ev"><code>use-canvas-keyboard.ts:191</code>, <code>:199–205</code>, <code>:214–219</code>; <code>composer.tsx:565–577</code> keeps StarterKit's bold and italic.</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f16-bold.light.webp" alt="Document toolbar with Bold tooltip"><img class="shot-d" src="shots/f16-bold.dark.webp" alt=""></div><figcaption><b>Before.</b> Bold in a document: ⌘B also toggles the sidebar.</figcaption></figure>
+    <figure class="card"><div class="tw"><table class="t"><thead><tr><th>Key</th><th>In a document</th><th>In the composer</th><th>Elsewhere</th></tr></thead><tbody>
+      <tr><td>⌘B</td><td>Bold only</td><td>Nothing</td><td>Toggle sidebar</td></tr>
+      <tr><td>⌘I</td><td>Italic only</td><td>Toggle chat</td><td>Toggle chat</td></tr>
+      <tr><td>⌘.</td><td>Nothing</td><td>Nothing</td><td>Toggle both panels</td></tr>
+    </tbody></table><p class="small muted" style="margin-top:8px">⌘ means ⌘ on Mac and Ctrl elsewhere.</p></div><figcaption><b>After.</b></figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Skip ⌘B and ⌘. while editing text. Let ⌘I through when focus is in the chat panel, and turn off bold and italic in the composer's StarterKit. Accept <code>metaKey || ctrlKey</code> for all three, as undo already does.</p></div>
+</section>
+
+<!-- F17 -->
+<section class="f" id="f17">
+  <div class="fhead"><div class="row"><span class="num">17</span><span class="sev low">Low</span><span class="tag">frames · legibility</span></div>
+  <h2>Frame status screens shrink with zoom</h2></div>
+  <div class="claim">
+    <p>A frame's status screen is drawn inside the frame, so it scales with the canvas. This covers No Workspace, Booting sandbox, Starting dev server, and Workspace failed to start with its Retry and Open logs buttons. At 42% the title is about 5px and the description can't be read. The buttons you need when a Workspace fails are 10px targets. Frame labels already stay at screen size, and this is the one piece of text on the canvas you most need to read.</p>
+    <p class="ev"><code>frame-status/frame-status.tsx</code> is rendered in the iframe layer's scaled content (<code>iframe-layer.tsx:1187</code>).</p>
+  </div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f17-status.light.webp" alt="No Workspace status unreadable at 42% zoom"><img class="shot-d" src="shots/f17-status.dark.webp" alt=""></div><figcaption><b>Before.</b> “No Workspace” at 42%.</figcaption></figure>
+    <figure class="card"><div class="app"><div class="canvas" style="min-height:180px;display:grid;place-items:center"><div class="frame" style="width:100%;height:160px;display:grid;place-items:center"><div class="stack" style="justify-items:center;text-align:center"><b style="font-weight:500">No Workspace</b><span class="xs muted" style="max-width:240px">Choose a Workspace from the frame's title to preview it here.</span></div></div></div></div><figcaption><b>After.</b> The same Empty, counter-scaled so it stays 14/12px at any zoom and scales down only when the frame gets too small to hold it.</figcaption></figure>
+  </div>
+  <div class="rec"><b>Recommendation</b><p>Counter-scale the <code>FrameStatus</code> block by 1/zoom, capped to the frame's size, the way the labels stay at screen size. The layout and the Empty component stay as they are. This isn't the rejected in-body picker (#798); it only changes the scale.</p></div>
+</section>
+
+<!-- F18 -->
+<section class="f" id="f18">
+  <div class="fhead"><div class="row"><span class="num">18</span><span class="sev low">Low</span><span class="tag">copy consistency</span></div>
+  <h2>The same things are named differently</h2></div>
+  <div class="claim"><p>Small inconsistencies, visible side by side on one screen:</p></div>
+  <div class="pair">
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f18-frame.light.webp" alt="Choose a workspace next to No Workspace"><img class="shot-d" src="shots/f18-frame.dark.webp" alt=""></div><figcaption><b>Before.</b> “Choose a workspace” on the label, “Choose a Workspace” in the frame.</figcaption></figure>
+    <figure class="card"><div class="shot"><img class="shot-l" src="shots/f18-dialog.light.webp" alt="Create workspaces dialog"><img class="shot-d" src="shots/f18-dialog.dark.webp" alt=""></div><figcaption><b>Before.</b> “Create workspaces” in the dialog, “New Workspace” in the menu.</figcaption></figure>
+  </div>
+  <div class="tw"><table class="t">
+    <thead><tr><th>Where</th><th>Now</th><th>Suggest</th></tr></thead>
+    <tbody>
+      <tr><td>Frame and group label, frame status</td><td>Choose a workspace / Choose a Workspace</td><td>Choose a Workspace</td></tr>
+      <tr><td>New Workspace dialog</td><td>Create workspaces · Create workspace</td><td>Create Workspaces · Create Workspace</td></tr>
+      <tr><td>Canvas empty state</td><td>Add a frame · Add a Document</td><td>Add a frame · Add a document (or capitalise both)</td></tr>
+      <tr><td>Composer placeholders</td><td>Ask the agent… (@ document, / skill) · Ask the Coordinator… (@ to mention a document)</td><td>Ask the agent… (@ document, / skill) · Ask the Coordinator… (@ document)</td></tr>
+      <tr><td>PR action</td><td>Create PR · Create pull request</td><td>Create PR</td></tr>
+      <tr><td>Workspace removal</td><td>Remove Workspace (agent tool row, confirm card) · Delete (menu, dialog)</td><td>Delete</td></tr>
+      <tr><td>Home header</td><td>Add folder button opens “New folder”</td><td>New folder</td></tr>
+      <tr><td>Settings</td><td>Default agent (desktop) · Default model (hosted) · Change model (tooltip)</td><td>Default model</td></tr>
+      <tr><td>Menu items that open a dialog</td><td>Move to… and Rename branch… have “…”; Rename, Share, Settings and Open existing git branch don't</td><td>Add “…” to every item that asks for more input</td></tr>
+      <tr><td>Icon-button names</td><td>Canvas actions (home) · Canvas options (canvas) · Folder actions · More (frame toolbar)</td><td>“{Noun} options” everywhere</td></tr>
+    </tbody>
+  </table></div>
+  <div class="rec"><b>Recommendation</b><p>Do one copy pass. The product nouns (Workspace, Canvas, Coordinator) are capitalised in running text, so apply that everywhere. A casing rule could go into the existing <code>lib/ui-copy</code> lint so it holds.</p></div>
+</section>
+
+<!-- more -->
+<section class="f" id="more">
+  <div class="fhead"><div class="row"><span class="num">+14</span><span class="sev low">Notes</span></div>
+  <h2>Smaller issues found in code</h2></div>
+  <p class="claim">Each of these was checked in the code but not captured, because the fixture build can't show it or it's too small to need a mockup. Each has a one-line fix.</p>
+  <div class="tw"><table class="t">
+    <thead><tr><th>Issue</th><th>Where</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td>Collaborators see the filled Share button and can double-click the canvas title, but both fail for non-owners. The rename fails silently and snaps back.</td><td><code>canvas.tsx:2127</code>, <code>canvas-top-bar.tsx:148</code>, <code>canvas.tsx:328</code></td><td>Gate both on <code>isOwner</code>, as the menus already do, and toast a failed rename.</td></tr>
+      <tr><td>No object has a right-click menu. Canvas tiles, frames, rows and tabs do nothing on right-click.</td><td>No <code>onContextMenu</code> in the app</td><td>A question for you: add stock shadcn <code>context-menu</code> and render the existing menus in it (Figma and Finder conventions).</td></tr>
+      <tr><td>Focus falls to the page body after closing a tab, deleting a row from its menu, or closing the frame's Workspace picker.</td><td><code>chat-panel.tsx:1175</code>, <code>iframe-layer-row.tsx:199</code>, <code>frame-nav.tsx:355</code></td><td>Focus the neighbouring tab or row; drop the <code>preventDefault</code> on close.</td></tr>
+      <tr><td>A comment thread card can't be reached with Tab; focus stays on the pin.</td><td><code>comments.tsx:675</code></td><td>Focus the card container (<code>tabIndex -1</code>), as ConfirmDialog does.</td></tr>
+      <tr><td>Esc doesn't close the canvas Comments panel unless focus is inside it. The player's panels close from anywhere.</td><td><code>comments-panel.tsx:303</code></td><td>Use the <code>player-hud.tsx:229</code> pattern.</td></tr>
+      <tr><td>Escape while renaming in the Workspaces menu closes the whole menu.</td><td><code>workspaces-menu.tsx:641</code></td><td>Add <code>onEscapeKeyDown</code> as in <code>move-to-dialog.tsx:113</code>.</td></tr>
+      <tr><td>The player's Collapse chat tooltip says ⌘I, but the player doesn't handle it.</td><td><code>player-chat-host.tsx:190</code></td><td>Handle ⌘I or drop the hint there.</td></tr>
+      <tr><td>Inline titles are Tab stops that no key activates. Chat tabs can't be renamed from the keyboard.</td><td><code>editable-text.tsx:338</code></td><td>Enter or F2 starts editing; <code>tabIndex -1</code> when nested in a focusable row.</td></tr>
+      <tr><td>Rename and New folder dialogs can be closed mid-request, and Save stays enabled when the name is empty or unchanged.</td><td><code>input-dialog.tsx:91–131</code></td><td>Follow ConfirmDialog: spinner, disabled Cancel, no close while submitting.</td></tr>
+      <tr><td>Setup's disabled Finish explains itself only to screen readers.</td><td><code>local-setup-gate.tsx:172–186</code></td><td>Show the reason as the muted line under the button.</td></tr>
+      <tr><td>Install and Sign in on coding agents fail silently.</td><td><code>agent-step.tsx:93</code>, <code>harness-setup-panel.tsx:110</code></td><td>Catch and show an inline error line.</td></tr>
+      <tr><td>The home grid and the Share people list show a spinner and “Loading…” while comparable panels use skeletons.</td><td><code>rooms-view.tsx:190</code>, <code>share-room-dialog.tsx:147</code></td><td>Use skeleton tiles and rows.</td></tr>
+      <tr><td>Empty-search wording varies: “No matches.”, “No matches”, “No workspaces found.”, “No routes yet.”</td><td>Command lists</td><td>“No matches” plus a reason where there is one (“Routes appear once you browse the page”).</td></tr>
+      <tr><td>The <kbd>?</kbd> sheet leaves out ⌘E (target an element) and ⌘↵ (post a comment).</td><td><code>lib/canvas/shortcuts.ts</code></td><td>Add both rows.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="notes small">
+    <p><b>Checked and consistent:</b> the regular spinner and the 9-dot spinner are used correctly throughout; comment resolve and delete undo; canvas, folder, Workspace, repository and preset deletes (ConfirmDialog with pending and error states); the canvas route's error and not-found pages; frame status Retry, Start and Open logs; the home load error; the Settings load rows; chat's failed-send Retry and Edit.</p>
+    <p><b>Checked and dropped:</b> the code suggested that rename dialogs in folder views also lose Space and Enter to the tile's drag handle. It didn't reproduce: the dialog takes spaces and Enter saves.</p>
+  </div>
+</section>
+</div>
+
+</body></html>

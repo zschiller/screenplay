@@ -1,0 +1,378 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Screenplay architecture review, 5 Oct</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@500;600&display=swap">
+<style>
+/* Layout: one reading column; Strong candidates as cards with side-by-side before/after diagrams, the rest in a table. Same system as the 3 Oct report. */
+:root {
+  --bg: #f6f6f8; --surface: #ffffff; --fg: #16161d; --muted: #5d5d6e; --line: #dddde5;
+  --accent: #5b3df5; --strong: #0d8a5f; --explore: #b16a00; --spec: #6b6b80;
+  --leak: #d42a3c; --leak-bg: #fdecee; --warn-bg: #fdf4e3; --code-bg: #efeff4;
+  --display: "Unbounded", "Instrument Sans", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0f14; --surface: #18181f; --fg: #ececf2; --muted: #a0a0b4; --line: #2c2c38;
+    --accent: #a593ff; --strong: #3fd09a; --explore: #f1b04c; --spec: #9a9ab0;
+    --leak: #ff6b7a; --leak-bg: #2e161b; --warn-bg: #2b2213; --code-bg: #22222b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f14; --surface: #18181f; --fg: #ececf2; --muted: #a0a0b4; --line: #2c2c38;
+  --accent: #a593ff; --strong: #3fd09a; --explore: #f1b04c; --spec: #9a9ab0;
+  --leak: #ff6b7a; --leak-bg: #2e161b; --warn-bg: #2b2213; --code-bg: #22222b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); }
+main { max-width: 980px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; display: grid; gap: 40px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h1 { font: 600 27px/1.2 var(--display); letter-spacing: -0.01em; }
+h2 { font: 600 17px/1.3 var(--display); }
+h3 { font: 600 20px/1.3 var(--body); }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--mono); font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+header { display: grid; gap: 12px; }
+.meta { color: var(--muted); font-size: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12px; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+.eyebrow { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+section { display: grid; gap: 18px; }
+.top { background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; padding: 22px; display: grid; gap: 10px; }
+.top h2 { color: var(--accent); }
+article { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 22px; display: grid; gap: 14px; scroll-margin-top: 16px; min-width: 0; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 8px; border-radius: 999px; border: 1px solid var(--c, var(--line)); color: var(--c, var(--muted)); white-space: nowrap; }
+.s-strong { --c: var(--strong); } .s-explore { --c: var(--explore); } .s-spec { --c: var(--spec); }
+.files { font: 12.5px/1.6 var(--mono); color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 14px; min-width: 0; }
+.files span { overflow-wrap: anywhere; }
+.diagrams { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.diagram { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; overflow-x: auto; display: grid; gap: 6px; align-content: start; }
+.diagram pre.mermaid { margin: 0; background: transparent; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+dt { font: 500 11px/1.9 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+dd { margin: 0; min-width: 0; }
+ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.bug { background: var(--leak-bg); border-left: 3px solid var(--leak); border-radius: 0 6px 6px 0; padding: 10px 14px; display: grid; gap: 4px; }
+.bug strong { color: var(--leak); font-weight: 600; }
+.warn { background: var(--warn-bg); border-left: 3px solid var(--explore); border-radius: 0 6px 6px 0; padding: 10px 14px; display: grid; gap: 4px; }
+.warn strong { color: var(--explore); font-weight: 600; }
+.evidence summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.evidence ul { margin-top: 8px; font-size: 14px; }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 620px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+.toc { display: grid; gap: 4px; font-size: 14px; }
+@media (max-width: 680px) {
+  .diagrams { grid-template-columns: 1fr; }
+  dl { grid-template-columns: 1fr; gap: 2px; }
+  dd { margin-bottom: 8px; }
+}
+</style>
+
+<main>
+<header>
+  <div class="eyebrow">zschiller/screenplay · apps/app · 5 Oct 2026</div>
+  <h1>Architecture review, round 4</h1>
+  <p class="meta">Scoped to the 25 product commits since the 3 Oct review: Mockup pages that talk to their chat, built in skills and skill templates, Document images and mentions, <code>screenshot_page</code>, OpenCode, real Mac input and one menu per object. The 3 Oct deepenings held: the live page module took real input and page drafts once for both kinds, <code>screenshot_page</code> went through the Chat Target modules and Tool Description, and the outgoing turn builder carried the drafted-on footer. One regression: App Skills are chosen per chat kind outside the Chat Targets again.</p>
+  <div class="legend">
+    <span style="--c: var(--strong)">Strong</span>
+    <span style="--c: var(--explore)">Worth exploring</span>
+    <span style="--c: var(--spec)">Speculative</span>
+    <span style="--c: var(--leak)">Bug</span>
+  </div>
+</header>
+
+<section class="top" id="top">
+  <div class="eyebrow">Top recommendation</div>
+  <h2>One Document Markdown codec</h2>
+  <p>It has the bug a person hits in ordinary use: when an agent appends to a Document, every mention pill in it turns into plain text. Documents gained images and chat and Mockup mentions this week, and each new node type is a four-place edit across two codecs that already disagree. It also unblocks the mention kind registry. <a href="#codec">Go to the card</a>.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Candidates</div>
+  <div class="toc">
+    <a href="#codec">One Document Markdown codec</a>
+    <a href="#mockupchat">A Mockup chat link module</a>
+    <a href="#modelmenu">A Harness model menu module</a>
+    <a href="#skillsources">One Skill Sources module per chat</a>
+    <a href="#more">Worth exploring and speculative (7 more)</a>
+    <a href="#small">Small findings</a>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Strong</div>
+
+  <article id="codec">
+    <h3>One Document Markdown codec</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">in-process</span></div>
+    <div class="files"><span>lib/yjs/fragment-text.ts</span><span>lib/document-image.ts</span><span>components/canvas/markdown-layer.tsx</span><span>lib/agent/document-tools.ts</span><span>lib/agent/layer-read-tools.ts</span><span>lib/document-comments.ts</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart LR
+  Ed[Editor schema: mention, image, marks] --> Y[(Document Y.Doc)]
+  Y --> W[collectNode walker: what agents read]
+  M[Server schema: StarterKit + image, no mention] --> Y
+  Y --> CQ[Comment quotes and line numbers]
+  W -.mention becomes @label.-> M
+  W -.marks become XML tags.-> M
+  linkStyle 4,5 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart LR
+  Ed[Editor] --> X[[Document extensions, one list]]
+  X --> C[[Document Markdown: readBody, writeBody]]
+  C --> T[Agent tools]
+  C --> Q[Comment lines]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>A Document becomes text three independent ways (a hand-written Yjs walker for reads, a server schema without mentions for writes, and comment line counting), and none matches the editor's schema.</dd>
+      <dt>Solution</dt><dd>One module over the editor's own extension list, built on Tiptap's <code>MarkdownManager</code> in both directions, with mentions written as <code>[@label](mention:chat/&lt;id&gt;)</code> as the composer already does.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality: a node type is one edit</li><li>Interface is the test surface: one round trip per node</li><li>Deletes the walker and the unused <code>renderMarkdown</code></li><li>Leverage for comment line numbers</li></ul></dd>
+    </dl>
+    <div class="bug"><strong>Bug, confirmed by reading</strong><span><code>append_to_document_body</code> reads the body with <code>fragmentBodyToPlainText</code> (mentions come out as <code>@label</code>) and rewrites the whole body through a schema with no mention node (<code>document-tools.ts:146–155</code>, <code>fragment-text.ts:176–181</code>). Mention a chat, Document or Mockup in a Document, then ask its chat to add to it: every pill becomes plain text that no longer follows renames.</span></div>
+    <div class="bug"><strong>Bug, confirmed by reading</strong><span><code>read_document</code> gives an agent each mention's label from when it was inserted, with no kind or id (<code>fragment-text.ts:265–272</code>), while the pill on screen shows the current name. After a rename the agent sees a name that no longer resolves, and it can't tell a chat from a Document.</span></div>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li>2600b62 (images) touched four places for one node: <code>DocumentImage.renderMarkdown</code>, the image branch in <code>collectNode</code>, <code>liftImagesFromParagraphs</code>, <code>markdownExtensions</code>.</li>
+      <li>Deletion test: <code>DocumentImage.renderMarkdown</code> (<code>document-image.ts:14–20</code>) is never called, because nothing calls <code>MarkdownManager.serialize</code>.</li>
+      <li>Likely, not run: <code>collectNode</code> uses <code>Y.XmlText.toString()</code>, which writes formatting as <code>&lt;bold&gt;…&lt;/bold&gt;</code>, so agents read marks as XML tags. The tool description already admits the append "flattens inline marks".</li>
+      <li><code>getLineNumbers</code> (<code>document-comments.ts:52–99</code>) says it matches "what an LLM sees" but counts one line per block, while the walker adds blank lines and image lines.</li>
+      <li><code>fragment-text.test.ts</code> has no case for marks or mentions.</li>
+    </ul></details>
+  </article>
+
+  <article id="mockupchat">
+    <h3>A Mockup chat link module</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">in-process</span></div>
+    <div class="files"><span>components/canvas/canvas.tsx:1460–1553</span><span>canvas-member-layer.tsx</span><span>mockup-layer.tsx</span><span>hooks/use-mockup-question.ts</span><span>hooks/use-postmessage.ts</span><span>lib/postmessage-protocol.ts</span><span>lib/sandbox-bridge/*</span><span>lib/chat-draft-source-store.ts</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart TB
+  P[Mockup page] -->|draft via live page events| D[handleMockupDraft]
+  P -->|question via page.port| Q[usePageQuestion]
+  D --> O1[openMockupChat: layerOwner]
+  Q --> O2[handleAnswerFromMockup: own switch]
+  Q --> O3[raw ownerChatId]
+  O2 -.no owner = Coordinator.-> R[Coordinator]
+  linkStyle 5 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart TB
+  P[Mockup page] --> L[[Mockup chat link: which chat, can this viewer speak, draft, question, answer]]
+  L --> Own[layerOwner]
+  L --> Stores[Chat and input stores]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>Each page-to-chat verb (Knobs ask, draft, answer) adds a handler in the canvas root and a prop through two layers, and "which chat speaks for this Mockup" is now answered four ways.</dd>
+      <dt>Solution</dt><dd>One module takes a Mockup and the chats and answers which chat it is and whether this viewer's tap counts, with <code>askForKnob</code>, <code>draft</code>, <code>question</code> and <code>answer</code>; the Mockup layer gets it from context instead of four props.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality for the owner rule and the viewer gate</li><li>Leverage: the next verb is one entry</li><li>Routing tested with fake stores; untested today</li><li>Canvas root sheds ~90 lines</li></ul></dd>
+    </dl>
+    <div class="bug"><strong>Bug, confirmed by reading</strong><span><code>ask_question</code> is in every chat and its description says a <code>mockup_id</code> lets the page show and answer the question (<code>question-tools.ts:24</code>). The page only reads questions from the Mockup's own chat transcript (<code>use-mockup-question.ts:27–41</code>, <code>mockup-layer.tsx:363</code>). When the Coordinator or another Sketch chat asks about a Mockup, the card links to it but the page never sees the question.</span></div>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li>0075d33 (draft) and 60f5bf2 (answer) both edit <code>postmessage-protocol.ts</code>, <code>sandbox-bridge/index.ts</code>, <code>mockup-layer.tsx</code>, <code>canvas-member-layer.tsx</code>, <code>canvas.tsx</code> and the <code>mockup-tools.ts</code> description.</li>
+      <li>Two routing implementations: <code>openMockupChat</code> (<code>canvas.tsx:1474–1500</code>, via <code>layerOwner</code>) and <code>handleAnswerFromMockup</code> (<code>:1531–1553</code>), which opens <code>owner.chatId</code> but sends to raw <code>ownerChatId</code>, and sends a Mockup with no owner to the Coordinator, commented "The Coordinator made it". The Coordinator can't make Mockups (<code>room-chat-target.ts</code> has no Mockup tools).</li>
+      <li>Two viewer gates with opposite rules for a live page: <code>draftFromViewer</code> (<code>mockup-layer.tsx:312</code>) and <code>canAnswer</code> (<code>:364</code>). Only the draft gate is tested.</li>
+      <li>Messages arrive two ways: drafts through the live page's app events, questions through a second <code>page.port</code> subscription.</li>
+      <li><code>chat-draft-source-store.ts</code> copies the skeleton of <code>chat-quote-store.ts</code>.</li>
+    </ul></details>
+  </article>
+
+  <article id="modelmenu">
+    <h3>A Harness model menu module</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">in-process</span></div>
+    <div class="files"><span>lib/harness-model-choices.ts</span><span>lib/use-model-catalog.tsx</span><span>lib/model-selection.ts</span><span>lib/agent/harnesses/availability.ts</span><span>lib/agent/harnesses/model-catalog.ts</span><span>lib/agent/harnesses/model-id.ts</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart LR
+  S[Server: harness:opencode-gateway] --> C[Client swaps in Settings choices]
+  Codec1[model-id.ts, server only] -.copied.-> Codec2[client codec]
+  C --> R[resolveDefaultModel]
+  R -.missing id falls to first Harness.-> CC[Claude Code]
+  linkStyle 3 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart LR
+  F[Curated floor] --> MM[[Harness model menu: menu + resolved id, fallback stays in Harness]]
+  Ch[Device choices] --> MM
+  Id[Stored id] --> MM
+  MM --> Codec[One client-safe codec]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>ADR 0011's model axis spans nine modules on both sides of the wire; the server lists one bare entry per Harness, the client replaces it, and nothing maps an id that left the menu back to its own Harness.</dd>
+      <dt>Solution</dt><dd>One pure module takes the curated floor, the device's choices and a stored id, and returns the menu and the resolved id, falling back within the same Harness; the id codec moves to a client-safe leaf.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality for the model axis</li><li>One codec instead of two</li><li>Fallback rule tested through one interface</li><li>Empty discovery seam deleted or made real</li></ul></dd>
+    </dl>
+    <div class="bug"><strong>Bug, confirmed by reading, not reproduced</strong><span>With Claude Code and OpenCode installed, an existing OpenCode chat stores the bare <code>harness:opencode-gateway</code>. Choose any model in Settings › Agent › OpenCode › Choose models and that id leaves the menu (<code>harness-model-choices.ts:93–112</code>); <code>resolveDefaultModel</code> falls to the server default, the first installed Harness (<code>model-selection.ts:59–71</code>). The next send runs on Claude Code and replays the history. Unchecking a model a chat uses does the same.</span></div>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li>8e16500 (OpenCode, 39 files): the model menu change spans <code>availability.ts:122–165</code>, <code>harness-model-choices.ts</code>, <code>use-model-catalog.tsx:78–82</code>, <code>setup.ts:242</code>, <code>setup-actions.ts:78</code>.</li>
+      <li><code>model-catalog.ts</code>'s discovery seam has one production adapter, <code>emptyDiscovery</code>: a hypothetical seam.</li>
+      <li><code>harness-model-choices.test.ts</code> has no case for a chat on the bare id.</li>
+    </ul></details>
+  </article>
+
+  <article id="skillsources">
+    <h3>One Skill Sources module per chat</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">local-substitutable</span></div>
+    <div class="files"><span>lib/skills/merged.ts</span><span>lib/skills/on-disk.ts</span><span>lib/skills/repo-skills.ts</span><span>lib/mockup-refs-server.ts</span><span>lib/agent/turn-launch-live.ts</span><span>lib/agent/*-chat-target.ts</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart TB
+  K[Which skills does this chat see?] --> A[read_skill: mergeSkillIndexes]
+  K --> B[harness folder: skillsOnDisk loop]
+  K --> C[skill: refs: resolveOne rank loop]
+  K --> D[turn-launch-live re-derives chat kind]
+  K --> E[Chat Targets pick App Skills]
+  D -.duplicates.-> E
+  linkStyle 5 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart TB
+  CT[Chat Target] --> SS[[Skill Sources: index, body, file, onDisk]]
+  SS --> Repo[Repo]
+  SS --> Canvas[Canvas]
+  SS --> Acct[Account]
+  SS --> App[App]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>The sources a chat sees are assembled in five places and Repo &gt; Canvas &gt; Account &gt; App precedence is written four times, so <code>read_skill</code>, the harness folder and <code>skill:</code> Mockup references can drift.</dd>
+      <dt>Solution</dt><dd>Each Chat Target builds one Skill Sources value with <code>index</code>, <code>body</code>, <code>file</code> and <code>onDisk</code>, applying the rank inside.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality: precedence and folder layout in one place</li><li>Chat Target owns its App Skills again</li><li>Tests reuse in-memory skill fakes</li></ul></dd>
+    </dl>
+    <div class="warn"><strong>Regression of the 3 Oct toolset deepening</strong><span>3204c42 picks App Skills by chat kind in <code>turn-launch-live.ts:119–125</code>, outside the Chat Targets that already make the same choice (<code>room-chat-target.ts:230</code>, <code>sketch-chat-target.ts:129</code>, <code>workspace-chat-target.ts:217</code>).</span></div>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li>Precedence: <code>merged.ts:41–77</code>, <code>on-disk.ts:67–91</code>, <code>mockup-refs-server.ts:73–86</code>.</li>
+      <li>4043653 hardcodes <code>.claude/skills/${name}</code> in <code>mockup-refs-server.ts</code>, duplicating the private <code>SKILLS_DIR</code> in <code>repo-skills.ts:19</code>; <code>opencode.ts:334</code> repeats <code>.agents/skills</code>.</li>
+      <li>A Sketch chat's Mockup page resolves App Skills its own <code>read_skill</code> can't see. Harmless today.</li>
+      <li>Cost note: each harness turn rewrites about 2 MB of App Skill runtimes and fonts, twice (<code>.claude</code> and <code>.agents</code>).</li>
+    </ul></details>
+  </article>
+</section>
+
+<section id="more">
+  <div class="eyebrow">Worth exploring and speculative</div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Candidate</th><th>Strength</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>A plan protocol per ACP adapter</td><td><span class="badge s-explore">Worth exploring</span></td><td>Claude Code, Codex and OpenCode plan three different ways, interleaved as flags through <code>AcpSession</code> and <code>ExternalEngine.runTurn</code>. OpenCode's two new adapter facts were copied by hand through <code>types.ts</code>, <code>AcpLaunch</code>, <code>spawn-session-factory.ts</code> and the mirrored <code>AdapterFacts</code>. <code>tool-name.ts:83–89</code> branches on Harness key literals.</td></tr>
+      <tr><td>Create pull request readiness as one module</td><td><span class="badge s-explore">Worth exploring</span></td><td>"Running" is shared since 852ba5d, but whether it can run is decided twice: the chat header uses tab-local stream state and gives a reason, the Workspace menu uses Workspace State and gives none. <code>canCreatePr</code> is duplicated in <code>chats-menu.tsx:240</code>.</td></tr>
+      <tr><td>The Layer menu owns its trigger and focus</td><td><span class="badge s-explore">Worth exploring</span></td><td>Six sites hand-wire the trigger, fallback and focus-after-delete around <code>LayerMenuContent</code>. Documents never register a menu, Groups build theirs twice, and toolbar triggers are named "More" while the rest say "Frame options".</td></tr>
+      <tr><td>A Group Member's place and group label as one value</td><td><span class="badge s-explore">Worth exploring</span></td><td>Seven group-label props and about ten placement props pass through three layer kinds that only forward them to <code>LayerShell</code>. e51e81e edited six files the same way to add the Group menu.</td></tr>
+      <tr><td>A mention kind registry</td><td><span class="badge s-explore">Worth exploring</span></td><td>A mention kind's heading, icon, mask, candidates and live name live in about six modules; <code>mentionKindOf</code> compares hard-coded strings, so a fourth kind would read as a Document. Pairs with the codec.</td></tr>
+      <tr><td>A Page Ask answerer for Mac real input</td><td><span class="badge s-explore">Worth exploring</span></td><td>The canvas half of <code>PageAsk</code> (take and release, the 15 s release) lives only in React hooks; the browser test re-implements it without the release logic, so the shipped code is untested.</td></tr>
+      <tr><td>Fold the GitHub token resolver into gh</td><td><span class="badge s-spec">Speculative</span></td><td>Since 1c821d4, <code>makeGitHubTokenResolver</code> is <code>() =&gt; gh.getToken()</code> behind three factories. Passes the deletion test; small payoff.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="small">
+  <div class="eyebrow">Small findings</div>
+  <ul>
+    <li><strong>Near the size cap:</strong> the built in <code>screenplay-design-audit</code> skill is 955,038 bytes against the 1 MiB <code>SKILL_MAX_BYTES</code> (<code>saved.ts:40</code>). Its runtime grew 35 KB on 4 Oct; about 93 KB more and saving a changed copy fails. No test checks App Skills fit.</li>
+    <li><code>documentImage()</code> in <code>page-screenshot-tools.ts:257–263</code> copies <code>documentImageMarkdown()</code> instead of importing it.</li>
+    <li>Shift plus a single letter types "A" on a Mac frame and "a" in a hosted frame (<code>mac/real-input.ts</code> vs <code>frame-stream.mjs:1852–1857</code>); the Frame Drive contract has no case for it.</li>
+    <li>A Mockup's menu always shows Delete, even when <code>onRemove</code> is unset (<code>mockup-layer.tsx:386</code>).</li>
+  </ul>
+</section>
+
+<section>
+  <div class="eyebrow">Checked and left alone</div>
+  <p class="meta">The live page module, outgoing turn builder, Frame Drive channel, Draw-and-ask, link policy, Canvas Repo env and run settings held. <code>screenshot_page</code>'s port, <code>runRealInput</code> with its three <code>NativeInput</code> adapters, <code>takeFrameInput</code>, the Frame Drive contract suite, Mockup references, Document image insertion, block types, the <code>/</code> menu, <code>creatingPrStore</code> and the skill template build are deep or already tested through their interface.</p>
+</section>
+</main>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>5D · Buttons under the reply</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;font-family:"Geist",ui-sans-serif,system-ui,-apple-system,sans-serif}
+.bd{width:880px;height:680px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#e7e7ea}
+.m{--b:#fff;--fg:#0a0a0a;--mu:#737373;--bd:#e5e5e5;--u:#f4f4f5;--d:rgba(244,244,245,.5);--p1b:#dbeafe;--p1f:#1d4ed8;--p2b:#fce7f3;--p2f:#be185d;width:400px;height:600px;box-sizing:border-box;border:1px solid var(--bd);border-radius:10px;background:var(--b);color:var(--fg);font-size:12.5px;line-height:1.5;display:flex;flex-direction:column;overflow:hidden}
+.dk{--b:#0a0a0a;--fg:#fafafa;--mu:#a1a1a1;--bd:#262626;--u:#262626;--d:rgba(38,38,38,.35);--p1b:#172554;--p1f:#93c5fd;--p2b:#500724;--p2f:#f9a8d4}
+.hd{height:48px;flex:none;display:flex;align-items:center;gap:6px;padding:0 12px;white-space:nowrap;border-bottom:1px solid var(--bd)}
+.ic{width:14px;height:14px;color:var(--mu);flex:none}
+.i12{width:12px;height:12px;flex:none}
+.i14{width:14px;height:14px;flex:none}
+.mu{color:var(--mu)}
+.t{font-weight:500;font-size:13px}
+.stat{font-family:"Geist Mono",ui-monospace,monospace;font-size:10px;color:var(--mu)}
+.mono{font-family:"Geist Mono",ui-monospace,monospace;font-size:11px}
+.body{flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.u{align-self:flex-end;max-width:85%;background:var(--u);border-radius:12px;padding:6px 12px}
+.dis{border:1px solid var(--bd);border-radius:6px;background:var(--d)}
+.dh{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;color:var(--mu)}
+.db{border-top:1px solid var(--bd);padding:10px 12px}
+.pill{font-size:11px;padding:1px 6px;border-radius:4px;font-weight:500;white-space:nowrap}
+.p1{background:var(--p1b);color:var(--p1f)}
+.p2{background:var(--p2b);color:var(--p2f)}
+.row{display:flex;align-items:center;gap:6px}
+.btns{display:flex;align-items:center;gap:8px}
+.b{height:28px;box-sizing:border-box;padding:0 10px;border-radius:6px;font:500 12px/1 "Geist",ui-sans-serif,system-ui,sans-serif;display:inline-flex;align-items:center;border:1px solid transparent;cursor:pointer}
+.sm{height:24px;padding:0 8px;font-size:11.5px}
+.bp{background:var(--fg);color:var(--b)}
+.bo{background:var(--b);border-color:var(--bd);color:var(--fg)}
+.bg{background:transparent;color:var(--fg)}
+.al{border:1px solid var(--bd);border-radius:8px;padding:10px 12px;display:grid;grid-template-columns:14px 1fr;column-gap:10px;row-gap:2px;align-items:start}
+.al .i14{margin-top:2px}
+.alt{font-weight:500}
+.ald{color:var(--mu);grid-column:2}
+.comp{margin:0 12px 12px;border:1px solid var(--bd);border-radius:10px;padding:10px 12px 34px;color:var(--mu);flex:none}
+</style>
+</helmet>
+<div class="bd">
+<sc-for list="{{themes}}" as="th" hint-placeholder-count="2">
+<div class="{{th.cls}}">
+<div class="hd">
+<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M15 3v18"></path></svg>
+<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>
+<span class="t">Coordinator</span>
+</div>
+<div class="body">
+<div class="u">Open a PR for the sign-in fix. And remove the dark mode Workspace, I'm not going with it.</div>
+<div>Fix sign-in redirect is ready to go up.</div>
+<div style="display:flex;flex-direction:column;gap:6px;margin-top:-4px"><div class="row mu" style="font-size:12px"><svg class="i12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><path d="M6 9v12"></path></svg><span>Open a PR from <span class="mono">claude/fix-sign-in</span> into <span class="mono">main</span></span></div><div class="btns"><button class="b bp sm" type="button">Approve</button><button class="b bo sm" type="button">Deny</button></div></div>
+<div>Removing Dark mode toggle deletes its sandbox and its branch.</div>
+<div style="display:flex;flex-direction:column;gap:6px;margin-top:-4px"><div class="row mu" style="font-size:12px"><svg class="i12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg><span>Remove Dark mode toggle</span></div><div class="btns"><button class="b bp sm" type="button">Approve</button><button class="b bo sm" type="button">Deny</button></div></div>
+</div>
+<div class="comp">Ask the Coordinator…</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":680}}'>
+class Component extends DCLogic {
+renderVals() {
+return { themes: [{ cls: 'm' }, { cls: 'm dk' }] };
+}
+}
+</script>
+</body>
+</html>

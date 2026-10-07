@@ -1,0 +1,249 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Screenplay UI Copy Sweep</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; a sticky pick bar; findings as before/after rows grouped by problem. */
+:root{
+  --bg:#f7f7f5; --panel:#ffffff; --fg:#17181a; --muted:#686b72; --line:#e3e3df;
+  --accent:#6a3cff; --before:#b3261e; --after:#126b3a; --chip:#efeff9;
+  --display:"Unbounded",ui-sans-serif,system-ui,sans-serif;
+  --body:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111214; --panel:#191a1d; --fg:#ececee; --muted:#9a9ca3; --line:#2b2c31;
+  --accent:#a68bff; --before:#ff8a80; --after:#6fdc9a; --chip:#23233a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111214; --panel:#191a1d; --fg:#ececee; --muted:#9a9ca3; --line:#2b2c31;
+  --accent:#a68bff; --before:#ff8a80; --after:#6fdc9a; --chip:#23233a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--body);margin:0}
+.wrap{max-width:860px;margin:0 auto;padding-inline:20px;padding-block:40px 120px}
+h1,h2,h3{font-family:var(--display);font-weight:600;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:27px;margin:0 0 8px}
+h2{font-size:20px;margin:48px 0 6px}
+h3{font-size:15px;font-family:var(--body);font-weight:650;margin:0}
+p{margin:0 0 12px;max-width:68ch}
+.lede{color:var(--muted);font-size:16px}
+code,.s{font-family:var(--mono);font-size:13px}
+a{color:var(--accent)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 16px;color:var(--muted);font-size:13px;margin:16px 0 0}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 0}
+.toc a{font-size:13px;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 10px;color:var(--fg);background:var(--panel)}
+.note{border-left:2px solid var(--accent);padding:2px 0 2px 14px;color:var(--muted);font-size:14px;margin:16px 0}
+/* guide */
+.guide{display:grid;gap:0;border-top:1px solid var(--line)}
+.term{display:grid;grid-template-columns:150px 1fr;gap:4px 20px;padding:12px 0;border-bottom:1px solid var(--line)}
+.term>div{min-width:0}
+.term b{font-weight:650}
+.term .avoid{color:var(--muted);font-size:13px}
+.rules{margin:12px 0 0;padding-left:20px}
+.rules li{margin:0 0 6px;max-width:68ch}
+@media (max-width:560px){.term{grid-template-columns:1fr}}
+/* calls */
+.call{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
+.call .id,.f .id{font-family:var(--mono);font-size:12px;color:var(--accent);margin-right:8px}
+.call p{font-size:14px;color:var(--muted);margin:6px 0 10px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:6px 0;cursor:pointer;font-size:14px}
+.opt input{margin-top:4px;accent-color:var(--accent)}
+.opt small{color:var(--muted);display:block}
+.rec{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);margin-left:6px}
+/* findings */
+.group{margin-top:8px}
+.f{border-top:1px solid var(--line);padding:14px 0;display:grid;grid-template-columns:24px 1fr;gap:4px 10px}
+.f>div{min-width:0}
+.f input[type=checkbox]{margin-top:5px;accent-color:var(--accent);width:16px;height:16px}
+.f.off{opacity:.5}
+.pair{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:8px 0 4px;align-items:baseline}
+.pair .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.pair .b{color:var(--before);text-decoration:line-through;text-decoration-thickness:1px;overflow-wrap:anywhere}
+.pair .a{color:var(--after);overflow-wrap:anywhere}
+.where{font-family:var(--mono);font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.why{font-size:14px;color:var(--muted);margin:4px 0 0}
+.tag{display:inline-block;font-size:11px;border-radius:4px;padding:0 6px;background:var(--chip);color:var(--fg);margin-left:6px;vertical-align:1px}
+textarea{width:100%;font:13px/1.4 var(--body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-top:8px;resize:vertical;min-height:34px}
+textarea:focus,button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* bar */
+.bar{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:1px solid var(--line);display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:13px}
+.bar span{color:var(--muted)}
+button{font:600 13px var(--body);background:var(--accent);color:#fff;border:0;border-radius:6px;padding:7px 14px;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+#out{display:none;width:100%;max-width:860px;min-height:160px;font-family:var(--mono);font-size:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <h1>UI copy sweep</h1>
+  <p class="lede">Every user-facing string in <code>apps/app</code> on main, checked for consistent words and plain, useful copy. Pick an answer for each call, untick any rewrite you don't want, add notes, then press Copy picks and paste the text into the thread.</p>
+  <div class="meta"><span>Audited main at 84298fb, 3 Oct 2026</span><span>About 1,300 strings read</span><span><span id="nCalls"></span> calls · <span id="nFind"></span> rewrites</span></div>
+  <div class="toc">
+    <a href="#guide">Voice and terms</a><a href="#calls">Calls</a><a href="#W">Wrong words</a><a href="#C">Same thing, two names</a><a href="#E">Errors</a><a href="#J">Jargon</a><a href="#V">Tone</a><a href="#K">Capitals</a><a href="#prs">Open PRs</a>
+  </div>
+
+  <h2 id="guide">Voice and terms</h2>
+  <p>A short guide the rewrites below follow. It builds on <code>apps/app/CONTEXT.md</code>, which already names what each concept is called in the UI.</p>
+  <div class="guide" id="terms"></div>
+  <ul class="rules">
+    <li><b>Plain words.</b> Say what happens, from the person's side. No mechanism words (inject, bind, glob, checkout, build) unless the field is about that mechanism.</li>
+    <li><b>Errors say what went wrong and what to do.</b> Lead with “Couldn't …”, never “Failed to …” or “Unknown error”. Point at a control that exists.</li>
+    <li><b>Contractions</b> (can't, isn't, doesn't). No “please”, no “cannot”.</li>
+    <li><b>No em-dashes in UI copy.</b> Two short sentences instead.</li>
+    <li><b>One verb per action.</b> A button's verb is the toast's verb (Delete, then “Deleted”). Pairs match: Show and Hide, not Open and Hide.</li>
+    <li><b>Full labels.</b> Never shorten a label to fit a menu or button; widen the menu instead.</li>
+    <li><b>Sentence case</b> for labels, titles and menu items.</li>
+    <li><b>Empty states say why</b> or what to do next, not only what is missing.</li>
+    <li><b>“Agent”</b> for the AI in every UI string, never “Claude”. Claude Code and Codex appear only where someone picks which coding agent to install.</li>
+  </ul>
+
+  <h2 id="calls">Calls</h2>
+  <p>Questions only you can answer. Each one decides a batch of the rewrites below, marked with its id. Unanswered calls keep the recommendation.</p>
+  <div id="callList"></div>
+
+  <div id="groups"></div>
+
+  <h2 id="prs">Open PRs that touch copy</h2>
+  <p>Audited main only. These three PRs change strings now; their own threads should pick up the matching rules.</p>
+  <ul class="rules">
+    <li><a href="https://github.com/zschiller/screenplay/pull/1442">PR #1442</a> (env var values). Adds “Values are hidden. Reveal them to edit.” and “Only the person who added this repository can see the values. Add KEY=value here to set your own on this canvas.” Suggested: “Only the person who added this repository can see its values. Add your own KEY=value lines to use on this canvas.” It also adds a raw “You don't have access to this project”, which W1 fixes.</li>
+    <li><a href="https://github.com/zschiller/screenplay/pull/1432">PR #1432</a> (Detach and Rejoin). Adds “Detach from shared frame”. Fine as is; keep the pair as Detach and Rejoin everywhere.</li>
+    <li><a href="https://github.com/zschiller/screenplay/pull/1444">PR #1444</a> (hosted frame driving). Its new messages are mostly for the agent, not people, and read well. It says “Sandbox” with a capital S; per Q2 that should be “the Workspace” where a person reads it.</li>
+  </ul>
+  <p class="note">Nothing here is ticketed or built. Paste your picks back in the thread and say what you'd like done with them.</p>
+</div>
+
+<div class="bar">
+  <span id="count"></span>
+  <button id="copy">Copy picks</button>
+  <button class="ghost" id="reset">Reset</button>
+  <textarea id="out" readonly aria-label="Picks as text"></textarea>
+</div>
+
+<script>
+const TERMS=[
+ ["Canvas","The whole project: its frames, chats and settings. Lowercase mid-sentence (“this canvas”).","project, room, file, board"],
+ ["Workspace","One line of work with its own code and chat. Known by its title.","branch, sandbox, workspace (lowercase, see Q1)"],
+ ["Frame","A live preview of a Workspace on the canvas.","preview pane, iframe, window"],
+ ["Mockup, Document","Pages a chat drew or wrote, sitting on the canvas.","prototype (that's a running Workspace), note"],
+ ["Repository","Code a canvas runs, with its scripts.","repo, project, preset, config"],
+ ["Coordinator","The canvas's own chat, which sees everything on it.","orchestrator, room chat"],
+ ["Agent","The AI in any chat. “Ask the agent”.","Claude, model, assistant"],
+ ["Coding agent","The installed CLI (Claude Code, Codex) that runs chats on the desktop app.","harness, CLI"],
+ ["Pull request","Spelled out in buttons, menus and toasts. “PR #12” only for a specific one.","Create PR"],
+ ["Drive","An agent or person taking over a frame's mouse and keyboard (see Q4).","control, take control"],
+];
+const CALLS=[
+ {id:"Q1",t:"How should product nouns be capitalized mid-sentence?",c:"Today Workspace, Mockup, Document and Coordinator are usually capitalized and canvas, frame, chat and repository are not, but 18 strings say “workspace” and 9 say “mockup” or “document”. K1 to K3 follow this answer.",
+  o:[["Keep the current split","Capitalize Workspace, Mockup, Document, Coordinator; fix the 27 strays.",1],["Lowercase all but Coordinator","workspace, mockup, document like canvas and frame; about 70 strings change."]]},
+ {id:"Q2",t:"Should people see the word “sandbox”?",c:"“Restart sandbox” is a real action, but waiting states also say “Waiting for the sandbox to start…”, “Booting sandbox” and “Sandbox still starting…”. C6 follows this answer.",
+  o:[["Only in Restart sandbox","Waiting and setup states talk about the Workspace.",1],["Keep as is","Sandbox stays in setup and waiting copy."]]},
+ {id:"Q3",t:"Removing a repository from a canvas: Turn off or Remove?",c:"The confirm button says “Turn off” but its text says “The repository is removed from this canvas” and the Workspaces go with it. C7 follows this answer.",
+  o:[["Remove","Button, pending label and text all say remove.",1],["Turn off","Keep the verb; text says it's turned off and its Workspaces are removed."]]},
+ {id:"Q4",t:"Taking over a frame: drive or control?",c:"The frame bar says “Ana is driving” and “Let drive”, then “Asked for control. Click to cancel” and “Requests for control”. C5 follows this answer.",
+  o:[["Drive","Matches “is driving” and the agent's Start driving step.",1],["Control","“Ana has control”, “Ask for control”, “Give control”."]]},
+ {id:"Q5",t:"Where can git words appear?",c:"Rule: never show git branches. Today the Recreate dialog shows the branch name, setup says “Creating branch…”, and a delete toast names the remote ref. The Workspace menu also has a Git section and the Chats menu has Open existing git branch. J8 and J9 follow this answer.",
+  o:[["Only in git menus and the hover card","Keep the Git menu section, Open existing git branch and the hover card; remove git words everywhere else.",1],["Nowhere","Also rename Rename branch, Rebase on and Open existing git branch."]]},
+ {id:"Q6",t:"Settings has “Coding agents” and “Agent” sections. Merge them?",c:"“Coding agents” picks the default agent CLI; “Agent” picks the default model. Side by side they read as the same thing. J7 follows this answer.",
+  o:[["One Agent section","Agent: Coding agent (installed CLIs), then Default model.",1],["Keep two, rename","“Coding agents” stays; “Agent” becomes “Model”."]]},
+];
+const GROUPS=[
+ {id:"W",t:"Wrong words",d:"Strings that use an old or internal word for something the UI calls by another name.",f:[
+  {id:"W1",b:"You don't have access to this project",a:"You don't have access to this canvas.",w:"lib/rooms.ts:315",y:"Shown raw in the Share dialog and the canvas error page. “Project” stopped being a UI word in #880."},
+  {id:"W2",b:"Project not found · Only the project owner can do this · Cannot remove the project owner",a:"This canvas doesn't exist anymore. · Only the canvas owner can do this. · The owner can't be removed.",w:"lib/rooms.ts:335, :337 · lib/rooms-actions.ts:136, :226",y:"Same: these reach the Share dialog as error text."},
+  {id:"W3",b:"No user found with email \"x\" · Email is required",a:"There's no Screenplay account for x. · Enter an email address.",w:"lib/rooms-actions.ts:201, :205",y:"Share dialog errors. “user” and quotes read like a server log."},
+  {id:"W4",b:"Open agent / Hide agent",a:"Show chat / Hide chat",w:"components/play/player-hud.tsx:395",y:"The player's toggle opens the chat panel. Everywhere else it's “chat”, and the pair should match."},
+  {id:"W5",b:"Comments are not available in the local build · Sharing is not available in the local build · Only available on the local desktop build",a:"Comments aren't in the desktop app yet. · Sharing isn't in the desktop app. · This only works in the desktop app.",w:"lib/comments.ts:36 · lib/rooms-actions.ts:36 · lib/github-local/actions.ts:35",y:"“Local build” is a developer word."},
+  {id:"W6",b:"Agent is working in this workspace…",a:"The agent is still working.",w:"components/agent/chat-panel.tsx:473",y:"Tooltip on the disabled Create pull request button. Says why it's disabled, in fewer words."},
+  {id:"W7",b:"Open this workspace's preview first",a:"Show this Workspace in a frame first.",w:"components/agent/composer.tsx:1097",y:"Tooltip on Target an element. “Preview” is the frame."},
+  {id:"W8",b:"No knobs declared. Call useKnob() from @screenplay.space/knobs inside this prototype to expose live controls here.",a:"No knobs yet. Knobs let you adjust this page live, like a slider for card padding. Ask the agent to add one.",w:"components/play/player-knobs.tsx:21-31",y:"The player shows a code instruction while the canvas popover (knobs-popover.tsx:69) shows the friendly version. Use the canvas one in both."},
+ ]},
+ {id:"C",t:"Same thing, two names",d:"One concept, one action or one field labelled differently in different places.",f:[
+  {id:"C1",b:"Name (placeholder “default”, “Optional, e.g. “web” or “api””) · Label (“A short name for this repository, like “web” or “api”.”) · Name (“… tells apart two repositories from the same git repository”)",a:"Name · “Optional. A short name like web or api, to tell apart two setups of one repository.” No placeholder.",w:"components/home/repo-config-form.tsx:152-159 · components/repo-settings-dialog.tsx:195-203 · components/repo-settings-fields.tsx:245-253",y:"The same field has two labels and three hints. The “default” placeholder looks like a value."},
+  {id:"C2",b:"Add folder (home toolbar) · New folder (Move to dialog, dialog title)",a:"New folder everywhere",w:"components/home/rooms-view.tsx:144-151, :214",y:"It sits beside “New canvas”; the pair should match. Empty state: “Add a folder or a canvas” becomes “Create a folder or a canvas to fill it.”"},
+  {id:"C3",b:"Create PR (chat header button, agent step) · Create pull request (Workspace menu) · Open pull request (agent step)",a:"Create pull request everywhere; agent steps “Create pull request” for both tools",w:"components/agent/chat-panel.tsx:478 · components/agent/agent-message.tsx:174, :219 · components/panels/branch-overflow-menu.tsx:374",y:"The toast already says “Pull request created”. No shortened labels."},
+  {id:"C4",b:"Collapse chat / Expand chat · Collapse sidebar / Expand sidebar · Hide terminal · Hide pins / Show pins · Toggle sidebar, Toggle chat, Toggle terminal",a:"Hide chat / Show chat · Hide sidebar / Show sidebar · Hide terminal / Show terminal · Shortcut sheet: Show or hide sidebar, chat, terminal",w:"chat-panel-header.tsx:33 · canvas.tsx:2743 · room-sidebar.tsx:624 · canvas-top-bar.tsx:105 · lib/canvas/shortcuts.ts:278-286",y:"Four verbs for one kind of action. Show and Hide is what the comment pins already use."},
+  {id:"C5",b:"Requests for control · Asked for control. Click to cancel · Click to ask for control",a:"Requests to drive · Asked to drive. Click to cancel · Click to ask to drive",w:"components/canvas/frame-driver.tsx:75, :141-144",y:"Mixed with “is driving” and “Let drive” in the same strip.",q:"Q4"},
+  {id:"C6",b:"Booting sandbox · Setting up the Workspace. · Creating workspace · Waiting for the sandbox to start… · Sandbox still starting… · Recreating expired sandbox…",a:"Setting up the Workspace (with the step under it: Cloning repository, Installing dependencies, Starting dev server) · The Workspace is still starting… · Restarting the Workspace…",w:"frame-status.tsx:49-50 · lib/branch/workspace-state.ts:90 · agent-chat.tsx:350 · terminal-tab.tsx:150 · player-chat-host.tsx:97 · chat-panel.tsx:471 · terminal-pane.tsx:573 · use-sandbox-reconnect.ts:139",y:"Six ways to say “not ready yet”.",q:"Q2"},
+  {id:"C7",b:"Turn off · Turning off… · “The repository is removed from this canvas.”",a:"Remove · Removing… · “The repository is removed from this canvas.”",w:"components/delete-repo-dialog.tsx:47, :94-100 · remove-repository-dialog.tsx:33 · canvas-settings-dialog.tsx:366",y:"The verb and the description disagree.",q:"Q3"},
+  {id:"C8",b:"Ask the agent… (@ document, / skill) · Ask the Coordinator… (@ to mention a document) · Ask for a Mockup or a Document… (@ document)",a:"Ask the agent… (@ document, / skill) · Ask the Coordinator… (@ document) · Ask for a Mockup or a Document… (@ document)",w:"lib/chat/chat-capabilities.ts:32, :47, :62",y:"One hint format in all three composers."},
+  {id:"C9",b:"Install & connect · Install GitHub CLI and connect · Install & sign in · Connect with a device code instead · Use a device code · Re-run sign-in",a:"Install and connect · Install and sign in · Use a device code instead · Sign in again",w:"home/github-connection-panel.tsx:161, :452-459 · local-setup/github-step.tsx:145-159 · lib/agent/harnesses/setup.ts:287, :298",y:"Settings and first-run setup label the same buttons differently."},
+  {id:"C10",b:"Agent steps: Read · Read code · Read Workspace file · View frame · Look at frame · Run dev server",a:"Read file · Read code · Read Workspace file · View frame · Screenshot frame · Start dev server",w:"components/agent/agent-message.tsx:169-221",y:"A bare “Read” has no object; “Look at frame” and “View frame” sound like the same step; the start step is called “Run” beside Restart and Stop."},
+ ]},
+ {id:"E",t:"Errors that don't help",d:"Errors that point at nothing, show a server message, or say only that something failed.",f:[
+  {id:"E1",b:"Workspace not found — click refresh to retry · Sandbox could not be restarted — click refresh to retry",a:"Couldn't find this Workspace. Press Retry. · Couldn't restart the Workspace. Press Retry.",w:"components/canvas/use-sandbox-reconnect.ts:112, :159",y:"There's no refresh control. The status menu offers Retry (workspace-status-icon.tsx:106)."},
+  {id:"E2",b:"Sandbox creation was interrupted — delete and try again",a:"Setup was interrupted. Delete this Workspace and try again.",w:"components/canvas/use-sandbox-reconnect.ts:85",y:"Says what to delete."},
+  {id:"E3",b:"Unexpected error during sandbox creation · Unknown error · Failed to create branch",a:"Couldn't set up the Workspace. (with Copy error for the detail)",w:"lib/branch/provisioning-live.ts:119, :139 · lib/branch/workspace-state.ts:82 · lib/sandbox/provisioning.ts:153, :173",y:"These show as the Workspace's failed status line."},
+  {id:"E4",b:"No GitHub token — please re-authenticate with GitHub",a:"Sign in with GitHub again to start this Workspace.",w:"app/api/branch/create/route.ts:40",y:"“Token” and “please”; says what to do."},
+  {id:"E5",b:"This chat's session has ended and can't be resumed. Please start a new chat to continue.",a:"This chat can't continue. Start a new chat to keep going.",w:"lib/chat-store.ts:685",y:"Shorter, no “session” or “please”."},
+  {id:"E6",b:"Failed to save · Failed to move",a:"Couldn't save. Try again. · Couldn't move it. Try again.",w:"home/repo-config-form.tsx:131 · repo-settings-dialog.tsx:136 · home/move-to-dialog.tsx:273",y:"Shown under the form when the error has no message. Other “Failed to …” strings are console-only and can stay."},
+  {id:"E7",b:"Folder not found · Cannot move a folder into itself or one of its subfolders",a:"This folder doesn't exist anymore. · A folder can't go inside itself.",w:"lib/folders-actions.ts:84-150, :109",y:"Shown in the Move to dialog."},
+  {id:"E8",b:"The dev server never listened on its assigned port. The desktop app runs your dev script under portless (https://portless.sh), which hands it the port as $PORT — frameworks like Next.js … check the workspace Logs panel — portless logs why it couldn't launch there.",a:"The dev server didn't start on the port Screenplay gave it. Make the run script use $PORT (for example vite --port $PORT --strictPort) in Canvas settings, then restart the dev server. Open logs to see why.",w:"lib/sandbox/provision-internals.ts:118",y:"74 words, two dashes, and it sends people to “Repository settings” instead of Canvas settings."},
+ ]},
+ {id:"J",t:"Jargon and mechanism",d:"Copy that describes how it works instead of what it does for the person.",f:[
+  {id:"J1",b:"System prompt · “Appended to the agent's instructions — handy for monorepo context”",a:"Agent instructions · “Extra instructions for the agent in this repository, like which app folder to work in.”",w:"components/repo-settings-fields.tsx:224-235",y:"“System prompt” is a model-API word."},
+  {id:"J2",b:"Files to copy · “Glob patterns from your checkout, one per line”",a:"Files to copy · “Files from your folder to copy into each Workspace, like .env. One pattern per line.”",w:"components/repo-settings-fields.tsx:173-184",y:"“Glob” and “checkout”. The placeholder already shows the pattern syntax."},
+  {id:"J3",b:"One KEY=value per line, injected into each workspace",a:"One KEY=value per line. Every Workspace gets them.",w:"components/repo-settings-fields.tsx:201",y:"“Injected”. <a href=\"https://github.com/zschiller/screenplay/pull/1442\">PR #1442</a> rewrites this hint; see the PR note below."},
+  {id:"J4",b:"Port your dev server binds to (1–65535) · Starts the dev server for each frame · Runs once when a workspace is created",a:"The port your dev server listens on. · Starts the dev server your frames preview. · Runs once when a Workspace is set up.",w:"components/repo-settings-fields.tsx:119, :133, :157",y:"There's one dev server per Workspace, not per frame. The range is enforced by the input."},
+  {id:"J5",b:"Authorize Screenplay in your browser to browse your GitHub repositories and open pull requests. This is API access only — there is still no login.",a:"Authorize Screenplay in your browser so it can list your GitHub repositories and open pull requests.",w:"components/home/github-connection-panel.tsx:366",y:"The second sentence answers a question nobody asked and reads oddly."},
+  {id:"J6",b:"Installing the GitHub CLI, then signing you in — follow the prompts below. Once the browser flow finishes, this closes and the connection updates automatically.",a:"Installing the GitHub CLI, then signing you in. Follow the prompts below; this closes when you're done.",w:"components/home/github-connection-panel.tsx:280-288 · lib/agent/harnesses/setup.ts:244",y:"Same idea in half the words, both variants."},
+  {id:"J7",b:"Coding agents: “The CLIs that back chats and terminals on this device.” · Agent: “The model new chats and Workspaces start with.” · GitHub: “How Screenplay reaches the GitHub API on this device.”",a:"Agent: Coding agent “Runs chats and terminals on this device.” + Default model “New chats start with this model.” · GitHub: “Lets Screenplay list your repositories and open pull requests.”",w:"components/home/settings-view.tsx:78-110",y:"“Back”, “CLIs” and “reaches the GitHub API”.",q:"Q6"},
+  {id:"J8",b:"This recreates the sandbox for my-branch by cloning the branch fresh from git. Any uncommitted changes in the sandbox will be permanently discarded. To restart while keeping your working tree, use “Restart sandbox” instead.",a:"Recreate rebuilds this Workspace from git. Uncommitted changes are permanently discarded. To keep them, use Restart sandbox instead.",w:"components/recreate-branch-dialog.tsx:50-55",y:"Shows the git branch name in mono and says “working tree”.",q:"Q5"},
+  {id:"J9",b:"Creating branch… · Workspace deleted, but my-branch is still on the remote · The remote delete failed.",a:"Setting up the Workspace… · Workspace deleted. Its branch is still on GitHub. · Delete it on GitHub if you don't need it.",w:"components/canvas/use-branch-intake.ts:425, :828-830",y:"Branch names and “remote” outside the git menus.",q:"Q5"},
+ ]},
+ {id:"V",t:"Tone",d:"Small voice fixes so the app sounds like one person.",f:[
+  {id:"V1",b:"This cannot be undone. · sub-folders",a:"You can't undo this. · subfolders",w:"components/delete-room-dialog.tsx:47-56 · components/delete-folder-dialog.tsx:41-48",y:"Contractions everywhere else; one spelling of subfolders."},
+  {id:"V2",b:"Renames the git branch. The workspace keeps its title.",a:"Renames the git branch. The Workspace keeps its title.",w:"components/agent/chats-menu.tsx:586",y:"Fine under Q5's recommendation; only the capital changes."},
+  {id:"V3",b:"No routes have been discovered for this workspace yet. · No routes yet.",a:"No routes yet. Pages show up here once the frame visits them.",w:"components/canvas/use-frame-actions.ts:142 · frame-nav.tsx:589",y:"Says why the list is empty. Inferred from the route picker; worth confirming the list fills from visits."},
+  {id:"V4",b:"Model name · not default",a:"Model name, with no suffix",w:"components/agent/composer.tsx:1028",y:"“· not default” reads like a warning. The menu already marks the default."},
+  {id:"V5",b:"No layers found",a:"No matches",w:"components/agent/mention-list.tsx:69",y:"“Layers” is an internal word in the @ menu; other searches say No matches."},
+ ]},
+ {id:"K",t:"Capitals",d:"Strays from Q1's answer. Listed for the recommended option; the other option flips these.",f:[
+  {id:"K1",b:"Choose a workspace · Set workspace · Search workspaces… · No workspaces found. · Couldn't reopen workspace",a:"Choose a Workspace · Set Workspace · Search Workspaces… · No Workspaces found. · Couldn't reopen the Workspace",w:"frame-nav.tsx:298, :330 · group-label.tsx:99, :164, :209 · iframe-layer-label.tsx:85, :212, :222 · workspace-list.tsx:91, :120 · lib/branch/recovery.ts:391",y:"18 strings in all, including the ones under J4, W6 and V2.",q:"Q1"},
+  {id:"K2",b:"Click or drag to place a mockup · place a document · What should this mockup show? · Add document to group · Edit a document",a:"…a Mockup · …a Document · What should this Mockup show? · Add Document to group · Edit a Document",w:"canvas-empty-state.tsx:75-76 · frame-ask-card.tsx:49 · canvas-member-layer.tsx:689 · lib/canvas/shortcuts.ts:329",y:"The toolbar and empty state already say Mockup and Document.",q:"Q1"},
+  {id:"K3",b:"Read document · Rewrite document · Append to document · Create document",a:"Read Document · Rewrite Document · Append to Document · Create Document",w:"components/agent/agent-message.tsx:181, :203-207",y:"Agent step labels beside “Read Workspace chat”.",q:"Q1"},
+ ]},
+];
+
+const KEY="sp-copy-sweep-v1";
+let st={calls:{},off:{},notes:{}};
+try{const s=JSON.parse(localStorage.getItem(KEY)||"null"); if(s) st=Object.assign(st,s)}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+
+document.getElementById("terms").innerHTML=TERMS.map(([n,d,a])=>`<div class="term"><div><b>${n}</b></div><div>${d}<div class="avoid">Avoid: ${a}</div></div></div>`).join("");
+
+document.getElementById("callList").innerHTML=CALLS.map(c=>`<div class="call" id="${c.id}"><h3><span class="id">${c.id}</span>${c.t}</h3><p>${c.c}</p>${c.o.map((o,i)=>`<label class="opt"><input type="radio" name="${c.id}" id="${c.id}-${i}" value="${i}" ${(st.calls[c.id]??0)==i?"checked":""}><span>${o[0]}${o[2]?'<span class="rec">Recommended</span>':""}<small>${o[1]}</small></span></label>`).join("")}<textarea id="${c.id}-note" placeholder="Note (optional)">${esc(st.notes[c.id]||"")}</textarea></div>`).join("");
+
+document.getElementById("groups").innerHTML=GROUPS.map(g=>`<section class="group"><h2 id="${g.id}">${g.t}</h2><p>${g.d}</p>${g.f.map(f=>`<div class="f${st.off[f.id]?" off":""}" id="f-${f.id}"><input type="checkbox" id="cb-${f.id}" ${st.off[f.id]?"":"checked"} aria-label="Take ${f.id}"><div><h3><span class="id">${f.id}</span>${f.q?`<span class="tag">follows ${f.q}</span>`:""}</h3><div class="pair"><span class="k">Now</span><span class="s b">${esc(f.b)}</span><span class="k">After</span><span class="s a">${esc(f.a)}</span></div><div class="where">${f.w}</div><p class="why">${f.y}</p><textarea id="${f.id}-note" placeholder="Note (optional)">${esc(st.notes[f.id]||"")}</textarea></div></div>`).join("")}</section>`).join("");
+
+const all=GROUPS.flatMap(g=>g.f);
+document.getElementById("nCalls").textContent=CALLS.length;
+document.getElementById("nFind").textContent=all.length;
+function count(){const on=all.filter(f=>!st.off[f.id]).length; document.getElementById("count").textContent=`${on} of ${all.length} rewrites taken`}
+count();
+document.addEventListener("change",e=>{
+  const t=e.target;
+  if(t.type==="radio"){st.calls[t.name]=+t.value}
+  if(t.type==="checkbox"&&t.id.startsWith("cb-")){const id=t.id.slice(3); st.off[id]=!t.checked; document.getElementById("f-"+id).classList.toggle("off",!t.checked); count()}
+  save();
+});
+document.addEventListener("input",e=>{const t=e.target; if(t.tagName==="TEXTAREA"&&t.id.endsWith("-note")){st.notes[t.id.slice(0,-5)]=t.value; save()}});
+
+function text(){
+  const L=["Picks on the UI copy sweep (3 Oct 2026)","","CALLS"];
+  CALLS.forEach(c=>{const i=st.calls[c.id]??0; L.push(`${c.id}. ${c.t}`,`   → ${c.o[i][0]}${c.o[i][2]?" (recommended)":""}`); if(st.notes[c.id]) L.push(`   Note: ${st.notes[c.id]}`)});
+  L.push("","REWRITES");
+  const skipped=all.filter(f=>st.off[f.id]).map(f=>f.id);
+  L.push(skipped.length?`Take all except: ${skipped.join(", ")}`:"Take all");
+  all.forEach(f=>{if(st.notes[f.id]) L.push(`${f.id} note: ${st.notes[f.id]}`)});
+  return L.join("\n");
+}
+document.getElementById("copy").addEventListener("click",()=>{
+  const t=text(), out=document.getElementById("out"), b=document.getElementById("copy");
+  const fallback=()=>{out.style.display="block"; out.value=t; out.focus(); out.select(); b.textContent="Select and copy"};
+  try{navigator.clipboard.writeText(t).then(()=>{b.textContent="Copied"; setTimeout(()=>b.textContent="Copy picks",1600)},fallback)}catch(e){fallback()}
+});
+document.getElementById("reset").addEventListener("click",()=>{st={calls:{},off:{},notes:{}}; save(); location.reload()});
+</script>
+
+</body></html>

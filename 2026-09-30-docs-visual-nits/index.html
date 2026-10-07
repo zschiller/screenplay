@@ -1,0 +1,183 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Docs Visual Nits</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Unbounded:wght@400&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column of ranked findings; each finding pairs its evidence (before / after) under the text. */
+:root {
+  --bg: #ffffff;
+  --fg: #000000;
+  --muted: oklch(0.52 0 0);
+  --hair: oklch(0 0 0 / 12%);
+  --panel: oklch(0.975 0 0);
+  --accent: oklch(0.56 0.259 326);
+  --high: oklch(0.55 0.22 27);
+  --med: oklch(0.6 0.139 60);
+  --low: oklch(0.52 0 0);
+  --font-display: "Unbounded", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --fg: #ffffff; --muted: oklch(0.72 0 0); --hair: oklch(1 0 0 / 16%);
+    --panel: oklch(0.14 0 0); --accent: oklch(0.667 0.295 322.15);
+    --high: oklch(0.7 0.19 27); --med: oklch(0.85 0.16 90); --low: oklch(0.72 0 0);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --fg: #ffffff; --muted: oklch(0.72 0 0); --hair: oklch(1 0 0 / 16%);
+  --panel: oklch(0.14 0 0); --accent: oklch(0.667 0.295 322.15);
+  --high: oklch(0.7 0.19 27); --med: oklch(0.85 0.16 90); --low: oklch(0.72 0 0);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 16px/1.6 var(--font-body);
+  padding-inline: 16px; padding-block: 40px 96px;
+}
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2 { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.03em; text-wrap: balance; margin: 0; }
+h1 { font-size: 1.6875rem; line-height: 1.15; }
+h2 { font-size: 1.0625rem; line-height: 1.3; }
+.label { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+code { font-family: var(--font-mono); font-size: 0.85em; background: var(--panel); border-radius: 2px; padding: 0.05em 0.3em; }
+a { color: var(--accent); }
+header { display: grid; gap: 14px; max-width: 70ch; }
+header p { margin: 0; }
+.counts { display: flex; flex-wrap: wrap; gap: 8px 24px; font-variant-numeric: tabular-nums; }
+.counts b { font-family: var(--font-display); font-weight: 400; font-size: 1.25rem; margin-right: 6px; }
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); border-bottom: 1px solid var(--hair); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--hair); border-radius: 2px; }
+.seg button { font: 500 0.8125rem var(--font-body); color: var(--muted); background: none; border: 0; padding: 5px 10px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--hair); }
+.seg button[aria-pressed="true"] { color: var(--fg); background: var(--panel); }
+.seg button:focus-visible, .toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toc { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 4px 24px; font-size: 0.875rem; }
+.toc a { color: var(--fg); text-decoration: none; display: flex; gap: 10px; padding: 3px 0; min-width: 0; }
+.toc a:hover span:last-child { text-decoration: underline; }
+.toc .id { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); width: 2.4em; flex: none; padding-top: 1px; }
+.finding { display: grid; gap: 14px; padding-top: 28px; border-top: 1px solid var(--hair); scroll-margin-top: 64px; }
+.head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.sev { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 2px; padding: 1px 6px; }
+.sev.high { color: var(--high); } .sev.medium { color: var(--med); } .sev.low { color: var(--low); }
+.fid { font-family: var(--font-mono); font-size: 0.8125rem; color: var(--muted); }
+.facts { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 8px 16px; max-width: 78ch; }
+.facts dt { padding-top: 3px; }
+.facts dd { margin: 0; }
+.state { font-size: 0.8125rem; color: var(--muted); }
+.shots { display: grid; gap: 16px; }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.pair figure { margin: 0; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.pair .frame { border: 1px solid var(--hair); border-radius: 2px; overflow: auto; max-height: 560px; background: var(--panel); }
+.pair img { display: block; width: 100%; height: auto; }
+.pair img.wide { width: auto; max-width: none; }
+@media (max-width: 700px) { .pair { grid-template-columns: 1fr; } .facts { grid-template-columns: 1fr; gap: 2px; } .facts dd { margin-bottom: 8px; } }
+footer { font-size: 0.875rem; color: var(--muted); max-width: 70ch; display: grid; gap: 8px; }
+footer p { margin: 0; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="label">Docs · visual nits · 30 Sep 2026</span>
+    <h1>Docs visual nits</h1>
+    <p>Pixel-level audit of the docs site at 2× in light and dark: all 34 pages, the chrome, mobile and the 404. Ranked by how many readers see it and how broken it looks. Each finding has a before and an after taken from a local build of current main with the fix applied, except V2, whose after is a hand crop showing what the screenshot harness should produce. Nothing from the September 29 docs audit (#1096 to #1110) is repeated.</p>
+    <div class="counts" id="counts"></div>
+  </header>
+
+  <div class="controls">
+    <span class="label">Screenshots</span>
+    <div class="seg" role="group" aria-label="Screenshot theme">
+      <button type="button" data-shot="auto" aria-pressed="true">Match page</button>
+      <button type="button" data-shot="light" aria-pressed="false">Light</button>
+      <button type="button" data-shot="dark" aria-pressed="false">Dark</button>
+    </div>
+    <span class="label">Show</span>
+    <div class="seg" role="group" aria-label="Severity filter">
+      <button type="button" data-sev="all" aria-pressed="true">All</button>
+      <button type="button" data-sev="high" aria-pressed="false">High</button>
+      <button type="button" data-sev="medium" aria-pressed="false">Medium</button>
+      <button type="button" data-sev="low" aria-pressed="false">Low</button>
+    </div>
+  </div>
+
+  <nav class="toc" id="toc" aria-label="Findings"></nav>
+  <main id="list" style="display:grid;gap:40px"></main>
+
+  <footer>
+    <p>The code fixes (CSS, <code>mdx-components.tsx</code>, <code>screenshot.tsx</code>, <code>not-found.tsx</code>, diagrams and MDX) are one patch in the project folder at <code>docs-visual-nits/fixes.patch</code>, 16 files. V2's harness changes are not in it. Nothing is ticketed yet.</p>
+    <p>Checked and dropped: the ↵ key cap looked tiny, but only through Linux's fallback font, so it needs a check on a Mac. The search box shows Ctrl K because the captures ran on Linux.</p>
+  </footer>
+</div>
+
+<script src="findings.js"></script>
+<script>
+(function () {
+  var F = window.FINDINGS || [];
+  var list = document.getElementById("list"), toc = document.getElementById("toc");
+  var shotMode = "auto";
+  try { shotMode = localStorage.getItem("shotMode") || "auto"; } catch (e) {}
+  function pageDark() {
+    var t = document.documentElement.getAttribute("data-theme");
+    if (t) return t === "dark";
+    return window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function theme() { return shotMode === "auto" ? (pageDark() ? "dark" : "light") : shotMode; }
+  var n = { high: 0, medium: 0, low: 0 };
+  F.forEach(function (f) { n[f.sev]++; });
+  document.getElementById("counts").innerHTML =
+    '<span><b>' + F.length + '</b>findings</span><span><b>' + n.high + '</b>high</span><span><b>' + n.medium + '</b>medium</span><span><b>' + n.low + '</b>low</span>';
+  F.forEach(function (f) {
+    var a = document.createElement("a");
+    a.href = "#" + f.id; a.dataset.sev = f.sev;
+    a.innerHTML = '<span class="id">' + f.id + '</span><span>' + f.title + '</span>';
+    toc.appendChild(a);
+    var s = document.createElement("section");
+    s.className = "finding"; s.id = f.id; s.dataset.sev = f.sev;
+    var state = f.applied === true ? "Fixed in the local build" : f.applied === "mockup" ? "After is a mockup of the harness output" : "Not fixed";
+    var shots = f.shots.map(function (id) {
+      var hasAfter = f.applied !== false;
+      function fig(kind) {
+        return '<figure><span class="label">' + (kind === "before" ? "Before" : "After") + '</span><div class="frame"><img loading="lazy" alt="' + f.id + ' ' + kind + '" data-src="shots/' + id + '.' + kind + '"></div></figure>';
+      }
+      return '<div class="pair">' + fig("before") + (hasAfter ? fig("after") : "") + '</div>';
+    }).join("");
+    s.innerHTML =
+      '<div class="head"><span class="fid">' + f.id + '</span><span class="sev ' + f.sev + '">' + f.sev + '</span><h2>' + f.title + '</h2></div>' +
+      '<dl class="facts"><dt class="label">Where</dt><dd>' + f.where + '</dd><dt class="label">What</dt><dd>' + f.what + '</dd><dt class="label">Fix</dt><dd>' + f.fix + ' <span class="state">' + state + '.</span></dd></dl>' +
+      '<div class="shots">' + shots + '</div>';
+    list.appendChild(s);
+  });
+  function paint() {
+    var t = theme();
+    document.querySelectorAll("img[data-src]").forEach(function (img) {
+      var src = img.dataset.src + "." + t + ".webp";
+      if (img.getAttribute("src") !== src) img.setAttribute("src", src);
+    });
+    document.querySelectorAll("[data-shot]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.shot === shotMode)); });
+  }
+  document.querySelectorAll("[data-shot]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      shotMode = b.dataset.shot;
+      try { localStorage.setItem("shotMode", shotMode); } catch (e) {}
+      paint();
+    });
+  });
+  document.querySelectorAll("[data-sev]").forEach(function (b) {
+    if (!b.closest(".seg")) return;
+    b.addEventListener("click", function () {
+      var v = b.dataset.sev;
+      document.querySelectorAll(".seg [data-sev]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      document.querySelectorAll(".finding, .toc a").forEach(function (el) { el.hidden = v !== "all" && el.dataset.sev !== v; });
+    });
+  });
+  if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paint);
+  new MutationObserver(paint).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  paint();
+})();
+</script>
+
+</body></html>

@@ -1,0 +1,330 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Built in design skills</title>
+<!-- Optional: a Google Fonts <link> for the repo's brand faces, then point --sans/--head/--mono at them. -->
+<style>
+/* Layout: phone first, one column at every width. Round tabs under the question, in time order (Today, Round 1, Round 2…) and opening on the newest; each question shows one option at a time behind a segmented A/B/C control that sticks to the top while you read. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#2f5bd3;--ok:#1f7a45;--no:#a3372b;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+/* Switching options jumps to the new option; scroll anchoring would undo that jump */
+html{overflow-anchor:none}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:880px;margin:0 auto;padding-inline:16px;padding-block:24px calc(96px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:20px}
+@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:24px}}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);letter-spacing:-.015em;margin:8px 0 10px;text-wrap:balance}
+h2{font:600 clamp(17px,4.4vw,21px)/1.28 var(--head);margin:0;text-wrap:balance}
+h3{font:500 17px/1.35 var(--sans);margin:0;text-wrap:balance}
+p{margin:0;max-width:72ch}
+a{color:var(--accent)}
+code{font:13px var(--mono)}
+.muted{color:var(--muted)}
+blockquote{margin:0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+button{font:500 13px/1.2 var(--sans);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);-webkit-tap-highlight-color:transparent}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
+button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:16px;min-width:0}
+ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px;max-width:72ch;font-size:14px;line-height:1.5}
+ul.facts li::marker{color:var(--muted)}
+/* Round tabs: quiet underline navigation */
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{border:0;border-radius:0;background:transparent;color:var(--muted);padding:10px 0 9px;min-height:40px;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px}
+.tabs button:hover{color:var(--fg)}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
+.mark{font-size:12px;line-height:1}
+.mark.rec{width:6px;height:6px;border-radius:50%;background:currentColor}
+.mark.rec{color:var(--accent)}
+.mark.ok{color:var(--ok)}
+.mark.no{color:var(--no)}
+/* Stuck, the control keeps a page-coloured margin so content never shows around its corners */
+.otabs{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:5;box-shadow:0 0 0 8px var(--bg),-16px 0 0 8px var(--bg),16px 0 0 8px var(--bg)}
+/* Round tabs fade at whichever edge hides rounds */
+.rtabs.less{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px);mask-image:linear-gradient(90deg,transparent,#000 40px)}
+.rtabs.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+.rtabs.more.less{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,transparent,#000 40px calc(100% - 40px),transparent)}
+/* The owner's feedback shows three lines until opened */
+.said{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.said blockquote.clamp{overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.said button{padding:0;min-height:0;border:0;background:none;color:var(--muted);text-decoration:underline;text-underline-offset:3px;margin-left:14px}
+/* Option tabs are a segmented control, so they read as the main control and the round row as navigation */
+.otabs{display:flex;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-block:4px}
+.otabs button{flex:1;justify-content:center;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:600 15px/1 var(--mono);min-height:36px;padding:0}
+.otabs button:hover{color:var(--fg)}
+.otabs button[aria-selected="true"]{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--line),0 1px 2px rgb(0 0 0/.06)}
+.rtabs{gap:16px}
+.rtabs button{font-size:13px;min-height:34px;padding:8px 0 7px}
+/* Folded block: In every option */
+details.fold{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+details.fold>summary{list-style:none;cursor:pointer;padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:12px}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:"Show";font:500 13px var(--sans);color:var(--muted)}
+details.fold[open]>summary::after{content:"Hide"}
+details.fold>.body{padding:0 0 14px}
+/* A question and its options */
+.question{display:flex;flex-direction:column;gap:14px;min-width:0}
+.question+.question{margin-top:16px;padding-top:20px;border-top:1px solid var(--fg)}
+.qhead{display:flex;flex-direction:column;gap:4px}
+.opt{display:flex;flex-direction:column;gap:12px;min-width:0}
+.opt header{display:flex;flex-direction:column;gap:6px}
+.opt .tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.letter{font:600 13px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid currentColor;border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent)}
+.badge.picked{color:var(--ok)}
+.badge.rejected{color:var(--no)}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.choose{display:flex;gap:8px;flex-wrap:wrap}
+.choose button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+/* Captures: the viewer's theme only, tap to enlarge */
+.shots{display:flex;flex-direction:column;gap:12px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:0;background:var(--surface);cursor:zoom-in;min-height:0}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dialog.lb{padding:0;border:0;background:transparent;max-width:100vw;max-height:100dvh;width:100vw;height:100dvh}
+dialog.lb::backdrop{background:rgb(0 0 0/.86)}
+dialog.lb .in{width:100%;height:100%;overflow:auto;display:grid;place-items:center;padding:16px;cursor:zoom-out}
+dialog.lb img{max-width:none;background:var(--surface)}
+@media (min-width:720px){dialog.lb img{max-width:100%}}
+/* Bottom bar: picks so far, a note, Copy */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+@media (min-width:720px){.bar{padding-inline:24px}}
+.bar .in{max-width:832px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.bar .row{display:flex;align-items:center;gap:8px}
+.bar .picks{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bar .picks b{color:var(--fg);font-weight:500}
+.bar textarea{width:100%;font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:72px}
+.bar #out{font:12.5px/1.5 var(--mono)}
+/* Copy keeps its width while it says Copied: both labels share one grid cell */
+#copy{display:inline-grid}
+#copy>span{grid-area:1/1}
+#copy>span[aria-hidden]{visibility:hidden}
+.wf{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px;margin:12px 0;font-size:13px}
+.wf-h{font-weight:600;margin-bottom:8px}
+.wf-g{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px}
+.wf-r{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:7px 8px;border-radius:6px;background:var(--bg);margin-bottom:4px}
+.wf-r.hi{outline:1.5px solid var(--accent)}
+.wf-n{font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wf-s{color:var(--muted);font-size:12px}
+.wf-a{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+.wf-f{color:var(--muted);font-size:12px;margin-top:8px}
+@media (max-width:480px){.wf-r{grid-template-columns:1fr auto}.wf-s{grid-column:1;grid-row:2}}
+.cv{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px;margin:12px 0;display:flex;flex-wrap:wrap;gap:8px;font-size:12px}
+.cv-l{width:100%;font-weight:600;font-size:13px}
+.cv-f{flex:1 1 90px;min-height:70px;border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:6px;display:flex;flex-direction:column;gap:4px}
+.cv-f b{font-weight:600}.cv-f i{color:var(--muted);font-style:normal}
+.cv-f.hi{outline:1.5px solid var(--accent)}
+.cv-n{width:100%;color:var(--muted)}
+</style>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
+const PAGE={
+ date:"4 October 2026",
+ slug:"builtin-design-skills",
+ quote:"i want to also explore folding these skills in as built in skills in screenplay? but that users can modify and change? idk if we support that yet",
+ q:"How should people change a Built in skill, so the design skills can ship as editable ones?"
+};
+const W=(rows,foot)=>`<div class="wf"><div class="wf-h">Settings › Skills</div>${rows.join("")}${foot?`<div class="wf-f">${foot}</div>`:""}</div>`;
+const R=(name,src,act,cls)=>`<div class="wf-r ${cls||""}"><span class="wf-n">${name}</span><span class="wf-s">${src}</span><span class="wf-a">${act}</span></div>`;
+const G=t=>`<div class="wf-g">${t}</div>`;
+const TODAY={shots:[IMG("r3/today-light.png","Today · a skill save in a Workspace chat","r3/today-dark.png")],facts:[
+ "<b>Partly supported.</b> A Canvas or Account skill with the same name as a Built in one already wins: the merge order is Repository › Canvas › Account › agent › Built in (<code>apps/app/lib/skills/merged.ts:23</code>), and <code>read_skill</code> tries each source in that order (<code>merged.ts:70</code>).",
+ "<b>But nobody can do it on purpose.</b> Built in skills show only in the / menu, tagged “Built in” (<code>components/agent/skill-mention-list.tsx:48</code>). Settings › Skills and Canvas settings › Skills list only saved skills (<code>components/home/account-skills-panel.tsx</code>), and the only way to make an override is asking an agent to save a skill with the same name.",
+ "<b>Built in skills are one file.</b> They’re bundled at <code>apps/app/lib/skills/&lt;name&gt;/SKILL.md</code> and only that file is read (<code>lib/skills/index.ts:80</code>). The design skills carry templates and reference files: design-exploration is 4 files and 33 KB, design-audit 5 files and 41 KB, the storybook skill (<code>claude/design-storybook-skill-dv3g36</code>) 2 files.",
+ "<b>Saved skills already hold files.</b> Canvas and Account skills keep supporting files beside <code>SKILL.md</code>, up to 256 KB each (<code>lib/skills/saved.ts:31</code>), and are written to disk for Claude Code, Codex and OpenCode (<code>lib/skills/on-disk.ts</code>). Built in ones aren’t written to disk; desktop agents reach them only through <code>read_skill</code>.",
+ "<b>Four Built in skills ship today</b>, all about Screenplay’s own tools: screenplay-add-knob, screenplay-explore-with-mockups, screenplay-share-state and screenplay-try-variants (Coordinator). screenplay-explore-with-mockups already covers “explore with options” using canvas Mockups.",
+ "<b>The design skills assume this project’s setup.</b> They publish claude.ai Artifacts and capture screens with Playwright; RULES.md reads the owner’s rules from agent memory. Inside Screenplay the page would be a Mockup or frame on the canvas, and rules come from Canvas memory.",
+],html:W([G("Account"),R("my-review-style","Account","Open ⋯")],"Built in skills don’t appear here today")};
+const CV=(label,frames,note)=>`<div class="cv"><div class="cv-l">${label}</div>${frames.map(([t,d,h])=>`<div class="cv-f ${h?"hi":""}"><b>${t}</b><i>${d}</i></div>`).join("")}${note?`<div class="cv-n">${note}</div>`:""}</div>`;
+const ROUNDS=[
+{n:3,feedback:"Picked canvas Mockups (“integrate this into the skills… question cards, multiple mockups with labels, knobs for storybook”; rich decision pages are fine too) and the install card: “design the install card way better”. The skills are in draft PR #1633; this round is only the card.",every:[
+ "Real captures of a Workspace chat, built from the app’s own Button, Select, Tabs, chat card frame and markdown; light and dark.",
+ "The card appears when the agent calls <code>save_skill</code>; nothing is saved until someone presses Save. It stays in the transcript after the turn folds its steps, like the question card.",
+ "Copy is the same in each: the skill’s name in mono, “Replaces the Built in skill” when it does, Account or Canvas."
+],questions:[
+ {key:"card",title:"",intro:"Three designs for the install card. Today the save just happens and folds into “Edited 1 file, used 1 other tool”.",options:[
+  {id:"A",name:"Inline card",state:"",shots:[IMG("r3/a-light.png","A · Inline card","r3/a-dark.png")],
+   why:"A card in the transcript in the same frame as the plan card: name, two-line description, “Replaces the Built in skill”, then Save to account, Save to canvas and View. One press saves; View opens the whole skill. 151px tall.",
+   cost:"Two primary-looking choices side by side; the person reads the skill only if they press View."},
+  {id:"B",name:"Preview card",rec:true,state:"",shots:[IMG("r3/b-light.png","B · Preview card","r3/b-dark.png")],
+   why:"The card shows the skill itself: its SKILL.md rendered, faded after four lines with Show all, so people see what they’re about to put in every chat before saving. Built in → Account in the header says what it replaces; the footer picks Account or Canvas and saves with one button. Matches Claude’s install prompt most closely.",
+   cost:"Tallest (250px). Uses a Select for a two-way choice."},
+  {id:"C",name:"Docked prompt",state:"",shots:[IMG("r3/c-light.png","C · Docked prompt","r3/c-dark.png")],
+   why:"The prompt docks above the composer, where queued messages already sit, so it can’t scroll away: name, “Replaces the Built in skill · 1 file”, Account | Canvas tabs, Not now and Save. Smallest (100px).",
+   cost:"Leaves no record in the transcript of what was saved, and no way to read the skill first. A second kind of docked prompt beside queued messages."}
+ ]}
+]},
+{n:2,feedback:"Picked D: people change a Built in skill by asking any chat to copy it to their account or canvas, and the copy wins.",every:[
+ "Built in skills can carry files, and <code>read_skill</code> hands them back so a copy is whole (from round 1’s pick).",
+ "The repo copies under <code>.agents/skills</code> stay as they are for building Screenplay itself.",
+ "Picks and forks go through question cards (<code>ask_question</code>), as Screenplay’s chats already do."
+],questions:[
+ {key:"output",title:"What the skills make",intro:"The design skills publish a claude.ai Artifact (an options page, an audit plan, a decisions page, a storybook). Screenplay chats can’t publish Artifacts; they make Mockups on the canvas and change code in a Workspace. Each option is a different answer to what the skills make instead. Wireframes show the canvas after a design-exploration round.",options:[
+  {id:"A",name:"Mockups on the canvas",rec:true,state:"picked",
+   html:CV("Canvas · Group “Empty cart · round 1”",[["Today","the real frame",0],["A · Illustration","Mockup",1],["B · Inline tips","Mockup",0],["C · Suggested items","Mockup",0]],"Pick on a question card in the chat; the next round is a new Group beside it"),
+   why:"Each option is its own Mockup, beside the real frame as Today, so the canvas is the options page. This is how <code>screenplay-explore-with-mockups</code> already works (one Mockup per take, revise in place, question cards for forks), so design-exploration folds into it rather than shipping as a second explore skill. Audit and storybook follow the same idea: findings pinned as comments on frames, states as a Mockup with knobs.",
+   cost:"The template’s Today tab, rounds and Copy reaction go away; rounds become Groups. The repo skill’s RULES.md and capture steps need rewriting for canvas tools (<code>read_frame_html</code>, <code>view_frame</code>)."},
+  {id:"B",name:"One page as a Mockup",state:"rejected",
+   html:CV("Canvas",[["Today","the real frame",0],["Empty cart · options","one Mockup: tabs Today / Round 1, A B C, Pick",1]],"The exploration template, running as a single Mockup"),
+   why:"The skill keeps its template: the options page becomes one Mockup people interact with, Pick buttons share state with everyone viewing (<code>screenplay.shareState</code>). Closest to the skills as they are; the template moves over almost unchanged, built by the React templates thread.",
+   cost:"Options are pictures inside one page instead of real Mockups, so people can’t interact with or point at a single option, and “build take B” has no Mockup to read. Two ways to explore on one canvas."},
+  {id:"C",name:"A file in the Workspace",state:"rejected",
+   html:CV("Canvas",[["storefront · Workspace","code, plus design/empty-cart.html",0],["design/empty-cart.html","preview frame",1]],"The page is a file on the branch, opened as a frame"),
+   why:"The skill writes its page into the Workspace and opens it as a preview frame, much like it publishes today. Works for every coding agent, including Claude Code and Codex on the Mac, with no canvas tools.",
+   cost:"The page sits in the repository, so it rides into PRs unless deleted. Needs a Workspace even for an audit of a live site. Furthest from how Screenplay explores today."}
+ ]}
+ ,{key:"install",title:"Saving the copy",intro:"Zack: “should we have an install button prompt? Claude does that and then the user picks where to install.” Today <code>save_skill</code> saves straight away to the scope the agent picks (<code>lib/agent/skill-tools.ts:129</code>), with no prompt.",options:[
+  {id:"A",name:"Agent asks where",state:"rejected",
+   html:`<div class="wf"><div class="wf-h">Chat</div><div class="wf-r"><span class="wf-n" style="font-family:inherit;white-space:normal">Where should I save design-exploration?</span></div><div class="wf-r"><span class="wf-a">Your account</span><span class="wf-a">This canvas</span><span></span></div><div class="wf-f">An ordinary question card, then the agent saves</div></div>`,
+   why:"The skill tool tells the agent to ask with a question card before saving when the person didn’t say where. No new UI; the card already exists.",
+   cost:"Only as reliable as the agent following the instruction; nothing stops a save without asking."},
+  {id:"B",name:"Install card",rec:true,state:"picked",
+   html:`<div class="wf"><div class="wf-h">Chat</div><div class="wf-r"><span class="wf-n">design-exploration</span><span class="wf-s">Skill · 4 files</span><span class="wf-a">View</span></div><div class="wf-r"><span class="wf-n" style="font-family:inherit;white-space:normal;color:var(--muted)">Replaces the Built in one</span><span class="wf-a">Save to account</span><span class="wf-a">Save to canvas</span></div><div class="wf-f">Nothing is saved until someone presses a button</div></div>`,
+   why:"Like Claude: <code>save_skill</code> no longer saves; it posts a card with the skill’s name, what it replaces, a View to read it, and Save to account / Save to canvas. People see the skill before it reaches every chat, and pick where.",
+   cost:"A new chat card, and <code>save_skill</code> waits on a press, so every skill save (not just copies) goes through it. Agents saving a procedure on their own now need a press too."},
+  {id:"C",name:"Saves straight away",state:"rejected",
+   html:`<div class="wf"><div class="wf-h">Chat</div><div class="wf-r"><span class="wf-n" style="font-family:inherit;white-space:normal;color:var(--muted)">Saved the account skill “design-exploration”. It now replaces the Built in one.</span></div><div class="wf-f">Today’s behaviour; delete it from Settings › Skills to undo</div></div>`,
+   why:"Keep today’s tool: the agent picks the scope from what the person said and says where it went. Undo is deleting it in Settings › Skills.",
+   cost:"The person doesn’t choose where unless they say so, and can’t look first."}
+ ]}
+]},
+{n:1,feedback:"",every:[
+ "Built in skills learn to carry supporting files (templates, RULES.md), so the design skills ship whole, not as one SKILL.md.",
+ "Built in skills get a read-only row in Settings › Skills so people can see what ships, tagged “Built in” like the / menu.",
+ "The design skills get a Screenplay version: the options page becomes Mockups on the canvas and rules come from Canvas memory. The repo copies under <code>.agents/skills</code> stay as they are for this project.",
+ "The React-built templates (the other thread) ship as the built file inside the skill folder, so whichever option wins sees plain HTML, not a build step."
+],questions:[
+ {key:"change",title:"",intro:"Each option is a different answer to “what happens when someone changes a Built in skill”. Wireframes show Settings › Skills.",options:[
+  {id:"A",name:"Customize makes your copy",state:"rejected",
+   html:W([G("Account"),R("design-exploration","Account · Customized","Open ⋯","hi"),R("my-review-style","Account","Open ⋯"),G("Built in"),R("design-audit","Built in","Customize"),R("design-storybook","Built in","Customize")],"⋯ on a customized row: Reset to built in"),
+   why:"Customize copies the Built in skill, files and all, into Account (or Canvas from Canvas settings) under the same name. The merge order that exists today makes the copy win everywhere, the / menu shows it as Account, and Reset deletes the copy so the Built in one is back. This is D with a button, for people who wouldn’t think to ask.",
+   cost:"A copy stops getting updates when the Built in skill changes; it needs a small “Built in has a newer version” note on the row. Needs the Built in files support from the shared list."},
+  {id:"B",name:"Edit in place",state:"rejected",
+   html:W([G("Built in"),R("design-exploration","Built in · Edited","Open ⋯","hi"),R("design-audit","Built in","Open ⋯"),R("design-storybook","Built in","Open ⋯")],"⋯ on an edited row: Restore default"),
+   why:"Built in skills open in the same editor as saved ones and can be changed directly. The row stays Built in and says Edited; Restore default throws the edits away. Feels the most like “users can modify and change”.",
+   cost:"A new store for per-person or per-canvas edits on top of bundled files, plus deciding what happens when the bundled skill updates under an edit (merge, or keep the edit and drop the update). Muddies the source names: an edited Built in skill is really an Account one."},
+  {id:"C",name:"House rules on top",state:"rejected",
+   html:W([G("Built in"),R("design-exploration","Built in · + your rules","Open ⋯","hi"),R("design-audit","Built in · + your rules","Open ⋯"),R("design-storybook","Built in","Add rules")],"Rules live in Canvas memory or Account; Built in text stays fixed"),
+   why:"The Built in skill never changes; people add their own rules that the skill is told to read first, the way RULES.md already makes the design skills read the owner’s rules from memory. Updates keep flowing and the part people actually want to change (taste, conventions) is theirs.",
+   cost:"Can’t change the steps themselves, only what they read. Someone who wants a different flow still has to save a whole skill of their own (today’s path)."},
+  {id:"D",name:"Ask the agent",rec:true,state:"picked",
+   html:`<div class="wf"><div class="wf-h">Chat</div><div class="wf-r"><span class="wf-n" style="font-family:inherit;white-space:normal">Copy design-exploration to my account and have it skip the dark theme captures</span></div><div class="wf-r"><span class="wf-n" style="font-family:inherit;white-space:normal;color:var(--muted)">Saved the account skill “design-exploration”. It now replaces the Built in one in every chat you message.</span></div><div class="wf-f">No new screen. The copy then lists as Account in the / menu and Settings › Skills.</div></div>`,
+   why:"Zack’s idea: people ask any chat to copy a Built in skill into their account or canvas, changed however they like, and the copy wins by the order that already exists. This mostly works today: <code>read_skill</code> returns a Built in skill’s text and <code>save_skill</code> saves under the same name (<code>lib/agent/skill-tools.ts:129</code>). It fits “chat is the thing” and needs no UI.",
+   cost:"Three small gaps: <code>read_skill</code> would have to hand back a Built in skill’s files too, so the copy is whole; <code>save_skill</code>’s reply should say the copy now replaces the Built in one (today it only says that about repository and canvas clashes, <code>skill-tools.ts:186</code>); and a line in the docs. Nobody finds it unless they think to ask; the Settings row from the shared list helps. A copy stops getting updates, as with A."}
+ ]}
+]}
+];
+
+(()=>{
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const latest=ROUNDS[0];
+const SIGN=[["ok","Looks good"],["changes","Needs changes"]];
+const signoff=q=>q.options.length===1;
+const KEY="exploration-"+PAGE.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+const state=saved.round===latest.n?{picks:saved.picks||{},note:saved.note||""}:{picks:{},note:""};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({round:latest.n,...state}))}catch(e){}};
+
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><button type="button" class="shot${i.dk?" has-dk":""}" data-lt="${esc(i.p)}" data-dk="${esc(i.dk||"")}" aria-label="Enlarge ${esc(i.cap)}"><img class="lt" src="${esc(i.p)}" alt="${esc(i.cap)}">${i.dk?`<img class="dk" src="${esc(i.dk)}" alt="" aria-hidden="true">`:""}</button><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const list=items=>`<ul class="facts">${[].concat(items).map(x=>`<li>${x}</li>`).join("")}</ul>`;
+const badges=o=>(o.rec?'<span class="badge rec">Recommended</span>':"")+(o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:"");
+const choose=(q,o)=>`<div class="choose">`+(signoff(q)?SIGN:[[o.id,"Pick "+o.id]]).map(([v,l])=>`<button type="button" data-q="${esc(q.key)}" data-v="${esc(v)}">${esc(l)}</button>`).join("")+`</div>`;
+const card=(q,o,live,qid)=>`<article class="opt ${o.state||""}" id="${qid}-${esc(o.id)}" role="tabpanel"><header>${signoff(q)?"":`<span class="letter">Option ${esc(o.id)}</span>`}<h3>${esc(o.name)}</h3>${o.rec||o.state?`<div class="tags">${badges(o)}</div>`:""}</header>${o.html||""}${shots(o.shots)}${o.why?`<p>${o.why}</p>`:""}${o.cost?`<p class="cost"><b>Cost</b> ${o.cost}</p>`:""}${live?choose(q,o):""}</article>`;
+// Option tabs: letter only; a dot marks the recommendation, a tick the pick
+const mark=o=>o.state==="picked"?'<span class="mark ok" aria-label="picked">✓</span>':o.state==="rejected"?'<span class="mark no" aria-label="rejected">✕</span>':o.rec?'<span class="mark rec" aria-label="recommended"></span>':"";
+function question(r,q,i,live){
+ const n=r.questions.length,qid=`r${r.n}-${q.key}`;
+ const head=(q.title||n>1)?`<div class="qhead">${n>1?`<p class="lbl acc">Question ${i+1} of ${n}</p>`:""}${q.title?`<h2>${esc(q.title)}</h2>`:""}${q.intro?`<p class="muted">${q.intro}</p>`:""}</div>`:"";
+ if(signoff(q))return `<div class="question">${head}${card(q,q.options[0],live,qid)}</div>`;
+ const first=(q.options.find(o=>o.state==="picked")||q.options[0]).id;
+ return `<div class="question" data-q="${esc(q.key)}" data-live="${live}">${head}<div class="otabs" role="tablist" aria-label="Options">`+q.options.map(o=>`<button type="button" role="tab" data-opt="${esc(o.id)}" aria-controls="${qid}-${esc(o.id)}" aria-selected="${o.id===first}">${esc(o.id)}${mark(o)}</button>`).join("")+`</div>`+q.options.map(o=>card(q,o,live,qid).replace('role="tabpanel"',`role="tabpanel"${o.id===first?"":" hidden"}`)).join("")+`</div>`;
+}
+const outcome=r=>{const p=r.questions.flatMap(q=>q.options.filter(o=>o.state==="picked").map(o=>signoff(q)?"signed off":`picked ${o.id}`));return p.length?p.join(", "):"no pick"};
+function round(r,live){
+ const Q=r.questions;
+ const status=live?"open":outcome(r);
+ return `<section data-panel="r${r.n}"${live?"":" hidden"}><p class="lbl${live?" acc":""}">Round ${r.n} · ${esc(status)}</p>${r.feedback?`<div class="said"><blockquote class="clamp">${r.feedback}</blockquote><button type="button" hidden>Show all</button></div>`:""}${r.every?`<details class="fold"><summary><span class="lbl">In every option</span></summary><div class="body">${list(r.every)}</div></details>`:""}${Q.map((q,i)=>question(r,q,i,live)).join("")}</section>`;
+}
+const Q=latest.questions;
+
+document.body.insertAdjacentHTML("afterbegin",`<div class="wrap">
+<header><div class="top"><p class="lbl acc">Design exploration · ${esc(PAGE.date)}</p><button type="button" class="ghost" id="theme">Dark</button></div><h1>${esc(PAGE.q)}</h1><blockquote>${esc(PAGE.quote)}</blockquote></header>
+<nav class="tabs rtabs" role="tablist" aria-label="Rounds"><button type="button" role="tab" data-tab="today" aria-selected="false">Today</button>${[...ROUNDS].reverse().map(r=>`<button type="button" role="tab" data-tab="r${r.n}" aria-selected="${r===latest}">Round ${r.n}</button>`).join("")}</nav>
+${ROUNDS.map((r,i)=>round(r,i===0)).join("")}
+<section data-panel="today" hidden><p class="lbl">Today · what main does now</p>${TODAY.facts?list(TODAY.facts):""}${shots(TODAY.shots)}${TODAY.html||""}</section>
+</div>
+<div class="bar"><div class="in"><textarea id="note" aria-label="Note" placeholder="Anything to add" hidden></textarea><textarea id="out" aria-label="Reaction to copy" readonly hidden></textarea><div class="row"><div class="picks" id="picks" role="status" aria-live="polite"></div><button type="button" id="noteBtn">Note</button><button type="button" class="primary" id="copy"><span id="copyLabel">Copy reaction</span><span aria-hidden="true">Copy reaction</span></button></div></div></div>
+<dialog class="lb" id="lb"><div class="in"><img alt=""></div></dialog>`);
+
+const answer=q=>{const v=state.picks[q.key];return !v?"":signoff(q)?SIGN.find(s=>s[0]===v)[1]:`${v}: ${q.options.find(o=>o.id===v).name}`};
+function build(){
+ const lines=Q.map(q=>{const a=answer(q),name=signoff(q)?q.options[0].name:q.title;return "→ "+(name?name+": ":"")+(a||"No pick yet")});
+ return [`Exploration: ${PAGE.q}`,`Round ${latest.n}`,...lines].concat(state.note.trim()?[`Note: ${state.note.trim()}`]:[]).join("\n");
+}
+function sync(){
+ const done=Q.filter(q=>state.picks[q.key]);
+ $("picks").innerHTML=done.length?done.map(q=>`<b>${esc(Q.length>1?answer(q).split(":")[0]:answer(q))}</b>`).join(" · ")+(Q.length>1?` · ${done.length} of ${Q.length} answered`:""):Q.length>1?`0 of ${Q.length} answered`:signoff(Q[0])?"Sign off or say what to change":"No pick yet";
+ document.querySelectorAll(".choose button").forEach(b=>b.setAttribute("aria-pressed",state.picks[b.dataset.q]===b.dataset.v));
+ // The open round's option tabs tick the owner's pick
+ document.querySelectorAll('.question[data-live="true"]').forEach(el=>el.querySelectorAll(".otabs button").forEach(t=>{
+  const o=Q.find(x=>x.key===el.dataset.q).options.find(x=>x.id===t.dataset.opt);
+  t.innerHTML=esc(o.id)+(state.picks[el.dataset.q]===o.id?'<span class="mark ok" aria-label="your pick">✓</span>':mark(o))}));
+ save();
+}
+// Feedback longer than three lines gets Show all; the round tabs fade when some are off screen
+const fit=()=>{document.querySelectorAll(".said").forEach(d=>{const q=d.firstElementChild;if(q.classList.contains("clamp"))d.lastElementChild.hidden=q.scrollHeight<=q.clientHeight+1});const t=document.querySelector(".rtabs");t.classList.toggle("more",t.scrollWidth-t.scrollLeft>t.clientWidth+1);t.classList.toggle("less",t.scrollLeft>1)};
+document.querySelector(".rtabs").addEventListener("scroll",fit,{passive:true});addEventListener("resize",fit);
+const openNote=()=>{const n=$("note");n.hidden=false;n.focus()};
+document.addEventListener("click",e=>{
+ const b=e.target.closest(".choose button");
+ if(b){const k=b.dataset.q;state.picks[k]=state.picks[k]===b.dataset.v?undefined:b.dataset.v;if(state.picks[k]==="changes")openNote();sync();return}
+ const ot=e.target.closest(".otabs button");
+ if(ot){const qel=ot.closest(".question"),bar=ot.parentElement;
+  bar.querySelectorAll("button").forEach(x=>x.setAttribute("aria-selected",x===ot));
+  qel.querySelectorAll(":scope>.opt").forEach(p=>p.hidden=p.id!==ot.getAttribute("aria-controls"));
+  // When the tabs are stuck to the top, start the new option from its beginning
+  const stuck=bar.getBoundingClientRect().top<=parseFloat(getComputedStyle(bar).top)+1;
+  if(stuck)scrollTo({top:scrollY+qel.querySelector(":scope>.opt:not([hidden])").getBoundingClientRect().top-bar.offsetHeight-12,behavior:"instant"});
+  return}
+ const more=e.target.closest(".said button");
+ if(more){const q=more.previousElementSibling,open=q.classList.toggle("clamp");more.textContent=open?"Show all":"Show less";return}
+ const tab=e.target.closest(".rtabs button");
+ if(tab){document.querySelectorAll(".rtabs button").forEach(x=>x.setAttribute("aria-selected",x===tab));document.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);fit();return}
+ const s=e.target.closest(".shot");
+ if(s){const dark=getComputedStyle(s.querySelector(".lt")).display==="none";$("lb").querySelector("img").src=dark&&s.dataset.dk?s.dataset.dk:s.dataset.lt;$("lb").showModal();return}
+ if(e.target.closest("#lb"))$("lb").close();
+});
+$("noteBtn").addEventListener("click",()=>{const n=$("note");n.hidden=!n.hidden;if(!n.hidden)n.focus()});
+$("note").value=state.note;if(state.note)$("note").hidden=false;
+$("note").addEventListener("input",e=>{state.note=e.target.value;save()});
+$("copy").addEventListener("click",()=>{
+ const text=build(),l=$("copyLabel"),done=()=>{l.textContent="Copied";setTimeout(()=>l.textContent="Copy reaction",1800)};
+ const fallback=()=>{const o=$("out");o.hidden=false;o.value=text;o.select()};
+ try{navigator.clipboard.writeText(text).then(done,fallback)}catch(e){fallback()}
+});
+// Light / Dark switch, so the other theme's captures are one tap away
+const root=document.documentElement,mq=matchMedia("(prefers-color-scheme: dark)");
+const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":mq.matches;
+const label=()=>$("theme").textContent=isDark()?"Light":"Dark";
+$("theme").addEventListener("click",()=>{root.dataset.theme=isDark()?"light":"dark";label()});label();
+// The round row starts scrolled to the newest round
+{const t=document.querySelector(".rtabs");t.scrollLeft=t.scrollWidth}
+sync();fit();
+})();
+</script>
+
+</body></html>

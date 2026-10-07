@@ -1,0 +1,349 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Shared Frame Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one column. The question, a round toggle, Today, then the round's options as wireframe storyboards (Mac row, hosted row), then the reaction form. */
+:root{--bg:#fbfbfa;--surface:#f2f2f0;--line:#e0e0dc;--fg:#161615;--muted:#5d5d59;--accent:#c4209c;--ok:#1f7a45;--no:#a3372b;
+--wf-canvas:#efefec;--wf-frame:#ffffff;--wf-box:#e3e3df;--wf-line:#cfcfca;--wf-ink:#2a2a28;--wf-muted:#8a8a85;--wf-bar:#ffffff;--wf-pink:#ff2bd6;--wf-pop:#161615;--wf-popink:#f6f6f4;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d0d0c;--surface:#181817;--line:#2c2c2a;--fg:#f1f1ef;--muted:#a3a39e;--accent:#ff5be2;--ok:#5fd08e;--no:#f08a7c;
+--wf-canvas:#121211;--wf-frame:#1d1d1b;--wf-box:#2b2b29;--wf-line:#3a3a37;--wf-ink:#ecece9;--wf-muted:#8d8d88;--wf-bar:#0a0a0a;--wf-pop:#f4f4f2;--wf-popink:#161615;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d0d0c;--surface:#181817;--line:#2c2c2a;--fg:#f1f1ef;--muted:#a3a39e;--accent:#ff5be2;--ok:#5fd08e;--no:#f08a7c;
+--wf-canvas:#121211;--wf-frame:#1d1d1b;--wf-box:#2b2b29;--wf-line:#3a3a37;--wf-ink:#ecece9;--wf-muted:#8d8d88;--wf-bar:#0a0a0a;--wf-pop:#f4f4f2;--wf-popink:#161615;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:40px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,4vw,30px)/1.2 var(--head);letter-spacing:-.01em;margin:10px 0 12px;text-wrap:balance}
+h2{font:600 clamp(17px,2.2vw,20px)/1.3 var(--head);margin:0;text-wrap:balance}
+h3{font:600 16px/1.35 var(--sans);margin:0}
+p{margin:0}
+a{color:var(--accent)}
+blockquote{margin:0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);max-width:72ch}
+.muted{color:var(--muted)}
+.facts{display:flex;flex-direction:column;gap:6px;max-width:80ch;padding-left:18px;margin:0;color:var(--muted)}
+.facts code{font:12.5px var(--mono);color:var(--fg)}
+.rounds{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 13px var(--sans);border-radius:6px;padding:6px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:16px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+.opts{display:flex;flex-direction:column;gap:44px}
+.opt{display:flex;flex-direction:column;gap:12px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 15px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted);max-width:80ch}
+.cost b{font-weight:600;color:var(--fg)}
+.why{max-width:80ch}
+.rowlbl{font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:10px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:5px}
+.shot{border:1px solid var(--line);background:var(--surface);overflow:hidden}
+.shot img,.shot svg{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 12px/1.4 var(--sans);color:var(--muted)}
+.shots.real{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.today-shots{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.pick:hover,.pick:has(input:checked){background:var(--surface)}
+.pick input{margin:3px 0 0;accent-color:var(--accent)}
+textarea{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;resize:vertical;min-height:60px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{font-size:13px;color:var(--ok)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;margin:0}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+/* wireframe text */
+svg text{font-family:var(--sans)}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">Design exploration · 2 Oct 2026 · map #1364, ticket #1376</p>
+<h1 id="q"></h1>
+<blockquote id="quote"></blockquote>
+</header>
+
+<nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+
+<section id="today"></section>
+
+<section id="settled">
+<div class="shead"><p class="lbl">Already decided</p><h2>Rules every option follows</h2></div>
+<ul class="facts">
+<li>One driver per shared frame. People ask, and the driver lets them drive (#981). Watchers' clicks never reach the page.</li>
+<li>The agent asks through the same gate but <b>always yields</b>: anyone takes control from it instantly, on the Mac too (#1370).</li>
+<li>Asking the agent in chat to show you something hands it control.</li>
+<li>Going to your own local copy is for you alone. Rejoining discards your copy (#1369).</li>
+<li>Hosted frames are shared; the Mac has one local iframe and nobody else.</li>
+</ul>
+<div class="legend" aria-label="Wireframe key">
+<span><i class="sw" style="background:var(--wf-pink)"></i>You (today's Interact pink)</span>
+<span><i class="sw" style="border:1.5px solid var(--wf-ink)"></i>Someone else or the agent</span>
+<span><i class="sw" style="background:var(--wf-pop)"></i>Inverted floating surface (popover, menu)</span>
+</div>
+</section>
+
+<section id="round"></section>
+
+<section id="react">
+<div class="shead"><p class="lbl">Your reaction</p><h2 id="reactTitle"></h2><p class="muted">Pick one, or say what's missing. Copy the text and paste it back in the chat.</p></div>
+<form id="form"></form>
+<div class="row"><button type="button" id="copy" class="primary">Copy reaction</button><span class="status" id="status" role="status" aria-live="polite"></span></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+/* ---------- wireframe kit: one selected frame on the canvas, its title line, and the frame bar ---------- */
+const X=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const C={canvas:"var(--wf-canvas)",frame:"var(--wf-frame)",box:"var(--wf-box)",line:"var(--wf-line)",ink:"var(--wf-ink)",muted:"var(--wf-muted)",bar:"var(--wf-bar)",pink:"var(--wf-pink)",pop:"var(--wf-pop)",popink:"var(--wf-popink)"};
+function arrow(x,y,fill,stroke){return `<path d="M${x} ${y} l0 11 l3 -3 l2.6 4.6 l1.8 -1 l-2.6 -4.4 l4.2 -0.4 z" fill="${fill}" stroke="${stroke}" stroke-width="1" stroke-linejoin="round"/>`}
+function dots(x,y,c){let s="";for(let i=0;i<3;i++)for(let j=0;j<3;j++)s+=`<circle cx="${x+i*3.4}" cy="${y+j*3.4}" r="1.1" fill="${c}" opacity="${(i+j)%2?0.45:1}"/>`;return s}
+function avatar(x,y,r,init,fill,ink){return `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}"/><text x="${x}" y="${y+3.4}" font-size="9.5" font-weight="600" text-anchor="middle" fill="${ink}">${X(init)}</text>`}
+/* o: {title, tag:{text, agent}, ring:"you"|"other"|null, cursor:{x,y,name,agent}, lead, addr, btn:{kind:"idle"|"you"|"agent"|"person"|"rejoin", init}, extra:[{x,label}], pop:{lines:[], acts:[], at}, menu:{items:[]}, strip:[...], local, caption} */
+function wire(o){
+ const W=360,H=Math.max(o.menu||o.pop?318:296,o.menu&&!o.menuUp?276+12+o.menu.items.length*19:0);let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${X(o.caption||"")}"><rect width="${W}" height="${H}" fill="${C.canvas}"/>`;
+ // title line above the frame (existing chrome: workspace · frame name)
+ s+=`<text x="14" y="17" font-size="10.5" fill="${C.muted}">Hero gradient · Home</text>`;
+ if(o.tag){const tx=W-14-o.tag.text.length*6-12;s+=o.tag.agent?dots(tx,9,C.ink):`<circle cx="${tx+3}" cy="13" r="3.4" fill="${C.ink}"/>`;s+=`<text x="${tx+12}" y="17" font-size="10.5" font-weight="600" fill="${C.ink}">${X(o.tag.text)}</text>`}
+ if(o.local)s+=`<text x="${W-14}" y="17" font-size="10.5" text-anchor="end" fill="${C.muted}">Your copy</text>`;
+ // frame
+ const fx=14,fy=24,fw=332,fh=196;
+ s+=`<rect x="${fx}" y="${fy}" width="${fw}" height="${fh}" fill="${C.frame}"/>`;
+ s+=`<rect x="${fx+14}" y="${fy+12}" width="70" height="8" rx="2" fill="${C.box}"/><rect x="${fx+230}" y="${fy+12}" width="88" height="8" rx="2" fill="${C.box}"/>`;
+ s+=`<rect x="${fx+70}" y="${fy+44}" width="190" height="16" rx="3" fill="${C.box}"/><rect x="${fx+96}" y="${fy+66}" width="140" height="8" rx="2" fill="${C.box}"/>`;
+ s+=`<rect x="${fx+110}" y="${fy+84}" width="52" height="16" rx="3" fill="${C.box}"/><rect x="${fx+170}" y="${fy+84}" width="52" height="16" rx="3" fill="${C.box}"/>`;
+ s+=`<rect x="${fx+40}" y="${fy+118}" width="252" height="62" rx="4" fill="${C.box}" opacity=".7"/>`;
+ const ring=o.ring==="you"?C.pink:o.ring==="other"?C.ink:C.pink;
+ s+=`<rect x="${fx}" y="${fy}" width="${fw}" height="${fh}" fill="none" stroke="${ring}" stroke-width="${o.ring==="you"?2:1.2}" ${o.ring==="other"?'stroke-dasharray="4 3"':""}/>`;
+ if(o.ring!=="you"&&o.ring!=="other")for(const [hx,hy] of [[fx,fy],[fx+fw,fy],[fx,fy+fh],[fx+fw,fy+fh],[fx+fw/2,fy],[fx+fw/2,fy+fh]])s+=`<rect x="${hx-2.5}" y="${hy-2.5}" width="5" height="5" fill="${C.frame}" stroke="${C.pink}"/>`;
+ if(o.cursor){const {x,y,name,agent}=o.cursor;s+=arrow(x,y,agent?C.ink:C.ink,C.frame);const tw=name.length*5.6+12;s+=`<rect x="${x+9}" y="${y+12}" width="${tw}" height="15" rx="4" fill="${C.ink}"/><text x="${x+15}" y="${y+23}" font-size="9.5" font-weight="600" fill="${C.frame}">${X(name)}</text>`}
+ // frame bar
+ const by=fy+fh+10,bh=34;
+ s+=`<rect x="${fx}" y="${by}" width="${fw}" height="${bh}" rx="7" fill="${C.bar}" stroke="${C.line}"/>`;
+ s+=`<text x="${fx+12}" y="${by+21}" font-size="13" fill="${C.muted}">←</text><text x="${fx+30}" y="${by+21}" font-size="13" fill="${C.muted}">→</text>`;
+ const ax=fx+50,aw=o.strip?150:170;
+ s+=`<rect x="${ax}" y="${by+5}" width="${aw}" height="24" rx="5" fill="${C.canvas}"/>`;
+ let lx=ax+9;
+ if(o.lead){ if(o.lead.agent){s+=dots(lx,by+13.5,C.ink);lx+=13}else if(o.lead.init){s+=avatar(lx+5,by+17,6,o.lead.init,C.ink,C.frame);lx+=15}
+  s+=`<text x="${lx}" y="${by+21}" font-size="10.5" font-weight="600" fill="${C.ink}">${X(o.lead.text)}</text>`;lx+=o.lead.text.length*5.5+6;s+=`<text x="${lx}" y="${by+21}" font-size="10" fill="${C.muted}">⌄</text>`;lx+=12}
+ else{s+=`<circle cx="${lx+3}" cy="${by+17}" r="3.4" fill="none" stroke="${C.muted}"/><text x="${lx+11}" y="${by+21}" font-size="10.5" fill="${C.muted}">Hero gradient</text>`;lx+=78}
+ s+=`<text x="${lx}" y="${by+21}" font-size="10.5" fill="${C.muted}">/</text>`;
+ // trailing buttons
+ let bx=ax+aw+8;s+=`<line x1="${bx}" y1="${by+8}" x2="${bx}" y2="${by+26}" stroke="${C.line}"/>`;bx+=6;
+ const slot=(draw,w=24)=>{const x=bx;bx+=w+3;return draw(x)};
+ const b=o.btn||{kind:"idle"};
+ s+=slot(x=>{let t="";
+  if(b.kind==="you")t+=`<rect x="${x}" y="${by+5}" width="24" height="24" rx="5" fill="${C.pink}"/>`+arrow(x+8,by+10,"#000","#000");
+  else if(b.kind==="agent")t+=`<rect x="${x}" y="${by+5}" width="24" height="24" rx="5" fill="none" stroke="${C.ink}"/>`+dots(x+8.5,by+13.5,C.ink);
+  else if(b.kind==="person")t+=`<rect x="${x}" y="${by+5}" width="24" height="24" rx="5" fill="none" stroke="${C.ink}"/>`+avatar(x+12,by+17,7,b.init||"A",C.ink,C.frame);
+  else if(b.kind==="rejoin")t+=`<rect x="${x}" y="${by+5}" width="46" height="24" rx="5" fill="none" stroke="${C.ink}"/><text x="${x+23}" y="${by+21}" font-size="10.5" font-weight="600" text-anchor="middle" fill="${C.ink}">Rejoin</text>`;
+  else t+=arrow(x+8,by+10,"none",C.ink);
+  return t},b.kind==="rejoin"?46:24);
+ for(const e of (o.extra||[])){s+=slot(x=>`<rect x="${x}" y="${by+5}" width="${e.w}" height="24" rx="5" fill="none" stroke="${C.ink}"/><text x="${x+e.w/2}" y="${by+21}" font-size="10.5" font-weight="600" text-anchor="middle" fill="${C.ink}">${X(e.label)}</text>`,e.w)}
+ s+=slot(x=>`<line x1="${x+6}" y1="${by+14}" x2="${x+18}" y2="${by+14}" stroke="${C.ink}"/><line x1="${x+6}" y1="${by+20}" x2="${x+18}" y2="${by+20}" stroke="${C.ink}"/><circle cx="${x+10}" cy="${by+14}" r="2" fill="${C.bar}" stroke="${C.ink}"/><circle cx="${x+15}" cy="${by+20}" r="2" fill="${C.bar}" stroke="${C.ink}"/>`);
+ const moreX=bx;s+=slot(x=>`<text x="${x+12}" y="${by+20}" font-size="13" text-anchor="middle" fill="${C.muted}">···</text>`);
+ // popover anchored above the first trailing button
+ if(o.pop){const pw=Math.min(W-16,Math.max(o.pop.w||0,...o.pop.lines.map(l=>l.length*5.7+24))),ph=18+o.pop.lines.length*15+(o.pop.acts?30:0);const px=Math.max(8,Math.min(W-pw-8,(o.pop.at||ax+aw+14)-pw/2+12)),py=by-ph-8;
+  s+=`<rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="7" fill="${C.pop}"/>`;
+  o.pop.lines.forEach((l,i)=>s+=`<text x="${px+11}" y="${py+18+i*15}" font-size="10.5" ${i===0?'font-weight="600"':""} fill="${C.popink}">${X(l)}</text>`);
+  if(o.pop.acts){let qx=px+11;const qy=py+ph-26;o.pop.acts.forEach((a,i)=>{const w=a.length*5.6+16;s+=`<rect x="${qx}" y="${qy}" width="${w}" height="18" rx="4" fill="${i===0?C.popink:"none"}" stroke="${C.popink}" stroke-opacity="${i===0?1:.35}"/><text x="${qx+w/2}" y="${qy+12.5}" font-size="10" font-weight="600" text-anchor="middle" fill="${i===0?C.pop:C.popink}">${X(a)}</text>`;qx+=w+6})}}
+ if(o.menu){const mw=168,mh=12+o.menu.items.length*19,mx=Math.min(W-mw-6,moreX-mw+24),my=by+bh+4-(o.menuUp?mh+bh+8:0);
+  const top=o.menuUp?by-mh-4:my;s+=`<rect x="${mx}" y="${top}" width="${mw}" height="${mh}" rx="7" fill="${C.pop}"/>`;
+  o.menu.items.forEach((it,i)=>{const t=typeof it==="string"?it:it.t;const strong=typeof it!=="string"&&it.b;s+=`<text x="${mx+12}" y="${top+20+i*19}" font-size="10.5" ${strong?'font-weight="600"':""} fill="${C.popink}" opacity="${typeof it!=="string"&&it.m?.6:1}">${X(t)}</text>`})}
+ if(o.strip){const sy=by+bh+6;s+=`<rect x="${fx}" y="${sy}" width="${fw}" height="26" rx="7" fill="${C.bar}" stroke="${C.line}"/>`;let sx=fx+10;o.strip.forEach((t,i)=>{s+=`<text x="${sx}" y="${sy+17}" font-size="10.5" ${i===0?'font-weight="600"':""} fill="${i===0?C.ink:C.muted}">${X(t)}</text>`;sx+=t.length*5.4+16})}
+ return s+`</svg>`;
+}
+const S=(cap,o)=>({svg:wire({...o,caption:cap}),cap});
+
+/* ---------- content ---------- */
+const QUESTION={
+ quote:"“We should have a design exploration task to resolve how this complex toolbar interactive mode changes things vs. the simple toggle on Mac. … But also on Mac I guess we need to consider the agent vs. user control. So maybe they are the same affordance on both?” (Zack, 2 Oct)",
+ q:"How does Interact show and hand over control when people and the agent share a frame, on Mac and hosted?",
+ slug:"shared-frame-control"
+};
+const TODAY={facts:[
+ "Interact is one 28px icon button (cursor) in the frame bar under the selected frame, after the address bar and a separator, before Knobs and ⋯ (<code>components/canvas/iframe-layer.tsx:1013</code>). Same on web and Mac.",
+ "Pressed, it takes the selection fill (hot pink, black icon) like the ring around the frame, and shows Esc as its shortcut (<code>iframe-layer.tsx:1015-1022</code>). Double-clicking a frame with a preview also enters it (<code>iframe-layer.tsx:1158</code>).",
+ "Interact is per viewer and lives only while its frame is selected: deselecting drops it (<code>lib/canvas/interaction-mode.ts</code>).",
+ "The frame bar exists only for the selected frame. The line above every frame (Workspace · frame name) is the only chrome a frame shows when it isn't selected.",
+ "Multiplayer cursors with name tags already exist on the canvas (cursor chat, <code>components/canvas/cursor-chat.tsx</code>)."
+],shots:[{p:"today/frame-selected.light.webp",dk:"today/frame-selected.dark.webp",cap:"Today · selected frame and its frame bar"},{p:"today/frame-tooltip-interact.light.webp",dk:"today/frame-tooltip-interact.dark.webp",cap:"Today · the Interact button"}]};
+
+const A=[
+ S("Mac · idle: the Interact button as today",{btn:{kind:"idle"}}),
+ S("Mac · you drive: today's pink Interact",{ring:"you",btn:{kind:"you"}}),
+ S("Mac · the agent drives: its cursor in the frame, the button shows it; click to take over",{ring:"other",tag:{text:"Claude is driving",agent:true},cursor:{x:150,y:118,name:"Claude",agent:true},btn:{kind:"agent"},pop:{lines:["Claude is driving","Click to take over"],at:254}}),
+];
+const A2=[
+ S("Hosted · Ana drives: her avatar on the button; click asks",{ring:"other",tag:{text:"Ana is driving"},cursor:{x:96,y:96,name:"Ana"},btn:{kind:"person",init:"A"},pop:{lines:["Ana is driving","Ask to drive"],acts:["Ask"],at:254}}),
+ S("Hosted · you drive and Ana asks: the request opens from the same button",{ring:"you",btn:{kind:"you"},pop:{lines:["Ana asks to drive"],acts:["Let Ana drive","Not now"],w:196,at:254}}),
+ S("Hosted · your own copy lives in ⋯; the button turns to Rejoin",{local:true,btn:{kind:"rejoin"},menu:{items:[{t:"Your own copy",b:1},"Rejoin shared frame","Device size","Fit to content"]}}),
+];
+const B=[
+ S("Mac · idle: Interact as today, address bar unchanged",{btn:{kind:"idle"}}),
+ S("Mac · the agent drives: it takes the address bar's leading slot",{ring:"other",cursor:{x:150,y:118,name:"Claude",agent:true},lead:{agent:true,text:"Claude"},btn:{kind:"idle"}}),
+ S("Mac · the driver menu from that slot",{ring:"other",cursor:{x:150,y:118,name:"Claude",agent:true},lead:{agent:true,text:"Claude"},menu:{items:[{t:"Claude is driving",b:1},"Take over",{t:"Workspace: Hero gradient",m:1}]},menuUp:false}),
+];
+const B2=[
+ S("Hosted · Ana drives: her name leads the address bar",{ring:"other",cursor:{x:96,y:96,name:"Ana"},lead:{init:"A",text:"Ana"}}),
+ S("Hosted · the driver menu: queue, ask, your own copy",{ring:"other",lead:{init:"A",text:"Ana"},menu:{items:[{t:"Ana is driving",b:1},"Waiting: Claude","Ask to drive","Use my own copy",{t:"Workspace: Hero gradient",m:1}]}}),
+ S("Hosted · you drive: your name leads, Interact pink",{ring:"you",lead:{init:"Z",text:"You"},btn:{kind:"you"}}),
+];
+const Cc=[
+ S("Mac · idle: nothing new",{btn:{kind:"idle"}}),
+ S("Mac · the agent drives: only its cursor and the title line say so",{tag:{text:"Claude is driving",agent:true},cursor:{x:150,y:118,name:"Claude",agent:true},ring:"other",btn:{kind:"idle"}}),
+ S("Mac · you click inside: you're driving, the agent stopped",{ring:"you",btn:{kind:"you"},tag:{text:"You took over from Claude"}}),
+];
+const C2=[
+ S("Hosted · Ana drives: cursor and title line",{tag:{text:"Ana is driving"},cursor:{x:96,y:96,name:"Ana"},ring:"other"}),
+ S("Hosted · you click inside: that click asks, nothing reaches the page",{tag:{text:"Asked Ana to drive"},cursor:{x:96,y:96,name:"Ana"},ring:"other"}),
+ S("Hosted · Ana's side: the ask arrives at her cursor",{ring:"you",btn:{kind:"you"},cursor:{x:180,y:110,name:"Zack asks to drive"}}),
+];
+const D=[
+ S("Mac · idle: the toggle as today",{btn:{kind:"idle"}}),
+ S("Mac · the agent drives: a Stop button appears beside Interact",{ring:"other",cursor:{x:150,y:118,name:"Claude",agent:true},btn:{kind:"idle"},extra:[{label:"Stop",w:38}]}),
+ S("Mac · you drive: as today",{ring:"you",btn:{kind:"you"}}),
+];
+const D2=[
+ S("Hosted · a control strip under the frame bar",{ring:"other",cursor:{x:96,y:96,name:"Ana"},strip:["Ana is driving","Waiting: Claude","Ask to drive","Own copy"]}),
+ S("Hosted · you drive: strip shows the queue",{ring:"you",btn:{kind:"you"},strip:["You're driving","Ana asks","Let her drive","Release"]}),
+];
+
+const im=(stem,cap)=>({p:`r2/${stem}.light.webp`,dk:`r2/${stem}.dark.webp`,cap});
+const r2rows=L=>[["Claude drives (Mac and hosted)",[im(`${L}-claude.frame`,"Whole frame"),im(`${L}-claude.bar`,"Frame bar close-up")]],["Ana drives (hosted)",[im(`${L}-ana.frame`,"Whole frame"),im(`${L}-ana.bar`,"Frame bar close-up")]]];
+
+const im3=(stem,cap)=>({p:`r3/${stem}.light.webp`,dk:`r3/${stem}.dark.webp`,cap});
+
+const im4=(stem,cap)=>({p:`r4/${stem}.light.webp`,dk:`r4/${stem}.dark.webp`,cap});
+const r4rows=L=>[["Hover while Claude drives",[im4(`${L}-claude`,"Claude driving")]],["Hover while Ana drives (hosted)",[im4(`${L}-ana`,"Ana driving")]]];
+
+const ROUNDS=[
+{n:4,kind:"real screens",feedback:"Zack, 2 Oct: “the tooltip for taking over could have a nicer layout.” Round 3's mark, tag and driver ring carry forward. These are the real tooltip (inverted surface, 12px) with its text swapped.",
+ options:[
+ {id:"A",name:"Just the action",state:"rejected",
+  why:"A one-line tooltip like every other toolbar button's: “Take over from Claude”, or “Ask Ana to drive”. The tag and the mark already say who's driving, so the tooltip only names what the click does.",
+  cost:"None. It's the stock tooltip with a different label.",
+  rows:r4rows("A")},
+ {id:"B",name:"Who, then what a click does",rec:true,state:"picked",
+  why:"Two lines in the same tooltip: “Claude is driving” in medium weight, then “Click to take over” (or “Click to ask for control”) in muted text. You can read it at a glance, and it stays a tooltip that closes when you move away.",
+  cost:"A two-line tooltip, which nothing else in the toolbar uses yet.",
+  rows:r4rows("B")},
+ {id:"C",name:"A hover card with a button",state:"rejected",
+  why:"The mark, “Claude is driving” and a real Take over (or Ask to drive) button on the same inverted surface. The click goes to the button rather than to the toolbar icon.",
+  cost:"It needs to be a hover card, not a tooltip, so it stays open while you move onto the button. It's also an extra step if clicking the icon already takes over.",
+  rows:r4rows("C")}
+]},
+{n:3,kind:"real screens",feedback:"Zack, 2 Oct: “one nice thing to add alongside the mark is to use the double width interaction border we use in the driver's color … when that layer is selected I guess we cover that up, but we shouldn't allow resize when someone is driving either.” “I like A + B, because otherwise you can't see someone is driving unless the frame is selected.” Also: the tag wasn't aligned. It now sits on the title line, right-aligned to the frame's edge, in the title's type.",
+ options:[
+ {id:"A",name:"Mark, tag and driver ring",rec:true,state:"",
+  why:"Not selected: the frame gets Interact's 2px ring in the driver's colour (ink for Claude, the person's cursor colour for people), and “Claude is driving” sits on the title line, right-aligned to the frame. Selected: the selection ring covers the driver's ring, there are no resize handles, and the Interact button shows the driver's mark. The driver's cursor moves inside the frame in every state.",
+  cost:"One new tag on the title line plus a ring colour per driver. Resizing waits until the driver lets go.",
+  rows:[["Claude drives · not selected",[im3("claude-unsel.frame","Whole frame"),im3("claude-unsel.title","Title line close-up")]],
+        ["Claude drives · selected",[im3("claude-sel.frame","Whole frame: no resize handles"),im3("claude-sel.bar","Frame bar close-up")]],
+        ["Ana drives · not selected (hosted)",[im3("ana-unsel.frame","Whole frame"),im3("ana-unsel.title","Title line close-up")]],
+        ["Ana drives · selected (hosted)",[im3("ana-sel.frame","Whole frame: no resize handles"),im3("ana-sel.bar","Frame bar close-up")]]]}
+]},
+{n:2,kind:"real screens",feedback:"Round 1 pick: A, Interact becomes the driver button (Zack, 2 Oct). This round shows what that button and the frame look like while someone else drives.",
+ shared:{why:"Shared by every option: while you drive (today's pink Interact), a request from Ana opens above the button on the inverted floating surface. Claude never asks; it waits or is told in chat.",shots:[im("ask.frame","Ana asks while you drive"),im("ask.bar","Close-up")]},
+ options:[
+ {id:"A",name:"The driver's mark in the button",rec:true,state:"picked",
+  why:"The cursor icon gives way to whoever drives: Claude's 9 dots (the LLM-activity mark, twinkling live), or the person's avatar in their cursor colour, on the quiet pressed fill. Their cursor and name tag move inside the frame like canvas cursors. Nothing else changes. Click it to take over from Claude or to ask Ana.",
+  cost:"Least new UI. When the frame isn't selected, only the moving cursor says someone is driving.",
+  rows:r2rows("A")},
+ {id:"B",name:"Mark in the button, tag on the frame",state:"picked",
+  why:"A, plus a small “Claude is driving” tag on the frame's top-right corner in the driver's colour, like a teammate's selection label. It stays when the frame isn't selected, so you can see from across the canvas which frames are busy.",
+  cost:"A second indicator per driven frame, and new chrome above the frame, beside the title line.",
+  rows:r2rows("B")},
+ {id:"C",name:"The driver's name in the button",state:"rejected",
+  why:"The button widens into mark plus name (“Claude”, “Ana”) while someone else drives, so there's no avatar to decode.",
+  cost:"Text in the icon-button slot, so the frame bar changes width as drivers change and the address bar shrinks.",
+  rows:r2rows("C")},
+ {id:"D",name:"A badge on today's icon",state:"rejected",
+  why:"The cursor icon stays put. A small dot in the driver's colour sits on its corner (ink for Claude). The cursor in the frame carries the name.",
+  cost:"Colour only: Claude's ink dot and a person's colour can look alike, and the dot is small at 28px.",
+  rows:r2rows("D")}
+]},
+{n:1,kind:"wireframes",feedback:"",options:[
+ {id:"A",name:"Interact becomes the driver button",rec:true,state:"picked",
+  why:"The same button in the same slot on both runtimes, and it always answers “who's driving this frame?”. Empty: you can drive (today's toggle). Pink: you are. Showing the agent's dots or a person's avatar: they are, and clicking takes over from the agent or asks the person. Requests to you open from the same button. Going to your own copy sits in ⋯, and then the button turns into Rejoin. When the frame isn't selected, the line above it says who's driving. On the Mac only the first three states ever appear.",
+  cost:"The Interact button gets 3 new looks (agent, person, rejoin) and a small popover; the title line gains a short status. No new rows or pills.",
+  rows:[["Mac",A],["Hosted, adds",A2]]},
+ {id:"B",name:"The driver leads the address bar",state:"rejected",
+  why:"Interact stays a pure “me” toggle. Whoever drives, if it isn't you, takes the address bar's leading slot (where the Workspace sits today), and that slot opens a driver menu: who's driving, who's waiting, take over or ask, your own copy. The Mac shows the slot only while the agent drives.",
+  cost:"The Workspace name gives up its slot while someone else drives. Control splits across two places (Interact for you, the address bar for others). The frame says nothing when not selected.",
+  rows:[["Mac",B],["Hosted, adds",B2]]},
+ {id:"C",name:"Touch to take, nothing to press",state:"rejected",
+  why:"No new controls. The driver's cursor in the frame and the title line say who's driving. On the Mac, clicking or typing in the frame takes over from the agent at once (the yield rule). On hosted, a click on a frame someone else drives becomes a request, and the ask reaches the driver at their cursor. Closest to how multiplayer cursors already work on the canvas.",
+  cost:"Nothing shows where you'd look for it; asking and letting someone drive happen by gesture. A stray click on an agent's demo stops it. There's no place for your own copy except ⋯.",
+  rows:[["Mac",Cc],["Hosted, adds",C2]]},
+ {id:"D",name:"Two affordances: Mac toggle, hosted control strip",state:"rejected",
+  why:"The counter-case to “same on both”. The Mac keeps today's toggle, plus a Stop button only while the agent drives. Hosted frames get a second row under the frame bar for driver, queue, asking and your own copy.",
+  cost:"Two different features to learn and build. A new row of chrome under every selected shared frame, which goes against putting new mode hints in existing chrome.",
+  rows:[["Mac",D],["Hosted",D2]]}
+]}
+];
+
+/* ---------- page ---------- */
+const $=id=>document.getElementById(id);
+const fig=i=>i.svg?`<figure><div class="shot">${i.svg}</div><figcaption>${X(i.cap)}</figcaption></figure>`:`<figure><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${X(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${X(i.cap)}</figcaption></figure>`;
+const KEY="exploration-"+QUESTION.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let current=ROUNDS[0].n;
+$("q").textContent=QUESTION.q;$("quote").textContent=QUESTION.quote;
+$("today").innerHTML=`<div class="shead"><p class="lbl">Today</p><h2>What main does now</h2></div><ul class="facts">${TODAY.facts.map(f=>`<li>${f}</li>`).join("")}</ul><div class="shots today-shots">${TODAY.shots.map(fig).join("")}</div>`;
+$("rounds").innerHTML=`<span class="lbl">Round</span>`+ROUNDS.map(r=>`<button type="button" data-n="${r.n}">${r.n}${r===ROUNDS[0]?" · latest":""}</button>`).join("");
+$("rounds").addEventListener("click",e=>{const b=e.target.closest("button[data-n]");if(b){current=+b.dataset.n;render()}});
+function render(){
+ const r=ROUNDS.find(x=>x.n===current),latest=r===ROUNDS[0];
+ $("rounds").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.n===current)));
+ $("round").innerHTML=`<div class="shead"><p class="lbl">Round ${r.n} · ${r.kind}</p><h2>${r.options.length} options</h2>${r.feedback?`<blockquote>${X(r.feedback)}</blockquote>`:""}</div>${r.shared?`<div class="opt"><p class="why">${X(r.shared.why)}</p><div class="shots real">${r.shared.shots.map(fig).join("")}</div></div>`:""}<div class="opts">`+
+  r.options.map(o=>`<article class="opt ${o.state}" id="r${r.n}-${o.id}"><header><span class="letter">${o.id}</span><h3>${X(o.name)}</h3>${o.rec?'<span class="badge rec">Recommended</span>':""}${o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:""}</header><p class="why">${X(o.why)}</p>${o.rows.map(([l,list])=>`<p class="rowlbl">${X(l)}</p><div class="shots${list[0].p?" real":""}">${list.map(fig).join("")}</div>`).join("")}<p class="cost"><b>Cost</b> ${X(o.cost)}</p></article>`).join("")+`</div>`;
+ $("react").hidden=!latest;
+ if(latest)renderForm(r);
+}
+function renderForm(r){
+ $("reactTitle").textContent=`Round ${r.n}`;
+ const opts=r.options.map(o=>[o.id,`${o.id}: ${o.name}${o.rec?" (recommended)":""}`]).concat([["none","None of these"],["mix","A mix (say which parts below)"]]);
+ $("form").innerHTML=`<fieldset><legend>Pick</legend>`+opts.map(([v,l])=>`<label class="pick"><input type="radio" name="pick" id="pick-${v}" value="${v}"><span>${X(l)}</span></label>`).join("")+`</fieldset><p class="lbl" style="margin-top:12px">Notes</p><textarea id="note" aria-label="Notes"></textarea>`;
+ if(saved.round===r.n){const el=$("pick-"+saved.pick);if(el)el.checked=true;$("note").value=saved.note||""}
+ preview();
+}
+function build(){
+ const r=ROUNDS[0],p=$("form").querySelector("input[name=pick]:checked"),note=$("note").value.trim();
+ const o=p&&r.options.find(x=>x.id===p.value);
+ const pick=!p?"No pick yet":o?`${o.id}: ${o.name}`:p.value==="none"?"None of these":"A mix";
+ return[`Exploration: ${QUESTION.q}`,`Round ${r.n}`,`→ ${pick}`].concat(note?[`Note: ${note}`]:[]).join("\n");
+}
+function preview(){
+ $("preview").textContent=build();
+ const p=$("form").querySelector("input[name=pick]:checked");
+ try{localStorage.setItem(KEY,JSON.stringify({round:ROUNDS[0].n,pick:p?p.value:"",note:$("note").value}))}catch(e){}
+}
+$("form").addEventListener("input",preview);
+$("form").addEventListener("submit",e=>e.preventDefault());
+$("copy").addEventListener("click",()=>{
+ const text=build(),st=$("status");
+ const fallback=()=>{const p=$("preview"),rg=document.createRange();rg.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(rg);st.textContent="Copy was blocked. The text is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the chat."},fallback)}catch(e){fallback()}
+});
+render();
+</script>
+
+</body></html>

@@ -1,0 +1,118 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Docs and Homepage Plan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column. Lede, then the PR sequence as numbered rows, then the exploration, the answer to the P4 note, and oversight. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#c4108a;--med:#a15c00;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#ff4fc8;--med:#f0a640;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#ff4fc8;--med:#f0a640;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans);margin:0}
+.wrap{max-width:860px;margin:0 auto;padding-inline:16px;padding-block:32px 64px;display:flex;flex-direction:column;gap:20px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);margin:6px 0 8px;text-wrap:balance}
+h2{font:600 19px/1.3 var(--head);margin:16px 0 0}
+h3{font:500 16px/1.4 var(--sans);margin:0}
+p{margin:0;max-width:72ch}
+.muted{color:var(--muted)}
+a{color:var(--accent)}
+code{font:12.5px var(--mono);overflow-wrap:anywhere}
+ol.seq{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.pr{border-top:1px solid var(--line);padding:16px 0;display:grid;grid-template-columns:2.2em minmax(0,1fr);gap:4px 10px}
+.n{font:600 14px var(--mono);color:var(--accent)}
+.pr .body{display:flex;flex-direction:column;gap:6px;min-width:0}
+.meta{font:500 11px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.box{background:var(--surface);border-radius:8px;padding:12px 14px;font-size:14px;display:flex;flex-direction:column;gap:6px}
+</style>
+<style>
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px}
+figure{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+figure img,figure video{width:100%;border:1px solid var(--line);border-radius:4px;display:block}
+figcaption{font-size:13px;color:var(--muted)}
+.opt{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.rec{font:500 11px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--accent)}
+.dk{display:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .lt{display:none}:root:not([data-theme="light"]) .dk{display:block}}
+:root[data-theme="dark"] .lt{display:none}:root[data-theme="dark"] .dk{display:block}
+</style>
+<div class="wrap">
+<header>
+<p class="lbl">Combined plan · docs and homepage · 5 Oct 2026</p>
+<h1>Docs and homepage plan</h1>
+<p class="muted">Built from your picks on the <a href="https://claude.ai/artifact/SjbF6kWmujb6pYse6YNQoP">docs and homepage audit</a>. You asked to see two things before they’re built, and both are below. That makes 5 PRs covering all 20 findings. Three can start now and two wait on you.</p>
+</header>
+
+<h2>Show me first</h2>
+<div class="box">
+<p><b>H3: on a phone, the header’s Download scrolls to the hero’s buttons.</b> Below 640px it now goes to <code>#download</code> instead of starting the .dmg. The anchor sits on the block with the lede, both buttons and the Apple Silicon note, because landing on the button row alone cut the lede mid-line. From 640px up nothing changes.</p>
+<div class="shots">
+<figure><img src="img/m-h3-now.webp" alt="Phone first screen with the header Download"><figcaption>Now, 390 wide: Download is the only action, and it starts the .dmg.</figcaption></figure>
+<figure><img src="img/m-h3-after.webp" alt="After tapping Download: lede, both buttons and the Apple Silicon note under the header"><figcaption>After tapping Download.</figcaption></figure>
+<figure><video src="img/m-h3-tap.mp4" autoplay muted loop playsinline></video><figcaption>The tap and scroll.</figcaption></figure>
+</div>
+</div>
+
+<div class="box">
+<p><b>N2: something nicer for captions under a row of screenshots.</b> Five rows use this (Mockups, Home and three on Frames). All three options put the captions on one shared line, so the shots can be different heights and the captions still line up.</p>
+<div class="opt"><p><b>Now</b></p><div class="shots">
+<figure><img class="lt" src="img/d-n2-now-light.webp" alt=""><img class="dk" src="img/d-n2-now-dark.webp" alt=""><figcaption>Mockups: the second caption sits 23px lower.</figcaption></figure>
+<figure><img class="lt" src="img/d-n2-now-home-light.webp" alt=""><img class="dk" src="img/d-n2-now-home-dark.webp" alt=""><figcaption>Home: centred captions, 40px apart.</figcaption></figure>
+</div></div>
+<div class="opt"><p><b>C: lettered 12px captions on one hairline</b> <span class="rec">Recommended</span></p><p class="muted">Each caption starts with a letter on a hairline that runs across the row. The space under a shorter shot looks like layout rather than a gap, and the text can say “in B”.</p><div class="shots">
+<figure><img class="lt" src="img/d-n2-c-light.webp" alt=""><img class="dk" src="img/d-n2-c-dark.webp" alt=""><figcaption>Mockups</figcaption></figure>
+<figure><img class="lt" src="img/d-n2-c-home-light.webp" alt=""><img class="dk" src="img/d-n2-c-home-dark.webp" alt=""><figcaption>Home</figcaption></figure>
+</div></div>
+<div class="opt"><p><b>A: shared line, muted captions aligned left</b></p><p class="muted">The smallest change: the same shared line with no hairline or letter.</p><div class="shots">
+<figure><img class="lt" src="img/d-n2-a-light.webp" alt=""><img class="dk" src="img/d-n2-a-dark.webp" alt=""><figcaption>Mockups</figcaption></figure>
+<figure><img class="lt" src="img/d-n2-a-home-light.webp" alt=""><img class="dk" src="img/d-n2-a-home-dark.webp" alt=""><figcaption>Home</figcaption></figure>
+</div></div>
+<div class="opt"><p><b>B: a muted 12px label above each shot</b></p><p class="muted">Labels end on one line and the shots start together. Single screenshots keep their captions below, so rows and single shots would differ.</p><div class="shots">
+<figure><img class="lt" src="img/d-n2-b-light.webp" alt=""><img class="dk" src="img/d-n2-b-dark.webp" alt=""><figcaption>Mockups</figcaption></figure>
+<figure><img class="lt" src="img/d-n2-b-home-light.webp" alt=""><img class="dk" src="img/d-n2-b-home-dark.webp" alt=""><figcaption>Home</figcaption></figure>
+</div></div>
+</div>
+
+<h2>The sequence</h2>
+<ol class="seq">
+<li class="pr"><span class="n">1</span><div class="body"><h3>Docs catch up with what shipped, already built</h3><p class="meta">Built patch · copy and CSS · no dependencies</p><ul>
+<li>P1: the Chats menu is described as it is now, grouped by state, with no Coordinator row.</li>
+<li>P2: Account joins the skill sources, and the / menu works in every chat.</li>
+<li>P3: the tool-row tables add mockup, document, memory and saved-file rows.</li>
+<li>P4: “hosted app”, Create PR, OpenCode and the other small slips.</li>
+<li>P5: a mockup is a self-contained page, not a static one.</li>
+<li>P6: Core concepts gets a Skills section.</li>
+<li>H2: the phone menu closes the tabs you’re not on.</li>
+<li>N1: paragraphs no longer split before a key cap.</li>
+<li>N3: the current tab in the phone menu is neutral, not pink.</li>
+</ul><p class="muted">Starts from <code>docs.patch</code> without its N2 hunk. Main has moved since the audit: <a href="https://github.com/zschiller/screenplay/pull/1660">PR #1660</a> touched canvas.mdx and mockups.mdx, so those two hunks need reapplying by hand.</p></div></li>
+<li class="pr"><span class="n">2</span><div class="body"><h3>Skills moves to Using Screenplay</h3><p class="meta">Docs structure · after PR 1</p><ul>
+<li>H1 A: <code>building/skills</code> becomes <code>skills</code> after Files, titled “Skills”. The old URL redirects, and the seven docs pages that link to it are updated.</li>
+</ul></div></li>
+<li class="pr"><span class="n">3</span><div class="body"><h3>Screenshot row captions</h3><p class="meta wait">Waits on your N2 option</p><ul>
+<li>N2: the option you pick, from <code>docs-n2-option-&lt;a|b|c&gt;.patch</code>.</li>
+</ul></div></li>
+<li class="pr"><span class="n">4</span><div class="body"><h3>Homepage fixes, already built</h3><p class="meta">Built patch · 9 files · no dependencies</p><ul>
+<li>P7: chats offer to save new skills, rather than saving them.</li>
+<li>P8: the Features card names OpenCode.</li>
+<li>P9: the meta description mentions hosting.</li>
+<li>H4: the FAQ gets <code>id="faq"</code>.</li>
+<li>N4: For teams uses the section heading’s intro, with 48px above the perk list.</li>
+<li>N5: the chat header excerpts say Create PR.</li>
+<li>N6: Fig. 1’s placeholder adds “/ skill”.</li>
+<li>N7: the link preview drops the italic, and the image is regenerated.</li>
+</ul></div></li>
+<li class="pr"><span class="n">5</span><div class="body"><h3>Phone Download goes to the hero’s buttons</h3><p class="meta wait">Waits on your OK of the shots above</p><ul>
+<li>H3 A: built in <code>homepage-h3.patch</code>. It touches header.tsx and hero.tsx, so it rides after PR 4.</li>
+</ul></div></li>
+</ol>
+
+<h2>Worth your oversight</h2>
+<ul>
+<li>PR 2 changes a public docs URL. The redirect covers old links, and nothing in the app or homepage links to the page.</li>
+<li>PR 4 changes the description that search results and link previews show.</li>
+</ul>
+</div>
+
+</body></html>

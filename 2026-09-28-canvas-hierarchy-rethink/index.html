@@ -1,0 +1,362 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Canvas Hierarchy Rethink</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f7f7f5;--fg:#1a1a1c;--muted:#6d6d74;--line:#dcdcd8;--card:#ffffff;--soft:#efefec;
+  --wf-bg:#ffffff;--wf-side:#f3f3f1;--wf-cv:#ececea;--wf-ink:#9a9aa0;--wf-bar:#d9d9d6;--wf-txt:#4a4a50;
+  --hl:#2563eb;--hl-soft:#e3ecff;--ok:#15803d;--ok-soft:#dff3e6;--stop:#b45309;--stop-soft:#fdf0dc;
+  --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--bg:#0f0f11;--fg:#ececee;--muted:#9b9ba3;--line:#2a2a2f;--card:#161619;--soft:#1c1c20;
+  --wf-bg:#18181b;--wf-side:#1f1f23;--wf-cv:#131316;--wf-ink:#6b6b73;--wf-bar:#34343a;--wf-txt:#c4c4ca;
+  --hl:#7ea6ff;--hl-soft:#1d2744;--ok:#86efac;--ok-soft:#16301f;--stop:#fcd34d;--stop-soft:#352a12;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#0f0f11;--fg:#ececee;--muted:#9b9ba3;--line:#2a2a2f;--card:#161619;--soft:#1c1c20;
+  --wf-bg:#18181b;--wf-side:#1f1f23;--wf-cv:#131316;--wf-ink:#6b6b73;--wf-bar:#34343a;--wf-txt:#c4c4ca;
+  --hl:#7ea6ff;--hl-soft:#1d2744;--ok:#86efac;--ok-soft:#16301f;--stop:#fcd34d;--stop-soft:#352a12;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--sans);padding-inline:20px;padding-block:40px 80px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:52px}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+h1{font-size:34px;line-height:1.15}
+h2{font-size:23px;line-height:1.25}
+h3{font-size:15.5px;line-height:1.3}
+p{margin:0;max-width:70ch}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.lede{font-size:17px;color:var(--muted)}
+.muted{color:var(--muted)}
+code{font-family:var(--mono);font-size:.9em}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}
+.pt{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
+.pt p{color:var(--muted);font-size:14.5px}
+.axis{display:flex;flex-direction:column;gap:18px;border-top:1px solid var(--line);padding-top:28px}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,350px),1fr));gap:18px}
+.opt{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.opt .k{font:500 12px/1 var(--mono);color:var(--muted)}
+.opt p{font-size:14px;color:var(--muted)}
+.opt ul{margin:0;padding-left:16px;font-size:13.5px;display:flex;flex-direction:column;gap:2px}
+.opt ul li.plus::marker{content:"+  ";color:var(--ok)}
+.opt ul li.minus::marker{content:"−  ";color:var(--stop)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:500 11.5px/1 var(--sans);padding:5px 8px;border-radius:99px;background:var(--soft);color:var(--muted)}
+.chip.go{background:var(--ok-soft);color:var(--ok)}
+.chip.stop{background:var(--stop-soft);color:var(--stop)}
+.chip.rec{background:var(--hl-soft);color:var(--hl)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--hl);margin-right:6px;vertical-align:-1px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:720px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12.5px}
+tr:last-child td{border-bottom:0}
+.combo{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px;align-items:start;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+@media (max-width:820px){.combo{grid-template-columns:1fr}}
+.combo .stack{gap:10px}
+.combo p{font-size:14.5px}
+.recbox{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:8px}
+
+/* ---------- wireframes ---------- */
+.wf{border:1.5px solid var(--wf-ink);border-radius:8px;background:var(--wf-bg);overflow:hidden;font:10.5px/1.25 var(--sans);color:var(--wf-txt);aspect-ratio:16/10;display:flex;flex-direction:column;max-width:100%}
+.wf .top{height:18px;border-bottom:1px solid var(--wf-bar);display:flex;align-items:center;gap:6px;padding:0 6px;flex:none;color:var(--wf-ink);font-size:9.5px}
+.wf .top b{font-weight:500;color:var(--wf-txt)}
+.wf .body{flex:1;display:flex;min-height:0}
+.wf .sb{width:36%;max-width:150px;background:var(--wf-side);border-right:1px solid var(--wf-bar);padding:5px 4px;display:flex;flex-direction:column;gap:1px;overflow:hidden;flex:none}
+.wf .cv{flex:1;background:var(--wf-cv);padding:8px;display:flex;flex-direction:column;gap:5px;overflow:hidden;min-width:0}
+.wf .cp{width:30%;max-width:125px;border-left:1px solid var(--wf-bar);padding:5px 4px;display:flex;flex-direction:column;gap:3px;overflow:hidden;flex:none;background:var(--wf-bg)}
+.wf .r{display:flex;align-items:center;gap:4px;height:15px;padding:0 3px;border-radius:3px;white-space:nowrap;overflow:hidden;min-width:0}
+.wf .r .t{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.wf .r .rt{margin-left:auto;color:var(--wf-ink);flex:none}
+.wf .r.s{color:var(--wf-ink);font-size:9.5px;margin-top:3px}
+.wf .i1{padding-left:11px}.wf .i2{padding-left:19px}
+.wf .r.sel{background:var(--wf-bar)}
+.wf .hl,.wf .hl .rt{color:var(--hl)!important}
+.wf .r.hl{background:var(--hl-soft)}
+.wf .pl{display:inline-block;border:1px solid currentColor;border-radius:3px;padding:0 3px;font-size:9.5px;line-height:11px;flex:none}
+.wf code{font:9.5px var(--mono)}
+.wf .g{display:flex;flex-direction:column;gap:2px}
+.wf .gl{display:flex;gap:4px;align-items:center;font-size:9.5px;color:var(--wf-ink);white-space:nowrap}
+.wf .gl.hl{color:var(--hl)}
+.wf .fs{display:flex;gap:5px}
+.wf .f{display:flex;flex-direction:column;gap:1px}
+.wf .f span{font-size:9px;white-space:nowrap}
+.wf .fb{border:1px solid var(--wf-ink);border-radius:2px;background:var(--wf-bg);width:56px;height:34px}
+.wf .fb.m{width:22px}
+.wf .fb.hl{border-color:var(--hl)}
+.wf .bubble{border:1px solid var(--wf-bar);border-radius:4px;padding:3px 4px;font-size:9.5px}
+.wf .bubble.hl{border-color:var(--hl)}
+.wf .bar{height:5px;border-radius:3px;background:var(--wf-bar)}
+.wf .tile{border:1px solid var(--wf-ink);border-radius:4px;height:42px;background:var(--wf-cv)}
+.wf .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.wf .cap{font-size:9px;margin-top:2px}
+.wf .dlg{margin:auto;width:86%;height:84%;border:1.5px solid var(--wf-ink);border-radius:6px;background:var(--wf-bg);display:flex;overflow:hidden}
+.wf .dlg .sb{width:32%}
+.wf .dlg .pane{flex:1;padding:6px;display:flex;flex-direction:column;gap:4px}
+.wf .box{border:1px solid var(--wf-bar);border-radius:3px;padding:3px 5px;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden}
+.wf .box.hl{border-color:var(--hl)}
+.wf .btn{display:inline-block;border:1px solid var(--wf-ink);border-radius:3px;padding:1px 5px;font-size:9.5px;white-space:nowrap}
+.wf .btn.hl{border-color:var(--hl)}
+.wf .note{font-size:9px;color:var(--wf-ink)}
+.wf .pop{position:relative;margin-left:22px;border:1px solid var(--hl);border-radius:4px;background:var(--wf-bg);padding:4px 6px;display:flex;flex-direction:column;gap:1px;font-size:9.5px;width:max-content;max-width:95%}
+</style>
+
+<div class="wrap">
+
+<header class="stack">
+  <span class="eyebrow">Design exploration · wireframes · round 2 · 28 Sep 2026</span>
+  <h1>Canvas, Project, Workspace, Frame</h1>
+  <p class="lede">Round 2 details the direction you picked: the canvas is the project, Workspaces have titles, and repositories live in Canvas settings. Round 1, the broad pass across three questions, follows below.</p>
+  <div class="legend"><span><i></i>Blue marks what changes from today</span><span>Wireframes only. Visual design comes after a direction is picked.</span></div>
+</header>
+
+<section class="axis" id="round2" style="border-top:0;padding-top:0">
+  <span class="eyebrow">Round 2 · Claude project, repositories in Canvas settings</span>
+  <h2>The details of the picked direction</h2>
+  <p class="muted">You picked Claude project, with repositories in Canvas settings. These were the open details, each with a few wireframed answers. Round 1 is below, unchanged.</p>
+  <div class="recbox"><span class="chip go" style="align-self:flex-start">Decided 28 Sep</span><ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14.5px">
+  <li>2.1 Row: status icon, title, line count. Grouping by state (2.1 C) comes later as a view option.</li>
+  <li>2.2 Canvas chat: the chat panel's home when no Workspace is selected</li>
+  <li>2.3 Title: the agent names the Workspace after its first turn</li>
+  <li>2.4 Branch: in a hover card on rows and Workspace pills</li>
+  <li>2.5 Settings: in the canvas name's … menu</li>
+  <li>2.6 No repository: empty state with Add repository</li>
+  <li>2.7 Several repositories: short repo name at the end of each row</li></ul></div>
+</section>
+
+<section class="axis">
+  <span class="eyebrow">2.1</span><h2>What a Workspace row looks like</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="s-flat"></div><div class="chips"><span class="chip go">Picked</span></div><h3>Status, title, line count</h3><p>Today's row with the branch pill swapped for a plain title. The colour moves to the pill on the group label only.</p></div>
+    <div class="opt"><span class="k">B</span><div data-wf="s-swatch"></div><h3>Colour swatch before the title</h3><p>Keeps the Workspace colour in the list so rows match their canvas groups. The status moves to the right edge.</p></div>
+    <div class="opt"><span class="k">C</span><div data-wf="s-buckets"></div><h3>Grouped by state</h3><p>Working, Needs you, Done, like a project board. Rows jump between sections as the agent works.</p></div>
+  </div>
+</section>
+
+<section class="axis">
+  <span class="eyebrow">2.2</span><h2>Where the Canvas chat sits</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="k-top"></div><div class="chips"><span class="chip go">Picked</span></div><h3>First row of the list</h3><p>“Canvas” sits above the Workspaces like a project chat above its threads, matching the flat picker from #866.</p></div>
+    <div class="opt"><span class="k">B</span><div data-wf="k-panel"></div><h3>Only in the chat panel</h3><p>The sidebar stays about Workspaces. You reach the Canvas chat from the panel's picker.</p></div>
+    <div class="opt"><span class="k">C</span><div data-wf="k-default"></div><h3>The panel's home</h3><p>With no Workspace selected, the panel shows the Canvas chat. Selecting a row switches to that Workspace, and Back returns.</p></div>
+  </div>
+</section>
+
+<section class="axis">
+  <span class="eyebrow">2.3</span><h2>Where a Workspace title comes from</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="n-agent"></div><div class="chips"><span class="chip go">Picked</span></div><h3>The agent names it</h3><p>After the first turn the agent titles it, the way Claude titles a chat. The branch is named from the same words. Double-click renames the title only.</p></div>
+    <div class="opt"><span class="k">B</span><div data-wf="n-prompt"></div><h3>The first prompt, trimmed</h3><p>Instant and predictable, but a long prompt makes a clumsy title.</p></div>
+    <div class="opt"><span class="k">C</span><div data-wf="n-ask"></div><h3>You type it</h3><p>Create workspaces gets a title field above each prompt. Most precise, and one more thing to fill in.</p></div>
+  </div>
+</section>
+
+<section class="axis">
+  <span class="eyebrow">2.4</span><h2>Where you find the branch</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="g-hover"></div><div class="chips"><span class="chip go">Picked</span></div><h3>Hover card on the row and the pills</h3><p>Repository, branch, base and changes, on the same hover that already shows status. The Git menu is unchanged.</p></div>
+    <div class="opt"><span class="k">B</span><div data-wf="g-header"></div><h3>Muted, in the chat header</h3><p>The branch sits beside the line count in the panel header, visible whenever you're in that Workspace.</p></div>
+    <div class="opt"><span class="k">C</span><div data-wf="g-menu"></div><h3>Only in the Git menu</h3><p>Copy branch name and Open on GitHub in the Workspace menu. Nowhere else.</p></div>
+  </div>
+</section>
+
+<section class="axis">
+  <span class="eyebrow">2.5</span><h2>How you open Canvas settings</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="e-crumb"></div><div class="chips"><span class="chip go">Picked</span></div><h3>From the canvas name</h3><p>The breadcrumb's … menu gains Settings, next to Rename and Duplicate. Where Figma and Linear put it.</p></div>
+    <div class="opt"><span class="k">B</span><div data-wf="e-footer"></div><h3>A row at the bottom of the sidebar</h3><p>Always visible, reads as “this canvas's setup”. Costs a row.</p></div>
+    <div class="opt"><span class="k">C</span><div data-wf="e-plus"></div><h3>From New workspace</h3><p>The + menu lists repositories, with Manage repositories at the bottom. You find settings where you use them.</p></div>
+  </div>
+</section>
+
+<section class="axis">
+  <span class="eyebrow">2.6</span><h2>A canvas with no repository yet</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="z-empty"></div><div class="chips"><span class="chip go">Picked</span></div><h3>Empty state in the list</h3><p>One line saying why, and an Add repository button that opens Canvas settings on that page.</p></div>
+    <div class="opt"><span class="k">B</span><div data-wf="z-new"></div><h3>New workspace asks first</h3><p>Pressing + with no repository opens the repository picker, then continues to the prompt.</p></div>
+    <div class="opt"><span class="k">C</span><div data-wf="z-chat"></div><h3>The Canvas chat asks</h3><p>The Canvas chat opens with “Which repo are we working on?” and adds it for you.</p></div>
+  </div>
+</section>
+
+<section class="axis">
+  <span class="eyebrow">2.7</span><h2>Two or more repositories</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="m-right"></div><div class="chips"><span class="chip go">Picked</span></div><h3>Repo name at the row's end</h3><p>Only when the canvas has more than one. Muted, short name from settings.</p></div>
+    <div class="opt"><span class="k">B</span><div data-wf="m-heads"></div><h3>Small section heads</h3><p>web and api as muted headings inside the list. Close to today's tree, without the folder level.</p></div>
+    <div class="opt"><span class="k">C</span><div data-wf="m-hidden"></div><h3>Not in the list</h3><p>The repo shows only in the hover card and as a chip in Create workspaces.</p></div>
+  </div>
+</section>
+
+<section class="axis" style="padding-bottom:12px">
+  <span class="eyebrow">Round 1</span>
+  <h2>The broad pass</h2>
+</section>
+
+<section class="stack">
+  <h2>Why it feels unresolved</h2>
+  <div class="grid2">
+    <div class="pt"><h3>Two things called “project”</h3><p>In the app a Project is a repository with run scripts. Since #873 the Canvas chat works like a Claude project chat, which makes the canvas the real project.</p></div>
+    <div class="pt"><h3>Settings sit in the navigation</h3><p>You set up a repository once and then mostly leave it alone. It still takes the top of the sidebar as the level every Workspace hangs under.</p></div>
+    <div class="pt"><h3>The branch is the name</h3><p>A Workspace has no title, so its git branch labels it everywhere. Claude Projects names a thread by what it's about and keeps branches in the details.</p></div>
+    <div class="pt"><h3>Why settings are on the canvas</h3><p>You guessed right. The canvas is what's shared, so a collaborator's new Workspace runs the same scripts without your private presets. The limit to design around is that one preview needs one running checkout.</p></div>
+  </div>
+</section>
+
+<!-- ============ AXIS 1 ============ -->
+<section class="axis">
+  <span class="eyebrow">Question 1</span>
+  <h2>Where does a repository and its run settings live?</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">1A · today</span><div data-wf="r-today"></div><h3>A level in the canvas sidebar</h3><p>A repo is a folder in the sidebar with its Workspaces inside.</p><ul><li class="plus">Several repos per canvas are easy to see</li><li class="minus">Setup takes the top of the navigation</li><li class="minus">Called “Project”, like the canvas</li></ul></div>
+    <div class="opt"><span class="k">1B</span><div data-wf="r-settings"></div><h3>Canvas settings › Repositories</h3><p>Out of the sidebar and into a settings page beside Memory (#874) and Members, like repositories in Claude project settings.</p><ul><li class="plus">One word per level</li><li class="plus">Still shared on the canvas</li><li class="minus">Adding a repo is one step further away</li></ul></div>
+    <div class="opt"><span class="k">1C</span><div data-wf="r-one"></div><h3>One repository per canvas</h3><p>New canvas starts by choosing a repo. The canvas is about that repo. A second repo is an advanced setting.</p><ul><li class="plus">Simplest model for the common case</li><li class="plus">No repo anywhere in the day-to-day UI</li><li class="minus">Web + API work becomes awkward</li></ul></div>
+    <div class="opt"><span class="k">1D</span><div data-wf="r-home"></div><h3>Project above the canvas</h3><p>On the home screen, a Project is a repo with its settings, and canvases live inside it, like Figma team projects hold files.</p><ul><li class="plus">Set up once, reused by every canvas</li><li class="plus">Answers “why is config per canvas”</li><li class="minus">Replaces folders or competes with them</li><li class="minus">A canvas spanning two repos needs a home</li></ul></div>
+    <div class="opt"><span class="k">1E</span><div data-wf="r-file"></div><h3>In the repository itself</h3><p>A committed <code>screenplay.json</code> holds the scripts, like Conductor's config or a dev container. The canvas only links the repo.</p><ul><li class="plus">Shared through git with anyone</li><li class="plus">Can seed any of 1A–1D</li><li class="minus">Needs a commit to your repo</li><li class="minus">Secrets still live in the app</li></ul></div>
+  </div>
+</section>
+
+<!-- ============ AXIS 2 ============ -->
+<section class="axis">
+  <span class="eyebrow">Question 2</span>
+  <h2>What is a unit of work, and what do you see of it?</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">2A · today</span><div data-wf="u-today"></div><h3>A branch</h3><p>A Workspace is one branch with a sandbox, named by the branch.</p><ul><li class="plus">Honest about what's underneath</li><li class="minus">Reads as git, not as the idea</li></ul></div>
+    <div class="opt"><span class="k">2B</span><div data-wf="u-title"></div><h3>A titled Workspace</h3><p>Same unit, but it gets a title from its first prompt. The branch can change over its life (a new branch after a merge) without renaming it.</p><ul><li class="plus">Smallest change that reads as work</li><li class="plus">Fits Claude's thread titles</li><li class="minus">Still a separate list from the canvas</li></ul></div>
+    <div class="opt"><span class="k">2C</span><div data-wf="u-group"></div><h3>A group on the canvas</h3><p>The group is the Workspace. Making a group makes a sandbox. The sidebar lists groups, so the canvas and the list are the same thing. Builds on #868.</p><ul><li class="plus">One object instead of two</li><li class="plus">Very spatial, very Screenplay</li><li class="minus">Frames from two Workspaces side by side need a mixed group</li></ul></div>
+    <div class="opt"><span class="k">2D</span><div data-wf="u-chat"></div><h3>A chat</h3><p>The sidebar is a list of chats, like a Claude project. Each chat owns its sandbox, and its frames are what it produced. Terminals stay tabs of a chat.</p><ul><li class="plus">The mental model people already have</li><li class="plus">Canvas chat sits on top naturally</li><li class="minus">Two chats in one sandbox gets harder</li></ul></div>
+    <div class="opt"><span class="k">2E</span><div data-wf="u-task"></div><h3>A task across branches</h3><p>A Workspace is a task. Its agent opens branches in any repo as it sees fit, like a Claude Code thread that opens two PRs.</p><ul><li class="plus">Cross-repo work is one task</li><li class="minus">One sandbox per branch, costs multiply quietly</li><li class="minus">Frames need a checkout picker again, a later change to the address bar</li></ul></div>
+    <div class="opt"><span class="k">2F</span><div data-wf="u-version"></div><h3>A version of a frame</h3><p>No Workspace in the UI. You select a frame and choose Try another version. Versions stack on the frame like variants, and each one is a sandbox underneath.</p><ul><li class="plus">Designer vocabulary, no git at all</li><li class="plus">Comparing is built in</li><li class="minus">A version spanning many screens is hard to show</li></ul></div>
+  </div>
+</section>
+
+<!-- ============ AXIS 3 ============ -->
+<section class="axis">
+  <span class="eyebrow">Question 3</span>
+  <h2>How much of the branch do you see?</h2>
+  <div class="opts">
+    <div class="opt"><span class="k">3A · today</span><div data-wf="b-today"></div><h3>Everywhere</h3><p>Sidebar, chat picker, frame labels and the address bar all show the branch.</p></div>
+    <div class="opt"><span class="k">3B</span><div data-wf="b-hover"></div><h3>In the details</h3><p>A hover card and the Workspace menu's Git group show repository, branch and base.</p></div>
+    <div class="opt"><span class="k">3C</span><div data-wf="b-pr"></div><h3>Only as PR status</h3><p>You see the PR (open, merged, failing) and never the branch name, unless you open it on GitHub.</p></div>
+    <div class="opt"><span class="k">3D</span><div data-wf="b-never"></div><h3>Managed by the agent</h3><p>You never deal with branches. You ask the agent to ship, and it opens a PR. Rebase and rename go away.</p></div>
+  </div>
+</section>
+
+<!-- ============ COMBOS ============ -->
+<section class="axis">
+  <span class="eyebrow">Putting them together</span>
+  <h2>Four coherent directions</h2>
+
+  <div class="combo">
+    <div data-wf="c-claude"></div>
+    <div class="stack"><div class="chips"><span class="chip rec">Leaning here</span><span class="chip">1B + 2B + 3B</span><span class="chip go">#868–#872 continue</span></div><h3>I. Claude project</h3><p>The canvas is the project. Repositories go to Canvas settings, the sidebar lists titled Workspaces with status, the Canvas chat sits on top, and the branch lives in the details.</p><p class="muted">Closest to what the Canvas Coordinator work already decided. The frame-label chain keeps going; its pills show a title instead of a branch later.</p></div>
+  </div>
+
+  <div class="combo">
+    <div data-wf="c-chats"></div>
+    <div class="stack"><div class="chips"><span class="chip">1B + 2D + 3C</span><span class="chip go">#868–#872 continue</span></div><h3>II. Just chats</h3><p>The same shape as I, one step further. The list is chats, not Workspaces. A chat's frames are its output. The word “Workspace” mostly disappears from the UI.</p><p class="muted">Cleanest mental model. The open question is what the Workspace pill on a group says when there are no Workspaces, probably the chat's title.</p></div>
+  </div>
+
+  <div class="combo">
+    <div data-wf="c-figma"></div>
+    <div class="stack"><div class="chips"><span class="chip">1D + 2C + 3B</span><span class="chip go">Builds on #868</span></div><h3>III. Figma-style</h3><p>Projects live on the home screen and hold settings and canvases. Inside a canvas, groups are Workspaces, so there's no separate Workspace list at all.</p><p class="muted">Most spatial, and it fixes setting up a repo on every canvas. It's the biggest change to home and to folders.</p></div>
+  </div>
+
+  <div class="combo">
+    <div data-wf="c-versions"></div>
+    <div class="stack"><div class="chips"><span class="chip">1C + 2F + 3D</span><span class="chip stop">Reworks frame labels later</span></div><h3>IV. Versions</h3><p>One repo per canvas, no Workspaces or branches in sight. You make versions of frames and ship the one you like.</p><p class="muted">The most designer-friendly and the furthest from today. Frame labels shipped in #868–#872 would need reworking afterwards, because frames stop belonging to groups' Workspaces.</p></div>
+  </div>
+</section>
+
+<section class="stack" style="border-top:1px solid var(--line);padding-top:28px">
+  <h2>What happens to the frame-label chain</h2>
+  <p class="muted">#868–#872 are landing now, whatever comes of this. They give groups a Workspace and add a Workspace switcher to the address bar. Under I, II and III that stays as built, with the pill showing a title instead of a branch. Only IV, and 2E on its own, would change what a frame points at, so only those would mean reworking the labels afterwards.</p>
+</section>
+
+</div>
+
+<script>
+/* Tiny wireframe builder. Row syntax: leading 1/2 = indent, § section, ! changed, * selected,
+   [x] outlined pill, `x` mono, "a|b" right-aligned b. */
+function inl(s){return s.replace(/\[([^\]]+)\]/g,'<span class="pl">$1</span>').replace(/`([^`]+)`/g,'<code>$1</code>')}
+function row(s){
+  var c=['r'];
+  while(/^[12§!*]/.test(s)){var ch=s[0];s=s.slice(1);
+    if(ch==='1')c.push('i1');if(ch==='2')c.push('i2');if(ch==='§')c.push('s');if(ch==='!')c.push('hl');if(ch==='*')c.push('sel');}
+  s=s.trim();var p=s.split('|');
+  return '<div class="'+c.join(' ')+'"><span class="t">'+inl(p[0])+'</span>'+(p[1]?'<span class="rt">'+inl(p[1])+'</span>':'')+'</div>';
+}
+function rows(a){return (a||[]).map(function(x){return x.charAt(0)==='<'?x:row(x)}).join('')}
+function canvas(gs){return gs.map(function(g){
+  if(typeof g==='string')return g;
+  var hl=g.hl?' hl':'';
+  return '<div class="g"><div class="gl'+hl+'">'+inl(g.g)+'</div><div class="fs">'+g.f.map(function(f){
+    var m=f.charAt(0)==='~';if(m)f=f.slice(1);var fh=f.charAt(0)==='!';if(fh)f=f.slice(1);
+    return '<div class="f"><span'+(fh?' style="color:var(--hl)"':'')+'>'+inl(f)+'</span><div class="fb'+(m?' m':'')+(fh?' hl':'')+'"></div></div>'}).join('')+'</div></div>'}).join('')}
+function wf(s){
+  var h='<div class="wf"><div class="top">'+(s.top||'All files / <b>Northwind site</b>')+'</div><div class="body">';
+  if(s.raw)return h+s.raw+'</div></div>';
+  if(s.side)h+='<div class="sb">'+rows(s.side)+'</div>';
+  h+='<div class="cv">'+(s.cv?canvas(s.cv):'')+'</div>';
+  if(s.panel)h+='<div class="cp">'+rows(s.panel)+'</div>';
+  return h+'</div></div>';
+}
+var CV_TODAY=[{g:'Homepage',f:['`h…` Home','~`h…` Mobile']},{g:'Pricing',f:['`p…` Pricing']}];
+var CV_TITLE=[{g:'Homepage [Hero trust line]',f:['Home','~Mobile']},{g:'Pricing [Pricing FAQ]',f:['Pricing']}];
+var W={
+ 'r-today':{side:['§Projects|+','▸ northwind-web','1⎇ `customer-stories`','1⎇ `hero-gradient`','1⎇ `pricing-faq`','§Canvas','▸ Homepage','▸ Pricing'],cv:CV_TODAY},
+ 'r-settings':{top:'All files / <b>Northwind site</b> ⌄',raw:'<div class="cv" style="background:var(--wf-cv)"><div class="dlg"><div class="sb">'+rows(['General','!*Repositories','Memory','Members'])+'</div><div class="pane"><b style="font-weight:500">Repositories</b><span class="note">Shared with everyone on this canvas</span><div class="box hl">▭ web<span style="margin-left:auto" class="btn">Edit</span></div><div class="box hl">▭ api<span style="margin-left:auto" class="btn">Edit</span></div><span class="btn">+ Add repository</span></div></div></div>'},
+ 'r-one':{top:'Home',raw:'<div class="cv" style="background:var(--wf-cv)"><div class="dlg" style="flex-direction:column;padding:8px;gap:5px"><b style="font-weight:500">New canvas</b><span class="note">What are you working on?</span><div class="box hl">▭ northwind/web ⌄</div><div class="box">Name: Pricing refresh</div><div style="margin-top:auto;display:flex;justify-content:flex-end"><span class="btn">Create canvas</span></div></div></div>'},
+ 'r-home':{top:'Home',raw:'<div class="sb">'+rows(['§Projects','!*▭ northwind-web','1Pricing refresh','1Homepage v2','!▭ northwind-api','§Folders','▸ Personal'])+'</div><div class="cv"><div class="gl hl">northwind-web · <span class="pl">Settings</span></div><div class="tiles"><div><div class="tile"></div><div class="cap">Pricing refresh</div></div><div><div class="tile"></div><div class="cap">Homepage v2</div></div><div><div class="tile" style="border-style:dashed"></div><div class="cap">+ New canvas</div></div></div></div>'},
+ 'r-file':{top:'northwind-web / screenplay.json',raw:'<div class="cv" style="background:var(--wf-bg);font:9.5px/1.5 var(--mono);white-space:pre;color:var(--wf-txt)"><div>{\n  <span style="color:var(--hl)">"setup"</span>: "pnpm install",\n  <span style="color:var(--hl)">"run"</span>:   "pnpm --filter web dev",\n  <span style="color:var(--hl)">"copy"</span>:  [".env*"],\n  <span style="color:var(--hl)">"frame"</span>: "desktop"\n}\n\n<span style="color:var(--wf-ink);font-family:var(--sans)">Secrets stay in canvas settings.</span></div></div>'},
+
+ 'u-today':{side:['§Projects|+','▸ northwind-web','1⎇ `customer-stories`','1*⎇ `hero-gradient`|+3','1⎇ `pricing-faq`|+11','§Canvas','▸ Homepage','▸ Pricing'],cv:CV_TODAY,panel:['`hero-gradient` ⌄','<div class="bubble">Add a trust line…</div>']},
+ 'u-title':{side:['§Workspaces|+','!○ Customer stories','!*◌ Hero trust line|+3','!● Pricing FAQ|+11','§Canvas','▸ Homepage','▸ Pricing'],cv:[{g:'Homepage [Hero trust line]',hl:true,f:['Home','~Mobile']},{g:'Pricing [Pricing FAQ]',hl:true,f:['Pricing']}],panel:['!Hero trust line ⌄','<div class="bubble">Add a trust line…</div>']},
+ 'u-group':{side:['§Canvas|+','!*▸ Homepage|◌','1Home','1Mobile','!▸ Pricing|●','1Pricing','!▸ Stories|○','▭ Launch checklist'],cv:[{g:'Homepage · sandbox ◌',hl:true,f:['!Home','~!Mobile']},{g:'Pricing · sandbox ●',hl:true,f:['!Pricing']}],panel:['!Homepage ⌄','<div class="bubble">Add a trust line…</div>']},
+ 'u-chat':{side:['§Chats|+','◇ Canvas','!*Add a trust line to…|◌','!Rewrite pricing FAQ|●','!Customer stories page|○','§Canvas','▸ Homepage','▸ Pricing'],cv:[{g:'Homepage · from “Add a trust line…”',hl:true,f:['Home','~Mobile']},{g:'Pricing · from “Rewrite pricing FAQ”',hl:true,f:['Pricing']}],panel:['!Add a trust line to… ⌄','<div class="bubble">Add a trust line…</div>','<div class="bubble">Done, pushed.</div>']},
+ 'u-task':{side:['§Workspaces|+','○ Customer stories','!*◌ Checkout flow ⌄','!2⎇ `checkout-api`|api','!2⎇ `checkout-ui`|web','● Pricing FAQ','§Canvas','▸ Checkout'],cv:[{g:'Checkout [Checkout flow]',f:['Cart','!Cart · `api`?']}],panel:['Checkout flow ⌄','<div class="r hl"><span class="t">⎇ 2 branches ⌄</span></div>']},
+ 'u-version':{top:'All files / <b>Northwind site</b>',raw:'<div class="sb">'+rows(['§Canvas','▸ Homepage','1Home|3 versions','1Mobile','▸ Pricing','1Pricing|2 versions'])+'</div><div class="cv"><div class="gl">Home</div><div class="fs"><div class="f"><span>Original</span><div class="fb"></div></div><div class="f"><span style="color:var(--hl)">Trust line</span><div class="fb hl"></div></div><div class="f"><span style="color:var(--hl)">Gradient</span><div class="fb hl"></div></div></div><div><span class="btn hl">+ Try another version</span></div></div>'},
+
+ 'b-today':{side:['§Projects','▸ northwind-web','1!⎇ `hero-gradient`','1!⎇ `pricing-faq`'],cv:[{g:'Homepage',f:['!`h…` Home']}],panel:['!`hero-gradient-trust-line`','<span class="note" style="color:var(--hl)">`hero.localhost` /</span>']},
+ 'b-hover':{side:['§Workspaces','*◌ Hero trust line','● Pricing FAQ','<div class="pop"><b style="font-weight:500">Hero trust line</b><span>web · <code>hero-gradient-trust-line</code></span><span class="note">from <code>main</code> · +3 −0</span></div>'],cv:[{g:'Homepage [Hero trust line]',f:['Home']}]},
+ 'b-pr':{side:['§Workspaces','◌ Hero trust line','!● Pricing FAQ|PR #841','!✓ Customer stories|merged'],cv:[{g:'Pricing [Pricing FAQ]',f:['Pricing']}],panel:['Pricing FAQ','<span class="btn hl" style="align-self:flex-start">● #841</span>']},
+ 'b-never':{side:['§Workspaces','◌ Hero trust line','● Pricing FAQ'],cv:[{g:'Homepage [Hero trust line]',f:['Home']}],panel:['Hero trust line','<div class="bubble">Looks good, ship it</div>','<div class="bubble hl">Opened a PR and it\'s ready for review.</div>']},
+
+ 'c-claude':{top:'All files / <b>Northwind site</b> ⌄ <span style="color:var(--hl)">Canvas settings</span>',side:['!◇ Canvas chat','§Workspaces|+','!○ Customer stories','!*◌ Hero trust line|+3','!● Pricing FAQ|#841','§Canvas','▸ Homepage [Hero trust line]','1Home','1Mobile','▸ Pricing [Pricing FAQ]','▭ Launch checklist'],cv:[{g:'Homepage [Hero trust line]',hl:true,f:['Home','~Mobile']},{g:'Pricing [Pricing FAQ]',hl:true,f:['Pricing']}],panel:['!Hero trust line ⌄|#','<div class="bubble">Add a trust line…</div>','<div class="bubble">Done.</div>']},
+ 'c-chats':{side:['!◇ Canvas','§Chats|+','!*Add a trust line to…|◌','!Rewrite pricing FAQ|#841','!Customer stories page|○','§Canvas','▸ Homepage','1Home','1Mobile','▸ Pricing','▭ Launch checklist'],cv:[{g:'Homepage [Add a trust line…]',hl:true,f:['Home','~Mobile']},{g:'Pricing [Rewrite pricing FAQ]',hl:true,f:['Pricing']}],panel:['!Add a trust line to… ⌄','<div class="bubble">Add a trust line…</div>','<div class="bubble">Done.</div>']},
+ 'c-figma':{top:'<span style="color:var(--hl)">northwind-web</span> / <b>Pricing refresh</b>',side:['◇ Canvas chat','§Canvas|+','!*▸ Homepage|◌','1Home','1Mobile','!▸ Pricing|#841','1Pricing','!▸ Stories|○','▭ Launch checklist'],cv:[{g:'Homepage · ◌ working',hl:true,f:['Home','~Mobile']},{g:'Pricing · #841',hl:true,f:['Pricing']}],panel:['!Homepage ⌄','<div class="bubble">Add a trust line…</div>']},
+ 'c-versions':{top:'<b>Pricing refresh</b> · <span style="color:var(--hl)">northwind-web</span>',side:['◇ Canvas chat','§Canvas','▸ Homepage','1Home|!3','1Mobile','▸ Pricing','1Pricing|!2'],raw:null,cv:['<div class="gl">Home</div><div class="fs"><div class="f"><span>Original</span><div class="fb"></div></div><div class="f"><span style="color:var(--hl)">Trust line</span><div class="fb hl"></div></div><div class="f"><span style="color:var(--hl)">Gradient</span><div class="fb hl"></div></div></div><div style="display:flex;gap:4px"><span class="btn hl">+ Version</span><span class="btn hl">Ship</span></div>'],panel:['Trust line','<div class="bubble">Make the trust line…</div>']}
+};
+
+var WS=['○ Customer stories','*◌ Hero trust line|+3','● Pricing FAQ|#841'];
+Object.assign(W,{
+ 's-flat':{side:['§Workspaces|+','!○ Customer stories','!*◌ Hero trust line|+3 −0','!● Pricing FAQ|+11 −0','§Canvas','▸ Homepage [Hero trust line]','▸ Pricing [Pricing FAQ]'],cv:CV_TITLE},
+ 's-swatch':{side:['§Workspaces|+','!▪ Customer stories|○','!*▪ Hero trust line|◌','!▪ Pricing FAQ|#841','§Canvas','▸ Homepage [Hero trust line]','▸ Pricing [Pricing FAQ]'],cv:CV_TITLE},
+ 's-buckets':{side:['§!Working','*◌ Hero trust line|+3','§!Needs you','● Pricing FAQ|#841','§!Idle','○ Customer stories','§Canvas','▸ Homepage'],cv:CV_TITLE},
+ 'k-top':{side:['§Workspaces|+','!◇ Canvas','○ Customer stories','*◌ Hero trust line|+3','● Pricing FAQ|#841','§Canvas','▸ Homepage'],cv:CV_TITLE,panel:['!Canvas ⌄','<div class="bubble">3 Workspaces, 1 needs review</div>']},
+ 'k-panel':{side:['§Workspaces|+']. concat(WS,['§Canvas','▸ Homepage']),cv:CV_TITLE,panel:['!Canvas ⌄','<div class="bubble">3 Workspaces, 1 needs review</div>']},
+ 'k-default':{side:['§Workspaces|+','○ Customer stories','◌ Hero trust line|+3','● Pricing FAQ|#841','§Canvas','▸ Homepage'],cv:CV_TITLE,panel:['!◇ Canvas','<div class="bubble">Hero trust line finished. PR ready.</div>','<div class="bubble">Fan out 3 hero ideas</div>']},
+ 'n-agent':{side:['§Workspaces|+','!*◌ Hero trust line','<span class="note" style="padding-left:14px">was “New workspace”</span>'],cv:[],panel:['!Hero trust line ⌄','<div class="bubble">Add a line under the hero buttons that says we\'re trusted by 4,000 teams</div>']},
+ 'n-prompt':{side:['§Workspaces|+','!*◌ Add a line under the…'],cv:[],panel:['!Add a line under the… ⌄','<div class="bubble">Add a line under the hero buttons that says we\'re trusted by 4,000 teams</div>']},
+ 'n-ask':{top:'Create workspaces',raw:'<div class="cv" style="background:var(--wf-cv)"><div class="dlg" style="flex-direction:column;padding:8px;gap:5px"><b style="font-weight:500">Create workspaces</b><div class="box hl">Title: Hero trust line</div><div class="box" style="height:34px;align-items:flex-start">Add a line under the hero buttons…</div><div style="margin-top:auto;display:flex;justify-content:space-between"><span class="btn">+ Add another</span><span class="btn">Create</span></div></div></div>'},
+ 'g-hover':{side:['§Workspaces','*◌ Hero trust line|+3','<div class="pop"><b style="font-weight:500">Hero trust line</b><span>web · <code>hero-gradient-trust-line</code></span><span class="note">from <code>main</code> · +3 −0</span></div>','● Pricing FAQ|#841'],cv:CV_TITLE},
+ 'g-header':{side:['§Workspaces'].concat(WS),cv:CV_TITLE,panel:['Hero trust line ⌄','!<code>hero-gradient-trust…</code>|+3','<div class="bubble">Add a trust line…</div>']},
+ 'g-menu':{side:['§Workspaces','*◌ Hero trust line|…','<div class="pop" style="border-color:var(--wf-ink)"><span class="note">View</span><span>Open in browser</span><span class="note">Git</span><span style="color:var(--hl)">Copy branch name</span><span style="color:var(--hl)">Open branch on GitHub</span><span>Rebase on main</span></div>'],cv:CV_TITLE},
+ 'e-crumb':{top:'All files / <b>Northwind site</b> …',side:['§Workspaces'].concat(WS),raw:null,cv:['<div class="pop" style="margin-left:0;border-color:var(--wf-ink)"><span>Rename</span><span>Duplicate</span><span style="color:var(--hl)">Settings</span><span>Move to…</span></div>']},
+ 'e-footer':{side:['§Workspaces'].concat(WS,['§Canvas','▸ Homepage','▸ Pricing','<div style="margin-top:auto"></div>','!⚙ Canvas settings']),cv:CV_TITLE},
+ 'e-plus':{side:['§Workspaces|+','<div class="pop" style="border-color:var(--wf-ink)"><span class="note">New workspace in</span><span>web</span><span>api</span><span style="color:var(--hl)">Manage repositories…</span></div>','○ Customer stories'],cv:CV_TITLE},
+ 'z-empty':{side:['§Workspaces','<span class="note" style="padding:2px 4px;color:var(--hl)">Add a repository to start a Workspace.</span>','<span class="btn hl" style="margin:2px 4px;align-self:flex-start">Add repository</span>','§Canvas','▭ Launch checklist'],cv:[]},
+ 'z-new':{side:['§Workspaces|+'],raw:null,cv:['<div class="dlg" style="flex-direction:column;padding:8px;gap:5px"><b style="font-weight:500">Add a repository</b><span class="note">New workspaces need one. Everyone on the canvas shares it.</span><div class="box hl">Search your repositories…</div><div class="box">northwind/web</div><div class="box">northwind/api</div></div>']},
+ 'z-chat':{side:['§Workspaces','!◇ Canvas'],cv:[],panel:['◇ Canvas','!<div class="bubble hl">Which repo are we working on?</div>','<div class="bubble">northwind/web</div>','<div class="bubble">Added. Detected pnpm dev.</div>']},
+ 'm-right':{side:['§Workspaces|+','○ Customer stories|<span style="color:var(--hl)">web</span>','*◌ Hero trust line|<span style="color:var(--hl)">web</span>','● Pricing FAQ|<span style="color:var(--hl)">web</span>','○ Rate-limit headers|<span style="color:var(--hl)">api</span>','✓ Seed demo data|<span style="color:var(--hl)">api</span>'],cv:CV_TITLE},
+ 'm-heads':{side:['§Workspaces|+','§!web','○ Customer stories','*◌ Hero trust line','● Pricing FAQ','§!api','○ Rate-limit headers','✓ Seed demo data'],cv:CV_TITLE},
+ 'm-hidden':{side:['§Workspaces|+','○ Customer stories','*◌ Hero trust line','● Pricing FAQ','○ Rate-limit headers','✓ Seed demo data'],cv:[],panel:['Create workspaces','!<span class="btn hl" style="align-self:flex-start">web ⌄</span>','<div class="bubble">Prompt…</div>']}
+});
+document.querySelectorAll('[data-wf]').forEach(function(el){var s=W[el.dataset.wf];if(s)el.innerHTML=wf(s)});
+</script>
+
+</body></html>

@@ -1,0 +1,100 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>App Audit Plan, October 3</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column. Lede, then the PR sequence as numbered cards, then the exploration and what was dropped. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#c4108a;--med:#a15c00;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#ff4fc8;--med:#f0a640;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#ff4fc8;--med:#f0a640;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans);margin:0}
+.wrap{max-width:860px;margin:0 auto;padding-inline:16px;padding-block:32px 64px;display:flex;flex-direction:column;gap:20px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);margin:6px 0 8px;text-wrap:balance}
+h2{font:600 19px/1.3 var(--head);margin:16px 0 0}
+h3{font:500 16px/1.4 var(--sans);margin:0}
+p{margin:0;max-width:72ch}
+.muted{color:var(--muted)}
+a{color:var(--accent)}
+code{font:12.5px var(--mono);overflow-wrap:anywhere}
+ol.seq{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0}
+.pr{border-top:1px solid var(--line);padding:16px 0;display:grid;grid-template-columns:2.2em minmax(0,1fr);gap:4px 10px}
+.n{font:600 14px var(--mono);color:var(--accent)}
+.pr .body{display:flex;flex-direction:column;gap:6px;min-width:0}
+.meta{font:500 11px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.wait{color:var(--med)}
+ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.box{background:var(--surface);border-radius:8px;padding:12px 14px;font-size:14px;display:flex;flex-direction:column;gap:6px}
+</style>
+<div class="wrap">
+<header>
+<p class="lbl">Combined plan · app · 3 Oct 2026</p>
+<h1>App audit plan</h1>
+<p class="muted">Built from your picks on the <a href="https://claude.ai/artifact/N39qw6mf6AHQRrAxL3K4eG">app design audit</a>. Every call is answered, so there is no decisions page. That leaves 10 PRs and 1 exploration, with every finding accounted for. Nine PRs can start now. PR 10 waits on the live frames rethink.</p>
+</header>
+
+<h2>The sequence</h2>
+<ol class="seq">
+<li class="pr"><span class="n">1</span><div class="body"><h3>Visual nits, already built</h3><p class="meta">Built patch · 7 files · no dependencies</p><ul>
+<li>N1: the Chats row ⋯ opens below its row.</li>
+<li>N2: New repository is an outline button under a populated list.</li>
+<li>N3 A: error lines use Signal inks.</li>
+<li>N4 A: the mockup status caret shows on hover only.</li>
+<li>N6: the “·” spacing matches Settings.</li>
+<li>N7: the frame bar caret is 12px.</li>
+<li>N8: the header + lines up with the rows’ ⋯.</li>
+<li>N9: chat inline code is 12px.</li>
+</ul><p class="muted">Starts from <code>design-audit-2026-10-03/prototype.patch</code>. N4 also needs the status to give up width before the name does, so the label doesn’t jump on narrow mockups.</p></div></li>
+<li class="pr"><span class="n">2</span><div class="body"><h3>Copy and docs sweep</h3><p class="meta">Copy only · no dependencies</p><ul>
+<li>P11 B: tool rows say “Used &lt;page&gt;”, and “Drove” / “Driving” go on the lint ban list.</li>
+<li>P3: the hosted Remove confirm says the repository is removed for everyone, with the canvas’s edits. If someone else added it, it also says who.</li>
+<li>P12: a desktop sentence in Settings’ repository dialog.</li>
+<li>P13: the stray “sandbox” strings.</li>
+<li>P14: the drift in the Delete chat, Open frame and “Turning off” docs.</li>
+<li>P15: the Remove dialog says chats.</li>
+</ul></div></li>
+<li class="pr"><span class="n">3</span><div class="body"><h3>A waiting question counts as needs-you</h3><p class="meta">Small · no dependencies</p><ul>
+<li>P2: <code>questionPending</code> beside <code>planPending</code>, shown as “Question waiting”, and the docs lists updated.</li>
+<li>P9 A: the needs-you dot after the Coordinator crumb when another chat needs you.</li>
+</ul></div></li>
+<li class="pr"><span class="n">4</span><div class="body"><h3>Keyboard: hidden panels and sidebar stops</h3><p class="meta">Small · no dependencies</p><ul>
+<li>H1: collapsed panels are <code>inert</code>.</li>
+<li>H9: each sidebar row is one Tab stop, and F2 renames.</li>
+</ul></div></li>
+<li class="pr"><span class="n">5</span><div class="body"><h3>Desktop repositories: Add/Remove like hosted</h3><p class="meta">Medium · no dependencies</p><ul>
+<li>H3 A: Canvas settings on desktop uses Add/Remove buttons instead of switches.</li>
+<li>P4 A: Remove asks first when the repository is customized: “Its changes on this canvas are lost.”</li>
+<li>P10 A: hosted hides a repository a teammate already added.</li>
+</ul></div></li>
+<li class="pr"><span class="n">6</span><div class="body"><h3>One repository, one look</h3><p class="meta">Medium · after PR 5 (same dialog)</p><ul>
+<li>H5: owner/name in both lists, “Manage in Settings” under the Canvas list, and “On N canvases” on Settings rows.</li>
+<li>N5 A: both edit dialogs use Settings’ chrome (hairline header, sticky footer) and say “Save”.</li>
+</ul></div></li>
+<li class="pr"><span class="n">7</span><div class="body"><h3>A ⋯ on the mockup bar</h3><p class="meta">Small · no dependencies</p><ul>
+<li>H2 A: the mockup bar gets the frame bar’s trailing ⋯ with Duplicate, the status choices and Delete. No right-click menus.</li>
+</ul></div></li>
+<li class="pr"><span class="n">8</span><div class="body"><h3>A ⋯ in the workspace chat header</h3><p class="meta">Small · no dependencies</p><ul>
+<li>H4 A: a ⋯ after the workspace name in the chat header, with the same menu as the Chats row. It matches the canvas name’s ⋯ (<code>canvas-top-bar.tsx:166-176</code>: muted IconButton, DotsThree, menu aligned to the start). The frame’s Workspace ▸ submenu reuses the same content.</li>
+</ul></div></li>
+<li class="pr"><span class="n">9</span><div class="body"><h3>Mockups and documents outlive their chat</h3><p class="meta">Medium · no dependencies</p><ul>
+<li>P8 A: once its chat is deleted, any chat can edit a mockup or document. Your note: the first chat that edits it claims it, so <code>ownerChatId</code> moves to that chat and its name shows on the label (<code>lib/canvas/document-owner.ts</code>). “Ask the agent to add a knob” comes back with the new owner.</li>
+</ul></div></li>
+<li class="pr"><span class="n">10</span><div class="body"><h3>Control passes after the driver goes idle</h3><p class="meta wait">Waits on live frames rethink round 3</p><ul>
+<li>P7 B: when a request has waited N minutes and the driver hasn’t touched the frame, control passes to the asker.</li>
+<li>Also from P7: a visible “asked” state, and a “not now” toast for the asker.</li>
+</ul><p class="muted">The rethink keeps control as it is but moves the toggle next to Interact, so this starts once round 3 settles where requests show.</p></div></li>
+</ol>
+
+<h2>Exploration</h2>
+<div class="box"><p><b>H7: where New chat lives in the Chats menu.</b> Your note asks to explore this first, before building a fixed header row. Options to compare include a fixed header row, + on the first section as today, and New chat at the bottom of the list.</p></div>
+
+<h2>No work</h2>
+<ul>
+<li>Skipped: P1 and P6 (moot after the live frames rethink), P5 (legacy sandbox support isn’t a priority) and H8.</li>
+<li>H10 B: leave the prototype player where it is.</li>
+<li>H6 was merged into P7, which is PR 10.</li>
+</ul>
+</div>
+
+</body></html>

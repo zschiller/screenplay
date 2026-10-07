@@ -1,0 +1,154 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>{{TITLE}}</title>
+<title>Repository Modal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500&family=Instrument+Sans:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column. The question, then a round toggle, then Today and that round's options, then the reaction form and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#b0179e;--ok:#1f7a45;--no:#a3372b;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded",ui-sans-serif,system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#f15be0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#f15be0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:40px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:400 clamp(24px,4.5vw,34px)/1.15 var(--head);letter-spacing:-.02em;margin:10px 0 12px;text-wrap:balance}
+h2{font:400 clamp(18px,2.4vw,22px)/1.25 var(--head);margin:0;text-wrap:balance}
+h3{font:500 16px/1.35 var(--sans);margin:0}
+p{margin:0}
+a{color:var(--accent)}
+blockquote{margin:0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.muted{color:var(--muted)}
+.rounds{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 13px var(--sans);border-radius:6px;padding:6px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+.opts{display:grid;grid-template-columns:1fr;gap:48px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt>p{max-width:72ch;margin:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;align-items:start}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{border:1px solid var(--line);background:var(--surface);max-height:none;overflow:hidden}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.pick:hover,.pick:has(input:checked){background:var(--surface)}
+.pick input{margin:3px 0 0;accent-color:var(--accent)}
+textarea,input[type=text]{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+textarea{resize:vertical;min-height:60px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{font-size:13px;color:var(--ok)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;margin:0}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">Design exploration · 3 October 2026</p>
+<h1 id="q"></h1>
+<blockquote id="quote"></blockquote>
+</header>
+
+<nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+
+<section id="today"></section>
+<section id="round"></section>
+
+<section id="react">
+<div class="shead"><p class="lbl">Your reaction</p><h2 id="reactTitle"></h2><p class="muted">Pick one, or say what's missing. Copy the text and paste it back in the chat.</p></div>
+<form id="form"></form>
+<div class="row"><button type="button" id="copy" class="primary">Copy reaction</button><span class="status" id="status" role="status" aria-live="polite"></span></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
+const QUESTION={
+ quote:"feels like repo config modal design could be refined",
+ q:"How should the repository modal look and read, when one form opens three ways?",
+ slug:"repo-modal"
+};
+const TODAY={facts:"One set of run settings, three different dialogs. Canvas › Edit is titled Repository settings, calls the name field Label, uses 28px buttons and has no hairlines, so the system prompt runs into the checkbox. Settings › Edit is titled Edit repository, calls it Name with “Optional, e.g. web or api”, adds a Source row, and its description is out of date (edits now reach every canvas, not only new adds). New repository is titled Configure repository, 448px wide, with Name hidden last under Advanced. Both edit dialogs are 512px wide and scroll (content 721 and 681px in a 600px area). Every input is 32px but the frame size select is 36px. Field labels are 12px mono caps, help text 14px. Desktop build shown; hosted adds Dev server port and Environment variables (with Reveal values from PR #1442), so its edit form is longer still.",shots:[IMG("shots/today-canvas-edit-light.png","Today · Canvas › Edit","shots/today-canvas-edit-dark.png"),IMG("shots/today-settings-edit-light.png","Today · Settings › Edit","shots/today-settings-edit-dark.png"),IMG("shots/today-add-light.png","Today · New repository","shots/today-add-dark.png")]};
+// Shared by A, B and C: one title pattern (Edit / Add + repository), a scope line that says where a change lands, Name everywhere with the same help text, 32px select, hairlines above and below the scrolling fields, default-size buttons, Save.
+const ROUNDS=[
+{n:2,feedback:"Picked B: essentials first. This round asks where Name goes, with Advanced shown open and the hosted form (Dev server port and Environment variables) shown too. All three options also fix the Advanced arrow, which sat 4px inside the 20px gutter.",options:[
+ {id:"A",name:"Name under Advanced",why:"Round 1's B as it is: Name goes under Advanced with frame size and system prompt, the same place New repository puts it today. The form opens on the scripts, which are what people come to change.",cost:"Name is the last field, so once Advanced is open it sits below the fold (open, the Canvas dialog scrolls again). You rename by opening Advanced and scrolling.",state:"",shots:[IMG("shots/r2-a-canvas-edit-light.png","A · Canvas › Edit","shots/r2-a-canvas-edit-dark.png"),IMG("shots/r2-a-canvas-edit-open-light.png","A · Canvas › Edit, Advanced open","shots/r2-a-canvas-edit-open-dark.png"),IMG("shots/r2-a-hosted-canvas-edit-light.png","A · Hosted Canvas › Edit","shots/r2-a-hosted-canvas-edit-dark.png"),IMG("shots/r2-a-settings-edit-light.png","A · Settings › Edit","shots/r2-a-settings-edit-dark.png"),IMG("shots/r2-a-add-light.png","A · New repository","shots/r2-a-add-dark.png")]},
+ {id:"B",name:"Name first",why:"Name goes back to the top of the up-front fields in all three dialogs, New repository included. The name is what every list and the sidebar show, so it is the field you see first. Advanced holds only frame size and system prompt.",cost:"Adds a field up front: on hosted, Advanced is pushed to the bottom edge and the dialog scrolls. New repository grows by one field.",rec:true,state:"picked",shots:[IMG("shots/r2-b-canvas-edit-light.png","B · Canvas › Edit","shots/r2-b-canvas-edit-dark.png"),IMG("shots/r2-b-canvas-edit-open-light.png","B · Canvas › Edit, Advanced open","shots/r2-b-canvas-edit-open-dark.png"),IMG("shots/r2-b-hosted-canvas-edit-light.png","B · Hosted Canvas › Edit","shots/r2-b-hosted-canvas-edit-dark.png"),IMG("shots/r2-b-settings-edit-light.png","B · Settings › Edit","shots/r2-b-settings-edit-dark.png"),IMG("shots/r2-b-add-light.png","B · New repository","shots/r2-b-add-dark.png")]},
+ {id:"C",name:"Rename on the row",why:"The dialog has no Name field at all. You rename where the name shows, in the Settings list and the Canvas list, with the same white inline rename field as layers and canvases (double-click, or Rename in the row's menu). The dialog is only about how the repository runs.",cost:"Needs Rename on both lists: Settings rows get a menu item, and Canvas rows, which have no menu today, need one or a double-click. New repository can't set a name, so a second setup of the same repository comes from Duplicate and is renamed after.",state:"",shots:[IMG("shots/r2-c-canvas-edit-light.png","C · Canvas › Edit","shots/r2-c-canvas-edit-dark.png"),IMG("shots/r2-c-canvas-edit-open-light.png","C · Canvas › Edit, Advanced open","shots/r2-c-canvas-edit-open-dark.png"),IMG("shots/r2-c-hosted-canvas-edit-light.png","C · Hosted Canvas › Edit","shots/r2-c-hosted-canvas-edit-dark.png"),IMG("shots/r2-c-settings-edit-light.png","C · Settings › Edit","shots/r2-c-settings-edit-dark.png"),IMG("shots/r2-c-add-light.png","C · New repository","shots/r2-c-add-dark.png"),IMG("shots/r2-c-rename-light.png","C · Settings › Repositories, renaming in place (mock)","shots/r2-c-rename-dark.png")]}
+]},
+{n:1,feedback:"",options:[
+ {id:"A",name:"Tidy: one form, three doors",why:"Keeps today's single long form and makes the three dialogs agree. The title names the repository (Edit acme/storefront, Add acme/docs) and the line under it says where a change lands: on this canvas only, on every canvas using it, or before it's added. The field is Name everywhere, help text is shorter, the select drops to 32px to match the inputs, and the Canvas dialog gets the hairlines and footer Settings already has.",cost:"Smallest change, copy and classes only. Both edit dialogs still scroll (751 and 754px tall), so System prompt and the save-to-all box stay below the fold.",state:"",shots:[IMG("shots/opt-a-canvas-edit-light.png","A · Canvas › Edit","shots/opt-a-canvas-edit-dark.png"),IMG("shots/opt-a-settings-edit-light.png","A · Settings › Edit","shots/opt-a-settings-edit-dark.png"),IMG("shots/opt-a-add-light.png","A · New repository","shots/opt-a-add-dark.png")]},
+ {id:"B",name:"Essentials first",why:"Everything in A, plus both edit dialogs take the shape New repository already has: setup script, run script and the env field up front, with Name, Default frame size and System prompt under Advanced. The three doors become one form, and the edit dialogs drop from about 780px to 560px with nothing to scroll.",cost:"Name and System prompt are one click deeper when you edit. On hosted the up-front part also holds Dev server port and Environment variables, so it is taller there but still shorter than today.",rec:true,state:"picked",shots:[IMG("shots/opt-b-canvas-edit-light.png","B · Canvas › Edit","shots/opt-b-canvas-edit-dark.png"),IMG("shots/opt-b-settings-edit-light.png","B · Settings › Edit","shots/opt-b-settings-edit-dark.png"),IMG("shots/opt-b-add-light.png","B · New repository","shots/opt-b-add-dark.png")]},
+ {id:"C",name:"Settings rows",why:"Everything in A, laid out like the Settings page: each field is a row with its name and 12px help on the left and the control on the right, split by hairlines. Every field stays visible, and the help text stops pushing each input down, so the edit dialogs fit without scrolling on this screen.",cost:"Dialogs widen from 512 to 672px, and labels change from mono caps to 14px sentence case in these dialogs only. Built with stock Field orientation=\"responsive\", but no other dialog looks like this yet.",state:"",shots:[IMG("shots/opt-c-canvas-edit-light.png","C · Canvas › Edit","shots/opt-c-canvas-edit-dark.png"),IMG("shots/opt-c-settings-edit-light.png","C · Settings › Edit","shots/opt-c-settings-edit-dark.png"),IMG("shots/opt-c-add-light.png","C · New repository","shots/opt-c-add-dark.png")]}
+]}
+];
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const KEY="exploration-"+QUESTION.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let current=ROUNDS[0].n;
+
+$("q").textContent=QUESTION.q;$("quote").textContent=QUESTION.quote;
+$("today").innerHTML=`<div class="shead"><p class="lbl">Today</p><h2>What main does now</h2><p class="muted">${esc(TODAY.facts)}</p></div>`+shots(TODAY.shots);
+$("rounds").innerHTML=`<span class="lbl">Round</span>`+ROUNDS.map(r=>`<button type="button" data-n="${r.n}">${r.n}${r===ROUNDS[0]?" · latest":""}</button>`).join("");
+$("rounds").addEventListener("click",e=>{const b=e.target.closest("button[data-n]");if(b){current=+b.dataset.n;render()}});
+
+function render(){
+ const r=ROUNDS.find(x=>x.n===current),latest=r===ROUNDS[0];
+ $("rounds").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.n===current)));
+ $("round").innerHTML=`<div class="shead"><p class="lbl">Round ${r.n}</p><h2>${r.options.length} options</h2>${r.feedback?`<blockquote>${esc(r.feedback)}</blockquote>`:""}</div><div class="opts">`+
+  r.options.map(o=>`<article class="opt ${o.state}" id="r${r.n}-${o.id}"><header><span class="letter">${o.id}</span><h3>${esc(o.name)}</h3>${o.rec?'<span class="badge rec">Recommended</span>':""}${o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:""}</header>${shots(o.shots)}<p>${esc(o.why)}</p><p class="cost"><b>Cost</b> ${esc(o.cost)}</p></article>`).join("")+`</div>`;
+ $("react").hidden=!latest;
+ if(latest)renderForm(r);
+}
+function renderForm(r){
+ $("reactTitle").textContent=`Round ${r.n}`;
+ const opts=r.options.map(o=>[o.id,`${o.id}: ${o.name}${o.rec?" (recommended)":""}`]).concat([["none","None of these"],["mix","A mix (say which parts below)"]]);
+ $("form").innerHTML=`<fieldset><legend>Pick</legend>`+opts.map(([v,l])=>`<label class="pick"><input type="radio" name="pick" id="pick-${v}" value="${v}"><span>${esc(l)}</span></label>`).join("")+`</fieldset>`+
+  `<p class="lbl" style="margin-top:12px">Notes</p><textarea id="note" aria-label="Notes"></textarea>`;
+ if(saved.round===r.n){const el=$("pick-"+saved.pick);if(el)el.checked=true;$("note").value=saved.note||""}
+ preview();
+}
+function build(){
+ const r=ROUNDS[0],p=$("form").querySelector("input[name=pick]:checked"),note=$("note").value.trim();
+ const o=p&&r.options.find(x=>x.id===p.value);
+ const pick=!p?"No pick yet":o?`${o.id}: ${o.name}`:p.value==="none"?"None of these":"A mix";
+ return[`Exploration: ${QUESTION.q}`,`Round ${r.n}`,`→ ${pick}`].concat(note?[`Note: ${note}`]:[]).join("\n");
+}
+function preview(){
+ $("preview").textContent=build();
+ const p=$("form").querySelector("input[name=pick]:checked");
+ try{localStorage.setItem(KEY,JSON.stringify({round:ROUNDS[0].n,pick:p?p.value:"",note:$("note").value}))}catch(e){}
+}
+$("form").addEventListener("input",preview);
+$("form").addEventListener("submit",e=>e.preventDefault());
+$("copy").addEventListener("click",()=>{
+ const text=build(),st=$("status");
+ const fallback=()=>{const p=$("preview"),r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r);st.textContent="Copy was blocked. The text is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the chat."},fallback)}catch(e){fallback()}
+});
+render();
+</script>
+
+</body></html>

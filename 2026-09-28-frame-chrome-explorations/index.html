@@ -1,0 +1,397 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Frame Chrome Explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#ffffff; --fg:#0a0a0a; --muted-fg:#737373; --muted:#f5f5f5; --border:#e5e5e5;
+  --popover:#ffffff; --canvas:#fafafa; --shadow:0 1px 2px rgb(0 0 0/.06),0 4px 12px rgb(0 0 0/.06);
+  --sel:oklch(0.667 0.295 322.15); --success:oklch(0.527 0.154 150.069); --warning:oklch(0.555 0.163 48.998);
+  --destructive:oklch(0.577 0.245 27.325); --rec:oklch(0.577 0.245 27.325); --rec-bg:oklch(0.577 0.245 27.325 / .1);
+  --ws-bg:oklch(0.577 0.245 27.325 / .12); --ws-fg:oklch(0.5 0.2 27);
+  --pv-bg:#ffffff; --pv-line:#e2e8f0; --pv-card:#ffffff; --pv-hero:#6366f1; --pv-text:#0f172a; --pv-sub:#64748b;
+  --accent-soft:#f5f5f5; --kbd:#f5f5f5; --good:#f0fdf4; --note:#fafafa;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  color-scheme:dark;
+  --bg:#0a0a0a; --fg:#fafafa; --muted-fg:#a3a3a3; --muted:#262626; --border:rgb(255 255 255/.1);
+  --popover:#171717; --canvas:#0f0f0f; --shadow:0 1px 2px rgb(0 0 0/.4),0 6px 16px rgb(0 0 0/.35);
+  --success:oklch(0.792 0.209 151.711); --warning:oklch(0.828 0.189 84.429); --destructive:oklch(0.704 0.191 22.216);
+  --rec:oklch(0.704 0.191 22.216); --rec-bg:oklch(0.704 0.191 22.216 / .16);
+  --ws-bg:oklch(0.704 0.191 22.216 / .18); --ws-fg:oklch(0.78 0.15 22);
+  --pv-bg:#0b1020; --pv-line:#1e293b; --pv-card:#0f172a; --pv-hero:#818cf8; --pv-text:#e2e8f0; --pv-sub:#94a3b8;
+  --accent-soft:#1c1c1c; --kbd:#262626; --good:#0f1a12; --note:#141414;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0a0a0a; --fg:#fafafa; --muted-fg:#a3a3a3; --muted:#262626; --border:rgb(255 255 255/.1);
+  --popover:#171717; --canvas:#0f0f0f; --shadow:0 1px 2px rgb(0 0 0/.4),0 6px 16px rgb(0 0 0/.35);
+  --success:oklch(0.792 0.209 151.711); --warning:oklch(0.828 0.189 84.429); --destructive:oklch(0.704 0.191 22.216);
+  --rec:oklch(0.704 0.191 22.216); --rec-bg:oklch(0.704 0.191 22.216 / .16);
+  --ws-bg:oklch(0.704 0.191 22.216 / .18); --ws-fg:oklch(0.78 0.15 22);
+  --pv-bg:#0b1020; --pv-line:#1e293b; --pv-card:#0f172a; --pv-hero:#818cf8; --pv-text:#e2e8f0; --pv-sub:#94a3b8;
+  --accent-soft:#1c1c1c; --kbd:#262626; --good:#0f1a12; --note:#141414;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:14px/1.55 "Geist",ui-sans-serif,system-ui,sans-serif;padding-inline:20px}
+.wrap{max-width:1000px;margin:0 auto;padding-block:40px 80px;display:flex;flex-direction:column;gap:56px}
+h1{font-size:28px;font-weight:600;letter-spacing:-.02em;margin:0;text-wrap:balance}
+h2{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h3{font-size:14px;font-weight:600;margin:0}
+p{margin:0;max-width:68ch}
+.lede{color:var(--muted-fg);font-size:15px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.eyebrow{font:500 11px/1 "Geist Mono",ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-fg)}
+ul.plain{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px}
+.pc h3{margin-bottom:6px}
+.pc ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;color:var(--muted-fg)}
+.pc ul li::marker{color:var(--muted-fg)}
+.pick{border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px;background:var(--note)}
+.badge{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:500;border:1px solid var(--border);color:var(--muted-fg);vertical-align:2px;margin-left:8px}
+.badge.rec{color:var(--success);border-color:color-mix(in oklch,var(--success) 40%,transparent)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;font-size:13px;min-width:680px;width:100%}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-weight:500;color:var(--muted-fg)}
+td.y{color:var(--success)} td.n{color:var(--destructive)} td.m{color:var(--muted-fg)}
+code,.mono{font-family:"Geist Mono",ui-monospace,monospace;font-size:.92em}
+
+/* ---------- mock canvas ---------- */
+.stage{background:var(--canvas);border:1px solid var(--border);border-radius:12px;overflow-x:auto}
+.stage-in{display:flex;flex-wrap:wrap;column-gap:72px;row-gap:40px;align-items:flex-start;padding:28px 64px 36px 28px;min-width:max-content}
+@media (min-width:700px){.stage-in{min-width:0}}
+.cap{font-size:12px;color:var(--muted-fg);margin-top:10px}
+.fr{position:relative;width:var(--w,440px);flex:none}
+.grp{font-size:12px;color:var(--muted-fg);margin-bottom:4px}
+.lbl{display:flex;align-items:center;gap:6px;height:24px;margin-bottom:4px;min-width:0;white-space:nowrap}
+.ws{flex:none;display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:22px;padding:0 5px;border-radius:5px;background:var(--ws-bg);color:var(--ws-fg);font:500 10px/1 "Geist Mono",monospace}
+.nm{font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nm.sel{color:var(--sel)}
+.pill{flex:none;display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 7px;border-radius:6px;background:var(--muted);color:var(--muted-fg);font:400 11px/1 "Geist Mono",monospace}
+.bw{position:relative}
+.fb{background:var(--pv-bg);border:1px solid var(--border);aspect-ratio:16/10;display:flex;flex-direction:column;gap:10px;padding:0 14px 14px;overflow:hidden}
+.fb.tall{aspect-ratio:9/17}
+.fb-nav{display:flex;justify-content:space-between;align-items:center;height:26px;border-bottom:1px solid var(--pv-line);margin:0 -14px;padding:0 14px;font-size:8px;color:var(--pv-sub)}
+.fb-nav b{color:var(--pv-text);font-weight:600}
+.fb-hero{background:var(--pv-hero);border-radius:5px;color:#fff;font:600 12px/1 "Geist",sans-serif;padding:0 12px;display:flex;align-items:center;min-height:52px}
+.fb-cards{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.fb.tall .fb-cards{grid-template-columns:1fr}
+.fb-cards>div{border:1px solid var(--pv-line);border-radius:5px;padding:8px;display:flex;flex-direction:column;gap:5px;background:var(--pv-card)}
+.fb-cards i{display:block;height:5px;border-radius:3px;background:var(--pv-line)}
+.fb-cards i.s{width:55%}
+.fb-cards i.t{height:10px}
+.selbox{position:absolute;inset:0;border:1px solid var(--sel);pointer-events:none}
+.selbox.rec{border-color:var(--rec)}
+.selbox b{position:absolute;width:7px;height:7px;background:var(--bg);border:1px solid var(--sel)}
+.selbox b:nth-child(1){left:-4px;top:-4px}.selbox b:nth-child(2){right:-4px;top:-4px}.selbox b:nth-child(3){left:-4px;bottom:-4px}.selbox b:nth-child(4){right:-4px;bottom:-4px}
+.selbox b:nth-child(5){left:calc(50% - 4px);top:-4px}.selbox b:nth-child(6){left:calc(50% - 4px);bottom:-4px}.selbox b:nth-child(7){top:calc(50% - 4px);left:-4px}.selbox b:nth-child(8){top:calc(50% - 4px);right:-4px}
+
+.tb{display:inline-flex;align-items:center;gap:2px;padding:4px;background:var(--popover);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow)}
+.tb.v{flex-direction:column;position:absolute;left:calc(100% + 8px);top:0}
+.sep{background:var(--border);flex:none}
+.tb .sep{width:1px;height:16px;margin:0 3px}
+.tb.v .sep{width:16px;height:1px;margin:3px 0}
+.b{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;color:var(--fg)}
+.b.dim{color:var(--muted-fg);opacity:.45}
+.b.on{background:var(--muted)}
+.b.hov{background:var(--muted)}
+.b.sm{width:20px;height:20px;border-radius:5px}
+.i{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.b.sm .i{width:12px;height:12px}
+
+/* address field */
+.fld{flex:none;display:inline-flex;align-items:center;gap:2px;height:22px;padding:0 2px 0 8px;border-radius:6px;background:var(--muted);color:var(--muted-fg);font:400 11px/1 "Geist Mono",monospace;min-width:0}
+.fld .path{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;padding-right:6px}
+.fld .b{width:18px;height:18px;color:var(--muted-fg)}
+.fld .b .i{width:11px;height:11px}
+.fld.edit{background:var(--popover);box-shadow:0 0 0 1px var(--border);color:var(--fg)}
+.fld.recording{background:var(--rec-bg);color:var(--rec)}
+.fld.recording .b{color:var(--rec)}
+.dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--success);margin-right:6px}
+.dot.warn{background:var(--warning)} .dot.bad{background:var(--destructive)} .dot.idle{background:color-mix(in oklch,var(--muted-fg) 60%,transparent)}
+.recdot{width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.recdot.o{width:8px;height:8px}
+.stop{width:8px;height:8px;border-radius:2px;background:var(--rec)}
+@media (prefers-reduced-motion:no-preference){.pulse{animation:p 1.4s ease-in-out infinite}@keyframes p{50%{opacity:.35}}}
+.tip{position:absolute;background:var(--fg);color:var(--bg);font-size:11px;padding:4px 8px;border-radius:6px;white-space:nowrap;z-index:2}
+.below{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);white-space:nowrap}
+.tag{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);display:inline-flex;gap:6px;align-items:center;height:20px;padding:0 6px;border-radius:5px;background:var(--rec);color:#fff;font-size:11px;font-weight:500;white-space:nowrap}
+.ov{position:absolute;left:1px;right:1px;top:1px;height:30px;display:flex;align-items:center;gap:4px;padding:0 6px;background:color-mix(in oklch,var(--popover) 82%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+.pop{position:absolute;background:var(--popover);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);width:250px;padding:4px;font-size:12px;z-index:3}
+.pop .in{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--border);margin:-4px -4px 4px;font-family:"Geist Mono",monospace;color:var(--fg)}
+.pop .it{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:6px}
+.pop .it.a{background:var(--muted)}
+.pop .it .mono{color:var(--fg)}
+.pop .grpl{font-size:11px;color:var(--muted-fg);padding:6px 8px 2px}
+.kg{display:inline-flex;gap:2px}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:4px;background:var(--kbd);color:var(--muted-fg);font:500 10px/1 "Geist",sans-serif}
+.ghost{opacity:.55}
+.num{position:absolute;left:-1px;top:-1px;background:var(--rec);color:#fff;font:600 10px/1 "Geist Mono",monospace;padding:3px 5px;border-radius:0 0 4px 0}
+.mini{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.mini .lbl{margin:0}
+.statusgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;padding:24px;background:var(--canvas);border:1px solid var(--border);border-radius:12px}
+.statusgrid .t{font-size:12px;color:var(--muted-fg);margin-top:6px;max-width:34ch}
+.wsdot{position:relative}
+.wsdot::after{content:"";position:absolute;right:-3px;top:-3px;width:7px;height:7px;border-radius:50%;background:var(--success);box-shadow:0 0 0 2px var(--canvas)}
+.wsdot.warn::after{background:var(--warning)}
+.sp{width:10px;height:10px;border-radius:50%;border:1.5px solid color-mix(in oklch,var(--muted-fg) 35%,transparent);border-top-color:var(--muted-fg);margin-right:6px}
+.chip-warn{color:var(--warning)}
+hr{border:0;border-top:1px solid var(--border);margin:0}
+.dir{display:flex;flex-direction:column;gap:16px}
+.dir-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.letter{font:500 12px/1 "Geist Mono",monospace;color:var(--muted-fg);border:1px solid var(--border);border-radius:6px;padding:4px 7px}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pointer" viewBox="0 0 24 24"><path d="M4.04 4.04 10.9 20.5l2.44-7.16 7.16-2.44z"/><path d="m13.5 13.5 6 6"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-reload" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-knobs" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+</svg>
+
+<div class="wrap">
+
+<header class="stack">
+  <span class="eyebrow">Issue #795 · frame chrome</span>
+  <h1>Frame Chrome Explorations</h1>
+  <p class="lede">Six ways to give a frame browser-like controls (back, forward, route, reload, status, recording a flow) without the names jumping when you select a frame. Every mockup follows your light or dark theme.</p>
+</header>
+
+<section class="dir" id="merged">
+  <div class="dir-h"><span class="eyebrow">Picked · B + C, one toolbar</span></div>
+  <h2>One bar under the frame</h2>
+  <p>This merges the Safari-style bar and the right-edge strip into one toolbar under the selected frame. From left to right it holds Interact, then back and forward, then the address field, then Knobs and More. The address field holds the route, reload and record. Recording turns the field red, counts screens and swaps record for stop. Status only appears when the preview isn't live. The name label stays put, and it drops its route pill while the bar shows, because the field shows the route.</p>
+  <div class="stage"><div class="stage-in" id="m-stage"></div></div>
+  <ul class="plain">
+    <li>The bar is centred on the frame and stays a fixed width. On a phone frame it's wider than the frame.</li>
+    <li>When the frame's bottom is off screen, the bar stops above the canvas's bottom toolbar, the way Safari's bar stays in view.</li>
+    <li>While you're interacting, the Interacting tag stays right under the frame and the bar sits below it.</li>
+    <li>Tooltips open upward. Menus and the route list open downward, and flip up near the bottom of the window.</li>
+  </ul>
+</section>
+
+<section class="stack">
+  <h2>What I took from your notes</h2>
+  <ul class="plain">
+    <li><b>The name must not move.</b> Selecting a frame shouldn't push its label up. In every direction below, the label keeps the spot it has today.</li>
+    <li><b>The toolbar looked like a pile of controls.</b> I gave it everything, so it read like a slab of equal-weight buttons. Most of these controls are used now and then. They should stay quiet until you reach for them.</li>
+    <li><b>Controls should match what they do.</b> Create flow makes a new screen each time you navigate, which is basically recording. A record button next to the route says that better than a route icon in a toolbar. Reload belongs to the address, like Safari.</li>
+    <li><b>Keep it inside the current UX.</b> The vertical strip on the frame's right edge stays; the horizontal slab above the frame was already turned down once in #796.</li>
+  </ul>
+</section>
+
+<section class="stack">
+  <h2>How often each control gets used</h2>
+  <p>Where a control goes should depend on how often you reach for it. This is my read of the current app, not measured data.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Control</th><th>How it's used</th><th>Belongs</th></tr></thead>
+    <tbody>
+      <tr><td>Route</td><td>Read often, edited sometimes</td><td>Where the route pill already is, in the label</td></tr>
+      <tr><td>Status</td><td>Only matters when something's wrong</td><td>Hidden while live; visible only when it's not</td></tr>
+      <tr><td>Reload</td><td>After a stuck HMR or a bad state</td><td>Inside the route, like Safari</td></tr>
+      <tr><td>Back / Forward</td><td>After clicking around in the prototype</td><td>Next to the route; Forward only when there's somewhere to go</td></tr>
+      <tr><td>Create flow</td><td>A mode you start and stop</td><td>A record button on the route, with an obvious "recording" state</td></tr>
+      <tr><td>Interact</td><td>Often</td><td>Right-edge strip (unchanged)</td></tr>
+      <tr><td>Knobs, More</td><td>Sometimes</td><td>Right-edge strip (unchanged)</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<hr>
+
+<!-- ============ A ============ -->
+<section class="dir">
+  <div class="dir-h"><span class="letter">A</span><h2>The route pill becomes the address bar <span class="badge rec">Recommended</span></h2></div>
+  <p>The label already ends with a route pill. When the frame is selected, that same pill becomes a small address field: back sits in front of it, and reload and record sit inside its right end. The label only grows to the right, so the name never moves. The right-edge strip goes back to Interact, Knobs and More.</p>
+  <div class="stage"><div class="stage-in" id="a-stage"></div></div>
+  <div class="cols">
+    <div class="pc"><h3>Why it works</h3><ul><li>Nothing moves; the pill you already read becomes the thing you edit.</li><li>Reload and record read as actions on this page, like Safari's reload and a screen recorder's button.</li><li>The strip gets shorter, not longer.</li></ul></div>
+    <div class="pc"><h3>Costs</h3><ul><li>The label row gets busier when selected. On phone-width frames the name truncates first, then Back hides.</li><li>At very low zoom the whole label is already hidden, so these controls are too (same as today).</li></ul></div>
+  </div>
+</section>
+
+<!-- ============ B ============ -->
+<section class="dir">
+  <div class="dir-h"><span class="letter">B</span><h2>A Safari-style bar under the frame</h2></div>
+  <p>The label stays exactly as it is today. When you select a frame, a floating address bar hangs centred under it, in the same spot as the Interacting tag, like Safari's bottom bar on iPhone. It uses the shared floating toolbar surface.</p>
+  <div class="stage"><div class="stage-in" id="b-stage"></div></div>
+  <div class="cols">
+    <div class="pc"><h3>Why it works</h3><ul><li>The label is untouched in every state.</li><li>There's room for the full route, and the bar can stay a fixed width.</li></ul></div>
+    <div class="pc"><h3>Costs</h3><ul><li>The route shows twice (pill and bar) unless the pill hides on selection.</li><li>It lands on the frame below when frames are stacked tight, and it competes with the Interacting tag.</li><li>On a phone frame it's wider than the frame.</li></ul></div>
+  </div>
+</section>
+
+<!-- ============ C ============ -->
+<section class="dir">
+  <div class="dir-h"><span class="letter">C</span><h2>Create flow as recording</h2></div>
+  <p>This works with A or B. The record button starts Create flow. While it runs, the field turns red and shows a counter, and the button becomes stop, so the mode is hard to miss. Each page you visit leaves a numbered screen behind, just as Create flow does today. The selection ring stays the normal selection colour; only the field changes.</p>
+  <div class="stage"><div class="stage-in" id="c-stage"></div></div>
+  <div class="cols">
+    <div class="pc"><h3>Why it works</h3><ul><li>"Record" explains Create flow better than a route icon with a tooltip.</li><li>The recording state sits right where the route changes, so you see each step get counted.</li></ul></div>
+    <div class="pc"><h3>Costs</h3><ul><li>Red is loud, so it should only show while recording.</li><li>Calling it "Record flow" in the tooltip means renaming Create flow in the UI.</li></ul></div>
+  </div>
+</section>
+
+<!-- ============ D ============ -->
+<section class="dir">
+  <div class="dir-h"><span class="letter">D</span><h2>Grow the right-edge strip</h2></div>
+  <p>The smallest change. Back, forward and reload join the vertical strip, Create flow becomes a record icon, and the route pill in the label turns into a field only when you click it. Nothing new appears anywhere else.</p>
+  <div class="stage"><div class="stage-in" id="d-stage"></div></div>
+  <div class="cols">
+    <div class="pc"><h3>Why it works</h3><ul><li>No new surfaces. It's today's UI plus three buttons.</li></ul></div>
+    <div class="pc"><h3>Costs</h3><ul><li>The strip grows to eight buttons, taller than a phone frame at low zoom.</li><li>Back and forward stacked vertically don't read as browser controls.</li><li>Reload sits far from the route it reloads.</li></ul></div>
+  </div>
+</section>
+
+<!-- ============ E ============ -->
+<section class="dir">
+  <div class="dir-h"><span class="letter">E</span><h2>An overlay inside the frame</h2></div>
+  <p>Like Arc's peek: when you hover a selected frame, a translucent address bar slides down inside its top edge. Nothing is drawn outside the frame.</p>
+  <div class="stage"><div class="stage-in" id="e-stage"></div></div>
+  <div class="cols">
+    <div class="pc"><h3>Why it works</h3><ul><li>No chrome outside the frame, so labels and neighbours never collide.</li></ul></div>
+    <div class="pc"><h3>Costs</h3><ul><li>It covers the prototype's own header, which is often what you're designing.</li><li>It scales with the frame, so it's tiny at low zoom unless counter-scaled.</li><li>Hover-only controls are hard to discover.</li></ul></div>
+  </div>
+</section>
+
+<!-- ============ F ============ -->
+<section class="dir">
+  <div class="dir-h"><span class="letter">F</span><h2>Keyboard first, no new chrome</h2></div>
+  <p>Clicking the route pill (or ⌘L) opens a route palette anchored to it. The palette's footer teaches the shortcuts for back, forward, reload and record. The same actions also go in the More menu. The canvas stays exactly as it looks today.</p>
+  <div class="stage"><div class="stage-in" id="f-stage"></div></div>
+  <div class="cols">
+    <div class="pc"><h3>Why it works</h3><ul><li>Cleanest canvas. Power users get fast keys.</li></ul></div>
+    <div class="pc"><h3>Costs</h3><ul><li>Hard to discover. Nobody finds Back unless they open the palette.</li><li>Recording has no visible state unless we add one (C).</li></ul></div>
+  </div>
+</section>
+
+<hr>
+
+<section class="stack">
+  <h2>Where the status dot goes</h2>
+  <p>This applies to any direction. The preview is live almost all the time, so a green dot on every frame is mostly noise. The frame body already shows full-screen states for failed and stopped previews.</p>
+  <div class="statusgrid" id="g-grid"></div>
+</section>
+
+<section class="stack">
+  <h2>Side by side</h2>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>A · Label</th><th>B · Bottom bar</th><th>D · Strip</th><th>E · Overlay</th><th>F · Keyboard</th></tr></thead>
+    <tbody>
+      <tr><td>Name stays put</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+      <tr><td>Controls sit next to the route</td><td class="y">Yes</td><td class="m">Moves the route</td><td class="n">No</td><td class="m">Moves the route</td><td class="y">Yes</td></tr>
+      <tr><td>Works on phone frames</td><td class="m">Truncates the name</td><td class="n">Overhangs</td><td class="n">Strip too tall</td><td class="n">Cramped</td><td class="y">Yes</td></tr>
+      <tr><td>New surfaces</td><td class="y">None</td><td class="m">One bar</td><td class="y">None</td><td class="m">One overlay</td><td class="m">One palette</td></tr>
+      <tr><td>Easy to discover</td><td class="y">High</td><td class="y">High</td><td class="y">High</td><td class="n">Low</td><td class="n">Low</td></tr>
+      <tr><td>Change from today</td><td class="m">Small</td><td class="m">Medium</td><td class="y">Smallest</td><td class="m">Medium</td><td class="y">Small</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="pick">
+  <span class="eyebrow">My pick</span>
+  <h2>A with C, and status only when it isn't live</h2>
+  <p>The route pill becomes the address field when the frame is selected. Back sits in front of it; Forward shows up only after you've gone back. Reload and record sit at its right end, and recording turns the field red with a count and a stop button. The right-edge strip keeps Interact, Knobs and More. While the preview is live there's no status dot; a spinner or an amber "Disconnected" shows in the field only when something's off.</p>
+  <p>If A still feels too busy in the label, B is the fallback. It's the same pieces in a bar under the frame. I'd skip D, E and F.</p>
+</section>
+
+</div>
+
+<script>
+const ic=(n)=>`<svg class="i"><use href="#i-${n}"/></svg>`;
+const btn=(n,c='')=>`<span class="b ${c}">${ic(n)}</span>`;
+const body=(route,tall)=>`<div class="fb${tall?' tall':''}"><div class="fb-nav"><b>checkout-polish</b><span>Shop · Cart · Account</span></div><div class="fb-hero">${route}</div><div class="fb-cards"><div><i class="t"></i><i></i><i class="s"></i><i></i></div><div><i class="t"></i><i class="s"></i></div></div></div>`;
+const sel=(c='')=>`<div class="selbox ${c}">${'<b></b>'.repeat(8)}</div>`;
+const strip=(items)=>`<div class="tb v">${items.map(x=>x==='|'?'<span class="sep"></span>':btn(...[].concat(x))).join('')}</div>`;
+const ws=(c='')=>`<span class="ws ${c}">c‥</span>`;
+const pill=(r,dot)=>`<span class="pill">${dot?`<span class="dot ${dot}" style="margin-right:0"></span>`:''}${r}</span>`;
+const fld=({route='/checkout',dot='',reload=true,rec='idle',cls='',count=''}={})=>{
+  let lead=dot==='spin'?'<span class="sp"></span>':dot?`<span class="dot ${dot}"></span>`:'';
+  let r='';
+  if(reload) r+=`<span class="b">${ic('reload')}</span>`;
+  if(rec==='idle') r+=`<span class="b"><span class="recdot o"></span></span>`;
+  if(rec==='on') r+=`<span class="b"><span class="stop"></span></span>`;
+  const pre=rec==='on'?`<span class="recdot pulse" style="margin-right:6px;width:7px;height:7px"></span>`:lead;
+  return `<span class="fld ${cls}" style="width:var(--fw,200px)">${pre}<span class="path">${route}${count}</span>${r}</span>`;
+};
+const frame=({w=440,grp='',label,sel:s=false,selc='',route='/checkout',tall=false,extra='',stripItems=null,name='Checkout · desktop',nameSel=true,style=''})=>
+  `<div class="fr" style="--w:${w}px;${style}">${grp?`<div class="grp">${grp}</div>`:''}<div class="lbl">${label??`${ws()}<span class="nm ${s&&nameSel?'sel':''}">${name}</span>${pill(route)}`}</div><div class="bw">${body(route,tall)}${s?sel(selc):''}${stripItems?strip(stripItems):''}${extra}</div></div>`;
+const col=(inner,cap)=>`<div>${inner}${cap?`<div class="cap">${cap}</div>`:''}</div>`;
+const STRIP3=['pointer','knobs','more'];
+
+// A
+document.getElementById('a-stage').innerHTML=[
+  col(frame({grp:'Checkout'}),'At rest: exactly today'),
+  col(frame({grp:'Checkout',sel:true,stripItems:STRIP3,label:`${ws()}<span class="nm sel">Checkout · desktop</span><span class="b sm">${ic('left')}</span>${fld({})}`}),'Selected: the pill becomes a field; the name doesn\'t move'),
+  col(frame({grp:'Checkout',sel:true,stripItems:STRIP3,label:`${ws()}<span class="nm sel">Checkout · desktop</span><span class="b sm">${ic('left')}</span><span class="b sm">${ic('right')}</span><span style="--fw:200px">${fld({cls:'edit',route:'/cart'})}</span>`}),'After going back: Forward appears'),
+  col(frame({w:180,grp:'Checkout',tall:true,sel:true,stripItems:STRIP3,label:`${ws()}<span class="nm sel">Checkout · iPhone</span><span style="--fw:118px;flex:none">${fld({})}</span>`}),'Phone frame: the name truncates and Back hides'),
+].join('');
+
+// B
+const bbar=(route='/checkout')=>`<div class="tb below">${btn('left')}${btn('right','dim')}<span class="sep"></span><span style="--fw:190px">${fld({route,rec:'none'})}</span><span class="sep"></span><span class="b"><span class="recdot o"></span></span></div>`;
+document.getElementById('b-stage').innerHTML=[
+  col(frame({grp:'Checkout',sel:true,stripItems:STRIP3,extra:bbar()}),'<div style="height:44px"></div>Selected: the bar hangs under the frame'),
+  col(frame({w:180,tall:true,grp:'Checkout',sel:true,name:'Checkout · iPhone',stripItems:STRIP3,extra:bbar()}),'<div style="height:44px"></div>Phone frame: the bar is wider than the frame'),
+].join('');
+
+// C
+const recLabel=(state)=>{
+  if(state==='idle') return `${ws()}<span class="nm sel">Checkout · desktop</span><span class="b sm">${ic('left')}</span>${fld({})}`;
+  return `${ws()}<span class="nm sel">Checkout · desktop</span><span class="b sm">${ic('left')}</span><span style="--fw:228px">${fld({route:'/shipping',rec:'on',cls:'recording',reload:false,count:' · 3 screens'})}</span>`;
+};
+const tipRec=`<span class="tip" style="left:334px;top:-6px">Record flow</span>`;
+const ghost=(n,route)=>`<div class="fr ghost" style="--w:170px"><div class="lbl">${ws()}<span class="nm">Checkout · desktop</span>${pill(route)}</div><div class="bw">${body(route)}<span class="num">${n}</span></div></div>`;
+document.getElementById('c-stage').innerHTML=[
+  col(`<div style="position:relative;padding-top:24px">${frame({sel:true,stripItems:STRIP3,label:recLabel('idle')})}${tipRec}</div>`,'Idle: record sits at the end of the field'),
+  col(`<div style="display:flex;gap:20px;align-items:flex-start;padding-top:24px">${ghost(1,'/checkout')}${ghost(2,'/cart')}${frame({sel:true,route:'/shipping',stripItems:STRIP3,label:recLabel('on')})}</div>`,'Recording: the field turns red, counts the screens, and offers stop'),
+].join('');
+
+// D
+document.getElementById('d-stage').innerHTML=[
+  col(frame({grp:'Checkout',sel:true,label:`${ws()}<span class="nm sel">Checkout · desktop</span>${pill('/checkout','')}`,stripItems:['pointer',['route'],'|','left',['right','dim'],'reload','|','knobs','more']}),'Selected: the strip grows to eight buttons'),
+  col(frame({w:180,tall:true,grp:'Checkout',sel:true,name:'Checkout · iPhone',stripItems:['pointer',['route'],'|','left',['right','dim'],'reload','|','knobs','more']}),'Phone frame: fits at this zoom, not at lower ones'),
+].join('');
+
+// E
+const ovl=`<div class="ov">${btn('left')}${btn('right','dim')}<span style="--fw:210px">${fld({})}</span></div>`;
+document.getElementById('e-stage').innerHTML=[
+  col(frame({grp:'Checkout',sel:true,stripItems:STRIP3,extra:ovl}),'Hovered while selected: the bar covers the prototype\'s own header'),
+].join('');
+
+// F
+const pal=`<div class="pop" style="left:124px;top:-2px"><div class="in">${ic('search')}/ca</div><div class="grpl">Routes</div><div class="it a"><span class="mono">/cart</span></div><div class="it"><span class="mono">/catalog</span></div><div class="it"><span>Go to <span class="mono">/ca</span></span></div><div class="grpl">This frame</div><div class="it"><span>Back</span><span class="kg"><span class="kbd">⌘</span><span class="kbd">[</span></span></div><div class="it"><span>Reload</span><span class="kg"><span class="kbd">⌘</span><span class="kbd">R</span></span></div><div class="it"><span>Record flow</span><span class="kg"><span class="kbd">⇧</span><span class="kbd">R</span></span></div></div>`;
+document.getElementById('f-stage').innerHTML=[
+  col(`<div style="position:relative;padding-bottom:40px">${frame({grp:'Checkout',sel:true,stripItems:['pointer','route','|','knobs','more'],label:`${ws()}<span class="nm sel">Checkout · desktop</span>${pill('/checkout')}`,extra:pal.replace('top:-2px','top:-4px')})}</div>`,'Route pill clicked (or ⌘L): palette with the frame\'s actions'),
+].join('');
+
+// Merged
+const mbar=({route='/checkout',fwd=false,rec='idle',cls='',count='',dot='',interact=false,top=10}={})=>`<div class="tb below" style="top:calc(100% + ${top}px)">${btn('pointer',interact?'on':'')}<span class="sep"></span>${btn('left')}${btn('right',fwd?'':'dim')}<span style="--fw:${rec==='on'?236:210}px">${fld({route,rec,cls,count,dot,reload:rec!=='on'})}</span><span class="sep"></span>${btn('knobs')}${btn('more')}</div>`;
+const mlabel=(n='Checkout · desktop')=>`${ws()}<span class="nm sel">${n}</span>`;
+const itag=`<span class="tag" style="background:var(--sel)">Interacting <span class="kbd" style="height:14px;min-width:14px;background:rgb(255 255 255/.2);color:#fff">Esc</span></span>`;
+const pad='<div style="height:52px"></div>';
+document.getElementById('m-stage').innerHTML=[
+  col(frame({w:380,grp:'Checkout',sel:true,label:mlabel(),extra:mbar()}),pad+'Selected: live, so no status shows'),
+  col(`<div style="position:relative">${frame({w:380,grp:'Checkout',sel:true,route:'/cart',label:mlabel(),extra:mbar({route:'/cart',fwd:true})})}</div>`,pad+'After going back: Forward is enabled'),
+  col(`<div style="display:flex;gap:20px;align-items:flex-start">${ghost(1,'/checkout')}${ghost(2,'/cart')}${frame({w:380,sel:true,route:'/shipping',label:mlabel(),extra:mbar({route:'/shipping',rec:'on',cls:'recording',count:' · 3 screens'})})}</div>`,pad+'Recording: the field turns red, counts screens and offers stop'),
+  col(frame({w:380,grp:'Checkout',sel:true,selc:'',label:mlabel(),extra:itag+mbar({interact:true,top:38})}),'<div style="height:80px"></div>Interacting: the tag stays under the frame and the bar sits below it'),
+  col(frame({w:380,grp:'Checkout',sel:true,label:mlabel(),extra:mbar({dot:'warn'})}),pad+'Disconnected: an amber dot shows in the field'),
+  `<div style="padding-inline:124px">${col(frame({w:180,tall:true,grp:'Checkout',sel:true,label:mlabel('Checkout · iPhone'),extra:mbar()}),pad+'Phone frame: the bar is wider than the frame')}</div>`,
+].join('');
+
+// G
+const g=(inner,t,title)=>`<div class="mini"><span class="eyebrow">${title}</span>${inner}<div class="t">${t}</div></div>`;
+document.getElementById('g-grid').innerHTML=[
+  g(`<div class="lbl">${ws()}<span class="nm">Checkout · desktop</span>${pill('/checkout','')}</div><div class="lbl">${ws()}<span class="nm">Checkout · desktop</span><span class="pill chip-warn"><span class="dot warn" style="margin-right:0"></span>Disconnected</span></div>`,'Nothing while it\'s live. When it disconnects, the route pill shows the problem in amber.','Quiet when live · recommended'),
+  g(`<div class="lbl">${ws()}<span class="nm">Checkout · desktop</span><span class="pill"><span class="sp" style="margin-right:0"></span>/checkout</span></div>`,'While starting or reloading, the regular spinner shows in the pill.','Loading'),
+  g(`<div class="lbl">${ws()}<span class="nm">Checkout · desktop</span>${pill('/checkout','ok')}</div>`,'A dot is always in the pill. Green on nearly every frame, most of the time.','Always a dot'),
+  g(`<div class="lbl"><span class="ws wsdot">c‥</span><span class="nm">Checkout · desktop</span>${pill('/checkout')}</div>`,'A dot on the Workspace pill. It mixes the Workspace\'s state with the preview\'s.','Dot on the Workspace'),
+].join('');
+</script>
+
+</body></html>

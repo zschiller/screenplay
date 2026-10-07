@@ -1,0 +1,476 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Screenplay architecture review, 3 Oct</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@500;600&display=swap">
+<style>
+/* Layout: one reading column; candidate cards grouped by strength; before/after diagrams side by side, stacking on phones. */
+:root {
+  --bg: #f6f6f8;
+  --surface: #ffffff;
+  --fg: #16161d;
+  --muted: #5d5d6e;
+  --line: #dddde5;
+  --accent: #5b3df5;
+  --strong: #0d8a5f;
+  --explore: #b16a00;
+  --spec: #6b6b80;
+  --leak: #d42a3c;
+  --leak-bg: #fdecee;
+  --code-bg: #efeff4;
+  --display: "Unbounded", "Instrument Sans", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0f14; --surface: #18181f; --fg: #ececf2; --muted: #a0a0b4; --line: #2c2c38;
+    --accent: #a593ff; --strong: #3fd09a; --explore: #f1b04c; --spec: #9a9ab0;
+    --leak: #ff6b7a; --leak-bg: #2e161b; --code-bg: #22222b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f14; --surface: #18181f; --fg: #ececf2; --muted: #a0a0b4; --line: #2c2c38;
+  --accent: #a593ff; --strong: #3fd09a; --explore: #f1b04c; --spec: #9a9ab0;
+  --leak: #ff6b7a; --leak-bg: #2e161b; --code-bg: #22222b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); }
+main { max-width: 980px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; display: grid; gap: 40px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h1 { font: 600 27px/1.2 var(--display); letter-spacing: -0.01em; }
+h2 { font: 600 17px/1.3 var(--display); }
+h3 { font: 600 20px/1.3 var(--body); }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+header { display: grid; gap: 12px; }
+.meta { color: var(--muted); font-size: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12px; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+.eyebrow { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+section { display: grid; gap: 18px; }
+.top { background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; padding: 22px; display: grid; gap: 10px; }
+.top h2 { color: var(--accent); }
+article { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 22px; display: grid; gap: 14px; scroll-margin-top: 16px; min-width: 0; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 8px; border-radius: 999px; border: 1px solid var(--c, var(--line)); color: var(--c, var(--muted)); }
+.s-strong { --c: var(--strong); } .s-explore { --c: var(--explore); } .s-spec { --c: var(--spec); }
+.files { font: 12.5px/1.6 var(--mono); color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 14px; min-width: 0; }
+.files span { overflow-wrap: anywhere; }
+.diagrams { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.diagram { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; overflow-x: auto; display: grid; gap: 6px; align-content: start; }
+.diagram .eyebrow { margin-bottom: 2px; }
+.diagram pre.mermaid { margin: 0; background: transparent; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+dt { font: 500 11px/1.9 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+dd { margin: 0; min-width: 0; }
+ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.bug { background: var(--leak-bg); border-left: 3px solid var(--leak); border-radius: 0 6px 6px 0; padding: 10px 14px; display: grid; gap: 4px; }
+.bug strong { color: var(--leak); font-weight: 600; }
+.evidence summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.evidence summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.evidence ul { margin-top: 8px; font-size: 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+.toc { display: grid; gap: 4px; font-size: 14px; }
+@media (max-width: 680px) {
+  .diagrams { grid-template-columns: 1fr; }
+  dl { grid-template-columns: 1fr; gap: 2px; }
+  dd { margin-bottom: 8px; }
+}
+</style>
+
+<main>
+<header>
+  <div class="eyebrow">zschiller/screenplay · apps/app · 3 Oct 2026</div>
+  <h1>Architecture review, round 3</h1>
+  <p class="meta">Scoped to what changed since the 30 Sep review (154 commits): live frames, Frame Drive, Mockups, account repositories, tool rows and the agent toolset. Every ticket from the last two reviews (#900–#915, #1245–#1266) has landed, and none of those deepenings has regressed.</p>
+  <div class="legend">
+    <span style="--c: var(--strong)">Strong</span>
+    <span style="--c: var(--explore)">Worth exploring</span>
+    <span style="--c: var(--spec)">Speculative</span>
+    <span style="--c: var(--leak)">Leak or bug</span>
+  </div>
+</header>
+
+<section class="top" id="top">
+  <div class="eyebrow">Top recommendation</div>
+  <h2>A Chat Target owns its toolset</h2>
+  <p>It is the only candidate with a live bug a user can hit today: a Claude Code Workspace chat is told to call <code>create_pr</code> and <code>read_skill</code>, which its harness never receives. Every new tool is a 4–6 file edit, and it unlocks the Tool Description candidate, which reads display facts from the same list. <a href="#toolset">Go to the card</a>.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Candidates</div>
+  <div class="toc">
+    <a href="#toolset">A Chat Target owns its toolset</a>
+    <a href="#tooldesc">One Tool Description for rows and summaries</a>
+    <a href="#livepage">One live page module for frames and Mockups</a>
+    <a href="#ask">A Draw-and-ask module</a>
+    <a href="#stream">A shared frame stream handle</a>
+    <a href="#linkpolicy">Repository link policy behind the desktop/hosted seam</a>
+    <a href="#env">A Canvas Repo env module</a>
+    <a href="#more">Worth exploring and speculative (6 more)</a>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Strong</div>
+
+  <article id="toolset">
+    <h3>A Chat Target owns its toolset</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">in-process</span></div>
+    <div class="files"><span>lib/agent/toolset.ts</span><span>lib/agent/tools.ts</span><span>lib/agent/sketch-tools.ts</span><span>lib/agent/chat-target-kinds.ts</span><span>app/api/agent/mcp/route.ts</span><span>lib/agent/config.ts</span><span>*-tools.ts annotations</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart LR
+  T[New tool] --> A[tools.ts sandbox set]
+  T --> B[toolset.ts]
+  T --> C[MCP route list]
+  T --> D[MCP route annotations]
+  T --> E[config.ts prompt names]
+  S[ChatTargetSpec] -.unused.-> L[sandboxTurn rebuilds context, prompt, tools]
+  C -.missing create_pr.-> H[Harness]
+  E -.names create_pr.-> H
+  linkStyle 6,7 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart LR
+  T[New tool] --> K[[Chat Target kind: tools + annotations + names]]
+  K --> I[In-process turn]
+  K --> M[MCP route]
+  K --> P[Prompt tool vocabulary]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>Which tools a Chat Target kind has, on which Engine, and what its prompt calls them, takes six modules to answer, and they already disagree.</dd>
+      <dt>Solution</dt><dd>Each Chat Target kind declares its tools once, with annotations attached; the in-process turn, the MCP route and the prompt all read that one list.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality: a tool is added in one place</li><li>Leverage: route and <code>sandboxTurn</code> shrink to "toolset for this target"</li><li>Test: MCP and in-process toolsets equal per kind</li><li>Deletes the unused half of <code>ChatTargetSpec</code> and its casts</li></ul></dd>
+    </dl>
+    <div class="bug"><strong>Bug, confirmed by reading</strong><span>The Workspace prompt (<code>config.ts:83–111, 181</code>) names <code>submit_plan</code>, <code>run_command</code>, <code>create_pr</code> and <code>read_skill</code> bare. A harness gets that whole prompt (<code>acp-engine.ts:262</code>) but the MCP route's Workspace branch (<code>route.ts:84–110</code>) serves none of them. A Claude Code Workspace chat is told "always use create_pr, never gh pr create" and has no <code>create_pr</code>.</span></div>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li>The Workspace toolset is assembled by hand three times: <code>tools.ts:266–277</code>, <code>toolset.ts:49–58</code>, <code>route.ts:89–110</code>; annotations listed again at <code>route.ts:111–119, 143–149</code>.</li>
+      <li><code>read_document</code> is annotated twice (<code>document-tools.ts:202</code>, <code>sketch-tools.ts:70</code>).</li>
+      <li>8 of 12 commits touching the MCP route since 30 Sep also touched 2–5 of config / toolset / tools / sketch-tools / chat-target-kinds (d96932eb, 27f29c92, ac7e369a, bf2e88ad, 48324895, c4a10bd3).</li>
+      <li>Deletion test on <code>ChatTargetSpec</code>: <code>loadContext</code>, <code>buildSystemPrompt</code>, <code>buildTools</code> (<code>chat-target-kinds.ts:121–160</code>) are never used in production; <code>sandboxTurn</code> re-implements them (<code>turn-launch-live.ts:484–575</code>); room and sketch turns cast through <code>as unknown as never</code>.</li>
+      <li>Smaller gap: <code>route.ts:89</code> wraps tools in <code>withRedactedOutput</code> without secrets, so MCP tool output such as dev server logs reaches a harness unscrubbed (low impact locally, where the harness can read <code>.env</code> anyway).</li>
+    </ul></details>
+  </article>
+
+  <article id="tooldesc">
+    <h3>One Tool Description for rows and summaries</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">in-process (pure)</span></div>
+    <div class="files"><span>components/agent/agent-message.tsx</span><span>lib/agent/tool-row-label.ts</span><span>lib/agent/turn-summary.ts</span><span>lib/agent/group-tool-calls.ts</span><span>lib/agent/acp/adapter.ts</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart TB
+  C[Tool call] --> I[toolIcons 53]
+  C --> L[toolLabels 54]
+  C --> R[QUIET / MARKDOWN / LOG / PROSE]
+  C --> O[OUTCOME_LINE_TOOLS]
+  C --> RL[rowLabel switch]
+  C --> TC[TITLE_CATEGORY 37]
+  C --> K[toolKindFor]
+  C --> F[failureName ladder]
+  K -.search = read.-> TC
+  linkStyle 8 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart TB
+  C[Tool call, any Engine] --> D[[Tool Description: verb, detail, icon, output kind, category, failure name]]
+  D --> Row[Tool row]
+  D --> Sum[Turn summary]
+  D --> Fold[Drive folding]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>One tool's meaning is spread over about 12 name-keyed tables in 4 modules, and the tables already disagree.</dd>
+      <dt>Solution</dt><dd>One module takes a tool call from any Engine and returns its full description; the row, the turn summary and drive folding read it. Native harness tools (Bash, Edit) keep a fallback entry in the same module.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality: <code>frame_hover</code> would have been one edit</li><li>Interface is the test surface, not a 1,544-line render test</li><li><code>ToolCallRow</code> loses its three competing label sources</li></ul></dd>
+    </dl>
+    <div class="bug"><strong>Bug, confirmed by reading</strong><span><code>toolKindFor</code> gives <code>search_code</code>, <code>find_code_files</code> and <code>list_files</code> the kind <code>read</code> (<code>adapter.ts:205–212</code>) and none is in <code>TITLE_CATEGORY</code>, so <code>categorize</code> (<code>turn-summary.ts:271</code>) counts a search with a path as "Read 1 file", keyed by the directory. The same search on Claude Code reads "searched 1 time", and the row itself says "Search".</span></div>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li>Shotgun commits: 64fe6734 (#1450, <code>frame_hover</code>), c4a10bd3, 124b8a2d, ac7e369a, 5dbad33c, bf2e88ad; 18 commits since 25 Sep touched two or more of the three files.</li>
+      <li>#1468 (95c489ff, "one vocabulary per engine") added <code>rowLabel</code> beside the old path rather than replacing it.</li>
+      <li>Copied helpers: <code>callPath</code> repeats <code>toolPath</code> (same five keys), <code>commandLine</code> repeats <code>toolCommand</code>.</li>
+      <li>17 tools have a label but no summary category.</li>
+    </ul></details>
+  </article>
+
+  <article id="livepage">
+    <h3>One live page module for frames and Mockups</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">in-process + local-substitutable bridge</span></div>
+    <div class="files"><span>components/canvas/iframe-layer.tsx</span><span>mockup-layer.tsx</span><span>canvas-member-layer.tsx</span><span>use-layer-mutations.ts</span><span>canvas.tsx</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart LR
+  F[New page capability] --> IL[iframe-layer: bridge, focus, overlay, driver, knobs]
+  F --> ML[mockup-layer: same, copied]
+  F --> MU[mutations x2 collections]
+  F --> MB[member layer 62 props]
+  F --> CR[canvas root adapter lists]
+  IL -.drifted.- ML
+  linkStyle 5 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart LR
+  F[New page capability] --> LP[[Live page: bridge, Interact focus, driver, knobs, target overlay, record writes]]
+  LP --> Fr[Frame source: URL or stream]
+  LP --> Mo[Mockup source: srcdoc]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Status</dt><dd>Zack agrees (3 Oct). It waits for the live frames by default exploration, which may rework how frames go live.</dd>
+      <dt>Problem</dt><dd>Each capability of a bridged page (Interact, drive, Knobs, shared state, targeting) is a separate edit in 4–5 modules, ported to Mockups by hand.</dd>
+      <dt>Solution</dt><dd>One module owns a sandboxed page on the canvas, configured by where the page comes from.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality: the next "like frames" feature lands once</li><li>Leverage: one value instead of ~20 props per kind</li><li>Interact becomes testable; nothing tests it today</li></ul></dd>
+    </dl>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li>577da1e6 "Mockups get Interact, Knobs and shared state, like frames": mockup-layer +244, canvas +65, member layer +31, mutations +38. Same shape in d96932eb, 5472da7c, 4a4383ef.</li>
+      <li>Bridge wiring copied nearly line for line: <code>mockup-layer.tsx:207–267</code> vs <code>iframe-layer.tsx:678–760</code>; body overlay <code>:444–485</code> vs <code>:1247–1300</code>.</li>
+      <li>Parallel mutations: <code>updateKnobs/KnobValues/SharedState</code> beside <code>updateMockupKnobs/…</code> (<code>use-layer-mutations.ts:161–187, 327–347</code>).</li>
+      <li>Already drifted: frames track hover in comment mode or pick, Mockups only in pick. MockupLayer takes 45 props, IframeLayer 73.</li>
+    </ul></details>
+  </article>
+
+  <article id="ask">
+    <h3>A Draw-and-ask module</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">in-process + local-substitutable</span></div>
+    <div class="files"><span>components/canvas/canvas.tsx:1620–1870</span><span>lib/frame-ask.ts</span><span>use-branch-intake.ts:323–500</span><span>frame-ask-card.tsx</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart TB
+  Root[Canvas root: 3 state slots, 8 callbacks, routing x2] --> FA[frame-ask.ts pure helpers, tested]
+  Root --> BI[Branch intake takes frameId and mockup]
+  Root -.untested routing.-> Chat[Workspace / sketch / new chat]
+  BI -.leak.-> Root
+  linkStyle 3 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart TB
+  Root[Canvas root renders the card] --> Ask[[Draw-and-ask: what was drawn, who answers, send]]
+  Ask --> Ops[Canvas ops]
+  Ask --> Chat[Chat dispatch]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>The draw-then-ask flow lives in about 250 lines of the canvas root and leaks into branch intake, while only its shallow pure helpers are tested.</dd>
+      <dt>Solution</dt><dd>One module owns the open ask and sends it: it creates or assigns the layer and routes to the right chat.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality for answerer rules</li><li>Root shrinks ~250 lines</li><li>Routing tested with in-memory Y.Doc ops, as <code>ops.test.ts</code> does</li></ul></dd>
+    </dl>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li>Four commits in 3 days re-edited it: 79b5b6f0, c484d917, 7984d6bf, 27f29c92.</li>
+      <li>Answerer routing written twice; the "isn't running yet" toast copied at <code>canvas.tsx:1734</code> and <code>:1781</code>; the empty Mockup literal appears 3 times.</li>
+    </ul></details>
+  </article>
+
+  <article id="stream">
+    <h3>A shared frame stream handle</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">ports &amp; adapters</span></div>
+    <div class="files"><span>lib/frame-stream/client.ts</span><span>lib/frame-stream/protocol.ts</span><span>components/canvas/frame-stream-view.tsx</span><span>components/canvas/iframe-layer.tsx</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart LR
+  IL[iframe-layer, 7 shared branches] -.raw reload msg.-> Conn[Connection.send]
+  V[stream view: grant loop, retries, key mapping] -.raw input msg.-> Conn
+  Conn --> WS[WebSocket]
+  linkStyle 0,1 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart LR
+  IL[iframe-layer] --> H[[Frame handle: drive on/off, DOM input, reload, watch settings, grants]]
+  V[Stream view draws video] --> H
+  H --> WS[WebSocket or fake socket]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>Callers speak raw wire messages, and the drive-grant loop and input mapping, the parts most likely to break, sit untested in a view.</dd>
+      <dt>Solution</dt><dd>The connection hands out a per-frame handle that fetches and refreshes grants and translates input itself; <code>send</code> becomes private.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality: grant expiry, reconnect, key mapping in one place</li><li>Tests reuse the existing fake socket</li><li>Real seam: WebSocket adapter plus test fake already exist</li></ul></dd>
+    </dl>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li><code>send</code> is public (<code>client.ts:230</code>); <code>iframe-layer.tsx:563</code> sends <code>{t:"reload"}</code>, <code>frame-stream-view.tsx:334</code> sends <code>{t:"input"}</code>.</li>
+      <li>Grant loop in a <code>useEffect</code> (<code>frame-stream-view.tsx:~280–325</code>): retries [0, 300, 800, 2000], 30 s refresh against a 60 s TTL, re-grant on reconnect and tab visibility. No test covers the view.</li>
+      <li>Shotgun edits: 61faf04f, d310308c (Theme knob, 21 files), b957468b, f4b4ed3b.</li>
+    </ul></details>
+  </article>
+
+  <article id="linkpolicy">
+    <h3>Repository link policy behind the desktop/hosted seam</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">in-process, two real adapters</span></div>
+    <div class="files"><span>lib/repository-library/library.ts</span><span>actions.ts</span><span>components/canvas/canvas-settings-dialog.tsx</span><span>components/home/repo-configs-panel.tsx</span><span>components/repo-settings-dialog.tsx</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart TB
+  Q{Does this Canvas Repo follow its Repository?}
+  Q --> S[library.ts mode x3]
+  Q --> D[settings dialog isLocalBuild x6]
+  Q --> P[configs panel x2]
+  Q --> R[repo dialog: missing prop]
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart TB
+  Lib[Library] --> Pol[[Link policy]]
+  UI[Dialogs] --> Pol
+  Pol --> Desk[Desktop adapter: follows, Save to all, Reset]
+  Pol --> Host[Hosted adapter: canvas owns its copy]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>"Canvas owns it" (#1427) is decided by about 11 scattered branches, with separate copies on the server and the client.</dd>
+      <dt>Solution</dt><dd>One module answers every per-build question (does an edit propagate, is it customized, Reset or Save to all, switch or Add/Remove, does delete count canvases), with a desktop and a hosted adapter.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality: changing #1427 is one adapter</li><li>Adapters tested directly, no build-flag module mock</li><li>Hosted stops walking every room on delete</li></ul></dd>
+    </dl>
+    <details class="evidence"><summary>Evidence</summary><ul>
+      <li><code>library.ts:96, 175, 187</code>; <code>canvas-settings-dialog.tsx:298, 304, 319, 373, 407, 484</code>; <code>repo-configs-panel.tsx:121, 438</code>.</li>
+      <li>322e9b69 touched 5 files to change one rule. The client test flips a getter on a mocked <code>@/lib/local-mode</code> (<code>canvas-settings-dialog.test.tsx:89–94</code>).</li>
+    </ul></details>
+  </article>
+
+  <article id="env">
+    <h3>A Canvas Repo env module</h3>
+    <div class="badges"><span class="badge s-strong">Strong</span><span class="badge">local-substitutable</span></div>
+    <div class="files"><span>components/repo-settings-dialog.tsx</span><span>repo-settings-fields.tsx</span><span>components/canvas/canvas.tsx:2049–2066</span><span>lib/repo-env/actions.ts</span><span>lib/repository-library/library.ts:126–136</span></div>
+    <div class="diagrams">
+      <div class="diagram"><div class="eyebrow">Before</div>
+<pre class="mermaid">
+flowchart LR
+  Save[handleSave] --> KV[(KV values)]
+  Save --> Doc[(Room doc names + digest)]
+  Reset[resetToSettings] -.doc first, unawaited.-> Doc
+  Switch[switchOnHere] -.doc first.-> Doc
+  Prop[propagate] --> KV
+  Prop --> Doc
+  linkStyle 2,3 stroke:#d42a3c
+</pre></div>
+      <div class="diagram"><div class="eyebrow">After</div>
+<pre class="mermaid">
+flowchart LR
+  UI[Form] --> Env[[Canvas Repo env: save, reset, copy in, reveal]]
+  Env -->|1 values| KV[(KV)]
+  Env -->|2 names + digest| Doc[(Room doc)]
+</pre></div>
+    </div>
+    <dl>
+      <dt>Problem</dt><dd>Nothing guarantees the doc's digest matches the stored values: four callers write the pair by hand, in different orders.</dd>
+      <dt>Solution</dt><dd>One module owns saving, resetting, copying in and revealing a Canvas Repo's env, always values first, and owns the reveal state the form needs.</dd>
+      <dt>Wins</dt><dd><ul><li>Locality for a secrecy invariant</li><li>Tests through the existing <code>CanvasRepoEnvStore</code> port with an in-memory adapter</li></ul></dd>
+    </dl>
+    <div class="bug"><strong>Bugs, confirmed by reading</strong><span><code>saveCanvasRepoEnv</code> (<code>repo-env/actions.ts:20–40</code>) accepts <code>replace</code> from any editor without the <code>canRevealEnv</code> check, so a member who can't see the values can wipe the adder's secrets. Reset to Settings patches the doc before an unawaited save, and switching a Repository on writes names before values, so a failed save leaves the doc claiming values that aren't stored.</span></div>
+  </article>
+</section>
+
+<section id="more">
+  <div class="eyebrow">Worth exploring and speculative</div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Candidate</th><th>Strength</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>One owner rule for chat-made layers</td><td><span class="badge s-explore">Worth exploring</span></td><td>"Which chat owns this Document or Mockup" is answered 4 ways in <code>canvas.tsx</code> and <code>document-owner.ts</code>. <strong>Two bugs</strong>: the Knobs "Ask" never shows on sketch-made Mockups (<code>canvas-member-layer.tsx:503</code> gates on a Workspace that sketch chats lack), and the Mockup Knobs ask prefills the making chat rather than the Workspace chat, which on older canvases is read-only.</td></tr>
+      <tr><td>One run-settings shape for 3 forms, the store and the doc</td><td><span class="badge s-explore">Worth exploring</span></td><td>8 fields with their own <code>useState</code> in 3 forms, port validation copied 3 times, 12 inline defaults. <strong>Bug</strong>: Settings › Edit stores agent instructions untrimmed while the canvas form trims, so trailing whitespace marks a Repo customized and desktop Settings edits then skip it.</td></tr>
+      <tr><td>One asker's-canvas channel for Frame Drive</td><td><span class="badge s-explore">Worth exploring</span></td><td><code>mac/channel.ts</code> and <code>view/channel.ts</code> repeat the op/timeout/answer loop; shared protocol lives under <code>mac/</code>; reveal sits on a seam hosted can't satisfy. The contract suite keeps behaviour steady, so the cost is moderate.</td></tr>
+      <tr><td>Outgoing turn builder</td><td><span class="badge s-explore">Worth exploring</span></td><td>The #1246 projection holds, but the sender's optimistic turn is hand-built in 3 places mirroring it; each new marker (quote, canvas view) edits builder, stripper and mirror. No drift yet.</td></tr>
+      <tr><td>Sandbox wire vocabulary parity</td><td><span class="badge s-spec">Speculative</span></td><td><code>frame-stream.mjs</code> copies <code>DRIVE_OPS</code> and hand-lists bridge messages; knob coercion exists 3 times. The <code>.mjs</code> runs with Node built-ins only, so a parity test is the honest minimum.</td></tr>
+      <tr><td>Prompt naming from the resolved Engine</td><td><span class="badge s-spec">Speculative</span></td><td><code>toolNamingForTurn</code> re-derives in-process vs harness apart from <code>resolveLiveEngine</code>. They agree today; it mostly falls out of the toolset candidate.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="eyebrow">Checked and left alone</div>
+  <p class="meta">Turn Launch, Engine assembly per Harness and the stop gate still hold. ACP engines and their contract, <code>BridgePort</code>, <code>FrameDriveBackend</code>, Frame Control's reducer, the <code>add-repo</code> resolvers and <code>room-tools.ts</code> are real seams or already deep. <code>chat-store.ts</code>'s stream switch is the one place stream events land. Churn in <code>chats-menu.tsx</code>, <code>layer-title-bar.tsx</code> and <code>config.ts</code> copy is styling and wording, not structure.</p>
+</section>
+</main>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>

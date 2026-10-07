@@ -1,0 +1,217 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Workspaces List Views</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column of questions, each a row of sidebar-width wireframes. Same look as the round 2 hierarchy page. */
+:root{
+  --bg:#f7f7f5;--fg:#1a1a1c;--muted:#6d6d74;--line:#dcdcd8;--card:#ffffff;--soft:#efefec;
+  --wf-bg:#ffffff;--wf-side:#f3f3f1;--wf-ink:#9a9aa0;--wf-bar:#d9d9d6;--wf-txt:#4a4a50;
+  --hl:#2563eb;--hl-soft:#e3ecff;--ok:#15803d;--ok-soft:#dff3e6;--stop:#b45309;--stop-soft:#fdf0dc;--err:#c2410c;
+  --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--bg:#0f0f11;--fg:#ececee;--muted:#9b9ba3;--line:#2a2a2f;--card:#161619;--soft:#1c1c20;
+  --wf-bg:#18181b;--wf-side:#1f1f23;--wf-ink:#6b6b73;--wf-bar:#34343a;--wf-txt:#c4c4ca;
+  --hl:#7ea6ff;--hl-soft:#1d2744;--ok:#86efac;--ok-soft:#16301f;--stop:#fcd34d;--stop-soft:#352a12;--err:#fb923c;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#0f0f11;--fg:#ececee;--muted:#9b9ba3;--line:#2a2a2f;--card:#161619;--soft:#1c1c20;
+  --wf-bg:#18181b;--wf-side:#1f1f23;--wf-ink:#6b6b73;--wf-bar:#34343a;--wf-txt:#c4c4ca;
+  --hl:#7ea6ff;--hl-soft:#1d2744;--ok:#86efac;--ok-soft:#16301f;--stop:#fcd34d;--stop-soft:#352a12;--err:#fb923c;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--sans);padding-inline:20px;padding-block:40px 80px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+h1{font-size:32px;line-height:1.15}h2{font-size:22px;line-height:1.25}h3{font-size:15.5px;line-height:1.3}
+p{margin:0;max-width:70ch}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.lede{font-size:17px;color:var(--muted)}
+.muted{color:var(--muted)}
+.axis{display:flex;flex-direction:column;gap:18px;border-top:1px solid var(--line);padding-top:28px}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:18px}
+.opt{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt .k{font:500 12px/1 var(--mono);color:var(--muted)}
+.opt p{font-size:14px;color:var(--muted)}
+.opt ul{margin:0;padding-left:16px;font-size:13.5px;display:flex;flex-direction:column;gap:2px}
+.opt ul li.plus::marker{content:"+  ";color:var(--ok)}
+.opt ul li.minus::marker{content:"−  ";color:var(--stop)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:500 11.5px/1 var(--sans);padding:5px 8px;border-radius:99px;background:var(--soft);color:var(--muted)}
+.chip.rec{background:var(--hl-soft);color:var(--hl)}
+.chip.go{background:var(--ok-soft);color:var(--ok)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--hl);margin-right:6px;vertical-align:-1px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.fact{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:6px}
+.fact p{color:var(--muted);font-size:14.5px}
+code{font-family:var(--mono);font-size:.9em}
+
+/* ---- sidebar wireframe ---- */
+.sb{position:relative;background:var(--wf-side);border:1.5px solid var(--wf-ink);border-radius:8px;padding:8px 6px 10px;font:12px/1.25 var(--sans);color:var(--wf-txt);min-height:280px;display:flex;flex-direction:column;gap:1px;overflow:hidden}
+.sb .lbl{display:flex;align-items:center;gap:4px;height:24px;padding:0 6px;font:500 10.5px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--wf-ink)}
+.sb .lbl .acts{margin-left:auto;display:flex;gap:8px;font:13px/1 var(--sans);letter-spacing:0;text-transform:none}
+.sb .r{display:flex;align-items:center;gap:7px;height:26px;padding:0 6px;border-radius:4px;white-space:nowrap;min-width:0}
+.sb .r .t{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sb .r .e{margin-left:auto;flex:none;font:10.5px var(--mono);color:var(--wf-ink)}
+.sb .r .e .a{color:var(--ok)}.sb .r .e .d{color:var(--err)}
+.sb .r.sel{background:var(--wf-bar)}
+.sb .ic{width:14px;flex:none;text-align:center;color:var(--wf-ink);font-size:11px}
+.sb .ic.err{color:var(--err)}
+.sb .sec{display:flex;align-items:center;gap:6px;height:24px;padding:0 6px;color:var(--wf-ink);font-size:11.5px;margin-top:4px}
+.sb .sec.caps{font:500 10.5px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;margin-top:8px}
+.sb .sec .n{margin-left:auto;font:10.5px var(--mono)}
+.sb .hl,.sb .hl .ic,.sb .hl .n{color:var(--hl)!important}
+.sb .hlbox{outline:1.5px solid var(--hl);outline-offset:1px;border-radius:4px}
+.sb .gap{height:8px}
+.sb .canvas{margin-top:auto;border-top:1px solid var(--wf-bar);padding-top:6px;opacity:.6}
+.pb{display:inline-flex;align-items:center;gap:3px;border:1px solid currentColor;border-radius:3px;padding:0 4px;font:10px/14px var(--mono)}
+.pb.open{color:var(--ok)}.pb.blocked{color:var(--err)}
+.menu{position:absolute;z-index:2;background:var(--wf-bg);border:1.5px solid var(--hl);border-radius:6px;padding:4px;display:flex;flex-direction:column;gap:0;font-size:12px;box-shadow:0 4px 14px rgb(0 0 0 / .08);min-width:170px}
+.menu .mi{display:flex;align-items:center;gap:7px;height:24px;padding:0 6px;border-radius:3px;white-space:nowrap}
+.menu .mi .ck{width:12px;flex:none;text-align:center;color:var(--hl)}
+.menu .mi.on{background:var(--soft)}
+.menu .ml{font-size:10.5px;color:var(--wf-ink);padding:5px 6px 2px}
+.menu .sep{height:1px;background:var(--wf-bar);margin:4px -4px}
+.menu .mi.dim{color:var(--wf-ink)}
+.caption{font-size:12.5px;color:var(--muted)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:420px){.pair{grid-template-columns:1fr}}
+.key{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px;align-items:baseline}
+.key .g{font-size:13px;color:var(--wf-ink);text-align:center;width:18px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:12.5px}
+tr:last-child td{border-bottom:0}
+</style>
+
+<div class="wrap">
+
+<header class="stack">
+  <span class="eyebrow">Design exploration · wireframes · #885 · 29 Sep 2026</span>
+  <h1>Sorting and grouping the Workspaces list</h1>
+  <p class="lede">The sidebar's Workspaces list gets view options: sort by manual order, recent activity or name, and group by state. Three questions, three wireframed answers each. Pick one per question and only that gets built.</p>
+  <div class="legend"><span><i></i>Blue marks what changes from today</span><span>Wireframes only. The build uses stock shadcn sidebar and menu parts.</span></div>
+</header>
+
+<section class="stack">
+  <h2>What stays the same in every option</h2>
+  <div class="facts">
+    <div class="fact"><h3>Manual order is the default</h3><p>A list you never touch looks exactly like today. Drag to reorder works only in Manual order; in the other sorts rows don't pick up.</p></div>
+    <div class="fact"><h3>It's your view only</h3><p>The choice is remembered per canvas on your device and never written to the room, so collaborators' lists don't move.</p></div>
+    <div class="fact"><h3>Done stays one collapsed section</h3><p>The Done (N) section from #976 stays at the bottom in every view, and a Done Workspace never shows anywhere else.</p></div>
+    <div class="fact"><h3>Recent activity</h3><p>A Workspace records when a chat turn last started on it, and sorts newest first. A Workspace that never ran a turn uses when it was created.</p></div>
+  </div>
+</section>
+
+<section class="axis" id="q1">
+  <span class="eyebrow">Question 1</span>
+  <h2>Where the view control lives</h2>
+  <p class="muted">Home has no sort menu (the table's column headers sort) but uses a radio dropdown for its owner filter. The same radio dropdown fits here; the question is what opens it.</p>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="c-more"></div><div class="chips"><span class="chip rec">Recommended</span></div><h3>In the existing … menu</h3><p>The Workspaces … menu, which today holds Open existing git branch, gets Sort by and Group by state above it.</p><ul><li class="plus">No new icon in the header</li><li class="plus">Where Linear and Claude put list options</li><li class="minus">The current sort isn't visible until you open the menu</li></ul></div>
+    <div class="opt"><span class="k">B</span><div data-wf="c-icon"></div><h3>A sort icon beside … and +</h3><p>A third 24px header action with a sort glyph opens the same menu. The icon turns accent-coloured when a non-default view is on.</p><ul><li class="plus">Obvious where to look</li><li class="minus">Three icons crowd a short label</li><li class="minus">A lone indicator state to design</li></ul></div>
+    <div class="opt"><span class="k">C</span><div data-wf="c-label"></div><h3>The label opens it</h3><p>"Workspaces" becomes a menu trigger with a small caret. When a non-default view is on, the label says so in muted text, e.g. "Workspaces · Name".</p><ul><li class="plus">The current view is always named</li><li class="minus">Labels elsewhere in the sidebar aren't clickable</li></ul></div>
+  </div>
+</section>
+
+<section class="axis" id="q2">
+  <span class="eyebrow">Question 2</span>
+  <h2>How grouped sections look</h2>
+  <p class="muted">With Group by state on. The sections match 2.1 C from round 2; question 3 decides which sections there are.</p>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="g-collapse"></div><div class="chips"><span class="chip rec">Recommended</span></div><h3>Collapsible, like Done (N)</h3><p>Every section is the same caret row as today's Done (N). Active sections start open, Done starts closed, and what you collapse is remembered with the view.</p><ul><li class="plus">One section style in the list, reuses #976's row</li><li class="plus">Empty sections are hidden</li><li class="minus">Section rows are as tall as Workspace rows</li></ul></div>
+    <div class="opt"><span class="k">B</span><div data-wf="g-heads"></div><h3>Small muted headings</h3><p>Plain text headings with a count and no caret. Done keeps its collapsed row at the bottom.</p><ul><li class="plus">Lightest, reads like a Claude project list</li><li class="minus">Two section styles in one list</li><li class="minus">Can't fold away a long Working section</li></ul></div>
+    <div class="opt"><span class="k">C</span><div data-wf="g-groups"></div><h3>Sections replace the Workspaces label</h3><p>Each state gets its own mono section label, like Workspaces and Canvas do today. The + and … move to the first label.</p><ul><li class="plus">Uses the sidebar's own label style</li><li class="minus">Loses the Workspaces heading and its actions' home</li><li class="minus">Competes with the Canvas section below</li></ul></div>
+  </div>
+</section>
+
+<section class="axis" id="q3">
+  <span class="eyebrow">Question 3</span>
+  <h2>Which sections there are</h2>
+  <p class="muted">You asked for Working, Needs you and Done. The row's state icon has six states; the question is how they fold into sections.</p>
+  <div class="key">
+    <span class="g">⠿</span><span>Agent working (the 9-dot spinner)</span>
+    <span class="g">◌</span><span>Setting up (the regular spinner)</span>
+    <span class="g" style="color:var(--err)">▲</span><span>Setup failed</span>
+    <span class="g">○</span><span>Ready</span>
+    <span class="g">◌̶</span><span>Stopped (dashed circle)</span>
+    <span class="g">✓</span><span>Done</span>
+  </div>
+  <div class="opts">
+    <div class="opt"><span class="k">A</span><div data-wf="s-needs"></div><div class="chips"><span class="chip rec">Recommended</span></div><h3>Working, Needs you, Idle, Done</h3><p>Needs you holds a failed setup or an open PR (waiting on your review or merge). Idle is the rest: ready or stopped with no open PR.</p><ul><li class="plus">Your three words, plus somewhere for the quiet ones</li><li class="plus">Needs you is only things you can act on</li><li class="minus">Uses the PR badge too, not just the icon</li></ul></div>
+    <div class="opt"><span class="k">B</span><div data-wf="s-icon"></div><h3>One section per icon state</h3><p>Working (with Setting up), Failed, Ready, Stopped, Done. The section is exactly what the row icon says.</p><ul><li class="plus">No new rule to learn</li><li class="minus">Up to five sections for a handful of rows</li><li class="minus">No "Needs you"</li></ul></div>
+    <div class="opt"><span class="k">C</span><div data-wf="s-two"></div><h3>Working and Needs you, then Done</h3><p>Only two live sections: an agent is on it, or it's waiting on you (anything not working, including ready and stopped).</p><ul><li class="plus">Fewest sections</li><li class="minus">A stopped Workspace you parked reads as needing you</li></ul></div>
+  </div>
+</section>
+
+<section class="axis">
+  <span class="eyebrow">How the choices combine</span>
+  <h2>Sort applies inside each section</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>View</th><th>Order</th><th>Drag</th><th>Done</th></tr></thead>
+    <tbody>
+      <tr><td>Manual (default)</td><td>Your drag order, as today</td><td>Yes</td><td>Collapsed at the bottom, most recently done first</td></tr>
+      <tr><td>Recent activity</td><td>Last chat turn, newest first</td><td>No</td><td>Same</td></tr>
+      <tr><td>Name</td><td>Title A to Z</td><td>No</td><td>Same</td></tr>
+      <tr><td>Any sort + Group by state</td><td>Sections, each in the sort above</td><td>Manual only, within a section</td><td>The Done section of the grouping</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</div>
+
+<script>
+/* Row syntax: "icon|title|end" ; prefix "*" selected, "!" changed (blue). Strings starting with "<" are raw. */
+var ICON={w:'⠿',s:'◌',f:'<span class="ic err">▲</span>',r:'○',x:'◌̶',d:'✓'};
+function ic(k){var v=ICON[k]||k;return v.charAt(0)==='<'?v:'<span class="ic">'+v+'</span>'}
+function row(s){
+  if(s.charAt(0)==='<')return s;
+  var c=['r'];while(/^[*!]/.test(s)){if(s[0]==='*')c.push('sel');if(s[0]==='!')c.push('hl');s=s.slice(1)}
+  var p=s.split('|');
+  return '<div class="'+c.join(' ')+'">'+ic(p[0])+'<span class="t">'+p[1]+'</span>'+(p[2]?'<span class="e">'+p[2]+'</span>':'')+'</div>';
+}
+function sec(t,n,o){o=o||{};var car=o.caret===false?'':(o.open===false?'▸ ':'▾ ');
+  return '<div class="sec'+(o.caps?' caps':'')+(o.hl?' hl':'')+'">'+car+t+(n!=null?(o.caps?'':' ')+'<span class="n">'+n+'</span>':'')+'</div>'}
+function lbl(t,acts){return '<div class="lbl">'+t+'<span class="acts">'+(acts||'<span>…</span><span>+</span>')+'</span></div>'}
+var ST='<span class="a">+48</span> <span class="d">-3</span>';
+var PR='<span class="pb open">#841</span>';
+var PRB='<span class="pb blocked">#846</span>';
+var W={
+ hero:'w|Hero trust line|'+ST, faq:'r|Pricing FAQ|'+PR, stories:'r|Customer stories|', seed:'s|Seed demo data|',
+ rate:'f|Rate-limit headers|', nav:'x|Mobile nav|', ex:'w|Checkout copy|'+PRB
+};
+function done(n,open){return sec('Done ('+n+')',null,{open:!!open})}
+var CANVAS='<div class="canvas">'+lbl('Canvas','<span>+</span>')+row('▸|Homepage|')+'</div>';
+function menu(pos,extra){
+  return '<div class="menu" style="'+pos+'">'+
+   '<div class="ml">Sort by</div>'+
+   '<div class="mi on"><span class="ck">●</span>Manual</div>'+
+   '<div class="mi"><span class="ck"></span>Recent activity</div>'+
+   '<div class="mi"><span class="ck"></span>Name</div>'+
+   '<div class="sep"></div>'+
+   '<div class="mi"><span class="ck">✓</span>Group by state</div>'+
+   (extra||'')+'</div>';
+}
+function sb(parts){return '<div class="sb">'+parts.map(function(x){return x.charAt&&x.charAt(0)!=='<'?row(x):x}).join('')+'</div>'}
+var FLAT=['*'+W.hero,W.faq,W.stories,W.nav,W.rate];
+var WF={
+ 'c-more':sb([lbl('Workspaces','<span class="hl hlbox">&nbsp;…&nbsp;</span><span>+</span>')].concat(FLAT,[done(3),menu('top:30px;right:34px','<div class="sep"></div><div class="mi dim"><span class="ck"></span>Open existing git branch</div>'),CANVAS])),
+ 'c-icon':sb([lbl('Workspaces','<span class="hl hlbox">&nbsp;⇅&nbsp;</span><span>…</span><span>+</span>')].concat(FLAT,[done(3),menu('top:30px;right:52px'),CANVAS])),
+ 'c-label':sb(['<div class="lbl"><span class="hl hlbox" style="padding:0 3px">Workspaces ⌄</span><span class="hl" style="text-transform:none;letter-spacing:0;font-family:var(--sans)">&nbsp;· Name</span><span class="acts"><span>…</span><span>+</span></span></div>',
+   row('w|Customer stories|'),row('*'+W.hero),row(W.nav),row(W.faq),row(W.rate),done(3),menu('top:30px;left:10px'),CANVAS]),
+ 'g-collapse':sb([lbl('Workspaces'),sec('Working','2',{hl:true}),'*'+W.hero,W.seed,sec('Needs you','2',{hl:true}),W.rate,W.faq,sec('Idle','2',{hl:true}),W.stories,W.nav,done(3),CANVAS]),
+ 'g-heads':sb([lbl('Workspaces'),sec('Working','2',{caret:false,hl:true}),'*'+W.hero,W.seed,sec('Needs you','2',{caret:false,hl:true}),W.rate,W.faq,sec('Idle','2',{caret:false,hl:true}),W.stories,W.nav,done(3),CANVAS]),
+ 'g-groups':sb([lbl('<span class="hl">Working</span>'),'*'+W.hero,W.seed,'<div class="lbl hl" style="margin-top:6px">Needs you</div>',W.rate,W.faq,'<div class="lbl hl" style="margin-top:6px">Idle</div>',W.stories,W.nav,done(3),CANVAS]),
+ 's-needs':sb([lbl('Workspaces'),sec('Working','3'),'*'+W.hero,W.seed,W.ex,sec('Needs you','2'),W.rate,W.faq,sec('Idle','2'),W.stories,W.nav,done(3)]),
+ 's-icon':sb([lbl('Workspaces'),sec('Working','3'),'*'+W.hero,W.seed,W.ex,sec('Failed','1'),W.rate,sec('Ready','2'),W.faq,W.stories,sec('Stopped','1'),W.nav,done(3)]),
+ 's-two':sb([lbl('Workspaces'),sec('Working','3'),'*'+W.hero,W.seed,W.ex,sec('Needs you','4'),W.rate,W.faq,W.stories,W.nav,done(3)])
+};
+document.querySelectorAll('[data-wf]').forEach(function(el){if(WF[el.dataset.wf])el.innerHTML=WF[el.dataset.wf]});
+</script>
+
+</body></html>

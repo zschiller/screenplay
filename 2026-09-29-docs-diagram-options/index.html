@@ -1,0 +1,364 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Docs Diagram Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@400&display=swap">
+<style>
+/* Layout: a single reading column of options; each option shows the same two
+   real diagrams in a forced-light and a forced-dark docs panel, side by side. */
+:root {
+  --page-bg: #fff; --page-fg: #000; --page-mut: #737373; --page-hair: rgb(0 0 0 / 12%);
+  --mag: #e12afb;
+  --sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --head: "Unbounded", "Instrument Sans", sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --page-bg: #000; --page-fg: #fff; --page-mut: #a1a1a1; --page-hair: rgb(255 255 255 / 16%); color-scheme: dark } }
+:root[data-theme="dark"] { --page-bg: #000; --page-fg: #fff; --page-mut: #a1a1a1; --page-hair: rgb(255 255 255 / 16%); color-scheme: dark }
+
+body { background: var(--page-bg); color: var(--page-fg); font: 15px/1.55 var(--sans); }
+main { max-width: 1240px; margin: 0 auto; padding: 40px 16px 80px; display: grid; gap: 56px; }
+h1, h2, h3 { font-family: var(--head); font-weight: 400; letter-spacing: -0.03em; text-wrap: balance; margin: 0; }
+h1 { font-size: 1.6875rem; line-height: 1.15; }
+h2 { font-size: 1.25rem; line-height: 1.25; }
+h3 { font-size: 1.0625rem; line-height: 1.3; }
+p { margin: 0; max-width: 68ch; }
+.label { font: 500 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--page-mut); }
+header, section { display: grid; gap: 16px; }
+.lede { color: var(--page-mut); }
+.pros { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 32px; margin: 0; padding: 0; list-style: none; }
+.pros li { display: grid; grid-template-columns: 16px 1fr; gap: 6px; max-width: 60ch; }
+.pros li::before { content: "+"; font-family: var(--mono); }
+.pros li.con::before { content: "−"; }
+.rec { border: 1px solid var(--mag); border-radius: 2px; padding: 16px 20px; display: grid; gap: 8px; }
+.rec strong { font-weight: 600; }
+code { font-family: var(--mono); font-size: .9em; }
+
+/* Docs panels, forced to one theme each */
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 540px), 1fr)); gap: 16px; }
+.pl { --bg: #fff; --fg: #000; --mut: #737373; --line: #8a8a8a; --hair: rgb(0 0 0 / 12%); --code: #f7f7f7; }
+.pd { --bg: #000; --fg: #fff; --mut: #a1a1a1; --line: #7a7a7a; --hair: rgb(255 255 255 / 16%); --code: #121212; }
+.panel { background: var(--bg); color: var(--fg); border: 1px solid var(--page-hair); border-radius: 2px; padding: 24px; display: grid; gap: 14px; min-width: 0; align-content: start; }
+.panel .theme { font: 500 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--mut); }
+.panel h3 { font-size: 1.25rem; }
+.scroll { overflow-x: auto; min-width: 0; }
+pre.ascii { margin: 0; background: var(--code); border: 1px solid var(--hair); border-radius: 2px; padding: 14px 16px; font: 12.5px/1.5 var(--mono); color: var(--fg); white-space: pre; }
+
+/* Option B: hand-drawn SVG */
+svg.dg { display: block; width: 100%; height: auto; font-family: var(--sans); }
+svg.dg .n { fill: var(--bg); stroke: var(--fg); stroke-width: 1; }
+svg.dg .hub { fill: var(--bg); stroke: var(--mag); stroke-width: 1.5; }
+svg.dg .box { fill: none; stroke: var(--hair); stroke-width: 1; }
+svg.dg .back { fill: var(--bg); stroke: var(--line); stroke-width: 1; }
+svg.dg .chip { fill: var(--bg); stroke: var(--hair); }
+svg.dg .e { fill: none; stroke: var(--line); stroke-width: 1; }
+svg.dg .dash { stroke-dasharray: 3 3; }
+svg.dg .ah { fill: var(--line); }
+svg.dg .t { fill: var(--fg); font-size: 13.5px; font-weight: 500; }
+svg.dg .d { fill: var(--mut); font-size: 13px; }
+svg.dg .m { fill: var(--mut); font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
+svg.dg .c { fill: var(--fg); font-family: var(--mono); font-size: 9.5px; }
+
+/* Option C: HTML components */
+.tree, .tree ul { list-style: none; margin: 0; padding: 0; }
+.tree ul { margin-left: 13px; padding-top: 6px; }
+.tree li { position: relative; padding: 4px 0 4px 22px; }
+.tree > li { padding-left: 0; }
+.tree ul > li::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1px solid var(--line); }
+.tree ul > li:last-child::before { bottom: auto; height: 18px; }
+.tree ul > li::after { content: ""; position: absolute; left: 0; top: 18px; width: 14px; border-top: 1px solid var(--line); }
+.node { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.name { border: 1px solid var(--fg); border-radius: 2px; padding: 3px 8px; font-weight: 500; font-size: 13.5px; line-height: 1.3; background: var(--bg); }
+.name.group { border-color: var(--hair); color: var(--mut); font: 500 10.5px/1.6 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.desc { color: var(--mut); font-size: 13px; }
+.tree.files .name { border: 0; padding: 3px 0; font: 12.5px/1.3 var(--mono); }
+.tree.files .desc { font-family: var(--mono); font-size: 12px; }
+
+.sys { display: flex; align-items: center; gap: 0; min-width: 500px; }
+.sys .left { display: grid; grid-template-columns: auto 24px auto 20px; align-items: center; row-gap: 0; }
+.sys .box { border: 1px solid var(--fg); border-radius: 2px; padding: 8px 12px; display: grid; gap: 1px; background: var(--bg); }
+.sys .box b, .sys .svc { white-space: nowrap; }
+.sys .box b { font-weight: 500; font-size: 13.5px; }
+.sys .box span { color: var(--mut); font-size: 12.5px; }
+.sys .box.hub { border: 1.5px solid var(--mag); }
+.sys .arrow { height: 1px; background: var(--line); position: relative; }
+.sys .arrow::after { content: ""; position: absolute; right: 0; top: -3.5px; border: 4px solid transparent; border-left: 6px solid var(--line); border-right: 0; }
+.sys .arrow.plain::after { display: none; }
+.sys .rt { grid-column: 1 / 5; height: 30px; margin-left: 45px; position: relative; border-left: 1px dashed var(--line); border-bottom: 1px dashed var(--line); margin-top: -2px; }
+.sys .rt-wrap { grid-column: 1 / 5; display: grid; grid-template-columns: 1fr; }
+.sys .rt-label { position: absolute; left: 12px; bottom: 4px; font: 500 10.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--mut); }
+.sys .browser-col { grid-column: 1; width: 90px; box-sizing: border-box; text-align: center; }
+.sys ul.bus { flex: 1; min-width: 0; list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--line); display: grid; gap: 8px; }
+.sys ul.bus li { display: grid; grid-template-columns: 16px 140px minmax(0,1fr); align-items: center; column-gap: 12px; }
+.sys ul.bus li::before { content: ""; height: 1px; background: var(--line); position: relative; }
+.sys ul.bus li .svc { border: 1px solid var(--fg); border-radius: 2px; padding: 7px 12px; font-weight: 500; font-size: 13.5px; line-height: 1.25; }
+.sys ul.bus li .svc small { display: block; color: var(--mut); font-weight: 400; font-size: 12px; }
+.sys ul.bus li .what { color: var(--mut); font-size: 12.5px; line-height: 1.35; display: grid; gap: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chips span { border: 1px solid var(--hair); border-radius: 2px; padding: 1px 6px; font: 11px/1.5 var(--mono); color: var(--fg); }
+
+/* Option A: Mermaid */
+.mm svg { max-width: 100% !important; height: auto; display: block; margin: 0 auto; }
+.mm .loading { color: var(--mut); font: 12px var(--mono); }
+
+@media (max-width: 700px) { .panel { padding: 16px; } }
+</style>
+
+<main>
+<header>
+  <span class="label">Docs · diagrams</span>
+  <h1>Replacing the ASCII diagrams</h1>
+  <p class="lede">The docs have three ASCII diagrams. Below are three ways to redraw them, each shown on the two real diagrams (Core concepts and Self-hosting) in light and dark, in the docs' own type and colour. The third ASCII block, the screenshots folder listing, is a file tree; option C shows how it would look too.</p>
+</header>
+
+<section>
+  <span class="label">Today</span>
+  <h2>What the docs show now</h2>
+  <div class="pair">
+    <div class="panel pl"><span class="theme">concepts.mdx · light</span>
+      <div class="scroll"><pre class="ascii">Canvas ─┬─ Repository (its code + how to run it)
+        │    └─ Workspace (a branch + its environment + its agent chats)
+        │
+        └─ Layers on the canvas
+             ├─ Frame     (a live preview of a workspace's dev server)
+             └─ Document  (a rich-text page the agent can read and write)</pre></div></div>
+    <div class="panel pd"><span class="theme">self-hosting/index.mdx · dark</span>
+      <div class="scroll"><pre class="ascii"> Browser ──► Next.js app (Vercel) ──┬─► Postgres              users, canvases, chats, presets
+    ▲                               ├─► Yjs host (Liveblocks) live canvas state + presence
+    │ realtime                      ├─► Sandbox provider      one VM per workspace
+    └───────────────────────────────┤     └─ dev server, git, terminals, coding CLIs
+                                    ├─► Model provider(s)     the agent
+                                    ├─► Blob store            canvas thumbnails
+                                    └─► GitHub OAuth          sign-in + repo access</pre></div></div>
+  </div>
+</section>
+
+<!-- ============ A ============ -->
+<section id="a">
+  <span class="label">Option A</span>
+  <h2>Mermaid</h2>
+  <p>Write <code>```mermaid</code> fences in the MDX. Nextra 4 already ships Mermaid, so there's nothing to install; our CSS restyles its output. Mermaid lays the boxes out itself.</p>
+  <div class="pair">
+    <div class="panel pl"><span class="theme">light</span><h3>How it fits together</h3><div class="mm scroll" data-g="arch"><span class="loading">rendering…</span></div><h3>Core concepts</h3><div class="mm scroll" data-g="concepts"><span class="loading">rendering…</span></div></div>
+    <div class="panel pd"><span class="theme">dark</span><h3>How it fits together</h3><div class="mm scroll" data-g="arch"><span class="loading">rendering…</span></div><h3>Core concepts</h3><div class="mm scroll" data-g="concepts"><span class="loading">rendering…</span></div></div>
+  </div>
+  <ul class="pros">
+    <li>Anyone can edit a diagram as text, right in the page.</li>
+    <li>Already bundled with Nextra.</li>
+    <li class="con">Automatic layout: you can't place things, so it looks generic and wide diagrams shrink.</li>
+    <li class="con">Rendered in the browser with a large script; text inside isn't in search.</li>
+  </ul>
+</section>
+
+<!-- ============ B ============ -->
+<section id="b">
+  <span class="label">Option B</span>
+  <h2>Hand-drawn SVG</h2>
+  <p>Each diagram is an SVG drawn for its page, kept as a small component in <code>apps/docs/components/diagrams/</code>, with colours from our tokens so it follows the theme. Because every box is placed by hand, a diagram can show things ASCII can't, like the canvas containing its repositories and layers.</p>
+  <div class="pair">
+    <div class="panel pl"><span class="theme">light</span><h3>How it fits together</h3><div class="scroll" data-svg="arch"></div><h3>Core concepts</h3><div class="scroll" data-svg="concepts"></div></div>
+    <div class="panel pd"><span class="theme">dark</span><h3>How it fits together</h3><div class="scroll" data-svg="arch"></div><h3>Core concepts</h3><div class="scroll" data-svg="concepts"></div></div>
+  </div>
+  <ul class="pros">
+    <li>Best-looking and most expressive: nesting, grouping, exact alignment.</li>
+    <li>Static markup, no script, crisp at any zoom.</li>
+    <li class="con">Editing means moving coordinates, so docs changes need a diagram change by hand.</li>
+    <li class="con">Scales down as one picture on phones, so the text gets small.</li>
+  </ul>
+</section>
+
+<!-- ============ C ============ -->
+<section id="c">
+  <span class="label">Option C</span>
+  <h2>HTML diagram components</h2>
+  <p>Two small components styled with our tokens: <code>&lt;Tree&gt;</code> for hierarchies (concepts and the folder listing) and <code>&lt;SystemMap&gt;</code> for the one-to-many architecture. The MDX holds the content as plain data; the component draws the boxes and connectors.</p>
+  <div class="pair">
+    <div class="panel pl"><span class="theme">light</span><h3>How it fits together</h3><div class="scroll" data-html="arch"></div><h3>Core concepts</h3><div data-html="concepts"></div><h3>The seeded world</h3><div data-html="files"></div></div>
+    <div class="panel pd"><span class="theme">dark</span><h3>How it fits together</h3><div class="scroll" data-html="arch"></div><h3>Core concepts</h3><div data-html="concepts"></div><h3>The seeded world</h3><div data-html="files"></div></div>
+  </div>
+  <ul class="pros">
+    <li>Real text: selectable, searchable, and readable on a phone.</li>
+    <li>Editing is changing a line of MDX; the layout follows.</li>
+    <li class="con">Only fits trees and hub-and-spoke shapes; a new shape needs a new component.</li>
+    <li class="con">Less freedom than B (no containment picture for concepts).</li>
+  </ul>
+</section>
+
+<section>
+  <span class="label">Recommendation</span>
+  <div class="rec">
+    <h2>C, HTML components</h2>
+    <p>All three diagrams are trees or one hub with spokes, which is exactly what these components draw. The text stays real, so it reads on phones and shows up in search, and future docs edits don't need anyone to redraw a picture. B looks a little richer for Core concepts; if you like that containment picture, I'd use B for that one diagram and C for the rest.</p>
+  </div>
+</section>
+</main>
+
+<template id="svg-arch">
+<svg class="dg" viewBox="0 0 820 380" role="img" aria-label="Browser to Next.js app, which talks to six backends">
+  <defs>
+    <marker id="ARROW" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L8 4L0 8z"/></marker>
+  </defs>
+  <path class="e dash" d="M90 84V22H520V42" marker-start="url(#ARROW)" marker-end="url(#ARROW)"/>
+  <text class="m" x="236" y="15">realtime</text>
+  <rect class="n" x="24" y="84" width="132" height="56" rx="2"/>
+  <line class="e" x1="24" y1="96" x2="156" y2="96" style="stroke:var(--hair)"/>
+  <text class="t" x="90" y="123" text-anchor="middle">Browser</text>
+  <path class="e" d="M156 112H206" marker-end="url(#ARROW)"/>
+  <rect class="hub" x="208" y="84" width="172" height="56" rx="2"/>
+  <text class="t" x="224" y="108">Next.js app</text>
+  <text class="d" x="224" y="127">Vercel</text>
+  <path class="e" d="M380 112H420M420 64V348"/>
+  <g class="ticks">
+    <path class="e" d="M420 64H438" marker-end="url(#ARROW)"/>
+    <path class="e" d="M420 112H438" marker-end="url(#ARROW)"/>
+    <path class="e" d="M420 160H438" marker-end="url(#ARROW)"/>
+    <path class="e" d="M420 252H438" marker-end="url(#ARROW)"/>
+    <path class="e" d="M420 300H438" marker-end="url(#ARROW)"/>
+    <path class="e" d="M420 348H438" marker-end="url(#ARROW)"/>
+  </g>
+  <rect class="n" x="440" y="46" width="160" height="36" rx="2"/><text class="t" x="454" y="69">Yjs host <tspan class="d">Liveblocks</tspan></text><text class="d" x="616" y="69">live canvas state + presence</text>
+  <rect class="n" x="440" y="94" width="160" height="36" rx="2"/><text class="t" x="454" y="117">Postgres</text><text class="d" x="616" y="117">users, canvases, chats, presets</text>
+  <rect class="n" x="440" y="142" width="160" height="80" rx="2"/><text class="t" x="454" y="165">Sandbox provider</text><text class="d" x="616" y="165">one VM per workspace</text>
+  <g><rect class="chip" x="450" y="176" width="68" height="18" rx="2"/><text class="c" x="484" y="189" text-anchor="middle">dev server</text>
+     <rect class="chip" x="522" y="176" width="68" height="18" rx="2"/><text class="c" x="556" y="189" text-anchor="middle">git</text>
+     <rect class="chip" x="450" y="198" width="68" height="18" rx="2"/><text class="c" x="484" y="211" text-anchor="middle">terminals</text>
+     <rect class="chip" x="522" y="198" width="68" height="18" rx="2"/><text class="c" x="556" y="211" text-anchor="middle">coding CLIs</text></g>
+  <rect class="n" x="440" y="234" width="160" height="36" rx="2"/><text class="t" x="454" y="257">Model provider(s)</text><text class="d" x="616" y="257">the agent</text>
+  <rect class="n" x="440" y="282" width="160" height="36" rx="2"/><text class="t" x="454" y="305">Blob store</text><text class="d" x="616" y="305">canvas thumbnails</text>
+  <rect class="n" x="440" y="330" width="160" height="36" rx="2"/><text class="t" x="454" y="353">GitHub OAuth</text><text class="d" x="616" y="353">sign-in + repo access</text>
+</svg>
+</template>
+
+<template id="svg-concepts">
+<svg class="dg" viewBox="0 0 760 252" role="img" aria-label="A canvas holds repositories with their workspaces, and layers: frames and documents">
+  <defs>
+    <marker id="ARROW" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L8 4L0 8z"/></marker>
+  </defs>
+  <rect class="n" x="0.5" y="0.5" width="759" height="251" rx="2"/>
+  <text class="t" x="16" y="26" style="font-family:var(--head);font-weight:400;font-size:15px;letter-spacing:-.03em">Canvas</text>
+  <rect class="box" x="16" y="42" width="356" height="194" rx="2"/>
+  <text class="t" x="30" y="66">Repository</text><text class="d" x="30" y="84">its code + how to run it</text>
+  <rect class="back" x="38" y="106" width="324" height="56" rx="2"/>
+  <rect class="back" x="34" y="102" width="324" height="56" rx="2"/>
+  <rect class="n" x="30" y="98" width="324" height="56" rx="2"/>
+  <text class="t" x="44" y="121">Workspace</text><text class="d" x="44" y="140">a branch + its environment + its agent chats</text>
+  <text class="d" x="30" y="190" style="font-size:12px">One per branch you run. A repository can have many.</text>
+  <text class="m" x="392" y="66">Layers on the canvas</text>
+  <rect class="n" x="392" y="98" width="352" height="56" rx="2"/>
+  <text class="t" x="406" y="121">Frame</text><text class="d" x="406" y="140">a live preview of a workspace's dev server</text>
+  <rect class="n" x="392" y="166" width="352" height="56" rx="2"/>
+  <text class="t" x="406" y="189">Document</text><text class="d" x="406" y="208">a rich-text page the agent can read and write</text>
+  <path class="e dash" d="M392 126H364" marker-end="url(#ARROW)"/>
+</svg>
+</template>
+
+<template id="html-concepts">
+<ul class="tree">
+  <li><span class="node"><span class="name">Canvas</span></span>
+    <ul>
+      <li><span class="node"><span class="name">Repository</span><span class="desc">its code + how to run it</span></span>
+        <ul><li><span class="node"><span class="name">Workspace</span><span class="desc">a branch + its environment + its agent chats</span></span></li></ul>
+      </li>
+      <li><span class="node"><span class="name group">Layers on the canvas</span></span>
+        <ul>
+          <li><span class="node"><span class="name">Frame</span><span class="desc">a live preview of a workspace's dev server</span></span></li>
+          <li><span class="node"><span class="name">Document</span><span class="desc">a rich-text page the agent can read and write</span></span></li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+</ul>
+</template>
+
+<template id="html-files">
+<ul class="tree files">
+  <li><span class="node"><span class="name">apps/app/.screenshots/</span><span class="desc">gitignored</span></span>
+    <ul>
+      <li><span class="node"><span class="name">pglite/ yjs/ blobs/</span><span class="desc">the seeded world</span></span></li>
+      <li><span class="node"><span class="name">secrets.env</span><span class="desc">minted on first run</span></span></li>
+      <li><span class="node"><span class="name">captures/&lt;label&gt;/</span><span class="desc">&lt;screen&gt;.&lt;theme&gt;.png + manifest.json</span></span></li>
+    </ul>
+  </li>
+</ul>
+</template>
+
+<template id="html-arch">
+<div class="sys">
+  <div class="left">
+    <div class="box browser-col"><b>Browser</b></div>
+    <div class="arrow"></div>
+    <div class="box hub"><b>Next.js app</b><span>Vercel</span></div>
+    <div class="arrow plain"></div>
+    <div class="rt"><span class="rt-label">realtime ↔ Yjs host</span></div>
+  </div>
+  <ul class="bus">
+    <li><span class="svc">Yjs host<small>Liveblocks</small></span><span class="what">live canvas state + presence</span></li>
+    <li><span class="svc">Postgres</span><span class="what">users, canvases, chats, presets</span></li>
+    <li><span class="svc">Sandbox provider</span><span class="what">one VM per workspace<span class="chips"><span>dev server</span><span>git</span><span>terminals</span><span>coding CLIs</span></span></span></li>
+    <li><span class="svc">Model provider(s)</span><span class="what">the agent</span></li>
+    <li><span class="svc">Blob store</span><span class="what">canvas thumbnails</span></li>
+    <li><span class="svc">GitHub OAuth</span><span class="what">sign-in + repo access</span></li>
+  </ul>
+</div>
+</template>
+
+<script>
+// Stamp templates; give each SVG copy its own marker id so light/dark copies don't share one.
+let n = 0;
+for (const el of document.querySelectorAll("[data-svg]")) {
+  const id = "a" + (n++);
+  el.innerHTML = document.getElementById("svg-" + el.dataset.svg).innerHTML.replaceAll("ARROW", id);
+}
+for (const el of document.querySelectorAll("[data-html]")) {
+  el.innerHTML = document.getElementById("html-" + el.dataset.html).innerHTML;
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.min.js"></script>
+<script>
+const GRAPHS = {
+  arch: `flowchart LR
+  B[Browser] --> A["Next.js app<br/><small>Vercel</small>"]
+  A --> Y["Yjs host · Liveblocks<br/><small>live canvas state + presence</small>"]
+  Y <-. realtime .-> B
+  A --> P["Postgres<br/><small>users, canvases, chats, presets</small>"]
+  A --> S["Sandbox provider<br/><small>one VM per workspace</small>"]
+  S --- SC["dev server · git · terminals · coding CLIs"]
+  A --> M["Model provider(s)<br/><small>the agent</small>"]
+  A --> BL["Blob store<br/><small>canvas thumbnails</small>"]
+  A --> G["GitHub OAuth<br/><small>sign-in + repo access</small>"]
+  class A hub`,
+  concepts: `flowchart TD
+  C[Canvas] --> R["Repository<br/><small>its code + how to run it</small>"]
+  R --> W["Workspace<br/><small>a branch + its environment + its agent chats</small>"]
+  C --> L["Layers on the canvas"]
+  L --> F["Frame<br/><small>a live preview of a workspace's dev server</small>"]
+  L --> D["Document<br/><small>a rich-text page the agent can read and write</small>"]`,
+};
+const THEMES = {
+  pl: { bg: "#ffffff", fg: "#000000", line: "#8a8a8a", mut: "#737373" },
+  pd: { bg: "#000000", fg: "#ffffff", line: "#7a7a7a", mut: "#a1a1a1" },
+};
+(async () => {
+  if (!window.mermaid) { document.querySelectorAll(".mm .loading").forEach(e => e.textContent = "Mermaid failed to load"); return; }
+  let i = 0;
+  for (const el of document.querySelectorAll(".mm")) {
+    const t = THEMES[el.closest(".panel").classList.contains("pd") ? "pd" : "pl"];
+    mermaid.initialize({
+      startOnLoad: false, theme: "base", securityLevel: "loose",
+      flowchart: { curve: "basis", htmlLabels: true, padding: 10 },
+      themeVariables: {
+        fontFamily: '"Instrument Sans", sans-serif', fontSize: "13px",
+        background: t.bg, primaryColor: t.bg, primaryTextColor: t.fg, primaryBorderColor: t.fg,
+        lineColor: t.line, textColor: t.fg, edgeLabelBackground: t.bg, mainBkg: t.bg, nodeBorder: t.fg,
+      },
+      themeCSS: `.node rect{rx:2px;ry:2px;stroke-width:1px} .hub rect{stroke:#e12afb!important;stroke-width:1.5px!important} small{color:${t.mut};font-size:12px} .edgeLabel{font-family:"Geist Mono",monospace;font-size:10.5px;color:${t.mut}} .nodeLabel{text-transform:none}`,
+    });
+    try {
+      const { svg } = await mermaid.render("mm" + (i++), GRAPHS[el.dataset.g]);
+      el.innerHTML = svg;
+    } catch (e) { el.textContent = "Mermaid error: " + e.message; }
+  }
+})();
+</script>
+
+</body></html>

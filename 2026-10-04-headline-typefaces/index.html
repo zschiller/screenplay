@@ -1,0 +1,377 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Headline Typefaces</title>
+<!-- Optional: a Google Fonts <link> for the repo's brand faces, then point --sans/--head/--mono at them. -->
+<style>
+/* Layout: phone first, one column at every width. Round tabs under the question, in time order (Today, Round 1, Round 2…) and opening on the newest; each question shows one option at a time behind a segmented A/B/C control that sticks to the top while you read. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#2f5bd3;--ok:#1f7a45;--no:#a3372b;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+/* Switching options jumps to the new option; scroll anchoring would undo that jump */
+html{overflow-anchor:none}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:880px;margin:0 auto;padding-inline:16px;padding-block:24px calc(96px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:20px}
+@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:24px}}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);letter-spacing:-.015em;margin:8px 0 10px;text-wrap:balance}
+h2{font:600 clamp(17px,4.4vw,21px)/1.28 var(--head);margin:0;text-wrap:balance}
+h3{font:500 17px/1.35 var(--sans);margin:0;text-wrap:balance}
+p{margin:0;max-width:72ch}
+a{color:var(--accent)}
+code{font:13px var(--mono)}
+.muted{color:var(--muted)}
+blockquote{margin:0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+button{font:500 13px/1.2 var(--sans);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);-webkit-tap-highlight-color:transparent}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
+button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:16px;min-width:0}
+ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px;max-width:72ch;font-size:14px;line-height:1.5}
+ul.facts li::marker{color:var(--muted)}
+/* Round tabs: quiet underline navigation */
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{border:0;border-radius:0;background:transparent;color:var(--muted);padding:10px 0 9px;min-height:40px;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px}
+.tabs button:hover{color:var(--fg)}
+.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
+.mark{font-size:12px;line-height:1}
+.mark.rec{width:6px;height:6px;border-radius:50%;background:currentColor}
+.mark.rec{color:var(--accent)}
+.mark.ok{color:var(--ok)}
+.mark.no{color:var(--no)}
+/* Stuck, the control keeps a page-coloured margin so content never shows around its corners */
+.otabs{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:5;box-shadow:0 0 0 8px var(--bg),-16px 0 0 8px var(--bg),16px 0 0 8px var(--bg)}
+/* Round tabs fade at whichever edge hides rounds */
+.rtabs.less{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px);mask-image:linear-gradient(90deg,transparent,#000 40px)}
+.rtabs.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+.rtabs.more.less{-webkit-mask-image:linear-gradient(90deg,transparent,#000 40px calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,transparent,#000 40px calc(100% - 40px),transparent)}
+/* The owner's feedback shows three lines until opened */
+.said{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.said blockquote.clamp{overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.said button{padding:0;min-height:0;border:0;background:none;color:var(--muted);text-decoration:underline;text-underline-offset:3px;margin-left:14px}
+/* Option tabs are a segmented control, so they read as the main control and the round row as navigation */
+.otabs{display:flex;gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-block:4px}
+.otabs button{flex:1;justify-content:center;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:600 15px/1 var(--mono);min-height:36px;padding:0}
+.otabs button:hover{color:var(--fg)}
+.otabs button[aria-selected="true"]{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--line),0 1px 2px rgb(0 0 0/.06)}
+.rtabs{gap:16px}
+.rtabs button{font-size:13px;min-height:34px;padding:8px 0 7px}
+/* Folded block: In every option */
+details.fold{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+details.fold>summary{list-style:none;cursor:pointer;padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:12px}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:"Show";font:500 13px var(--sans);color:var(--muted)}
+details.fold[open]>summary::after{content:"Hide"}
+details.fold>.body{padding:0 0 14px}
+/* A question and its options */
+.question{display:flex;flex-direction:column;gap:14px;min-width:0}
+.question+.question{margin-top:16px;padding-top:20px;border-top:1px solid var(--fg)}
+.qhead{display:flex;flex-direction:column;gap:4px}
+.opt{display:flex;flex-direction:column;gap:12px;min-width:0}
+.opt header{display:flex;flex-direction:column;gap:6px}
+.opt .tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.letter{font:600 13px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid currentColor;border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent)}
+.badge.picked{color:var(--ok)}
+.badge.rejected{color:var(--no)}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.choose{display:flex;gap:8px;flex-wrap:wrap}
+.choose button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+/* Captures: the viewer's theme only, tap to enlarge */
+.shots{display:flex;flex-direction:column;gap:12px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:0;background:var(--surface);cursor:zoom-in;min-height:0}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dialog.lb{padding:0;border:0;background:transparent;max-width:100vw;max-height:100dvh;width:100vw;height:100dvh}
+dialog.lb::backdrop{background:rgb(0 0 0/.86)}
+dialog.lb .in{width:100%;height:100%;overflow:auto;display:grid;place-items:center;padding:16px;cursor:zoom-out}
+dialog.lb img{max-width:none;background:var(--surface)}
+@media (min-width:720px){dialog.lb img{max-width:100%}}
+/* Bottom bar: picks so far, a note, Copy */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+@media (min-width:720px){.bar{padding-inline:24px}}
+.bar .in{max-width:832px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.bar .row{display:flex;align-items:center;gap:8px}
+.bar .picks{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bar .picks b{color:var(--fg);font-weight:500}
+.bar textarea{width:100%;font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:72px}
+.bar #out{font:12.5px/1.5 var(--mono)}
+/* Copy keeps its width while it says Copied: both labels share one grid cell */
+#copy{display:inline-grid}
+#copy>span{grid-area:1/1}
+#copy>span[aria-hidden]{visibility:hidden}
+</style>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk});
+const PAGE={
+ date:"2026-10-04",
+ slug:"homepage-headline-font",
+ quote:"can you give me more font explorations for the homepg headline",
+ q:"Which typeface should set the homepage headline?"
+};
+const TODAY={facts:[
+ "Instrument Serif 400, no italic, via the <code>font-headline</code> token (<code>apps/homepage/app/marketing.css:14</code>).",
+ "134px at 1280 wide (clamp 56–148px), line height 0.86, tracking −0.025em; 56px on a 390px phone. Two lines everywhere.",
+ "Unbounded 600 is the logo lockup, Unbounded 400 the section heads, Instrument Sans the body, Geist Mono the small labels.",
+ "Already ruled out in earlier rounds: Unbounded as the headline, Playfair, Geist Mono, Doto, Instrument Sans bold, Roboto Serif, Hedvig Letters, EB Garamond, Newsreader, Source Serif 4, Fraunces, Libre Caslon, Young Serif, Bodoni Moda, and rounds 1 to 3 here (Cal Sans came closest). Mona Sans was liked but felt close to the other sans faces."
+],shots:[IMG("today/today-desk.jpg","Today · 1280 wide"),IMG("today/today-phone.jpg","Today · phone")]};
+const sh=(id,n)=>[IMG(`r1/${id}-desk.jpg`,`${n} · 1280 wide`),IMG(`r1/${id}-phone.jpg`,`${n} · phone`)];
+const sh2=(id,n)=>[IMG(`r2/${id}-desk.jpg`,`${n} · 1280 wide`),IMG(`r2/${id}-phone.jpg`,`${n} · phone`)];
+const sh3=(id,n)=>[IMG(`r3/${id}-desk.jpg`,`${n} · 1280 wide`),IMG(`r3/${id}-phone.jpg`,`${n} · phone`)];
+const sh4=(id,n)=>[IMG(`r4/${id}-desk.jpg`,`${n} · 1280 wide`),IMG(`r4/${id}-phone.jpg`,`${n} · phone`)];
+const sh5=(id,n)=>[IMG(`r5/${id}-desk.jpg`,`${n} · 1280 wide`),IMG(`r5/${id}-phone.jpg`,`${n} · phone`)];
+const sh6=(id,n)=>[IMG(`r6/${id}-desk.jpg`,`${n} · 1280 wide`),IMG(`r6/${id}-phone.jpg`,`${n} · phone`)];
+const sh7=(id,n,a,b)=>[IMG(`r7/${id}-390.jpg`,`${n} · 390px phone, ${a}`),IMG(`r7/${id}-360.jpg`,`${n} · 360px phone, ${b}`)];
+const ROUNDS=[
+{n:8,feedback:"“A” Then: “i need more room for the carousel on mobile”, “lets keep the original font, but keep the mobile fixes” and “i want to make the header opaque always but fall about half way down the top row of cards”",every:[
+ "This is what PR #1628 builds, shot from the dev server. The headline stays Instrument Serif; desktop type is unchanged.",
+ "On phones it breaks by phrase into four lines, sized so “From idea” fills the column, up to 88px. The carousel floor is taller on phones, so more copies show above the headline.",
+ "The header is always filled. The grain under it starts solid at its edge and thins out to halfway down the first full row of copies; once you scroll, the header’s rule shows."
+],questions:[
+ {key:"build",title:"Built in PR #1628",intro:"Desktop at 1280 and a 390px phone, at the top of the page and scrolled.",options:[
+  {id:"A",name:"Instrument Serif, four lines on phones, opaque header",why:"Your picks from rounds 7 and after, together.",cost:"Not merged yet.",rec:true,state:"picked",shots:[IMG("r8/hero-desktop-after.jpg","Desktop, top of the page"),IMG("r8/hero-phone-after.jpg","Phone, top of the page"),IMG("r8/scrolled-desktop-after.jpg","Desktop, scrolled"),IMG("r8/scrolled-phone-after.jpg","Phone, scrolled")]}
+ ]}
+]},
+{n:7,feedback:"“lets do unbounded, does it have a cobndensed for mobile” Then: “try better wrapping on mobile”",every:[
+ "Unbounded SemiBold, the logotype’s font. It has a weight axis but no width axis or condensed cut, so on phones the headline wraps to more lines instead.",
+ "Desktop stays two lines at full size, as in round 5’s Unbounded shot.",
+ "Each layout is set at the largest size that fits a 390px and a 360px phone, at −0.045em tracking and 0.98 line height. Today’s Instrument Serif headline is 56px on a 390px phone."
+],questions:[
+ {key:"wrap",title:"Line breaks on phones",intro:"Where the headline breaks on narrow screens.",options:[
+  {id:"A",name:"Four lines by phrase",why:"“From idea / to code, / on one / canvas.” Each line is a short phrase, so it stays the biggest of the four, larger than today’s headline, and reads like a poster.",cost:"The tallest block, which pushes the lede and buttons about 120px lower than option D.",rec:true,state:"picked",shots:sh7("d","A","60px","55px")},
+  {id:"B",name:"Three lines, fullest",why:"“From idea / to code, on / one canvas.” Fills each line evenly, so it’s large and compact.",cost:"Breaks “on / one canvas”, which splits a phrase.",state:"rejected",shots:sh7("b","B","50px","46px")},
+  {id:"C",name:"Three lines, natural wrap",why:"“From idea to / code, on one / canvas.” What the browser does on its own with balanced wrapping. No special markup.",cost:"Breaks “to / code” and “one / canvas”, so lines don’t match the phrases.",state:"rejected",shots:sh7("a","C","48px","44px")},
+  {id:"D",name:"Three lines by phrase",why:"“From idea / to code, / on one canvas.” Clean phrase breaks with the shortest block.",cost:"The long last line sets the size, so it’s the smallest of the four.",state:"rejected",shots:sh7("c","D","40px","37px")}
+ ]}
+]},
+{n:6,feedback:"“outfit is a good add, add it to rotation and keep looking” Then: “is there anything cool w/ variable width so on mobile, it stays the same ht but just becomes more condensed as it resizes? that could be cool”",every:[
+ "Five fonts are in rotation: Gabarito, Cal Sans, Dela Gothic One, Unbounded (the logotype) and Outfit. Their shots are the same as round 5, so you can flip between them and the new ones without leaving this round.",
+ "The four new ones are all geometric, built on circles and straight lines, and narrower than Unbounded.",
+ "Each starts at today’s 134px and shrinks only to fit, except the variable-width question, where a 68px floor holds and the font narrows instead. Sizes are in the captions."
+],questions:[
+ {key:"rotation",title:"In rotation",intro:"Your five contenders, unchanged from round 5.",options:[
+  {id:"A",name:"Gabarito Black",why:"Heavy, tight and geometric, and narrower than the logotype.",cost:"134px desktop, 46px phone.",rec:true,state:"rejected",shots:sh5("gabarito","A")},
+  {id:"B",name:"Outfit ExtraBold",why:"The most purely geometric of the five, and a little lighter than Gabarito.",cost:"134px desktop, 45px phone.",state:"rejected",shots:sh5("outfit","B")},
+  {id:"C",name:"Cal Sans",why:"Round, calm and the most tightly spaced.",cost:"134px desktop, 45px phone.",state:"rejected",shots:sh5("calsans","C")},
+  {id:"D",name:"Dela Gothic One",why:"The heaviest, with squared shapes.",cost:"Wide: 34px on a phone.",state:"rejected",shots:sh5("dela","D")},
+  {id:"E",name:"Unbounded SemiBold (logotype)",why:"One font for the logo and the headline.",cost:"Widest: 33px on a phone. Also the section-heading font.",state:"picked",shots:sh5("unbounded","E")}
+ ]},
+ {key:"geo2",title:"New geometric",intro:"Four more geometric display sans, each with a clear quirk.",options:[
+  {id:"F",name:"Jost Bold",why:"An open-source Futura: pointed “v” and “A”, perfectly round bowls, a tall “t”. The classic geometric, sharper than Outfit.",cost:"A well-known look. 134px desktop, 43px phone.",rec:true,state:"rejected",shots:sh6("jost","F")},
+  {id:"G",name:"Urbanist Black",why:"Geometric with a clipped “t” and very tight spacing. The closest relative of Outfit, but heavier.",cost:"Close to Outfit and Gabarito at a glance. 134px desktop, 46px phone.",state:"rejected",shots:sh6("urbanist","G")},
+  {id:"H",name:"Josefin Sans Bold",why:"A 1920s geometric with low-slung “e” and wide letter spacing built in. Vintage and elegant.",cost:"Wide spacing makes it read lighter. 134px desktop, 42px phone.",state:"rejected",shots:sh6("josefin","H")},
+  {id:"I",name:"Righteous",why:"Art-deco geometric with a slanted “e” and squared terminals. The most character of the four.",cost:"Single weight, a little retro. 134px desktop, 43px phone.",state:"rejected",shots:sh6("righteous","I")}
+ ]},
+ {key:"vw",title:"Variable width",intro:"Fonts with a width axis. The headline stays big on narrow screens and gets narrower instead of smaller. The animation resizes the real hero from 1280 down to 360px wide and back.",options:[
+  {id:"J",name:"Anybody ExtraBold",why:"The widest range of the four (50–150%), and the most geometric. It holds 68px on any phone, against 56px today, and condenses smoothly from about 650px down.",cost:"At the narrowest it gets very tight, so letter spacing would need to open up as it condenses.",rec:true,state:"rejected",shots:[IMG("r6/anybody-sweep.gif","J · resizing from 1280 to 360px"),IMG("r6/vw-anybody-desk.jpg","J · 1280 wide"),IMG("r6/vw-anybody-phone.jpg","J · phone, 68px")]},
+  {id:"K",name:"Saira Bold",why:"A squarish, technical sans with a 50–125% width range. It also holds 68px on a phone, and it stays readable when condensed.",cost:"The square shapes lean sci-fi.",state:"rejected",shots:[IMG("r6/saira-sweep.gif","K · resizing from 1280 to 360px"),IMG("r6/vw-saira-desk.jpg","K · 1280 wide"),IMG("r6/vw-saira-phone.jpg","K · phone, 68px")]},
+  {id:"L",name:"Archivo ExtraBold",why:"The family behind Archivo Expanded, which you liked in an earlier type round. Width runs 62–125%.",cost:"It runs out of condensing at 62%, so it also drops to 63px on a phone.",state:"rejected",shots:[IMG("r6/archivo-sweep.gif","L · resizing from 1280 to 360px"),IMG("r6/vw-archivo-desk.jpg","L · 1280 wide"),IMG("r6/vw-archivo-phone.jpg","L · phone, 63px")]},
+  {id:"M",name:"Mona Sans ExtraBold",why:"GitHub’s variable sans, which you liked earlier. Width runs 75–125%.",cost:"The narrowest range, so it shrinks to 59px on a phone; the trick shows least here.",state:"rejected",shots:[IMG("r6/mona-sweep.gif","M · resizing from 1280 to 360px"),IMG("r6/vw-mona-desk.jpg","M · 1280 wide"),IMG("r6/vw-mona-phone.jpg","M · phone, 59px")]}
+ ]}
+]},
+{n:5,feedback:"“B, G are both close and Cal is still a contender. whatever our logotype is should be in the mix too. can you keep exploring and keep those in rotation” Then: “i like that they are more geometric than our logo type”",every:[
+ "The three contenders are re-shot side by side with the logotype’s font, plus three new geometric display sans in the same heavy, tight direction.",
+ "The logotype is Unbounded SemiBold (600) at −0.03em (<code>apps/homepage/components/marketing/wordmark.tsx:8</code>). It is shown here at headline size with tighter −0.05em tracking.",
+ "Each starts at today’s 134px and shrinks only to fit; sizes are in the captions."
+],questions:[
+ {key:"rotation",title:"In rotation",intro:"Your three contenders and the logotype’s font, all on the same hero.",options:[
+  {id:"A",name:"Gabarito Black",why:"Geometric, heavy and tight, but narrower than Unbounded, so it reads as a sibling of the logo rather than a copy. It holds the most size on a phone of the four.",cost:"So heavy it competes a little with the canvas behind it. 134px desktop, 46px phone.",rec:true,state:"picked",shots:sh5("gabarito","A")},
+  {id:"B",name:"Cal Sans",why:"Rounder and a little lighter than Gabarito, with the tightest spacing. Calm and current.",cost:"Its round shapes sit closest to Unbounded. 134px desktop, 45px phone.",state:"picked",shots:sh5("calsans","B")},
+  {id:"C",name:"Dela Gothic One",why:"The heaviest and widest, with squared Japanese-gothic shapes. The loudest voice.",cost:"Wide, so it drops to 34px on a phone.",state:"picked",shots:sh5("dela","C")},
+  {id:"D",name:"Unbounded SemiBold (logotype)",why:"One font for the logo and the headline: the most unified brand, with no new font to load.",cost:"The widest of all, so it shrinks to 33px on a phone. Unbounded is also the section heads, so the headline loses its own voice.",state:"picked",shots:sh5("unbounded","D")}
+ ]},
+ {key:"geo",title:"New geometric",intro:"New faces built on circles and straight lines, more geometric than the logotype.",options:[
+  {id:"E",name:"Outfit ExtraBold",why:"Pure geometric shapes, with a round “o” and single-storey “a”, set tight. Cleaner and narrower than Unbounded, so it echoes the logo without copying it.",cost:"Plain once the novelty wears off. 134px desktop, 45px phone.",rec:true,state:"picked",shots:sh5("outfit","E")},
+  {id:"F",name:"Figtree Black",why:"Geometric with a friendlier, slightly narrower build. Heavy like Gabarito but softer.",cost:"Close to Gabarito at a glance. 134px desktop, 44px phone.",state:"rejected",shots:sh5("figtree","F")},
+  {id:"G",name:"Red Hat Display Black",why:"Geometric with sharp cuts on “t” and “f” and a compact, sturdy build.",cost:"A corporate tone. 134px desktop, 43px phone.",state:"rejected",shots:sh5("redhat","G")}
+ ]}
+]},
+{n:4,feedback:"“i think the closest to working is cal sans? can we do more interesting display sans, something distinct enough from our other sans serifs”",every:[
+ "Starts from round 3’s Cal Sans: a heavy, tightly spaced display sans. Each option needs to look clearly different from Unbounded (the wide, round logo and section heads) and Instrument Sans (the plain body text).",
+ "Each starts at today’s 134px and shrinks only to fit; sizes are in the captions. All are free to ship (Google Fonts or SIL Open Font License)."
+],questions:[
+ {key:"near",title:"Near Cal Sans, with more character",intro:"The same weight and tight spacing as Cal Sans, each with one detail that sets it apart.",options:[
+  {id:"A",name:"Familjen Grotesk Bold",why:"Ink traps (small notches where strokes meet) and a slightly narrow build. Narrower than Unbounded and sharper than Instrument Sans, so it reads as its own voice.",cost:"The notches only show at large sizes. 134px desktop, 48px phone, the largest of this round.",rec:true,state:"rejected",shots:sh4("familjen","A")},
+  {id:"B",name:"Gabarito Black",why:"Heavier and blunter than Cal Sans, with a single-storey “a” and tight curves. Confident and a little playful.",cost:"So heavy it competes with the canvas behind it. 134px desktop, 45px phone.",state:"picked",shots:sh4("gabarito","B")},
+  {id:"C",name:"Kanit SemiBold",why:"Squarish curves and flat-sided “o”s, drawn from Thai lettering. The shapes are unlike anything else on the page.",cost:"A sporty feel. 134px desktop, 44px phone.",state:"rejected",shots:sh4("kanit","C")},
+  {id:"D",name:"Montserrat Alternates Bold",why:"Montserrat with its odd alternates: the hooked “f”, open “e” and “a”. Familiar build, unusual letters.",cost:"Wide, so it shrinks to 39px on a phone.",state:"rejected",shots:sh4("montalt","D")}
+ ]},
+ {key:"far",title:"Further out",intro:"Display sans faces with a stronger quirk, if Cal Sans is a starting point rather than the target.",options:[
+  {id:"E",name:"Velvetyne Grotesk",why:"An open-source unicase grotesk: capitals and lowercase mixed in one alphabet (the tall “E” in “idea”). Clearly different from every other sans on the site.",cost:"Unusual letters slow reading a little. 42px phone.",rec:true,state:"rejected",shots:sh4("vgrotesk","E")},
+  {id:"F",name:"Unica One",why:"Tall, thin unicase letters. Light and technical, the opposite of Cal Sans’s weight.",cost:"Thin strokes against the busy canvas. 46px phone.",state:"rejected",shots:sh4("unica","F")},
+  {id:"G",name:"Dela Gothic One",why:"An ultra-heavy display face drawn for Japanese and Latin. The loudest version of the Cal Sans direction.",cost:"Very heavy and wide: 34px on a phone.",state:"picked",shots:sh4("dela","G")}
+ ]}
+]},
+{n:3,feedback:"“nah not it look for popular trendy display fonts”",every:[
+ "These are the free display faces you see on design-led sites right now: the Google Fonts favourites plus three from Velvetyne, the open-source foundry designers use a lot. All are free to ship (Google or SIL Open Font License).",
+ "Not shown: the Fontshare favourites (Clash Display, Satoshi, Cabinet Grotesk, General Sans, Gambetta, Zodiak), because this environment can’t reach fontshare.com. Also not shown: paid faces like PP Editorial New, Neue Montreal, Migra and Canela.",
+ "Each starts at today’s 134px and shrinks only to fit; sizes are in the captions."
+],questions:[
+ {key:"saas",title:"The clean tech look",intro:"Tight, heavy grotesks, the look of Linear, Vercel and most AI tools right now.",options:[
+  {id:"R",name:"Inter Display Semibold",why:"Inter’s display cut, set tight. This is the default look of modern developer tools, so it reads as current and serious.",cost:"Ubiquitous, so it doesn’t stand out. 134px desktop, 46px phone.",rec:true,state:"rejected",shots:sh3("interdisplay","R")},
+  {id:"S",name:"Cal Sans",why:"Cal.com’s open-source display face, very popular for startup landing pages. Rounder and bolder than Inter.",cost:"Its round shapes sit close to Unbounded in the logo. 134px desktop, 44px phone.",state:"picked",shots:sh3("calsans","S")},
+  {id:"T",name:"Host Grotesk Semibold",why:"A 2024 grotesk with slightly squarer curves than Inter, a fresher take on the same look.",cost:"Hard to tell apart from Inter at a glance. 134px desktop, 45px phone.",state:"rejected",shots:sh3("hostgrotesk","T")}
+ ]},
+ {key:"editorial",title:"The editorial serif look",intro:"The serif trend on studio and agency sites, quirkier than a book face.",options:[
+  {id:"U",name:"Happy Times at the IKOB",why:"Velvetyne’s take on Times with sharp, slightly odd details. A designer favourite that looks classic at a glance and quirky up close.",cost:"From a distance it reads like a plain serif. 134px desktop, 43px phone.",rec:true,state:"rejected",shots:sh3("happytimes","U")},
+  {id:"V",name:"Basteleur Moonlight",why:"Velvetyne’s flared, calligraphic serif with diagonal stress. Popular for art and culture sites.",cost:"Wide, so it shrinks to 112px on desktop and 36px on a phone.",state:"rejected",shots:sh3("basteleurmoon","V")},
+  {id:"W",name:"Cormorant",why:"The free face behind the high-fashion, luxury serif trend. Delicate and elegant at large sizes.",cost:"Thin strokes and a soft, luxury tone that suits fashion more than software. 134px desktop, 50px phone.",state:"rejected",shots:sh3("cormorant","W")}
+ ]},
+ {key:"poster",title:"The poster look",intro:"Tall, compressed letters that fill the width, the type behind a lot of recent brand sites.",options:[
+  {id:"X",name:"Le Murmure",why:"Velvetyne’s compressed display face with odd alternate shapes. It shows up all over design-led sites, and it keeps today’s full 56px on a phone.",cost:"Condensed again, though as a quirky sans this time rather than a serif.",rec:true,state:"rejected",shots:sh3("murmure","X")},
+  {id:"Y",name:"Anton",why:"The heavy condensed poster sans behind the big-type trend. Loud and blunt.",cost:"Very heavy, and widely used. 134px desktop, 47px phone.",state:"rejected",shots:sh3("anton","Y")}
+ ]}
+]},
+{n:2,feedback:"“i don’t like any of these find other cool display fonts i maybe havent tried before”",every:[
+ "None of these has been shown in any earlier font round.",
+ "Only the headline changes. Each face starts at today’s 134px and shrinks only if “From idea to code,” would overflow the column, on desktop and on a phone. The sizes are in each caption.",
+ "All are free on Google Fonts."
+],questions:[
+ {key:"serif2",title:"Serifs with a twist",intro:"Still a serif, so the headline stays the one non-sans voice, but each with a strong quirk.",options:[
+  {id:"H",name:"Xanh Mono",why:"A monospaced serif: typewriter rhythm with real serif detail. It nods to code without looking like a terminal, and it keeps the headline the one serif on the page.",cost:"The even letter spacing leaves gaps around narrow letters like “i” and “.”. 133px desktop, 43px phone.",rec:true,state:"rejected",shots:sh2("xanh","H")},
+  {id:"I",name:"Kalnia Light",why:"A 2023 display serif with ball terminals and hairline contrast. Wider and rounder than Instrument Serif, with a luxury, editorial feel.",cost:"Its width pushes it down to 123px on desktop and 39px on a phone.",state:"rejected",shots:sh2("kalnia","I")},
+  {id:"J",name:"Limelight",why:"Art deco: tall thin stems and heavy round bowls, like a cinema marquee. A quiet nod to the film side of the name without a pun.",cost:"Single weight. 116px desktop, 37px phone.",state:"rejected",shots:sh2("limelight","J")}
+ ]},
+ {key:"loud",title:"Heavy and loud",intro:"Let the headline shout. Each is a single heavy voice against the quiet canvas.",options:[
+  {id:"K",name:"Big Shoulders Display ExtraBold",why:"Industrial condensed grotesk drawn from Chicago signage. Loud but disciplined, and the only option that keeps today’s full size on both desktop and phone.",cost:"Condensed again, though as a sans this time.",rec:true,state:"rejected",shots:sh2("bigshoulders","K")},
+  {id:"L",name:"Shrikhand",why:"A heavy italic with a 1970s, Cooper-style warmth. The most personality of the set.",cost:"Very retro; 120px desktop, 38px phone.",state:"rejected",shots:sh2("shrikhand","L")},
+  {id:"M",name:"Bagel Fat One",why:"Soft, chunky letters with tight counters. Friendly and playful.",cost:"Reads as a consumer app more than a developer tool.",state:"rejected",shots:sh2("bagel","M")},
+  {id:"N",name:"Danfo",why:"Inspired by Lagos bus lettering: stencil-like caps with shapes cut out of the strokes. The wild card.",cost:"All caps and very busy; 122px desktop, 39px phone.",state:"rejected",shots:sh2("danfo","N")}
+ ]},
+ {key:"odd",title:"Odd sans",intro:"A sans with a strange streak, chosen to stay far from Unbounded’s round, wide forms.",options:[
+  {id:"O",name:"Ojuju Semibold",why:"A 2023 grotesk with odd, flattened curves and a spiky “a”. Light and strange in a quiet way.",cost:"Its quirks are subtle at a glance. 134px desktop, 46px phone.",rec:true,state:"rejected",shots:sh2("ojuju","O")},
+  {id:"P",name:"Tektur Semibold, narrow",why:"Squared-off, chamfered letters at 75% width, like a game title or a machine plate.",cost:"Leans sci-fi. Keeps full size everywhere.",state:"rejected",shots:sh2("tektur","P")},
+  {id:"Q",name:"Recursive Casual Bold",why:"A code font family’s brush-style casual setting. Friendly but still born from programming type.",cost:"Soft and informal next to the precise page. 128px desktop, 41px phone.",state:"rejected",shots:sh2("recursive","Q")}
+ ]}
+]},
+{n:1,feedback:"",every:[
+ "Only the headline changes. The lede, buttons, lockup and section heads stay as they are.",
+ "Each face is set at today’s 134px on desktop with line height 0.9. All are wider than Instrument Serif, so on a phone each is sized so “From idea to code,” still fits one line (43–47px against today’s 56px).",
+ "All are free on Google Fonts and load through <code>next/font</code> like today’s faces."
+],questions:[
+ {key:"serif",title:"Serifs",intro:"Keep a serif so the headline stays the one non-sans voice on the page, but drop the condensed squeeze.",options:[
+  {id:"A",name:"Noto Serif Display Light",why:"A true display cut with sharp, high-contrast strokes, so it keeps the drama Instrument Serif has at 134px without being condensed. It is the closest relative of today’s face, which makes it the smallest change.",cost:"Hairlines get thin over the dithered copies behind the first line. Phone size drops to 44px.",rec:true,state:"rejected",shots:sh("noto","A")},
+  {id:"B",name:"Spectral Light",why:"A wide, quiet book serif. It reads calm and literary rather than fashion-magazine, and has the most open letterforms of the set.",cost:"Takes the most room; the second line nearly matches the first in width so the shape is less stepped.",state:"rejected",shots:sh("spectral","B")},
+  {id:"C",name:"Frank Ruhl Libre Medium",why:"A sturdy newspaper serif at a heavier weight. It holds up best against the busy canvas behind it and feels the most confident.",cost:"The heaviest headline on a page that otherwise stays light; closer to a news site than a tool.",state:"rejected",shots:sh("frank","C")},
+  {id:"D",name:"Castoro",why:"A warm old-style serif with calligraphic details. Friendlier and more crafted than the others.",cost:"The most traditional of the set, so it pulls away from the product’s technical tone.",state:"rejected",shots:sh("castoro","D")}
+ ]},
+ {key:"sans",title:"Sans",intro:"A sans headline instead, chosen to stay apart from Unbounded’s wide shapes.",options:[
+  {id:"E",name:"Geist Medium",why:"The same family as the Geist Mono labels already on the page, so it adds no new voice. Tight and neutral, and far narrower than Unbounded.",cost:"Loses the contrast a serif gives against the sans body; the page gets plainer.",rec:true,state:"rejected",shots:sh("geist","E")},
+  {id:"F",name:"Mona Sans Semibold",why:"The one you liked before, here at normal width rather than wide, so it no longer echoes Unbounded’s stretched forms.",cost:"Still a fourth sans on the page next to Unbounded, Instrument Sans and Geist Mono.",state:"rejected",shots:sh("mona","F")},
+  {id:"G",name:"Inter Tight Medium",why:"The most neutral option. Tight spacing keeps it compact at headline size.",cost:"So common it gives the homepage little of its own character.",state:"rejected",shots:sh("intertight","G")}
+ ]}
+]}
+];
+
+(()=>{
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const latest=ROUNDS[0];
+const SIGN=[["ok","Looks good"],["changes","Needs changes"]];
+const signoff=q=>q.options.length===1;
+const KEY="exploration-"+PAGE.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+const state=saved.round===latest.n?{picks:saved.picks||{},note:saved.note||""}:{picks:{},note:""};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({round:latest.n,...state}))}catch(e){}};
+
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><button type="button" class="shot${i.dk?" has-dk":""}" data-lt="${esc(i.p)}" data-dk="${esc(i.dk||"")}" aria-label="Enlarge ${esc(i.cap)}"><img class="lt" src="${esc(i.p)}" alt="${esc(i.cap)}">${i.dk?`<img class="dk" src="${esc(i.dk)}" alt="" aria-hidden="true">`:""}</button><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const list=items=>`<ul class="facts">${[].concat(items).map(x=>`<li>${x}</li>`).join("")}</ul>`;
+const badges=o=>(o.rec?'<span class="badge rec">Recommended</span>':"")+(o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:"");
+const choose=(q,o)=>`<div class="choose">`+(signoff(q)?SIGN:[[o.id,"Pick "+o.id]]).map(([v,l])=>`<button type="button" data-q="${esc(q.key)}" data-v="${esc(v)}">${esc(l)}</button>`).join("")+`</div>`;
+const card=(q,o,live,qid)=>`<article class="opt ${o.state||""}" id="${qid}-${esc(o.id)}" role="tabpanel"><header>${signoff(q)?"":`<span class="letter">Option ${esc(o.id)}</span>`}<h3>${esc(o.name)}</h3>${o.rec||o.state?`<div class="tags">${badges(o)}</div>`:""}</header>${o.html||""}${shots(o.shots)}${o.why?`<p>${o.why}</p>`:""}${o.cost?`<p class="cost"><b>Cost</b> ${o.cost}</p>`:""}${live?choose(q,o):""}</article>`;
+// Option tabs: letter only; a dot marks the recommendation, a tick the pick
+const mark=o=>o.state==="picked"?'<span class="mark ok" aria-label="picked">✓</span>':o.state==="rejected"?'<span class="mark no" aria-label="rejected">✕</span>':o.rec?'<span class="mark rec" aria-label="recommended"></span>':"";
+function question(r,q,i,live){
+ const n=r.questions.length,qid=`r${r.n}-${q.key}`;
+ const head=(q.title||n>1)?`<div class="qhead">${n>1?`<p class="lbl acc">Question ${i+1} of ${n}</p>`:""}${q.title?`<h2>${esc(q.title)}</h2>`:""}${q.intro?`<p class="muted">${q.intro}</p>`:""}</div>`:"";
+ if(signoff(q))return `<div class="question">${head}${card(q,q.options[0],live,qid)}</div>`;
+ const first=(q.options.find(o=>o.state==="picked")||q.options[0]).id;
+ return `<div class="question" data-q="${esc(q.key)}" data-live="${live}">${head}<div class="otabs" role="tablist" aria-label="Options">`+q.options.map(o=>`<button type="button" role="tab" data-opt="${esc(o.id)}" aria-controls="${qid}-${esc(o.id)}" aria-selected="${o.id===first}">${esc(o.id)}${mark(o)}</button>`).join("")+`</div>`+q.options.map(o=>card(q,o,live,qid).replace('role="tabpanel"',`role="tabpanel"${o.id===first?"":" hidden"}`)).join("")+`</div>`;
+}
+const outcome=r=>{const p=r.questions.flatMap(q=>q.options.filter(o=>o.state==="picked").map(o=>signoff(q)?"signed off":`picked ${o.id}`));return p.length?p.join(", "):"no pick"};
+function round(r,live){
+ const Q=r.questions;
+ const status=live?"open":outcome(r);
+ return `<section data-panel="r${r.n}"${live?"":" hidden"}><p class="lbl${live?" acc":""}">Round ${r.n} · ${esc(status)}</p>${r.feedback?`<div class="said"><blockquote class="clamp">${r.feedback}</blockquote><button type="button" hidden>Show all</button></div>`:""}${r.every?`<details class="fold"><summary><span class="lbl">In every option</span></summary><div class="body">${list(r.every)}</div></details>`:""}${Q.map((q,i)=>question(r,q,i,live)).join("")}</section>`;
+}
+const Q=latest.questions;
+
+document.body.insertAdjacentHTML("afterbegin",`<div class="wrap">
+<header><div class="top"><p class="lbl acc">Design exploration · ${esc(PAGE.date)}</p><button type="button" class="ghost" id="theme">Dark</button></div><h1>${esc(PAGE.q)}</h1><blockquote>${esc(PAGE.quote)}</blockquote></header>
+<nav class="tabs rtabs" role="tablist" aria-label="Rounds"><button type="button" role="tab" data-tab="today" aria-selected="false">Today</button>${[...ROUNDS].reverse().map(r=>`<button type="button" role="tab" data-tab="r${r.n}" aria-selected="${r===latest}">Round ${r.n}</button>`).join("")}</nav>
+${ROUNDS.map((r,i)=>round(r,i===0)).join("")}
+<section data-panel="today" hidden><p class="lbl">Today · what main does now</p>${TODAY.facts?list(TODAY.facts):""}${shots(TODAY.shots)}${TODAY.html||""}</section>
+</div>
+<div class="bar"><div class="in"><textarea id="note" aria-label="Note" placeholder="Anything to add" hidden></textarea><textarea id="out" aria-label="Reaction to copy" readonly hidden></textarea><div class="row"><div class="picks" id="picks" role="status" aria-live="polite"></div><button type="button" id="noteBtn">Note</button><button type="button" class="primary" id="copy"><span id="copyLabel">Copy reaction</span><span aria-hidden="true">Copy reaction</span></button></div></div></div>
+<dialog class="lb" id="lb"><div class="in"><img alt=""></div></dialog>`);
+
+const answer=q=>{const v=state.picks[q.key];return !v?"":signoff(q)?SIGN.find(s=>s[0]===v)[1]:`${v}: ${q.options.find(o=>o.id===v).name}`};
+function build(){
+ const lines=Q.map(q=>{const a=answer(q),name=signoff(q)?q.options[0].name:q.title;return "→ "+(name?name+": ":"")+(a||"No pick yet")});
+ return [`Exploration: ${PAGE.q}`,`Round ${latest.n}`,...lines].concat(state.note.trim()?[`Note: ${state.note.trim()}`]:[]).join("\n");
+}
+function sync(){
+ const done=Q.filter(q=>state.picks[q.key]);
+ $("picks").innerHTML=done.length?done.map(q=>`<b>${esc(Q.length>1?answer(q).split(":")[0]:answer(q))}</b>`).join(" · ")+(Q.length>1?` · ${done.length} of ${Q.length} answered`:""):Q.length>1?`0 of ${Q.length} answered`:signoff(Q[0])?"Sign off or say what to change":"No pick yet";
+ document.querySelectorAll(".choose button").forEach(b=>b.setAttribute("aria-pressed",state.picks[b.dataset.q]===b.dataset.v));
+ // The open round's option tabs tick the owner's pick
+ document.querySelectorAll('.question[data-live="true"]').forEach(el=>el.querySelectorAll(".otabs button").forEach(t=>{
+  const o=Q.find(x=>x.key===el.dataset.q).options.find(x=>x.id===t.dataset.opt);
+  t.innerHTML=esc(o.id)+(state.picks[el.dataset.q]===o.id?'<span class="mark ok" aria-label="your pick">✓</span>':mark(o))}));
+ save();
+}
+// Feedback longer than three lines gets Show all; the round tabs fade when some are off screen
+const fit=()=>{document.querySelectorAll(".said").forEach(d=>{const q=d.firstElementChild;if(q.classList.contains("clamp"))d.lastElementChild.hidden=q.scrollHeight<=q.clientHeight+1});const t=document.querySelector(".rtabs");t.classList.toggle("more",t.scrollWidth-t.scrollLeft>t.clientWidth+1);t.classList.toggle("less",t.scrollLeft>1)};
+document.querySelector(".rtabs").addEventListener("scroll",fit,{passive:true});addEventListener("resize",fit);
+const openNote=()=>{const n=$("note");n.hidden=false;n.focus()};
+document.addEventListener("click",e=>{
+ const b=e.target.closest(".choose button");
+ if(b){const k=b.dataset.q;state.picks[k]=state.picks[k]===b.dataset.v?undefined:b.dataset.v;if(state.picks[k]==="changes")openNote();sync();return}
+ const ot=e.target.closest(".otabs button");
+ if(ot){const qel=ot.closest(".question"),bar=ot.parentElement;
+  bar.querySelectorAll("button").forEach(x=>x.setAttribute("aria-selected",x===ot));
+  qel.querySelectorAll(":scope>.opt").forEach(p=>p.hidden=p.id!==ot.getAttribute("aria-controls"));
+  // When the tabs are stuck to the top, start the new option from its beginning
+  const stuck=bar.getBoundingClientRect().top<=parseFloat(getComputedStyle(bar).top)+1;
+  if(stuck)scrollTo({top:scrollY+qel.querySelector(":scope>.opt:not([hidden])").getBoundingClientRect().top-bar.offsetHeight-12,behavior:"instant"});
+  return}
+ const more=e.target.closest(".said button");
+ if(more){const q=more.previousElementSibling,open=q.classList.toggle("clamp");more.textContent=open?"Show all":"Show less";return}
+ const tab=e.target.closest(".rtabs button");
+ if(tab){document.querySelectorAll(".rtabs button").forEach(x=>x.setAttribute("aria-selected",x===tab));document.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);fit();return}
+ const s=e.target.closest(".shot");
+ if(s){const dark=getComputedStyle(s.querySelector(".lt")).display==="none";$("lb").querySelector("img").src=dark&&s.dataset.dk?s.dataset.dk:s.dataset.lt;$("lb").showModal();return}
+ if(e.target.closest("#lb"))$("lb").close();
+});
+$("noteBtn").addEventListener("click",()=>{const n=$("note");n.hidden=!n.hidden;if(!n.hidden)n.focus()});
+$("note").value=state.note;if(state.note)$("note").hidden=false;
+$("note").addEventListener("input",e=>{state.note=e.target.value;save()});
+$("copy").addEventListener("click",()=>{
+ const text=build(),l=$("copyLabel"),done=()=>{l.textContent="Copied";setTimeout(()=>l.textContent="Copy reaction",1800)};
+ const fallback=()=>{const o=$("out");o.hidden=false;o.value=text;o.select()};
+ try{navigator.clipboard.writeText(text).then(done,fallback)}catch(e){fallback()}
+});
+// Light / Dark switch, so the other theme's captures are one tap away
+const root=document.documentElement,mq=matchMedia("(prefers-color-scheme: dark)");
+const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":mq.matches;
+const label=()=>$("theme").textContent=isDark()?"Light":"Dark";
+$("theme").addEventListener("click",()=>{root.dataset.theme=isDark()?"light":"dark";label()});label();
+// The round row starts scrolled to the newest round
+{const t=document.querySelector(".rtabs");t.scrollLeft=t.scrollWidth}
+sync();fit();
+})();
+</script>
+
+</body></html>

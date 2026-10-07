@@ -1,0 +1,320 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Screenplay Neon Palette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: page chrome follows the viewer's theme; each option renders two forced-theme specimen panels (light, dark) side by side. */
+:root {
+  --bg: #ffffff; --fg: #000000; --muted: #6b6b6b; --line: rgb(0 0 0 / 12%); --plane: #f4f4f4;
+  --magenta: oklch(0.667 0.295 322.15);
+  --sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #000; --fg: #fff; --muted: #9a9a9a; --line: rgb(255 255 255 / 16%); --plane: #121212; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #000; --fg: #fff; --muted: #9a9a9a; --line: rgb(255 255 255 / 16%); --plane: #121212; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; display: grid; gap: 40px; }
+h1 { font-family: var(--serif); font-weight: 400; font-size: 48px; line-height: 1.05; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--serif); font-weight: 400; font-size: 30px; margin: 0; }
+.label { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+p { margin: 0; max-width: 68ch; }
+.intro { display: grid; gap: 12px; }
+.intro .rule { color: var(--muted); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); padding-block: 10px; z-index: 5; border-bottom: 1px solid var(--line); }
+.tab { font: 500 13px var(--sans); padding: 6px 12px; border-radius: 2px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.tab[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tab:focus-visible { outline: 2px solid var(--magenta); outline-offset: 2px; }
+.tab .chips { display: inline-flex; gap: 2px; }
+.tab .chips i { width: 8px; height: 8px; border-radius: 1px; display: block; }
+.rec { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.opt-head { display: grid; gap: 8px; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.sw { border: 1px solid var(--line); border-radius: 2px; overflow: hidden; display: grid; }
+.sw .fill { height: 64px; display: flex; align-items: flex-end; justify-content: space-between; padding: 8px; color: #000; font: 500 13px var(--sans); }
+.sw .fill span:last-child { font: 500 11px var(--mono); }
+.sw .meta { padding: 8px; display: grid; gap: 2px; font: 11px var(--mono); color: var(--muted); }
+.sw .meta b { font-weight: 500; color: var(--fg); }
+.sw .ink { display: flex; gap: 6px; }
+.sw .ink span { flex: 1; padding: 4px 6px; border-radius: 1px; display: flex; justify-content: space-between; }
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+.contrast { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-weight: 400; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-size: 10px; }
+.pass { color: var(--fg); } .weak { color: var(--muted); }
+.flag { display: inline-block; padding: 0 5px; border-radius: 1px; font-size: 10px; margin-left: 6px; border: 1px solid var(--line); }
+.notes { display: grid; gap: 8px; }
+.notes li { max-width: 72ch; }
+ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+
+/* ---------- Specimen: an app panel with its own forced theme ---------- */
+.app { --a-bg: #fff; --a-fg: #000; --a-muted: #6b6b6b; --a-line: rgb(0 0 0 / 12%); --a-plane: oklch(0.975 0 0); --a-hover: oklch(0.965 0 0); --a-card: #fff;
+  background: var(--a-bg); color: var(--a-fg); border: 1px solid var(--line); border-radius: 2px; font-family: var(--sans); font-size: 13px; overflow: hidden; display: grid; min-width: 0; }
+.app.dark { --a-bg: #000; --a-fg: #fff; --a-muted: #a0a0a0; --a-line: rgb(255 255 255 / 16%); --a-plane: oklch(0.07 0 0); --a-hover: oklch(0.18 0 0); --a-card: oklch(0.1 0 0); color-scheme: dark; }
+.app .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--a-line); }
+.app .bar .t { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--a-muted); }
+.app section { padding: 12px; display: grid; gap: 10px; border-bottom: 1px solid var(--a-line); }
+.app section:last-child { border-bottom: 0; }
+.app .sl { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--a-muted); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+svg.i { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.prbtn { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 2px; font: 500 12px var(--sans); color: var(--a-fg); }
+.prbtn:hover { background: var(--a-hover); }
+.prbtn.chip { color: #000; }
+.prbtn.chip:hover { filter: brightness(1.05); }
+.ws { display: grid; gap: 1px; }
+.ws div { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 2px; }
+.ws div.sel { background: var(--a-hover); }
+.ws .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws .dotchip { width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; color: #000; }
+.ws .dotchip svg.i { width: 11px; height: 11px; stroke-width: 1.75; }
+.dots9 { width: 12px; height: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5px; }
+.dots9 i { border-radius: 999px; background: currentColor; opacity: .3; animation: blink 1.2s infinite; }
+.dots9 i:nth-child(3n+1) { animation-delay: .1s } .dots9 i:nth-child(3n+2) { animation-delay: .3s } .dots9 i:nth-child(3n) { animation-delay: .5s }
+@keyframes blink { 50% { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .dots9 i { animation: none; opacity: .8 } }
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 2px; font: 500 12px var(--sans); color: #000; }
+.badge svg.i { width: 12px; height: 12px; stroke-width: 1.75; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 2px; font: 500 13px var(--sans); border: 1px solid transparent; }
+.btn.primary { background: var(--a-fg); color: var(--a-bg); }
+.btn.outline { border-color: var(--a-line); }
+.btn.solid { color: #000; }
+.canvas { background: var(--a-plane); border-radius: 2px; padding: 18px 18px 44px; position: relative; display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+.frame { width: 150px; height: 96px; background: var(--a-card); position: relative; border: 1px solid var(--a-line); }
+.frame .lbl { position: absolute; top: -18px; left: 0; font-size: 11px; color: var(--a-muted); }
+.frame.selected { outline: 1.5px solid var(--sel); }
+.frame.selected .lbl { color: var(--sel); }
+.frame .skel { margin: 12px; display: grid; gap: 6px; } .frame .skel i { height: 6px; border-radius: 1px; background: var(--a-line); display: block; }
+.frame .skel i:nth-child(2) { width: 60% }
+.frame .inspect { position: absolute; left: 10px; right: 40px; top: 32px; height: 22px; border: 1px solid var(--insp); background: color-mix(in oklab, var(--insp) 12%, transparent); }
+.tag { position: absolute; left: 50%; transform: translateX(-50%); bottom: -30px; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 2px; font: 500 11px var(--sans); color: #000; background: var(--sel); white-space: nowrap; }
+.tag svg.i { width: 12px; height: 12px; }
+.pin { width: 24px; height: 24px; border-radius: 999px 999px 999px 2px; display: grid; place-items: center; font: 600 11px var(--sans); color: #000; position: relative; margin-top: 6px; }
+.pin .unread { position: absolute; top: -5px; right: -5px; width: 9px; height: 9px; border-radius: 999px; border: 2px solid var(--a-plane); }
+.steps { display: grid; gap: 6px; }
+.steps div { display: flex; align-items: center; gap: 8px; }
+.steps .c { width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; color: #000; flex: none; }
+.steps .c.todo { border: 1px solid var(--a-line); }
+.steps .c svg.i { width: 11px; height: 11px; stroke-width: 2; }
+.steps .sub { color: var(--a-muted); margin-left: auto; font-size: 12px; }
+.conn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--a-muted); }
+.conn i { width: 6px; height: 6px; border-radius: 999px; display: block; }
+.alert { border: 1px solid var(--a-line); border-radius: 2px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+.alert .h { font-weight: 500; }
+.alert .d { grid-column: 2; color: var(--a-muted); }
+.destructive-btn { background: color-mix(in oklab, var(--danger-ink) 10%, transparent); color: var(--danger-ink); }
+.app.dark .destructive-btn { background: color-mix(in oklab, var(--danger-ink) 20%, transparent); }
+.diff { font: 12px var(--mono); display: grid; }
+.diff span { padding: 0 6px; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <span class="label">Screenplay · colour exploration · 29 Sep 2026</span>
+    <h1>Every colour as loud as the magenta</h1>
+    <p>Three ways to bring green, amber, red and merged-purple up to the magenta's intensity, with black text and icons on every solid fill. Hues stay where people expect them: green is open or good, purple is merged, red is closed or failed, amber is attention. Magenta itself is unchanged in every option.</p>
+    <p class="rule">Each option shows the same real pieces of the app in light and dark: the chat header PR button, Workspace rows, status badges, the canvas selection tag and comment pins, setup steps, connection dots and the destructive button.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs" aria-label="Palette options"></nav>
+
+  <main id="opt" style="display:grid;gap:28px"></main>
+</div>
+
+<script>
+// ---------- colour math: oklch -> sRGB, WCAG contrast ----------
+function parse(s){ const m=s.match(/oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)/); return m?[+m[1],+m[2],+m[3]]:null }
+function toLin([L,C,h]){ const a=C*Math.cos(h*Math.PI/180), b=C*Math.sin(h*Math.PI/180);
+  const l=(L+0.3963377774*a+0.2158037573*b)**3, m=(L-0.1055613458*a-0.0638541728*b)**3, s=(L-0.0894841775*a-1.2914855480*b)**3;
+  return [4.0767416621*l-3.3077115913*m+0.2309699292*s, -1.2684380046*l+2.6097574011*m-0.3413193965*s, -0.0041960863*l-0.7034186147*m+1.7076147010*s].map(x=>Math.min(1,Math.max(0,x))) }
+function hex(s){ const p=parse(s); if(!p) return s; return '#'+toLin(p).map(x=>{const v=x<=0.0031308?12.92*x:1.055*x**(1/2.4)-0.055; return Math.round(v*255).toString(16).padStart(2,'0')}).join('') }
+function Y(s){ if(s==='#000') return 0; if(s==='#fff') return 1; const c=toLin(parse(s)); return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2] }
+function cr(a,b){ const x=Y(a), y=Y(b); return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05) }
+
+// ---------- options ----------
+// fill = solid behind black text/icons. ink = icon/text colour on the page background (light, dark).
+const MAG='oklch(0.667 0.295 322.15)';
+const ROLES=[
+  ['open','Success · open PR'],['merged','Merged PR'],['danger','Closed · failed · destructive'],['warning','Warning · needs attention'],['accent','Accent · selection · info'],['comment','Comment pins']];
+const OPTIONS=[
+ { id:'today', name:'Today', blurb:'What ships now, for reference. Status colours are Tailwind 600–700 steps in light and 300–400 in dark, and solid fills carry white text (setup step done, comment pins, the Interact tag).',
+   whiteOnFill:true,
+   fill:{ open:'oklch(0.527 0.154 150.069)', merged:'oklch(0.558 0.288 302.321)', danger:'oklch(0.577 0.245 27.325)', warning:'oklch(0.555 0.163 48.998)', accent:MAG, comment:'oklch(0.769 0.188 70.08)' },
+   inkL:{ open:'oklch(0.527 0.154 150.069)', merged:'oklch(0.558 0.288 302.321)', danger:'oklch(0.577 0.245 27.325)', warning:'oklch(0.555 0.163 48.998)', accent:'oklch(0.55 0.24 326)', comment:'oklch(0.769 0.188 70.08)' },
+   inkD:{ open:'oklch(0.871 0.15 154.449)', merged:'oklch(0.714 0.203 305.504)', danger:'oklch(0.704 0.191 22.216)', warning:'oklch(0.828 0.189 84.429)', accent:'oklch(0.74 0.19 326)', comment:'oklch(0.769 0.188 70.08)' },
+   inspect:'oklch(0.62 0.22 300)' },
+ { id:'tube', name:'Tube', blurb:'Every hue pushed to the magenta\'s own brightness and full saturation, like a row of neon tubes lit at the same voltage. One value per hue, identical in light and dark, so a colour means exactly one thing everywhere. The cost: green and amber icons on white are thin (below 3:1), because a hue that bright can\'t also be dark enough for white.',
+   fill:{ open:'oklch(0.7 0.218 145)', merged:'oklch(0.6 0.239 293)', danger:'oklch(0.64 0.244 27)', warning:'oklch(0.72 0.154 70)', accent:MAG, comment:'oklch(0.72 0.154 70)' },
+   inspect:'oklch(0.6 0.239 293)' },
+ { id:'signal', name:'Signal', rec:true, blurb:'Two steps per hue. Fills go fully fluorescent (electric green, taxi yellow, hot red, electric violet) and always carry black. On the white page, icons and text use a deep ink of the same hue at full saturation so they stay legible; on black, the fluorescent value is used directly. This is the most neon of the three in dark mode and keeps light mode readable.',
+   fill:{ open:'oklch(0.82 0.235 148)', merged:'oklch(0.66 0.198 293)', danger:'oklch(0.66 0.225 27)', warning:'oklch(0.88 0.179 95)', accent:MAG, comment:'oklch(0.88 0.179 95)' },
+   inkL:{ open:'oklch(0.56 0.16 148)', merged:'oklch(0.54 0.282 293)', danger:'oklch(0.56 0.226 27)', warning:'oklch(0.6 0.139 60)', accent:'oklch(0.56 0.259 326)', comment:'oklch(0.6 0.139 60)' },
+   inspect:'oklch(0.66 0.198 293)' },
+ { id:'fluoro', name:'Fluoro', blurb:'Highlighter pens: lime, fluorescent yellow, coral red and lavender. These are too light to read as a line on white, so in light mode every status colour sits on its own fill with a black glyph (PR buttons and Workspace icons become small chips). Dark mode uses the same values as ink. Loudest and most distinctive; it changes the look of the PR button and the Workspace rows, not just their colour.',
+   chipsLight:true, destructiveL:'oklch(0.56 0.226 27)',
+   fill:{ open:'oklch(0.9 0.233 128)', merged:'oklch(0.74 0.156 300)', danger:'oklch(0.68 0.207 22)', warning:'oklch(0.94 0.189 105)', accent:MAG, comment:'oklch(0.94 0.189 105)' },
+   inspect:'oklch(0.74 0.156 300)' },
+];
+
+// ---------- icons (Phosphor-Light-like strokes) ----------
+const I={
+ pr:'<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v13M18 15.5V9a3 3 0 0 0-3-3h-4"/><path d="m13 4-2 2 2 2"/>',
+ merge:'<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="16" r="2.5"/><path d="M6 8.5V21M6 8.5a7.5 7.5 0 0 0 9.5 7.5"/>',
+ closed:'<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v13M18 11v4.5M15.5 3.5l5 5M20.5 3.5l-5 5"/>',
+ conflict:'<circle cx="18" cy="18" r="2.5"/><circle cx="6" cy="6" r="2.5"/><path d="M6 8.5V21M18 15.5V11M15.5 3.5l5 5M20.5 3.5l-5 5"/>',
+ check:'<path d="M5 12.5 10 17 19 7"/>', x:'<path d="M6 6l12 12M18 6 6 18"/>',
+ warn:'<path d="M12 4 21 20H3z"/><path d="M12 10v4M12 17v.01"/>',
+ hand:'<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11m0-1.5a1.5 1.5 0 0 1 3 0V11m0-.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a6 6 0 0 1-5.2-3L4 14.5a1.5 1.5 0 0 1 2.6-1.5L8 15"/>',
+ sparkle:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+ trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+};
+const svg=k=>`<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${I[k]}</svg>`;
+const dots9='<span class="dots9" aria-hidden="true">'+'<i></i>'.repeat(9)+'</span>';
+
+function ink(o,theme,role){ if(theme==='light') return (o.inkL||o.fill)[role]; return (o.inkD||o.fill)[role] }
+function onFill(o){ return o.whiteOnFill?'#fff':'#000' }
+
+function specimen(o,theme){
+  const f=o.fill, chips=theme==='light'&&o.chipsLight, fg=onFill(o);
+  const inkc=r=>ink(o,theme,r);
+  const pr=(role,icon,n)=> chips
+     ? `<span class="prbtn chip" style="background:${f[role]}">${svg(icon)}#${n}</span>`
+     : `<span class="prbtn" style="color:${inkc(role)}">${svg(icon)}<span style="color:var(--a-fg)">#${n}</span></span>`;
+  const wsIcon=(role,icon)=> chips
+     ? `<span class="dotchip" style="background:${f[role]}">${svg(icon)}</span>`
+     : `<span style="color:${inkc(role)};display:grid">${svg(icon)}</span>`;
+  const badge=(role,icon,t)=>`<span class="badge" style="background:${f[role]};color:${fg}">${svg(icon)}${t}</span>`;
+  return `<div class="app ${theme}" style="--sel:${f.accent};--insp:${o.inspect};--danger-ink:${theme==='light'&&o.destructiveL?o.destructiveL:ink(o,theme,'danger')}">
+   <div class="bar"><span class="t">${theme}</span><span class="row" style="gap:2px">${pr('open','pr',1042)}${pr('merged','merge',1027)}${pr('danger','closed',998)}${pr('danger','conflict',1056)}</span></div>
+   <section><span class="sl">Workspaces</span>
+     <div class="ws">
+      <div class="sel"><span style="color:${theme==='light'?'#000':'#fff'};display:grid">${dots9}</span><span class="nm">Palette tokens</span>${wsIcon('open','pr')}</div>
+      <div><span style="width:12px"></span><span class="nm">Sidebar drop targets</span>${wsIcon('merged','merge')}</div>
+      <div><span style="width:12px"></span><span class="nm">Room access</span>${wsIcon('danger','conflict')}</div>
+      <div><span style="width:12px"></span><span class="nm">Old onboarding copy</span>${wsIcon('danger','closed')}</div>
+     </div>
+   </section>
+   <section><span class="sl">Badges on solid fills</span>
+     <div class="row">${badge('open','check','Ready')}${badge('merged','merge','Merged')}${badge('danger','x','Failed')}${badge('warning','warn','Needs review')}${badge('accent','sparkle','New')}</div>
+     <div class="row"><span class="btn primary">Create PR</span><span class="btn destructive-btn">${svg('trash')}Delete</span><span class="btn solid" style="background:${f.accent};color:${fg}">${svg('hand')}Interact</span></div>
+   </section>
+   <section><span class="sl">Canvas</span>
+     <div class="canvas">
+       <div class="frame selected"><span class="lbl">Checkout</span><div class="skel"><i></i><i></i></div><span class="tag">${svg('hand')}Interacting</span></div>
+       <div class="frame"><span class="lbl">Settings</span><div class="skel"><i></i><i></i></div><span class="inspect"></span></div>
+       <div class="row" style="gap:10px;align-self:center"><span class="pin" style="background:${f.comment};color:${fg}">3<span class="unread" style="background:${f.accent}"></span></span><span class="pin" style="background:${f.comment};color:${fg}">12</span></div>
+     </div>
+   </section>
+   <section><span class="sl">Setup and status</span>
+     <div class="steps">
+      <div><span class="c" style="background:${f.accent};color:${fg}">${svg('check')}</span>Install the desktop app<span class="sub">Done</span></div>
+      <div><span class="c" style="background:${f.danger};color:${fg}">${svg('x')}</span>Connect GitHub<span class="sub">Token expired</span></div>
+      <div><span class="c todo"></span>Add a repository</div>
+     </div>
+     <div class="row" style="gap:14px"><span class="conn"><i style="background:${f.open}"></i>Connected</span><span class="conn"><i style="background:${f.warning}"></i>Reconnecting</span><span class="conn"><i style="background:${f.danger}"></i>Dev server failed</span></div>
+     <div class="alert"><span style="color:${ink(o,theme,'warning')};display:grid;${chips?`background:${f.warning};color:#000;border-radius:999px;width:18px;height:18px;place-items:center`:''}">${svg('warn')}</span><span class="h">Branch is 4 commits behind main</span><span class="d">Rebase before merging to pick up the new tokens.</span></div>
+   </section>
+  </div>`;
+}
+
+function swatch(o,role,label){
+  const f=o.fill[role], fg=onFill(o);
+  const tl=(o.chipsLight?null:ink(o,'light',role)), td=ink(o,'dark',role);
+  const r=cr(f,fg);
+  return `<div class="sw"><div class="fill" style="background:${f};color:${fg}"><span>${label.split(' · ')[0]}</span><span>${r.toFixed(1)}:1</span></div>
+   <div class="meta"><b>${label}</b><span>${hex(f)}</span>
+   <div class="ink"><span style="background:#fff;color:${tl||'#000'};border:1px solid rgb(0 0 0/12%)">${tl?'Aa':'chip'}<em style="font-style:normal">${tl?cr(tl,'#fff').toFixed(1):''}</em></span><span style="background:#000;color:${td}">Aa<em style="font-style:normal">${cr(td,'#000').toFixed(1)}</em></span></div></div></div>`;
+}
+
+function table(o){
+  const fg=onFill(o);
+  const rows=ROLES.map(([r,l])=>{
+    const f=o.fill[r], a=cr(f,fg), tl=o.chipsLight?null:ink(o,'light',r), b=tl?cr(tl,'#fff'):null, c=cr(ink(o,'dark',r),'#000');
+    const g=(v,min)=>`<span class="${v>=min?'pass':'weak'}">${v.toFixed(2)}</span>${v<min?'<span class="flag">below '+min+'</span>':''}`;
+    return `<tr><td>${l}</td><td>${hex(f)}</td><td>${g(a,4.5)}</td><td>${tl?g(b,3):'n/a (chip)'}</td><td>${g(c,3)}</td></tr>`}).join('');
+  return `<div class="contrast"><table><thead><tr><th>Role</th><th>Fill</th><th>${fg==='#000'?'Black':'White'} text on fill (AA 4.5)</th><th>Icon on white (3.0)</th><th>Icon on black (3.0)</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+const tabs=document.getElementById('tabs'), main=document.getElementById('opt');
+function render(id){
+  const o=OPTIONS.find(x=>x.id===id)||OPTIONS[2];
+  [...tabs.children].forEach(b=>b.setAttribute('aria-selected',b.dataset.id===o.id));
+  main.innerHTML=`<div class="opt-head"><span class="label">${o.id==='today'?'Current':'Option'}${o.rec?' · recommended':''}</span><h2>${o.name}</h2><p>${o.blurb}</p></div>
+   <div class="swatches">${ROLES.map(([r,l])=>swatch(o,r,l)).join('')}</div>
+   <div class="panels">${specimen(o,'light')}${specimen(o,'dark')}</div>
+   ${table(o)}`;
+  try{ localStorage.setItem('neon-opt',o.id) }catch(e){}
+}
+OPTIONS.forEach(o=>{ const b=document.createElement('button'); b.className='tab'; b.setAttribute('role','tab'); b.dataset.id=o.id;
+  b.innerHTML=`<span class="chips">${['open','merged','danger','warning','accent'].map(r=>`<i style="background:${o.fill[r]}"></i>`).join('')}</span>${o.name}${o.rec?' <span class="rec">rec</span>':''}`;
+  b.onclick=()=>render(o.id); tabs.appendChild(b) });
+let start='signal'; const h=location.hash.slice(1); if(OPTIONS.some(o=>o.id===h)) start=h; else { try{ start=localStorage.getItem('neon-opt')||start }catch(e){} }
+render(start);
+</script>
+
+<div class="wrap" style="padding-block:0 40px" id="round2">
+  <section class="opt-head" style="gap:10px">
+    <span class="label">Round 2 · Signal follow-ups</span>
+    <h2>Magenta fills and the Delete button</h2>
+    <p>Black on the full magenta measures 5.9:1 but still reads dark and muddy. These options keep the magenta for selection outlines, focus rings and text, and use a lighter pink only where black text sits on it. Below that are four styles for Delete, shown in a confirm dialog footer and as a row action.</p>
+  </section>
+  <div id="r2mag" style="display:grid;gap:16px"></div>
+  <div id="r2del" style="display:grid;gap:16px"></div>
+</div>
+<script>
+(function(){
+ const S=OPTIONS.find(o=>o.id==='signal');
+ const PINKS=[
+  {id:'m1',name:'Magenta (current Signal)',v:MAG},
+  {id:'m2',name:'Hot pink',v:'oklch(0.72 0.284 330)'},
+  {id:'m3',name:'Neon pink',v:'oklch(0.78 0.209 330)',rec:true},
+  {id:'m4',name:'Candy',v:'oklch(0.83 0.152 330)'},
+ ];
+ function magPanel(theme){
+  return `<div class="app ${theme}" style="--sel:${MAG}"><div class="bar"><span class="t">${theme}</span></div>`+PINKS.map(p=>`
+   <section><span class="sl">${p.name}${p.rec?' · recommended':''} · ${hex(p.v)} · black ${cr(p.v,'#000').toFixed(1)}:1</span>
+    <div class="row">
+     <span class="btn solid" style="background:${p.v}">${svg('hand')}Interact</span>
+     <span class="badge" style="background:${p.v}">${svg('sparkle')}New</span>
+     <span class="steps"><div><span class="c" style="background:${p.v}">${svg('check')}</span>Install the desktop app</div></span>
+     <span style="position:relative;display:inline-block;width:88px;height:30px;outline:1.5px solid ${MAG};margin-left:6px"><span class="tag" style="background:${p.v};bottom:-12px">${svg('hand')}Interacting</span></span>
+    </div></section>`).join('')+`</div>`;
+ }
+ document.getElementById('r2mag').innerHTML=`<span class="label">Magenta behind black text (outline stays magenta)</span><div class="panels">${magPanel('light')}${magPanel('dark')}</div>`;
+
+ const redFill=S.fill.danger;
+ const DELS=[
+  {id:'d0',name:'Tinted (stock, today)',css:t=>`background:color-mix(in oklab, ${ink(S,t,'danger')} ${t==='dark'?20:10}%, transparent);color:${ink(S,t,'danger')}`},
+  {id:'d1',name:'Neon fill, black text',rec:true,css:t=>`background:${redFill};color:#000`},
+  {id:'d2',name:'Outline, red text',css:t=>`border-color:var(--a-line);color:${ink(S,t,'danger')}`},
+  {id:'d3',name:'Red text only',css:t=>`color:${ink(S,t,'danger')}`},
+ ];
+ function delPanel(theme){
+  return `<div class="app ${theme}"><div class="bar"><span class="t">${theme}</span></div>`+DELS.map(d=>`
+   <section><span class="sl">${d.name}${d.rec?' · recommended':''}</span>
+    <div class="alert" style="grid-template-columns:1fr;gap:8px">
+     <span class="h">Delete “Checkout flow”?</span>
+     <span style="color:var(--a-muted);font-size:12px">This removes the canvas and its 6 frames for everyone.</span>
+     <div class="row" style="justify-content:flex-end"><span class="btn outline">Cancel</span><span class="btn" style="${d.css(theme)}">Delete</span></div>
+    </div>
+    <div class="row" style="justify-content:space-between"><span>Old onboarding copy</span><span class="row" style="gap:6px"><span class="btn outline">Rename</span><span class="btn" style="${d.css(theme)}">${svg('trash')}Delete</span></span></div>
+   </section>`).join('')+`</div>`;
+ }
+ document.getElementById('r2del').innerHTML=`<span class="label">Delete button</span><div class="panels">${delPanel('light')}${delPanel('dark')}</div>`;
+})();
+</script>
+<div class="wrap" style="padding-block:0 60px">
+  <section class="notes">
+    <span class="label">Notes for all options</span>
+    <ul>
+      <li>Solid fills always carry black (the Interact tag, comment pins, setup "done" circles and status badges switch from white today).</li>
+      <li>The destructive button stays the stock shadcn tinted variant; only its red changes.</li>
+      <li>Merged purple moves to hue 293, a step bluer than GitHub's, so it doesn't blur into the magenta (hue 322) when both sit in one row. Element picking on the canvas takes the same violet.</li>
+      <li>Values stay inside sRGB. The desktop app on a P3 display could go roughly 10% more saturated if you want it even louder.</li>
+      <li>Syntax highlighting in chat code blocks and diff colours are left out; they follow GitHub's theme.</li>
+    </ul>
+  </section>
+</div>
+
+</body></html>

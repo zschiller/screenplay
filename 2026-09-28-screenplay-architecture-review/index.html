@@ -1,0 +1,446 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Screenplay Architecture Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<style>
+:root{
+  --paper:#f5f6f4; --card:#ffffff; --ink:#1c2227; --muted:#5b646c; --line:#d9dcd8;
+  --accent:#2b6a86; --accent-soft:#e3eef3;
+  --deep:#1f2a33; --deep-ink:#eef2f4; --deep-faint:#8fa0ab;
+  --leak:#bf3b2a; --leak-soft:#fbe9e6;
+  --amber:#9a6412; --amber-soft:#fbf1dc;
+  --green:#2f7a4f; --green-soft:#e2f2e8;
+  --slate-soft:#eceeec;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#141a1f; --card:#1b232a; --ink:#e6eaec; --muted:#9aa5ad; --line:#2e3a43;
+    --accent:#7cb8d3; --accent-soft:#1d3440;
+    --deep:#0b1116; --deep-ink:#e6eef2; --deep-faint:#6f8290;
+    --leak:#f0806d; --leak-soft:#3a201c;
+    --amber:#e3b45e; --amber-soft:#33291a;
+    --green:#7fcf9e; --green-soft:#1b3326;
+    --slate-soft:#26313a;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#141a1f; --card:#1b232a; --ink:#e6eaec; --muted:#9aa5ad; --line:#2e3a43;
+  --accent:#7cb8d3; --accent-soft:#1d3440;
+  --deep:#0b1116; --deep-ink:#e6eef2; --deep-faint:#6f8290;
+  --leak:#f0806d; --leak-soft:#3a201c;
+  --amber:#e3b45e; --amber-soft:#33291a;
+  --green:#7fcf9e; --green-soft:#1b3326;
+  --slate-soft:#26313a;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.55 "IBM Plex Sans",system-ui,sans-serif;padding-inline:16px;padding-block:40px 64px}
+main{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+h1,h2,h3{font-family:"Newsreader",Georgia,serif;font-weight:600;text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:2.1rem}
+h2{font-size:1.45rem}
+h3{font-size:.8rem;font-family:"IBM Plex Sans",sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+p{margin:0}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.82em}
+a{color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+header{display:flex;flex-direction:column;gap:14px}
+.meta{color:var(--muted);font-size:.9rem}
+.legend{display:flex;flex-wrap:wrap;gap:18px;font-size:.8rem;color:var(--muted);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.lg-mod{width:18px;height:12px;border:1.5px solid var(--ink);border-radius:2px}
+.lg-seam{width:22px;border-top:2px dashed var(--accent)}
+.lg-leak{width:22px;border-top:2px solid var(--leak)}
+.lg-deep{width:18px;height:12px;background:var(--deep);border-radius:2px}
+.toc{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 20px;font-size:.88rem;padding:0;margin:0;list-style:none}
+.toc a{text-decoration:none;color:var(--ink)}
+.toc a:hover{color:var(--accent)}
+.toc .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}
+.area{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:18px}
+.area p{color:var(--muted);max-width:65ch}
+article{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:16px;scroll-margin-top:20px}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.badge{font-size:.72rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.strong{background:var(--green-soft);color:var(--green)}
+.explore{background:var(--amber-soft);color:var(--amber)}
+.spec{background:var(--slate-soft);color:var(--muted)}
+.dep{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.files{font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:720px){.ba{grid-template-columns:1fr}}
+.pane{border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--paper);overflow-x:auto}
+.pane-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.mod{border:1.5px solid var(--ink);border-radius:3px;padding:4px 8px;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;background:var(--card);text-align:center}
+.mod.leaky{border-color:var(--leak);color:var(--leak);background:var(--leak-soft)}
+.mod.thin{border-style:solid;border-width:1px;color:var(--muted)}
+.arrow{text-align:center;font-size:.7rem;color:var(--muted);line-height:1.1}
+.arrow.leak{color:var(--leak)}
+.seam{border-top:2px dashed var(--accent);position:relative;margin:4px 0}
+.seam span{position:absolute;right:0;top:-10px;background:var(--paper);color:var(--accent);font-size:.62rem;text-transform:uppercase;letter-spacing:.1em;padding:0 4px}
+.deepbox{background:var(--deep);color:var(--deep-ink);border-radius:5px;padding:12px;display:flex;flex-direction:column;gap:8px;border:3px solid var(--deep)}
+.deepbox .title{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;font-weight:600;text-align:center}
+.deepbox .inner{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
+.deepbox .inner span{font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--deep-faint);border:1px solid #3a4852;border-radius:3px;padding:2px 6px}
+.note{font-size:.72rem;color:var(--muted);text-align:center}
+.note.bad{color:var(--leak)}
+.pw{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:.92rem;max-width:80ch}
+.pw dt{font-weight:600}
+.pw dd{margin:0}
+.wins{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;list-style:none}
+.wins li{font-size:.8rem;background:var(--accent-soft);color:var(--ink);padding:4px 10px;border-radius:4px}
+.callout{font-size:.85rem;padding:10px 12px;border-radius:6px;background:var(--amber-soft);color:var(--ink);border-left:3px solid var(--amber)}
+.callout.red{background:var(--leak-soft);border-left-color:var(--leak)}
+/* mass diagram */
+.mass{display:flex;gap:18px;justify-content:center;align-items:flex-end;height:150px}
+.mass .col{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.mass .iface{background:var(--accent);width:44px;border-radius:2px}
+.mass .impl{background:var(--muted);opacity:.45;width:44px;border-radius:2px}
+.mass .deepimpl{background:var(--deep);width:44px;border-radius:2px}
+.top{background:var(--deep);color:var(--deep-ink);border-radius:10px;padding:28px;display:flex;flex-direction:column;gap:12px}
+.top h2{color:var(--deep-ink)}
+.top a{color:#9fd0e6}
+.top p{max-width:70ch}
+.top .kicker{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:var(--deep-faint)}
+</style>
+
+<main>
+<header>
+  <h1>Screenplay architecture review</h1>
+  <p class="meta">zschiller/screenplay · 28 Sep 2026 · scoped to the recent hot spots: the agent runtime (ACP, harnesses, <code>/api/agent</code>) and the canvas and home surfaces. Decisions in ADRs 0001–0016 are not re-litigated.</p>
+  <div class="legend">
+    <span><i class="lg-mod"></i>module</span>
+    <span><i class="lg-seam"></i>seam</span>
+    <span><i class="lg-leak"></i>leakage</span>
+    <span><i class="lg-deep"></i>deep module</span>
+  </div>
+  <ul class="toc">
+    <li><a href="#room-access"><i class="dot" style="background:var(--green)"></i>1. Room Access seam</a></li>
+    <li><a href="#turn-launch"><i class="dot" style="background:var(--green)"></i>2. Turn Launch module</a></li>
+    <li><a href="#auto-naming"><i class="dot" style="background:var(--green)"></i>3. Auto-naming on the server</a></li>
+    <li><a href="#engine-resolver"><i class="dot" style="background:var(--amber)"></i>4. One Engine resolver</a></li>
+    <li><a href="#transcript"><i class="dot" style="background:var(--muted)"></i>5. One transcript projection</a></li>
+    <li><a href="#comment-threads"><i class="dot" style="background:var(--green)"></i>6. Comment Threads module</a></li>
+    <li><a href="#sidebar-drop"><i class="dot" style="background:var(--green)"></i>7. Sidebar Drop resolution</a></li>
+    <li><a href="#home-actions"><i class="dot" style="background:var(--amber)"></i>8. Home Room and Folder actions</a></li>
+  </ul>
+</header>
+
+<section class="area"><h3>Server: rooms and agent turns</h3></section>
+
+<!-- 1 -->
+<article id="room-access">
+  <h2>1. Put every room-scoped server entry point behind one Room Access seam</h2>
+  <div class="badges"><span class="badge strong">Strong</span><span class="badge dep">local-substitutable</span></div>
+  <div class="files"><span>lib/github-actions.ts</span><span>lib/comments-actions.ts</span><span>lib/rooms.ts</span><span>lib/yjs/server.ts</span><span>app/api/agent/stream/route.ts</span><span>app/api/branch/create/route.ts</span></div>
+  <div class="ba">
+    <div class="pane"><span class="pane-label">Before</span>
+      <div class="row"><span class="mod">comments actions ×9</span><span class="mod leaky">compareBranches</span><span class="mod leaky">listBranchPrs</span><span class="mod leaky">/api/agent/stream</span><span class="mod leaky">/api/branch/create</span></div>
+      <div class="arrow">each checks <code>getUserId</code>; only some call <code>requireMember</code></div>
+      <div class="arrow leak">↓ direct, unchecked ↓</div>
+      <div class="row"><span class="mod">mutateRoomDoc</span><span class="mod">db</span></div>
+      <p class="note bad">A signed-in non-member can write Branch PR/diff fields into any Room</p>
+    </div>
+    <div class="pane"><span class="pane-label">After</span>
+      <div class="row"><span class="mod thin">actions</span><span class="mod thin">routes</span></div>
+      <div class="arrow">↓ (session, roomId) ↓</div>
+      <div class="seam"><span>seam</span></div>
+      <div class="deepbox"><div class="title">Room Access</div>
+        <div class="inner"><span>membership</span><span>local-build single user</span><span>thread → room</span><span>mutateRoomDoc</span><span>room-scoped writes</span></div></div>
+      <p class="note">An unauthorized room write can't be expressed</p>
+    </div>
+  </div>
+  <dl class="pw">
+    <dt>Problem</dt><dd>Membership is checked by habit: <code>compareBranches</code> and <code>listBranchPrs</code> write to the room doc with no <code>requireMember</code>, and the stream and branch-create routes check only that someone is signed in.</dd>
+    <dt>Solution</dt><dd>One Room Access module turns (session, roomId) into room reads and writes; <code>mutateRoomDoc</code> stops being importable from action files.</dd>
+  </dl>
+  <ul class="wins"><li>locality: auth fixed in one place</li><li>leverage: 19 action files, one check</li><li>one PGlite suite covers member / non-member / local</li></ul>
+  <div class="callout red">I confirmed the missing checks by reading <code>lib/github-actions.ts:268</code>, <code>app/api/agent/stream/route.ts:56</code> and <code>app/api/branch/create/route.ts:168</code>. Hosted builds only; the local build is single-user.</div>
+</article>
+
+<!-- 2 -->
+<article id="turn-launch">
+  <h2>2. One Turn Launch module owns a turn from start to outcome</h2>
+  <div class="badges"><span class="badge strong">Strong</span><span class="badge dep">local-substitutable</span></div>
+  <div class="files"><span>app/api/agent/{stream,plan,stop,history}/route.ts</span><span>lib/agent/launch-turn.ts</span><span>acp/live-turn.ts</span><span>acp/consumer-live.ts</span><span>acp/resolution.ts</span><span>lib/agent/comment-request.ts</span></div>
+  <div class="ba">
+    <div class="pane"><span class="pane-label">Before</span>
+      <pre class="mermaid">
+flowchart TB
+  S1[stream: layer flow] --> P[persist user]
+  S2[stream: sandbox flow] --> P
+  PL[plan route] --> P
+  P --> B[broadcast start]
+  B --> L[after launchEngineTurn]
+  ST[stop route] -.stopped.-> X[browser]
+  L -.Stopped by user.-> X
+  H[history route] -.aborted.-> X
+  linkStyle 5,6,7 stroke:#bf3b2a,stroke-width:2px
+      </pre>
+      <p class="note bad">Live stop likely renders "Stopped" plus a red error; reload shows only "Stopped"</p>
+    </div>
+    <div class="pane"><span class="pane-label">After</span>
+      <div class="row"><span class="mod thin">stream</span><span class="mod thin">plan</span><span class="mod thin">stop</span></div>
+      <div class="arrow">↓ start · resume after plan · stop ↓</div>
+      <div class="seam"><span>seam</span></div>
+      <div class="deepbox"><div class="title">Turn Launch</div>
+        <div class="inner"><span>engine resolve</span><span>persist → start run</span><span>replay-window ordering</span><span>plan resolution ×2 paths</span><span>comment request</span><span>stop outcome</span></div></div>
+      <p class="note">Routes keep auth, parsing, HTTP mapping</p>
+    </div>
+  </div>
+  <dl class="pw">
+    <dt>Problem</dt><dd>The turn's ordering rules are copied three times across route bodies, plans resolve two different ways, and the stopped outcome is decided in three places. The keystone test rebuilds the route steps by hand.</dd>
+    <dt>Solution</dt><dd>Routes call one module with request facts; the ordering, plan resolution, comment request and stop outcome live inside it.</dd>
+  </dl>
+  <ul class="wins"><li>locality: one ordering rule</li><li>keystone test drives the real module</li><li>live = reload test for stop</li></ul>
+</article>
+
+<!-- 3 -->
+<article id="auto-naming">
+  <h2>3. Apply auto-naming (chat label and Branch rename) once, on the server</h2>
+  <div class="badges"><span class="badge strong">Strong</span><span class="badge dep">local-substitutable + ports &amp; adapters</span></div>
+  <div class="files"><span>lib/chat-store.ts</span><span>hooks/use-agent-chat.ts</span><span>agent/agent-chat.tsx</span><span>agent/chat-panel.tsx</span><span>canvas/chat-panel-host.tsx</span><span>play/player-chat-host.tsx</span><span>canvas/use-branch-{intake,actions}.ts</span><span>canvas/use-chat-sync.ts</span><span>+4 more</span></div>
+  <div class="ba">
+    <div class="pane"><span class="pane-label">Before: a callback threaded through ~12 modules</span>
+      <div class="row"><span class="mod">stream route decides names</span></div>
+      <div class="arrow">↓ broadcast ↓</div>
+      <div class="row"><span class="mod">chatStore.callbacks</span></div>
+      <div class="arrow leak">↓ last registered wins ↓</div>
+      <div class="row"><span class="mod leaky">intake: storage only</span><span class="mod leaky">host: storage + git</span><span class="mod leaky">player: git, no flag reset</span></div>
+      <p class="note bad">Whether git renames depends on which surface is mounted, and how many</p>
+    </div>
+    <div class="pane"><span class="pane-label">After</span>
+      <div class="deepbox"><div class="title">Turn start: apply naming</div>
+        <div class="inner"><span>chat label</span><span>Branch ref + autoNamedBranch</span><span>sanitize ref</span><span>git / GitHub rename</span></div></div>
+      <div class="arrow">↓ Y.Doc change ↓</div>
+      <div class="row"><span class="mod thin">every browser observes</span></div>
+      <p class="note">No rename callback crosses into React</p>
+    </div>
+  </div>
+  <dl class="pw">
+    <dt>Problem</dt><dd>The label has three writers and the Branch rename has three browser handlers that each do something different; the ref sanitizer is copied word for word.</dd>
+    <dt>Solution</dt><dd>The server applies the whole naming outcome where it already decides it; browsers only see the doc change. Builds on candidate 2.</dd>
+  </dl>
+  <ul class="wins"><li>one writer per fact</li><li>~12 modules lose a parameter</li><li>naming tested without React</li></ul>
+  <div class="callout">Moves further in the direction of CONTEXT.md's Chat Sync rule; the glossary entry needs an update, not a reversal.</div>
+</article>
+
+<!-- 6 -->
+<article id="engine-resolver">
+  <h2>4. Collapse per-chat Engine resolution into one resolver</h2>
+  <div class="badges"><span class="badge explore">Worth exploring</span><span class="badge dep">local-substitutable</span></div>
+  <div class="files"><span>acp/engine-select.ts</span><span>acp/resolve-live-engine.ts</span><span>acp/spawn-session-factory.ts</span><span>acp/acp-engine.ts</span><span>harnesses/acp-launch.ts</span><span>acp/session.ts</span></div>
+  <div class="ba">
+    <div class="pane"><span class="pane-label">Before: model id threaded through 4 config shapes</span>
+      <div class="row"><span class="mod">resolveLiveEngine</span></div><div class="arrow">↓ modelId, harnessKey</div>
+      <div class="row"><span class="mod">SpawnAcpSessionFactory</span></div><div class="arrow">↓ six loose fields</div>
+      <div class="row"><span class="mod thin">selectEngine (reads env again)</span></div><div class="arrow">↓</div>
+      <div class="row"><span class="mod">ExternalEngine</span></div><div class="arrow">↓ reconcileModel, loadSessionId</div>
+      <div class="row"><span class="mod">AcpSession.open</span></div>
+    </div>
+    <div class="pane"><span class="pane-label">After</span>
+      <div class="row"><span class="mod thin">route</span></div>
+      <div class="seam"><span>seam</span></div>
+      <div class="deepbox"><div class="title">Engine resolver</div>
+        <div class="inner"><span>decode model id</span><span>harness default</span><span>session resume</span><span>model reconcile</span></div></div>
+      <div class="seam"><span>AcpSessionFactory seam (kept)</span></div>
+      <div class="row"><span class="mod">spawn adapter</span><span class="mod">in-memory adapter</span></div>
+    </div>
+  </div>
+  <dl class="pw">
+    <dt>Problem</dt><dd><code>engine-select</code> fails the deletion test: <code>harnessKeyFromModelId</code> has only test callers and one throw is unreachable. Its test mocks three modules and asserts constructor arguments.</dd>
+    <dt>Solution</dt><dd>Fold it into one resolver; keep the <code>AGENT_ENGINE</code> env contract and the two real seams.</dd>
+  </dl>
+  <ul class="wins"><li>locality: harness, model, session in one place</li><li>delete dead exports</li><li>tests stop spying on constructors</li></ul>
+  <div class="callout">ADR 0006 names <code>engine-select</code>; this keeps its per-deployment choice and deletes only the module.</div>
+</article>
+
+<!-- 8 -->
+<article id="transcript">
+  <h2>5. One transcript projection for live and reload</h2>
+  <div class="badges"><span class="badge spec">Speculative</span><span class="badge dep">in-process</span></div>
+  <div class="files"><span>lib/chat-store.ts (applyAcpUpdate…)</span><span>lib/agent/acp/consumer.ts</span><span>lib/agent/history-render.ts</span></div>
+  <div class="ba">
+    <div class="pane"><span class="pane-label">Before: three projections of one stream</span>
+      <div class="row"><span class="mod">consumer: block rule A</span><span class="mod">chat-store: block rule B</span><span class="mod">history-render</span></div>
+      <p class="note bad">Parity pinned by two keystone scenarios only</p>
+    </div>
+    <div class="pane"><span class="pane-label">After</span>
+      <div class="row"><span class="mod thin">live broadcasts</span><span class="mod thin">replayed records</span></div>
+      <div class="arrow">↓ ↓</div>
+      <div class="deepbox"><div class="title">Transcript projection</div><div class="inner"><span>text-block boundaries</span><span>tool calls</span><span>markers</span></div></div>
+    </div>
+  </div>
+  <dl class="pw"><dt>Problem</dt><dd>Where a text block ends is written twice, and reload is a third projection. The stop mismatch in candidate 2 shows how they drift.</dd>
+  <dt>Solution</dt><dd>One pure fold from ACP updates to messages, used by both the live store and the history route.</dd></dl>
+  <ul class="wins"><li>parity by construction</li><li>tested as a pure fold</li></ul>
+</article>
+
+<section class="area"><h3>Canvas and home surfaces</h3></section>
+
+<!-- 4 -->
+<article id="comment-threads">
+  <h2>6. Make Comment Threads one deep module, server and client</h2>
+  <div class="badges"><span class="badge strong">Strong</span><span class="badge dep">local-substitutable</span></div>
+  <div class="files"><span>lib/comments.ts</span><span>lib/comments-actions.ts</span><span>lib/comment-permissions.ts</span><span>canvas/use-comment-threads.ts</span><span>canvas/comments.tsx</span><span>canvas/comment-thread-card.tsx</span></div>
+  <div class="ba">
+    <div class="pane"><span class="pane-label">Before: permission rule lives twice</span>
+      <div class="row"><span class="mod">thread card</span><span class="mod">comments.tsx</span><span class="mod">use-comment-threads</span></div>
+      <div class="arrow">↓ 4 writes bypass the store ↓</div>
+      <div class="row"><span class="mod">9 actions + ad hoc thread→room walks</span></div>
+      <div class="arrow">↓</div>
+      <div class="row"><span class="mod leaky">permissions as SQL WHERE</span><span class="mod thin">comment-permissions (UI only)</span></div>
+      <p class="note bad">Create isn't transactional; list writes on read; tests mock the db</p>
+    </div>
+    <div class="pane"><span class="pane-label">After</span>
+      <div class="row"><span class="mod">useCommentThreads: only client writer</span></div>
+      <div class="arrow">↓ thin actions ↓</div>
+      <div class="seam"><span>seam</span></div>
+      <div class="deepbox"><div class="title">Comments</div>
+        <div class="inner"><span>access (via 1)</span><span>permissions</span><span>local-build gating</span><span>transactional create</span><span>doorbell</span></div></div>
+      <p class="note">comment-permissions read on both sides</p>
+    </div>
+  </div>
+  <dl class="pw"><dt>Problem</dt><dd>One comment operation spans 4–5 modules; error modes already differ (<code>deleteComment</code> is silent, the others throw) and the Proxy-mock suite can't test cascades or unread.</dd>
+  <dt>Solution</dt><dd>One server module owns access, rules, gating and transactions; the client store takes every write. Test against PGlite with the hosted migrations and delete the mock suite.</dd></dl>
+  <ul class="wins"><li>locality: permission fix lands once</li><li>canvas and player share write semantics</li><li>real SQL tested</li></ul>
+</article>
+
+<!-- 5 -->
+<article id="sidebar-drop">
+  <h2>7. Give the Room Sidebar a React-free drop resolver</h2>
+  <div class="badges"><span class="badge strong">Strong</span><span class="badge dep">in-process</span></div>
+  <div class="files"><span>components/panels/room-sidebar.tsx (3,070)</span><span>lib/sidebar-order.ts</span><span>canvas/use-group-actions.ts</span></div>
+  <div class="ba">
+    <div class="pane"><span class="pane-label">Before: interface ≈ implementation</span>
+      <div class="mass">
+        <div class="col"><div class="iface" style="height:92px"></div>computeDropHint</div>
+        <div class="col"><div class="iface" style="height:120px"></div>handleDragEnd</div>
+        <div class="col"><div class="impl" style="height:40px"></div>reorder ×3</div>
+        <div class="col"><div class="impl" style="height:22px;background:var(--leak);opacity:.7"></div>reorderedIds (dead)</div>
+      </div>
+      <p class="note bad">Hint and commit are two copies of one rule; untested</p>
+    </div>
+    <div class="pane"><span class="pane-label">After</span>
+      <div class="mass">
+        <div class="col"><div class="iface" style="height:18px"></div><div class="deepimpl" style="height:110px"></div>Sidebar Drop</div>
+        <div class="col"><div class="impl" style="height:40px"></div>RoomSidebar (dnd-kit, render)</div>
+      </div>
+      <p class="note">One decision yields hint and commit intent</p>
+    </div>
+  </div>
+  <dl class="pw"><dt>Problem</dt><dd>The drop hint and the drop commit implement the same rule twice, gap reordering exists three times, and Group Operations' post-removal index rule leaks into the sidebar.</dd>
+  <dt>Solution</dt><dd>One in-process module returns both the hint and the intent; the index rule moves into Group Operations.</dd></dl>
+  <ul class="wins"><li>"shows X, drops Y" bugs gone</li><li>one gap algorithm</li><li>table tests, no DOM</li></ul>
+</article>
+
+<!-- 7 -->
+<article id="home-actions">
+  <h2>8. One actions module per Room and Folder on Home, plus a tested home reducer</h2>
+  <div class="badges"><span class="badge explore">Worth exploring</span><span class="badge dep">in-process</span></div>
+  <div class="files"><span>home/room-grid.tsx</span><span>home/room-table.tsx</span><span>home/pinned-list.tsx</span><span>home/folder-grid.tsx</span><span>home/home-provider.tsx</span></div>
+  <div class="ba">
+    <div class="pane"><span class="pane-label">Before: one cluster, three copies</span>
+      <div class="row"><span class="mod">grid card</span><span class="mod">table row</span><span class="mod">pinned row</span></div>
+      <div class="arrow">each: 4 flags · menu · rename · move · delete · share · pin</div>
+      <div class="row"><span class="mod">HomeProvider: 3 mutation styles, hand-mirrored cascades</span></div>
+    </div>
+    <div class="pane"><span class="pane-label">After</span>
+      <div class="row"><span class="mod thin">grid</span><span class="mod thin">table</span><span class="mod thin">pinned</span></div>
+      <div class="arrow">↓ trigger only ↓</div>
+      <div class="row"><span class="mod">Room actions</span><span class="mod">Folder actions</span></div>
+      <div class="deepbox"><div class="title">home reducer (pure)</div><div class="inner"><span>cascades</span><span>optimistic + rollback</span></div></div>
+    </div>
+  </div>
+  <dl class="pw"><dt>Problem</dt><dd>The Room action cluster and the Folder cluster are each copy-pasted three times and already drifting.</dd>
+  <dt>Solution</dt><dd>Each surface supplies a trigger; one module per item kind owns menus and dialogs. State transitions move to a table-tested reducer.</dd></dl>
+  <ul class="wins"><li>new action lands once</li><li>cascades tested without React</li></ul>
+  <p class="meta">Same pattern, smaller: the route picker in <code>iframe-layer-label.tsx</code> copies <code>FrameRouteField</code>; after the Safari-style frame bar it may simply be deletable.</p>
+</article>
+
+<section class="top" id="top-recommendation">
+  <span class="kicker">Top recommendation</span>
+  <h2><a href="#room-access">Start with Room Access</a></h2>
+  <p>It closes a real authorization gap on the hosted build today, it's the smallest seam with the most callers, and Comment Threads (6) builds directly on it. After that, <a href="#turn-launch">Turn Launch</a> is the biggest locality win in the agent runtime and unlocks server-side auto-naming (3).</p>
+</section>
+</main>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>

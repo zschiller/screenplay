@@ -1,0 +1,214 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Design Audit Round 5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..600&family=Geist+Mono:wght@400;500&family=Unbounded:wght@500&display=swap">
+<style>
+/* Layout: one reading column of findings; each finding is a header row + before/after pair. */
+:root {
+  --bg: #ffffff;
+  --fg: #0a0a0a;
+  --muted: #6b6b6b;
+  --line: #e4e4e4;
+  --plane: #f5f5f5;
+  --accent: #ec008c;
+  --sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --title: "Unbounded", "Instrument Sans", ui-sans-serif, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #000; --fg: #f2f2f2; --muted: #9a9a9a; --line: #262626; --plane: #0e0e0e; --accent: #ff3db4; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #000; --fg: #f2f2f2; --muted: #9a9a9a; --line: #262626; --plane: #0e0e0e; --accent: #ff3db4; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--sans); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 40px 80px; }
+h1 { font: 500 27px/1.2 var(--title); margin: 0 0 12px; text-wrap: balance; }
+h2 { font: 500 17px/1.3 var(--title); margin: 0; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 68ch; margin: 0 0 24px; }
+.label { font: 500 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding-block: 10px; margin-bottom: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 2px; }
+.seg button { font: 500 12px var(--sans); background: none; color: var(--muted); border: 0; padding: 6px 10px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.btn { font: 500 12px var(--sans); background: var(--fg); color: var(--bg); border: 0; border-radius: 2px; padding: 7px 12px; cursor: pointer; }
+.btn:focus-visible, .seg button:focus-visible, .pick input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#picked { font: 12px var(--mono); color: var(--muted); }
+.spacer { flex: 1; }
+
+.finding { border-top: 1px solid var(--line); padding-block: 28px; display: grid; gap: 14px; }
+.head { display: flex; gap: 14px; align-items: flex-start; }
+.num { font: 500 12px/1 var(--mono); color: var(--muted); padding-top: 5px; min-width: 2.5em; }
+.head .text { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.head p { margin: 0; max-width: 72ch; }
+.fix { color: var(--muted); }
+.fix code, p code { font: 12px var(--mono); color: var(--fg); }
+.where { font: 12px var(--mono); color: var(--muted); }
+.tag { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; border: 1px solid var(--line); border-radius: 2px; padding: 3px 5px; margin-left: 6px; vertical-align: 2px; color: var(--muted); }
+.pick { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; padding-top: 2px; }
+.pick input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pair.stack { grid-template-columns: 1fr; }
+figure { margin: 0; min-width: 0; display: grid; gap: 6px; }
+figure .frame { background: var(--plane); border: 1px solid var(--line); border-radius: 2px; overflow: auto; }
+figure img { display: block; width: 100%; height: auto; }
+figure.after .label { color: var(--accent); }
+.shot-dark { display: none; }
+html[data-shots="dark"] .shot-light { display: none; }
+html[data-shots="dark"] .shot-dark { display: block; }
+
+.notes { border-top: 1px solid var(--line); padding-top: 24px; color: var(--muted); display: grid; gap: 8px; }
+.notes ul { margin: 0; padding-left: 18px; max-width: 72ch; }
+@media (max-width: 720px) { .pair { grid-template-columns: 1fr; } .head { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <p class="label">Screenplay · design audit round 5 · 30 Sep 2026</p>
+  <h1>Alignment and spacing, to the pixel</h1>
+  <p class="lede">13 small fixes found on current main, each measured on 2× captures from the screenshot harness. Every "after" except #4 is a real capture of the fix running in the app (prototyped locally, not pushed). Tick the ones you want and copy the list back into the thread; I'll file one ticket each.</p>
+
+  <div class="bar">
+    <span class="label">Shots</span>
+    <div class="seg" role="group" aria-label="Screenshot theme">
+      <button type="button" id="shots-light" aria-pressed="true">Light</button>
+      <button type="button" id="shots-dark" aria-pressed="false">Dark</button>
+    </div>
+    <span class="spacer"></span>
+    <span id="picked">None picked</span>
+    <button type="button" class="btn" id="copy">Copy picks</button>
+  </div>
+
+  <div id="list"></div>
+
+  <section class="notes">
+    <p class="label">Looked at and left alone</p>
+    <ul>
+      <li>Filled buttons read 2px shorter than outline ones beside them (the border is transparent). That's stock shadcn.</li>
+      <li>The tiny "No Workspace" text inside frames at low zoom: the in-frame UI scale was settled in #798.</li>
+      <li>"copies" in sans inside the mono preset line is deliberate (words stay in the row's type).</li>
+      <li>The chat tab's close button covering the end of its title on hover: that's the intended Chrome-style overlay.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const F = [
+  { id: "f1", t: "Top-right pill shrinks when the chat is open",
+    p: "With the chat panel open, the zoom pill is 34px tall and sits 2px lower than the 38px breadcrumb pill. The 28px chat button that sets its height has moved into the panel, leaving only the 24px zoom trigger.",
+    fix: "Make the zoom trigger <code>h-7</code>, like every other 28px control, so the pill is 36px + border with or without the chat button.",
+    where: "components/canvas/canvas-zoom-menu.tsx", stack: true },
+  { id: "f2", t: "Composer controls start 3px right of the text",
+    p: "The model picker's label sits 3px in from where typed text starts, in the chat composer and in the Create workspaces prompt.",
+    fix: "<code>-ml-1</code> → <code>-ml-1.5</code> on the footer's first control, so the label lines up with the text above it.",
+    where: "components/agent/composer.tsx", extra: "f2b" },
+  { id: "f3", t: "@ mention list covers the composer's top edge",
+    p: "The list is anchored 4px above the caret's line, so it lands over the composer's border and top padding.",
+    fix: "Anchor its bottom to the composer's top edge with the same 4px gap.",
+    where: "lib/layer-mention-suggestion.tsx, lib/skill-mention-suggestion.tsx" },
+  { id: "f4", t: "Tab strip slices the first tab and scrolls the Logs tab away", mock: true,
+    p: "When the tabs overflow (Terminal or several chats open), the Logs tab (≡) scrolls off with them and the first visible tab is cut mid-letter.",
+    fix: "Pin the Logs tab outside the scroller, the way the closed-chats button is pinned on the right, and widen the left-edge fade so a cut tab fades out instead of showing a sliver.",
+    where: "components/agent/chat-panel.tsx" },
+  { id: "f5", t: "Logs icon sits off the header's icon column",
+    p: "The Logs tab's icon is 2.5px left of the collapse-chat icon directly above it.",
+    fix: "Tab strip padding <code>px-2</code> → <code>px-2.5</code>; the tabs move with it.",
+    where: "components/agent/chat-panel.tsx" },
+  { id: "f6", t: "A wrapped “failed” chip starts 6px in from the text",
+    p: "When the turn summary wraps, the “pnpm lint failed” chip keeps its 6px left margin on the new line, so it sits on neither the caret's column nor the text's.",
+    fix: "Use a plain space before the chip instead of <code>ml-1.5</code>; a wrapped chip then starts on the text edge (and it fits on the line more often).",
+    where: "components/agent/agent-message.tsx" },
+  { id: "f7", t: "Workspace rows are taller than the rest of the menu",
+    p: "In the Workspaces menu, Workspace rows are 40px while Coordinator and Documents rows are 32px, and the PR badge and diff counts stop 46px short of the check column. Both come from the hidden 28px … button holding its slot on every row.",
+    fix: "Show … over the row's end on hover and selection (like the chat tab's close button) so it takes no space at rest. The after shot is the at-rest state.",
+    where: "components/agent/workspaces-menu.tsx" },
+  { id: "f8", t: "Canvas menu opens on the pill's edge",
+    p: "The canvas … menu opens touching the breadcrumb pill's bottom border. The zoom menu on the other side clears its pill by 4px.",
+    fix: "<code>sideOffset={8}</code>, matching the zoom menu.",
+    where: "components/canvas/canvas-top-bar.tsx" },
+  { id: "f9", t: "Canvas settings: close button below the header line",
+    p: "The dialog's X is centred 6px below the breadcrumb (the stock close is <code>top-4</code>; this header is 48px). The breadcrumb also uses › where every other breadcrumb in the app uses /.",
+    fix: "Close button at <code>top-2.5</code> in this dialog so it centres on the header; / as the separator.",
+    where: "components/canvas/canvas-settings-dialog.tsx" },
+  { id: "f10", t: "Step circles change size as you progress",
+    p: "In Get started, the current step's circle is 20px and the others are 16px, so each circle grows when you reach it and shrinks back when it's done.",
+    fix: "Every marker 20px; the current one keeps its darker ring. The same marker is used on the first-run setup screen.",
+    where: "components/local-setup/setup-step.tsx" },
+  { id: "f11", t: "Badges are 22px, so rows with one grow 2px",
+    p: "Our Badge is 22px (2px padding + 16px line + border); stock is 20px. In Repository presets, rows with Private are 65px and the one without is 63px. Private is also a grey-filled chip, where the status rule says outline.",
+    fix: "<code>h-5</code> on Badge, and the outline variant for SettingsRow's state badge. Badge is shared (7 uses), so the ticket checks each.",
+    where: "packages/ui/src/components/badge.tsx, components/home/settings-row.tsx" },
+  { id: "f12", t: "All files: folder and canvas names on different columns",
+    p: "Folder names start 24px in; canvas names start 114px in, after an 80px thumbnail, so the Name column has two left edges and canvas rows are twice as tall.",
+    fix: "40px thumbnails, and the folder icon centred in a slot of the same width, so every name starts on one column. Folder rows are still 12px shorter in this prototype; the ticket would even them out.",
+    where: "components/home/room-table.tsx" },
+  { id: "f13", t: "Empty canvases sit off the canvas plane",
+    p: "Captured canvases sit on the grey canvas plane; empty ones are a dashed box on white, so the image band changes colour from card to card (grid and table). In dark mode the plane is black, so only light shows it.",
+    fix: "Put the plane behind every card's image, captured or not.",
+    where: "components/home/room-grid.tsx, components/home/room-table.tsx" },
+]
+
+const list = document.getElementById("list")
+const shot = (id, side, theme) => `<img class="shot-${theme}" src="img/${id}-${side}-${theme}.webp" alt="${side} (${theme})" loading="lazy">`
+const fig = (id, side, label) => `<figure class="${side}"><span class="label">${label}</span><div class="frame">${shot(id, side, "light")}${shot(id, side, "dark")}</div></figure>`
+list.innerHTML = F.map((f, i) => `
+  <article class="finding" id="${f.id}">
+    <div class="head">
+      <span class="num">${String(i + 1).padStart(2, "0")}</span>
+      <div class="text">
+        <h2>${f.t}${f.mock ? '<span class="tag">Mockup</span>' : ""}</h2>
+        <p>${f.p}</p>
+        <p class="fix"><strong>Fix:</strong> ${f.fix}</p>
+        <span class="where">${f.where}</span>
+      </div>
+      <label class="pick"><input type="checkbox" id="pick-${f.id}" data-n="${i + 1}"> File it</label>
+    </div>
+    <div class="pair${f.stack ? " stack" : ""}">
+      ${fig(f.id, "before", "Before")}
+      ${fig(f.id, "after", f.mock ? "Mockup" : "After")}
+    </div>
+    ${f.extra ? `<div class="pair">${fig(f.extra, "before", "Before")}${fig(f.extra, "after", "After")}</div>` : ""}
+  </article>`).join("")
+
+// Screenshot theme: follows the page theme until the viewer picks one.
+const root = document.documentElement
+const prefersDark = () => root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches
+function setShots(t, save) {
+  root.dataset.shots = t
+  document.getElementById("shots-light").setAttribute("aria-pressed", t === "light")
+  document.getElementById("shots-dark").setAttribute("aria-pressed", t === "dark")
+  if (save) try { localStorage.setItem("shots", t) } catch (e) {}
+}
+let saved = null
+try { saved = localStorage.getItem("shots") } catch (e) {}
+setShots(saved || (prefersDark() ? "dark" : "light"), false)
+document.getElementById("shots-light").onclick = () => setShots("light", true)
+document.getElementById("shots-dark").onclick = () => setShots("dark", true)
+
+// Picks: remembered per viewer, copied as a line to paste into the thread.
+const boxes = [...document.querySelectorAll(".pick input")]
+let picks = []
+try { picks = JSON.parse(localStorage.getItem("picks") || "[]") } catch (e) {}
+boxes.forEach(b => { b.checked = picks.includes(b.dataset.n) })
+function pickedText() {
+  const n = boxes.filter(b => b.checked).map(b => b.dataset.n)
+  return n.length ? `File ${n.join(", ")}` : ""
+}
+function refresh() {
+  const n = boxes.filter(b => b.checked).map(b => b.dataset.n)
+  document.getElementById("picked").textContent = n.length ? `${n.length} picked: ${n.join(", ")}` : "None picked"
+  try { localStorage.setItem("picks", JSON.stringify(n)) } catch (e) {}
+}
+boxes.forEach(b => b.addEventListener("change", refresh))
+refresh()
+document.getElementById("copy").onclick = async (e) => {
+  const text = pickedText() || "File none"
+  const btn = e.currentTarget
+  try { await navigator.clipboard.writeText(text); btn.textContent = "Copied" }
+  catch (err) { const s = document.getElementById("picked"); s.textContent = text; getSelection().selectAllChildren(s); btn.textContent = "Select and copy" }
+  setTimeout(() => { btn.textContent = "Copy picks" }, 1600)
+}
+</script>
+
+</body></html>

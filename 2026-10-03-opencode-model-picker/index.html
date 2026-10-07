@@ -1,0 +1,231 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>OpenCode Model Picker</title>
+<!-- Optional: a Google Fonts <link> for the repo's brand faces, then point --sans/--head/--mono at them. -->
+<style>
+/* Layout: phone first, one column. Question, then tabs (open round / Today / Earlier rounds). Each question is a deck of cards (Today, A, B…) swiped one at a time on a phone and side by side on wide screens. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#2f5bd3;--ok:#1f7a45;--no:#a3372b;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace;--stick:0px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:24px calc(112px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:24px}
+@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:32px}}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);letter-spacing:-.015em;margin:8px 0 10px;text-wrap:balance}
+h2{font:600 clamp(17px,4.4vw,21px)/1.28 var(--head);margin:0;text-wrap:balance}
+h3{font:500 16px/1.35 var(--sans);margin:0}
+p{margin:0;max-width:72ch}
+a{color:var(--accent)}
+code{font:13px var(--mono)}
+.muted{color:var(--muted)}
+blockquote{margin:0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+button{font:500 13px/1.2 var(--sans);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);-webkit-tap-highlight-color:transparent}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
+button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px;min-width:0}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:80ch;font-size:14px}
+/* Tabs: the open round, Today, earlier rounds */
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:var(--bg);display:flex;gap:4px;border-bottom:1px solid var(--line);margin-inline:-16px;padding:8px 16px;overflow-x:auto;scrollbar-width:none}
+@media (min-width:720px){.tabs{margin-inline:-24px;padding-inline:24px}}
+.tabs button{border-color:transparent;background:transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg)}
+/* Folded blocks: In every option, each earlier round */
+details.fold{border:1px solid var(--line);border-radius:10px}
+details.fold>summary{list-style:none;cursor:pointer;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:"Show";grid-row:1/span 2;grid-column:2;font:500 13px var(--sans);color:var(--muted)}
+details.fold[open]>summary::after{content:"Hide"}
+details.fold>summary .sum{font-size:14px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+details.fold[open]>summary .sum{display:none}
+details.fold>.body{padding:14px 14px 16px;display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line)}
+.ledger{display:flex;flex-direction:column;gap:8px}
+/* A question and its options */
+.question{display:flex;flex-direction:column;gap:12px;min-width:0}
+.question+.question{margin-top:20px}
+.qhead{display:flex;flex-direction:column;gap:4px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:20px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.opt.today .letter{color:var(--muted)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.choose{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.choose button{min-width:112px}
+.choose button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.choose button[aria-pressed="true"]::before{content:"✓ "}
+/* Deck: chips pinned under the tabs; the track swipes one card at a time on a phone and becomes a grid on wide screens */
+.chips{position:sticky;top:var(--stick);z-index:4;background:var(--bg);display:flex;gap:6px;padding-block:8px;margin-top:-8px;overflow-x:auto;scrollbar-width:none}
+.chips button{min-width:44px;padding-inline:12px;font-family:var(--mono)}
+.chips button[aria-current="true"]{border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.chips button::after{content:" ✓";color:var(--ok);visibility:hidden}
+.chips button.chosen::after{visibility:visible}
+.track{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;align-items:start}
+.track::-webkit-scrollbar,.chips::-webkit-scrollbar,.tabs::-webkit-scrollbar{display:none}
+.track>.opt{scroll-snap-align:start;scroll-snap-stop:always}
+@media (min-width:900px){.chips{display:none}.track{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));overflow:visible;gap:20px}}
+/* Captures: the viewer's theme only, tap to enlarge */
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:0;background:var(--surface);cursor:zoom-in;min-height:0}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dialog.lb{padding:0;border:0;background:transparent;max-width:100vw;max-height:100dvh;width:100vw;height:100dvh}
+dialog.lb::backdrop{background:rgb(0 0 0/.86)}
+dialog.lb .in{width:100%;height:100%;overflow:auto;display:grid;place-items:center;padding:16px;cursor:zoom-out}
+dialog.lb img{max-width:none;background:var(--surface)}
+@media (min-width:720px){dialog.lb img{max-width:100%}}
+/* Bottom bar: picks so far, a note, Copy */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+@media (min-width:720px){.bar{padding-inline:24px}}
+.bar .in{max-width:1032px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.bar .row{display:flex;align-items:center;gap:8px}
+.bar .picks{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bar .picks b{color:var(--fg);font-weight:500}
+.bar textarea{width:100%;font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:72px}
+#copy{min-width:132px}
+.bar #out{font:12.5px/1.5 var(--mono)}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
+const PAGE={
+ date:"3 Oct 2026",
+ slug:"opencode-models",
+ quote:"when they configure the opencode connection in settings can we let them pick from the list?",
+ q:"How does the OpenCode row in Settings › Agent let people choose which OpenCode models show in the chat model menu?"
+};
+const TODAY={facts:[
+ "Settings › Agent lists one row per installed agent (<code>harness-setup-panel.tsx</code>, built on <code>SettingsRow</code>): name, status badge, version and path, one action button.",
+ "OpenCode shows as a single row and a single <b>OpenCode</b> entry in the model menu (PR #1592). That entry runs whatever model OpenCode itself has chosen.",
+ "<code>opencode acp</code> reports every model from the providers you signed in to as <code>provider/model</code>. With OpenCode Zen, GitHub Copilot and Amazon Bedrock that is about 212.",
+ "Claude Code and Codex have short curated model lists, so their rows need no picker."
+],shots:[IMG("r1/today-light.png","Today · Settings › Agent","r1/today-dark.png")]};
+const ROUNDS=[
+{n:2,feedback:"“the modal there seems odd we have a similar pattern in the repo modal already this is not aligned to. A is a good choice though”",every:[
+ "The row stays as A had it in round 1: a <b>Choose models</b> button and “4 models in the model menu” on its facts line.",
+ "The dialog now uses the repo picker's chrome from <code>add-repository-dialog.tsx</code>: no padding on the dialog, a 20px header gutter, the search box flush under the title, the list on a 16px gutter, and the same list height. The mock leaves out the picker’s scroll hairline (<code>repo-picker.tsx:69</code>), which the built version reuses.",
+ "There's no Done button or footer. A check applies at once and the close button or Escape closes the dialog, the same as picking a repo. The count moves into the description line."
+],questions:[
+ {key:"dialog",title:"Choose models, aligned to the repo picker",intro:"",options:[
+  {id:"A2",name:"Repo picker chrome",why:"The same frame as <b>Open GitHub repository</b>, shown under it for comparison. Rows have a checkbox in place of the repo's folder icon, grouped by provider with the stock Command group headings.",cost:"",state:"",shots:[IMG("r2/a-open-light.png","A2 · OpenCode models","r2/a-open-dark.png"),IMG("r2/repo-picker-light.png","For comparison · Open GitHub repository","r2/repo-picker-dark.png")]}
+ ]}
+]},
+{n:1,feedback:"",every:[
+ "The chosen models show in the chat model menu as <b>OpenCode · Model</b>, next to Claude Code and Codex models, and in the Default model select.",
+ "Nothing chosen keeps today's single <b>OpenCode</b> entry, which uses OpenCode's own default.",
+ "Choices live on this device with the other Agent settings. Stock shadcn parts only: Dialog, Command, Checkbox, Popover, Switch.",
+ "Model names come from OpenCode. The mock uses example providers and models."
+],questions:[
+ {key:"pick",title:"",intro:"",options:[
+  {id:"A",name:"Choose models dialog",why:"The row keeps its shape and gains a <b>Choose models</b> button, and its facts line says how many are in the model menu. The button opens a dialog over Settings (modal on modal, like other Settings sub-items) with search and a checkbox per model, grouped by provider. Search makes 212 models manageable, and the row stays as calm as Claude Code's and Codex's.",cost:"The chosen models are one click away rather than visible on the page.",rec:true,state:"picked",shots:[IMG("r1/a-light.png","A · Row","r1/a-dark.png"),IMG("r1/a-open-light.png","A · Choose models","r1/a-open-dark.png")]},
+  {id:"B",name:"Chosen list in the row",why:"The row grows a short list headed <b>In the model menu</b>. Each chosen model shows with its provider and a remove button, and <b>Add model</b> opens a searchable popover. What's in the menu is visible without opening anything.",cost:"The OpenCode row becomes much taller than its siblings. On a short window the popover flips up and covers the list, as in the open shot.",state:"",shots:[IMG("r1/b-light.png","B · Row","r1/b-dark.png"),IMG("r1/b-open-light.png","B · Add model","r1/b-open-dark.png")]},
+  {id:"C",name:"Providers on or off",why:"One switch per provider you signed in to, with its model count. Turning a provider on puts all its models in the model menu. It is the fewest decisions, three switches instead of 212 checkboxes.",cost:"Too coarse when a provider brings many models: Copilot alone would add 36 entries to the model menu, and there's no way to pick just one.",state:"",shots:[IMG("r1/c-light.png","C · Row","r1/c-dark.png")]}
+ ]}
+]}
+];
+
+(()=>{
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const latest=ROUNDS[0],past=ROUNDS.slice(1);
+const SIGN=[["ok","Looks good"],["changes","Needs changes"]];
+const signoff=q=>q.options.length===1;
+const KEY="exploration-"+PAGE.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+const state=saved.round===latest.n?{picks:saved.picks||{},note:saved.note||""}:{picks:{},note:""};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({round:latest.n,...state}))}catch(e){}};
+
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><button type="button" class="shot${i.dk?" has-dk":""}" data-lt="${esc(i.p)}" data-dk="${esc(i.dk||"")}" aria-label="Enlarge ${esc(i.cap)}"><img class="lt" src="${esc(i.p)}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${esc(i.dk)}" alt="" aria-hidden="true" loading="lazy">`:""}</button><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const badges=o=>(o.rec?'<span class="badge rec">Recommended</span>':"")+(o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:"");
+const choose=(q,o)=>`<div class="choose">`+(signoff(q)?SIGN:[[o.id,"Pick "+o.id]]).map(([v,l])=>`<button type="button" data-q="${esc(q.key)}" data-v="${esc(v)}" data-label="${esc(l)}">${esc(l)}</button>`).join("")+`</div>`;
+const card=(q,o,live)=>`<article class="opt ${o.state||""}" data-id="${esc(o.id)}"><header><span class="letter">${esc(o.id)}</span><h3>${esc(o.name)}</h3>${badges(o)}</header>${o.html||""}${shots(o.shots)}${o.why?`<p>${o.why}</p>`:""}${o.cost?`<p class="cost"><b>Cost</b> ${o.cost}</p>`:""}${live?choose(q,o):""}</article>`;
+const hasToday=TODAY.compare!==false&&((TODAY.shots&&TODAY.shots.length)||TODAY.html);
+const todayCard=`<article class="opt today" data-id="Today"><header><span class="letter">Today</span><h3>What main does now</h3></header>${TODAY.html||""}${shots(TODAY.shots)}</article>`;
+function question(r,q,i,live){
+ const n=r.questions.length;
+ const head=(q.title||n>1)?`<div class="qhead">${n>1?`<p class="lbl acc">Question ${i+1} of ${n}</p>`:""}${q.title?`<h2>${esc(q.title)}</h2>`:""}${q.intro?`<p class="muted">${q.intro}</p>`:""}</div>`:"";
+ if(!live)return `<div class="question">${head}<div class="opts">${q.options.map(o=>card(q,o,false)).join("")}</div></div>`;
+ const ids=(hasToday?["Today"]:[]).concat(q.options.map(o=>o.id));
+ return `<div class="question" data-q="${esc(q.key)}">${head}<div class="chips" aria-label="Options">`+ids.map(id=>`<button type="button" data-go="${esc(id)}">${esc(id)}</button>`).join("")+`</div><div class="track">${hasToday?todayCard:""}${q.options.map(o=>card(q,o,true)).join("")}</div></div>`;
+}
+const fold=(title,sum,body,open)=>`<details class="fold"${open?" open":""}><summary><span class="lbl">${title}</span><span class="sum">${esc(sum)}</span></summary><div class="body">${body}</div></details>`;
+const list=items=>`<ul class="facts">${[].concat(items).map(x=>`<li>${x}</li>`).join("")}</ul>`;
+const outcome=r=>{const p=r.questions.flatMap(q=>q.options.filter(o=>o.state==="picked").map(o=>signoff(q)?`Signed off ${o.name}`:`${o.id}: ${o.name}`));return p.length?p.join(" · "):"No pick"};
+const Q=latest.questions;
+const openTitle=Q.length>1?`${Q.length} questions`:signoff(Q[0])?"Sign off":`${Q[0].options.length} options`;
+
+document.body.insertAdjacentHTML("afterbegin",`<div class="wrap">
+<header><div class="top"><p class="lbl acc">Design exploration · ${esc(PAGE.date)}</p><button type="button" class="ghost" id="theme">Dark</button></div><h1>${esc(PAGE.q)}</h1><blockquote>${esc(PAGE.quote)}</blockquote></header>
+<nav class="tabs" aria-label="Sections"><button type="button" data-tab="now" aria-selected="true">Round ${latest.n}</button><button type="button" data-tab="today" aria-selected="false">Today</button>${past.length?`<button type="button" data-tab="past" aria-selected="false">Earlier rounds · ${past.length}</button>`:""}</nav>
+<section data-panel="now"><div class="shead"><p class="lbl acc">Round ${latest.n} · open</p><h2>${openTitle}</h2></div>${latest.feedback?`<blockquote>${latest.feedback}</blockquote>`:""}${latest.every?fold("In every option",latest.every[0].replace(/<[^>]+>/g,""),list(latest.every),ROUNDS.length===1):""}${Q.map((q,i)=>question(latest,q,i,true)).join("")}</section>
+<section data-panel="today" hidden><div class="shead"><p class="lbl">Today</p><h2>What main does now</h2></div>${TODAY.facts?list(TODAY.facts):""}${TODAY.html||""}${shots(TODAY.shots)}</section>
+${past.length?`<section data-panel="past" hidden><div class="shead"><p class="lbl">Earlier rounds</p><h2>Newest first</h2></div><div class="ledger">${past.map(r=>fold(`Round ${r.n}`,outcome(r),(r.feedback?`<blockquote>${r.feedback}</blockquote>`:"")+(r.every?list(r.every):"")+r.questions.map((q,i)=>question(r,q,i,false)).join(""))).join("")}</div></section>`:""}
+</div>
+<div class="bar"><div class="in"><textarea id="note" aria-label="Note" placeholder="Anything to add" hidden></textarea><textarea id="out" aria-label="Reaction to copy" readonly hidden></textarea><div class="row"><div class="picks" id="picks" role="status" aria-live="polite"></div><button type="button" id="noteBtn">Note</button><button type="button" class="primary" id="copy">Copy reaction</button></div></div></div>
+<dialog class="lb" id="lb"><div class="in"><img alt=""></div></dialog>`);
+document.documentElement.style.setProperty("--stick",`calc(env(safe-area-inset-top,0px) + ${document.querySelector(".tabs").offsetHeight}px)`);
+
+const answer=q=>{const v=state.picks[q.key];return !v?"":signoff(q)?SIGN.find(s=>s[0]===v)[1]:`${v}: ${q.options.find(o=>o.id===v).name}`};
+function build(){
+ const lines=Q.map(q=>{const a=answer(q),name=signoff(q)?q.options[0].name:q.title;return "→ "+(name?name+": ":"")+(a||"No pick yet")});
+ return [`Exploration: ${PAGE.q}`,`Round ${latest.n}`,...lines].concat(state.note.trim()?[`Note: ${state.note.trim()}`]:[]).join("\n");
+}
+function sync(){
+ const done=Q.filter(q=>state.picks[q.key]);
+ $("picks").innerHTML=done.length?done.map(q=>`<b>${esc(Q.length>1?answer(q).split(":")[0]:answer(q))}</b>`).join(" · ")+(Q.length>1?` · ${done.length} of ${Q.length} answered`:""):Q.length>1?`0 of ${Q.length} answered`:signoff(Q[0])?"Sign off or say what to change":"No pick yet";
+ document.querySelectorAll(".choose button").forEach(b=>{const on=state.picks[b.dataset.q]===b.dataset.v;b.setAttribute("aria-pressed",on);if(b.dataset.label.startsWith("Pick "))b.textContent=on?"Picked":b.dataset.label});
+ document.querySelectorAll(".question[data-q]").forEach(el=>el.querySelectorAll(".chips button").forEach(c=>{const q=Q.find(x=>x.key===el.dataset.q),v=state.picks[el.dataset.q];c.classList.toggle("chosen",!!v&&(v===c.dataset.go||signoff(q)&&c.dataset.go!=="Today"))}));
+ save();
+}
+const openNote=()=>{const n=$("note");n.hidden=false;n.focus()};
+document.addEventListener("click",e=>{
+ const b=e.target.closest(".choose button");
+ if(b){const k=b.dataset.q;state.picks[k]=state.picks[k]===b.dataset.v?undefined:b.dataset.v;if(state.picks[k]==="changes")openNote();sync();return}
+ const go=e.target.closest(".chips button");
+ if(go){const t=go.closest(".question").querySelector(".track"),c=t.querySelector(`.opt[data-id="${CSS.escape(go.dataset.go)}"]`);t.scrollTo({left:c.offsetLeft-t.offsetLeft,behavior:"smooth"});return}
+ const tab=e.target.closest(".tabs button");
+ if(tab){document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected",x===tab));document.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);scrollTo({top:0});return}
+ const s=e.target.closest(".shot");
+ if(s){const dark=getComputedStyle(s.querySelector(".lt")).display==="none";$("lb").querySelector("img").src=dark&&s.dataset.dk?s.dataset.dk:s.dataset.lt;$("lb").showModal();return}
+ if(e.target.closest("#lb"))$("lb").close();
+});
+// The chip follows the swipe, and on a phone the track takes the height of the card in view
+document.querySelectorAll(".track").forEach(t=>{
+ const chips=[...t.previousElementSibling.querySelectorAll("button")],cards=[...t.children];
+ const mark=()=>{const i=Math.min(cards.length-1,Math.round(t.scrollLeft/(t.clientWidth+16)));chips.forEach((c,j)=>c.setAttribute("aria-current",j===i));t.style.height=getComputedStyle(t.previousElementSibling).display==="none"?"":cards[i].offsetHeight+"px"};
+ t.addEventListener("scroll",()=>requestAnimationFrame(mark),{passive:true});addEventListener("resize",mark);t.querySelectorAll("img").forEach(im=>im.addEventListener("load",mark));mark();
+});
+$("noteBtn").addEventListener("click",()=>{const n=$("note");n.hidden=!n.hidden;if(!n.hidden)n.focus()});
+$("note").value=state.note;if(state.note)$("note").hidden=false;
+$("note").addEventListener("input",e=>{state.note=e.target.value;save()});
+$("copy").addEventListener("click",()=>{
+ const text=build(),b=$("copy"),done=t=>{b.textContent=t;setTimeout(()=>b.textContent="Copy reaction",1800)};
+ const fallback=()=>{const o=$("out");o.hidden=false;o.value=text;o.select();done("Select and copy")};
+ try{navigator.clipboard.writeText(text).then(()=>done("Copied"),fallback)}catch(e){fallback()}
+});
+// Light / Dark switch, so the other theme's captures are one tap away
+const root=document.documentElement,mq=matchMedia("(prefers-color-scheme: dark)");
+const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":mq.matches;
+const label=()=>$("theme").textContent=isDark()?"Light":"Dark";
+$("theme").addEventListener("click",()=>{root.dataset.theme=isDark()?"light":"dark";label()});label();
+sync();
+})();
+</script>
+
+</body></html>

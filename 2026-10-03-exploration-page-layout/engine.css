@@ -1,0 +1,99 @@
+/* Phone first. The open round leads; Today and earlier rounds fold away; a bar pinned to the bottom carries the picks and Copy. Swap the tokens for the repo's brand. */
+:root{--bg:#fbfbfa;--surface:#f3f3f1;--line:#e2e2df;--fg:#161615;--muted:#5d5d59;--accent:#2f5bd3;--ok:#1f7a45;--no:#a3372b;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:var(--sans);--mono:ui-monospace,SFMono-Regular,Menlo,monospace;--stick:0px;--bar:64px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111110;--surface:#1b1b1a;--line:#2e2e2c;--fg:#f1f1ef;--muted:#a3a39e;--accent:#7f9cf0;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1080px;margin:0 auto;padding:24px 16px calc(var(--bar) + 48px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:28px}
+@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:36px}}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);letter-spacing:-.015em;margin:8px 0 10px;text-wrap:balance}
+h2{font:600 clamp(17px,4.4vw,21px)/1.28 var(--head);margin:0;text-wrap:balance}
+h3{font:500 16px/1.35 var(--sans);margin:0}
+p{margin:0;max-width:72ch}
+a{color:var(--accent)}
+code{font:13px var(--mono)}
+.muted{color:var(--muted)}
+blockquote{margin:0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+button{font:500 13px/1.2 var(--sans);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);-webkit-tap-highlight-color:transparent}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
+button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px;min-width:0}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:80ch;font-size:14px}
+/* Folded blocks: Today, each earlier round */
+details.fold{border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+details.fold>summary{list-style:none;cursor:pointer;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:"Show";grid-row:1/span 2;grid-column:2;font:500 13px var(--sans);color:var(--muted)}
+details.fold[open]>summary::after{content:"Hide"}
+details.fold>summary .sum{font-size:14px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+details.fold>.body{padding:4px 14px 16px;display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line);padding-top:14px}
+.ledger{display:flex;flex-direction:column;gap:8px}
+/* Tabs layout */
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:var(--bg);display:flex;gap:4px;border-bottom:1px solid var(--line);margin-inline:-16px;padding:8px 16px;overflow-x:auto;scrollbar-width:none}
+.tabs button{border-color:transparent;background:transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg)}
+/* A question and its options */
+.question{display:flex;flex-direction:column;gap:12px;min-width:0}
+.question+.question{margin-top:20px}
+.qhead{display:flex;flex-direction:column;gap:4px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:20px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.why{font-size:15px}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.choose{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.choose button{min-width:112px}
+.choose button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.choose button[aria-pressed="true"]::before{content:"✓ "}
+/* Deck: one option at a time on a phone, swiped or picked from the chips; a grid on wide screens */
+.chips{position:sticky;top:var(--stick);z-index:4;background:var(--bg);display:flex;gap:6px;padding-block:8px;margin-block:-8px 0;overflow-x:auto;scrollbar-width:none}
+.chips button{min-width:44px;padding-inline:12px;font-family:var(--mono)}
+.chips button[aria-current="true"]{border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.chips button::after{content:" ✓";color:var(--ok);visibility:hidden}.chips button.chosen::after{visibility:visible}
+.track{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;align-items:start}
+.track::-webkit-scrollbar,.chips::-webkit-scrollbar,.tabs::-webkit-scrollbar{display:none}
+.track>.opt{scroll-snap-align:start;scroll-snap-stop:always}
+@media (min-width:900px){.chips{display:none}.track{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));overflow:visible;gap:20px}}
+.opt.today header .letter{color:var(--muted)}
+/* Captures: the viewer's theme only, full width, tap to enlarge */
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:0;background:var(--surface);cursor:zoom-in;min-height:0}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dialog.lb{padding:0;border:0;background:transparent;max-width:100vw;max-height:100dvh;width:100vw;height:100dvh}
+dialog.lb::backdrop{background:rgb(0 0 0/.86)}
+dialog.lb .in{width:100%;height:100%;overflow:auto;display:grid;place-items:center;padding:16px;cursor:zoom-out}
+dialog.lb img{max-width:none;width:auto;height:auto;max-height:none;background:var(--surface)}
+@media (min-width:720px){dialog.lb img{max-width:100%}}
+/* Bottom bar: picks so far, a note, Copy */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.bar .in{max-width:1048px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.bar .row{display:flex;align-items:center;gap:8px}
+.bar .picks{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bar .picks b{color:var(--fg);font-weight:500}
+.bar textarea{width:100%;font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:72px}
+.bar .status{font-size:13px;color:var(--ok)}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+#copy{min-width:132px}
+.every{display:flex;flex-direction:column;gap:6px}
+@media (min-width:720px){.bar{padding-inline:24px}.bar .in{max-width:1032px}}
+details.fold[open]>summary .sum{display:none}

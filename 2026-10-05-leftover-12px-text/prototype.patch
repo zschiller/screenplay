@@ -1,0 +1,708 @@
+diff --git a/apps/app/app/play/[roomId]/[branchId]/page.tsx b/apps/app/app/play/[roomId]/[branchId]/page.tsx
+index 209d618..480082a 100644
+--- a/apps/app/app/play/[roomId]/[branchId]/page.tsx
++++ b/apps/app/app/play/[roomId]/[branchId]/page.tsx
+@@ -97,7 +97,7 @@ export default async function PlayPage({
+                 />
+               </EmptyMedia>
+               <EmptyTitle>Connecting</EmptyTitle>
+-              <EmptyDescription className="text-xs/relaxed">
++              <EmptyDescription>
+                 Joining {room.name || "the canvas"}.
+               </EmptyDescription>
+             </EmptyHeader>
+diff --git a/apps/app/components/agent/agent-chat.tsx b/apps/app/components/agent/agent-chat.tsx
+index 3a902b6..3549d73 100644
+--- a/apps/app/components/agent/agent-chat.tsx
++++ b/apps/app/components/agent/agent-chat.tsx
+@@ -444,7 +444,7 @@ export function AgentChat({
+       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+         <div ref={scrollContentRef} className="flex min-h-full flex-col p-4">
+           {isLoadingHistory ? (
+-            <div className="m-auto flex items-center gap-1.5 text-xs text-muted-foreground">
++            <div className="m-auto flex items-center gap-1.5 text-sm text-muted-foreground">
+               <Spinner className="size-3" />
+               Loading chat…
+             </div>
+@@ -665,7 +665,7 @@ function ChatEmptyState({
+               ? "Sketch or write something"
+               : capabilities.emptyTitle}
+         </p>
+-        <p className="text-xs text-muted-foreground">
++        <p className="text-sm text-muted-foreground">
+           {fresh
+             ? "Your first ask starts a chat on the canvas."
+             : noRepository
+@@ -707,7 +707,7 @@ function ChatLoadError({ onRetry }: { onRetry: () => Promise<unknown> }) {
+         <p className="font-heading text-title-sm text-foreground">
+           Couldn’t load this chat
+         </p>
+-        <p className="text-xs text-muted-foreground">
++        <p className="text-sm text-muted-foreground">
+           Its messages are still saved. Try loading them again.
+         </p>
+       </div>
+@@ -744,7 +744,7 @@ function FailedSendNotice({
+           chatId={chatId}
+         />
+       </div>
+-      <div className="-mr-2 flex max-w-full items-center text-xs">
++      <div className="-mr-2 flex max-w-full items-center text-sm">
+         <span className="mr-2 min-w-0 truncate text-destructive" title={error}>
+           Not sent: {describeSendError(error)}
+         </span>
+@@ -782,7 +782,7 @@ function PendingSteerNotice({
+           chatId={chatId}
+         />
+       </div>
+-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
++      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+         <ClockIcon className="size-3.5 shrink-0" />
+         Waiting for the agent
+       </div>
+@@ -801,7 +801,7 @@ function QueuedRow({
+   onRemove: () => void
+ }) {
+   return (
+-    <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50">
++    <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-sm dark:bg-input/50">
+       <ClockIcon className="size-3.5 shrink-0 text-muted-foreground" />
+       <span className="shrink-0 text-muted-foreground">Queued</span>
+       <span className="min-w-0 flex-1 truncate" title={message}>
+@@ -833,7 +833,7 @@ function QuoteRow({
+   return (
+     <div
+       aria-label="Quoted passage"
+-      className="flex w-full gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50"
++      className="flex w-full gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-sm dark:bg-input/50"
+     >
+       <FileTextIcon className="mt-1.5 size-3.5 shrink-0 text-muted-foreground" />
+       <div className="min-w-0 flex-1 py-1">
+@@ -866,7 +866,7 @@ function DraftSourceRow({
+   return (
+     <div
+       aria-label="Drafted on a mockup"
+-      className="flex w-full items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-xs dark:bg-input/50"
++      className="flex w-full items-center gap-1.5 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5 text-sm dark:bg-input/50"
+     >
+       <ScribbleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+       <div className="min-w-0 flex-1 truncate">
+diff --git a/apps/app/components/agent/agent-message.tsx b/apps/app/components/agent/agent-message.tsx
+index 6633a7b..98d749d 100644
+--- a/apps/app/components/agent/agent-message.tsx
++++ b/apps/app/components/agent/agent-message.tsx
+@@ -942,7 +942,7 @@ function PlanMessage({
+         )}
+         {isRejected && message.feedback && (
+           <div className="mt-3 rounded-md border border-border bg-background/60 p-2">
+-            <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
++            <div className="mb-1 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+               <XCircleIcon className="size-3" /> Your feedback
+             </div>
+             <ChatMarkdown tone="muted" size="xs">
+@@ -1085,7 +1085,7 @@ function PrEventLine({ event }: { event: PrEventMark }) {
+     <div
+       role="note"
+       data-testid="pr-event"
+-      className="flex items-center gap-2 text-xs text-muted-foreground"
++      className="flex items-center gap-2 text-sm text-muted-foreground"
+     >
+       <span className="h-px flex-1 bg-border" />
+       <span className="flex min-w-0 items-center gap-1.5">
+@@ -1484,7 +1484,7 @@ export function AgentMessageItem({
+         <div
+           role="note"
+           data-testid="run-stopped"
+-          className="flex items-center gap-2 text-xs text-muted-foreground"
++          className="flex items-center gap-2 text-sm text-muted-foreground"
+         >
+           <span className="h-px flex-1 bg-border" />
+           <span className="flex items-center gap-1">
+@@ -1521,7 +1521,7 @@ function ErrorMessage({
+   return (
+     <div
+       data-testid="chat-error"
+-      className="flex items-start gap-1.5 rounded-md border py-1 pr-1 pl-2 text-xs"
++      className="flex items-start gap-1.5 rounded-md border py-1 pr-1 pl-2 text-sm"
+     >
+       <WarningCircleIcon
+         aria-hidden
+diff --git a/apps/app/components/agent/attachment-chip.tsx b/apps/app/components/agent/attachment-chip.tsx
+index 36882c8..a62deb3 100644
+--- a/apps/app/components/agent/attachment-chip.tsx
++++ b/apps/app/components/agent/attachment-chip.tsx
+@@ -38,7 +38,7 @@ function AttachmentIcon({ mediaType }: { mediaType?: string }) {
+ }
+ 
+ const CHIP =
+-  "inline-flex h-7 max-w-56 min-w-0 items-center gap-1.5 rounded-lg text-xs"
++  "inline-flex h-7 max-w-56 min-w-0 items-center gap-1.5 rounded-lg text-sm"
+ 
+ /** An attachment in the composer, before the message is sent. */
+ export function ComposerAttachmentChip({
+diff --git a/apps/app/components/agent/chats-menu.tsx b/apps/app/components/agent/chats-menu.tsx
+index fd9ea76..a917bc5 100644
+--- a/apps/app/components/agent/chats-menu.tsx
++++ b/apps/app/components/agent/chats-menu.tsx
+@@ -863,7 +863,7 @@ function WorkspaceMenuRow({
+         }
+       />
+       {showRepoNames && (
+-        <span className="shrink-0 truncate text-xs text-muted-foreground">
++        <span className="shrink-0 truncate text-sm text-muted-foreground">
+           {repoShortName(repo)}
+         </span>
+       )}
+diff --git a/apps/app/components/agent/composer.tsx b/apps/app/components/agent/composer.tsx
+index 68a2d72..714cfba 100644
+--- a/apps/app/components/agent/composer.tsx
++++ b/apps/app/components/agent/composer.tsx
+@@ -1371,7 +1371,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
+                           >
+                             <span className="flex-1">{m.label}</span>
+                             {m.id === defaultModel && (
+-                              <span className="text-xs text-muted-foreground">
++                              <span className="text-sm text-muted-foreground">
+                                 Default
+                               </span>
+                             )}
+diff --git a/apps/app/components/agent/element-detail.tsx b/apps/app/components/agent/element-detail.tsx
+index 6dfd525..7aaa198 100644
+--- a/apps/app/components/agent/element-detail.tsx
++++ b/apps/app/components/agent/element-detail.tsx
+@@ -20,7 +20,7 @@ export function ElementDetail({
+     return (
+       <>
+         <ElementSelector selector={selector} />
+-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
++        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+           <dt className="text-muted-foreground">Mockup</dt>
+           <dd className="break-words">{frameLabel}</dd>
+         </dl>
+@@ -30,7 +30,7 @@ export function ElementDetail({
+   return (
+     <>
+       <ElementSelector selector={selector} />
+-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
++      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+         <dt className="text-muted-foreground">Route</dt>
+         <dd className="font-mono break-words">{route}</dd>
+         {frameLabel ? (
+diff --git a/apps/app/components/agent/logs-panel.tsx b/apps/app/components/agent/logs-panel.tsx
+index 829365b..585700f 100644
+--- a/apps/app/components/agent/logs-panel.tsx
++++ b/apps/app/components/agent/logs-panel.tsx
+@@ -273,13 +273,13 @@ export function LogsPanel({
+ 
+   const notice =
+     status === "reconnecting" ? (
+-      <span className="flex items-center gap-1.5 font-sans text-xs text-muted-foreground">
++      <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
+         <Spinner className="size-3" /> Reconnecting…
+       </span>
+     ) : status === "error" ? (
+       // The UI's own words in its own font: mono is for the log lines. The
+       // transport error ("HTTP 502") stays on hover.
+-      <span className="flex min-w-0 items-center gap-2 font-sans text-xs">
++      <span className="flex min-w-0 items-center gap-2 font-sans text-sm">
+         <span
+           className="min-w-0 truncate text-destructive"
+           title={error ?? undefined}
+@@ -317,7 +317,7 @@ export function LogsPanel({
+         ) : status === "error" || status === "reconnecting" ? (
+           notice
+         ) : (
+-          <span className="font-sans text-xs text-muted-foreground">
++          <span className="font-sans text-sm text-muted-foreground">
+             {status === "live" ? "No output yet." : "Connecting…"}
+           </span>
+         )}
+diff --git a/apps/app/components/agent/merge-pr-card.tsx b/apps/app/components/agent/merge-pr-card.tsx
+index 86b1e23..82ff6cd 100644
+--- a/apps/app/components/agent/merge-pr-card.tsx
++++ b/apps/app/components/agent/merge-pr-card.tsx
+@@ -220,7 +220,7 @@ export function MergePrCard({
+         <ConfirmationRequest>
+           <span className="flex flex-col gap-0.5">
+             <span>Merge {prRef}?</span>
+-            <span className="text-xs text-muted-foreground">
++            <span className="text-sm text-muted-foreground">
+               {state.kind === "loading" ? (
+                 <Spinner
+                   className="size-3"
+@@ -254,7 +254,7 @@ export function MergePrCard({
+         </ConfirmationRejected>
+       </ConfirmationTitle>
+       {error && (
+-        <p role="alert" className="text-xs text-muted-foreground">
++        <p role="alert" className="text-sm text-muted-foreground">
+           {error}
+         </p>
+       )}
+diff --git a/apps/app/components/agent/question-card.tsx b/apps/app/components/agent/question-card.tsx
+index d2394e6..bc62e2f 100644
+--- a/apps/app/components/agent/question-card.tsx
++++ b/apps/app/components/agent/question-card.tsx
+@@ -132,7 +132,7 @@ export function QuestionCard({
+                   )}
+                 </span>
+                 {option.detail && (
+-                  <QuestionnaireChoiceDescription className="text-xs">
++                  <QuestionnaireChoiceDescription className="text-sm">
+                     {option.detail}
+                   </QuestionnaireChoiceDescription>
+                 )}
+@@ -169,7 +169,7 @@ function MockupLine({ id }: { id: string }) {
+     // Item's 16px over the choices, as the question has without it.
+     <QuestionnaireDescription
+       data-testid="question-mockup"
+-      className="mt-1 text-xs"
++      className="mt-1 text-sm"
+     >
+       On{" "}
+       <InlineRef kind="mockup" onClick={() => viewRequests.emit({ ids: [id] })}>
+diff --git a/apps/app/components/agent/skill-mention-list.tsx b/apps/app/components/agent/skill-mention-list.tsx
+index 435c0fb..9841919 100644
+--- a/apps/app/components/agent/skill-mention-list.tsx
++++ b/apps/app/components/agent/skill-mention-list.tsx
+@@ -137,7 +137,7 @@ export const SkillMentionList = forwardRef<
+                     {skillSourceLabel(item)}
+                   </span>
+                 </span>
+-                <span className="line-clamp-2 pl-6 text-xs text-muted-foreground">
++                <span className="line-clamp-2 pl-6 text-sm text-muted-foreground">
+                   {item.description}
+                 </span>
+               </CommandItem>
+diff --git a/apps/app/components/agent/skill-save-card.tsx b/apps/app/components/agent/skill-save-card.tsx
+index 6b27d07..4dc4605 100644
+--- a/apps/app/components/agent/skill-save-card.tsx
++++ b/apps/app/components/agent/skill-save-card.tsx
+@@ -208,12 +208,12 @@ export function SkillSaveCard({
+                 skill?
+               </span>
+               {description && (
+-                <span className="line-clamp-2 text-xs text-muted-foreground">
++                <span className="line-clamp-2 text-sm text-muted-foreground">
+                   {description}
+                 </span>
+               )}
+               {replaces && (
+-                <span className="text-xs text-muted-foreground">
++                <span className="text-sm text-muted-foreground">
+                   {replaces}
+                 </span>
+               )}
+@@ -235,7 +235,7 @@ export function SkillSaveCard({
+           </ConfirmationAccepted>
+         </ConfirmationTitle>
+         {error && (
+-          <p role="alert" className="text-xs text-muted-foreground">
++          <p role="alert" className="text-sm text-muted-foreground">
+             {error}
+           </p>
+         )}
+diff --git a/apps/app/components/agent/workspace-task-row.tsx b/apps/app/components/agent/workspace-task-row.tsx
+index b8fb15e..6e56da6 100644
+--- a/apps/app/components/agent/workspace-task-row.tsx
++++ b/apps/app/components/agent/workspace-task-row.tsx
+@@ -166,7 +166,7 @@ export function WorkspaceTaskRow({
+         )}
+       </span>
+       {message && (
+-        <span className="block w-full truncate pl-6 text-xs text-muted-foreground">
++        <span className="block w-full truncate pl-6 text-sm text-muted-foreground">
+           {message}
+         </span>
+       )}
+diff --git a/apps/app/components/canvas/comments-panel.tsx b/apps/app/components/canvas/comments-panel.tsx
+index 9b658cf..279aa62 100644
+--- a/apps/app/components/canvas/comments-panel.tsx
++++ b/apps/app/components/canvas/comments-panel.tsx
+@@ -523,7 +523,7 @@ function DetachedNote({
+           ? "Text removed"
+           : "Element not found"
+   return (
+-    <span className={cn("block text-xs text-muted-foreground", className)}>
++    <span className={cn("block text-sm text-muted-foreground", className)}>
+       {reason}
+       {where && (
+         <>
+@@ -623,7 +623,7 @@ function ThreadRow({
+           </p>
+         )}
+         {detail && (
+-          <div className="mt-0.5 text-xs text-muted-foreground">{detail}</div>
++          <div className="mt-0.5 text-sm text-muted-foreground">{detail}</div>
+         )}
+         {thread.agentStatus && (
+           <AgentStatusChip
+diff --git a/apps/app/components/canvas/comments.tsx b/apps/app/components/canvas/comments.tsx
+index f5d7c1c..a9b57ad 100644
+--- a/apps/app/components/canvas/comments.tsx
++++ b/apps/app/components/canvas/comments.tsx
+@@ -819,7 +819,7 @@ function QuoteHeader({
+         : `Lines ${lineFrom}–${lineTo}`
+       : null
+   return (
+-    <div className="rounded-sm border-l-2 border-border bg-muted px-2 py-1.5 text-xs leading-snug text-muted-foreground">
++    <div className="rounded-sm border-l-2 border-border bg-muted px-2 py-1.5 text-sm leading-snug text-muted-foreground">
+       {range && (
+         <div className="mb-0.5 font-medium text-foreground">{range}</div>
+       )}
+diff --git a/apps/app/components/canvas/document-image-node.tsx b/apps/app/components/canvas/document-image-node.tsx
+index 9d4b961..566a31d 100644
+--- a/apps/app/components/canvas/document-image-node.tsx
++++ b/apps/app/components/canvas/document-image-node.tsx
+@@ -30,7 +30,7 @@ export function DocumentImageNodeView({ node, selected }: NodeViewProps) {
+       {failed === url || !src ? (
+         <div
+           className={cn(
+-            "flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground",
++            "flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground",
+             selected && "outline-2 outline-offset-2 outline-ring"
+           )}
+         >
+diff --git a/apps/app/components/canvas/getting-started-checklist.tsx b/apps/app/components/canvas/getting-started-checklist.tsx
+index 0306b4d..a6971d2 100644
+--- a/apps/app/components/canvas/getting-started-checklist.tsx
++++ b/apps/app/components/canvas/getting-started-checklist.tsx
+@@ -196,6 +196,6 @@ function StepBody({
+ 
+ function Hint({ children }: { children: React.ReactNode }) {
+   return (
+-    <p className="text-xs text-balance text-muted-foreground">{children}</p>
++    <p className="text-sm text-balance text-muted-foreground">{children}</p>
+   )
+ }
+diff --git a/apps/app/components/canvas/knobs-popover.tsx b/apps/app/components/canvas/knobs-popover.tsx
+index de663da..890cfad 100644
+--- a/apps/app/components/canvas/knobs-popover.tsx
++++ b/apps/app/components/canvas/knobs-popover.tsx
+@@ -71,7 +71,7 @@ export function KnobsPopover({
+           onChange={onChange}
+           theme={theme}
+           empty={
+-            <div className="flex flex-col gap-2 text-xs text-muted-foreground">
++            <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+               <p className="font-medium text-foreground">
+                 {theme ? "No knobs from this page yet" : "No knobs yet"}
+               </p>
+diff --git a/apps/app/components/entry/sign-in-screen.tsx b/apps/app/components/entry/sign-in-screen.tsx
+index d929719..36a0b2b 100644
+--- a/apps/app/components/entry/sign-in-screen.tsx
++++ b/apps/app/components/entry/sign-in-screen.tsx
+@@ -70,7 +70,7 @@ export function SignInScreen() {
+               Couldn&rsquo;t reach GitHub to sign you in.
+             </p>
+           )}
+-          <p className="max-w-[36ch] text-xs text-balance text-muted-foreground">
++          <p className="max-w-[36ch] text-sm text-balance text-muted-foreground">
+             Screenplay clones your GitHub repositories and pushes commits on
+             your behalf.
+           </p>
+diff --git a/apps/app/components/frame-status/frame-status.tsx b/apps/app/components/frame-status/frame-status.tsx
+index 21ed381..a08d604 100644
+--- a/apps/app/components/frame-status/frame-status.tsx
++++ b/apps/app/components/frame-status/frame-status.tsx
+@@ -179,7 +179,7 @@ export function FrameStatus({
+           </EmptyMedia>
+           <EmptyTitle>{copy.title}</EmptyTitle>
+           {stage === "workspace-failed" && detail ? (
+-            <EmptyDescription className="line-clamp-3 font-mono text-xs break-words">
++            <EmptyDescription className="line-clamp-3 font-mono text-sm break-words">
+               {detail}
+             </EmptyDescription>
+           ) : (
+diff --git a/apps/app/components/home/settings-row.tsx b/apps/app/components/home/settings-row.tsx
+index 0b18575..75ad0b5 100644
+--- a/apps/app/components/home/settings-row.tsx
++++ b/apps/app/components/home/settings-row.tsx
+@@ -87,7 +87,7 @@ export function SettingsRow({
+           )}
+         </div>
+         {detail && (
+-          <div className="truncate text-xs text-muted-foreground">{detail}</div>
++          <div className="truncate text-sm text-muted-foreground">{detail}</div>
+         )}
+       </div>
+       {action && (
+diff --git a/apps/app/components/home/sidebar-search.tsx b/apps/app/components/home/sidebar-search.tsx
+index 1cafce7..1e43715 100644
+--- a/apps/app/components/home/sidebar-search.tsx
++++ b/apps/app/components/home/sidebar-search.tsx
+@@ -246,7 +246,7 @@ function ResultItem({
+       <span className="truncate">{name}</span>
+       <span
+         title={location}
+-        className="ml-auto min-w-0 shrink truncate text-xs text-muted-foreground"
++        className="ml-auto min-w-0 shrink truncate text-sm text-muted-foreground"
+       >
+         {location}
+       </span>
+diff --git a/apps/app/components/knobs-panel.tsx b/apps/app/components/knobs-panel.tsx
+index 851182b..bb5a105 100644
+--- a/apps/app/components/knobs-panel.tsx
++++ b/apps/app/components/knobs-panel.tsx
+@@ -110,7 +110,7 @@ export function KnobsPanel({
+   return (
+     <div className="flex max-h-90 min-h-0 flex-col">
+       <div className="flex h-9 shrink-0 items-center justify-between border-b border-foreground/5 px-3">
+-        <span className="text-xs font-medium text-foreground">Knobs</span>
++        <span className="text-sm font-medium text-foreground">Knobs</span>
+         {defs.length > 0 || theme ? (
+           <Button
+             size="sm"
+@@ -216,8 +216,8 @@ function KnobRow({ def, value, onChange, divided }: KnobRowProps) {
+     >
+       {/* Inline, so a label too long for its column wraps with the info
+           icon following its last word. */}
+-      <div className="min-w-0 text-xs leading-4">
+-        <Label className="inline text-xs leading-4">{label}</Label>
++      <div className="min-w-0 text-sm leading-4">
++        <Label className="inline text-sm leading-4">{label}</Label>
+         {description ? (
+           <KnobDescription label={label} description={description} />
+         ) : null}
+@@ -315,7 +315,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
+             const n = Number(e.target.value)
+             if (!Number.isNaN(n)) onChange(n)
+           }}
+-          className="h-7 text-xs md:text-xs"
++          className="h-7 text-sm md:text-sm"
+         />
+       )
+     }
+@@ -331,7 +331,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
+           value={stringValue}
+           placeholder={def.placeholder}
+           onChange={(e) => onChange(e.target.value)}
+-          className="h-7 text-xs md:text-xs"
++          className="h-7 text-sm md:text-sm"
+         />
+       )
+     }
+@@ -354,7 +354,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
+               <TabsTrigger
+                 key={opt.value}
+                 value={opt.value}
+-                className="flex-1 justify-center text-xs"
++                className="flex-1 justify-center text-sm"
+               >
+                 {opt.label ?? opt.value}
+               </TabsTrigger>
+@@ -369,7 +369,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
+         <Select value={stringValue} onValueChange={onChange}>
+           <SelectTrigger
+             size="sm"
+-            className="w-full text-xs data-[size=sm]:h-7"
++            className="w-full text-sm data-[size=sm]:h-7"
+           >
+             <SelectValue />
+           </SelectTrigger>
+@@ -388,7 +388,7 @@ function KnobControl({ def, value, onChange }: KnobControlProps) {
+       // A field like the text knobs': a swatch and the hex value, with the
+       // native colour input stretched invisibly over it to open the picker.
+       return (
+-        <label className="relative flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-input bg-transparent px-1.5 text-xs transition-colors has-focus-visible:border-ring has-focus-visible:ring-3 has-focus-visible:ring-ring/50 dark:bg-input/30">
++        <label className="relative flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-input bg-transparent px-1.5 text-sm transition-colors has-focus-visible:border-ring has-focus-visible:ring-3 has-focus-visible:ring-ring/50 dark:bg-input/30">
+           <span
+             aria-hidden
+             className="size-4 shrink-0 rounded-sm ring-1 ring-foreground/10 ring-inset"
+diff --git a/apps/app/components/local-setup/agent-step.tsx b/apps/app/components/local-setup/agent-step.tsx
+index 4cd56f3..5335e5d 100644
+--- a/apps/app/components/local-setup/agent-step.tsx
++++ b/apps/app/components/local-setup/agent-step.tsx
+@@ -138,7 +138,7 @@ export function AgentStep({
+ 
+   return (
+     <CurrentSetupStep step={1} title="Install a coding agent">
+-      <p className="text-xs text-muted-foreground">
++      <p className="text-sm text-muted-foreground">
+         Agent chats and terminals run on a coding CLI on this device.
+       </p>
+       {loadFailed ? (
+@@ -150,7 +150,7 @@ export function AgentStep({
+         </div>
+       ) : run ? (
+         <div className="space-y-2">
+-          <p className="text-xs text-muted-foreground">{run.message}</p>
++          <p className="text-sm text-muted-foreground">{run.message}</p>
+           <HostSessionTerminal
+             sessionKey={`screenplay-harness-setup-${selected.hostBinary}`}
+             command={run.command}
+@@ -224,7 +224,7 @@ export function AgentStep({
+             )}
+           </div>
+           {error && !selected.connected && (
+-            <p role="alert" className="text-xs text-destructive">
++            <p role="alert" className="text-sm text-destructive">
+               {error}
+             </p>
+           )}
+diff --git a/apps/app/components/local-setup/github-step.tsx b/apps/app/components/local-setup/github-step.tsx
+index 246b84a..3008fca 100644
+--- a/apps/app/components/local-setup/github-step.tsx
++++ b/apps/app/components/local-setup/github-step.tsx
+@@ -83,7 +83,7 @@ export function GitHubStep({
+       title="Connect GitHub"
+       chip={<SetupChip>Optional</SetupChip>}
+     >
+-      <p className="text-xs text-muted-foreground">
++      <p className="text-sm text-muted-foreground">
+         {connected
+           ? status?.ghHandle
+             ? `Connected as @${status.ghHandle}.`
+@@ -92,7 +92,7 @@ export function GitHubStep({
+       </p>
+       {connection.working ? (
+         <div className="space-y-2">
+-          <p className="text-xs text-muted-foreground">
++          <p className="text-sm text-muted-foreground">
+             {connection.working.message}
+           </p>
+           <HostSessionTerminal
+diff --git a/apps/app/components/local-setup/local-setup-gate.tsx b/apps/app/components/local-setup/local-setup-gate.tsx
+index 7dbba7f..9e8cf37 100644
+--- a/apps/app/components/local-setup/local-setup-gate.tsx
++++ b/apps/app/components/local-setup/local-setup-gate.tsx
+@@ -170,7 +170,7 @@ export function LocalSetupGate({
+         <div className="flex items-center justify-between gap-3 pt-1">
+           {/* While Finish is off, the line beside it says why, for everyone
+               (and names it for screen readers through aria-describedby). */}
+-          <p id={finishReasonId} className="text-xs text-muted-foreground">
++          <p id={finishReasonId} className="text-sm text-muted-foreground">
+             {released
+               ? "You can change these later in Settings."
+               : finishBlockedReason({ harnessDone, githubDone })}
+diff --git a/apps/app/components/panels/layer-rows/iframe-layer-row.tsx b/apps/app/components/panels/layer-rows/iframe-layer-row.tsx
+index 9dafcd6..5e1fe2d 100644
+--- a/apps/app/components/panels/layer-rows/iframe-layer-row.tsx
++++ b/apps/app/components/panels/layer-rows/iframe-layer-row.tsx
+@@ -55,7 +55,7 @@ export function makeIframeLayerRow(extras: IframeLayerRowExtraProps) {
+     const workspace = showWorkspace ? frameWorkspaceOf(branch) : undefined
+     const workspaceMention = workspace ? (
+       // Names win: the Workspace takes only the room the name leaves.
+-      <span className="flex min-w-10 flex-1 basis-0 text-xs text-muted-foreground">
++      <span className="flex min-w-10 flex-1 basis-0 text-sm text-muted-foreground">
+         <CompactWorkspaceMention workspace={workspace} layout="row" />
+       </span>
+     ) : null
+diff --git a/apps/app/components/panels/room-sidebar.tsx b/apps/app/components/panels/room-sidebar.tsx
+index 5a97047..35b4569 100644
+--- a/apps/app/components/panels/room-sidebar.tsx
++++ b/apps/app/components/panels/room-sidebar.tsx
+@@ -806,7 +806,7 @@ export function RoomSidebar({
+                                               frameWorkspaceOf(branch)
+                                             return workspace ? (
+                                               // Names win: the Workspace takes only the room the name leaves.
+-                                              <span className="flex min-w-10 flex-1 basis-0 text-xs font-normal text-muted-foreground">
++                                              <span className="flex min-w-10 flex-1 basis-0 text-sm font-normal text-muted-foreground">
+                                                 <CompactWorkspaceMention
+                                                   workspace={workspace}
+                                                   layout="row"
+@@ -860,7 +860,7 @@ export function RoomSidebar({
+                   </SortableContext>
+                 </DropHintContext.Provider>
+                 {iframeLayerGroups.length === 0 && (
+-                  <div className="py-8 text-center text-xs text-balance text-sidebar-foreground/50">
++                  <div className="py-8 text-center text-sm text-balance text-sidebar-foreground/50">
+                     Nothing on the canvas yet
+                   </div>
+                 )}
+diff --git a/apps/app/components/play/player-knobs.tsx b/apps/app/components/play/player-knobs.tsx
+index dbe8a75..5bb64ca 100644
+--- a/apps/app/components/play/player-knobs.tsx
++++ b/apps/app/components/play/player-knobs.tsx
+@@ -17,7 +17,7 @@ export function PlayerKnobs({ knobs, values, onChange }: PlayerKnobsProps) {
+       values={values}
+       onChange={onChange}
+       empty={
+-        <div className="flex flex-col gap-2 text-xs text-muted-foreground">
++        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+           <p className="font-medium text-foreground">No knobs yet</p>
+           <p>
+             Knobs let you adjust this page live, like a slider for card padding.
+diff --git a/apps/app/components/repo-add-settings.tsx b/apps/app/components/repo-add-settings.tsx
+index 62ac5c3..35d2264 100644
+--- a/apps/app/components/repo-add-settings.tsx
++++ b/apps/app/components/repo-add-settings.tsx
+@@ -213,7 +213,7 @@ export function RepoAddSettings({
+   return (
+     <div className="flex flex-col gap-4 px-5 pt-2 pb-5">
+       {status !== "idle" && status !== "done" && (
+-        <div className="flex min-h-5 items-center gap-2 text-xs text-muted-foreground">
++        <div className="flex min-h-5 items-center gap-2 text-sm text-muted-foreground">
+           {status === "detecting" ? (
+             <>
+               <Spinner className="size-3.5" />
+@@ -225,7 +225,7 @@ export function RepoAddSettings({
+               <Button
+                 variant="link"
+                 size="sm"
+-                className="h-auto gap-1 p-0 text-xs"
++                className="h-auto gap-1 p-0 text-sm"
+                 onClick={reDetect}
+               >
+                 <ArrowClockwiseIcon className="size-3" />
+diff --git a/apps/app/components/repo-settings-fields.tsx b/apps/app/components/repo-settings-fields.tsx
+index 3c0fa47..34fac00 100644
+--- a/apps/app/components/repo-settings-fields.tsx
++++ b/apps/app/components/repo-settings-fields.tsx
+@@ -339,7 +339,7 @@ export function RepoSettingsFields({
+               onChange={(e) => onSystemPromptChange(e.target.value)}
+               placeholder="Work in the Next.js app under apps/web."
+               rows={4}
+-              className="[field-sizing:fixed] max-w-full resize-y text-xs"
++              className="[field-sizing:fixed] max-w-full resize-y text-sm"
+             />
+             <FieldDescription>
+               Extra instructions for the agent in this repository, like which
+diff --git a/apps/app/components/share-room-dialog.tsx b/apps/app/components/share-room-dialog.tsx
+index 9e08a16..1c57cf3 100644
+--- a/apps/app/components/share-room-dialog.tsx
++++ b/apps/app/components/share-room-dialog.tsx
+@@ -165,7 +165,7 @@ export function ShareRoomDialog({
+                     )}
+                   </div>
+                   {c.isOwner ? (
+-                    <span className="text-xs text-muted-foreground">Owner</span>
++                    <span className="text-sm text-muted-foreground">Owner</span>
+                   ) : (
+                     <Button
+                       variant="ghost"
+diff --git a/apps/app/components/workspace-hover-card.tsx b/apps/app/components/workspace-hover-card.tsx
+index 58b67b4..cd121b8 100644
+--- a/apps/app/components/workspace-hover-card.tsx
++++ b/apps/app/components/workspace-hover-card.tsx
+@@ -148,7 +148,7 @@ function WorkspaceHoverDetail({
+         <p className="font-medium break-words">{label}</p>
+         <p
+           className={cn(
+-            "text-xs",
++            "text-sm",
+             line.kind === "error" ? "text-destructive" : "text-muted-foreground"
+           )}
+         >
+@@ -162,7 +162,7 @@ function WorkspaceHoverDetail({
+         </p>
+       </div>
+       {(details.repository || details.branch) && (
+-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
++        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+           {details.repository && (
+             <>
+               <dt className="text-muted-foreground">Repository</dt>
+diff --git a/apps/app/lib/document-image-upload.tsx b/apps/app/lib/document-image-upload.tsx
+index e6daf8d..da61573 100644
+--- a/apps/app/lib/document-image-upload.tsx
++++ b/apps/app/lib/document-image-upload.tsx
+@@ -47,7 +47,7 @@ function placeholderDom(spec: PendingSpec, label: string | null): HTMLElement {
+   el.setAttribute("data-image-pending", "")
+   if (label === null) return el
+   el.className =
+-    "my-2 flex h-24 items-center justify-center gap-2 rounded-md bg-muted text-xs text-muted-foreground"
++    "my-2 flex h-24 items-center justify-center gap-2 rounded-md bg-muted text-sm text-muted-foreground"
+   const root = createRoot(el)
+   root.render(
+     <>

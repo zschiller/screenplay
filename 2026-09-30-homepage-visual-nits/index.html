@@ -1,0 +1,143 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Homepage Visual Nits</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Unbounded:wght@400&display=swap">
+<style>
+/* Layout: one long column of findings, each a numbered row with its before/after pair; dark like the homepage it audits. */
+:root {
+  --bg: #050505; --panel: #0e0e10; --fg: #f2f2f2; --muted: #9a98a0; --rule: #26252a; --sel: oklch(0.667 0.295 322.15);
+  --sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif; --mono: "Geist Mono", ui-monospace, Menlo, monospace; --head: "Unbounded", ui-sans-serif, system-ui, sans-serif;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 48px 80px; }
+.eyebrow, .where, figcaption, .n { font: 500 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.eyebrow { color: var(--sel); margin: 0 }
+h1 { font: 400 clamp(28px,4.5vw,44px)/1.08 var(--head); letter-spacing: -.03em; margin: 14px 0 16px; text-wrap: balance; max-width: 20ch }
+.lede { color: var(--muted); font-size: 17px; max-width: 64ch; margin: 0 }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 32px; margin: 32px 0 8px; padding-top: 16px; border-top: 1px solid var(--fg); }
+.meta div { min-width: 0 }
+.meta dt { font: 500 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.meta dd { margin: 4px 0 0; font-size: 14px }
+.meta a { color: var(--fg); text-decoration-color: var(--rule); text-underline-offset: 3px }
+.meta a:hover, .meta a:focus-visible { text-decoration-color: var(--fg) }
+a:focus-visible { outline: 2px solid var(--sel); outline-offset: 2px }
+.f { border-top: 1px solid var(--rule); padding-block: 36px; display: grid; gap: 16px }
+.f > header { display: flex; gap: 16px; align-items: baseline }
+.n { color: var(--sel); flex: none; width: 2.2em }
+.where { color: var(--muted); margin: 0 0 6px }
+h2 { font: 400 20px/1.25 var(--head); letter-spacing: -.03em; margin: 0; text-wrap: balance }
+.txt { padding-left: calc(2.2em * 11 / 15 + 16px); display: grid; gap: 8px; max-width: 72ch }
+.txt p { margin: 0; color: var(--muted) }
+.txt .fix { color: var(--fg) }
+.fix b { font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sel); margin-right: 6px }
+code { font: 12px var(--mono); color: var(--muted); white-space: nowrap }
+.pair { display: grid; gap: 12px }
+.pair.side { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); align-items: start }
+figure { margin: 0; min-width: 0; display: grid; gap: 6px }
+figcaption { color: var(--muted) }
+figcaption.a { color: var(--fg) }
+figure img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); background: #000 }
+.side figure img { max-width: 560px }
+.notes { border-top: 1px solid var(--fg); padding-top: 20px; margin-top: 24px }
+.notes h2 { margin-bottom: 12px }
+.notes ul { margin: 0; padding-left: 18px; color: var(--muted); max-width: 72ch; display: grid; gap: 6px }
+@media (max-width: 600px) { .txt { padding-left: 0 } }
+</style>
+<div class="wrap">
+  <p class="eyebrow">Homepage audit · visual nits</p>
+  <h1>Fifteen pixel fixes for the homepage</h1>
+  <p class="lede">Measured on 2x captures of a production build (current main, after the homepage copy PR #1194) at 1440, 1280, 1024, 900, 768, 640, 390 and 360px, and the excerpts checked against the app’s own code and docs screenshots. Ranked by how visible each one is. Every “after” is the real fix, running on a prototype branch.</p>
+  <dl class="meta">
+    <div><dt>Prototype branch</dt><dd><a href="https://github.com/zschiller/screenplay/compare/main...claude/project-thread-jlqdec">claude/project-thread-jlqdec</a>, no PR yet</dd></div>
+    <div><dt>Scope</dt><dd>Alignment, spacing, type, excerpt fidelity, clipping. Copy and layout changes are in the other audit threads.</dd></div>
+    <div><dt>Checks</dt><dd>Typecheck and lint pass; no horizontal scroll from 360 to 1440px.</dd></div>
+  </dl>
+<article class="f" id="f1">
+  <header><span class="n">01</span><div><p class="where">How it works · 1024–1150px</p><h2>Step excerpts drop 26px when a title wraps</h2></div></header>
+  <div class="txt"><p>At four columns, “Compare them live” and “Open a pull request” wrap to two lines while steps 1 and 2 stay on one, so the excerpts for steps 3 and 4 start 26.4px lower (measured tops 2307 vs 2333px at 1024). The image row reads as broken.</p><p class="fix"><b>Fix</b> Each step becomes a subgrid row-span of four (label, title, excerpt, body), so every excerpt starts on the same line whatever its title does. <code>scenes.tsx</code></p></div>
+  <div class="pair stack"><figure><figcaption>Before</figcaption><img src="img/steps-wrap.before.png" alt="Before: Step excerpts drop 26px when a title wraps" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/steps-wrap.after.png" alt="After: Step excerpts drop 26px when a title wraps" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f2">
+  <header><span class="n">02</span><div><p class="where">Fig. 1 · every width from 640px</p><h2>Fig. 1’s frame bar hangs past its frame</h2></div></header>
+  <div class="txt"><p>The bar is pinned to the frame’s left edge and forced to at least 440px, so it overhangs the frame’s right edge by 77px at 1440, 93px at 1024 and 107px at 768. In the app the bar is centred under the selected frame (docs screenshot frame-selected), and the Problem section’s excerpt already draws it frame-wide.</p><p class="fix"><b>Fix</b> Centred under the frame and as wide as it, or 360px under a narrow frame, kept 8px inside the canvas. It now matches the frame exactly at 640–1440px; at 1024 the narrow canvas still leaves a small overhang (17px left, 64px right). <code>canvas.tsx</code></p></div>
+  <div class="pair side"><figure><figcaption>Before</figcaption><img src="img/fig1-bar.before.png" alt="Before: Fig. 1’s frame bar hangs past its frame" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/fig1-bar.after.png" alt="After: Fig. 1’s frame bar hangs past its frame" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f3">
+  <header><span class="n">03</span><div><p class="where">Fig. 1 · under 640px</p><h2>A 60px hole in Fig. 1 on phones, with the tool bar on a label</h2></div></header>
+  <div class="txt"><p>The frame bar is hidden on phones, but the Pricing group still leaves room for it, so there’s an empty band under the selected frame and the canvas tool bar lands on the “Pricing FAQ” label.</p><p class="fix"><b>Fix</b> Without the bar the Pricing group moves up 40px (a --gap variable, 96px down to 56px). The tool bar now floats over the frame, as it does in the app. <code>canvas.tsx</code></p></div>
+  <div class="pair side"><figure><figcaption>Before</figcaption><img src="img/fig1-phone.before.png" alt="Before: A 60px hole in Fig. 1 on phones, with the tool bar on a label" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/fig1-phone.after.png" alt="After: A 60px hole in Fig. 1 on phones, with the tool bar on a label" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f4">
+  <header><span class="n">04</span><div><p class="where">How it works · Step 4</p><h2>Step 4’s menu is dark; the app’s menus are inverted</h2></div></header>
+  <div class="txt"><p>Since #1073 the app’s menus take the other theme, so the Workspace menu is white in dark mode (docs screenshot ws-menu). The excerpt draws it as a dark page-toned popover.</p><p class="fix"><b>Fix</b> The menu surface gets the shared inverted class, so it picks up the light tokens exactly as the app’s DropdownMenu does. <code>steps.tsx</code></p></div>
+  <div class="pair side"><figure><figcaption>Before</figcaption><img src="img/step4-menu.before.png" alt="Before: Step 4’s menu is dark; the app’s menus are inverted" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/step4-menu.after.png" alt="After: Step 4’s menu is dark; the app’s menus are inverted" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f5">
+  <header><span class="n">05</span><div><p class="where">The problem · 1024px and up</p><h2>“Without” and “With” captions sit in different places</h2></div></header>
+  <div class="txt"><p>“Without Screenplay” is inside the terminal box; “With Screenplay” is under the canvas box. The grid stretches the terminal to the full row, so it ends 25.4px below the canvas box.</p><p class="fix"><b>Fix</b> Both captions sit under their boxes in the same muted mono label, and the two boxes end on the same line. <code>problem.tsx</code></p></div>
+  <div class="pair stack"><figure><figcaption>Before</figcaption><img src="img/problem-captions.before.png" alt="Before: “Without” and “With” captions sit in different places" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/problem-captions.after.png" alt="After: “Without” and “With” captions sit in different places" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f6">
+  <header><span class="n">06</span><div><p class="where">How it works · Step 3</p><h2>Step 3’s second label is jammed under the selected frame</h2></div></header>
+  <div class="txt"><p>“Homepage ○ Main” starts 4px below the selected frame’s bottom handles, so the label reads as part of the frame above.</p><p class="fix"><b>Fix</b> Rows moved from top 52/204 to 46/212 in the 320×256 card: 20px between the handle and the next Group’s label. <code>steps.tsx</code></p></div>
+  <div class="pair side"><figure><figcaption>Before</figcaption><img src="img/step3-compare.before.png" alt="Before: Step 3’s second label is jammed under the selected frame" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/step3-compare.after.png" alt="After: Step 3’s second label is jammed under the selected frame" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f7">
+  <header><span class="n">07</span><div><p class="where">Header · 768px and up</p><h2>Header nav sits 20px left of centre</h2></div></header>
+  <div class="txt"><p>justify-between centres the nav between a 177px wordmark and a 234px GitHub + Download cluster, so it lands 20px left of the page centre at every width.</p><p class="fix"><b>Fix</b> The header is a 1fr / auto / 1fr grid, so the nav is on the true centre. <code>header.tsx</code></p></div>
+  <div class="pair stack"><figure><figcaption>Before</figcaption><img src="img/header-nav.before.png" alt="Before: Header nav sits 20px left of centre" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/header-nav.after.png" alt="After: Header nav sits 20px left of centre" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f8">
+  <header><span class="n">08</span><div><p class="where">Self-hosting · 768px and up</p><h2>Self-hosting’s lede floats above the first perk</h2></div></header>
+  <div class="txt"><p>Both columns start at the same y, but the perks begin with a hairline and 18px of padding, so the lede’s first line sits about 15px higher than “One canvas for the team”.</p><p class="fix"><b>Fix</b> The left column gets 14px of top padding at md and up, so the lede’s first line is level with the first perk’s title. <code>self-hosting.tsx</code></p></div>
+  <div class="pair stack"><figure><figcaption>Before</figcaption><img src="img/selfhost-align.before.png" alt="Before: Self-hosting’s lede floats above the first perk" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/selfhost-align.after.png" alt="After: Self-hosting’s lede floats above the first perk" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f9">
+  <header><span class="n">09</span><div><p class="where">FAQ · keyboard focus</p><h2>FAQ focus ring clips the question</h2></div></header>
+  <div class="txt"><p>Tabbing to a question shows the browser’s white ring flush against the text, cutting through the W and the +. Every other control on the page uses the magenta selection ring, offset 2px.</p><p class="fix"><b>Fix</b> The summary uses the page’s magenta ring with a 4px offset and a small radius. <code>faq.tsx</code></p></div>
+  <div class="pair stack"><figure><figcaption>Before</figcaption><img src="img/faq-focus.before.png" alt="Before: FAQ focus ring clips the question" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/faq-focus.after.png" alt="After: FAQ focus ring clips the question" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f10">
+  <header><span class="n">10</span><div><p class="where">Excerpts · type sizes</p><h2>Excerpt labels and the frame bar are off the app’s type</h2></div></header>
+  <div class="txt"><p>Frame and Group labels are 11px and the bar’s Workspace is 14px regular. In the app both are 12px (text-xs), the address host is medium weight and the route is mono (frame-nav.tsx, group-label.tsx). The app’s scale is 12/14 only.</p><p class="fix"><b>Fix</b> Labels at 12px; the bar’s Workspace at 12px medium and the route slash in mono. Not changed: the chat panel’s 13px text, which would wrap badly at 14px in the 320px panel. <code>canvas.tsx</code></p></div>
+  <div class="pair side"><figure><figcaption>Before</figcaption><img src="img/excerpt-type.before.png" alt="Before: Excerpt labels and the frame bar are off the app’s type" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/excerpt-type.after.png" alt="After: Excerpt labels and the frame bar are off the app’s type" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f11">
+  <header><span class="n">11</span><div><p class="where">How it works · 640–1023px</p><h2>No rule between the two rows of steps</h2></div></header>
+  <div class="txt"><p>At two columns the grid has a top rule and a gutter hairline, but steps 3 and 4 hang under steps 1 and 2 with nothing between the rows.</p><p class="fix"><b>Fix</b> A hairline over the second row, carried across the gutter the way the Features grid does it. <code>scenes.tsx</code></p></div>
+  <div class="pair stack"><figure><figcaption>Before</figcaption><img src="img/steps-rows.before.png" alt="Before: No rule between the two rows of steps" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/steps-rows.after.png" alt="After: No rule between the two rows of steps" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f12">
+  <header><span class="n">12</span><div><p class="where">How it works · Step 2</p><h2>Step 2’s button touches the crop</h2></div></header>
+  <div class="txt"><p>The “Create 2 workspaces” button ends 3px above the card’s bottom edge, which reads as clipped rather than cropped.</p><p class="fix"><b>Fix</b> The dialog’s rows are 2px tighter (gap-2), leaving about 12px under the button. <code>steps.tsx</code></p></div>
+  <div class="pair side"><figure><figcaption>Before</figcaption><img src="img/step2-dialog.before.png" alt="Before: Step 2’s button touches the crop" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/step2-dialog.after.png" alt="After: Step 2’s button touches the crop" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f13">
+  <header><span class="n">13</span><div><p class="where">Hero and closing CTA · under 640px</p><h2>Stacked buttons have different widths on phones</h2></div></header>
+  <div class="txt"><p>Under 640px the two buttons wrap onto separate lines at their own widths (309px and 235px), left-aligned, so the pair looks ragged.</p><p class="fix"><b>Fix</b> Under 640px the pair stacks full width with centred labels, in the hero and the closing CTA. <code>hero.tsx, cta.tsx, editorial.tsx</code></p></div>
+  <div class="pair side"><figure><figcaption>Before</figcaption><img src="img/mobile-buttons.before.png" alt="Before: Stacked buttons have different widths on phones" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/mobile-buttons.after.png" alt="After: Stacked buttons have different widths on phones" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f14">
+  <header><span class="n">14</span><div><p class="where">Footer</p><h2>Footer’s package links break the column’s rhythm</h2></div></header>
+  <div class="txt"><p>The two npm links are 12px mono on a 16px line, so the Developers column steps 32, 32 then 28px while Product steps 32px.</p><p class="fix"><b>Fix</b> The mono links use a 20px line (text-xs/5), so both columns step 32px. <code>footer.tsx</code></p></div>
+  <div class="pair side"><figure><figcaption>Before</figcaption><img src="img/footer-rhythm.before.png" alt="Before: Footer’s package links break the column’s rhythm" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/footer-rhythm.after.png" alt="After: Footer’s package links break the column’s rhythm" loading="lazy"></figure></div>
+</article>
+<article class="f" id="f15">
+  <header><span class="n">15</span><div><p class="where">How it works, Features</p><h2>Heading-to-content gap differs between sections</h2></div></header>
+  <div class="txt"><p>How it works and Features put 56px between the heading and the grid; Problem, Self-hosting and FAQ use 48px.</p><p class="fix"><b>Fix</b> 48px everywhere. <code>scenes.tsx, features.tsx</code></p></div>
+  <div class="pair stack"><figure><figcaption>Before</figcaption><img src="img/section-spacing.before.png" alt="Before: Heading-to-content gap differs between sections" loading="lazy"></figure><figure><figcaption class="a">After</figcaption><img src="img/section-spacing.after.png" alt="After: Heading-to-content gap differs between sections" loading="lazy"></figure></div>
+</article>
+  <section class="notes">
+    <h2>Checked and left alone</h2>
+    <ul>
+      <li>The hero’s dither veil and the canvas are crisp at 2x, and the carousel’s edge crops are intentional.</li>
+      <li>No horizontal page scroll at any width from 360 to 1440px.</li>
+      <li>The FAQ’s + and – are the same width, so opening a question doesn’t shift the row.</li>
+      <li>Headline side bearings are 0 to 4px (Unbounded F and Instrument Serif E), too small to be worth optical offsets.</li>
+      <li>The excerpt composer shows only the model name, which matches the app after #1183; the docs screenshot predates it.</li>
+    </ul>
+  </section>
+</div>
+
+</body></html>

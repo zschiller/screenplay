@@ -1,0 +1,844 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Screenplay Hero Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Unbounded:wght@400&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: a toolbar of options over one live replica of the homepage hero, then a short note on the pick. Tokens mirror apps/web (Editorial, white/black, canvas magenta). */
+:root {
+  --bg: #fff;
+  --fg: #000;
+  --muted: #737373;
+  --line: rgba(0,0,0,.12);
+  --plane: #f7f7f7;
+  --soft: rgba(0,0,0,.05);
+  --sel: oklch(0.667 0.295 322.15);
+  --info: oklch(0.55 0.2 260);
+  --serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --head: "Unbounded", ui-sans-serif, system-ui, sans-serif;
+  --sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#000; --fg:#fff; --muted:#a1a1a1; --line:rgba(255,255,255,.16); --plane:#0d0d0d; --soft:rgba(255,255,255,.06); --info: oklch(0.72 0.15 260); color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg:#000; --fg:#fff; --muted:#a1a1a1; --line:rgba(255,255,255,.16); --plane:#0d0d0d; --soft:rgba(255,255,255,.06); --info: oklch(0.72 0.15 260); color-scheme: dark; }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 32px); padding-block: 28px 64px; display: flex; flex-direction: column; gap: 20px; }
+.label { font-family: var(--mono); font-size: 11px; line-height: 1.4; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+.muted { color: var(--muted); }
+
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
+.bar h1 { font-family: var(--head); font-weight: 400; font-size: 27px; margin: 0; letter-spacing: -.03em; }
+.tabs { display: flex; flex-wrap: wrap; border: 1px solid var(--fg); }
+.tabs button, .theme button {
+  font: 500 13px/1 var(--sans); color: var(--fg); background: transparent; border: 0; padding: 10px 14px; cursor: pointer;
+  display: inline-flex; gap: 8px; align-items: center;
+}
+.tabs button + button { border-left: 1px solid var(--fg); }
+.tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
+.tabs button .k { font-family: var(--mono); font-size: 11px; opacity: .6; }
+.theme { display: flex; border: 1px solid var(--line); }
+.theme button { padding: 8px 11px; font-size: 12px; color: var(--muted); }
+.theme button[aria-pressed="true"] { color: var(--fg); background: var(--soft); }
+button:focus-visible { outline: 2px solid var(--sel); outline-offset: 2px; }
+
+/* The stage is one copy of the homepage hero. */
+.stage { position: relative; border: 1px solid var(--line); overflow: hidden; background: var(--bg); isolation: isolate; }
+.fx { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.fx[hidden] { display: none !important; }
+/* A canvas is a replaced element: inset alone doesn't stretch it, it keeps
+   its bitmap size. Without this, on a 2x screen the field drew at twice the
+   size and its visible part landed outside the stage. */
+canvas.fx { width: 100%; height: 100%; }
+.hero { position: relative; z-index: 1; padding: clamp(40px, 7vw, 96px) clamp(20px, 4vw, 48px) clamp(40px, 6vw, 80px); pointer-events: none; }
+.hero a, .hero .btn { pointer-events: auto; }
+.hero h2 {
+  font-family: var(--serif); font-weight: 400; margin: 26px 0 0; max-width: 11ch;
+  font-size: clamp(48px, 9.4vw, 128px); line-height: .92; letter-spacing: -.025em; text-wrap: balance;
+}
+.w { display: inline-block; position: relative; }
+.it { font-style: italic; padding-inline: .06em; }
+.sel { outline: 2px solid var(--sel); outline-offset: -2px; }
+.h { position: absolute; width: 10px; height: 10px; border: 2px solid var(--sel); background: var(--bg); box-sizing: border-box; }
+.tag { position: absolute; top: 100%; left: -2px; margin-top: 6px; background: var(--sel); color: #fff; font: 500 12px/1 var(--mono); padding: 4px 6px; white-space: nowrap; font-style: normal; letter-spacing: .02em; }
+.row { margin-top: 48px; display: grid; gap: 22px; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.row p { margin: 0; max-width: 36ch; font-size: clamp(17px, 1.8vw, 21px); line-height: 1.45; }
+.btns { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn { display: inline-flex; align-items: center; height: 46px; padding: 0 20px; border: 1px solid var(--fg); border-radius: 3px; font-weight: 500; font-size: 15px; color: var(--fg); background: var(--bg); text-decoration: none; }
+.btn.solid { background: var(--fg); color: var(--bg); }
+@media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
+
+/* E: parallel universes. The homepage itself, as frames on a canvas. */
+.uv { position: relative; z-index: 1; padding: 0 clamp(20px, 4vw, 48px) clamp(28px, 4vw, 48px); }
+.uv[hidden] { display: none !important; }
+.uv-plane { position: relative; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto; gap: 34px 22px; padding: 40px 22px 26px; background: var(--plane); border: 1px solid var(--line); }
+.uf-main { grid-row: 1 / span 2; align-self: center; }
+@media (max-width: 720px) { .uv-plane { grid-template-columns: 1fr 1fr; } .uf-main { grid-row: auto; grid-column: 1 / span 2; } }
+.uv-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.uv-links path { fill: none; stroke: var(--line); stroke-width: 1.25; }
+.uv-links .pulse { stroke: var(--sel); stroke-width: 2; stroke-dasharray: 26 1000; stroke-dashoffset: 26; }
+.uf { position: relative; min-width: 0; }
+.uf-head { position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font: 500 11px/1 var(--sans); color: var(--muted); white-space: nowrap; }
+.uf-head .nm { overflow: hidden; text-overflow: ellipsis; }
+.uf-head .df { margin-left: auto; font-family: var(--mono); font-size: 10px; }
+.uf-head .df .a { color: #16a34a; } .uf-head .df .d { color: #dc2626; }
+.uf.picked .uf-head { color: var(--sel); }
+.g9 { width: 10px; height: 10px; flex: none; background: radial-gradient(circle, currentColor 1.1px, transparent 1.3px) 0 0 / 3.33px 3.33px; }
+.g9.on { animation: tw 1s steps(2) infinite; }
+@keyframes tw { 50% { opacity: .35; } }
+.ring { width: 9px; height: 9px; flex: none; border: 1.2px solid currentColor; border-radius: 50%; box-sizing: border-box; }
+.uf-box { position: relative; min-height: 0; aspect-ratio: 16 / 10; overflow: hidden; container-type: inline-size; background: var(--pg-bg); outline: 1px solid var(--line); }
+.uf.picked .uf-box { outline: 2px solid var(--sel); }
+.uf .hd { position: absolute; width: 7px; height: 7px; border: 1.5px solid var(--sel); background: var(--bg); z-index: 3; display: none; }
+.uf.picked .hd { display: block; }
+.uf-say { margin-top: 7px; font: 400 11.5px/1.35 var(--sans); color: var(--muted); min-height: 2.7em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.uf-say b { color: var(--fg); font-weight: 500; }
+.uf-main .uf-say { display: none; }
+/* Rebuild: the page wipes and redraws top to bottom. */
+.uf-box .mp { position: absolute; inset: 0; transition: clip-path .7s cubic-bezier(.6,0,.2,1), opacity .3s; clip-path: inset(0 0 0 0); }
+.uf-box.wipe .mp { clip-path: inset(0 0 100% 0); }
+.uf-box .scan { position: absolute; left: 0; right: 0; height: 2px; background: var(--sel); top: 0; opacity: 0; z-index: 2; }
+.uf-box.wipe .scan { animation: scan .7s cubic-bezier(.6,0,.2,1) both; }
+@keyframes scan { from { top: 0; opacity: 1; } to { top: 100%; opacity: 1; } }
+/* Cursor inside a frame. */
+.acur { position: absolute; left: 60%; top: 70%; z-index: 4; transition: left .9s cubic-bezier(.3,.7,.2,1), top .9s cubic-bezier(.3,.7,.2,1), opacity .3s; pointer-events: none; }
+.acur svg { display: block; width: 11px; height: 14px; }
+.acur span { position: absolute; left: 9px; top: 12px; font: 500 9.5px/1 var(--sans); padding: 3px 5px; border-radius: 3px; color: #fff; white-space: nowrap; }
+
+/* The mini homepage. 1em = 1/60 of the frame's width. Its own tokens so a
+   universe can change them. */
+.mp { --pg-bg: var(--bg); --pg-fg: var(--fg); --pg-mut: var(--muted); --pg-line: var(--line); --pg-acc: var(--sel); --pg-r: .2em;
+  --pg-head: var(--serif); height: 100%; font-size: calc(100cqw / 60); background: var(--pg-bg); color: var(--pg-fg); font-family: var(--sans);
+  transition: background-color .8s, color .8s; position: relative; }
+.mp.dark { --pg-bg: #0b0b0b; --pg-fg: #f5f5f5; --pg-mut: #9a9a9a; --pg-line: rgba(255,255,255,.16); }
+.mp.lightpg { --pg-bg: #fff; --pg-fg: #000; --pg-mut: #737373; --pg-line: rgba(0,0,0,.12); }
+.mp.blue { --pg-acc: oklch(0.6 0.2 255); }
+.mp.lime { --pg-acc: oklch(0.72 0.2 135); }
+.mp-nav { display: flex; align-items: center; gap: 2.2em; padding: 1.3em 3em; border-bottom: 1px solid var(--pg-line); font-size: 1em; transition: border-color .8s; }
+.mp-logo { display: flex; align-items: center; gap: .5em; font-family: var(--pg-head); font-size: 1.5em; }
+.mp-logo i { width: 1em; height: .8em; background: var(--pg-acc); border-radius: .2em; transition: background-color .8s; }
+.mp-links { display: flex; gap: 1.8em; flex: 1; justify-content: center; color: var(--pg-mut); font-size: 1.05em; }
+.mp-dl { background: var(--pg-fg); color: var(--pg-bg); padding: .7em 1.2em; font-size: 1em; border-radius: var(--pg-r); transition: all .6s; }
+.mp-hero { padding: 3.2em 3em 0; transition: text-align .3s; }
+.mp-eye { font: 500 .85em/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--pg-mut); }
+.mp-h1 { margin-top: .35em; font-family: var(--pg-head); font-size: 6em; line-height: .95; letter-spacing: -.025em; max-width: 9.5em; min-height: 1.9em; transition: font-size .6s cubic-bezier(.3,.7,.2,1); }
+.mp.mono .mp-h1 { --pg-head: var(--mono); font-size: 4.6em; letter-spacing: -.05em; }
+.mp.sans .mp-h1 { font-family: var(--sans); font-weight: 600; letter-spacing: -.045em; font-size: 5.2em; }
+.mp.big .mp-h1 { font-size: 7.4em; }
+.mp-h1 .caret { display: inline-block; width: .06em; height: .8em; background: var(--pg-acc); margin-left: .04em; vertical-align: -.05em; animation: tw 1s steps(2) infinite; }
+.mp-sel { position: relative; font-style: italic; outline: 2px solid var(--pg-acc); outline-offset: -2px; padding: 0 .06em; }
+.mp-sel i { position: absolute; top: 100%; left: -1px; margin-top: .3em; background: var(--pg-acc); color: #fff; font: 500 .16em/1 var(--mono); padding: .4em .5em; font-style: normal; white-space: nowrap; letter-spacing: .02em; }
+.mp-row { margin-top: 2.2em; display: flex; align-items: flex-end; justify-content: space-between; gap: 2em; }
+.mp-lede { margin: 0; max-width: 26em; font-size: 1.35em; line-height: 1.45; }
+.mp-btns { display: flex; gap: .8em; flex: none; }
+.mp-b { border: 1px solid var(--pg-fg); padding: .9em 1.3em; font-size: 1.1em; border-radius: var(--pg-r); white-space: nowrap; transition: all .6s; }
+.mp-b.solid { background: var(--pg-fg); color: var(--pg-bg); }
+.mp.accent-btn .mp-b.solid { background: var(--pg-acc); border-color: var(--pg-acc); color: #fff; }
+.mp.pill { --pg-r: 99em; }
+.mp.center .mp-hero { text-align: center; }
+.mp.center .mp-h1 { margin-inline: auto; }
+.mp.center .mp-row { flex-direction: column; align-items: center; }
+.mp.center .mp-lede { text-align: center; }
+.mp-fig { margin-top: 2.6em; height: 16em; background: var(--plane); border: 1px solid var(--pg-line); display: flex; gap: 1.4em; padding: 2em; transition: all .8s; }
+.mp.dark .mp-fig { background: #151515; }
+.mp.soft { --pg-bg: color-mix(in oklab, var(--pg-fg) 5%, var(--bg)); }
+.mp-fig span { flex: 1; background: var(--pg-bg); border: 1px solid var(--pg-line); transition: all .8s; }
+.mp-fig span:first-child { outline: 2px solid var(--pg-acc); outline-offset: -1px; }
+
+
+/* E: the homepage's copies panning past, on the dither. */
+.uv { position: absolute; inset: 0; z-index: 0; padding: 0; display: flex; align-items: center; pointer-events: none; }
+#fx-e-dither { z-index: 1; }
+.stage > .hero { z-index: 2; }
+.sf-strip { width: 100%; display: flex; flex-direction: column; gap: 44px; overflow: hidden; }
+.sf-track.rev { animation-direction: reverse; animation-duration: 95s; }
+.sf-track { display: flex; gap: 28px; width: max-content; animation: pan 80s linear infinite; }
+.uv.still .sf-track { animation: none; }
+@keyframes pan { to { transform: translateX(calc(-50% - 14px)); } }
+.sf { position: relative; width: clamp(240px, 30vw, 380px); flex: none; }
+.sf-head { position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 6px; display: flex; gap: 8px; font: 500 11px/1 var(--sans); color: var(--muted); white-space: nowrap; }
+.sf-head .df { margin-left: auto; font-family: var(--mono); font-size: 10px; }
+.sf-head .df .a { color: #16a34a; } .sf-head .df .d { color: #dc2626; }
+.sf .uf-box { outline: 1px solid var(--line); box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+
+/* Reduced-motion notice. */
+.rm { margin: 0; font-size: 14px; color: var(--muted); }
+.rm button { font: inherit; color: var(--fg); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+/* Notes under the stage. */
+.notes { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px 48px; border-top: 1px solid var(--fg); padding-top: 18px; }
+.notes h3 { font-family: var(--head); font-weight: 400; font-size: 22px; letter-spacing: -.03em; margin: 6px 0 8px; }
+.notes p { margin: 0; max-width: 62ch; line-height: 1.55; color: var(--muted); }
+.notes dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; align-content: start; }
+.notes dt { color: var(--muted); }
+.notes dd { margin: 0; }
+@media (max-width: 720px) { .notes { grid-template-columns: 1fr; } }
+
+/* B: live canvas. */
+.dots { position: absolute; inset: -40px; background-image: radial-gradient(var(--line) 1.1px, transparent 1.2px); background-size: 22px 22px; }
+.mini { position: absolute; border: 1px solid var(--line); background: var(--bg); box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: outline-color .2s; }
+.mini .t { position: absolute; left: 0; bottom: 100%; margin-bottom: 5px; font: 500 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.mini .top { height: 12%; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 6%; padding: 0 7%; }
+.mini .top i { display: block; height: 22%; min-height: 3px; background: var(--line); width: 12%; }
+.mini .top i:first-child { background: var(--fg); width: 9%; }
+.mini .body { padding: 9% 9% 0; display: flex; flex-direction: column; gap: 7%; height: 70%; }
+.mini .body b { display: block; height: 11%; background: var(--fg); transform-origin: left; transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+.mini .body b.s { height: 5%; background: var(--line); }
+.mini .body b.c { height: 22%; background: var(--soft); border: 1px solid var(--line); }
+.mini.building .body b { transform: scaleX(0); transition-duration: 0s; }
+.mini .pill { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 10px); display: flex; gap: 6px; align-items: center; background: var(--bg); border: 1px solid var(--line); padding: 5px 9px; font: 500 11px/1 var(--sans); white-space: nowrap; opacity: 0; transition: opacity .2s; }
+.mini .pill .dot9 { width: 9px; height: 9px; background: radial-gradient(circle, var(--sel) 1.2px, transparent 1.4px) 0 0/3px 3px; }
+.mini.on { outline: 2px solid var(--sel); outline-offset: -1px; }
+.mini.on .pill { opacity: 1; }
+.mini.on .t { color: var(--sel); }
+
+#fx-c { -webkit-mask-image: linear-gradient(to right, transparent 38%, #000 72%); mask-image: linear-gradient(to right, transparent 38%, #000 72%); }
+@media (max-width: 720px) { #fx-c { -webkit-mask-image: linear-gradient(to bottom, transparent 55%, #000 80%); mask-image: linear-gradient(to bottom, transparent 55%, #000 80%); } }
+/* D: cursors. */
+.cur { position: absolute; left: 0; top: 0; z-index: 3; will-change: transform; }
+.cur svg { display: block; }
+.cur span { position: absolute; left: 14px; top: 16px; font: 500 12px/1 var(--sans); padding: 4px 7px; border-radius: 3px; white-space: nowrap; color: #fff; }
+.box { position: absolute; z-index: 2; border: 2px solid var(--sel); pointer-events: none; }
+.box .h { width: 10px; height: 10px; }
+</style>
+
+<div class="wrap">
+  <div class="bar">
+    <div>
+      <div class="label muted">Screenplay homepage · hero effect</div>
+      <h1>Pick a hero</h1>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <div class="tabs" role="tablist" aria-label="Options">
+        <button role="tab" id="tab-e" data-opt="e" aria-selected="true"><span class="k">E</span>Carousel under text</button>
+        <button role="tab" id="tab-a" data-opt="a" aria-selected="false"><span class="k">A</span>Dither field</button>
+        <button role="tab" id="tab-b" data-opt="b" aria-selected="false"><span class="k">B</span>Live canvas</button>
+        <button role="tab" id="tab-c" data-opt="c" aria-selected="false"><span class="k">C</span>Branch graph</button>
+        <button role="tab" id="tab-d" data-opt="d" aria-selected="false"><span class="k">D</span>Agent cursors</button>
+      </div>
+      <div class="theme" aria-label="Theme">
+        <button id="th-light" data-t="light" aria-pressed="false">Light</button>
+        <button id="th-dark" data-t="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas class="fx" id="fx-a"></canvas>
+    <canvas class="fx" id="fx-e-dither" hidden></canvas>
+    <div class="fx" id="fx-b" hidden><div class="dots" id="dots"></div><div id="minis" style="position:absolute;inset:0"></div></div>
+    <canvas class="fx" id="fx-c" hidden></canvas>
+    <div class="fx" id="fx-d" hidden></div>
+
+    <div class="hero">
+      <div class="label muted">Open source · Works with Claude Code, Codex &amp; opencode</div>
+      <h2 id="headline"><span class="w" data-w="0">Every</span> <span class="w" data-w="1">branch,</span> <span class="w it" data-w="2" id="running">side by side<span class="static-sel"><span class="h" style="top:-5px;left:-5px"></span><span class="h" style="top:-5px;right:-5px"></span><span class="h" style="bottom:-5px;left:-5px"></span><span class="h" style="bottom:-5px;right:-5px"></span><span class="tag">3 branches</span></span></span><span class="w" data-w="3">.</span></h2>
+      <div class="row">
+        <p>Screenplay runs each coding agent on its own branch, in its own sandbox, and shows every result as a live frame on one canvas. Compare them and ship the one that works.</p>
+        <div class="btns"><span class="btn solid">Download for Mac</span><span class="btn">Star on GitHub</span></div>
+      </div>
+    </div>
+    <div class="uv" id="fx-e" hidden><div class="sf-strip"></div></div>
+  </div>
+
+  <p class="rm" id="rm" hidden>Your device has reduced motion turned on, so each option shows a still frame. <button id="play">Play the animations</button></p>
+  <div class="notes" id="notes"></div>
+</div>
+
+<script>
+(() => {
+  let reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const root = document.documentElement;
+  const stage = document.getElementById("stage");
+  const running = document.getElementById("running");
+  const staticSel = running.querySelector(".static-sel");
+  const css = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+
+  const NOTES = {
+    e: {
+      name: "Carousel under the text",
+      body: "Two rows of this homepage's copies pan in opposite directions behind the whole hero. Each one is a Workspace with its name and diff, and every second or so one of them changes live: a new headline gets typed, the page gets tinted, the hero centers, the buttons turn to pills. A fine dither (2px grain, blue-noise style, no checkerboard) in the page's own background colour covers them line by line around the text: solid behind the words, breaking into grain, then clear. Its edge drifts slowly.",
+      how: "HTML copies of the page, with the dither veil on a 2D canvas; no WebGL",
+      feel: "The product demoed on its own homepage, with some texture",
+      cost: "Light; one 2D canvas at 25fps and CSS transitions",
+    },
+    a: {
+      name: "Dither field",
+      body: "A slow noise field printed as ordered-dither dots, like a halftone plate. It lives in the right half so the headline stays on white, and the dots near your pointer turn selection magenta.",
+      how: "A 2D canvas: value noise and an 8×8 ordered dither, no WebGL",
+      feel: "Atmospheric, editorial. Says nothing about the product by itself",
+      cost: "About 25k cells per frame at 25fps",
+    },
+    b: {
+      name: "Live canvas",
+      body: "The hero sits on the app's dot-grid canvas. Frames build in one after another, and the selection ring hops to whichever one just finished, with its Workspace pill underneath.",
+      how: "HTML and CSS frames with a small timer, no canvas or WebGL",
+      feel: "Most literal: shows what the product does before any copy",
+      cost: "Cheapest; plain DOM transitions",
+    },
+    c: {
+      name: "Branch graph",
+      body: "A git graph runs under the whole hero. Branches fork off main, collect commits and merge back, while the running heads pulse at the right edge. One branch is drawn in magenta and tagged like the selected word.",
+      how: "Canvas 2D, about 100 lines",
+      feel: "Technical and calm; ties the headline to git branches",
+      cost: "Light; 2D canvas redraw per frame",
+    },
+    d: {
+      name: "Agent cursors",
+      body: "Claude Code, Codex and opencode move through the headline as multiplayer cursors. One of them drags a selection box from word to word, the way you select frames on the canvas.",
+      how: "DOM cursors and a selection box, animated with JavaScript",
+      feel: "Playful and multiplayer; closest to the current selected word",
+      cost: "Light; a few transformed elements",
+    },
+  };
+
+  function renderNotes(o) {
+    const n = NOTES[o];
+    document.getElementById("notes").innerHTML =
+      `<div><div class="label muted">Option ${o.toUpperCase()}</div><h3>${n.name}</h3><p>${n.body}</p></div>` +
+      `<dl><dt>Built with</dt><dd>${n.how}</dd><dt>Reads as</dt><dd>${n.feel}</dd><dt>Cost</dt><dd>${n.cost}</dd><dt>Reduced motion</dt><dd>A still frame</dd></dl>`;
+  }
+
+  /* ---------------- Dither field (canvas 2D, no WebGL) ---------------- */
+  // A slow, domain-warped noise field printed as ordered-dither dots. `mask`
+  // maps a point (0..1 across, 0..1 down) to how much field shows there.
+  function makeDither(cv, mask) {
+    const ctx = cv.getContext("2d");
+    const B = [0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21].map((v) => (v + .5) / 64);
+    const P = new Uint8Array(512);
+    { let s = 11; const a = [...Array(256).keys()]; for (let i = 255; i > 0; i--) { s = (s * 16807) % 2147483647; const j = s % (i + 1); [a[i], a[j]] = [a[j], a[i]]; } for (let i = 0; i < 512; i++) P[i] = a[i & 255]; }
+    const h = (x, y) => P[(P[x & 255] + y) & 255] / 255;
+    const vn = (x, y) => {
+      const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+      const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+      const a = h(xi, yi), b = h(xi + 1, yi), c = h(xi, yi + 1), d = h(xi + 1, yi + 1);
+      return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+    };
+    const fbm = (x, y) => vn(x, y) * .62 + vn(x * 2.03 + 1.7, y * 2.03 + 9.2) * .38;
+    let raf = 0, t0 = performance.now(), last = 0, W = 0, H = 0, d = 1, cell = 5;
+    let mx = -1e4, my = -1e4, tx = -1e4, ty = -1e4, hover = false, ink = "#000", acc = "#f0f";
+    const host = cv.parentElement;
+    host.addEventListener("pointermove", (e) => { const r = cv.getBoundingClientRect(); tx = e.clientX - r.left; ty = e.clientY - r.top; hover = true; });
+    host.addEventListener("pointerleave", () => (hover = false));
+    function size() {
+      d = Math.min(devicePixelRatio || 1, 2);
+      W = host.clientWidth; H = host.clientHeight;
+      cv.width = Math.round(W * d); cv.height = Math.round(H * d);
+      cell = W < 600 ? 4 : 5;
+    }
+    function colors() { ink = css("--fg"); acc = css("--sel"); }
+    function draw(now) {
+      const t = (now - t0) / 1000, s = t * .18;
+      if (!hover) { tx = W * (.7 + .18 * Math.sin(t * .45)); ty = H * (.55 + .25 * Math.cos(t * .33)); }
+      if (mx < -1e3) { mx = tx; my = ty; }
+      mx += (tx - mx) * .08; my += (ty - my) * .08;
+      ctx.setTransform(d, 0, 0, d, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      const cols = Math.ceil(W / cell), rows = Math.ceil(H / cell), k = 1.5 / Math.max(H, 300);
+      const dot = Math.max(1.4, cell * .46), off = (cell - dot) / 2, R2 = 2 * 160 * 160;
+      const inkP = new Path2D(), accP = new Path2D();
+      for (let r = 0; r < rows; r++) {
+        const py = r * cell, y = py * k, ym = py / H;
+        for (let c = 0; c < cols; c++) {
+          const px = c * cell, m = mask(px / W, ym);
+          if (m <= .01) continue;
+          const x = px * k;
+          const qx = fbm(x + s, y - s * .6), qy = fbm(x + 5.2 - s * .7, y + 1.3 + s);
+          let v = fbm(x + qx * 1.9 + s * 1.3, y + qy * 1.9 - s * .3);
+          v = Math.min(1, Math.max(0, (v - .3) / .45)); v = v * v * (3 - 2 * v);
+          const dx = px - mx, dy = py - my, g = Math.exp(-(dx * dx + dy * dy) / R2);
+          const val = (v + g * .45) * m;
+          if (val > B[(r & 7) * 8 + (c & 7)]) (g > .35 ? accP : inkP).rect(px + off, py + off, dot, dot);
+        }
+      }
+      ctx.globalAlpha = css("--bg") === "#000" ? .7 : .85;
+      ctx.fillStyle = ink; ctx.fill(inkP);
+      ctx.fillStyle = acc; ctx.fill(accP);
+      ctx.globalAlpha = 1;
+    }
+    function frame(now) {
+      if (now - last > 40) { last = now; draw(now); }
+      raf = requestAnimationFrame(frame);
+    }
+    return {
+      start() { size(); colors(); cancelAnimationFrame(raf); if (reduce) draw(t0 + 12000); else raf = requestAnimationFrame(frame); },
+      stop() { cancelAnimationFrame(raf); },
+      resize() { size(); if (reduce) draw(t0 + 12000); },
+      recolor() { colors(); if (reduce) draw(t0 + 12000); },
+    };
+  }
+
+  /* ---------------- A: dither field ---------------- */
+  const A = (() => {
+    const cv = document.getElementById("fx-a");
+    const f = makeDither(cv, (x, y) => { const a = Math.min(1, Math.max(0, (x - .46) / .46)); return a * a * (3 - 2 * a) * (.35 + .65 * Math.min(1, Math.max(0, (1 - y - .15) / .6))); });
+    return {
+      start() { cv.hidden = false; f.start(); },
+      stop() { f.stop(); cv.hidden = true; },
+      resize: f.resize, recolor: f.recolor,
+    };
+  })();
+
+  /* ---------------- B: live canvas (DOM) ---------------- */
+  const B = (() => {
+    const el = document.getElementById("fx-b"), holder = document.getElementById("minis"), dots = document.getElementById("dots");
+    const names = [["Home", "Hero gradient"], ["Home · mobile", "Hero gradient"], ["Pricing", "Pricing FAQ"], ["Pricing · mobile", "Pricing FAQ"], ["Customers", "Customer stories"], ["Home", "Main"]];
+    let minis = [], timer = 0, i = 0, raf = 0, t0 = 0;
+    function layout() {
+      holder.innerHTML = "";
+      const W = stage.clientWidth, H = stage.clientHeight, narrow = W < 720;
+      const x0 = narrow ? W * .08 : W * .6, y0 = narrow ? H * .62 : H * .12;
+      const dw = narrow ? W * .34 : W * .19, mw = dw * .42, gap = narrow ? 22 : 30;
+      const spec = narrow
+        ? [[0,0,dw,dw*.62],[dw+gap,0,mw,mw*1.9],[dw+mw+gap*2,0,dw,dw*.62]]
+        : [[0,0,dw,dw*.62],[dw+gap,0,mw,mw*1.9],[0,dw*.62+gap*1.9,dw,dw*.62],[dw+gap,dw*.62+gap*1.9,mw,mw*1.9],[dw+mw+gap*2,0,dw,dw*.62],[dw+mw+gap*2,dw*.62+gap*1.9,dw,dw*.62]];
+      minis = spec.map(([x,y,w,h], k) => {
+        const m = document.createElement("div");
+        m.className = "mini";
+        m.style.cssText = `left:${x0+x}px;top:${y0+y}px;width:${w}px;height:${h}px`;
+        const bars = w > h ? '<b style="width:70%"></b><b class="s" style="width:52%"></b><b class="c" style="width:100%"></b>' : '<b style="width:90%"></b><b style="width:60%"></b><b class="s" style="width:80%"></b><b class="c" style="width:100%"></b>';
+        m.innerHTML = `<span class="t">${names[k][0]}</span><div class="top"><i></i><i></i><i></i></div><div class="body">${bars}</div><div class="pill"><span class="dot9"></span>${names[k][1]}</div>`;
+        holder.appendChild(m);
+        return m;
+      });
+    }
+    function step() {
+      minis.forEach((m) => m.classList.remove("on"));
+      const m = minis[i % minis.length]; i++;
+      m.classList.add("building");
+      void m.offsetWidth;
+      requestAnimationFrame(() => { m.classList.remove("building"); m.classList.add("on"); });
+    }
+    function drift(now) {
+      const s = (now - t0) / 1000;
+      const dx = Math.sin(s * .12) * 18, dy = Math.cos(s * .09) * 10;
+      holder.style.transform = dots.style.transform = `translate(${dx}px,${dy}px)`;
+      raf = requestAnimationFrame(drift);
+    }
+    return {
+      start() { el.hidden = false; layout(); step(); if (!reduce) { timer = setInterval(step, 2200); t0 = performance.now(); raf = requestAnimationFrame(drift); } },
+      stop() { el.hidden = true; clearInterval(timer); cancelAnimationFrame(raf); },
+      resize() { layout(); minis[(i - 1 + minis.length) % minis.length]?.classList.add("on"); },
+      recolor() {},
+    };
+  })();
+
+  /* ---------------- C: branch graph (canvas 2D) ---------------- */
+  const C = (() => {
+    const cv = document.getElementById("fx-c"), ctx = cv.getContext("2d");
+    let raf = 0, W = 0, H = 0, d = 1, off = 0, last = 0, branches = [], nextFork = 0, lanes = [], seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const SPEED = 34, COMMIT = 64;
+    function size() {
+      d = Math.min(devicePixelRatio || 1, 2);
+      W = stage.clientWidth; H = stage.clientHeight;
+      cv.width = W * d; cv.height = H * d;
+      const top = H * .16, bot = H * .9, n = 6;
+      lanes = Array.from({ length: n }, (_, k) => top + (bot - top) * k / (n - 1));
+    }
+    function reset() {
+      seed = 7; branches = []; off = 0; nextFork = -W * .1;
+      // Pre-roll so the graph is full on the first frame.
+      while (nextFork < W * 1.1) spawn();
+    }
+    function spawn() {
+      const free = [1,2,3,4,5].filter((k) => !branches.some((b) => b.lane === k && (b.end === null || b.end > nextFork - 40)));
+      if (free.length) {
+        const lane = free[Math.floor(rnd() * free.length)];
+        const len = 260 + rnd() * 520;
+        const b = { lane, start: nextFork, end: rnd() < .5 ? nextFork + len : null, sel: false };
+        branches.push(b);
+      }
+      nextFork += 90 + rnd() * 150;
+    }
+    function draw() {
+      const fg = css("--fg"), sel = css("--sel"), line = css("--line"), bg = css("--bg");
+      ctx.setTransform(d,0,0,d,0,0); ctx.clearRect(0,0,W,H);
+      const X = (wx) => wx - off, main = lanes[0];
+      // Keep one running branch selected: the latest open one.
+      const open = branches.filter((b) => b.end === null && X(b.start) < W - 80);
+      branches.forEach((b) => (b.sel = false));
+      if (open.length) open[open.length - 1].sel = true;
+      ctx.lineWidth = 1.25; ctx.strokeStyle = line;
+      ctx.beginPath(); ctx.moveTo(0, main); ctx.lineTo(W, main); ctx.stroke();
+      for (let x = -((off % COMMIT) + COMMIT) + COMMIT; x < W; x += COMMIT) dot(x, main, fg, 3);
+      for (const b of branches) {
+        const y = lanes[b.lane], sx = X(b.start), ex = b.end === null ? W - 64 : X(b.end);
+        if (ex < -40 || sx > W + 40) continue;
+        const c = b.sel ? sel : line;
+        ctx.strokeStyle = c; ctx.lineWidth = b.sel ? 2 : 1.25;
+        ctx.beginPath(); ctx.moveTo(sx, main);
+        ctx.bezierCurveTo(sx + 36, main, sx + 20, y, sx + 56, y);
+        if (b.end === null) ctx.lineTo(ex, y);
+        else { ctx.lineTo(ex - 56, y); ctx.bezierCurveTo(ex - 20, y, ex - 36, main, ex, main); }
+        ctx.stroke();
+        const endC = b.end === null ? ex : ex - 56;
+        for (let x = sx + 56 + COMMIT * .5; x < endC; x += COMMIT) dot(x, y, b.sel ? sel : fg, b.sel ? 3.5 : 2.6, !b.sel);
+        if (b.end === null) {
+          const p = reduce ? .5 : (Math.sin(performance.now() / 380) + 1) / 2;
+          ctx.fillStyle = b.sel ? sel : fg; ctx.globalAlpha = .18 * p + .05;
+          ctx.beginPath(); ctx.arc(ex, y, 7 + 5 * p, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+          dot(ex, y, b.sel ? sel : fg, 4);
+          if (b.sel) {
+            ctx.font = "500 12px 'Geist Mono', ui-monospace, monospace";
+            const label = "running";
+            const w = ctx.measureText(label).width + 12;
+            ctx.fillStyle = sel; ctx.fillRect(ex - w + 4, y + 10, w, 20);
+            ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(label, ex - w + 10, y + 20.5);
+          }
+        }
+      }
+      function dot(x, y, c, r, hollow) {
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
+        if (hollow) { ctx.fillStyle = bg; ctx.fill(); ctx.strokeStyle = c; ctx.globalAlpha = .45; ctx.lineWidth = 1.25; ctx.stroke(); ctx.globalAlpha = 1; }
+        else { ctx.fillStyle = c; ctx.fill(); }
+      }
+    }
+    function frame(now) {
+      const dt = last ? Math.min((now - last) / 1000, .05) : 0; last = now;
+      off += SPEED * dt;
+      while (nextFork < off + W * 1.1) spawn();
+      branches = branches.filter((b) => b.end === null ? true : b.end - off > -60);
+      // Close open branches once they've run long enough, so heads keep changing.
+      for (const b of branches) if (b.end === null && off + W - b.start > W * .9) b.end = off + W + 40;
+      draw();
+      raf = requestAnimationFrame(frame);
+    }
+    return {
+      start() { cv.hidden = false; size(); reset(); last = 0; if (reduce) draw(); else raf = requestAnimationFrame(frame); },
+      stop() { cancelAnimationFrame(raf); cv.hidden = true; },
+      resize() { size(); if (reduce) draw(); },
+      recolor() { if (reduce) draw(); },
+    };
+  })();
+
+  /* ---------------- D: agent cursors ---------------- */
+  const D = (() => {
+    const el = document.getElementById("fx-d");
+    const agents = [
+      { name: "Claude Code", color: "var(--sel)" },
+      { name: "Codex", color: "var(--fg)" },
+      { name: "opencode", color: "var(--info)" },
+    ];
+    let curs = [], box = null, raf = 0, timer = 0, k = 0, wander = [];
+    const targets = [1, 2, 4]; // branch, running, once
+    function arrow(c) {
+      return `<svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1 L1 16 L5 12.5 L8 19 L10.5 18 L7.6 11.6 L13 11.6 Z" fill="${c}" stroke="var(--bg)" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+    }
+    function build() {
+      el.innerHTML = "";
+      curs = agents.map((a) => {
+        const c = document.createElement("div");
+        c.className = "cur";
+        c.innerHTML = arrow(a.color) + `<span style="background:${a.color};color:${a.color === "var(--fg)" ? "var(--bg)" : "#fff"}">${a.name}</span>`;
+        el.appendChild(c);
+        return { el: c, x: 0, y: 0, tx: 0, ty: 0 };
+      });
+      box = document.createElement("div");
+      box.className = "box";
+      box.innerHTML = '<span class="h" style="top:-6px;left:-6px"></span><span class="h" style="top:-6px;right:-6px"></span><span class="h" style="bottom:-6px;left:-6px"></span><span class="h" style="bottom:-6px;right:-6px"></span><span class="tag"></span>';
+      el.appendChild(box);
+      const W = stage.clientWidth, H = stage.clientHeight;
+      curs.forEach((c, j) => { c.x = c.tx = W * (.55 + j * .12); c.y = c.ty = H * (.25 + j * .2); });
+    }
+    function wordRect(n) {
+      const w = document.querySelector(`#headline [data-w="${n}"]`);
+      const s = stage.getBoundingClientRect(), r = w.getBoundingClientRect();
+      return { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height };
+    }
+    let drag = null;
+    function select() {
+      const n = targets[k % targets.length], r = wordRect(n); k++;
+      const lead = curs[0];
+      // Walk to the word's top-left, then drag to its bottom-right.
+      lead.tx = r.x - 4; lead.ty = r.y + 4;
+      box.style.opacity = "0";
+      setTimeout(() => {
+        drag = { x: r.x - 4, y: r.y + 4, t0: performance.now(), r };
+        box.querySelector(".tag").textContent = `branch ${1 + (k - 1) % 3} of 3`;
+        box.style.opacity = "1";
+      }, 900);
+    }
+    function frame(now) {
+      if (drag) {
+        const p = Math.min((now - drag.t0) / 700, 1), e = 1 - Math.pow(1 - p, 3);
+        const ex = drag.r.x + drag.r.w + 2, ey = drag.r.y + drag.r.h - 2;
+        const cx = drag.x + (ex - drag.x) * e, cy = drag.y + (ey - drag.y) * e;
+        curs[0].tx = curs[0].x = cx; curs[0].ty = curs[0].y = cy;
+        Object.assign(box.style, { left: drag.x + "px", top: drag.y + "px", width: Math.max(cx - drag.x, 0) + "px", height: Math.max(cy - drag.y, 0) + "px" });
+        if (p === 1) { drag = null; curs[0].tx = cx + 60; curs[0].ty = cy + 40; }
+      }
+      const W = stage.clientWidth, H = stage.clientHeight, s = now / 1000;
+      curs.forEach((c, j) => {
+        if (j > 0) { c.tx = W * (.5 + .3 * Math.sin(s * (.21 + j * .07) + j * 2)) ; c.ty = H * (.45 + .3 * Math.cos(s * (.17 + j * .05) + j)); }
+        if (!(j === 0 && drag)) { c.x += (c.tx - c.x) * .045; c.y += (c.ty - c.y) * .045; }
+        c.el.style.transform = `translate(${c.x}px,${c.y}px)`;
+      });
+      raf = requestAnimationFrame(frame);
+    }
+    function still() {
+      const r = wordRect(2);
+      Object.assign(box.style, { left: r.x - 4 + "px", top: r.y + 4 + "px", width: r.w + 6 + "px", height: r.h - 6 + "px", opacity: 1 });
+      box.querySelector(".tag").textContent = "3 branches";
+      curs[0].el.style.transform = `translate(${r.x + r.w + 2}px,${r.y + r.h - 2}px)`;
+      curs.slice(1).forEach((c) => (c.el.style.transform = `translate(${c.x}px,${c.y}px)`));
+    }
+    return {
+      start() {
+        el.hidden = false; staticSel.hidden = true; running.classList.remove("sel");
+        build(); k = 0;
+        if (reduce) { still(); return; }
+        select(); timer = setInterval(select, 2800); raf = requestAnimationFrame(frame);
+      },
+      stop() { el.hidden = true; clearInterval(timer); cancelAnimationFrame(raf); drag = null; staticSel.hidden = false; running.classList.add("sel"); },
+      resize() { if (reduce) { build(); still(); } },
+      recolor() {},
+    };
+  })();
+
+  /* ---------------- Dither veil ---------------- */
+  // Paints the page's own background over what's underneath as a fine
+  // dither: solid behind the text, breaking into grain and then nothing away
+  // from it. The threshold is interleaved gradient noise, which scatters dots
+  // like blue noise instead of Bayer's checkerboard; a slow value noise keeps
+  // the edge drifting.
+  function makeVeil(cv, targets) {
+    const ctx = cv.getContext("2d");
+    const P = new Uint8Array(512);
+    { let s = 7; const a = [...Array(256).keys()]; for (let i = 255; i > 0; i--) { s = (s * 16807) % 2147483647; const j = s % (i + 1); [a[i], a[j]] = [a[j], a[i]]; } for (let i = 0; i < 512; i++) P[i] = a[i & 255]; }
+    const hh = (x, y) => P[(P[x & 255] + y) & 255] / 255;
+    const vn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), a = hh(xi, yi), b = hh(xi + 1, yi), c = hh(xi, yi + 1), d = hh(xi + 1, yi + 1); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
+    const fr = (v) => v - Math.floor(v);
+    const ign = (x, y) => fr(52.9829189 * fr(0.06711056 * x + 0.00583715 * y));
+    const host = cv.parentElement;
+    const off = document.createElement("canvas"), octx = off.getContext("2d");
+    let raf = 0, last = 0, t0 = performance.now(), W = 0, H = 0, d = 1, cols = 0, rows = 0, img = null, px32 = null, D = null, T = null, rgb = [255, 255, 255], CELL = 2;
+    const PAD = 12, FALL = 190;
+    function size() {
+      d = Math.min(devicePixelRatio || 1, 2);
+      W = host.clientWidth; H = host.clientHeight;
+      cv.width = Math.round(W * d); cv.height = Math.round(H * d);
+      // One grain per 3 device pixels on retina screens, 2 elsewhere.
+      CELL = d >= 2 ? 1.5 : 2;
+      cols = Math.ceil(W / CELL); rows = Math.ceil(H / CELL);
+      off.width = cols; off.height = rows;
+      img = octx.createImageData(cols, rows);
+      const s = host.getBoundingClientRect();
+      // Hug the text line by line rather than whole blocks, so the carousel
+      // shows through wherever there are no words.
+      const rects = targets().flatMap((n) => { const rg = document.createRange(); rg.selectNodeContents(n); return [...rg.getClientRects()].filter((r) => r.width > 1); })
+        .map((r) => [r.left - s.left - PAD, r.top - s.top - PAD, r.right - s.left + PAD, r.bottom - s.top + PAD]);
+      // The text doesn't move, so each cell's distance to it and its
+      // threshold are worked out once here.
+      D = new Float32Array(cols * rows); T = new Float32Array(cols * rows);
+      for (let r = 0, i = 0; r < rows; r++) for (let c = 0; c < cols; c++, i++) {
+        const x = c * CELL + CELL / 2, y = r * CELL + CELL / 2;
+        let dist = 1e9;
+        for (const [x0, y0, x1, y1] of rects) { const dx = Math.max(x0 - x, 0, x - x1), dy = Math.max(y0 - y, 0, y - y1); const dd = Math.hypot(dx, dy); if (dd < dist) dist = dd; }
+        D[i] = dist; T[i] = ign(c, r);
+      }
+    }
+    function draw(now) {
+      const t = (now - t0) / 1000, data = img.data;
+      for (let r = 0, i = 0; r < rows; r++) {
+        const y = r * CELL;
+        for (let c = 0; c < cols; c++, i++) {
+          const k = 1 - D[i] / FALL;
+          // Each grain is either solid or a soft wash, so the carousel fades
+          // under a smooth gradient and the dots only add texture on top.
+          let a = 0;
+          if (k >= 1) a = 255;
+          else if (k > -.25) {
+            const x = c * CELL;
+            const n = vn(x * .008 + t * .2, y * .008 - t * .12) - .5;
+            const kk = Math.min(Math.max(k + n * .35, 0), 1), v = kk * kk * (3 - 2 * kk);
+            a = v > T[i] ? 255 : v * 150;
+          }
+          const j = i * 4; data[j] = rgb[0]; data[j + 1] = rgb[1]; data[j + 2] = rgb[2]; data[j + 3] = a;
+        }
+      }
+      octx.putImageData(img, 0, 0);
+      ctx.setTransform(d, 0, 0, d, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(off, 0, 0, cols * CELL, rows * CELL);
+    }
+    function recolor() {
+      const c = document.createElement("canvas"); c.width = c.height = 1;
+      const x = c.getContext("2d"); x.fillStyle = css("--bg"); x.fillRect(0, 0, 1, 1);
+      rgb = [...x.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    }
+    function frame(now) { if (now - last > 40) { last = now; draw(now); } raf = requestAnimationFrame(frame); }
+    return {
+      start() { size(); recolor(); cancelAnimationFrame(raf); if (reduce) draw(t0); else raf = requestAnimationFrame(frame); },
+      stop() { cancelAnimationFrame(raf); },
+      resize() { size(); if (reduce) draw(t0); },
+      recolor() { recolor(); if (reduce) draw(t0); },
+    };
+  }
+
+  /* ---------------- E: carousel under the text, veiled by dither ---------------- */
+  function makeE() {
+    const el = document.getElementById("fx-e");
+    const cv = document.getElementById("fx-e-dither");
+    // The veil keeps the hero's text on solid background.
+    const dither = makeVeil(cv, () => [...document.querySelectorAll(".hero > .label, #headline, .hero .row p, .hero .btns")]);
+    const HEAD = "Every branch, side by side.";
+    const page = () => `
+      <div class="mp">
+        <div class="mp-nav"><span class="mp-logo"><i></i>Screenplay</span><span class="mp-links"><span>How it works</span><span>Features</span><span>Docs</span></span><span class="mp-dl">Download</span></div>
+        <div class="mp-hero">
+          <div class="mp-eye">Open source · Claude Code, Codex &amp; opencode</div>
+          <div class="mp-h1">${HEAD}</div>
+          <div class="mp-row"><p class="mp-lede">Screenplay runs each coding agent on its own branch and shows every result live on one canvas.</p><div class="mp-btns"><span class="mp-b solid">Download for Mac</span><span class="mp-b">Star on GitHub</span></div></div>
+          <div class="mp-fig"><span></span><span></span><span></span></div>
+        </div>
+      </div>`;
+    const HEADLINES = ["Every idea, side by side.", "Ship the version that works.", "Five branches. One canvas.", "See every branch, live."];
+    const EDITS = [
+      { ws: "New headline", kind: "type", diff: [1, 1] },
+      { ws: "Tinted page", cls: "soft", diff: [3, 1] },
+      { ws: "Centered hero", cls: "center", diff: [6, 2] },
+      { ws: "Pill buttons", cls: "pill", diff: [2, 2] },
+      { ws: "Mono headline", cls: "mono", diff: [3, 1], not: "sans" },
+      { ws: "Bigger headline", cls: "big", diff: [1, 1] },
+      { ws: "Accent button", cls: "accent-btn", diff: [2, 0] },
+      { ws: "Sans headline", cls: "sans", diff: [4, 2], not: "mono" },
+      { ws: "Blue accent", cls: "blue", diff: [1, 1] },
+    ];
+    // What each copy has already done when the page loads, so the first
+    // frame shows variety. Index 0 is main, untouched.
+    const SEED = [[], [1], [0], [2, 3], [4], [6, 3], [7, 1], [5], [8, 2]];
+    const isDark = () => css("--bg") === "#000";
+    const fit = (e) => (e.flip && isDark() ? { ...e, ...e.flip } : e);
+    let frames = [], timers = [], alive = false, hk = 0, strip = null;
+    const wait = (ms) => new Promise((r) => { const t = setTimeout(r, ms); timers.push(t); });
+
+    function label(f) {
+      const ws = f.done.length ? fit(EDITS[f.done[0]]).ws : "Main";
+      const add = f.done.reduce((n, i) => n + EDITS[i].diff[0], 0), del = f.done.reduce((n, i) => n + EDITS[i].diff[1], 0);
+      f.nm.textContent = ws;
+      f.df.innerHTML = f.done.length ? `<span class="a">+${add}</span> <span class="d">-${del}</span>` : "";
+    }
+    function applyNow(f, i) {
+      const e = fit(EDITS[i]);
+      if (e.kind === "type") f.el.querySelector(".mp-h1").textContent = HEADLINES[hk++ % HEADLINES.length];
+      else f.mp.classList.add(e.cls);
+    }
+    function make(seed) {
+      const el = document.createElement("div");
+      el.className = "sf";
+      el.innerHTML = `<div class="sf-head"><span class="nm"></span><span class="df"></span></div><div class="uf-box">${page()}</div>`;
+      const f = { el, mp: el.querySelector(".mp"), box: el.querySelector(".uf-box"), nm: el.querySelector(".nm"), df: el.querySelector(".df"), done: [], busy: false };
+      seed.forEach((i) => { applyNow(f, i); f.done.push(i); });
+      label(f);
+      return f;
+    }
+    function build() {
+      el.querySelectorAll(".sf-track").forEach((n) => n.remove());
+      strip = el.querySelector(".sf-strip");
+      frames = [];
+      // Two rows panning opposite ways; each holds two identical runs, so
+      // the loop is seamless at -50%.
+      [SEED, [...SEED.slice(4), ...SEED.slice(0, 4)]].forEach((seeds, row) => {
+        const track = document.createElement("div");
+        track.className = "sf-track" + (row ? " rev" : "");
+        for (let rep = 0; rep < 2; rep++) seeds.forEach((s) => { const f = make(s); track.appendChild(f.el); frames.push(f); });
+        strip.appendChild(track);
+      });
+    }
+    async function type(f, text) {
+      const t = f.el.querySelector(".mp-h1");
+      let cur = t.textContent;
+      const caret = '<span class="caret"></span>';
+      while (cur.length && alive) { cur = cur.slice(0, -1); t.innerHTML = cur + caret; await wait(20); }
+      for (const ch of text) { if (!alive) return; cur += ch; t.innerHTML = cur + caret; await wait(50); }
+      t.textContent = cur;
+    }
+    function visible() {
+      const s = strip.getBoundingClientRect();
+      return frames.filter((f) => { const r = f.el.getBoundingClientRect(); return !f.busy && r.left > s.left + 20 && r.right < s.right - 20; });
+    }
+    // Every so often one copy on screen changes: an agent edit, or, after a
+    // few, it wipes back to main and starts over.
+    async function tick() {
+      while (alive) {
+        await wait(1300);
+        const vis = visible();
+        if (!vis.length) continue;
+        const f = vis[Math.floor(Math.random() * vis.length)];
+        f.busy = true;
+        if (f.done.length >= 3) {
+          f.box.classList.add("wipe");
+          await wait(700);
+          f.mp.className = "mp";
+          f.el.querySelector(".mp-h1").textContent = HEAD;
+          f.done = []; label(f);
+          f.box.classList.remove("wipe");
+        } else {
+          const blocked = new Set(f.done.map((i) => EDITS[i].cls).concat(f.done.map((i) => EDITS[i].not)));
+          const pool = EDITS.map((e, i) => i).filter((i) => !f.done.includes(i) && !blocked.has(EDITS[i].cls));
+          const i = pool[Math.floor(Math.random() * pool.length)];
+          f.done.push(i); label(f);
+          f.el.classList.add("working");
+          if (EDITS[i].kind === "type") await type(f, HEADLINES[hk++ % HEADLINES.length]);
+          else { f.mp.classList.add(fit(EDITS[i]).cls); await wait(800); }
+          f.el.classList.remove("working");
+        }
+        f.busy = false;
+      }
+    }
+    return {
+      start() {
+        el.hidden = false; cv.hidden = false; alive = true; staticSel.hidden = true; running.classList.remove("sel"); build(); requestAnimationFrame(() => dither.start());
+        el.classList.toggle("still", reduce);
+        if (!reduce) tick();
+      },
+      stop() { alive = false; timers.forEach(clearTimeout); timers = []; el.hidden = true; cv.hidden = true; dither.stop(); staticSel.hidden = false; running.classList.add("sel"); },
+      resize() { dither.resize(); },
+      recolor() { dither.recolor(); },
+    };
+  }
+  const E = makeE();
+  const FX = { e: E, a: A, b: B, c: C, d: D };
+  if (reduce) {
+    document.getElementById("rm").hidden = false;
+    document.getElementById("play").addEventListener("click", () => {
+      reduce = false; document.getElementById("rm").hidden = true; const o = cur; FX[o].stop(); cur = null; show(o);
+    });
+  }
+  let cur = null;
+  function show(o) {
+    if (cur) FX[cur].stop();
+    cur = o;
+    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.opt === o)));
+    FX[o].start();
+    renderNotes(o);
+    try { localStorage.setItem("hero-opt2", o); } catch (e) {}
+  }
+  running.classList.add("sel");
+  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => show(b.dataset.opt)));
+
+  // Theme preview toggle: an explicit data-theme wins over the system setting.
+  function theme(t) {
+    root.setAttribute("data-theme", t);
+    document.querySelectorAll(".theme button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.t === t)));
+    FX[cur]?.recolor();
+  }
+  document.querySelectorAll(".theme button").forEach((b) => b.addEventListener("click", () => theme(b.dataset.t)));
+  const sys = root.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  document.querySelectorAll(".theme button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.t === sys)));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => FX[cur]?.recolor());
+
+  let ro = 0;
+  new ResizeObserver(() => { clearTimeout(ro); ro = setTimeout(() => FX[cur]?.resize(), 120); }).observe(stage);
+
+  let first = "e";
+  try { const s = localStorage.getItem("hero-opt2"); if (s && FX[s]) first = s; } catch (e) {}
+  const go = () => show(first);
+  document.fonts ? document.fonts.ready.then(go) : go();
+})();
+</script>
+
+</body></html>

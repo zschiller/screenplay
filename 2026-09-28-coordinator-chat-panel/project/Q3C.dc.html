@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Canvas in the switcher</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;font-family:"Geist",ui-sans-serif,system-ui,-apple-system,sans-serif}
+.bd{width:880px;height:600px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#e7e7ea}
+.m{--b:#fff;--fg:#0a0a0a;--mu:#737373;--bd:#e5e5e5;--u:#f4f4f5;--ac:#f4f4f5;--ok:#16a34a;--p1b:#dbeafe;--p1f:#1d4ed8;--p2b:#fce7f3;--p2f:#be185d;width:400px;height:520px;box-sizing:border-box;border:1px solid var(--bd);border-radius:10px;background:var(--b);color:var(--fg);font-size:12.5px;line-height:1.5;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.dk{--b:#0a0a0a;--fg:#fafafa;--mu:#a1a1a1;--bd:#262626;--u:#262626;--ac:#262626;--ok:#4ade80;--p1b:#172554;--p1f:#93c5fd;--p2b:#500724;--p2f:#f9a8d4}
+.hd{height:48px;flex:none;display:flex;align-items:center;gap:6px;padding:0 12px;white-space:nowrap}
+.ic{width:14px;height:14px;color:var(--mu);flex:none}
+.i12{width:12px;height:12px;flex:none}
+.mu{color:var(--mu)}
+.pill{font-size:11px;padding:1px 6px;border-radius:4px;font-weight:500;white-space:nowrap}
+.p1{background:var(--p1b);color:var(--p1f)}.p2{background:var(--p2b);color:var(--p2f)}
+.rt{margin-left:auto;display:flex;align-items:center;gap:6px}
+.stat{font-family:"Geist Mono",ui-monospace,monospace;font-size:10px;color:var(--mu)}
+.btn{font-size:11px;border:1px solid var(--bd);border-radius:6px;padding:1px 7px}
+.tabs{height:36px;flex:none;display:flex;gap:14px;padding:0 12px;border-bottom:1px solid var(--bd);font-size:12px;color:var(--mu)}
+.tabs span{display:flex;align-items:center}
+.tabs .on{color:var(--fg);box-shadow:inset 0 -1.5px 0 var(--fg)}
+.body{flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.u{align-self:flex-end;max-width:85%;background:var(--u);border-radius:12px;padding:6px 12px}
+.comp{margin:0 12px 12px;border:1px solid var(--bd);border-radius:10px;padding:10px 12px 34px;color:var(--mu);flex:none}
+.pop{position:absolute;top:40px;left:32px;width:260px;background:var(--b);border:1px solid var(--bd);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:4px;font-size:12px}
+.pin{padding:4px 8px 8px;margin:-4px -4px 4px;border-bottom:1px solid var(--bd);color:var(--mu)}
+.gh{font-size:11px;color:var(--mu);padding:4px 8px 2px}
+.it{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px}
+.it.on{background:var(--ac)}
+.sp{height:1px;background:var(--bd);margin:4px -4px}
+</style>
+</helmet>
+<div class="bd">
+<sc-for list="{{themes}}" as="th" hint-placeholder-count="2">
+<div class="{{th.cls}}">
+<div class="hd">
+<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M15 3v18"></path></svg>
+<span class="pill p1">Fix sign-in redirect</span>
+<svg class="i12 mu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7 15 5 5 5-5"></path><path d="m7 9 5-5 5 5"></path></svg>
+<div class="rt"><span class="stat">+18 −3</span><span class="btn">Create PR</span></div>
+</div>
+<div class="tabs"><span class="on">Chat</span><span>+</span></div>
+<div class="body">
+<div style="align-self:flex-end;font-size:11px;color:var(--mu);margin-bottom:-6px">From Canvas</div>
+<div class="u">Make sign-in send you back to the page you were on.</div>
+<div>The callback now returns you to the page you were on. I added a test for it.</div>
+</div>
+<div class="comp">Ask anything…</div>
+<div class="pop">
+<div class="pin">Switch to…</div>
+<div class="it">
+<svg class="i12 mu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>
+<span>Canvas</span>
+</div>
+<div class="sp"></div>
+<div class="gh">Workspaces</div>
+<div class="it on">
+<svg class="i12 mu" viewBox="0 0 12 12" fill="currentColor"><circle cx="2" cy="2" r="1.1"></circle><circle cx="6" cy="2" r="1.1" opacity=".4"></circle><circle cx="10" cy="2" r="1.1" opacity=".4"></circle><circle cx="2" cy="6" r="1.1" opacity=".4"></circle><circle cx="6" cy="6" r="1.1"></circle><circle cx="10" cy="6" r="1.1" opacity=".4"></circle><circle cx="2" cy="10" r="1.1" opacity=".4"></circle><circle cx="6" cy="10" r="1.1" opacity=".4"></circle><circle cx="10" cy="10" r="1.1"></circle></svg>
+<span class="pill p1">Fix sign-in redirect</span>
+<svg class="i12" style="margin-left:auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"></path></svg>
+</div>
+<div class="it">
+<svg class="i12" style="color:var(--ok)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+<span class="pill p2">Dark mode toggle</span>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":600}}'>
+class Component extends DCLogic {
+renderVals() {
+return { themes: [{ cls: 'm' }, { cls: 'm dk' }] };
+}
+}
+</script>
+</body>
+</html>

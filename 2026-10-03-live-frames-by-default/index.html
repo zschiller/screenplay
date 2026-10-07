@@ -1,0 +1,425 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Live Frames by Default</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone first, one column. Question, then tabs (open round / Today / Earlier rounds). Each question is a deck of cards (Today, A, B…) swiped one at a time on a phone and side by side on wide screens. A bar pinned to the bottom carries the picks, a note and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--stick:0px;--bg:#f7f7f5;--surface:#ededea;--paper:#ffffff;--line:#d9d9d4;--fg:#141413;--muted:#5c5c57;--accent:#d6247a;--ana:#d6247a;--agent:#141413;--ok:#1f7a45;--no:#a3372b;--stream:#e3e9f2;--own:#f1ece2;
+--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--grid:#e4e4df;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--head:"Unbounded",ui-sans-serif,system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--s1:#3987e5;--s2:#d95926;--s3:#199e70;--grid:#2c2c29;--bg:#111110;--surface:#1c1c1b;--paper:#232322;--line:#34342f;--fg:#f1f1ee;--muted:#a3a39d;--accent:#ff5aa8;--ana:#ff5aa8;--agent:#f1f1ee;--ok:#5fd08e;--no:#f08a7c;--stream:#1f2a3a;--own:#332d22;color-scheme:dark}}
+:root[data-theme="dark"]{--s1:#3987e5;--s2:#d95926;--s3:#199e70;--grid:#2c2c29;--bg:#111110;--surface:#1c1c1b;--paper:#232322;--line:#34342f;--fg:#f1f1ee;--muted:#a3a39d;--accent:#ff5aa8;--ana:#ff5aa8;--agent:#f1f1ee;--ok:#5fd08e;--no:#f08a7c;--stream:#1f2a3a;--own:#332d22;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:24px calc(112px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:24px}
+@media (min-width:720px){.wrap{padding-inline:24px;padding-top:40px;gap:32px}}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(22px,5.4vw,32px)/1.18 var(--head);letter-spacing:-.015em;margin:8px 0 10px;text-wrap:balance}
+h2{font:600 clamp(17px,4.4vw,21px)/1.28 var(--head);margin:0;text-wrap:balance}
+h3{font:500 16px/1.35 var(--sans);margin:0}
+p{margin:0;max-width:72ch}
+a{color:var(--accent)}
+code{font:13px var(--mono)}
+.muted{color:var(--muted)}
+blockquote{margin:0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+button{font:500 13px/1.2 var(--sans);border-radius:8px;padding:8px 12px;min-height:36px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);-webkit-tap-highlight-color:transparent}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding-inline:8px}
+button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px;min-width:0}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+ul.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:80ch;font-size:14px}
+/* Tabs: the open round, Today, earlier rounds */
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;background:var(--bg);display:flex;gap:4px;border-bottom:1px solid var(--line);margin-inline:-16px;padding:8px 16px;overflow-x:auto;scrollbar-width:none}
+@media (min-width:720px){.tabs{margin-inline:-24px;padding-inline:24px}}
+.tabs button{border-color:transparent;background:transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg)}
+/* Folded blocks: In every option, each earlier round */
+details.fold{border:1px solid var(--line);border-radius:10px}
+details.fold>summary{list-style:none;cursor:pointer;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:"Show";grid-row:1/span 2;grid-column:2;font:500 13px var(--sans);color:var(--muted)}
+details.fold[open]>summary::after{content:"Hide"}
+details.fold>summary .sum{font-size:14px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+details.fold[open]>summary .sum{display:none}
+details.fold>.body{padding:14px 14px 16px;display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line)}
+.ledger{display:flex;flex-direction:column;gap:8px}
+/* A question and its options */
+.question{display:flex;flex-direction:column;gap:12px;min-width:0}
+.question+.question{margin-top:20px}
+.qhead{display:flex;flex-direction:column;gap:4px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:20px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.opt.today .letter{color:var(--muted)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.choose{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.choose button{min-width:112px}
+.choose button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.choose button[aria-pressed="true"]::before{content:"✓ "}
+/* Deck: chips pinned under the tabs; the track swipes one card at a time on a phone and becomes a grid on wide screens */
+.chips{position:sticky;top:var(--stick);z-index:4;background:var(--bg);display:flex;gap:6px;padding-block:8px;margin-top:-8px;overflow-x:auto;scrollbar-width:none}
+.chips button{min-width:44px;padding-inline:12px;font-family:var(--mono)}
+.chips button[aria-current="true"]{border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.chips button::after{content:" ✓";color:var(--ok);visibility:hidden}
+.chips button.chosen::after{visibility:visible}
+.track{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;align-items:start}
+.track::-webkit-scrollbar,.chips::-webkit-scrollbar,.tabs::-webkit-scrollbar{display:none}
+.track>.opt{scroll-snap-align:start;scroll-snap-stop:always}
+@media (min-width:900px){.chips{display:none}.track{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));overflow:visible;gap:20px}}
+/* Captures: the viewer's theme only, tap to enlarge */
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:0;background:var(--surface);cursor:zoom-in;min-height:0}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dialog.lb{padding:0;border:0;background:transparent;max-width:100vw;max-height:100dvh;width:100vw;height:100dvh}
+dialog.lb::backdrop{background:rgb(0 0 0/.86)}
+dialog.lb .in{width:100%;height:100%;overflow:auto;display:grid;place-items:center;padding:16px;cursor:zoom-out}
+dialog.lb img{max-width:none;background:var(--surface)}
+@media (min-width:720px){dialog.lb img{max-width:100%}}
+/* Bottom bar: picks so far, a note, Copy */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+@media (min-width:720px){.bar{padding-inline:24px}}
+.bar .in{max-width:1032px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.bar .row{display:flex;align-items:center;gap:8px}
+.bar .picks{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bar .picks b{color:var(--fg);font-weight:500}
+.bar textarea{width:100%;font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:72px}
+#copy{min-width:132px}
+.bar #out{font:12.5px/1.5 var(--mono)}
+/* state strip: three moments */
+.strip{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.opt,.wide{container-type:inline-size}
+@container (min-width:620px){.strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.moment{display:flex;flex-direction:column;gap:8px;min-width:0;background:var(--surface);border-radius:8px;padding:12px}
+.moment .who{font:500 11px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);line-height:1.45}
+/* wireframe frame */
+.wf{display:flex;flex-direction:column;gap:4px;font-family:var(--sans)}
+.wf .canvashead{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:4px;min-height:22px}
+.wf .canvashead .pill{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:2px 7px;color:var(--fg);white-space:nowrap}
+.wf .canvashead .pill.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.wf .title{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;min-height:20px}
+.wf .tag{font-size:11px;font-weight:500;padding:1px 7px;border-radius:5px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.wf .tag.ana{background:var(--ana);color:#000}
+.wf .tag.agent{background:var(--agent);color:var(--bg)}
+.wf .tag.live{color:var(--accent)}
+.wf .tag.muted{color:var(--muted)}
+.wf .dot{width:9px;height:9px;border-radius:50%;background:currentColor;display:inline-block}
+.wf .body{position:relative;aspect-ratio:16/10;max-width:100%;border:1px solid var(--line);border-radius:3px;overflow:hidden;display:flex;flex-direction:column;gap:6px;padding:10px}
+.wf .body.stream{background:var(--stream)}
+.wf .body.own{background:var(--own)}
+.wf .body.ring-ana{outline:2px solid var(--ana);outline-offset:1px}
+.wf .body.ring-agent{outline:2px solid var(--agent);outline-offset:1px}
+.wf .ln{height:6px;border-radius:3px;background:var(--fg);opacity:.14}
+.wf .ln.w60{width:60%}.wf .ln.w40{width:40%}.wf .ln.w80{width:80%}
+.wf .btnwf{width:30%;height:12px;border-radius:3px;background:var(--fg);opacity:.25;margin-top:4px}
+.wf .kind{position:absolute;left:8px;bottom:8px;font:500 10px/1.3 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--fg);opacity:.7}
+.wf .cursor{position:absolute;right:28%;top:52%;width:0;height:0;border-left:7px solid var(--ana);border-top:5px solid transparent;border-bottom:5px solid transparent;transform:rotate(-120deg)}
+.wf .bar{display:flex;align-items:center;gap:3px;border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:3px 5px;font-size:10px;color:var(--muted);flex-wrap:nowrap;overflow:hidden}
+.wf .bar .url{flex:1;min-width:0;height:14px;border-radius:3px;background:var(--surface);padding:0 5px;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf .ib{width:18px;height:18px;border-radius:4px;display:inline-grid;place-items:center;flex:none;font-size:10px;color:var(--fg)}
+.wf .ib.pressed{background:var(--fg);color:var(--bg)}
+.wf .ib.drive{background:var(--ana);color:#000}
+.wf .ib.off{opacity:.3}
+.wf .sep{width:1px;height:14px;background:var(--line);flex:none;margin:0 2px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted);align-items:center}
+.legend .sw{display:inline-block;width:14px;height:10px;border-radius:2px;border:1px solid var(--line);vertical-align:-1px;margin-right:5px}
+/* numbers table */
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 11px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.n{white-space:nowrap;font-weight:600}
+.src{font:500 10.5px var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:1px 5px;border-radius:4px;white-space:nowrap}
+.src.m{color:var(--ok);border:1px solid currentColor}
+.src.i{color:var(--muted);border:1px dashed currentColor}
+.chartwrap{position:relative;overflow-x:auto}
+.chartwrap svg{display:block;width:100%;min-width:520px;height:auto}
+.chartwrap text{font:12px var(--sans);fill:var(--muted)}
+.chartwrap text.lab{font-weight:600;font-size:12px;fill:var(--fg)}
+.tip{position:absolute;pointer-events:none;background:var(--fg);color:var(--bg);font:12px/1.5 var(--sans);padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%)}
+.keys{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--fg)}
+.keys i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:3px;margin-right:6px}
+.moment figcaption.note{font:13px/1.45 var(--sans);text-transform:none;letter-spacing:0}
+.wide{display:flex;flex-direction:column;gap:14px;min-width:0}
+.today-extra{display:flex;flex-direction:column;gap:28px}
+.today-extra h2{margin-top:8px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk});
+// ---- wireframe kit ----
+// f: {head, headOn, tag:{kind,text}, body:"stream"|"own", ring:"ana"|"agent", cursor, bar:[...], label}
+const IB={back:"←",fwd:"→",reload:"↻",interact:"↖",knobs:"≡",more:"⋯",detach:"▭",live:"◉"};
+function frame(f){
+ const tag=f.tag?`<span class="tag ${f.tag.kind}">${f.tag.kind==="live"?'<span class="dot"></span>':""}${f.tag.text}</span>`:"<span></span>";
+ const head=f.head?`<div class="canvashead"><span>Northwind marketing site</span><span class="pill${f.headOn?" on":""}">${f.head}</span></div>`:"";
+ const items=(f.bar||["interact","detach","knobs"]).map(k=>{
+  const [name,st]=k.split(":");return `<span class="ib ${st||""}" title="${name}">${IB[name]}</span>`}).join("");
+ return `<div class="wf">${head}<div class="title"><span>Home</span>${tag}</div>
+ <div class="body ${f.body}${f.ring?" ring-"+f.ring:""}"><div class="ln w60"></div><div class="ln w80"></div><div class="ln w40"></div><div class="btnwf"></div>${f.cursor?'<span class="cursor"></span>':""}<span class="kind">${f.body==="stream"?"Shared browser":"Your own copy"}</span></div>
+ <div class="bar"><span class="ib">${IB.back}</span><span class="ib">${IB.fwd}</span><span class="url">${f.url||"/"}</span><span class="ib">${IB.reload}</span><span class="sep"></span>${items}<span class="ib">${IB.more}</span></div></div>`;
+}
+const M=(who,f,note)=>({who,f,note});
+
+const strip=list=>`<div class="strip">`+list.map((m,i)=>`<figure class="moment" style="margin:0"><span class="who">${i+1} · ${m.who}</span>${frame(m.f)}<figcaption class="note">${m.note}</figcaption></figure>`).join("")+`</div>`;
+const legend=`<div class="legend"><span><span class="sw" style="background:var(--stream)"></span>Shared browser (streamed)</span><span><span class="sw" style="background:var(--own)"></span>Viewer's own copy (iframe)</span><span>Bar: ← → address ↻ | ↖ Interact · ▭ Detach · ◉ Go live · ≡ Knobs · ⋯</span></div>`;
+const PAGE={
+ date:"3 Oct 2026",
+ slug:"live-frames-default",
+ quote:"can we think if live frames should be the default? i think it might make sense to enable it and then let someone join to view? maybe if they land on a doc w/ an already live frame it starts on. lets explore design, and try to reconcile w/ the interactive mode driving",
+ q:"When does a frame go live for everyone, and how does that fit with Interact?"
+};
+const TODAY={facts:[
+ "Hosted frames are live by default: one shared browser per frame in the Workspace Sandbox, streamed to everyone (<code>use-shared-frames.ts:45</code>).",
+ "A frame streams while it's on screen and pauses 5 s after its last viewer leaves (<code>frame-stream.mjs:88</code>).",
+ "Interact asks for control of the shared browser (<code>lib/canvas/frame-control.ts:10</code>). Others then read \"Ana has control\" on the title line.",
+ "Detach, after Interact, gives you your own copy. The bar is 583px either way (PR #1466).",
+ "On the Mac each person has their own frame; nobody else can see it (#988 shelved)."
+],shots:[IMG("r3/T-idle-tip-light.png","Today · Detach after Interact","r3/T-idle-tip-dark.png")]};
+const TODAY_STRIP=[
+  M("You open the canvas",{body:"stream"},"The frame is live as soon as it's on screen. Nothing to enable."),
+  M("Ana presses Interact",{body:"stream",tag:{kind:"ana",text:"Ana has control"},ring:"ana",cursor:1,bar:["interact:drive","detach","knobs"],url:"/pricing"},"Everyone sees her pointer and pages. Your Interact would ask her for control."),
+  M("Ben opens it later",{body:"stream",tag:{kind:"ana",text:"Ana has control"},ring:"ana",url:"/pricing"},"Ben lands on /pricing, mid-session. The picture is there in about 1 ms.")
+ ];
+const OLD_ROUNDS=[
+{n:2,feedback:"Round 1: C, Go live per frame, with the Agent taking control also going live. \"the lag is bad and it is only actually useful when two people are collaborating sync (rare) or when you need the agent to drive (rare)\" ... \"c, but we need to reconcile how that behaves with control\"",recNote:"Recommended: A. Go live then means one thing for each person (am I on the live frame), it never pulls anyone's page out from under them, and control works exactly as it does today.",options:[
+ {id:"A",name:"Join and leave",rec:true,state:"picked",
+  strip:[
+   M("You press Go live",{body:"stream",tag:{kind:"live",text:"Live"},bar:["interact","live:pressed","knobs"]},"Your frame becomes the shared browser at the page you were on. Going live doesn't give you control; Interact does that, as today."),
+   M("Ana already has it open",{body:"own",tag:{kind:"live",text:"Live · Zack"},bar:["interact","live","knobs"]},"Ana's own copy stays where it is, and her title line shows who's live. She joins by pressing Go live. Ben, opening the canvas now, lands on it live."),
+   M("Everyone leaves",{body:"own",bar:["interact","live","knobs"]},"Pressing Go live again only takes you out. Live ends when nobody is on it, and the Sandbox browser pauses. The Agent taking control starts live the same way, with the person who asked joined.")
+  ],
+  why:"One toggle per person: am I on the live frame or my own copy. It replaces Detach, which becomes just leaving. Interact keeps one meaning on a live frame (take or ask for control) and the Mac's meaning on an own copy (click into it).",
+  cost:"People already looking at the frame aren't pulled in, so showing something means telling them to join, or the Agent doing it for them in chat. Nobody can end live for someone else."},
+ {id:"B",name:"Go live means presenting",state:"rejected",
+  strip:[
+   M("You press Go live",{body:"stream",tag:{kind:"live",text:"Live"},cursor:1,bar:["interact:pressed","live:pressed","knobs"]},"Going live gives you control at the same moment: Interact turns on with it."),
+   M("Ana already has it open",{body:"stream",tag:{kind:"ana",text:"Zack has control"},ring:"ana",cursor:1,bar:["interact","live:pressed","knobs"]},"Everyone with the canvas open is pulled onto the live frame. Ana asks for control with Interact, as today, and control can pass around."),
+   M("Nobody has control",{body:"own",bar:["interact","live","knobs"]},"Live ends a few seconds after nobody has control, and everyone drops back to an own copy on the same page, since the route follows. The Agent driving is the same: live while it has control.")
+  ],
+  why:"Live and control become one thing: a frame is live exactly while someone drives it. That matches both rare cases: someone showing a page, and the Agent showing one.",
+  cost:"Pulling people in swaps their page while they read it, which is the jump that ruled out round 1's B, now limited to frames someone chose to share. Watching without anyone driving isn't possible."},
+ {id:"C",name:"Live with an owner",state:"rejected",
+  strip:[
+   M("You press Go live",{body:"stream",tag:{kind:"live",text:"Live"},bar:["interact","live:pressed","knobs"]},"Everyone with the canvas open is pulled onto the live frame. Nobody has control until someone presses Interact."),
+   M("Ana steps out",{body:"own",tag:{kind:"live",text:"Live · Zack"},bar:["interact","live","knobs"]},"Ana presses Go live to leave for her own copy, like Detach today. It only takes her out; she can rejoin the same way."),
+   M("You end it",{body:"own",bar:["interact","live","knobs"]},"The person who started it, or whoever has control, ends it for everyone from ⋯ End live. The Agent's live frame ends when it hands control back.")
+  ],
+  why:"Live is a room someone opens and closes. Everyone looking is brought in, people can step out, and it ends when its owner says so rather than when it empties.",
+  cost:"The toggle means start for one person and leave for everyone else, plus a new End live item and an owner to track. Pulls people in, as in B."}
+]},
+{n:1,feedback:"",recNote:"Recommended (revised after Zack's note on lag): C, with the Agent taking control also going live.",options:[
+ {id:"A",name:"Always live, Interact drives",state:"rejected",
+  strip:[
+   M("You open the canvas",{body:"stream"},"Same as today: watching needs no step."),
+   M("You press Interact",{body:"stream",cursor:1,bar:["interact:pressed","detach","knobs"],url:"/pricing"},"Interact means one thing: drive the shared browser. Everyone else reads \"Zack has control\"; the Agent driving reads \"Agent has control\"."),
+   M("Ben opens it later",{body:"stream",tag:{kind:"ana",text:"Zack has control"},ring:"ana",url:"/pricing"},"Ben lands live, where you are. Detach is there if he wants to poke around alone.")
+  ],
+  why:"Keep what hosted already does. A frame is one shared thing by default, Interact is the only way to drive it, and Detach is the way out. That answers both halves of your idea: it's on, and people who land on it join automatically.",
+  cost:"Nothing to build. A still frame on screen costs about $0.07/h; a page that keeps moving (an animated hero, a video) adds about $0.34/h per viewer in data transfer, even when nobody is driving. Off screen it pauses within 5 s. Viewers can't scroll or click around on their own without detaching."},
+ {id:"B",name:"Taking control goes live",state:"rejected",
+  strip:[
+   M("You open the canvas",{body:"own",bar:["interact","detach:off","knobs"]},"Each viewer starts on their own copy, private and free to scroll. Detach holds its place, greyed out, so the bar never resizes."),
+   M("Ana presses Interact",{body:"stream",tag:{kind:"ana",text:"Ana has control"},ring:"ana",cursor:1,bar:["interact:drive","detach","knobs"],url:"/pricing"},"Taking control turns the frame live: every viewer's frame swaps to the shared browser. The Agent taking control does the same."),
+   M("Ben opens it later",{body:"stream",tag:{kind:"ana",text:"Ana has control"},ring:"ana",url:"/pricing"},"Ben lands on the live frame. When nobody has had control for a few minutes, everyone drops back to their own copy.")
+  ],
+  why:"Live only while someone is showing something. Interact gains one meaning, \"show this to everyone\", so there's no new control, and the Agent demoing a feature brings everyone along.",
+  cost:"Each viewer's frame swaps between two renderings while they look at it, so the page jumps to the driver's route and scroll position mid-read. Own copies don't share state, so two people see different pages until someone takes control. Saves the stream's cost while nobody drives, which matters most for pages that keep moving on their own (about $0.34/h per viewer each)."},
+ {id:"C",name:"Go live per frame",rec:true,state:"picked",
+  strip:[
+   M("You open the canvas",{body:"own",bar:["interact","live","knobs"]},"Own copy by default. Detach's slot becomes a Go live toggle, so the bar's width stays the same."),
+   M("Ana presses Go live",{body:"stream",tag:{kind:"live",text:"Live"},bar:["interact","live:pressed","knobs"]},"The title line reads Live for everyone and their frames join. Interact on a live frame asks for control, like today."),
+   M("Ben opens it later",{body:"stream",tag:{kind:"live",text:"Live"},bar:["interact","live:pressed","knobs"]},"Ben lands on it live. Pressing Go live again ends it for everyone.")
+  ],
+  why:"Your words most literally: someone enables it, others join to view, and landing on a live frame starts on. Live is for the two rare cases that need it: working on one page together, and the Agent driving. So the Agent taking control of a frame turns it live on its own, and everything else stays an own copy with no lag. With route and state following, own copies already stay roughly together without it.",
+  cost:"A new per-frame control that changes what everyone sees, and two things to explain (live, control). Who may turn it off for everyone is a new question. On frames nobody made live, Interact only drives your own copy, so it means two things."},
+ {id:"D",name:"Canvas goes live",state:"rejected",
+  strip:[
+   M("You open the canvas",{head:"Go live",body:"own",bar:["interact","detach:off","knobs"]},"Own copies everywhere. One Go live button for the canvas, like starting a call."),
+   M("Ana presses Go live",{head:"Live · Ana, You",headOn:1,body:"stream",bar:["interact","detach","knobs"]},"Every frame on the canvas becomes its shared browser at once. Interact asks for control as today."),
+   M("Ben opens it later",{head:"Live · Ana, You, Ben",headOn:1,body:"stream",tag:{kind:"ana",text:"Ana has control"},ring:"ana",url:"/pricing"},"Ben lands inside the session. It ends when the last person leaves.")
+  ],
+  why:"Live becomes a session the group joins, like a meeting, rather than a property of each frame. Outside a session every frame behaves like the Mac does today.",
+  cost:"A new control in the canvas chrome. Going live starts every on-screen frame together: 1.9 to 3.9 s each for six cold frames, measured. Frames still swap rendering under people at the start and end of a session, as in B."}
+]}
+];
+
+const SHOT=(o,s,cap)=>IMG(`r3/${o}-${s}-light.png`,cap,`r3/${o}-${s}-dark.png`);
+const ROUNDS=[
+{n:4,feedback:"Round 3: \"i like broadcast + faces\". A's toggle with B's tag.",every:[
+ "The bar is 583px in every state, the same as today.",
+ "Pending state, failure toast, tooltips and mockups as in round 3."
+],questions:[{key:"combo",title:"Broadcast toggle with faces",intro:"",options:[
+ {id:"P",name:"Broadcast toggle with faces",state:"",shots:[IMG("r4/D-idle-light.png","Nobody live","r4/D-idle-dark.png"),IMG("r4/D-on-tip-light.png","You're live with Ana","r4/D-on-tip-dark.png"),IMG("r4/D-invite-tip-light.png","Zack is live, you're on your own copy","r4/D-invite-tip-dark.png")],
+  why:"Round 3 A's 28px broadcast toggle (plain on your own copy, ink fill on the live frame) with round 3 B's tag: a muted \"Live\" then 16px faces of everyone on the live frame. No green dot.",
+  cost:"The tag grows by a face per person (56px with two, 44px with one)."}
+]}]},
+{n:3,feedback:"Round 2: A, Join and leave. \"A makes sense because route changes already happen to everyone.\"",every:[
+ "Go live sits where Detach is today, right after Interact, and Detach goes away: leaving live is the same toggle.",
+ "The tag sits where the driver tag goes, right-aligned on the title line. When someone has control, \"Zack has control\" replaces it.",
+ "Tooltips: <b>Go live</b> / Others on the canvas can join. <b>Live</b> / Click to leave for your own copy. <b>Join Zack live</b> / See the same page, live.",
+ "Each option shows three states: nobody live, you on the live frame, and Zack live while you're on your own copy.",
+ "Joining takes a moment (about 0.6 s for a frame whose browser isn't running, measured). Meanwhile the regular spinner replaces the toggle's icon in place and further clicks are ignored. If going live fails, the toggle returns to off and a toast says why, such as the Workspace not running.",
+ "Mockups get the same Go live toggle after Interact and the same tag (Zack, 2 Oct and 3 Oct). Today a mockup is a per-viewer iframe of its HTML with no stream (<code>mockup-layer.tsx:418</code>), so a live mockup would need a browser in a Sandbox; how that works on a canvas with no Workspace running is still open.",
+ "Captured from the local build with a scratch patch; the frame body is the fixture page, not a stream."
+],questions:[{key:"look",title:"How Go live and the Live tag look",intro:"",options:[
+ {id:"A",name:"Broadcast icon, dot and Live",rec:true,state:"picked",shots:[SHOT("A","idle","A · Nobody live"),SHOT("A","on-tip","A · You're live"),SHOT("A","invite-tip","A · Zack is live")],
+  why:"A 28px icon toggle like Detach: plain when you're on your own copy, the pressed ink fill when you're on the live frame. The tag is muted text in the title's type with a small green dot: \"Live\", or \"Live · Zack\" when you aren't on it.",
+  cost:"The bar stays 583px, the same as today. The green dot is a new use of the success fill to mean live."},
+ {id:"B",name:"People icon and faces",state:"picked",shots:[SHOT("B","idle","B · Nobody live"),SHOT("B","on-tip","B · You're live"),SHOT("B","invite-tip","B · Zack is live")],
+  why:"The toggle shows people, and the tag shows who's on the live frame as 16px faces in their cursor colours after a muted \"Live\", so you see at a glance who you'd be joining.",
+  cost:"The bar stays 583px. The tag grows with each person on it, and faces on the title line are new chrome next to the driver tag's avatar."},
+ {id:"C",name:"Live as a word",state:"rejected",shots:[SHOT("C","idle","C · Nobody live"),SHOT("C","on-tip","C · You're live"),SHOT("C","invite-tip","C · Zack is live")],
+  why:"The toggle is the word Live, ghost when off and ink fill when on, so nobody has to learn an icon. The tag is a plain sentence: \"Live with Ana\", or \"Zack is live\".",
+  cost:"A text button in an icon bar: the bar is 595.7px in every state, 12.7px wider than today."}
+]}]},
+...OLD_ROUNDS.map(r=>({n:r.n,feedback:r.feedback,every:r.recNote?[r.recNote]:undefined,questions:[{key:"q"+r.n,title:"",intro:"",options:r.options.map(o=>({...o,html:strip(o.strip),why:o.why,cost:o.cost}))}]}))
+];
+
+(()=>{
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const latest=ROUNDS[0],past=ROUNDS.slice(1);
+const SIGN=[["ok","Looks good"],["changes","Needs changes"]];
+const signoff=q=>q.options.length===1;
+const KEY="exploration-"+PAGE.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+const state=saved.round===latest.n?{picks:saved.picks||{},note:saved.note||""}:{picks:{},note:""};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({round:latest.n,...state}))}catch(e){}};
+
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><button type="button" class="shot${i.dk?" has-dk":""}" data-lt="${esc(i.p)}" data-dk="${esc(i.dk||"")}" aria-label="Enlarge ${esc(i.cap)}"><img class="lt" src="${esc(i.p)}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${esc(i.dk)}" alt="" aria-hidden="true" loading="lazy">`:""}</button><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const badges=o=>(o.rec?'<span class="badge rec">Recommended</span>':"")+(o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:"");
+const choose=(q,o)=>`<div class="choose">`+(signoff(q)?SIGN:[[o.id,"Pick "+o.id]]).map(([v,l])=>`<button type="button" data-q="${esc(q.key)}" data-v="${esc(v)}" data-label="${esc(l)}">${esc(l)}</button>`).join("")+`</div>`;
+const card=(q,o,live)=>`<article class="opt ${o.state||""}" data-id="${esc(o.id)}"><header><span class="letter">${esc(o.id)}</span><h3>${esc(o.name)}</h3>${badges(o)}</header>${o.html||""}${shots(o.shots)}${o.why?`<p>${o.why}</p>`:""}${o.cost?`<p class="cost"><b>Cost</b> ${o.cost}</p>`:""}${live?choose(q,o):""}</article>`;
+const hasToday=TODAY.compare!==false&&((TODAY.shots&&TODAY.shots.length)||TODAY.html);
+const todayCard=`<article class="opt today" data-id="Today"><header><span class="letter">Today</span><h3>What main does now</h3></header>${TODAY.html||""}${shots(TODAY.shots)}</article>`;
+function question(r,q,i,live){
+ const n=r.questions.length;
+ const head=(q.title||n>1)?`<div class="qhead">${n>1?`<p class="lbl acc">Question ${i+1} of ${n}</p>`:""}${q.title?`<h2>${esc(q.title)}</h2>`:""}${q.intro?`<p class="muted">${q.intro}</p>`:""}</div>`:"";
+ if(!live)return `<div class="question">${head}<div class="opts">${q.options.map(o=>card(q,o,false)).join("")}</div></div>`;
+ const ids=(hasToday?["Today"]:[]).concat(q.options.map(o=>o.id));
+ return `<div class="question" data-q="${esc(q.key)}">${head}<div class="chips" aria-label="Options">`+ids.map(id=>`<button type="button" data-go="${esc(id)}">${esc(id)}</button>`).join("")+`</div><div class="track">${hasToday?todayCard:""}${q.options.map(o=>card(q,o,true)).join("")}</div></div>`;
+}
+const fold=(title,sum,body,open)=>`<details class="fold"${open?" open":""}><summary><span class="lbl">${title}</span><span class="sum">${esc(sum)}</span></summary><div class="body">${body}</div></details>`;
+const list=items=>`<ul class="facts">${[].concat(items).map(x=>`<li>${x}</li>`).join("")}</ul>`;
+const outcome=r=>{const p=r.questions.flatMap(q=>q.options.filter(o=>o.state==="picked").map(o=>signoff(q)?`Signed off ${o.name}`:`${o.id}: ${o.name}`));return p.length?p.join(" · "):"No pick"};
+const Q=latest.questions;
+const openTitle=Q.length>1?`${Q.length} questions`:signoff(Q[0])?"Sign off":`${Q[0].options.length} options`;
+
+document.body.insertAdjacentHTML("afterbegin",`<div class="wrap">
+<header><div class="top"><p class="lbl acc">Design exploration · ${esc(PAGE.date)}</p><button type="button" class="ghost" id="theme">Dark</button></div><h1>${esc(PAGE.q)}</h1><blockquote>${esc(PAGE.quote)}</blockquote></header>
+<nav class="tabs" aria-label="Sections"><button type="button" data-tab="now" aria-selected="true">Round ${latest.n}</button><button type="button" data-tab="today" aria-selected="false">Today</button>${past.length?`<button type="button" data-tab="past" aria-selected="false">Earlier rounds · ${past.length}</button>`:""}</nav>
+<section data-panel="now"><div class="shead"><p class="lbl acc">Round ${latest.n} · open</p><h2>${openTitle}</h2></div>${latest.feedback?`<blockquote>${latest.feedback}</blockquote>`:""}${latest.every?fold("In every option",latest.every[0].replace(/<[^>]+>/g,""),list(latest.every),ROUNDS.length===1):""}${Q.map((q,i)=>question(latest,q,i,true)).join("")}</section>
+<section data-panel="today" hidden><div class="shead"><p class="lbl">Today</p><h2>What main does now</h2></div>${TODAY.facts?list(TODAY.facts):""}${TODAY.html||""}${shots(TODAY.shots)}</section>
+${past.length?`<section data-panel="past" hidden><div class="shead"><p class="lbl">Earlier rounds</p><h2>Newest first</h2></div><div class="ledger">${past.map(r=>fold(`Round ${r.n}`,outcome(r),(r.feedback?`<blockquote>${r.feedback}</blockquote>`:"")+(r.every?list(r.every):"")+r.questions.map((q,i)=>question(r,q,i,false)).join(""))).join("")}</div></section>`:""}
+</div>
+<div class="bar"><div class="in"><textarea id="note" aria-label="Note" placeholder="Anything to add" hidden></textarea><textarea id="out" aria-label="Reaction to copy" readonly hidden></textarea><div class="row"><div class="picks" id="picks" role="status" aria-live="polite"></div><button type="button" id="noteBtn">Note</button><button type="button" class="primary" id="copy">Copy reaction</button></div></div></div>
+<dialog class="lb" id="lb"><div class="in"><img alt=""></div></dialog>`);
+document.documentElement.style.setProperty("--stick",`calc(env(safe-area-inset-top,0px) + ${document.querySelector(".tabs").offsetHeight}px)`);
+
+const answer=q=>{const v=state.picks[q.key];return !v?"":signoff(q)?SIGN.find(s=>s[0]===v)[1]:`${v}: ${q.options.find(o=>o.id===v).name}`};
+function build(){
+ const lines=Q.map(q=>{const a=answer(q),name=signoff(q)?q.options[0].name:q.title;return "→ "+(name?name+": ":"")+(a||"No pick yet")});
+ return [`Exploration: ${PAGE.q}`,`Round ${latest.n}`,...lines].concat(state.note.trim()?[`Note: ${state.note.trim()}`]:[]).join("\n");
+}
+function sync(){
+ const done=Q.filter(q=>state.picks[q.key]);
+ $("picks").innerHTML=done.length?done.map(q=>`<b>${esc(Q.length>1?answer(q).split(":")[0]:answer(q))}</b>`).join(" · ")+(Q.length>1?` · ${done.length} of ${Q.length} answered`:""):Q.length>1?`0 of ${Q.length} answered`:signoff(Q[0])?"Sign off or say what to change":"No pick yet";
+ document.querySelectorAll(".choose button").forEach(b=>{const on=state.picks[b.dataset.q]===b.dataset.v;b.setAttribute("aria-pressed",on);if(b.dataset.label.startsWith("Pick "))b.textContent=on?"Picked":b.dataset.label});
+ document.querySelectorAll(".question[data-q]").forEach(el=>el.querySelectorAll(".chips button").forEach(c=>{const q=Q.find(x=>x.key===el.dataset.q),v=state.picks[el.dataset.q];c.classList.toggle("chosen",!!v&&(v===c.dataset.go||signoff(q)&&c.dataset.go!=="Today"))}));
+ save();
+}
+const openNote=()=>{const n=$("note");n.hidden=false;n.focus()};
+document.addEventListener("click",e=>{
+ const b=e.target.closest(".choose button");
+ if(b){const k=b.dataset.q;state.picks[k]=state.picks[k]===b.dataset.v?undefined:b.dataset.v;if(state.picks[k]==="changes")openNote();sync();return}
+ const go=e.target.closest(".chips button");
+ if(go){const t=go.closest(".question").querySelector(".track"),c=t.querySelector(`.opt[data-id="${CSS.escape(go.dataset.go)}"]`);t.scrollTo({left:c.offsetLeft-t.offsetLeft,behavior:"smooth"});return}
+ const tab=e.target.closest(".tabs button");
+ if(tab){document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected",x===tab));document.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);scrollTo({top:0});return}
+ const s=e.target.closest(".shot");
+ if(s){const dark=getComputedStyle(s.querySelector(".lt")).display==="none";$("lb").querySelector("img").src=dark&&s.dataset.dk?s.dataset.dk:s.dataset.lt;$("lb").showModal();return}
+ if(e.target.closest("#lb"))$("lb").close();
+});
+// The chip follows the swipe, and on a phone the track takes the height of the card in view
+document.querySelectorAll(".track").forEach(t=>{
+ const chips=[...t.previousElementSibling.querySelectorAll("button")],cards=[...t.children];
+ const mark=()=>{const i=Math.min(cards.length-1,Math.round(t.scrollLeft/(t.clientWidth+16)));chips.forEach((c,j)=>c.setAttribute("aria-current",j===i));t.style.height=getComputedStyle(t.previousElementSibling).display==="none"?"":cards[i].offsetHeight+"px"};
+ t.addEventListener("scroll",()=>requestAnimationFrame(mark),{passive:true});addEventListener("resize",mark);t.querySelectorAll("img").forEach(im=>im.addEventListener("load",mark));mark();
+});
+$("noteBtn").addEventListener("click",()=>{const n=$("note");n.hidden=!n.hidden;if(!n.hidden)n.focus()});
+$("note").value=state.note;if(state.note)$("note").hidden=false;
+$("note").addEventListener("input",e=>{state.note=e.target.value;save()});
+$("copy").addEventListener("click",()=>{
+ const text=build(),b=$("copy"),done=t=>{b.textContent=t;setTimeout(()=>b.textContent="Copy reaction",1800)};
+ const fallback=()=>{const o=$("out");o.hidden=false;o.value=text;o.select();done("Select and copy")};
+ try{navigator.clipboard.writeText(text).then(()=>done("Copied"),fallback)}catch(e){fallback()}
+});
+// Light / Dark switch, so the other theme's captures are one tap away
+const root=document.documentElement,mq=matchMedia("(prefers-color-scheme: dark)");
+const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":mq.matches;
+const label=()=>$("theme").textContent=isDark()?"Light":"Dark";
+$("theme").addEventListener("click",()=>{root.dataset.theme=isDark()?"light":"dark";label()});label();
+sync();
+})();
+const NUMBERS="<section id=\"numbers\">\n<div class=\"shead\"><p class=\"lbl\">Sandbox cost and startup</p><h2>What live frames cost per hour, by frames on screen</h2>\n<p class=\"muted\">Memory is the flat $0.17/h floor: the Sandbox reserves 8 GB whether frames are live or not. Live frames add CPU and data transfer, and data transfer is the big one. It's paid per viewer, and only while the page is changing. A still page sends nothing.</p></div>\n<div class=\"keys\" aria-hidden=\"true\"><span><i style=\"background:var(--s1)\"></i>Still pages, any number of viewers</span><span><i style=\"background:var(--s2)\"></i>Moving pages, 1 viewer</span><span><i style=\"background:var(--s3)\"></i>Moving pages, 3 viewers</span></div>\n<div class=\"chartwrap\" id=\"chart\"></div>\n<p class=\"note\">\"Moving\" means the page changes every frame for the whole hour: an animation, a video, constant scrolling. Clicking around and typing sit between the lines. From 4 moving frames on, CPU is capped by the 4 vCPU Sandbox, so the picture gets choppier instead of the CPU bill growing (inferred from #1384, where 3 animated frames used 80% CPU). Data transfer is priced at $0.15/GB, Vercel's listed rate. On Pro, Vercel lists Sandbox transfer as \"included in Flat Rate CDN\"; what that comes to past the plan's included amount isn't confirmed. A 176-hour month is the hourly figure \u00d7 176.</p>\n<div class=\"tablewrap\"><table>\n<thead><tr><th>What</th><th>Number</th><th>Source</th></tr></thead>\n<tbody>\n<tr><td>Workspace Sandbox floor (4 vCPU, 8 GB), live frames or not</td><td class=\"n\">$0.17/h</td><td><span class=\"src m\">Measured</span> on Vercel, #1384</td></tr>\n<tr><td>Extra CPU for watched frames</td><td class=\"n\">+$0.07/h to +$0.41/h</td><td><span class=\"src m\">Measured</span> one still frame to three animated, #1384</td></tr>\n<tr><td>Stream bitrate per viewer, moving page (animation or scrolling)</td><td class=\"n\">~5 Mbit/s \u2248 2.25 GB/h</td><td><span class=\"src m\">Measured</span> today, 1280\u00d7800 frame, 20 s</td></tr>\n<tr><td>Stream bitrate, still page</td><td class=\"n\">~0</td><td><span class=\"src m\">Measured</span> today; unchanged pictures aren't sent</td></tr>\n<tr><td>Data transfer per moving frame per viewer</td><td class=\"n\">\u2248 $0.34/h</td><td><span class=\"src i\">Inferred</span> 2.25 GB/h \u00d7 $0.15/GB (Vercel Sandbox pricing; ports bill both directions)</td></tr>\n<tr><td>CPU per watched frame, derived</td><td class=\"n\">\u2248 $0.07 to $0.14/h</td><td><span class=\"src i\">Inferred</span> from the #1384 rows above</td></tr>\n<tr><td>Paused frame (nobody watching for 5 s)</td><td class=\"n\">~3.5% of a core, 500 MB</td><td><span class=\"src m\">Measured</span> #1393; cap of 6 browsers per Workspace</td></tr>\n<tr><td>Watched frame memory</td><td class=\"n\">~640 MB</td><td><span class=\"src m\">Measured</span> #1393</td></tr>\n<tr><td>First picture, frame whose browser isn't running</td><td class=\"n\">~0.58 s</td><td><span class=\"src m\">Measured</span> today, 3 runs, static page. One run with a cold disk took 4.9 s</td></tr>\n<tr><td>Landing on 6 cold frames at once</td><td class=\"n\">1.9 to 3.9 s each</td><td><span class=\"src m\">Measured</span> today, 3 runs, median about 2.5 s</td></tr>\n<tr><td>A second viewer joining a running frame</td><td class=\"n\">~1 ms</td><td><span class=\"src m\">Measured</span> today (stored keyframe sent at once)</td></tr>\n<tr><td>Coming back to a paused frame</td><td class=\"n\">~1 ms</td><td><span class=\"src m\">Measured</span> today; #1393 measured 5 ms</td></tr>\n<tr><td>Sandbox resume, then dev server cold compile</td><td class=\"n\">~9 s, then 4 to 7 s</td><td><span class=\"src m\">Measured</span> #1384. Paid by own copies too</td></tr>\n<tr><td>Launching the stream service on the first visit of a session</td><td class=\"n\">a few hundred ms to ~2 s</td><td><span class=\"src i\">Inferred</span> from the Sandbox command round trips in <code>lib/sandbox/frame-stream.ts</code>; not measured</td></tr>\n</tbody></table></div>\n<p class=\"note\">Today's startup numbers come from this container (4 cores, Playwright's Chromium, a static page, the real <code>frame-stream.mjs</code>), not a Vercel Sandbox, and with no dev server competing for CPU. A real Next.js page adds its own load time, which an own copy pays as well. Script: <code>bench.mjs</code> in the thread's scratchpad.</p>\n</section>";
+const SYNC="<section id=\"sync\">\n<div class=\"shead\"><p class=\"lbl\">Settled in chat \u00b7 3 Oct</p><h2>What still syncs when a frame isn't live</h2>\n<p class=\"muted\">For own copies: every frame that isn't live, on the web and on the Mac.</p></div>\n<div class=\"tablewrap\"><table>\n<thead><tr><th>Thing</th><th>Today</th><th>Decided</th></tr></thead>\n<tbody>\n<tr><td>Route</td><td>Follows other viewers</td><td class=\"n\">Follows (no change)</td></tr>\n<tr><td>Shared state (state package)</td><td>Syncs to every open copy</td><td class=\"n\">Keeps syncing (no change)</td></tr>\n<tr><td>Knobs</td><td>Apply to every open copy</td><td class=\"n\">Everyone (no change)</td></tr>\n<tr><td>Scroll</td><td>Syncs to every open copy</td><td class=\"n\">Per person, stops syncing</td></tr>\n</tbody></table></div>\n<p class=\"note\">Why: a value that's only remembered, not synced, lets whoever changed it last decide where the next person starts while open copies disagree. Route and state are both where the app is, so there is always one of each.</p>\n</section>";
+
+// ---- Today extras: the drawn walk-through, cost and startup, what syncs ----
+(function(){
+ const p=document.querySelector('[data-panel="today"]');
+ const box=document.createElement("div");box.className="today-extra";
+ box.innerHTML=`<div class="wide">${legend}${strip(TODAY_STRIP)}</div>`+NUMBERS+SYNC;
+ p.appendChild(box);
+})();
+// ---- cost chart ----
+(function(){
+ const FLOOR=0.17,CPU_CAP=0.512,STILL=0.07,MOVE_CPU=0.137,DT=0.3375;
+ const N=[1,2,3,4,5,6];
+ const series=[
+  {k:"s1",name:"Still pages",f:n=>FLOOR+STILL*n},
+  {k:"s2",name:"Moving, 1 viewer",f:n=>FLOOR+Math.min(MOVE_CPU*n,CPU_CAP)+DT*n},
+  {k:"s3",name:"Moving, 3 viewers",f:n=>FLOOR+Math.min(MOVE_CPU*n,CPU_CAP)+3*DT*n}];
+ const W=760,H=330,L=56,R=200,T=16,B=44,ymax=7;
+ const x=n=>L+(n-1)/(5)*(W-L-R),y=v=>T+(1-v/ymax)*(H-T-B);
+ let g="";
+ for(let v=0;v<=ymax;v++)g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">$${v}</text>`;
+ N.forEach(n=>g+=`<text x="${x(n)}" y="${H-B+20}" text-anchor="middle">${n}</text>`);
+ g+=`<text x="${(L+W-R)/2}" y="${H-6}" text-anchor="middle">Frames on screen</text><text x="14" y="${T+(H-T-B)/2}" transform="rotate(-90 14 ${T+(H-T-B)/2})" text-anchor="middle">Dollars per hour</text>`;
+ g+=`<line x1="${L}" x2="${W-R}" y1="${y(FLOOR)}" y2="${y(FLOOR)}" stroke="var(--muted)" stroke-dasharray="3 3"/><text x="${W-R+6}" y="${y(FLOOR)+12}">Sandbox floor $0.17</text>`;
+ series.forEach(s=>{const pts=N.map(n=>`${x(n)},${y(s.f(n))}`).join(" ");
+  g+=`<polyline points="${pts}" fill="none" stroke="var(--${s.k})" stroke-width="2" stroke-linejoin="round"/>`;
+  N.forEach(n=>g+=`<circle cx="${x(n)}" cy="${y(s.f(n))}" r="4" fill="var(--${s.k})" stroke="var(--bg)" stroke-width="2"/>`);
+  const v=s.f(6);g+=`<text class="lab" x="${x(6)+10}" y="${y(v)+(s.k==="s1"?-6:4)}">${s.name} $${v.toFixed(2)}</text>`;});
+ N.forEach(n=>g+=`<rect class="hit" data-n="${n}" x="${x(n)-(W-L-R)/10}" y="${T}" width="${(W-L-R)/5}" height="${H-T-B}" fill="transparent"/>`);
+ const el=document.getElementById("chart");
+ el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Hourly cost by frames on screen: still pages rise from $0.24 to $0.59; moving pages with one viewer from $0.65 to $2.70; with three viewers from $1.32 to $6.76.">${g}<line id="xh" pointer-events="none" y1="${T}" y2="${H-B}" stroke="var(--muted)" stroke-width="1" visibility="hidden"/></svg><div class="tip" id="tip" hidden></div>`;
+ const svg=el.querySelector("svg"),tip=document.getElementById("tip"),xh=document.getElementById("xh");
+ svg.querySelectorAll(".hit").forEach(r=>{
+  r.addEventListener("pointerenter",()=>{const n=+r.dataset.n,sx=x(n);xh.setAttribute("x1",sx);xh.setAttribute("x2",sx);xh.setAttribute("visibility","visible");
+   const b=svg.getBoundingClientRect(),sc=b.width/W;tip.style.left=(sx*sc)+"px";tip.style.top=(y(series[2].f(n))*sc)+"px";
+   tip.innerHTML=`<b>${n} frame${n>1?"s":""}</b><br>`+series.map(s=>`${s.name}: $${s.f(n).toFixed(2)}/h`).join("<br>");tip.hidden=false});
+  r.addEventListener("pointerleave",()=>{tip.hidden=true;xh.setAttribute("visibility","hidden")});
+ });
+})();
+
+</script>
+
+</body></html>

@@ -1,0 +1,199 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Logo and Headline Type</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@400;500&family=Geist+Mono:wght@500&display=swap">
+<style>
+/* Layout: one column. The question, then a round toggle, then Today and that round's options, then the reaction form and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#ffffff;--surface:#f4f4f4;--line:#e3e3e3;--fg:#0a0a0a;--muted:#5f5f5f;--accent:oklch(0.55 0.25 322);--ok:#1f7a45;--no:#a3372b;--shotbg:#000;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded",ui-sans-serif,system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--surface:#111;--line:#262626;--fg:#f5f5f5;--muted:#a1a1a1;--accent:oklch(0.72 0.24 322);--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#000;--surface:#111;--line:#262626;--fg:#f5f5f5;--muted:#a1a1a1;--accent:oklch(0.72 0.24 322);--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:40px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:400 clamp(24px,4.5vw,34px)/1.15 var(--head);letter-spacing:-.02em;margin:10px 0 12px;text-wrap:balance}
+h2{font:400 clamp(18px,2.4vw,22px)/1.25 var(--head);margin:0;text-wrap:balance}
+h3{font:500 16px/1.35 var(--sans);margin:0}
+p{margin:0}
+a{color:var(--accent)}
+blockquote{margin:0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.muted{color:var(--muted)}
+.rounds{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 13px var(--sans);border-radius:6px;padding:6px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+.opts{display:grid;grid-template-columns:minmax(0,1fr);gap:56px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.cost b{font-weight:500;color:var(--fg)}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{border:1px solid var(--line);background:var(--shotbg);max-height:560px;overflow:auto}
+.shots figure:first-child{grid-column:1/-1}
+.shots figure.lock .shot{display:flex;align-items:center;justify-content:center;min-height:120px}.shots figure.lock img{width:auto;max-width:100%}
+.opt>p,#today .muted{max-width:72ch}
+.opts:has(img[src*="long"]){grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:24px}.shot:has(img[src*="long"]){max-height:none}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.pick:hover,.pick:has(input:checked){background:var(--surface)}
+.pick input{margin:3px 0 0;accent-color:var(--accent)}
+textarea,input[type=text]{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+textarea{resize:vertical;min-height:60px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{font-size:13px;color:var(--ok)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;margin:0}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">Design exploration · 2 Oct 2026</p>
+<h1 id="q"></h1>
+<blockquote id="quote"></blockquote>
+</header>
+
+<nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+
+<section id="today"></section>
+<section id="round"></section>
+
+<section id="react">
+<div class="shead"><p class="lbl">Your reaction</p><h2 id="reactTitle"></h2><p class="muted">Pick one, or say what's missing. Copy the text and paste it back in the chat.</p></div>
+<form id="form"></form>
+<div class="row"><button type="button" id="copy" class="primary">Copy reaction</button><span class="status" id="status" role="status" aria-live="polite"></span></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
+const QUESTION={
+ quote:"Zack: “can we explore font alternatives to Instrument Serif, the condensed sans serif is a bit overplayed. something that looks good w/ our other display font for our logo lockup and homepage headline”",
+ q:"Which face should replace Instrument Serif in the logo lockup and the homepage headline, next to Unbounded?",
+ slug:"logo-headline-type"
+};
+const shotsFor=(k,r="r1")=>[IMG(`${r}/${k}.hero.jpg`,`${k==="today"?"Today":k} · Header and hero, 1280 wide`),IMG(`${r}/${k}.lockup.jpg`,`${k==="today"?"Today":k} · Lockup close-up`),IMG(`${r}/${k}.mobile.jpg`,`${k==="today"?"Today":k} · Phone, 390 wide`),IMG(`${r}/${k}.closing.jpg`,`${k==="today"?"Today":k} · Unbounded closing headline with the footer lockup`)];
+const TODAY={facts:"Instrument Serif 400 sets the lockup at 26px in the homepage header and footer (components/marketing/wordmark.tsx), the docs navbar (apps/docs/app/layout.tsx:56) and the OG image. The hero h1 is Instrument Serif at clamp(56px, 10.5vw, 148px), 134px at 1280 wide, leading 0.92, tracking −0.025em, with “side by side” in its italic (site/hero.tsx). The hero's animated mini pages use it too (site/hero-stage.css:161, 191). Every other headline on the page is already Unbounded 400 at 40 to 79px, tracking −0.03em, as are the app's titles and the docs headings. All options below are the live homepage with injected CSS; the faint frames behind the headline are the hero's animation, caught at different moments.",shots:shotsFor("today")};
+const ROUNDS=[
+{n:4,feedback:"Zack asked whether Unbounded has variable weight and width (weight 200 to 900, no width axis), then: \u201ccan we try unbounded again for the headline and logo lockup\u201d. Round 1 set it at 400 with \u201cside by side\u201d at 200. This round uses the weight range to set the hero apart from the 400 section headlines, and shows each one down the page.",options:[
+ {id:"A",name:"Hairline, 200",state:"rejected",shots:[IMG("r4/A.long.jpg","A · Header to first section, 1280 wide"),IMG("r4/A.lockup.jpg","A · Lockup close-up")],
+  why:"The hero at Unbounded's lightest weight, so it reads quieter and more refined than the 400 section headlines below it. The lockup is 400 at 19px. Hero 106px.",
+  cost:"Thin strokes on black can shimmer at small sizes. The lockup and the hero are different weights, so they look less like one brand moment."},
+ {id:"B",name:"Semibold with light emphasis, 600 and 300",rec:true,state:"picked",shots:[IMG("r4/B.long.jpg","B · Header to first section, 1280 wide"),IMG("r4/B.lockup.jpg","B · Lockup close-up")],
+  why:"\u201cEvery branch,\u201d at 600 and \u201cside by side.\u201d at 300, so the emphasis comes from a weight shift within the face, the way today's italic does. The lockup is 600 at 19px, matching the hero's top line. Recommended because it's the one weight pairing that is clearly heavier than the section headlines without shouting, and the lockup and hero share a weight.",
+  cost:"Loads two more weights of a font the page already uses (a variable file covers all of them). No new family."},
+ {id:"C",name:"Black, 900",state:"rejected",shots:[IMG("r4/C.long.jpg","C · Header to first section, 1280 wide"),IMG("r4/C.lockup.jpg","C · Lockup close-up")],
+  why:"The heaviest weight, with \u201cside by side.\u201d in the muted grey. Poster-like and loud, it makes the hero the boldest thing on the site. The lockup is 800 at 19px. Hero 96px.",
+  cost:"Very heavy next to everything else on the page, and the heavy lockup crowds the nav. It reads more like a sports brand than a design tool."},
+ {id:"D",name:"Same as the section headlines, 400",state:"rejected",shots:[IMG("r4/D.long.jpg","D · Header to first section, 1280 wide"),IMG("r4/D.lockup.jpg","D · Lockup close-up")],
+  why:"The hero uses exactly the section headlines' weight, only bigger, with \u201cside by side.\u201d in the muted grey instead of a lighter weight. One display voice for the whole site, with no special treatment. The lockup is 500 at 19px.",
+  cost:"Closest to round 1 A, which you passed on. The hero is set apart only by size and the grey."}
+]},
+{n:3,feedback:"Zack on round 2: \u201ci think i like the original instrument serif or mona sans, im worried mona sans is too similar to unbounded and instrument sans mixing all these sans serifs is weird\u201d. So round 3 puts the two finalists down the page, from the header through the first Unbounded section headline and its body text, where all the faces meet.",options:[
+ {id:"A",name:"Keep Instrument Serif",rec:true,state:"",shots:[IMG("r3/today.long.jpg","A · Header to first section, 1280 wide")],
+  why:"The serif is the only face on the page that isn't a sans, so the hero and lockup read as the brand and Unbounded reads as the section voice. Each face has one job: the serif for the name and the promise, Unbounded for headlines, Instrument Sans for reading. Recommended because it gives the page the contrast you're worried Mona Sans would lose.",
+  cost:"Doesn't fix the overplayed feel that started this. If it's the hero's size and italic that feel overplayed, a next round could try it smaller or without the italic."},
+ {id:"B",name:"Mona Sans, expanded",state:"",shots:[IMG("r3/B.long.jpg","B · Header to first section, 1280 wide")],
+  why:"Same settings as round 2 B (112.5% width, 700, with \u201cside by side\u201d at 300). Down the page, the bold wide hero and Unbounded's wide section headline are clearly related, and the body sits under both in a third sans.",
+  cost:"Three sans on one page, two of them wide. The hero and the section headlines differ mainly in weight, which is the sameness you're worried about. Adds a font."}
+]},
+{n:2,feedback:"Zack on round 1: \u201ci don't like the look of any of these options. try again\u201d. So this round goes wider: two sans and three serifs of different kinds, none of them used in an earlier round.",options:[
+ {id:"A",name:"Instrument Sans, bold",state:"rejected",shots:shotsFor("A","r2"),
+  why:"The site's own text face at 600 weight with tight tracking, so the brand is set in the same family as everything you read on the page and Unbounded stays the only display face. \u201cside by side\u201d drops to the muted grey instead of italic. Lockup 600 at 21px, hero 132px.",
+  cost:"No new font. Plain, close to how Linear or Vercel set their headlines, so it has the least character of the five."},
+ {id:"B",name:"Mona Sans, expanded",rec:true,state:"",shots:shotsFor("B","r2"),
+  why:"GitHub's own typeface (on Google Fonts, with width and weight axes), set at 112.5% width and 700 weight. It's a wide grotesk like the Archivo Expanded you liked in the earlier font round, and its width matches Unbounded's stance without copying its geometry. \u201cside by side\u201d in the 300 weight. Lockup 700 at 20px, hero 118px. Recommended because it's the closest to what you liked before and follows the GitHub conventions the product already uses.",
+  cost:"Adds one variable font (about 130 KB for Latin). Two wide faces on one page can feel samey in the section headlines."},
+ {id:"C",name:"Roboto Serif, wide",state:"rejected",shots:shotsFor("C","r2"),
+  why:"A sturdy, low-contrast serif set at 120% width, the opposite of a condensed serif. It keeps a serif and a real italic for \u201cside by side\u201d, and its slab-like weight holds up at small sizes. Lockup 500 at 21px, hero 116px at the 300 weight.",
+  cost:"Adds a large variable font (about 1 MB with italic and all axes; a static cut is much smaller). It reads closer to a news site than a dev tool."},
+ {id:"D",name:"Hedvig Letters Serif",state:"rejected",shots:shotsFor("D","r2"),
+  why:"A 2023 serif with sharp, slightly odd wedges and wide counters. It's a serif with personality that nobody else's landing page uses yet. Lockup at 25px, hero 136px.",
+  cost:"One weight and no italic, so \u201cside by side\u201d can't be set apart within the face. Adds a small font (about 47 KB)."},
+ {id:"E",name:"EB Garamond",state:"rejected",shots:shotsFor("E","r2"),
+  why:"A classic old-style serif with a real calligraphic italic. Next to Unbounded it's the textbook contrast of old and geometric, and the italic \u201cside by side\u201d keeps the rhythm today's hero has. Lockup 500 at 27px, hero 146px.",
+  cost:"Bookish and literary. Adds a font (about 120 KB with italic)."}
+]},
+{n:1,feedback:"",options:[
+ {id:"A",name:"Unbounded only",rec:true,state:"rejected",shots:shotsFor("A"),
+  why:"The lockup and hero join the face every other headline on the site already uses, so the homepage, app titles and docs share one display voice. The lockup is Unbounded 500 at 19px, which reads like a real brand mark next to the blue screen. The hero drops to 104px because Unbounded runs wide, and “side by side” moves from italic to the 200 weight, since Unbounded has no italic. Recommended because it is the smallest change and removes a font instead of adding one.",
+  cost:"The hero loses the serif's contrast with the section headlines; they differ only in size and weight. Instrument Serif leaves the homepage and docs."},
+ {id:"B",name:"Playfair, wide",state:"rejected",shots:shotsFor("B"),
+  why:"Playfair 2 on Google Fonts has a width axis; at its widest (112.5) it is a high-contrast Didone whose round, open proportions echo Unbounded instead of fighting it. It keeps a serif and a real italic for “side by side”, which is the one thing today's hero does well. Lockup 500 at 24px, hero 122px at 1280.",
+  cost:"Adds a font (the variable roman plus italic is about 500 KB; a static cut is far smaller). Hairlines get fragile below about 20px, so the lockup can't shrink much. Didones lean fashion and editorial."},
+ {id:"C",name:"Geist Mono",state:"rejected",shots:shotsFor("C"),
+  why:"Already loaded on the page for the small uppercase labels, so it costs nothing. A mono wordmark and headline say developer tool plainly, and its even letter widths sit beside Unbounded's wide geometry without competing. “side by side” uses the 200 weight. Lockup 500 at 19px, hero 108px with tight letter and word spacing.",
+  cost:"Mono headlines are common in dev-tool marketing. It needs tight tracking and word spacing at hero sizes or it looks gappy."},
+ {id:"D",name:"Doto, dot matrix",state:"rejected",shots:shotsFor("D"),
+  why:"The weird pick. Doto (Google Fonts, variable weight and roundness) is a dot-matrix face, so the words look lit on a screen like the mark beside them. Rounded dots keep it soft enough to sit with Unbounded. Lockup 900 at 25px, hero 800 at 112px with “side by side” at 500.",
+  cost:"Legibility drops at small sizes; the lockup is borderline at 25px and the docs navbar would need the same size. It reads as novelty and could date quickly."}
+]}
+];
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure${/lockup/.test(i.p)?' class="lock"':""}><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const KEY="exploration-"+QUESTION.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let current=ROUNDS[0].n;
+
+$("q").textContent=QUESTION.q;$("quote").textContent=QUESTION.quote;
+$("today").innerHTML=`<div class="shead"><p class="lbl">Today</p><h2>What main does now</h2><p class="muted">${esc(TODAY.facts)}</p></div>`+shots(TODAY.shots);
+$("rounds").innerHTML=`<span class="lbl">Round</span>`+ROUNDS.map(r=>`<button type="button" data-n="${r.n}">${r.n}${r===ROUNDS[0]?" · latest":""}</button>`).join("");
+$("rounds").addEventListener("click",e=>{const b=e.target.closest("button[data-n]");if(b){current=+b.dataset.n;render()}});
+
+function render(){
+ const r=ROUNDS.find(x=>x.n===current),latest=r===ROUNDS[0];
+ $("rounds").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.n===current)));
+ $("round").innerHTML=`<div class="shead"><p class="lbl">Round ${r.n}</p><h2>${r.options.length} options</h2>${r.feedback?`<blockquote>${esc(r.feedback)}</blockquote>`:""}</div><div class="opts">`+
+  r.options.map(o=>`<article class="opt ${o.state}" id="r${r.n}-${o.id}"><header><span class="letter">${o.id}</span><h3>${esc(o.name)}</h3>${o.rec?'<span class="badge rec">Recommended</span>':""}${o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:""}</header>${shots(o.shots)}<p>${esc(o.why)}</p><p class="cost"><b>Cost</b> ${esc(o.cost)}</p></article>`).join("")+`</div>`;
+ $("react").hidden=!latest;
+ if(latest)renderForm(r);
+}
+function renderForm(r){
+ $("reactTitle").textContent=`Round ${r.n}`;
+ const opts=r.options.map(o=>[o.id,`${o.id}: ${o.name}${o.rec?" (recommended)":""}`]).concat([["none","None of these"],["mix","A mix (say which parts below)"]]);
+ $("form").innerHTML=`<fieldset><legend>Pick</legend>`+opts.map(([v,l])=>`<label class="pick"><input type="radio" name="pick" id="pick-${v}" value="${v}"><span>${esc(l)}</span></label>`).join("")+`</fieldset>`+
+  `<p class="lbl" style="margin-top:12px">Notes</p><textarea id="note" aria-label="Notes"></textarea>`;
+ if(saved.round===r.n){const el=$("pick-"+saved.pick);if(el)el.checked=true;$("note").value=saved.note||""}
+ preview();
+}
+function build(){
+ const r=ROUNDS[0],p=$("form").querySelector("input[name=pick]:checked"),note=$("note").value.trim();
+ const o=p&&r.options.find(x=>x.id===p.value);
+ const pick=!p?"No pick yet":o?`${o.id}: ${o.name}`:p.value==="none"?"None of these":"A mix";
+ return[`Exploration: ${QUESTION.q}`,`Round ${r.n}`,`→ ${pick}`].concat(note?[`Note: ${note}`]:[]).join("\n");
+}
+function preview(){
+ $("preview").textContent=build();
+ const p=$("form").querySelector("input[name=pick]:checked");
+ try{localStorage.setItem(KEY,JSON.stringify({round:ROUNDS[0].n,pick:p?p.value:"",note:$("note").value}))}catch(e){}
+}
+$("form").addEventListener("input",preview);
+$("form").addEventListener("submit",e=>e.preventDefault());
+$("copy").addEventListener("click",()=>{
+ const text=build(),st=$("status");
+ const fallback=()=>{const p=$("preview"),r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r);st.textContent="Copy was blocked. The text is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the chat."},fallback)}catch(e){fallback()}
+});
+render();
+</script>
+
+</body></html>

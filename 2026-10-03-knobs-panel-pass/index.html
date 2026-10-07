@@ -1,0 +1,186 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Knobs panel pass</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Unbounded:wght@500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column. The question, then a round toggle, then Today and that round's options, then the reaction form and Copy. Swap the tokens below for the repo's brand; the defaults are neutral. */
+:root{--bg:#ffffff;--surface:#f7f7f7;--line:#e4e4e4;--fg:#000000;--muted:#666666;--accent:#5b3df5;--ok:#1f7a45;--no:#a3372b;
+--sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--head:"Unbounded",ui-sans-serif,system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000000;--surface:#121212;--line:#2a2a2a;--fg:#ffffff;--muted:#a0a0a0;--accent:#a593ff;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#000000;--surface:#121212;--line:#2a2a2a;--fg:#ffffff;--muted:#a0a0a0;--accent:#a593ff;--ok:#5fd08e;--no:#f08a7c;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:20px;padding-block:40px 120px;display:flex;flex-direction:column;gap:40px}
+.lbl{font:500 11px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lbl.acc{color:var(--accent)}
+h1{font:600 clamp(24px,4.5vw,34px)/1.15 var(--head);letter-spacing:-.02em;margin:10px 0 12px;text-wrap:balance}
+h2{font:600 clamp(18px,2.4vw,22px)/1.25 var(--head);margin:0;text-wrap:balance}
+h3{font:500 16px/1.35 var(--sans);margin:0}
+p{margin:0}
+a{color:var(--accent)}
+blockquote{margin:0;padding-left:14px;border-left:2px solid var(--line);color:var(--muted);max-width:68ch}
+.muted{color:var(--muted)}
+.rounds{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:500 13px var(--sans);border-radius:6px;padding:6px 11px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{display:flex;flex-direction:column;gap:14px}
+.shead{display:flex;flex-direction:column;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--fg)}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px}
+.opt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt header{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.letter{font:600 14px var(--mono);color:var(--accent)}
+.badge{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.badge.rec{color:var(--accent);border-color:currentColor}
+.badge.picked{color:var(--ok);border-color:currentColor}
+.badge.rejected{color:var(--no);border-color:currentColor}
+.opt.rejected .shots{opacity:.55}
+.cost{font-size:14px;color:var(--muted)}
+.every{font-size:14px;max-width:72ch;display:flex;flex-direction:column;gap:6px}.every ul{margin:0;padding-left:18px}
+.qhead{display:flex;flex-direction:column;gap:6px;margin-top:28px}
+.cost b{font-weight:500;color:var(--fg)}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:4px}
+.shot{border:1px solid var(--line);background:var(--surface);max-height:480px;overflow:auto}
+.shot img{display:block;width:100%;height:auto}
+.dk{display:none!important}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dk{display:block!important}:root:not([data-theme="light"]) .has-dk .lt{display:none!important}}
+:root[data-theme="dark"] .dk{display:block!important}:root[data-theme="dark"] .has-dk .lt{display:none!important}
+figcaption{font:500 10.5px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-width:0}
+legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.pick{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.pick:hover,.pick:has(input:checked){background:var(--surface)}
+.pick input{margin:3px 0 0;accent-color:var(--accent)}
+textarea,input[type=text]{width:100%;font:14px/1.5 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+textarea{resize:vertical;min-height:60px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.status{font-size:13px;color:var(--ok)}
+pre.out{white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--surface);border:1px solid var(--line);padding:12px;border-radius:6px;margin:0}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header>
+<p class="lbl acc">Design exploration · 3 Oct 2026</p>
+<h1 id="q"></h1>
+<blockquote id="quote"></blockquote>
+<div class="every" style="margin-top:18px"><p class="lbl">In every option</p><ul>
+<li>The colour knob becomes a field with a small swatch and the hex value, styled like the text field next to it, instead of the browser's own colour box with a padded swatch inside a border.</li>
+<li>Two or three short options show as Tabs (the knob type the Theme knob thread is adding in <a href="https://github.com/zschiller/screenplay/pull/1463">PR #1463</a>). Hero layout is shown as Center / Left: the agent would declare it that way, following that PR's one-short-word guidance.</li>
+<li>Captures are the docs world (Northwind homepage frame) restyled in place: canvas popover first, player panel second, light and dark.</li>
+</ul></div>
+</header>
+
+<nav class="rounds" id="rounds" aria-label="Rounds"></nav>
+
+<section id="today"></section>
+<section id="round"></section>
+
+<section id="react">
+<div class="shead"><p class="lbl">Your reaction</p><h2 id="reactTitle"></h2><p class="muted">Pick one, or say what's missing. Copy the text and paste it back in the chat.</p></div>
+<form id="form"></form>
+<div class="row"><button type="button" id="copy" class="primary">Copy reaction</button><span class="status" id="status" role="status" aria-live="polite"></span></div>
+<pre class="out" id="preview"></pre>
+</section>
+</div>
+
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
+const QUESTION={
+ quote:"Zack: “i feel like knobs in general are ugly can we do a pass on them”",
+ q:"How should the Knobs panel lay out and draw its controls?",
+ slug:"knobs-panel-pass"
+};
+const TODAY={facts:"One KnobsPanel serves the canvas popover and the player (components/knobs-panel.tsx), 288px wide in the popover. Measured on the docs world: the five knobs make rows of 28, 28, 50, 20 and 50px with a 12px gap, because short controls sit beside their label and wide ones stack under it, so the panel zigzags (284px tall). The colour knob is a native <input type=color> at 48×28 in a bordered box, so its swatch floats inside padding and looks different on every OS. The slider is the stock shadcn one: a 6px track with a solid ink range across most of the panel. Labels are 12px, fields 28px.",shots:[IMG("today/canvas-light.png","Today · Canvas popover","today/canvas-dark.png"),IMG("today/player-light.png","Today · Player panel","today/player-dark.png")]};
+const ROUNDS=[
+{n:4,feedback:"Zack picked Info icon: \u201cthe last control shouldn\u2019t get a divider under, and the popover needs some breathing room on bottom.\u201d",questions:[
+ {key:"panel",title:"The panel so far",intro:"All four picks together: right column, groups with mono headings, hover descriptions marked by an info icon. No hairline under the last knob of a group, and 12px more room under the last knob, so it sits 18px from the bottom edge.",options:[
+  {id:"P",name:"Combined panel",why:"Each knob is a 40px row with its control in a fixed 136px column on the right. Groups get a mono section label, and hairlines separate knobs only within a group. The colour field shows a swatch and hex, short choices show as tabs, and described knobs carry an info icon whose tooltip holds the description.",cost:"New optional description and group fields on the knob declaration, in the knobs package, the Mockup runtime and the add-knob skill. Nothing new in the component kit: the tooltip is the stock Tooltip and the icon is the app\u2019s InfoIcon.",rec:true,state:"",shots:[IMG("r4/canvas-light.png","Canvas popover","r4/canvas-dark.png"),IMG("r4/player-light.png","Player panel","r4/player-dark.png")]}
+ ]}
+]},
+{n:3,feedback:"Zack picked Right column, On hover and Groups: \u201cwe use mono for group headers, right?\u201d Yes: group headings now use the app\u2019s section-label style (Geist Mono, 12px, uppercase, wider tracking, muted), the same as menu, select and sidebar group labels.",questions:[
+ {key:"marker",title:"How a described knob shows it has a description",intro:"Every shot is the three picks together, with the Corner radius tooltip held open. Corner radius and Show customer logos have descriptions.",options:[
+  {id:"A",name:"Dotted underline",why:"The label of a described knob gets a dotted underline, the web\u2019s usual hint that hovering explains a term. Adds nothing to the row\u2019s width.",cost:"A new pattern in the app, and easy to miss at 12px.",state:"",shots:[IMG("r3-a/canvas-light.png","A \u00b7 Canvas popover","r3-a/canvas-dark.png"),IMG("r3-a/player-light.png","A \u00b7 Player panel","r3-a/player-dark.png")]},
+  {id:"B",name:"Info icon",why:"A 14px muted info icon after the label, which is the icon the app already has (InfoIcon). It is the most common way to say \u201cthere\u2019s more here\u201d, and it can take keyboard focus and a tap on touch screens, so the description is reachable without a mouse.",cost:"One more glyph per described knob, 18px wider. With long labels it eats into the gap before the control column.",rec:true,state:"picked",shots:[IMG("r3-b/canvas-light.png","B \u00b7 Canvas popover","r3-b/canvas-dark.png"),IMG("r3-b/player-light.png","B \u00b7 Player panel","r3-b/player-dark.png")]},
+  {id:"C",name:"No marker",why:"The label alone; hovering any described label shows its tooltip. Cleanest row.",cost:"Nobody knows a description exists until they happen to hover, and keyboard and touch users never see it.",state:"",shots:[IMG("r3-c/canvas-light.png","C \u00b7 Canvas popover","r3-c/canvas-dark.png"),IMG("r3-c/player-light.png","C \u00b7 Player panel","r3-c/player-dark.png")]}
+ ]}
+]},
+{n:2,feedback:"Zack: \u201csomething around inspector rows and settings list. also should knobs have optional descriptions? should we allow more layout flexibility and options for the model to design the knob panel itself?\u201d",questions:[
+ {key:"look",title:"Look: Inspector rows \u00d7 Settings list",intro:"All three keep B's single control line and C's 40px rows with hairlines between them. They differ in how fields are drawn and where the control column sits.",options:[
+  {id:"A",name:"Divided inspector",why:"B's rows, spaced out like C. Labels in the foreground colour, a hairline under each knob, and stock bordered fields that fill the column starting right after the longest label. Every field still looks editable.",cost:"Panel is 240px, 8px taller than round 1 B. The headline still scrolls inside a 136px field.",rec:true,state:"",shots:[IMG("r2-a/canvas-light.png","A \u00b7 Canvas popover","r2-a/canvas-dark.png"),IMG("r2-a/player-light.png","A \u00b7 Player panel","r2-a/player-dark.png")]},
+  {id:"B",name:"Quiet fields",why:"Same rows and column as A, but the colour value and text field drop their border, so values read like C's settings list. Recommended only if you liked how calm C looked.",cost:"A borderless text field and colour value are a one-off style, not stock shadcn, and nothing says the headline or hex can be edited until you hover.",state:"",shots:[IMG("r2-b/canvas-light.png","B \u00b7 Canvas popover","r2-b/canvas-dark.png"),IMG("r2-b/player-light.png","B \u00b7 Player panel","r2-b/player-dark.png")]},
+  {id:"C",name:"Right column",why:"C's arrangement with stock fields: labels take the left, and every control sits in a fixed 136px column on the right, so all right edges line up and the switch moves to the far right like a settings list.",cost:"With short labels the controls stay narrow and leave a gap in the middle; with long ones it is the same as A. The switch sits away from the other controls' left edge.",state:"picked",shots:[IMG("r2-c/canvas-light.png","C \u00b7 Canvas popover","r2-c/canvas-dark.png"),IMG("r2-c/player-light.png","C \u00b7 Player panel","r2-c/player-dark.png")]}
+ ]},
+ {key:"desc",title:"Optional descriptions",intro:"A new optional description on the knob declaration, next to label. Corner radius and Show customer logos have one here; the others don't.",options:[
+  {id:"D1",name:"Under the row",why:"A muted 12px line under the label and control, across the full row, so it never wraps beside a field. Only knobs that have one get taller.",cost:"Each described knob adds 18px. Long descriptions wrap to a second line, so the skill would ask for a short phrase.",rec:true,state:"",shots:[IMG("r2-desc-under/canvas-light.png","D1 \u00b7 Canvas popover","r2-desc-under/canvas-dark.png"),IMG("r2-desc-under/player-light.png","D1 \u00b7 Player panel","r2-desc-under/player-dark.png")]},
+  {id:"D2",name:"On hover",why:"The label of a described knob gets a dotted underline, and hovering it shows the description in the standard inverted tooltip. The panel stays as compact as A.",cost:"Hidden until you hover, and touch screens can't hover. The dotted underline is a new pattern in the app.",state:"picked",shots:[IMG("r2-desc-hover/canvas-light.png","D2 \u00b7 Canvas popover","r2-desc-hover/canvas-dark.png"),IMG("r2-desc-hover/player-light.png","D2 \u00b7 Player panel","r2-desc-hover/player-dark.png")]},
+  {id:"D3",name:"No descriptions",why:"Keep labels only. A label that needs explaining gets a clearer label.",cost:"The agent has nowhere to say what a knob affects when the name alone is vague, like \u201cDensity\u201d.",state:"",shots:[]}
+ ]},
+ {key:"layout",title:"How much of the panel the agent designs",intro:"Today the agent picks each knob's type and label; the panel decides everything else, in declaration order.",options:[
+  {id:"L1",name:"Fixed panel",why:"Keep today's model: one list in declaration order. The agent controls order and types only.",cost:"A frame with 12 knobs is one long undivided list.",state:"",shots:[]},
+  {id:"L2",name:"Groups",why:"An optional group name on each knob. Knobs with the same group sit under a small muted heading, with a hairline between groups, in the order they first appear. The agent gets structure; the panel keeps one look on every frame.",cost:"One new field in the knobs package, the mockup runtime and the skill. Groups don't collapse; with very many knobs the panel still scrolls.",rec:true,state:"picked",shots:[IMG("r2-groups/canvas-light.png","L2 \u00b7 Canvas popover","r2-groups/canvas-dark.png"),IMG("r2-groups/player-light.png","L2 \u00b7 Player panel","r2-groups/player-dark.png")]},
+  {id:"L3",name:"Layout hints",why:"Groups plus per-knob hints, such as a half-width knob so two short ones share a row, or a stacked knob for a long text value that should get the full width.",cost:"More ways for panels to come out ragged, which is the problem round 1 fixed. The agent would need rules about when to use each hint.",state:"",shots:[]},
+  {id:"L4",name:"Agent-designed panel",why:"The agent writes the panel's own markup, and Screenplay renders it in place of the list.",cost:"Every frame's panel would look different and none would follow the app's design rules. Prototype code can't run in the app's own UI, so the panel would have to be its own iframe. The agent can already put any controls it likes inside the page itself.",state:"",shots:[]}
+ ]}
+]},
+{n:1,feedback:"",options:[
+ {id:"A",name:"Tidy",why:"Keep today's layout: short controls beside the label, slider and text field stacked under it. Fix only the parts that look broken: the colour field, Tabs for short choices, and a fixed 12px rhythm between knobs.",cost:"Smallest change. The panel still zigzags between one-line and two-line knobs (265px tall here), which is most of what reads as messy.",state:"rejected",shots:[IMG("r1-a/canvas-light.png","A · Canvas popover","r1-a/canvas-dark.png"),IMG("r1-a/player-light.png","A · Player panel","r1-a/player-dark.png")]},
+ {id:"B",name:"Inspector rows",why:"Recommended because one row per knob fixes the zigzag, which is the main thing that reads as ugly, using only stock components. Every knob is one 28px row: label on the left, control on the right, like the property panels in Figma or Leva. The label column hugs the longest label (120px here, nothing truncated), so every control starts on one vertical line. Labels go muted so the values lead. The slider gets a 4px track and 14px thumb to sit in a row, with its value at the end.",cost:"A long text value shows its start and scrolls inside the field (“Know what your users act…”) because the field is 132px. A very long label squeezes the control column; past half the panel it needs a cap. Panel drops from 284 to 232px.",rec:true,state:"picked",shots:[IMG("r1-b/canvas-light.png","B · Canvas popover","r1-b/canvas-dark.png"),IMG("r1-b/player-light.png","B · Player panel","r1-b/player-dark.png")]},
+ {id:"C",name:"Settings list",why:"Each knob is a 40px row with a hairline between rows, label left and a compact control right, like macOS System Settings. Values read as values: the hex sits beside its swatch with no box, the headline is right-aligned text that edits in place, and the slider is a fixed 112px.",cost:"The borderless text field and colour value are a one-off style outside stock shadcn, and the headline no longer looks editable until hovered. Rows are taller, so the panel is barely shorter than today (236px).",state:"picked",shots:[IMG("r1-c/canvas-light.png","C · Canvas popover","r1-c/canvas-dark.png"),IMG("r1-c/player-light.png","C · Player panel","r1-c/player-dark.png")]}
+]}
+];
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+const shots=list=>list&&list.length?`<div class="shots">`+list.map(i=>`<figure><div class="shot${i.dk?" has-dk":""}"><img class="lt" src="${i.p}" alt="${esc(i.cap)}" loading="lazy">${i.dk?`<img class="dk" src="${i.dk}" alt="" aria-hidden="true" loading="lazy">`:""}</div><figcaption>${esc(i.cap)}</figcaption></figure>`).join("")+`</div>`:"";
+const KEY="exploration-"+QUESTION.slug;
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let current=ROUNDS[0].n;
+
+$("q").textContent=QUESTION.q;$("quote").textContent=QUESTION.quote;
+$("today").innerHTML=`<div class="shead"><p class="lbl">Today</p><h2>What main does now</h2><p class="muted">${esc(TODAY.facts)}</p></div>`+shots(TODAY.shots);
+$("rounds").innerHTML=`<span class="lbl">Round</span>`+ROUNDS.map(r=>`<button type="button" data-n="${r.n}">${r.n}${r===ROUNDS[0]?" · latest":""}</button>`).join("");
+$("rounds").addEventListener("click",e=>{const b=e.target.closest("button[data-n]");if(b){current=+b.dataset.n;render()}});
+
+const qs=r=>r.questions||[{key:"pick",title:"",intro:"",options:r.options}];
+const card=(r,o)=>`<article class="opt ${o.state}" id="r${r.n}-${o.id}"><header><span class="letter">${o.id}</span><h3>${esc(o.name)}</h3>${o.rec?'<span class="badge rec">Recommended</span>':""}${o.state?`<span class="badge ${o.state}">${o.state==="picked"?"Picked":"Rejected"}</span>`:""}</header>${shots(o.shots)}<p>${esc(o.why)}</p><p class="cost"><b>Cost</b> ${esc(o.cost)}</p></article>`;
+function render(){
+ const r=ROUNDS.find(x=>x.n===current),latest=r===ROUNDS[0];
+ $("rounds").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.n===current)));
+ const Q=qs(r);
+ $("round").innerHTML=`<div class="shead"><p class="lbl">Round ${r.n}</p><h2>${Q.length>1?Q.length+" questions":Q[0].options.length+" options"}</h2>${r.feedback?`<blockquote>${esc(r.feedback)}</blockquote>`:""}</div>`+
+  Q.map((q,i)=>`${q.title?`<div class="qhead"><p class="lbl acc">Question ${i+1}</p><h2>${esc(q.title)}</h2>${q.intro?`<p class="muted">${esc(q.intro)}</p>`:""}</div>`:""}<div class="opts">`+q.options.map(o=>card(r,o)).join("")+`</div>`).join("");
+ $("react").hidden=!latest;
+ if(latest)renderForm(r);
+}
+function renderForm(r){
+ $("reactTitle").textContent=`Round ${r.n}`;
+ $("form").innerHTML=qs(r).map(q=>{
+  const opts=q.options.map(o=>[o.id,`${o.id}: ${o.name}${o.rec?" (recommended)":""}`]).concat([["none","None of these"]]);
+  return `<fieldset><p class="lbl" style="margin:12px 0 4px">${esc(q.title||"Pick")}</p><legend>${esc(q.title||"Pick")}</legend>`+opts.map(([v,l])=>`<label class="pick"><input type="radio" name="pick-${q.key}" id="pick-${q.key}-${v}" value="${v}"><span>${esc(l)}</span></label>`).join("")+`</fieldset>`}).join("")+
+  `<p class="lbl" style="margin-top:12px">Notes</p><textarea id="note" aria-label="Notes"></textarea>`;
+ if(saved.round===r.n){for(const [k,v] of Object.entries(saved.picks||{})){const el=$(`pick-${k}-${v}`);if(el)el.checked=true}$("note").value=saved.note||""}
+ preview();
+}
+function picks(){const r=ROUNDS[0],out={};for(const q of qs(r)){const p=$("form").querySelector(`input[name="pick-${q.key}"]:checked`);if(p)out[q.key]=p.value}return out}
+function build(){
+ const r=ROUNDS[0],P=picks(),note=$("note").value.trim();
+ const lines=qs(r).map(q=>{const v=P[q.key],o=v&&q.options.find(x=>x.id===v);return `${q.title?q.title+": ":""}${!v?"No pick yet":o?`${o.id}: ${o.name}`:"None of these"}`});
+ return[`Exploration: ${QUESTION.q}`,`Round ${r.n}`].concat(lines.map(l=>"→ "+l)).concat(note?[`Note: ${note}`]:[]).join("\n");
+}
+function preview(){
+ $("preview").textContent=build();
+ try{localStorage.setItem(KEY,JSON.stringify({round:ROUNDS[0].n,picks:picks(),note:$("note").value}))}catch(e){}
+}
+$("form").addEventListener("input",preview);
+$("form").addEventListener("submit",e=>e.preventDefault());
+$("copy").addEventListener("click",()=>{
+ const text=build(),st=$("status");
+ const fallback=()=>{const p=$("preview"),r=document.createRange();r.selectNodeContents(p);const s=getSelection();s.removeAllRanges();s.addRange(r);st.textContent="Copy was blocked. The text is selected; copy it by hand."};
+ try{navigator.clipboard.writeText(text).then(()=>{st.textContent="Copied. Paste it in the chat."},fallback)}catch(e){fallback()}
+});
+render();
+</script>
+
+</body></html>
