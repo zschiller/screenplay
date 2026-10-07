@@ -1,13 +1,8 @@
 "use client"
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useTheme } from "next-themes"
+import { defaultUrlTransform, type Components } from "react-markdown"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -33,17 +28,18 @@ import {
   useMockupSrcDoc,
 } from "@/components/agent/file-preview"
 import { FILE_KIND_ICON } from "@/components/agent/file-tiles"
-import {
-  LivePageContent,
-  useLivePage,
-  type LivePageWrites,
-} from "@/components/canvas/live-page"
+import { LivePageContent, useLivePage } from "@/components/canvas/live-page"
 import {
   useMockupChatLink,
   useMockupPageChat,
   useMockupQuestion,
 } from "@/components/canvas/mockup-chat-link"
+import {
+  MockupEmbed,
+  useFilePageWrites,
+} from "@/components/canvas/mockup-embed"
 import { useMockupPageTheme } from "@/hooks/use-mockup-page-theme"
+import { mockupEmbedId } from "@/lib/document-embed"
 import { fileModal } from "@/lib/canvas/file-modal"
 import type { CanvasOps } from "@/lib/canvas/ops"
 import { useLayerFile, type ShownLayerFile } from "@/lib/yjs/react"
@@ -185,21 +181,7 @@ function ModalMockupPage({
   const bodyRef = useRef<HTMLDivElement>(null)
   const { width, height } = useBoxSize(bodyRef)
   const fileId = file.id
-  const writes = useMemo<LivePageWrites>(
-    () => ({
-      knobsDeclared: (_id, knobs) => {
-        const current = ops.fileOf(fileId)
-        if (JSON.stringify(current?.knobs ?? []) === JSON.stringify(knobs))
-          return
-        ops.patch("layerFiles", fileId, { knobs })
-      },
-      knobValues: (_id, knobValues) =>
-        ops.patch("layerFiles", fileId, { knobValues }),
-      sharedState: (_id, sharedState) =>
-        ops.patch("layerFiles", fileId, { sharedState }),
-    }),
-    [ops, fileId]
-  )
+  const writes = useFilePageWrites(ops, fileId)
   const page = useLivePage({
     // Its own id: the views on the canvas register theirs with the drive.
     id: `file-modal-${fileId}`,
@@ -237,14 +219,40 @@ function ModalMockupPage({
   )
 }
 
-/** A Document as it reads, in a readable column. */
+/** A Document as it reads, in a readable column, its Mockup embeds live. */
 function ModalDocument({ file }: { file: ShownLayerFile }) {
   const body = useDocumentBody(file.id)
   return (
     <div className="absolute inset-0 overflow-y-auto">
       <div className="mx-auto max-w-2xl px-8 py-6 [&_.chat-markdown>:first-child]:mt-0">
-        <ChatMarkdown size="prose">{body}</ChatMarkdown>
+        <ChatMarkdown
+          size="prose"
+          components={EMBED_COMPONENTS}
+          urlTransform={keepMockupEmbeds}
+        >
+          {body}
+        </ChatMarkdown>
       </div>
     </div>
   )
+}
+
+const EMBED_COMPONENTS: Components = {
+  img: ({ node: _node, src, alt, ...props }) => {
+    const id = typeof src === "string" ? mockupEmbedId(src) : null
+    if (!id) {
+      // eslint-disable-next-line @next/next/no-img-element -- markdown's own image
+      return <img src={src} alt={alt} {...props} />
+    }
+    return (
+      <span className="my-3 block">
+        <MockupEmbed id={id} name={alt ?? ""} selected={false} />
+      </span>
+    )
+  },
+}
+
+/** Markdown's default URL filter, letting a Mockup embed's URL through. */
+function keepMockupEmbeds(url: string): string {
+  return mockupEmbedId(url) ? url : defaultUrlTransform(url)
 }
