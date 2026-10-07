@@ -1,20 +1,13 @@
 "use server"
 
 import { redactSensitiveInfo } from "@/lib/agent/redact"
-import {
-  getGitHubTokenForUser,
-  getGitIdentityForUser,
-  getUserId,
-} from "@/lib/auth-helpers"
+import { getUserId } from "@/lib/auth-helpers"
 import type { UnsavedWork } from "@/lib/branch/unsaved-work"
 import { fixtureUnsavedWork } from "@/lib/fixture-git"
 import { isFixtureWorld } from "@/lib/fixture-world"
+import { githubAccess } from "@/lib/github-access"
 import { createBranch, renameBranch } from "@/lib/github-actions"
-import {
-  isSandboxRunning,
-  sandboxProvider,
-  usesHostGitAuth,
-} from "@/lib/sandbox"
+import { isSandboxRunning, sandboxProvider } from "@/lib/sandbox"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
 import type { RepoData } from "@/lib/types"
@@ -84,25 +77,6 @@ export async function renameAgentBranch(
 }
 
 /**
- * Env vars to pass into a `sandbox.runCommand` that may hit GitHub. The
- * in-sandbox git credential helper reads SCREENPLAY_GH_TOKEN and echoes it as
- * HTTP basic auth — no server round-trip, no persistent creds in the sandbox,
- * attribution stays with whoever triggered this command.
- *
- * On the local backend this is a no-op: git runs as a host process and
- * authenticates through the user's own credentials (credential helper / SSH /
- * `gh`), so there is no token to broker per command.
- */
-async function buildSandboxGitEnv(
-  userId: string
-): Promise<Record<string, string> | undefined> {
-  if (usesHostGitAuth) return undefined
-  const token = await getGitHubTokenForUser(userId)
-  if (!token) return undefined
-  return { SCREENPLAY_GH_TOKEN: token }
-}
-
-/**
  * Get line-level diff stats (additions/deletions) for a sandbox branch compared
  * to the default branch. Uses the local origin ref to avoid needing auth for a
  * fresh fetch. A pure query: it returns a plain value (or `null` on any
@@ -123,7 +97,7 @@ export async function getDiffStats(
     try {
       const actingUserId = await getUserId()
       const gitEnv = actingUserId
-        ? await buildSandboxGitEnv(actingUserId)
+        ? await githubAccess.transportEnv(actingUserId)
         : undefined
       await sandbox.runCommand({
         cmd: "git",
@@ -210,43 +184,19 @@ export async function getUnsavedWork(
 }
 
 /**
- * Configure git identity and normalize the branch / remote state so the agent
- * can push commits.
+ * Normalize the branch / remote state and make the checkout able to push.
  *
- * **Auth depends on the backend.** On the hosted Vercel backend, auth is NOT
- * baked into the remote URL — the per-command credential helper installed here
- * reads SCREENPLAY_GH_TOKEN from the env of the command that invoked git, and
- * the server attaches the acting user's token per command, so each
- * collaborator's pushes are attributed to them rather than to whoever
- * provisioned the sandbox. The credential helper is git infrastructure (not
- * harness-specific), so it lives here on the always-run git-setup path rather
- * than riding along with a harness install — git push works regardless of which
- * harnesses (if any) the operator selected.
+ * Branch normalization (`checkout` / upstream) is the same everywhere. How git
+ * authenticates and whose identity commits carry is the GitHub access
+ * adapter's call (`prepareCheckout`): on hosted it rewrites `origin` to the
+ * canonical HTTPS URL, installs the per-command credential helper and stamps
+ * the provisioning person's identity as a fallback; on the desktop the host's
+ * own git config and credentials already cover it, so nothing is touched.
  *
- * **Commit authorship is brokered the same way, not stamped statically.** The
- * `user.email`/`user.name` set here is only a fallback net seeded with the
- * *triggering* user's real identity — never a fabricated address. Per-command,
- * `buildAgentGitEnv` attaches the acting user's `GIT_AUTHOR_*` / `GIT_COMMITTER_*`
- * (parallel to the token), so commits in a shared sandbox attribute to whoever
- * drove them, overriding this fallback. There is no synthetic agent identity.
- *
- * On the local backend (`usesHostGitAuth`), none of that brokering
- * applies: git runs as a host process and authenticates through the user's own
- * credentials (credential helper / SSH / `gh`). So we neither rewrite `origin`
- * to a canonical HTTPS URL (which would clobber a user's SSH remote) nor install
- * the SCREENPLAY_GH_TOKEN helper — the host's native auth already covers
- * clone / fetch / push. We also skip the identity / `push.default` stamp: a
- * plain `git config` would write to the shared `.git/config` (the user's own
- * repo for a `local-path` Repo), clobbering the identity they've set for their
- * entire repo. The host's own git identity is already correct. Only branch
- * normalization (`checkout` / upstream) runs on both paths.
- *
- * On the hosted path the remote-URL rewrite is the one load-bearing step — if it
- * fails the agent can't push, so it runs through `step` (a non-zero exit becomes
- * a redacted failure result). The checkout / upstream / identity commands are
- * best-effort: a fresh branch has no `origin/<branch>` yet, so
- * `--set-upstream-to` routinely exits non-zero and that's fine. They run via
- * `runCommand` so their exit code is ignored, matching the pre-refactor behavior.
+ * The checkout / upstream commands are best-effort: a fresh branch has no
+ * `origin/<branch>` yet, so `--set-upstream-to` routinely exits non-zero and
+ * that's fine. They run via `runCommand` so their exit code is ignored; a
+ * load-bearing adapter step that fails becomes a redacted failure result.
  */
 export async function configureAgentGit(
   sandboxName: string,
@@ -263,66 +213,6 @@ export async function configureAgentGit(
       `origin/${branch}`,
       branch,
     ])
-
-    // Local backend: the worktree shares the user's own `.git` (for a
-    // `local-path` Repo it *is* the user's repo), git authenticates and pushes
-    // through the user's host credentials, and `origin` already points at their
-    // remote (possibly SSH). So everything below is hosted-only:
-    //   - Identity (`user.email`/`user.name`) and `push.default` must NOT run
-    //     here. Plain `git config` writes to the shared `.git/config`, not the
-    //     worktree, so stamping the agent identity would clobber the user's own
-    //     identity for their entire repo and relabel their commits as the agent.
-    //     On local the host's native git identity is already correct.
-    //   - The remote rewrite and brokered-token helper belong to the hosted
-    //     firewall trust boundary (ADR 0002), which doesn't exist here.
-    if (usesHostGitAuth) return
-
-    // Static author net: stamp the *triggering* user's real identity — never a
-    // fabricated address. A shared hosted sandbox has no single author, so the
-    // per-command broker (`buildAgentGitEnv`) layers GIT_AUTHOR_*/GIT_COMMITTER_*
-    // on top, attributing each commit to whichever collaborator drove it and
-    // overriding this config. This stamp only covers commits made outside that
-    // brokered path; if the user can't be resolved we set no identity rather
-    // than invent one.
-    const actingUserId = await getUserId()
-    const identity = actingUserId
-      ? await getGitIdentityForUser(actingUserId)
-      : null
-    if (identity) {
-      await sandbox.runCommand("git", ["config", "user.email", identity.email])
-      await sandbox.runCommand("git", ["config", "user.name", identity.name])
-    }
-    await sandbox.runCommand("git", ["config", "push.default", "current"])
-
-    await step(sandbox, "git", [
-      "remote",
-      "set-url",
-      "origin",
-      `https://github.com/${repo.repoOwner}/${repo.repoName}.git`,
-    ])
-
-    // Per-command credential helper: git invokes it whenever it needs GitHub
-    // auth, and it reads SCREENPLAY_GH_TOKEN from the env the server set on the
-    // triggering runCommand. No token is persisted in the sandbox — every
-    // command brings its own, so two users sharing this sandbox correctly push
-    // as themselves rather than riding on whoever provisioned it first. The
-    // home dir is provider-supplied so the helper follows the actual layout.
-    const { homeDir } = sandbox
-    const credentialHelper = [
-      "#!/bin/sh",
-      `[ "\${1:-}" = "get" ] || exit 0`,
-      "cat >/dev/null",
-      `[ -n "\${SCREENPLAY_GH_TOKEN:-}" ] || exit 0`,
-      `printf 'username=x-access-token\\npassword=%s\\n' "$SCREENPLAY_GH_TOKEN"`,
-      "",
-    ].join("\n")
-    await sandbox.runCommand({
-      cmd: "sh",
-      args: [
-        "-c",
-        `mkdir -p "${homeDir}/.screenplay" && printf '%s' "$HELPER" > "${homeDir}/.screenplay/git-credential-helper.sh" && chmod +x "${homeDir}/.screenplay/git-credential-helper.sh" && git config --global credential.helper "${homeDir}/.screenplay/git-credential-helper.sh" && git config --global credential.useHttpPath false`,
-      ],
-      env: { HELPER: credentialHelper },
-    })
+    await githubAccess.prepareCheckout(sandbox, repo, await getUserId())
   })
 }

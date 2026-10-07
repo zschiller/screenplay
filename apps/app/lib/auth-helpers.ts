@@ -1,9 +1,10 @@
 import "server-only"
 
 import { headers } from "next/headers"
-import { and, eq, inArray } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { auth, type Session } from "@/lib/auth"
 import { db, schema } from "@/lib/db"
+import { githubAccess } from "@/lib/github-access"
 import { isLocalBuild } from "@/lib/local-mode"
 import { LOCAL_USER } from "@/lib/local-user"
 
@@ -58,36 +59,14 @@ export async function getCurrentSession() {
 }
 
 /**
- * Look up the GitHub OAuth access token for a user. Better Auth stores it on
- * the `account` row created when the user signed in with GitHub.
- *
- * The local build has no `account` table — there is no login at all (#417) —
- * so the token resolves through the local resolver instead (PRD #428): the
- * host `gh` CLI's token when available, else `null`. Git transport never needs this either way (`usesHostGitAuth`); the
- * token only feeds the GitHub *API* features (repo listing, Branch-via-API,
- * PRs, naming), which stay dark on `null` exactly as before.
+ * The person's GitHub API token, through the GitHub access adapter: the OAuth
+ * token on hosted, the host `gh` CLI's token on the desktop. Null keeps the
+ * API features (repo listing, Branch-via-API, PRs, naming) dark.
  */
 export async function getGitHubTokenForUser(
   userId: string
 ): Promise<string | null> {
-  if (isLocalBuild) {
-    // Dynamic import inside the compile-time-eliminated branch so the hosted
-    // bundle never pulls the local chain (child_process + the keyring binding).
-    const { resolveLocalGitHubToken } =
-      await import("@/lib/github-local/token-resolver")
-    return resolveLocalGitHubToken()
-  }
-  const rows = await db
-    .select({ accessToken: schema.account.accessToken })
-    .from(schema.account)
-    .where(
-      and(
-        eq(schema.account.userId, userId),
-        eq(schema.account.providerId, "github")
-      )
-    )
-    .limit(1)
-  return rows[0]?.accessToken ?? null
+  return githubAccess.token(userId)
 }
 
 /**
@@ -146,30 +125,4 @@ export async function getUserByEmail(
   const row = rows[0]
   if (!row) return null
   return { id: row.id, name: row.name, email: row.email, image: row.image }
-}
-
-/** A git author/committer identity — the `Name <email>` stamped onto a commit. */
-export interface GitIdentity {
-  name: string
-  email: string
-}
-
-/**
- * Resolve the git author identity for a user, so agent commits attribute to the
- * real human rather than a fabricated address. `user.email` is NOT NULL in the
- * schema, so a found user always yields a usable identity; returns null only
- * when no such user exists (caller then skips the identity rather than
- * inventing one).
- */
-export async function getGitIdentityForUser(
-  userId: string
-): Promise<GitIdentity | null> {
-  if (isLocalBuild) return { name: LOCAL_USER.name, email: LOCAL_USER.email }
-  const rows = await db
-    .select({ name: schema.user.name, email: schema.user.email })
-    .from(schema.user)
-    .where(eq(schema.user.id, userId))
-    .limit(1)
-  const row = rows[0]
-  return row ? { name: row.name, email: row.email } : null
 }

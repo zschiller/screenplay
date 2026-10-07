@@ -47,9 +47,14 @@ const storeEnvVars = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock("@/lib/env-store", () => ({ storeEnvVars }))
 vi.mock("@/lib/auth-helpers", () => ({
   getUserId: vi.fn(async () => null),
-  getGitHubTokenForUser: vi.fn(async () => null),
-  getGitIdentityForUser: vi.fn(async () => null),
 }))
+// The desktop pairs the local backend with host GitHub access: git rides the
+// host's own credentials. `gh` resolves no token here.
+vi.mock("@/lib/github-access", async () => {
+  const { createHostGitHubAccess } =
+    await import("@/lib/github-access/adapters")
+  return { githubAccess: createHostGitHubAccess({ token: async () => null }) }
+})
 // Where the host owns git auth, the GitHub API must never be asked to create a
 // branch — the spy lets each test hold provisioning to that.
 const createBranch = vi.hoisted(() =>

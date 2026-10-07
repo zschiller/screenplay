@@ -1,7 +1,6 @@
 import "server-only"
 
-import { getGitHubTokenForUser } from "@/lib/auth-helpers"
-import { usesHostGitAuth } from "@/lib/sandbox"
+import { githubAccess } from "@/lib/github-access"
 import { runSandboxAction } from "@/lib/sandbox/run"
 import {
   mergedPrNote,
@@ -13,16 +12,16 @@ import {
 /**
  * The move after a merge (`next-pr.ts`) in the Workspace's sandbox, on either
  * backend, and the note it leaves the agent for this turn. Git talks to origin
- * as the turn's member: their token through the sandbox's credential helper
- * on hosted, the host's own credentials on the desktop.
+ * as the turn's member, through the GitHub access adapter: their token for the
+ * sandbox's credential helper on hosted, the host's own credentials on the
+ * desktop.
  */
 export async function moveMergedBranch(
   claim: MergedPrMoveClaim
 ): Promise<string> {
-  const token = usesHostGitAuth
-    ? null
-    : await getGitHubTokenForUser(claim.userId).catch(() => null)
-  const env = token ? { SCREENPLAY_GH_TOKEN: token } : undefined
+  const env = await githubAccess
+    .transportEnv(claim.userId)
+    .catch(() => undefined)
   const result = await runSandboxAction(claim.sandboxName, (sandbox) =>
     moveToDefaultTip(async (args, opts) => {
       const run = await sandbox.runCommand({

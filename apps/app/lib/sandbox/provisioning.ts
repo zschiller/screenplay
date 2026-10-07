@@ -9,7 +9,8 @@ import {
 import { redactSensitiveInfo } from "@/lib/agent/redact"
 import { storeEnvVars } from "@/lib/env-store"
 import { parseCopyPatterns, parseEnvVars } from "@/lib/env-utils"
-import { sandboxProvider, usesHostGitAuth } from "@/lib/sandbox"
+import { githubAccess } from "@/lib/github-access"
+import { sandboxProvider } from "@/lib/sandbox"
 import type { SandboxSource } from "@/lib/sandbox"
 import { configureAgentGit, createAgentBranch } from "@/lib/sandbox/git"
 import { buildNetworkPolicy } from "@/lib/sandbox/network-policy"
@@ -97,9 +98,9 @@ export type ProvisionResult = SandboxActionResult<{
  * step's (redacted) failure. The harness and ripgrep installs are best-effort
  * and never fail provisioning.
  *
- * **Every "local vs hosted" decision here asks one question —
- * {@link usesHostGitAuth}** (keyed to the `SANDBOX_BACKEND` build-time switch,
- * ADR 0007). When the host owns git auth (the local backend):
+ * **Every "local vs hosted" decision here asks the GitHub access adapter**
+ * (`@/lib/github-access`, picked once at startup). When it is the **host**
+ * adapter (the desktop), git rides the host's own auth:
  *
  *  - the branch is never created through the GitHub API. Local Branches are
  *    worktree branches pushed only on demand, so a source branch may not exist
@@ -110,8 +111,8 @@ export type ProvisionResult = SandboxActionResult<{
  *    checkout (`local-git`, ADR 0009) rather than cloned from its URL.
  *  - no token is ever baked into a clone URL — host credentials cover it.
  *
- * On the hosted backend the branch is created via the GitHub API first and the
- * clone is token-authed.
+ * With the **brokered** adapter (hosted) the branch is created via the GitHub
+ * API first and the clone is token-authed.
  *
  * `recreate` differs only in what it starts by tearing down (the existing
  * Sandbox); every step after that is the same code, which is the point — the
@@ -123,6 +124,7 @@ export async function provisionSandbox(
   req: ProvisionRequest
 ): Promise<ProvisionResult> {
   const { mode, repo, branch, sandboxName, ghToken } = req
+  const hostGit = githubAccess.kind === "host"
   const report = async (message: string) => {
     await req.onStatus?.(message)
   }
@@ -154,7 +156,7 @@ export async function provisionSandbox(
   // exists, so neither creates one — and neither needs a base revision.
   let baseRevision: string | undefined
   if (mode === "new") {
-    if (usesHostGitAuth) {
+    if (hostGit) {
       baseRevision = repo.defaultBranch
     } else {
       const created = await createAgentBranch(repo, branch, undefined, ghToken)
@@ -171,7 +173,7 @@ export async function provisionSandbox(
     if (!sourceBranch) {
       return { success: false, error: "Source branch not specified" }
     }
-    if (!usesHostGitAuth) {
+    if (!hostGit) {
       const created = await createAgentBranch(
         repo,
         branch,
@@ -191,7 +193,7 @@ export async function provisionSandbox(
 
   console.warn(
     `[provision] start mode=${mode} branch=${branch} ` +
-      `sandbox=${sandboxName} hostGitAuth=${usesHostGitAuth} ` +
+      `sandbox=${sandboxName} githubAccess=${githubAccess.kind} ` +
       `localPath=${JSON.stringify(repo.localPath)} ` +
       `setupScript=${JSON.stringify(repo.setupScript)}`
   )
@@ -245,11 +247,12 @@ export async function provisionSandbox(
 /**
  * Where the Sandbox's checkout comes from:
  *
- *  - **local-git** — the host owns git and the Repo was added from a local
+ *  - **local-git** — host GitHub access and the Repo was added from a local
  *    folder: a worktree of the user's existing checkout.
- *  - **token-git** — hosted, with a token: a clone with the token spliced in.
+ *  - **token-git** — the adapter has clone credentials (brokered, with a
+ *    token): a clone with them spliced in.
  *  - **host-git** — otherwise: a plain clone of the URL (host credentials on
- *    the local backend; a public repo on the hosted one).
+ *    the desktop; a public repo on hosted).
  *
  * `baseRevision` is the ref to create `branch` from when it doesn't exist yet;
  * the token-git path never needs it, since there the API created the branch.
@@ -260,7 +263,7 @@ function resolveSource(
   ghToken: string | undefined,
   baseRevision: string | undefined
 ): SandboxSource {
-  if (usesHostGitAuth && repo.localPath) {
+  if (githubAccess.kind === "host" && repo.localPath) {
     return {
       type: "local-git",
       path: repo.localPath,
@@ -269,14 +272,9 @@ function resolveSource(
       copyPatterns: parseCopyPatterns(repo.copyPatterns),
     }
   }
-  if (!usesHostGitAuth && ghToken) {
-    return {
-      type: "git",
-      url: repo.cloneUrl,
-      revision: branch,
-      username: "x-access-token",
-      password: ghToken,
-    }
+  const credentials = githubAccess.cloneCredentials(ghToken)
+  if (credentials) {
+    return { type: "git", url: repo.cloneUrl, revision: branch, ...credentials }
   }
   return { type: "git", url: repo.cloneUrl, revision: branch, baseRevision }
 }

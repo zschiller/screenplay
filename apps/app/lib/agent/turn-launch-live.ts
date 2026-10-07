@@ -78,7 +78,7 @@ import { startBranchProvisioning } from "@/lib/branch/provisioning-live"
 import { claimMergedPrMove } from "@/lib/branch/next-pr"
 import { moveMergedBranch } from "@/lib/branch/next-pr-live"
 import { settleDoneBranch } from "@/lib/branch/reopen-live"
-import { isLocalBuild } from "@/lib/local-mode"
+import { githubAccess } from "@/lib/github-access"
 import { createGitHubPr } from "@/lib/github-pr"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
 import {
@@ -397,7 +397,7 @@ export function coordinatorTarget(
       )
       const ghToken =
         (await getGitHubTokenForUser(owner ?? room.userId)) ?? undefined
-      if (!ghToken && !isLocalBuild) {
+      if (!ghToken && githubAccess.requiresToken) {
         throw new Error("no GitHub token; the owner needs to sign in again")
       }
       await startBranchProvisioning(room, request, {

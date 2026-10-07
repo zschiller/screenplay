@@ -11,7 +11,7 @@ import type { RepoData } from "@/lib/types"
 // The hosted side of provisioning, where the host does NOT own git auth: the
 // branch is created through the GitHub API and the clone is token-authed. A
 // scripted fake provider stands in for Vercel Sandbox (every command exits 0);
-// `backend.hostGitAuth` flips the one local-vs-hosted switch for the tests that
+// `access.host` picks the host GitHub access adapter for the tests that
 // pin what changes when it's on.
 const fake = vi.hoisted(() => {
   const createCalls: SandboxCreateOptions[] = []
@@ -95,13 +95,34 @@ const fake = vi.hoisted(() => {
     },
   }
 })
-const backend = vi.hoisted(() => ({ hostGitAuth: false }))
+// The GitHub access adapter is picked once at startup; a test picks it per
+// case. Both are the real adapters, over stubbed person lookups.
+const access = vi.hoisted(() => ({
+  host: false,
+  token: vi.fn(async (_userId: string): Promise<string | null> => null),
+  identity: vi.fn(
+    async (_userId: string): Promise<{ name: string; email: string } | null> =>
+      null
+  ),
+}))
+vi.mock("@/lib/github-access", async () => {
+  const { createBrokeredGitHubAccess, createHostGitHubAccess } =
+    await import("@/lib/github-access/adapters")
+  const lookup = {
+    token: (userId: string) => access.token(userId),
+    identity: (userId: string) => access.identity(userId),
+  }
+  const brokered = createBrokeredGitHubAccess(lookup)
+  const host = createHostGitHubAccess(lookup)
+  return {
+    get githubAccess() {
+      return access.host ? host : brokered
+    },
+  }
+})
 vi.mock("@/lib/sandbox", () => ({
   sandboxProvider: fake.provider,
   isSandboxRunning: () => true,
-  get usesHostGitAuth() {
-    return backend.hostGitAuth
-  },
 }))
 
 vi.mock("@/lib/agent/providers", () => ({ getModelProviders: () => [] }))
@@ -109,8 +130,6 @@ const storeEnvVars = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock("@/lib/env-store", () => ({ storeEnvVars }))
 vi.mock("@/lib/auth-helpers", () => ({
   getUserId: vi.fn(async () => null),
-  getGitHubTokenForUser: vi.fn(async () => null),
-  getGitIdentityForUser: vi.fn(async () => null),
 }))
 const createBranch = vi.hoisted(() =>
   vi.fn(async (): Promise<{ success: boolean; error?: string }> => ({
@@ -149,7 +168,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.unstubAllEnvs()
   fake.reset()
-  backend.hostGitAuth = false
+  access.host = false
 })
 
 describe("provisionSandbox on the hosted backend", () => {
@@ -422,7 +441,7 @@ describe("provisionSandbox retrying a failed create", () => {
 
 describe("provisionSandbox where the host owns git auth", () => {
   it("never calls the GitHub API and creates the branch from the default branch at provision time", async () => {
-    backend.hostGitAuth = true
+    access.host = true
 
     await provisionSandbox({
       mode: "new",
@@ -447,7 +466,7 @@ describe("provisionSandbox where the host owns git auth", () => {
     // only — so Recreate on a folder-added Repo (which may have no remote at
     // all, ADR 0013) re-cloned from an empty URL instead of pointing at the
     // user's existing checkout.
-    backend.hostGitAuth = true
+    access.host = true
 
     await provisionSandbox({
       mode: "recreate",
@@ -466,7 +485,7 @@ describe("provisionSandbox where the host owns git auth", () => {
   })
 
   it("roots a local-folder Repo at its checkout, copying the configured files", async () => {
-    backend.hostGitAuth = true
+    access.host = true
 
     await provisionSandbox({
       mode: "duplicate",
