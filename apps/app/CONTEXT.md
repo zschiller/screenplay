@@ -414,7 +414,7 @@ tools (#1724); each create or edit records the chat as its **last chat**
 chat's running turn is changing it, that chat is its **holder** (#1725): the
 Chat Session's `workingLayers` lists it, and another chat's edit is refused
 with the holder's name; the earliest to start on it wins, and the list clears
-with `isStreaming`. Reply in chat and Send to agent go to the holder, else the
+with `isStreaming`. Quote in chat and Send to agent go to the holder, else the
 last chat (`lib/canvas/layer-chat.ts`). Its label shows only its title. One a
 person made and no chat changed has no last chat.
 _Avoid_: note, text layer; "document chat" (Documents are not Chat Targets
@@ -481,7 +481,7 @@ Branch gets it when it starts, whatever the default tab kind, and a Branch never
 gets a second: more parallel work means more Branches. It is always open (no
 close) and is where every prompt to the Branch lands, busy
 or not (a message mid-turn steers or queues): the Coordinator's
-`send_to_workspace`, comment requests, Reply in chat on its Documents, Ask for a
+`send_to_workspace`, comment requests, Quote in chat on its Documents, Ask for a
 knob. Other chats read its code (`read_code_file`, `search_code`,
 `find_code_files`) and never write it. The rule is one pure function,
 `workspaceChatId` in `lib/chat/workspace-chat` — the newest Chat Session on the
@@ -670,15 +670,15 @@ passage from a Document a chat owns goes to that chat, brought on screen; any
 other goes to the foreground chat (#1314). The
 old "anchor a doc text span and **Send to agent**" path (a fresh Document chat
 sent from the comment composer, `lib/canvas/chat-reference`) was retired by
-Reply in chat (#1243), after the frame element → owning-agent route (#570) went
+Quote in chat (#1243), after the frame element → owning-agent route (#570) went
 the same way for the composer token flow (#621).
 _Avoid_: sending from the comment composer; resurrecting the frame→agent send
 path here instead of the composer token flow; calling this "comments" (the
 persisted thread is its own surface).
 
 **Chat Quote**:
-A Document passage quoted into a chat's composer by **Reply in chat** (#1243),
-the last button of a Document's selection toolbar on the web and desktop. It
+A Document passage quoted into a chat's composer by **Quote in chat** (#1243),
+the last button of a Document's selection toolbar on the web and desktop (or ⌘L). It
 lands in the composer of the Document's **last chat** when a chat changed it,
 which the panel switches to (`quoteInto`, #1314); otherwise in the chat the
 panel is **showing** — the Coordinator, or the active chat tab of a Workspace —
@@ -687,7 +687,7 @@ in the composer that picked it, and opens the panel if it's collapsed. The
 quote sits above the input (the Document's title and line range, up to three
 lines of the text, an X) and nothing is sent until the person sends; that send
 carries it ahead of the typed text as `formatQuoteForChat` writes it. A chat
-holds one quote, and a second Reply in chat replaces it. The bridge is the
+holds one quote, and a second Quote in chat replaces it. The bridge is the
 `chatQuoteStore` singleton (`lib/chat-quote-store`): a chat on screen claims the
 **foreground** (the newest claim wins), and a quote asked for while no chat is
 on screen waits for the next chat to claim it.

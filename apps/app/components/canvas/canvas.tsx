@@ -1227,7 +1227,7 @@ export function Canvas({
   const diffStats = useDiffStats(agents, repos)
   const { branchPrs, setBranchPr } = useBranchPrs(agents, repos)
 
-  // Where Reply in chat and Send to agent on a Document go: the Sketch Chat
+  // Where Quote in chat and Send to agent on a Document go: the Sketch Chat
   // that last changed it, or that chat's Workspace's chat (#1724).
   const documentChats = useMemo(
     () => layerChats(markdownLayers, chatSessions),

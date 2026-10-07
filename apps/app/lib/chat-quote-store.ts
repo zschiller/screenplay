@@ -1,5 +1,5 @@
 /**
- * Reply in chat (#1243): a Document passage quoted into the composer of
+ * Quote in chat (#1243): a Document passage quoted into the composer of
  * whichever chat the panel is showing (`apps/app/CONTEXT.md`, "Chat Quote").
  *
  * The Document's selection toolbar lives on the Canvas; the composers live
@@ -14,11 +14,11 @@
  * A passage from a Document a chat made goes to that chat instead, wherever
  * the panel is ({@link quoteInto}, #1314); the Canvas brings it on screen.
  *
- * Each chat holds at most one quote: a second Reply in chat replaces it. The
+ * Each chat holds at most one quote: a second Quote in chat replaces it. The
  * quote rides the chat's next send and is cleared there ({@link take}).
  */
 
-/** The passage a Reply in chat quotes. */
+/** The passage a Quote in chat quotes. */
 export interface ChatQuote {
   documentId: string
   /** The Document's title when the quote was taken, or null for an untitled one. */
@@ -28,7 +28,7 @@ export interface ChatQuote {
   lineTo: number
 }
 
-/** A quote held by a chat, with a key that changes on every Reply in chat. */
+/** A quote held by a chat, with a key that changes on every Quote in chat. */
 export interface HeldChatQuote extends ChatQuote {
   key: number
 }

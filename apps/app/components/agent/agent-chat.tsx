@@ -322,7 +322,7 @@ export function AgentChat({
       void sendMessage(
         {
           ...parts,
-          // A passage quoted by Reply in chat (#1243) leads the message.
+          // A passage quoted by Quote in chat (#1243) leads the message.
           quote: chatQuoteStore.take(chatId),
           // The Mockup whose page drafted it (#1645), named to the agent.
           draftedOn: draftedOn(chatDraftSourceStore.take(chatId)),
@@ -335,7 +335,7 @@ export function AgentChat({
     [sendMessage, model, onModelChange, chatId]
   )
 
-  // Reply in chat (#1243) quotes into the chat on screen: this one while it's
+  // Quote in chat (#1243) quotes into the chat on screen: this one while it's
   // the visible tab. A new quote focuses the composer (its `focusKey`) so the
   // question can be typed straight away.
   useEffect(() => {
@@ -847,7 +847,7 @@ function QueuedRow({
 }
 
 /**
- * The Document passage Reply in chat quoted (#1243), at the top of the input
+ * The Document passage Quote in chat quoted (#1243), at the top of the input
  * box until the next send takes it: the Document and line range, then up to three lines of
  * the text. The X drops it.
  */

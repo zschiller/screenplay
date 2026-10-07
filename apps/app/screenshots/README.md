@@ -321,7 +321,7 @@ The local build excludes the entire multi-user surface (see
 in a plain capture:
 
 - **Comments** — threads, pins, replies, read state, the comment lists.
-  (Reply in chat on document text _is_ kept.)
+  (Quote in chat on document text _is_ kept.)
 - **Cursors and presence** — with one local Yjs peer there is nobody else on the
   canvas; the follow toolbar is hidden.
 - **Sharing and membership** — no `room_member`, no Share affordances, no

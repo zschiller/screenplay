@@ -520,7 +520,7 @@ export interface ComposerProps {
    */
   aboveInput?: ReactNode
   /**
-   * Rendered inside the input box, above the text: chat puts a Reply in chat
+   * Rendered inside the input box, above the text: chat puts a Quote in chat
    * quote here (#1243) so it reads as part of the message being written.
    */
   inputHeader?: ReactNode
@@ -1331,15 +1331,19 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 )}
               </InputGroupAddon>
             )}
-            <EmptyAwarePlaceholder
-              editor={editor}
-              text={placeholder}
-              className={cn(disabled && "opacity-50")}
-            />
-            <EditorContent
-              editor={editor}
-              className={cn("w-full", disabled && "opacity-50")}
-            />
+            {/* The placeholder sits over the editor, not the box, so a quote
+                or attachments above the editor push it down with the caret. */}
+            <div className="relative w-full">
+              <EmptyAwarePlaceholder
+                editor={editor}
+                text={placeholder}
+                className={cn(disabled && "opacity-50")}
+              />
+              <EditorContent
+                editor={editor}
+                className={cn("w-full", disabled && "opacity-50")}
+              />
+            </div>
             <InputGroupAddon align="block-end" className="gap-0.5">
               {modelsStatus === "failed" ? (
                 <span className="flex items-center gap-1 pl-0.75 text-sm text-muted-foreground">
