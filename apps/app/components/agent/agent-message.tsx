@@ -29,6 +29,7 @@ import {
   CopyIcon,
   CrosshairIcon,
   EyeIcon,
+  FileIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderOpenIcon,
@@ -148,6 +149,7 @@ import {
 const TOOL_ICONS: Record<ToolIcon, typeof FileTextIcon> = {
   file: FileTextIcon,
   "file-plus": FilePlusIcon,
+  page: FileIcon,
   edit: PencilSimpleIcon,
   rename: PencilSimpleLineIcon,
   note: NotePencilIcon,

@@ -409,7 +409,7 @@ describe("a Workspace chat’s MCP route", () => {
       )
     )
 
-  it("lists its dev server’s tools, its frame reads, page screenshots, Frame Drive (#1389), its Document and Mockup tools and start_editing, other Workspaces' code reads (#1315), Question Cards, saved files (#1514), its PR tool (#1480), its GitHub issue tools and its Skill tools (#1555)", async () => {
+  it("lists its dev server’s tools, its frame reads, page screenshots, Frame Drive (#1389), its Document and Mockup tools and start_editing, other Workspaces' code reads (#1315), Question Cards, asking the Coordinator (#1843), saved files (#1514), its PR tool (#1480), its GitHub issue tools and its Skill tools (#1555)", async () => {
     const { result } = await (await call(1, "tools/list")).json()
     expect(result.tools.map((t: { name: string }) => t.name)).toEqual([
       "read_dev_server_logs",
@@ -444,6 +444,7 @@ describe("a Workspace chat’s MCP route", () => {
       "find_code_files",
       "read_document",
       "ask_question",
+      "ask_coordinator",
       "write_memory",
       "list_saved_files",
       "read_saved_file",
@@ -722,6 +723,9 @@ describe("every chat kind’s MCP toolset", () => {
         inProcess.filter((name) => !native.includes(name)).sort()
       )
       for (const tool of served) expect(tool.annotations).toBeDefined()
+      // A chat asks the Coordinator for anything it can't do itself (#1843).
+      if (kind !== "Coordinator")
+        expect(served.map((t) => t.name)).toContain("ask_coordinator")
     })
   }
 })

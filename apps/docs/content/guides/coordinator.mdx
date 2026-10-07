@@ -38,8 +38,9 @@ the frames it relates to.
 
 It can move your view as well. Ask it to “zoom to the cart”, “take me to the
 split screen variant” or “show me everything”, and your canvas moves to fit
-it. After it arranges something you asked for, it shows you the result. Only
-the view of the person who asked moves; everyone else’s stays where it is.
+it, switching to the page it’s on first. After it arranges something you
+asked for, it shows you the result. Only the view of the person who asked
+moves; everyone else’s stays where it is.
 
 To take a change back, ask it: “undo that”. It keeps what each of its replies
 changed, so a frame or document it removed comes back exactly as it was, and
@@ -63,6 +64,22 @@ repository, and your first ask starts a chat for it. A chat that
 hasn’t been asked anything yet takes the next ask that fits its repository
 instead of a new one being planned; if it’s still starting, the ask runs as
 soon as its code is checked out.
+
+## Pages
+
+The Coordinator can add, rename and delete [pages](/guides/canvas#pages) and
+move groups, frames, documents and mockups between them. Ask it to “put the
+old explorations on a page called Archive” and it makes the page, moves them
+there and takes you to it. It knows who is on each page and which page each
+group is on. Like its other changes, these happen right away and “undo that”
+brings them back, a deleted page with everything that was on it. It never
+deletes a canvas’s last page.
+
+Other chats can’t change pages, arrange the canvas or start chats, so they
+ask the Coordinator instead of saying no. Ask a chat to “move this mockup to
+a new page” or “start a chat for the launch email” and it hands the request
+to the Coordinator, which does it with its own tools. You’ll see an **Ask the
+Coordinator** row in that chat, and the Coordinator’s reply in its own chat.
 
 ## Messages to chats
 
@@ -222,6 +239,7 @@ group “Hero” to “Sign-in”**.
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Read    | **Read canvas**, **Read document**, **Read chat**, **Read chat changes**, **Read chat file**, **View frame**, **Read frame HTML**, **Screenshot page**, **Read skill**                                                                                          |
 | Arrange | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**                                                                                                          |
+| Pages   | **Create page**, **Rename page**, **Delete page**, **Move to page**                                                                                                                                                                                             |
 | View    | **Show on canvas**                                                                                                                                                                                                                                              |
 | Chats   | **Start chats**, **Start chat**, **Stop chat**, **Create pull request**, **Delete chat**                                                                                                                                                                        |
 | GitHub  | **Search issues**, **Read** _#12_, **Create issue**, **Comment on** _#12_, **Close** / **Reopen** / **Update** _#12_, **Link**, **List labels**, **Read diff of** / **Read checks of** _#7_, **Approve** / **Request changes on** _#7_, **Offer to merge** _#7_ |

@@ -15,7 +15,7 @@ import {
 } from "./chat-target-kinds"
 import {
   buildRoomTools,
-  summarizeCanvas,
+  readCanvasSummary,
   type RoomToolPorts,
 } from "./room-tools"
 import { liveWorkspaceReadPorts } from "./room-read-ports"
@@ -24,6 +24,7 @@ import { loadChatTranscript } from "./history-load"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
 import { listTerminalTabs } from "@/lib/terminal-tabs"
+import { getUsersByIds } from "@/lib/auth-helpers"
 import { appSkillSource } from "@/lib/skills"
 import { canvasSkills } from "@/lib/skills/canvas"
 import { agentSkillsFor } from "@/lib/skills/agent-skills"
@@ -135,6 +136,9 @@ export function liveRoomToolPorts(
             wakeFollowUps(await loadChatTranscript(coordinatorChatId)),
         }
       : {}),
+    // Who is on each page, by name (#1843).
+    memberNames: async (ids) =>
+      new Map((await getUsersByIds(ids)).map((u) => [u.id, u.name])),
     listTerminalTabs: async () =>
       (await listTerminalTabs({ userId, roomId: room.roomId })).map((t) => ({
         id: t.id,
@@ -163,7 +167,6 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
     skills = roomChatTarget.skills(room, target)
   ) {
     const ports = liveRoomToolPorts(room, target)
-    const terminalTabs = await ports.listTerminalTabs().catch(() => [])
     const [
       canvasSummary,
       skillIndex,
@@ -172,9 +175,7 @@ export const roomChatTarget: ChatTargetSpec<RoomTarget, RoomContext> = {
       accountMemory,
       accountFiles,
     ] = await Promise.all([
-      ports.readDoc((collections) =>
-        summarizeCanvas(collections, terminalTabs)
-      ),
+      readCanvasSummary(ports),
       skills.index(),
       loadCanvasMemory(room),
       loadCanvasFiles(room),

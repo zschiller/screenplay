@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest"
 import * as Y from "yjs"
 
 import { resultLine } from "@/lib/agent/room-arrange-tools"
-import { buildRoomTools, type RoomToolPorts } from "@/lib/agent/room-tools"
+import {
+  buildRoomTools,
+  PLAN_GATED_TOOLS,
+  type RoomToolPorts,
+} from "@/lib/agent/room-tools"
+import { createCanvasOps } from "@/lib/canvas/ops"
 import { CHANGE_LOG_KEY, MAX_LOGGED_TURNS } from "@/lib/agent/room-change-log"
 import { getGroupMembers } from "@/lib/canvas/layout"
 import { createCanvasUndo } from "@/lib/canvas/undo"
@@ -41,6 +46,8 @@ function room() {
     readDoc: async (fn) => fn(getRoomCollections(doc)),
     mutateDoc: async (fn) => fn(getRoomCollections(doc)),
     listTerminalTabs: async () => [],
+    memberNames: async (ids) =>
+      new Map(ids.flatMap((id) => (id === "user-1" ? [[id, "Ada"]] : []))),
     provisionWorkspace: async () => {},
     stopWorkspaceTurn: async () => {},
     openPullRequest: async () => {
@@ -96,7 +103,10 @@ function canvasState(doc: Y.Doc) {
     COLLECTION_KEYS.iframeLayers,
     COLLECTION_KEYS.iframeLayerGroups,
     COLLECTION_KEYS.markdownLayers,
+    COLLECTION_KEYS.mockupLayers,
     COLLECTION_KEYS.chatSessions,
+    COLLECTION_KEYS.pages,
+    COLLECTION_KEYS.pageViews,
   ].map((key) => [key, doc.getMap(key).toJSON()])
   const bodies = Object.keys(doc.getMap("markdownLayers").toJSON()).map(
     (id) => [id, documentFragment(doc, id).toJSON()]
@@ -458,9 +468,10 @@ describe("show_on_canvas", () => {
     expect(await show(["frame-1", "group-1"])).toBe(
       "Showed frame “Settings”, group “Checkout”."
     )
-    expect(await show()).toBe("Showed the whole canvas.")
+    expect(await show()).toBe("Showed the whole page.")
+    expect(await show(["page-1"])).toBe("Showed page “Page 1”.")
     expect(await show(["nope"])).toBe(
-      "Error: no frame, document or Group nope."
+      "Error: no frame, document, mockup, Group or page nope."
     )
     // It moves a view, never the canvas.
     expect(r.doc.getMap(CHANGE_LOG_KEY).size).toBe(0)
@@ -505,6 +516,153 @@ describe("a member's own ⌘Z", () => {
     undo.undo()
     expect(client.getMap(COLLECTION_KEYS.iframeLayers).has("frame-1")).toBe(
       false
+    )
+  })
+})
+
+/** The canvas from `seedCanvas`, plus a second page holding a mockup's Group. */
+function seedPages(r: ReturnType<typeof room>) {
+  seedCanvas(r)
+  const ops = createCanvasOps(r.collections)
+  const archive = ops.createPage({ name: "Archive" })
+  r.collections.mockupLayers.set("mock-1", {
+    id: "mock-1",
+    width: 400,
+    height: 300,
+    title: "Pricing take",
+  })
+  seedGroup(r.collections, "group-2", [{ kind: "mockup-layer", id: "mock-1" }])
+  r.collections.iframeLayerGroups.update("group-2", {
+    name: "Old ideas",
+    pageId: archive,
+  })
+  ops.savePageView("user-1", archive, { x: 0, y: 0, zoom: 1 })
+  ops.savePageView("user-2", "page-1", { x: 0, y: 0, zoom: 1 })
+  return archive
+}
+
+describe("page tools (#1843)", () => {
+  it("creates a page at the end, or after the page it names", async () => {
+    const r = room()
+    seedCanvas(r)
+    const call = r.turn()
+    const first = await call("create_page", { name: "Explorations" })
+    expect(resultLine(first)).toBe("Created page “Explorations”.")
+    const next = await call("create_page", { after: "page 1" })
+    expect(resultLine(next)).toBe("Created page “Page 3” after “Page 1”.")
+    const ops = createCanvasOps(r.collections)
+    expect(ops.listPages().map((p) => p.name)).toEqual([
+      "Page 1",
+      "Page 3",
+      "Explorations",
+    ])
+    expect(await call("create_page", { after: "Nowhere" })).toBe(
+      `Error: there’s no page “Nowhere” on this canvas. Its pages are “Page 1” (page-1), “Page 3” (${lastId(next)}), “Explorations” (${lastId(first)}).`
+    )
+  })
+
+  it("renames a page by name or id", async () => {
+    const r = room()
+    const archive = seedPages(r)
+    expect(
+      await r.turn()("rename_page", { page: archive, name: "Attic" })
+    ).toBe("Renamed page “Archive” to “Attic”.")
+    // A canvas's first page renames by its name too.
+    expect(
+      await r.turn()("rename_page", { page: "Page 1", name: "Site" })
+    ).toBe("Renamed page “Page 1” to “Site”.")
+    expect(
+      createCanvasOps(r.collections)
+        .listPages()
+        .map((p) => p.name)
+    ).toEqual(["Site", "Attic"])
+  })
+
+  it("deletes a page with what's on it, refuses the last one, and undoes", async () => {
+    const r = room()
+    const archive = seedPages(r)
+    const original = canvasState(r.doc)
+
+    expect(await r.turn()("delete_page", { page: "Archive" })).toBe(
+      "Deleted page “Archive” and the 1 layer on it."
+    )
+    expect(r.collections.pages.get(archive)).toBeUndefined()
+    expect(r.collections.iframeLayerGroups.get("group-2")).toBeUndefined()
+    expect(r.collections.mockupLayers.get("mock-1")).toBeUndefined()
+
+    expect(await r.turn()("delete_page", { page: "Page 1" })).toBe(
+      "Error: “Page 1” is the canvas’s only page, and a canvas always keeps one. Nothing was deleted."
+    )
+    expect(r.collections.iframeLayerGroups.get("group-1")).toBeDefined()
+
+    await r.turn()("undo_changes")
+    expect(canvasState(r.doc)).toEqual(original)
+  })
+
+  it("moves Groups and layers to another page, and undoes", async () => {
+    const r = room()
+    const archive = seedPages(r)
+    const original = canvasState(r.doc)
+    const pageOf = (groupId: string) =>
+      r.collections.iframeLayerGroups.get(groupId)?.pageId
+
+    const call = r.turn()
+    // One layer of a Group leaves it for a new Group on that page.
+    const moved = await call("move_to_page", { ids: ["doc-1"], page: archive })
+    expect(resultLine(moved)).toBe(
+      "Moved document “Launch spec” to page “Archive”."
+    )
+    expect(pageOf(lastId(moved))).toBe(archive)
+    expect(
+      getGroupMembers(r.collections.iframeLayerGroups.get("group-1")!)
+    ).toEqual([{ kind: "iframe-layer", id: "frame-1" }])
+
+    // A Group moves whole, and what's there already says so.
+    expect(
+      resultLine(
+        await call("move_to_page", { ids: ["group-2"], page: "Page 1" })
+      )
+    ).toBe("Moved group “Old ideas” to page “Page 1”.")
+    expect(pageOf("group-2")).toBe("page-1")
+    expect(
+      await call("move_to_page", { ids: ["group-1"], page: "Page 1" })
+    ).toBe("Already on page “Page 1”; nothing moved.")
+    expect(await call("move_to_page", { ids: ["nope"], page: archive })).toBe(
+      "Error: no Group, frame, document or mockup nope on the canvas. Nothing was moved."
+    )
+
+    await r.turn()("undo_changes")
+    expect(canvasState(r.doc)).toEqual(original)
+  })
+
+  it("lists pages in order with who is on each, and each Group's page", async () => {
+    const r = room()
+    const archive = seedPages(r)
+    const summary = await r.turn()("read_canvas")
+    expect(summary).toContain(
+      [
+        "Pages, in order (2):",
+        '- [page-1] "Page 1" · 1 group · on it: someone',
+        `- [${archive}] "Archive" · 1 group · on it: Ada`,
+      ].join("\n")
+    )
+    expect(summary).toContain('- [group-1] "Checkout" · page "Page 1" · at 40')
+    expect(summary).toContain('- [group-2] "Old ideas" · page "Archive" · at')
+  })
+
+  it("shows a page by id, and is gated by plan mode like other changes", async () => {
+    const r = room()
+    const archive = seedPages(r)
+    expect(await r.turn()("show_on_canvas", { ids: [archive] })).toBe(
+      "Showed page “Archive”."
+    )
+    expect(PLAN_GATED_TOOLS).toEqual(
+      expect.arrayContaining([
+        "create_page",
+        "rename_page",
+        "delete_page",
+        "move_to_page",
+      ])
     )
   })
 })

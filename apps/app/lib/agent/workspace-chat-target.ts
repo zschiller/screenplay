@@ -29,6 +29,8 @@ import { buildLayerHoldTools } from "./layer-hold"
 import { otherWorkspacesCodeReadTools } from "./code-read-tools"
 import { buildLayerReadTools } from "./layer-read-tools"
 import { buildQuestionTools } from "./question-tools"
+import { buildAskCoordinatorTools } from "./ask-coordinator-tools"
+import { liveAskCoordinator } from "./ask-coordinator-live"
 import { buildFileTools } from "./file-tools"
 import { buildMemoryTools } from "./memory-tools"
 import { chatFrameDriveTools } from "@/lib/frame-drive/live"
@@ -210,6 +212,9 @@ export const workspaceChatTarget: ChatTargetSpec<
         ...otherWorkspacesCodeReadTools({ room, sandboxName }),
         ...buildLayerReadTools({ room }),
         ...buildQuestionTools(),
+        // Anything this chat can't do itself, such as page changes or a new
+        // chat, goes to the Coordinator (#1843).
+        ...buildAskCoordinatorTools(liveAskCoordinator(room, target, chatId)),
         // Account and canvas memory (#1515).
         ...buildMemoryTools({
           canvas: room,

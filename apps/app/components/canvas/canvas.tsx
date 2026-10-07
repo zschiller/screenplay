@@ -147,6 +147,7 @@ import {
   PAGE_PARAM,
   groupsOnPage,
   pageAfterDelete,
+  pageOfIds,
   resolvePageId,
 } from "@/lib/canvas/pages"
 import { openPageId, pageViewport } from "@/lib/canvas/page-views"
@@ -1131,9 +1132,13 @@ export function Canvas({
   // into view only if it's off screen.
   const { zoomToRect: cameraZoomToRect, revealRect: cameraRevealRect } = camera
   const iframeLayerGroupsRef = useRef(iframeLayerGroups)
+  const allIframeLayerGroupsRef = useRef(allIframeLayerGroups)
+  const pagesRef = useRef(pages)
   const selectNamedLayerRef = useRef((_id: string) => {})
   useEffect(() => {
     iframeLayerGroupsRef.current = iframeLayerGroups
+    allIframeLayerGroupsRef.current = allIframeLayerGroups
+    pagesRef.current = pages
     selectNamedLayerRef.current = (id) => {
       if (iframeLayers.some((l) => l.id === id)) {
         selection.selectIframeLayer(id, false)
@@ -1156,15 +1161,14 @@ export function Canvas({
         if (layout) cameraRevealRect(layout)
         return
       }
-      // The call's broadcast can land before the doc update that moved what
-      // it names, so let the layout catch up first.
-      window.clearTimeout(timer)
-      timer = window.setTimeout(() => {
-        if (ids.length === 0) return zoomControls.zoomToFit()
+      const frame = () => {
         const memberIds = ids.flatMap((id) => {
+          if (pagesRef.current.some((p) => p.id === id)) return []
           const group = iframeLayerGroupsRef.current.find((g) => g.id === id)
           return group ? getGroupMembers(group).map((m) => m.id) : [id]
         })
+        // No ids, or only a page: fit the page.
+        if (memberIds.length === 0) return zoomControls.zoomToFit()
         const layouts = iframeLayerLayoutsRef.current
         const rect = unionRect(
           memberIds.flatMap((id) => {
@@ -1173,13 +1177,27 @@ export function Canvas({
           })
         )
         if (rect) cameraZoomToRect(rect)
+      }
+      // The call's broadcast can land before the doc update that moved what
+      // it names, so let the layout catch up first. What it names on another
+      // page (#1843) switches to that page, then frames it once laid out.
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        const pageId = pageOfIds(
+          ids,
+          allIframeLayerGroupsRef.current,
+          pagesRef.current
+        )
+        if (!pageId || pageId === currentPageIdRef.current) return frame()
+        switchPage(pageId)
+        timer = window.setTimeout(frame, VIEW_REQUEST_SETTLE_MS)
       }, VIEW_REQUEST_SETTLE_MS)
     })
     return () => {
       unsubscribe()
       window.clearTimeout(timer)
     }
-  }, [roomId, zoomControls, cameraZoomToRect, cameraRevealRect])
+  }, [roomId, zoomControls, cameraZoomToRect, cameraRevealRect, switchPage])
 
   // The agent showing this member a frame (#1390): fit it in their view,
   // waiting briefly for a frame it just opened to be laid out.

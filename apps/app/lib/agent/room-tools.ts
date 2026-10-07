@@ -42,6 +42,7 @@ import {
 import { hasGitHubRemote } from "@/lib/repo-identity"
 import { DEFAULT_DEV_SERVER_PORT } from "@/lib/run-settings"
 import { createCanvasOps } from "@/lib/canvas/ops"
+import { groupPageId, orderedPages, resolvePageId } from "@/lib/canvas/pages"
 import { createRoomCollections } from "@/lib/yjs/schema"
 import { sanitizeBranchName } from "@/lib/branch-rename"
 import { workspaceChatId } from "@/lib/chat/workspace-chat"
@@ -55,6 +56,8 @@ import type {
   IframeLayerGroupData,
   MarkdownLayerData,
   MockupLayerData,
+  PageData,
+  PageViewData,
   PlanData,
   RepoData,
 } from "@/lib/types"
@@ -81,6 +84,11 @@ export interface RoomToolPorts extends WorkspaceReadPorts {
   ): Promise<T>
   /** The acting member's Terminal Tabs in this Room (tabs are per user). */
   listTerminalTabs(): Promise<TerminalTabSummary[]>
+  /**
+   * Members' names by user id, for who is on each page (#1843). Absent, the
+   * summary counts people without naming them.
+   */
+  memberNames?(userIds: string[]): Promise<ReadonlyMap<string, string>>
   /**
    * Start a turn in a Workspace chat carrying a Delegated Message, through
    * Turn Launch. Resolves once the turn is queued (the message persisted and
@@ -169,18 +177,13 @@ export function buildRoomTools(
   const tools = {
     read_canvas: tool({
       description:
-        "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), Groups (name, position, what they hold), frames (label, route, size, Workspace), documents, mockups and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
+        "Read a compact summary of the whole canvas: its repositories, Workspaces (title, branch, status, changed lines, PR), pages (in order, with who is on each), Groups (name, position, page, what they hold), frames (label, route, size, Workspace), documents, mockups and Terminal Tabs. Call it before answering anything about what is on the canvas; ids in the result are what other tools take.",
       inputSchema: jsonSchema<Record<string, never>>({
         type: "object",
         properties: {},
       }),
-      execute: async () => {
-        const terminalTabs = await ports.listTerminalTabs().catch(() => [])
-        const summary = await ports.readDoc((collections) =>
-          summarizeCanvas(collections, terminalTabs)
-        )
-        return summary || `Canvas ${roomId} is empty.`
-      },
+      execute: async () =>
+        (await readCanvasSummary(ports)) || `Canvas ${roomId} is empty.`,
     }),
     send_to_workspace: tool({
       description:
@@ -430,6 +433,10 @@ export const PLAN_GATED_TOOLS: readonly string[] = [
   "merge_groups",
   "rename",
   "remove",
+  "create_page",
+  "rename_page",
+  "delete_page",
+  "move_to_page",
   "undo_changes",
 ]
 
@@ -1032,6 +1039,7 @@ export const CANVAS_SUMMARY_LIMITS = {
   repos: 20,
   workspaces: 100,
   chats: 100,
+  pages: 50,
   groups: 100,
   frames: 150,
   documents: 100,
@@ -1042,12 +1050,57 @@ export const CANVAS_SUMMARY_LIMITS = {
 } as const
 
 /**
+ * The canvas summary as the Coordinator reads it: with the acting member's
+ * Terminal Tabs and the names of the people on each page.
+ */
+export async function readCanvasSummary(
+  ports: Pick<RoomToolPorts, "readDoc" | "listTerminalTabs" | "memberNames">
+): Promise<string> {
+  const terminalTabs = await ports.listTerminalTabs().catch(() => [])
+  const userIds = await ports.readDoc((collections) => [
+    ...whereEachMemberIs(collections).keys(),
+  ])
+  const names =
+    userIds.length && ports.memberNames
+      ? await ports.memberNames(userIds).catch(() => undefined)
+      : undefined
+  return ports.readDoc((collections) =>
+    summarizeCanvas(collections, terminalTabs, names)
+  )
+}
+
+/**
+ * The page each member is on, by user id (#1843): the page they were on
+ * last (`PageViewData.seenAt`), as the canvas opens for them; a page that's
+ * gone reads as the first.
+ */
+function whereEachMemberIs(collections: RoomCollections): Map<string, string> {
+  const pages = orderedPages(
+    records<PageData>(collections, COLLECTION_KEYS.pages)
+  )
+  const latest = new Map<string, PageViewData>()
+  for (const view of records<PageViewData>(
+    collections,
+    COLLECTION_KEYS.pageViews
+  )) {
+    if (!pages.some((p) => p.id === view.pageId)) continue
+    const seen = latest.get(view.userId)
+    if (!seen || view.seenAt > seen.seenAt) latest.set(view.userId, view)
+  }
+  return new Map(
+    [...latest].map(([userId, v]) => [userId, resolvePageId(pages, v.pageId)])
+  )
+}
+
+/**
  * The canvas summary `read_canvas` returns and the Room Target's system prompt
  * embeds: one line per record, grouped by kind, with ids in brackets.
+ * `names` names the people on each page (#1843); without it they're counted.
  */
 export function summarizeCanvas(
   collections: RoomCollections,
-  terminalTabs: readonly TerminalTabSummary[] = []
+  terminalTabs: readonly TerminalTabSummary[] = [],
+  names?: ReadonlyMap<string, string>
 ): string {
   const repos = records<RepoData>(collections, COLLECTION_KEYS.repos)
   const branches = records<BranchData>(collections, COLLECTION_KEYS.branches)
@@ -1072,6 +1125,22 @@ export function summarizeCanvas(
     COLLECTION_KEYS.chatSessions
   )
   const sized = [...documents, ...mockups]
+  const pages = orderedPages(
+    records<PageData>(collections, COLLECTION_KEYS.pages)
+  )
+  const recordedPages = records<PageData>(
+    collections,
+    COLLECTION_KEYS.pages
+  ).length
+  const pageNames = new Map(pages.map((p) => [p.id, p.name]))
+  // Who is on each page, named when we know their names.
+  const peopleOn = new Map<string, string[]>()
+  for (const [userId, pageId] of whereEachMemberIs(collections)) {
+    const name = names?.get(userId) ?? "someone"
+    peopleOn.set(pageId, [...(peopleOn.get(pageId) ?? []), name])
+  }
+  const groupCount = (pageId: string) =>
+    groups.filter((g) => groupPageId(g, pages) === pageId).length
 
   const groupOf = new Map(
     groups.flatMap((g) => getGroupMembers(g).map((m) => [m.id, g.id] as const))
@@ -1129,15 +1198,34 @@ export function summarizeCanvas(
           c.isStreaming ? "working" : "idle",
         ].join(" · ")
     ),
+    // An empty canvas has nothing to say about its one page.
+    section(
+      "Pages, in order",
+      groups.length || recordedPages ? pages : [],
+      CANVAS_SUMMARY_LIMITS.pages,
+      (p) =>
+        [
+          `- [${p.id}] "${clip(p.name)}"`,
+          plural(groupCount(p.id), "group"),
+          peopleOn.get(p.id) && `on it: ${peopleOn.get(p.id)!.join(", ")}`,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+    ),
     section("Groups", groups, CANVAS_SUMMARY_LIMITS.groups, (g) =>
       [
         `- [${g.id}] "${clip(g.name ?? "Group")}"`,
+        // Which page it's on, when there's more than one.
+        pages.length > 1 &&
+          `page "${clip(pageNames.get(groupPageId(g, pages)) ?? "")}"`,
         `at ${Math.round(g.x)}, ${Math.round(g.y)}`,
         // Its extent, so a move can clear its neighbours (items sit in one
         // row, left to right, the Group's gap apart).
         `${Math.round(groupContentWidth(g, frames, sized))}×${Math.round(groupContentHeight(g, frames, sized))}`,
         `${getGroupMembers(g).length} items`,
-      ].join(" · ")
+      ]
+        .filter(Boolean)
+        .join(" · ")
     ),
     section("Frames", frames, CANVAS_SUMMARY_LIMITS.frames, (f) =>
       [

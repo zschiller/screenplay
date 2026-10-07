@@ -15,7 +15,7 @@ import {
   sketchChatSession,
   SKETCH_CHAT_LABEL,
 } from "@/lib/chat/sketch-chat"
-import type { RoomAccess } from "@/lib/room-access"
+import { actAsMember, type RoomAccess } from "@/lib/room-access"
 import { DEFAULT_MODEL } from "./providers"
 import {
   appendAcpMessage,
@@ -83,6 +83,7 @@ import { createGitHubPr } from "@/lib/github-pr"
 import { deleteSandboxes } from "@/lib/sandbox/lifecycle"
 import {
   createKeyedQueue,
+  askMessage,
   wakeMessage,
   wakesOnTurnEnd,
   type WorkspaceTurnEnd,
@@ -243,6 +244,56 @@ async function wakeCoordinator(
 }
 
 /**
+ * Hand the Room's Coordinator a request from chat `chatId` (#1843,
+ * `ask_coordinator`): a Coordinator turn carrying the request, queued behind
+ * any wake or turn already running, acting for `sender` (the member whose
+ * message the chat's turn answers). A chat whose turn nobody sent asks as a
+ * wake nobody sent, so its asks count toward the Coordinator's follow-up
+ * limit. Returns once the request is queued; the turn runs after the
+ * response.
+ */
+export async function askCoordinator(
+  room: RoomDoc,
+  sender: { userId: string; senderless?: boolean },
+  chatId: string,
+  request: string
+): Promise<void> {
+  const access = await actAsMember(room, [sender.userId])
+  if (!access) throw new Error("The Coordinator can’t act for this chat.")
+  const from = await room.readDoc(({ chatSessions, branches }) => {
+    const chat = chatSessions.get(chatId)
+    if (isSketchChat(chat)) {
+      return { id: chat!.id, title: chat!.label, sketch: true }
+    }
+    const branch = chat?.branchId ? branches.get(chat.branchId) : undefined
+    return branch
+      ? { id: branch.id, title: workspaceLabel(branch), sketch: false }
+      : null
+  })
+  if (!from) throw new Error("This chat isn’t on the canvas.")
+  const message = askMessage({
+    workspaceId: from.id,
+    title: from.title,
+    sketch: from.sketch,
+    request,
+  })
+  const run = () =>
+    wakeQueue(room.roomId, () =>
+      runWakeTurn(access, message, access.userId, {
+        senderless: sender.senderless === true,
+      })
+    ).catch((e) => {
+      console.error("asking the Coordinator failed:", e)
+    })
+  try {
+    after(run)
+  } catch {
+    // Outside a request (a test, a script): run it now, unawaited.
+    void run()
+  }
+}
+
+/**
  * One Coordinator turn for a wake, through the same Turn Launch a typed
  * message takes, held until the turn is over so the next wake starts after it.
  * It waits for a turn the user started to finish first: a new turn would
@@ -251,7 +302,8 @@ async function wakeCoordinator(
 async function runWakeTurn(
   room: RoomAccess,
   message: string,
-  requesterId: string
+  requesterId: string,
+  { senderless = true }: { senderless?: boolean } = {}
 ): Promise<void> {
   const chatId = roomChatId(room.roomId)
   const deadline = Date.now() + COORDINATOR_IDLE_WAIT_MS
@@ -267,8 +319,8 @@ async function runWakeTurn(
         drive = task
       },
     },
-    { roomId: room.roomId, chatId, message, model, senderless: true },
-    roomTurn({ room, chatId, message, model, requesterId, senderless: true })
+    { roomId: room.roomId, chatId, message, model, senderless },
+    roomTurn({ room, chatId, message, model, requesterId, senderless })
   )
   await drive?.()
 }

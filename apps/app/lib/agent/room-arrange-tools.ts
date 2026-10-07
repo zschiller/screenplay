@@ -7,6 +7,7 @@ import {
   groupContentWidth,
   placeNewIframeLayerGroup,
 } from "@/lib/canvas/layout"
+import { groupPageId, orderedPages } from "@/lib/canvas/pages"
 import { sizedLayersOf } from "@/lib/canvas/sized-layers"
 import {
   DEFAULT_IFRAME_LAYER_HEIGHT,
@@ -17,13 +18,15 @@ import { routeToLabel } from "@/lib/route-utils"
 import { createRoomCollections, type RoomCollections } from "@/lib/yjs/schema"
 import { listTurns, recordChange, undoTurn } from "@/lib/agent/room-change-log"
 import type { RoomDoc } from "@/lib/room-access"
-import type { BranchData } from "@/lib/types"
+import type { BranchData, PageData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 import { annotateTools } from "@/lib/mcp/tool-server"
 
 /**
  * The Coordinator's arrange tools (#894): create frames; move, group, merge
- * and remove frames and documents; rename frames and Groups; plus the change log's `list_changes` and
+ * and remove frames and documents; rename frames and Groups; create, rename
+ * and delete pages and move things between them (#1843); plus the change
+ * log's `list_changes` and
  * `undo_changes`. They act right away, with no confirmation. Every write goes
  * through Canvas Operations inside one server-side room mutation, logged
  * under `turnId` so the Coordinator can undo a turn when asked. None creates
@@ -339,6 +342,142 @@ export function buildArrangeTools(
         }),
     }),
 
+    create_page: tool({
+      description:
+        "Add a page to the canvas, named `name` (or the next “Page N”), at the end of the pages list or right after the page `after` names (by name or id). It starts empty; move Groups or layers onto it with `move_to_page`.",
+      inputSchema: jsonSchema<{ name?: string; after?: string }>({
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          after: {
+            type: "string",
+            description: "The page to put it after, by name or id.",
+          },
+        },
+      }),
+      execute: async ({ name, after }) =>
+        change((doc) => {
+          const { ops, c } = freshOps(doc)
+          const anchor = after === undefined ? undefined : findPage(c, after)
+          if (anchor && "error" in anchor) return anchor.error
+          const id = ops.createPage({ name })
+          if (anchor) {
+            const order = freshOps(doc)
+              .ops.listPages()
+              .map((p) => p.id)
+            const rest = order.filter((p) => p !== id)
+            rest.splice(rest.indexOf(anchor.page.id) + 1, 0, id)
+            freshOps(doc).ops.reorderPages(rest)
+          }
+          const page = freshOps(doc).c.pages.get(id)!
+          const where = anchor ? ` after “${anchor.page.name}”` : ""
+          return withIds(`Created page “${page.name}”${where}.`, [id])
+        }),
+    }),
+
+    rename_page: tool({
+      description: "Rename a page, named by its name or id.",
+      inputSchema: jsonSchema<{ page: string; name: string }>({
+        type: "object",
+        properties: {
+          page: { type: "string" },
+          name: { type: "string", minLength: 1 },
+        },
+        required: ["page", "name"],
+      }),
+      execute: async ({ page, name }) =>
+        change((doc) => {
+          const { ops, c } = freshOps(doc)
+          const found = findPage(c, page)
+          if ("error" in found) return found.error
+          if (!name.trim()) return "Error: a page needs a name."
+          ops.renamePage(found.page.id, name)
+          return `Renamed page “${found.page.name}” to “${name.trim()}”.`
+        }),
+    }),
+
+    delete_page: tool({
+      description:
+        "Delete a page, named by its name or id, with every Group, frame, document and mockup on it. Chats whose frames were on it keep running. It refuses the canvas’s last page. Undo with `undo_changes`.",
+      inputSchema: jsonSchema<{ page: string }>({
+        type: "object",
+        properties: { page: { type: "string" } },
+        required: ["page"],
+      }),
+      execute: async ({ page }) =>
+        change((doc) => {
+          const { ops, c } = freshOps(doc)
+          const found = findPage(c, page)
+          if ("error" in found) return found.error
+          if (ops.listPages().length < 2) {
+            return `Error: “${found.page.name}” is the canvas’s only page, and a canvas always keeps one. Nothing was deleted.`
+          }
+          const items = ops
+            .groupsOnPage(found.page.id)
+            .reduce((n, g) => n + getGroupMembers(g).length, 0)
+          ops.deletePage(found.page.id)
+          const what = items ? ` and the ${plural(items, "layer")} on it` : ""
+          return `Deleted page “${found.page.name}”${what}.`
+        }),
+    }),
+
+    move_to_page: tool({
+      description:
+        "Move Groups, frames, documents and mockups to another page, named by its name or id. A Group moves whole; layers named on their own leave their Group for a new one on that page (all of one Group’s layers move the Group). They land right of what’s already there, so nothing overlaps.",
+      inputSchema: jsonSchema<{ ids: string[]; page: string }>({
+        type: "object",
+        properties: {
+          ids: { type: "array", items: { type: "string" }, minItems: 1 },
+          page: { type: "string" },
+        },
+        required: ["ids", "page"],
+      }),
+      execute: async ({ ids, page }) =>
+        change((doc) => {
+          const { c } = freshOps(doc)
+          const found = findPage(c, page)
+          if ("error" in found) return found.error
+          const groupIds = ids.filter((id) => c.iframeLayerGroups.has(id))
+          const layerIds = ids.filter(
+            (id) => !groupIds.includes(id) && memberGroup(c, id)
+          )
+          const unknown = ids.filter(
+            (id) => !groupIds.includes(id) && !layerIds.includes(id)
+          )
+          if (unknown.length) {
+            return `Error: no Group, frame, document or mockup ${unknown.join(", ")} on the canvas. Nothing was moved.`
+          }
+          const pages = orderedPages(c.pages.toArray())
+          const pageId = found.page.id
+          const onPage = (groupId: string) =>
+            groupPageId(c.iframeLayerGroups.get(groupId)!, pages) === pageId
+          const movingGroups = groupIds.filter((id) => !onPage(id))
+          const movingLayers = layerIds.filter(
+            (id) => !onPage(memberGroup(c, id)!)
+          )
+          if (movingGroups.length + movingLayers.length === 0) {
+            return `Already on page “${found.page.name}”; nothing moved.`
+          }
+          const names = [
+            ...movingGroups.map((id) => `group “${groupName(c, id)}”`),
+            ...(movingLayers.length ? [memberNames(c, movingLayers)] : []),
+          ].join(", ")
+          const landed: string[] = []
+          for (const id of movingGroups) {
+            freshOps(doc).ops.moveGroupToPage(id, pageId)
+            landed.push(id)
+          }
+          if (movingLayers.length) {
+            const moved = freshOps(doc).ops.moveLayersToPage(
+              movingLayers,
+              pageId
+            )
+            if (moved) landed.push(moved)
+          }
+          return withIds(`Moved ${names} to page “${found.page.name}”.`, landed)
+        }),
+    }),
+
     list_changes: tool({
       description:
         "List the canvas changes your recent turns made, newest first, with each turn’s id and whether it was undone.",
@@ -393,6 +532,10 @@ export function buildArrangeTools(
     merge_groups: { destructiveHint: false, openWorldHint: false },
     rename: { destructiveHint: false, openWorldHint: false },
     remove: { destructiveHint: false, openWorldHint: false },
+    create_page: { destructiveHint: false, openWorldHint: false },
+    rename_page: { destructiveHint: false, openWorldHint: false },
+    delete_page: { destructiveHint: false, openWorldHint: false },
+    move_to_page: { destructiveHint: false, openWorldHint: false },
     undo_changes: { destructiveHint: false, openWorldHint: false },
     list_changes: { readOnlyHint: true, openWorldHint: false },
   })
@@ -586,6 +729,30 @@ function memberNames(c: RoomCollections, ids: string[]): string {
       return `document “${c.markdownLayers.get(id)?.title || "Untitled"}”`
     })
     .join(", ")
+}
+
+/**
+ * The page `ref` names, by id or by name ignoring case; a name no page has is
+ * an error listing the pages, for the model to pick again.
+ */
+function findPage(
+  c: RoomCollections,
+  ref: string
+): { page: PageData } | { error: string } {
+  const pages = orderedPages(c.pages.toArray())
+  const wanted = ref.trim()
+  const page =
+    pages.find((p) => p.id === wanted) ??
+    pages.find((p) => p.name.trim().toLowerCase() === wanted.toLowerCase())
+  if (page) return { page }
+  const list = pages.map((p) => `“${p.name}” (${p.id})`).join(", ")
+  return {
+    error: `Error: there’s no page “${wanted}” on this canvas. Its pages are ${list}.`,
+  }
+}
+
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`
 }
 
 function lowerFirst(text: string): string {
