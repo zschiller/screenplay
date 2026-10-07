@@ -225,21 +225,33 @@ export function AddRepositoryMenuItems({
 }
 
 /**
- * New repository (#1423), at the end of Canvas settings' list and on
- * Settings › Repositories: on desktop a menu of Open folder / Open GitHub
- * repository first (#604), on the web the GitHub picker straight away.
+ * New repository (#1423), at the end of Canvas settings' list, on
+ * Settings › Repositories and in the New canvas dialog (#1813): on desktop a
+ * menu of Open folder / Open GitHub repository first (#604), on the web the
+ * GitHub picker straight away.
  */
 export function NewRepositoryButton({
   flow,
   variant = "default",
+  align = "end",
+  className,
+  disabled,
 }: {
   flow: AddRepositoryFlow
-  variant?: "default" | "outline"
+  variant?: "default" | "outline" | "ghost"
+  /** Where the desktop menu lines up with the button. */
+  align?: "start" | "center" | "end"
+  className?: string
+  disabled?: boolean
 }) {
   const button = (
     <Button
+      // Never a form's submit, inside the New canvas dialog.
+      type="button"
       size="sm"
       variant={variant}
+      className={className}
+      disabled={disabled}
       onClick={isLocalBuild ? undefined : flow.openGitHub}
     >
       <PlusIcon />
@@ -251,7 +263,7 @@ export function NewRepositoryButton({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
       <DropdownMenuContent
-        align="end"
+        align={align}
         // Both items open a dialog (or the native folder picker); handing
         // focus back to the trigger would pull it out of that dialog.
         onCloseAutoFocus={(event) => event.preventDefault()}

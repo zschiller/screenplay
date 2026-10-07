@@ -13,6 +13,7 @@ import { roomChatId } from "@/lib/chat/room-chat"
 import {
   canvasPanels,
   entryState,
+  fixtureFault,
   homeView,
   injectYjsUpdate,
   replayRun,
@@ -891,6 +892,26 @@ export const DOCS_SCREENS: DocsScreen[] = [
       await repository.waitFor({ timeout: 15_000 })
       await page.getByLabel("Name").fill("Pricing page refresh")
       await repository.click()
+      await sleep(page, 300)
+    },
+  }),
+  screen({
+    name: "home-new-canvas-none",
+    description:
+      "New canvas with no saved Repositories: the empty box and New repository.",
+    path: "/files",
+    cookies: fixtureFault("no-presets"),
+    focus: DIALOG,
+    pad: 0,
+    prepare: async (page) => {
+      await page
+        .getByRole("button", { name: "New canvas" })
+        .first()
+        .click({ timeout: 15_000 })
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "New repository" })
+        .waitFor({ timeout: 15_000 })
       await sleep(page, 300)
     },
   }),

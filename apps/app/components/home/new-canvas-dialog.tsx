@@ -14,6 +14,12 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  AddRepositoryDialog,
+  NewRepositoryButton,
+  useAddRepositoryFlow,
+  type AddRepositoryFlow,
+} from "@/components/add-repository-dialog"
 import { RepoTitle } from "@/components/repo-title"
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { listRepositories } from "@/lib/repository-library/actions"
@@ -28,7 +34,8 @@ let lastRepositories: RepoConfig[] | null = null
  * New canvas (#1812): name the Canvas and tick the Repositories it works on,
  * then open it with them switched on. Every New canvas on home opens this,
  * with the folder the Canvas goes into. Repositories are optional, and a
- * blank Name makes “Untitled”.
+ * blank Name makes “Untitled”. New repository runs the add flow over it and
+ * comes back with the new Repository ticked (#1813).
  */
 export function NewCanvasDialog({
   open,
@@ -87,7 +94,10 @@ function NewCanvasForm({
   const [name, setName] = useState("")
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
   const [failed, setFailed] = useState(false)
-  const repositories = useRepositories()
+  const [repositories, setRepositories] = useRepositories()
+  // Today's add flow, over this dialog: backing out of it leaves the name
+  // and ticks as they were.
+  const addRepository = useAddRepositoryFlow()
 
   const toggle = (repositoryId: string, on: boolean) =>
     setTicked((prev) => {
@@ -143,8 +153,17 @@ function NewCanvasForm({
           ticked={ticked}
           disabled={creating}
           onToggle={toggle}
+          addRepository={addRepository}
         />
       </div>
+      <AddRepositoryDialog
+        flow={addRepository}
+        onAdded={(repository, list) => {
+          lastRepositories = list
+          setRepositories(list)
+          toggle(repository.id, true)
+        }}
+      />
       {failed && (
         <p role="alert" className="text-sm text-destructive">
           Couldn’t create the canvas. Try again.
@@ -174,7 +193,7 @@ function NewCanvasForm({
 /** Your Repositories, listed each time the dialog opens; `null` until the
  *  first list arrives. A failed list shows none, as Repositories are
  *  optional. */
-function useRepositories(): RepoConfig[] | null {
+function useRepositories() {
   const [repositories, setRepositories] = useState(lastRepositories)
   useEffect(() => {
     let cancelled = false
@@ -191,7 +210,7 @@ function useRepositories(): RepoConfig[] | null {
       cancelled = true
     }
   }, [])
-  return repositories
+  return [repositories, setRepositories] as const
 }
 
 function RepositoryList({
@@ -200,12 +219,14 @@ function RepositoryList({
   ticked,
   disabled,
   onToggle,
+  addRepository,
 }: {
   idPrefix: string
   repositories: RepoConfig[] | null
   ticked: ReadonlySet<string>
   disabled: boolean
   onToggle: (repositoryId: string, on: boolean) => void
+  addRepository: AddRepositoryFlow
 }) {
   if (repositories === null) {
     return (
@@ -216,41 +237,59 @@ function RepositoryList({
   }
   if (repositories.length === 0) {
     return (
-      <p className="rounded-lg border border-input px-6 py-6 text-center text-muted-foreground">
-        No repositories yet. Add one to preview its code in frames, or skip it
-        and start with mockups and documents.
-      </p>
+      <div className="flex flex-col items-center gap-4 rounded-lg border border-input p-6">
+        <p className="text-center text-muted-foreground">
+          No repositories yet. Add one to preview its code in frames, or skip it
+          and start with mockups and documents.
+        </p>
+        <NewRepositoryButton
+          flow={addRepository}
+          variant="outline"
+          align="center"
+          disabled={disabled}
+        />
+      </div>
     )
   }
   return (
-    <ul className="divide-y divide-input rounded-lg border border-input">
-      {repositories.map((repository) => {
-        const checkboxId = `${idPrefix}-repository-${repository.id}`
-        return (
-          <li key={repository.id}>
-            <label
-              htmlFor={checkboxId}
-              className="flex cursor-pointer items-center gap-3 px-4 py-3"
-            >
-              <Checkbox
-                id={checkboxId}
-                checked={ticked.has(repository.id)}
-                disabled={disabled}
-                onCheckedChange={(checked) =>
-                  onToggle(repository.id, checked === true)
-                }
-              />
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate">
-                  <RepoTitle repo={repository} />
+    <>
+      <ul className="divide-y divide-input rounded-lg border border-input">
+        {repositories.map((repository) => {
+          const checkboxId = `${idPrefix}-repository-${repository.id}`
+          return (
+            <li key={repository.id}>
+              <label
+                htmlFor={checkboxId}
+                className="flex cursor-pointer items-center gap-3 px-4 py-3"
+              >
+                <Checkbox
+                  id={checkboxId}
+                  checked={ticked.has(repository.id)}
+                  disabled={disabled}
+                  onCheckedChange={(checked) =>
+                    onToggle(repository.id, checked === true)
+                  }
+                />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate">
+                    <RepoTitle repo={repository} />
+                  </span>
+                  <RunScripts repository={repository} />
                 </span>
-                <RunScripts repository={repository} />
-              </span>
-            </label>
-          </li>
-        )
-      })}
-    </ul>
+              </label>
+            </li>
+          )
+        })}
+      </ul>
+      <NewRepositoryButton
+        flow={addRepository}
+        variant="ghost"
+        align="start"
+        disabled={disabled}
+        // Its + on the list's edge, like Canvas settings' Manage in Settings.
+        className="-ml-2.5 self-start text-muted-foreground"
+      />
+    </>
   )
 }
 
