@@ -27,6 +27,11 @@ export function chatFrameDriveTools(opts: {
         : viewAgentDriver(opts.room, opts.userId),
     opts.room,
     { kind: "chat", sandboxName: opts.sandboxName },
-    { asker: opts.userId, frames: runtime !== null, files: runtime === "mac" }
+    {
+      asker: opts.userId,
+      frames: runtime !== null,
+      // A file input picks files from the chat's Workspace, on the Mac only.
+      files: runtime === "mac" && opts.sandboxName !== undefined,
+    }
   )
 }

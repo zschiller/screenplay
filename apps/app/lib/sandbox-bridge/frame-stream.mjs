@@ -1737,13 +1737,20 @@ class Frame {
   }
 
   async agentDone(op, target, state = {}) {
-    // A link the gesture followed: report from the page it led to.
+    // A link the gesture followed: report from the page it led to. The old
+    // page says it's leaving the moment the click sets off; the browser's
+    // report can come later.
     const until = Date.now() + AGENT_SETTLE_MS
-    while (this.navigationPending && Date.now() < until) await sleep(50)
-    const after = await this.bridgeSettled({
-      type: "screenplay:drive-state",
-      ...state,
-    })
+    let after
+    for (;;) {
+      while (this.navigationPending && Date.now() < until) await sleep(50)
+      after = await this.bridgeSettled({
+        type: "screenplay:drive-state",
+        ...state,
+      })
+      if (!after.leaving || Date.now() > until) break
+      await sleep(50)
+    }
     const value = { op: op.op, target: target ?? null, path: after.path }
     if (after.value !== undefined) value.value = after.value
     if (after.scrolled) value.scrolled = after.scrolled

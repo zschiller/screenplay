@@ -66,8 +66,11 @@ function tools(
     empty = false,
     frameUnavailable,
     files,
+    sandboxName = "sb-1",
   }: {
     empty?: boolean
+    /** The chat's Workspace; null for a chat with no repository. */
+    sandboxName?: string | null
     /** Whether a click can pick Workspace files (the Mac). */
     files?: boolean
     /** Whether the canvas has a frame loaded, when that differs. */
@@ -113,7 +116,7 @@ function tools(
     tools: buildFrameDriveTools(
       driver,
       r,
-      { kind: "chat", sandboxName: "sb-1" },
+      { kind: "chat", sandboxName: sandboxName ?? undefined },
       { asker: "user-zack", sleep: async () => {}, files }
     ),
   }
@@ -311,6 +314,14 @@ describe("Showing the person (#1390)", () => {
       /isn’t showing this canvas.*Tell the person in chat/
     )
     expect(c.iframeLayers.toArray()).toHaveLength(1)
+  })
+
+  it("gives a chat with no repository no Workspace frame to open, and no view_frame to compare", () => {
+    const { tools: t } = tools(() => DONE, undefined, { sandboxName: null })
+    expect(t).not.toHaveProperty("frame_open")
+    expect(t.frame_screenshot.description).not.toContain("view_frame")
+    const frameId = JSON.stringify(t.frame_click.inputSchema)
+    expect(frameId).not.toContain("Workspace")
   })
 })
 

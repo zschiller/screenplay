@@ -71,7 +71,8 @@ describe("harnessToolNaming", () => {
     const naming = harnessToolNaming("claude-code", "screenplay")
     expect(naming.name("read_skill")).toBe("mcp__screenplay__read_skill")
     expect(bareToolName(naming.name("read_skill"))).toBe("read_skill")
-    expect(naming.note).toBeUndefined()
+    // Skills and tool descriptions name tools bare: the note maps them.
+    expect(naming.note).toContain("`mcp__screenplay__<tool>`")
   })
 
   it("names OpenCode's MCP tools exactly, as bareToolName reads them back (#1589)", () => {
@@ -79,7 +80,7 @@ describe("harnessToolNaming", () => {
       const naming = harnessToolNaming(key, "screenplay")
       expect(naming.name("read_skill")).toBe("screenplay_read_skill")
       expect(bareToolName(naming.name("read_skill"))).toBe("read_skill")
-      expect(naming.note).toBeUndefined()
+      expect(naming.note).toContain("`screenplay_<tool>`")
     }
   })
 
