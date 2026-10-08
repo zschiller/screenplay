@@ -505,6 +505,7 @@ const samePeer = (a: PeerPresence, b: PeerPresence) =>
   a.identity.avatar === b.identity.avatar &&
   a.color === b.color &&
   a.pageId === b.pageId &&
+  a.viewer === b.viewer &&
   sameIds(a.selectedIframeLayerIds, b.selectedIframeLayerIds) &&
   sameIds(a.groupSelectedIframeLayerIds, b.groupSelectedIframeLayerIds)
 
