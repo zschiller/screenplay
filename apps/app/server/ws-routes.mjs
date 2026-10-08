@@ -31,7 +31,11 @@ export function localWsPort(name) {
  */
 export function matchWsRoute(url) {
   for (const [name, prefix] of Object.entries(WS_ROUTES)) {
-    if (url === prefix || url.startsWith(`${prefix}/`) || url.startsWith(`${prefix}?`)) {
+    if (
+      url === prefix ||
+      url.startsWith(`${prefix}/`) ||
+      url.startsWith(`${prefix}?`)
+    ) {
       const rest = url.slice(prefix.length)
       return { name, path: rest.startsWith("/") ? rest : `/${rest}` }
     }

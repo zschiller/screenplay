@@ -8,7 +8,7 @@
 // symlinks; tar preserves them (and the `node` exec bit), so the shell restores
 // a working tree by extracting on first launch.
 //
-// The four additions over the raw standalone tree:
+// The additions over the raw standalone tree:
 //   1. `.next/static` and `public` — standalone never copies these (the hosted
 //      deploy serves them off the CDN; here the sidecar serves them itself).
 //   2. `drizzle/local/*.sql` — read from disk at runtime (not imported), so file
@@ -16,10 +16,12 @@
 //   3. `node-pty`'s native prebuild (`prebuilds/<platform>/pty.node`) — a
 //      dynamically-loaded `.node` the tracer doesn't follow; the local terminal
 //      transport's instrumentation hook crashes on boot without it.
-//   4. the `node` binary itself — the shell runs `./node apps/app/server.js`.
+//   4. the `node` binary itself — the shell runs
+//      `./node apps/app/server/front-server.mjs`.
 //   5. the `portless` package — spawned as a CLI (`node …/portless/dist/cli.js`
 //      by `launchDevAndProxy`), never imported, so tracing misses it; the local
 //      backend runs every Branch's dev script under it.
+//   6. `apps/app/server/`, the front server the shell runs.
 
 import { execFileSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, rmSync, copyFileSync, chmodSync, readdirSync } from "node:fs"
@@ -122,6 +124,14 @@ cpSync(
   join(standaloneApp, "node_modules", "portless"),
   { recursive: true, dereference: true }
 )
+
+log("+ front server")
+// The shell runs it instead of `server.js` (#1931): plain modules loaded
+// outside the bundles, so tracing never sees them.
+cpSync(join(appDir, "server"), join(standaloneApp, "server"), {
+  recursive: true,
+  filter: (file) => !file.endsWith(".test.ts"),
+})
 
 log("+ node runtime")
 copyFileSync(process.execPath, join(standalone, "node"))

@@ -1,7 +1,7 @@
 /**
  * `pnpm headless` (#1930): run Screenplay from this clone on a machine you
  * control. It checks the box, builds the app in production mode, and serves
- * it through the front server (`front-server.mjs`). It keeps no keep-alive:
+ * it through the front server (`server/front-server.mjs`). It keeps no keep-alive:
  * rerun it after the box stops, and everything comes back from the data
  * folder.
  *
@@ -203,14 +203,16 @@ function build(): void {
     path.join(standaloneApp, "node_modules", "portless"),
     { recursive: true, dereference: true }
   )
-  // The front server itself.
-  for (const file of ["front-server.mjs", "banner.mjs", "ws-routes.mjs"]) {
-    mkdirSync(path.join(standaloneApp, "headless"), { recursive: true })
-    cpSync(
-      path.join(appDir, "headless", file),
-      path.join(standaloneApp, "headless", file)
-    )
-  }
+  // The front server itself, and the banner it prints.
+  cpSync(path.join(appDir, "server"), path.join(standaloneApp, "server"), {
+    recursive: true,
+    filter: (file) => !file.endsWith(".test.ts"),
+  })
+  mkdirSync(path.join(standaloneApp, "headless"), { recursive: true })
+  cpSync(
+    path.join(appDir, "headless", "banner.mjs"),
+    path.join(standaloneApp, "headless", "banner.mjs")
+  )
   log("Built.")
 }
 
@@ -312,7 +314,7 @@ async function main(): Promise<void> {
 
   const server = spawn(
     process.execPath,
-    [path.join(standaloneApp, "headless", "front-server.mjs")],
+    [path.join(standaloneApp, "server", "front-server.mjs")],
     {
       cwd: standaloneApp,
       stdio: "inherit",
