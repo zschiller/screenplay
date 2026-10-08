@@ -113,7 +113,7 @@ import {
 } from "@/lib/document-comments"
 import type { ChatQuote } from "@/lib/chat-quote-store"
 import type { MarkdownLayerData } from "@/lib/types"
-import { multiUserSurface } from "@/lib/capabilities"
+import { commenting } from "@/lib/capabilities"
 import { cn } from "@workspace/ui/lib/utils"
 import type { GroupLabelValue } from "@/components/canvas/group-label"
 import {
@@ -1295,9 +1295,10 @@ function MarkdownLayerImpl({
                   >
                     <CodeIcon />
                   </FormatButton>
-                  {((multiUserSurface && onStartInlineComment) ||
-                    onReplyInChat) && <FloatingToolbarSeparator />}
-                  {multiUserSurface && onStartInlineComment && (
+                  {((commenting && onStartInlineComment) || onReplyInChat) && (
+                    <FloatingToolbarSeparator />
+                  )}
+                  {commenting && onStartInlineComment && (
                     <FloatingToolbarButton
                       label="Comment"
                       variant="ghost"

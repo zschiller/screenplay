@@ -1,5 +1,7 @@
 import "server-only"
 
+import { createHash } from "node:crypto"
+
 import { and, desc, eq, inArray, isNull, ne, notExists, sql } from "drizzle-orm"
 import { nanoid } from "nanoid"
 import { getUsersByIds } from "@/lib/auth-helpers"
@@ -10,11 +12,19 @@ import {
   canDeleteComment,
   canDeleteThread,
   canEditComment,
+  canResolveThread,
 } from "@/lib/comment-permissions"
 import { bumpCommentsRead, bumpCommentsRevision } from "@/lib/comments-signals"
 import { db, schema } from "@/lib/db"
-import { multiUserSurface } from "@/lib/capabilities"
-import { openRoom, type RoomAccess, type RoomDoc } from "@/lib/room-access"
+import { commenting } from "@/lib/capabilities"
+import { LOCAL_USER_ID } from "@/lib/local-user"
+import {
+  openRoom,
+  openRoomForViewerComments,
+  type RoomAccess,
+  type RoomDoc,
+} from "@/lib/room-access"
+import type { ViewerPerson } from "@/lib/viewer-identity/types"
 
 /**
  * **Comments**: the server side of comment threads. Every operation opens the
@@ -23,19 +33,41 @@ import { openRoom, type RoomAccess, type RoomDoc } from "@/lib/room-access"
  * reads, and rings the doorbell its change calls for. The server actions in
  * `comments-actions.ts` are transport only.
  *
- * Comments (the `thread`/`comment`/`thread_read` tables) are excluded from the
- * local desktop build (PRD #404, issue #417): those tables don't exist on disk
- * and the comment UI is not surfaced. This flag is the one place that decides
- * it: reads return empty so server components that pre-fetch threads render
- * cleanly, a person's writes refuse, and the agent's hooks do nothing.
+ * Two kinds of people comment: a Room's members (everyone on hosted and
+ * Headless, the host in the Mac app), through the exports below, and a viewer
+ * watching a canvas by its link (Sharing, #1934), through
+ * {@link commentsForViewer}. Both run the same operations; a viewer's are
+ * held to their canvas and may resolve only threads they started.
+ *
+ * The `commenting` capability is the one place that decides whether a build
+ * has them: without it, reads return empty so server components that
+ * pre-fetch threads render cleanly, a person's writes refuse, and the agent's
+ * hooks do nothing.
  */
-const commentsEnabled = multiUserSurface
+const commentsEnabled = commenting
 
 function requireCommentsEnabled(): void {
   if (!commentsEnabled) {
-    throw new Error("Comments aren’t in the desktop app yet.")
+    throw new Error("Comments aren’t in this build.")
   }
 }
+
+/**
+ * Who is commenting, and the Room they comment in: a member's
+ * {@link RoomAccess}, or a viewer's for their canvas alone.
+ */
+interface Commenter extends RoomAccess {
+  viewer: boolean
+}
+
+/** Opens the Room `roomId` for whoever is commenting, or throws. */
+type OpenAs = (roomId: string) => Promise<Commenter>
+
+/** A Room's member, through Room Access. */
+const asMember: OpenAs = async (roomId) => ({
+  ...(await openRoom(roomId)),
+  viewer: false,
+})
 
 /** Thrown when someone edits or deletes what `comment-permissions` says
  *  isn't theirs. Every such case fails with this one error. */
@@ -171,10 +203,11 @@ async function signalReadChange(room: RoomAccess) {
   await room.mutateDoc(({ doc }) => bumpCommentsRead(doc, room.userId))
 }
 
-/** Opens the Room a thread belongs to, for the current session. */
+/** Opens the Room a thread belongs to, for whoever is commenting. */
 async function openThread(
-  threadId: string
-): Promise<{ room: RoomAccess; thread: ThreadRow }> {
+  threadId: string,
+  open: OpenAs
+): Promise<{ room: Commenter; thread: ThreadRow }> {
   requireCommentsEnabled()
   const [thread] = await db
     .select()
@@ -182,12 +215,15 @@ async function openThread(
     .where(eq(schema.thread.id, threadId))
     .limit(1)
   if (!thread) throw new Error("Thread not found")
-  return { room: await openRoom(thread.roomId), thread }
+  return { room: await open(thread.roomId), thread }
 }
 
-/** Opens the Room a comment's thread belongs to, for the current session. */
-async function openComment(commentId: string): Promise<{
-  room: RoomAccess
+/** Opens the Room a comment's thread belongs to, for whoever is commenting. */
+async function openComment(
+  commentId: string,
+  open: OpenAs
+): Promise<{
+  room: Commenter
   comment: typeof schema.comment.$inferSelect
 }> {
   requireCommentsEnabled()
@@ -197,7 +233,7 @@ async function openComment(commentId: string): Promise<{
     .where(eq(schema.comment.id, commentId))
     .limit(1)
   if (!comment) throw new Error("Comment not found")
-  const { room } = await openThread(comment.threadId)
+  const { room } = await openThread(comment.threadId, open)
   return { room, comment }
 }
 
@@ -216,8 +252,15 @@ async function authorOf(
 export async function listThreads(
   roomId: string
 ): Promise<ThreadWithComments[]> {
+  return listThreadsAs(asMember, roomId)
+}
+
+async function listThreadsAs(
+  open: OpenAs,
+  roomId: string
+): Promise<ThreadWithComments[]> {
   if (!commentsEnabled) return []
-  const room = await openRoom(roomId)
+  const room = await open(roomId)
   const threadRows = await placeFeedThreads(
     room,
     await db
@@ -342,8 +385,15 @@ export interface CreateThreadInput {
 export async function createThread(
   input: CreateThreadInput
 ): Promise<ThreadWithComments> {
+  return createThreadAs(asMember, input)
+}
+
+async function createThreadAs(
+  open: OpenAs,
+  input: CreateThreadInput
+): Promise<ThreadWithComments> {
   requireCommentsEnabled()
-  const room = await openRoom(input.roomId)
+  const room = await open(input.roomId)
   const body = requireBody(input.body)
   const threadId = nanoid()
   const commentId = nanoid()
@@ -409,12 +459,19 @@ export async function createThread(
   }
 }
 
-/** Replies in a thread. Any member may. */
+/** Replies in a thread. Anyone who can see it may. */
 export async function appendComment(opts: {
   threadId: string
   body: string
 }): Promise<CommentRecord> {
-  const { room } = await openThread(opts.threadId)
+  return appendCommentAs(asMember, opts)
+}
+
+async function appendCommentAs(
+  open: OpenAs,
+  opts: { threadId: string; body: string }
+): Promise<CommentRecord> {
+  const { room } = await openThread(opts.threadId, open)
   const body = requireBody(opts.body)
   const [row] = await db
     .insert(schema.comment)
@@ -441,7 +498,14 @@ export async function editComment(opts: {
   commentId: string
   body: string
 }): Promise<void> {
-  const { room, comment } = await openComment(opts.commentId)
+  return editCommentAs(asMember, opts)
+}
+
+async function editCommentAs(
+  open: OpenAs,
+  opts: { commentId: string; body: string }
+): Promise<void> {
+  const { room, comment } = await openComment(opts.commentId, open)
   const body = requireBody(opts.body)
   const fromAgent = !!comment.agentChatId
   if (!canEditComment({ authorId: comment.authorId, fromAgent }, room.userId)) {
@@ -468,7 +532,14 @@ export async function editComment(opts: {
 export async function deleteComment(opts: {
   commentId: string
 }): Promise<void> {
-  const { room, comment } = await openComment(opts.commentId)
+  return deleteCommentAs(asMember, opts)
+}
+
+async function deleteCommentAs(
+  open: OpenAs,
+  opts: { commentId: string }
+): Promise<void> {
+  const { room, comment } = await openComment(opts.commentId, open)
   if (!canDeleteComment(comment, room.userId)) throw new NotYourCommentError()
 
   const removeComment = db
@@ -503,12 +574,23 @@ export async function deleteComment(opts: {
   await signalContentChange(room)
 }
 
-/** Resolves or reopens a thread. Any member may. */
+/** Resolves or reopens a thread. Any member may; a viewer, only a thread
+ *  they started (`canResolveThread`). */
 export async function setThreadResolved(opts: {
   threadId: string
   resolved: boolean
 }): Promise<void> {
-  const { room } = await openThread(opts.threadId)
+  return setThreadResolvedAs(asMember, opts)
+}
+
+async function setThreadResolvedAs(
+  open: OpenAs,
+  opts: { threadId: string; resolved: boolean }
+): Promise<void> {
+  const { room, thread } = await openThread(opts.threadId, open)
+  if (!canResolveThread(thread, room.userId, { viewer: room.viewer })) {
+    throw new NotYourCommentError()
+  }
   await db
     .update(schema.thread)
     .set({
@@ -523,14 +605,22 @@ export async function setThreadResolved(opts: {
 /** Deletes a thread and its comments. Only its starter may
  *  (`canDeleteThread`). */
 export async function deleteThread(threadId: string): Promise<void> {
-  const { room, thread } = await openThread(threadId)
+  return deleteThreadAs(asMember, threadId)
+}
+
+async function deleteThreadAs(open: OpenAs, threadId: string): Promise<void> {
+  const { room, thread } = await openThread(threadId, open)
   if (!canDeleteThread(thread, room.userId)) throw new NotYourCommentError()
   await db.delete(schema.thread).where(eq(schema.thread.id, threadId))
   await signalContentChange(room)
 }
 
 export async function markThreadRead(threadId: string): Promise<void> {
-  const { room } = await openThread(threadId)
+  return markThreadReadAs(asMember, threadId)
+}
+
+async function markThreadReadAs(open: OpenAs, threadId: string): Promise<void> {
+  const { room } = await openThread(threadId, open)
   await db
     .insert(schema.threadRead)
     .values({ threadId, userId: room.userId, lastReadAt: new Date() })
@@ -544,7 +634,14 @@ export async function markThreadRead(threadId: string): Promise<void> {
 }
 
 export async function markThreadUnread(threadId: string): Promise<void> {
-  const { room } = await openThread(threadId)
+  return markThreadUnreadAs(asMember, threadId)
+}
+
+async function markThreadUnreadAs(
+  open: OpenAs,
+  threadId: string
+): Promise<void> {
+  const { room } = await openThread(threadId, open)
   await db
     .delete(schema.threadRead)
     .where(
@@ -557,6 +654,94 @@ export async function markThreadUnread(threadId: string): Promise<void> {
   // (relevant when the same user has the room open elsewhere). A read-state
   // change is not a content change, so the room counter stays put.
   await signalReadChange(room)
+}
+
+/**
+ * A viewer's comments on the canvas their link names (Sharing, #1934): the
+ * same operations a member has, as the person the viewer identity named,
+ * held to that one canvas. Null when this request isn't a viewer's or the
+ * key isn't the canvas's own. The first write records the viewer as a user
+ * so their comments carry their name and avatar; reads write nothing.
+ */
+export async function commentsForViewer(
+  roomId: string,
+  key: string
+): Promise<ViewerComments | null> {
+  const viewer = await openRoomForViewerComments(roomId, key)
+  if (!viewer) return null
+  const { person } = viewer
+  // The host's own id is never a viewer's: their comments would be the host's.
+  if (person.id === LOCAL_USER_ID) return null
+  const room: Commenter = { ...viewer.room, viewer: true }
+  const reads: OpenAs = async (id) => {
+    if (id !== roomId) throw new Error("Thread not found")
+    return room
+  }
+  let recorded = false
+  const writes: OpenAs = async (id) => {
+    const opened = await reads(id)
+    if (!recorded) {
+      await recordViewer(person)
+      recorded = true
+    }
+    return opened
+  }
+  return {
+    userId: person.id,
+    listThreads: () => listThreadsAs(reads, roomId),
+    createThread: (input) => createThreadAs(writes, { ...input, roomId }),
+    appendComment: (opts) => appendCommentAs(writes, opts),
+    editComment: (opts) => editCommentAs(writes, opts),
+    deleteComment: (opts) => deleteCommentAs(writes, opts),
+    setThreadResolved: (opts) => setThreadResolvedAs(writes, opts),
+    deleteThread: (threadId) => deleteThreadAs(writes, threadId),
+    markThreadRead: (threadId) => markThreadReadAs(writes, threadId),
+    markThreadUnread: (threadId) => markThreadUnreadAs(writes, threadId),
+  }
+}
+
+export interface ViewerComments {
+  /** The viewer's user id: their comments' author. */
+  userId: string
+  listThreads(): Promise<ThreadWithComments[]>
+  createThread(
+    input: Omit<CreateThreadInput, "roomId">
+  ): Promise<ThreadWithComments>
+  appendComment(opts: {
+    threadId: string
+    body: string
+  }): Promise<CommentRecord>
+  editComment(opts: { commentId: string; body: string }): Promise<void>
+  deleteComment(opts: { commentId: string }): Promise<void>
+  setThreadResolved(opts: {
+    threadId: string
+    resolved: boolean
+  }): Promise<void>
+  deleteThread(threadId: string): Promise<void>
+  markThreadRead(threadId: string): Promise<void>
+  markThreadUnread(threadId: string): Promise<void>
+}
+
+/**
+ * Keeps a viewer's user row current: their id is the one the viewer identity
+ * gave, and their name and avatar follow it. Their address is a placeholder,
+ * as the host's is (`@/lib/local-user`), since nothing mails or matches on it
+ * and a real one could clash with another row's.
+ */
+async function recordViewer(person: ViewerPerson): Promise<void> {
+  const image = person.avatarUrl ?? null
+  await db
+    .insert(schema.user)
+    .values({
+      id: person.id,
+      name: person.name,
+      email: `viewer-${createHash("sha256").update(person.id).digest("hex").slice(0, 24)}@viewers.invalid`,
+      image,
+    })
+    .onConflictDoUpdate({
+      target: schema.user.id,
+      set: { name: person.name, image, updatedAt: new Date() },
+    })
 }
 
 function requireBody(body: string): string {

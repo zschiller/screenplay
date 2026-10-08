@@ -18,11 +18,11 @@ import type { AcpMessageRecord } from "@/lib/agent/acp/record"
 import type { ThumbnailManifest } from "@/lib/thumbnail/manifest"
 
 // The tables that survive into the local desktop build (PRD #404). The
-// multi-user surface — auth (`session`/`account`/`verification`), `room_member`
-// sharing, and `thread`/`comment`/`thread_read` — lives in `./schema-multiuser`
-// and is excluded from the desktop build's PGlite migrations (`drizzle/local`).
-// `./schema.ts` re-exports both halves, so the hosted build's full schema is
-// unchanged. See `@/lib/capabilities`.
+// multi-user surface — auth (`session`/`account`/`verification`) and
+// `room_member` sharing — lives in `./schema-multiuser` and is excluded from
+// the desktop build's PGlite migrations (`drizzle/local`); comment threads
+// (`./schema-comments`) are kept. `./schema.ts` re-exports all three, so the
+// hosted build's full schema is unchanged. See `@/lib/capabilities`.
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),

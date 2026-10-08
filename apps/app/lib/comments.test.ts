@@ -35,6 +35,16 @@ vi.mock("@/lib/auth-helpers", async () => {
   }
 })
 
+// Who the request is from, as the front server named them: the host unless a
+// test says it's a viewer's.
+const role = vi.hoisted(() => ({
+  current: { role: "host" } as
+    { role: "host" } | { role: "viewer"; person: { id: string; name: string } },
+}))
+vi.mock("@/lib/viewer-identity/request", () => ({
+  requestRole: async () => role.current,
+}))
+
 const docs = vi.hoisted(() => new Map<string, import("yjs").Doc>())
 vi.mock("@/lib/yjs-host", async () => {
   const Y = await import("yjs")
@@ -69,6 +79,7 @@ beforeEach(async () => {
   await harness.reset()
   docs.clear()
   session.userId = null
+  role.current = { role: "host" }
   const { db, schema } = await import("@/lib/db")
   await db.insert(schema.user).values([
     { id: "ann", name: "Ann", email: "ann@example.com" },
@@ -344,5 +355,119 @@ describe("doorbells", () => {
     expect(readCommentsRead(roomDoc(), "bob")).toBe(2)
     expect(readCommentsRead(roomDoc(), "ann")).toBe(0)
     expect(readCommentsRevision(roomDoc())).toBe(revision)
+  })
+})
+
+describe("a viewer's comments (Sharing, #1934)", () => {
+  const SECRET = "s".repeat(64)
+  const ANA = { id: "tailscale:ana@example.com", name: "Ana" }
+  let previous: string | undefined
+  beforeAll(() => {
+    previous = process.env.ENCRYPTION_KEY
+    process.env.ENCRYPTION_KEY = SECRET
+  })
+  afterAll(() => {
+    if (previous === undefined) delete process.env.ENCRYPTION_KEY
+    else process.env.ENCRYPTION_KEY = previous
+  })
+
+  async function asViewer(person = ANA, roomId = ROOM) {
+    const { shareKey } = await import("@/server/share-link.mjs")
+    role.current = { role: "viewer", person }
+    const { commentsForViewer } = await comments()
+    const viewer = await commentsForViewer(roomId, shareKey(roomId)!)
+    if (!viewer) throw new Error("expected a viewer")
+    return viewer
+  }
+
+  const at = { x: 1, y: 2, iframeLayerId: null, selector: null }
+  const newThread = (body: string) => ({
+    ...at,
+    offsetX: null,
+    offsetY: null,
+    body,
+  })
+
+  it("is only for a viewer holding the canvas's own key", async () => {
+    const { commentsForViewer } = await comments()
+    const { shareKey } = await import("@/server/share-link.mjs")
+    expect(await commentsForViewer(ROOM, shareKey(ROOM)!)).toBeNull()
+    role.current = { role: "viewer", person: ANA }
+    expect(await commentsForViewer(ROOM, "wrong")).toBeNull()
+    expect(await commentsForViewer(ROOM, shareKey("other")!)).toBeNull()
+    expect(await commentsForViewer(ROOM, shareKey(ROOM)!)).not.toBeNull()
+  })
+
+  it("comments as the viewer, and the host sees it under their name", async () => {
+    const viewer = await asViewer()
+    // Reading writes nothing, the viewer's user row included.
+    expect(await viewer.listThreads()).toEqual([])
+    const { db, schema } = await import("@/lib/db")
+    expect(await db.select().from(schema.user)).toHaveLength(3)
+
+    const thread = await viewer.createThread(newThread("From Ana"))
+    expect(thread).toMatchObject({
+      createdBy: ANA.id,
+      comments: [{ authorId: ANA.id, authorName: "Ana", body: "From Ana" }],
+    })
+    expect(readCommentsRevision(roomDoc())).toBe(1)
+
+    role.current = { role: "host" }
+    as("ann")
+    const { listThreads, appendComment } = await comments()
+    await appendComment({ threadId: thread.id, body: "Thanks" })
+    const [listed] = await listThreads(ROOM)
+    expect(listed!.comments.map((c) => [c.authorName, c.body])).toEqual([
+      ["Ana", "From Ana"],
+      ["Ann", "Thanks"],
+    ])
+  })
+
+  it("replies anywhere but resolves only the viewer's own threads", async () => {
+    as("ann")
+    const hosts = await startThread("The host’s")
+    const viewer = await asViewer()
+    const { NotYourCommentError } = await comments()
+
+    await viewer.appendComment({ threadId: hosts.id, body: "A reply" })
+    await expect(
+      viewer.setThreadResolved({ threadId: hosts.id, resolved: true })
+    ).rejects.toThrow(NotYourCommentError)
+    await expect(
+      viewer.editComment({ commentId: hosts.comments[0]!.id, body: "Mine" })
+    ).rejects.toThrow(NotYourCommentError)
+    await expect(viewer.deleteThread(hosts.id)).rejects.toThrow(
+      NotYourCommentError
+    )
+
+    const own = await viewer.createThread(newThread("Ana’s"))
+    await viewer.setThreadResolved({ threadId: own.id, resolved: true })
+    const listed = await viewer.listThreads()
+    expect(listed.find((t) => t.id === own.id)?.resolved).toBe(true)
+    expect(listed.find((t) => t.id === hosts.id)?.resolved).toBe(false)
+  })
+
+  it("stays on the canvas the link names", async () => {
+    const { db, schema } = await import("@/lib/db")
+    await db
+      .insert(schema.room)
+      .values({ id: "room-2", name: "Other", ownerId: "ann" })
+    await db
+      .insert(schema.roomMember)
+      .values({ roomId: "room-2", userId: "ann", role: "owner" })
+    as("ann")
+    const { createThread } = await comments()
+    const elsewhere = await createThread({
+      roomId: "room-2",
+      ...at,
+      offsetX: null,
+      offsetY: null,
+      body: "Another canvas",
+    })
+    const viewer = await asViewer()
+    await expect(
+      viewer.appendComment({ threadId: elsewhere.id, body: "Hi" })
+    ).rejects.toThrow("Thread not found")
+    expect(await viewer.listThreads()).toEqual([])
   })
 })

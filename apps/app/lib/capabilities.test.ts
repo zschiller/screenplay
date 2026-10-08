@@ -39,6 +39,7 @@ describe("build profiles", () => {
     expect(caps.multiUserSurface).toBe(true)
     expect(caps.macShell).toBe(false)
     expect(caps.viewers).toBe(false)
+    expect(caps.commenting).toBe(true)
     expect(backendsOf(caps)).toEqual({
       SANDBOX_BACKEND: undefined,
       SCREENPLAY_DB: undefined,
@@ -56,6 +57,7 @@ describe("build profiles", () => {
     expect(caps.multiUserSurface).toBe(false)
     expect(caps.macShell).toBe(true)
     expect(caps.viewers).toBe(true)
+    expect(caps.commenting).toBe(true)
     expect(backendsOf(caps)).toEqual({
       SANDBOX_BACKEND: "local",
       SCREENPLAY_DB: "pglite",
@@ -73,6 +75,7 @@ describe("build profiles", () => {
     expect(caps.multiUserSurface).toBe(true)
     expect(caps.macShell).toBe(false)
     expect(caps.viewers).toBe(false)
+    expect(caps.commenting).toBe(true)
     expect(backendsOf(caps)).toEqual({
       SANDBOX_BACKEND: "local",
       SCREENPLAY_DB: "pglite",

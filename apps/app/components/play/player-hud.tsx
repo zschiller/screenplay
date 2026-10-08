@@ -40,7 +40,7 @@ import {
 import { CommentsPanel } from "@/components/canvas/comments-panel"
 import { PlayerKnobs } from "./player-knobs"
 import type { PlayerComments } from "./player-comments"
-import { macShell, multiUserSurface } from "@/lib/capabilities"
+import { macShell, commenting } from "@/lib/capabilities"
 
 type Corner = "tl" | "tr" | "bl" | "br"
 
@@ -359,8 +359,7 @@ export function PlayerHud({
           >
             <SlidersHorizontalIcon />
           </IconButton>
-          {/* Comments are excluded from the local build (PRD #404, #417). */}
-          {multiUserSurface && (
+          {commenting && (
             <>
               <IconButton
                 label="Comment"

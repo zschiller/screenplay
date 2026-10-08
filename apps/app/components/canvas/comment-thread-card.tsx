@@ -24,10 +24,12 @@ import { AgentActivityDots } from "@/components/agent-activity-dots"
 import { useNow } from "@/hooks/use-now"
 import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
 import { isWithAgent, shortCommit } from "@/lib/comments-agent"
+import { useViewing } from "@/lib/viewer/context"
 import {
   canDeleteComment,
   canDeleteThread,
   canEditComment,
+  canResolveThread,
 } from "@/lib/comment-permissions"
 export { threadNumbers } from "@/lib/comments-panel"
 import {
@@ -121,6 +123,11 @@ export function ThreadCard({
   onSendToAgent?: () => void
 }) {
   const [reply, setReply] = useState("")
+  // A viewer resolves only the threads they started (#1934).
+  const viewing = !!useViewing()
+  const canResolve = canResolveThread(thread, currentUserId, {
+    viewer: viewing,
+  })
   // Everyone who has commented is a member too, so their names highlight
   // even before the member list arrives.
   const memberNames = [
@@ -134,14 +141,16 @@ export function ThreadCard({
       <div className="flex min-w-0 items-center gap-1.5">
         {place && <PlaceChip place={place} />}
         <div className="ml-auto flex shrink-0 items-center">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-muted-foreground"
-            onClick={thread.resolved ? onReopen : onResolve}
-          >
-            {thread.resolved ? "Reopen" : "Resolve"}
-          </Button>
+          {canResolve && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={thread.resolved ? onReopen : onResolve}
+            >
+              {thread.resolved ? "Reopen" : "Resolve"}
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <IconButton label="Thread actions">

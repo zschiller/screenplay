@@ -1,8 +1,9 @@
 // What a viewer listener serves (#1931): this list and nothing else. A
 // request no entry allows is refused before Next sees it: a write with 403,
 // a read with 404 once the viewer is identified (or the refused page when
-// they aren't). Sharing's later pieces add their entries here: the canvas
-// link (#1932), chats (#1933) and comments (#1934), the only write.
+// they aren't). Sharing's pieces add their entries here: the canvas link
+// (#1932), chats (#1933) and comments (#1934). Comments are the only write:
+// no other entry may allow a method but GET and HEAD.
 //
 // Plain Node, no TS: the front server loads it outside the app's bundles.
 
@@ -55,6 +56,16 @@ export const VIEWER_ALLOWLIST = [
       )
     },
     example: "/s/room-1/key/mockups/file-1",
+  },
+  {
+    // A viewer's comments on the canvas (#1934): the threads, and the one
+    // write a viewer makes. The route checks the key and the origin, and
+    // runs each operation as the viewer.
+    name: "comments",
+    methods: ["GET", "HEAD", "POST"],
+    identify: true,
+    match: (pathname) => parseSharePath(pathname)?.rest === "comments",
+    example: "/s/room-1/key/comments",
   },
   {
     // A Mockup page's own files, behind a token signed for one Mockup.

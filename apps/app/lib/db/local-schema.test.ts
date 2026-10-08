@@ -13,11 +13,11 @@ import {
 } from "./schema"
 
 // The desktop build boots PGlite against the `drizzle/local` migration set,
-// which drizzle-kit generates from `schema-core` alone. This pins the
-// subtractive half of issue #417: the multi-user surface — GitHub OAuth
-// (session/account/verification), room_member sharing, and
-// thread/comment/thread_read — must not exist in the local database, while the
-// surviving tables still do.
+// which drizzle-kit generates from `schema-core` and `schema-comments`. This
+// pins the subtractive half of issue #417: the multi-user surface — GitHub
+// OAuth (session/account/verification) and room_member sharing — must not exist
+// in the local database, while the surviving tables, comment threads included
+// (the host and their viewers comment, #1934), still do.
 describe("local PGlite schema", () => {
   // Both assertions only read the migrated schema (no writes), so boot one
   // in-memory PGlite for the file instead of paying a fresh ~2s WASM boot per
@@ -33,8 +33,10 @@ describe("local PGlite schema", () => {
   afterAll(() => handle.close())
 
   it("creates the surviving tables", async () => {
-    // A query against a migrated core table resolves (empty result, no throw).
-    await expect(db.select().from(user)).resolves.toEqual([])
+    // A query against a migrated table resolves (empty result, no throw).
+    for (const table of [user, thread, comment, threadRead]) {
+      await expect(db.select().from(table)).resolves.toEqual([])
+    }
   })
 
   it("excludes every multi-user table", async () => {
@@ -43,9 +45,6 @@ describe("local PGlite schema", () => {
       ["account", account],
       ["verification", verification],
       ["room_member", roomMember],
-      ["thread", thread],
-      ["comment", comment],
-      ["thread_read", threadRead],
     ] as const
 
     for (const [name, table] of excluded) {

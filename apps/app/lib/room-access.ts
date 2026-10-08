@@ -96,6 +96,25 @@ export async function openRoomForViewer(
 }
 
 /**
+ * A Room for a viewer's comments on the canvas their link names (Sharing,
+ * #1934), as the person the viewer listener named. The handle rings the
+ * comment doorbells like a member's; the Comments module is its one user and
+ * keeps the viewer to their canvas and their own threads. Null for anyone
+ * else, the host included, and for a key that isn't the canvas's own.
+ */
+export async function openRoomForViewerComments(
+  roomId: string,
+  key: string
+): Promise<{ room: RoomAccess; person: ViewerPerson } | null> {
+  const role = await requestRole()
+  if (role.role !== "viewer" || !isShareKey(roomId, key)) return null
+  return {
+    room: { ...roomDoc(roomId), userId: role.person.id, role: "viewer" },
+    person: role.person,
+  }
+}
+
+/**
  * Read and write a Room's doc for the PR Watch tick (#1702): server work no
  * request started, which acts for each Branch's owner rather than a session.
  * The tick checks that owner is still a member before reading GitHub with
