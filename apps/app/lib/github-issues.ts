@@ -1,5 +1,5 @@
 import { markAgentPost, unmarkAgentPost } from "@/lib/agent-post-mark"
-import { githubAccess } from "@/lib/github-access"
+import { GITHUB_API_URL } from "@/lib/github-access/urls"
 
 /**
  * GitHub issues and comments over the REST API, for the agent's GitHub tools
@@ -264,7 +264,7 @@ export function gitHubIssuesClient(
     "X-GitHub-Api-Version": "2022-11-28",
   }
   const path = (repo: GitHubRepoRef, rest: string) =>
-    `${githubAccess.apiUrl}/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}${rest}`
+    `${GITHUB_API_URL}/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}${rest}`
 
   async function call<T>(
     url: string,
@@ -341,7 +341,7 @@ export function gitHubIssuesClient(
         .filter(Boolean)
         .join(" ")
       const data = await call<{ items: RawIssue[] }>(
-        `${githubAccess.apiUrl}/search/issues?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=30`
+        `${GITHUB_API_URL}/search/issues?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=30`
       )
       return data.items.map(summary)
     },

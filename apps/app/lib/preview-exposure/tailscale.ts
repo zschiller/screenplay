@@ -87,7 +87,6 @@ export function tailscaleExposure(
   }
 
   return {
-    bind: { host: "127.0.0.1" },
     async expose(port): Promise<ExposedPort> {
       const name = await tailnetName()
       try {

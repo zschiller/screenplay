@@ -1,8 +1,6 @@
 import "server-only"
 
-import { optionUrl, rejectUnknownOptions } from "./options"
 import type { GitHubAccess, GitIdentity } from "./types"
-import { GITHUB_DOT_COM, githubUrlsForHostname } from "./urls"
 
 export const OAUTH_ACCOUNT_ID = "oauth-account"
 
@@ -11,24 +9,16 @@ export const OAUTH_ACCOUNT_ID = "oauth-account"
  * Auth stored on their `account` row when they signed in with GitHub, and git
  * is brokered: their token per command and their `user` row as author, so
  * every push and commit in a shared sandbox is attributed to whoever drove it.
- *
- * Options: `apiUrl` / `webUrl` (default github.com).
  */
-export function createOAuthAccountAccess(
-  options: Record<string, unknown>
-): GitHubAccess {
-  rejectUnknownOptions(OAUTH_ACCOUNT_ID, options, ["apiUrl", "webUrl"])
-  const derived = githubUrlsForHostname(GITHUB_DOT_COM)
+export function createOAuthAccountAccess(): GitHubAccess {
   return {
     id: OAUTH_ACCOUNT_ID,
-    apiUrl: optionUrl(OAUTH_ACCOUNT_ID, options, "apiUrl") ?? derived.apiUrl,
-    webUrl: optionUrl(OAUTH_ACCOUNT_ID, options, "webUrl") ?? derived.webUrl,
     apiToken: accountToken,
     git: { kind: "brokered", token: accountToken, identity: userIdentity },
   }
 }
 
-// The db loads on first use, so modules that only read `apiUrl` (and their
+// The db loads on first use, so modules that only read `id` or `git` (and their
 // tests) don't open a database.
 async function accountToken(userId: string): Promise<string | null> {
   const { db, schema } = await import("@/lib/db")

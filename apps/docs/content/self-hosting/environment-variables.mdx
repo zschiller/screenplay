@@ -131,21 +131,6 @@ Choose `TERMINAL_AUTH` based on who uses the deployment:
 | `PORT` | Optional | The port the app listens on. Local URLs and the local WebSocket servers’ origin check use it. Default: `3000`. |
 | `CHROMIUM_PATH` | Optional | Chromium binary for thumbnail capture outside Vercel. Defaults to Puppeteer’s bundled browser. |
 
-## Outbound network
-
-For a server behind a company proxy or certificate authority. Set them in the
-environment the server starts with, not in `.env.local`: Node reads them once
-at startup, and the coding CLIs, git and previews the server starts inherit
-them. See [Locked-down network](/self-hosting/configuration/locked-down-network).
-
-| Variable | Required | Description |
-| --- | --- | --- |
-| `HTTPS_PROXY` | If behind a proxy | The proxy every request off the machine goes through, e.g. `http://proxy.corp:3128`. Set `https_proxy` to the same value too, because some tools read only the lowercase spelling. Thumbnail capture sends Chromium through it as well. |
-| `HTTP_PROXY` | If behind a proxy | The same proxy, for plain-HTTP requests. Set `http_proxy` to match. |
-| `NO_PROXY` | If behind a proxy | Comma-separated hosts reached directly: always `localhost,127.0.0.1,::1,.localhost`, plus any internal hosts the proxy can’t reach. A leading dot matches every subdomain. Set `no_proxy` to match. |
-| `NODE_USE_ENV_PROXY` | If behind a proxy | Set to `1`. Without it, Node’s own requests ignore the proxy variables. Needs Node 22.21 or later. |
-| `NODE_EXTRA_CA_CERTS` | If behind a company CA | A PEM file of extra certificate authorities to trust, added to Node’s built-in ones. Thumbnail capture fetches a preview’s off-box files through the server when it’s set, so they’re trusted too. |
-
 ## Build switches
 
 These pick a build profile and select alternative backends. A profile implies
@@ -169,7 +154,6 @@ leaves them all unset.
 | `THUMBNAIL_CAPTURER` | Optional | `tauri-webview`: capture thumbnails in the desktop webview. |
 | `GITHUB_ACCESS` | Optional | `oauth-account` or `gh-cli`: which GitHub access the server uses. Default: `oauth-account` on Hosted, `gh-cli` on the desktop app and Headless. See [GitHub access](/self-hosting/configuration/github-access#picking-one). |
 | `PREVIEW_EXPOSURE` | Optional | `loopback` (the default everywhere) or `tailscale`, which serves each preview over your tailnet. See [Preview exposure](/self-hosting/configuration/preview-exposure#picking-one). |
-| `CODING_CLIS` | Optional | Comma-separated coding CLIs the host offers, in the order the model menu lists them: `claude-code`, `codex`, `opencode`. Default: every one the machine has. See [Coding CLIs](/self-hosting/configuration/byo-harnesses#choosing-the-clis-on-the-host). |
 | `VIEWER_IDENTITY` | Optional | `tailscale`, the only built-in and the default: who each person watching a shared canvas in the desktop app is. See [Viewer identity](/self-hosting/configuration/viewer-identity#picking-one). |
 
 ## Desktop build

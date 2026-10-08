@@ -125,7 +125,7 @@ export class RefAlreadyOpenError extends Error {
  */
 export class LocalSandboxProvider implements SandboxProvider {
   private readonly root: string
-  private readonly ports = new PortAllocator(() => getPreviewExposure().bind)
+  private readonly ports = new PortAllocator()
   /** Claims every persisted Sandbox's ports once, before the first allocation. */
   private claimed: Promise<void> | null = null
 
@@ -225,11 +225,7 @@ export class LocalSandboxProvider implements SandboxProvider {
     }
 
     const browserPorts = opts.browserPorts ?? []
-    const portMap = await this.allocatePorts(
-      opts.name,
-      opts.ports,
-      browserPorts
-    )
+    const portMap = await this.allocatePorts(opts.name, opts.ports)
     const meta: SandboxMeta = {
       baseDir: manager.repoPath,
       portMap,
@@ -310,8 +306,8 @@ export class LocalSandboxProvider implements SandboxProvider {
     for (const logical of meta.browserPorts ?? []) {
       const hostPort = meta.portMap[String(logical)]
       if (hostPort === undefined) continue
-      await getPreviewExposure().release(hostPort)
       if (hostTunnel) await removeHostRoute(hostPort)
+      else await getPreviewExposure().release(hostPort)
     }
     for (const logical of Object.keys(meta.portMap)) {
       this.ports.release(portKey(name, Number(logical)))
@@ -360,15 +356,13 @@ export class LocalSandboxProvider implements SandboxProvider {
 
   private async allocatePorts(
     name: string,
-    ports: number[],
-    browserPorts: number[]
+    ports: number[]
   ): Promise<Record<string, number>> {
     await (this.claimed ??= this.claimPersistedPorts())
     const portMap: Record<string, number> = {}
     for (const logical of ports) {
       portMap[String(logical)] = await this.ports.allocate(
-        portKey(name, logical),
-        { exposed: browserPorts.includes(logical) }
+        portKey(name, logical)
       )
     }
     return portMap
@@ -377,7 +371,7 @@ export class LocalSandboxProvider implements SandboxProvider {
   /**
    * Every Sandbox a previous run left keeps its ports: they're in its meta,
    * and its dev server and proxy relaunch on them. Claim them so a new
-   * Sandbox never takes one, which a port range would otherwise do first.
+   * Sandbox never takes one.
    */
   private async claimPersistedPorts(): Promise<void> {
     for (const name of await this.metaNames()) {
@@ -552,12 +546,11 @@ function makeInstance(
       return `http://127.0.0.1:${forwarded(port)}`
     },
     // A browser-facing port goes out through the preview exposure; `loopback`
-    // answers `http://localhost:<hostPort>`, as `domain` does.
-    // On Headless the host's own frames go through portless instead (#1930):
-    // the configured exposure is for viewers, so it still runs, but its
-    // origin and sign-in aren't what the host loads. In the Mac app the host's
-    // frames stay on loopback, and the exposure is for viewers too (Sharing,
-    // #1932): a viewer's frame asks for its origin when it opens.
+    // (the Mac app) answers `http://localhost:<hostPort>`, as `domain` does.
+    // On Headless the host's frames go through portless instead (#1930). In
+    // the Mac app the host's frames stay on loopback, and the exposure is for
+    // viewers (Sharing, #1932): a viewer's frame asks for its origin when it
+    // opens.
     async expose(port: number) {
       const bound = forwarded(port)
       if (viewers) {
@@ -566,15 +559,6 @@ function makeInstance(
         return { browserOrigin }
       }
       if (hostTunnel) {
-        await getPreviewExposure()
-          .expose(bound)
-          .catch((err: unknown) =>
-            console.warn(
-              `[preview-exposure] exposing port ${bound} for viewers failed: ${
-                err instanceof Error ? err.message : String(err)
-              }`
-            )
-          )
         const browserOrigin = await addHostRoute(bound)
         await onExposed?.(String(port), browserOrigin)
         return { browserOrigin }

@@ -1,7 +1,7 @@
 import "server-only"
 
 import { isAgentPost } from "@/lib/agent-post-mark"
-import { githubAccess } from "@/lib/github-access"
+import { GITHUB_API_URL } from "@/lib/github-access/urls"
 import {
   failingCheckNames,
   isConflicted,
@@ -32,7 +32,7 @@ export function githubPrReader(
 }
 
 function get(token: string, path: string): Promise<Response> {
-  return fetch(`${githubAccess.apiUrl}/repos/${path}`, {
+  return fetch(`${GITHUB_API_URL}/repos/${path}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",

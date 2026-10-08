@@ -7,6 +7,7 @@ import { fixtureUnsavedWork } from "@/lib/fixture-git"
 import { isFixtureWorld } from "@/lib/fixture-world"
 import { createBranch, renameBranch } from "@/lib/github-actions"
 import { githubAccess } from "@/lib/github-access"
+import { GITHUB_WEB_URL } from "@/lib/github-access/urls"
 import { isSandboxRunning, sandboxProvider } from "@/lib/sandbox"
 import { runSandboxAction, step } from "@/lib/sandbox/run"
 import type { SandboxActionResult } from "@/lib/sandbox/run"
@@ -292,7 +293,7 @@ export async function configureAgentGit(
       "remote",
       "set-url",
       "origin",
-      `${githubAccess.webUrl}/${repo.repoOwner}/${repo.repoName}.git`,
+      `${GITHUB_WEB_URL}/${repo.repoOwner}/${repo.repoName}.git`,
     ])
 
     // Per-command credential helper: git invokes it whenever it needs GitHub

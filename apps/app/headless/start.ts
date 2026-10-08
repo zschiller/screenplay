@@ -28,7 +28,6 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { HARNESSES } from "@/lib/agent/harnesses"
-import { selectCodingClis } from "@/lib/agent/harnesses/coding-cli"
 import { selectGitHubAccess } from "@/lib/github-access"
 import { GH_CLI_ID } from "@/lib/github-access/gh-cli"
 import { PORTLESS_PROXY_PORT } from "@/lib/sandbox/portless"
@@ -89,11 +88,9 @@ async function findChrome(): Promise<string | null> {
 
 async function setupCheck(): Promise<string | null> {
   const chrome = await findChrome()
-  let codingClis: string[] | null
-  let githubCommand: string | null
+  let needsGh: boolean
   try {
-    codingClis = selectCodingClis()?.map((cli) => cli.hostBinary) ?? null
-    githubCommand = selectGitHubAccess().id === GH_CLI_ID ? "gh" : null
+    needsGh = selectGitHubAccess().id === GH_CLI_ID
   } catch (err) {
     fail([
       `Screenplay won’t start: ${err instanceof Error ? err.message : err}`,
@@ -107,9 +104,8 @@ async function setupCheck(): Promise<string | null> {
       chrome,
     },
     {
-      codingClis,
-      builtInClis: [...new Set(HARNESSES.map((h) => h.hostBinary))],
-      githubCommand,
+      codingClis: [...new Set(HARNESSES.map((h) => h.hostBinary))],
+      needsGh,
     }
   )
   if (missing.length > 0) {

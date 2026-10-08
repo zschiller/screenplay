@@ -2,7 +2,7 @@ import "server-only"
 
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import type { ModelInfo, ModelProvider } from "@/lib/agent/providers"
-import { hostCatalog, resolveLaunchArgv, selectHarnesses } from "./index"
+import { HARNESSES, resolveLaunchArgv, selectHarnesses } from "./index"
 import {
   defaultHostBinaryProber,
   detectInstalledHarnessKeys,
@@ -10,7 +10,7 @@ import {
   type HostBinaryProber,
 } from "./host-binary"
 import { encodeHarnessModelId } from "./model-id"
-import { type HostHarness } from "./types"
+import { type Harness } from "./types"
 
 /**
  * The **Harness Availability** seam (issue #476, parent #466): the single
@@ -50,7 +50,7 @@ export interface HarnessStatus {
 
 /** A harness the deployment can offer, paired with its availability status. */
 export interface AvailableHarness {
-  harness: HostHarness
+  harness: Harness
   status: HarnessStatus
 }
 
@@ -245,14 +245,13 @@ export function createHostedResolver(
  * live setup status does).
  */
 export function createDesktopResolver(
-  opts: { harnesses?: HostHarness[]; probe?: HostBinaryProber } = {}
+  opts: { harnesses?: Harness[]; probe?: HostBinaryProber } = {}
 ): HarnessResolver {
+  const harnesses = opts.harnesses ?? HARNESSES
   const probe = opts.probe ?? defaultHostBinaryProber
   let detected: Promise<Set<string>> | undefined
   return {
     async list() {
-      // Read per call: the host's configured Coding CLIs are set at start.
-      const harnesses = opts.harnesses ?? hostCatalog()
       detected ??= detectInstalledHarnessKeys(harnesses, probe)
       const present = await detected
       return hostHarnesses(harnesses)

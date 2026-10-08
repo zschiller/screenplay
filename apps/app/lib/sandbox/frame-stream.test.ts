@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  getPreviewExposure,
-  loopbackExposure,
-  urlTemplateExposure,
-} from "@/lib/preview-exposure"
+import { getPreviewExposure, loopbackExposure } from "@/lib/preview-exposure"
 import type {
   SandboxCommandResult,
   SandboxInstance,
@@ -90,10 +86,14 @@ describe("ensureFrameStream", () => {
     vi.unstubAllEnvs()
   })
 
-  it("binds where the preview exposure says, and hands browsers the exposed origin", async () => {
-    setPreviewExposure(
-      urlTemplateExposure({ origin: "https://{port}-box.corp.example" })
-    )
+  it("binds loopback, and hands browsers the exposed origin", async () => {
+    setPreviewExposure({
+      // A fork's exposure, serving each port at its own origin.
+      expose: async (port) => ({
+        browserOrigin: `https://${port}-box.tailnet.example`,
+      }),
+      release: async () => {},
+    })
     const launches: SandboxRunCommandOptions[] = []
     fake.sandbox = fakeSandbox(launches)
 
@@ -101,12 +101,12 @@ describe("ensureFrameStream", () => {
 
     expect(launches[0]!.env).toMatchObject({
       SCREENPLAY_STREAM_PORT: String(STREAM_HOST_PORT),
-      SCREENPLAY_STREAM_HOST: "0.0.0.0",
+      SCREENPLAY_STREAM_HOST: "127.0.0.1",
     })
     expect(result).toEqual({
       success: true,
       value: {
-        url: `wss://${STREAM_HOST_PORT}-box.corp.example`,
+        url: `wss://${STREAM_HOST_PORT}-box.tailnet.example`,
         // The server's own connection stays on loopback.
         internalUrl: `ws://127.0.0.1:${STREAM_HOST_PORT}`,
       },

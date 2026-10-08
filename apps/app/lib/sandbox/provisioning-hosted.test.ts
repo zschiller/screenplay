@@ -110,7 +110,6 @@ vi.mock("@/lib/sandbox", () => ({
 vi.mock("@/lib/github-access", () => ({
   get githubAccess() {
     return {
-      webUrl: "https://github.com",
       git: backend.hostGitAuth
         ? { kind: "host" }
         : {

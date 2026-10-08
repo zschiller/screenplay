@@ -22,12 +22,10 @@ export interface SetupFacts {
 }
 
 export interface SetupNeeds {
-  /** The commands of the Coding CLIs `CODING_CLIS` picks, or null for the built-in list. */
-  codingClis: string[] | null
-  /** Any of these is enough when `codingClis` is null. */
-  builtInClis: string[]
-  /** The command that stands in for `gh`, or null when GitHub access needs none. */
-  githubCommand: string | null
+  /** The coding CLIs' commands; any one is enough. */
+  codingClis: string[]
+  /** Whether GitHub access runs `gh` (`gh-cli`). */
+  needsGh: boolean
 }
 
 /** Every missing prerequisite, one line each; empty when the box is ready. */
@@ -62,25 +60,11 @@ export function missingPrerequisites(
     )
   }
 
-  if (needs.codingClis) {
-    for (const command of needs.codingClis) {
-      if (!facts.onPath(command)) {
-        missing.push(`The coding CLI ${command}, which CODING_CLIS lists`)
-      }
-    }
-  } else if (!needs.builtInClis.some((c) => facts.onPath(c))) {
-    missing.push(
-      `A coding CLI: one of ${needs.builtInClis.join(", ")}, or name yours in CODING_CLIS`
-    )
+  if (!needs.codingClis.some((c) => facts.onPath(c))) {
+    missing.push(`A coding CLI: one of ${needs.codingClis.join(", ")}`)
   }
 
-  if (needs.githubCommand && !facts.onPath(needs.githubCommand)) {
-    missing.push(
-      needs.githubCommand === "gh"
-        ? "The GitHub CLI, gh"
-        : `The GitHub command ${needs.githubCommand}, which GitHub access runs`
-    )
-  }
+  if (needs.needsGh && !facts.onPath("gh")) missing.push("The GitHub CLI, gh")
 
   return missing
 }
