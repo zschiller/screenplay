@@ -168,7 +168,7 @@ leaves them all unset.
 | `SCREENPLAY_ACP_HARNESS` | Optional | With `AGENT_ENGINE=external`, the coding CLI a chat uses when it hasn’t picked one: `claude-code`, `codex`, `opencode-gateway` or `opencode-compat`. Default: `claude-code`. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
 | `THUMBNAIL_CAPTURER` | Optional | `tauri-webview`: capture thumbnails in the desktop webview. |
 | `GITHUB_ACCESS` | Optional | `oauth-account` or `gh-cli`: which GitHub access the server uses. Default: `oauth-account` on Hosted, `gh-cli` on the desktop app and Headless. See [GitHub access](/self-hosting/configuration/github-access#picking-one). |
-| `PREVIEW_EXPOSURE` | Optional | `loopback`, the only one that takes no options and the default everywhere. See [Preview exposure](/self-hosting/configuration/preview-exposure#picking-one). |
+| `PREVIEW_EXPOSURE` | Optional | `loopback` (the default everywhere) or `tailscale`, which serves each preview over your tailnet. See [Preview exposure](/self-hosting/configuration/preview-exposure#picking-one). |
 | `CODING_CLIS` | Optional | Comma-separated coding CLIs the host offers, in the order the model menu lists them: `claude-code`, `codex`, `opencode`. Default: every one the machine has. See [Coding CLIs](/self-hosting/configuration/byo-harnesses#choosing-the-clis-on-the-host). |
 
 ## Desktop build

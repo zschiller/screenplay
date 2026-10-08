@@ -2,6 +2,7 @@ import "server-only"
 
 import { backendSwitch } from "@/lib/capabilities"
 import { loopbackExposure } from "@/lib/preview-exposure/builtins"
+import { tailscaleExposure } from "@/lib/preview-exposure/tailscale"
 import type { PreviewExposure } from "@/lib/preview-exposure/types"
 
 export {
@@ -10,6 +11,8 @@ export {
   previewExposureOptions,
   urlTemplateExposure,
 } from "@/lib/preview-exposure/builtins"
+export { tailscaleExposure } from "@/lib/preview-exposure/tailscale"
+export type { TailscaleExposureOptions } from "@/lib/preview-exposure/tailscale"
 export type {
   PreviewExposureId,
   PreviewExposureOptions,
@@ -22,16 +25,20 @@ export type {
 
 /**
  * Pick this server's preview exposure: `PREVIEW_EXPOSURE` when set, else
- * `loopback`, every profile's default. `url-template` and `command` need
- * options, so a fork that wants one (or its own) changes this function. Throws
- * on an id it doesn't know.
+ * `loopback`, every profile's default. `tailscale` serves each port over the
+ * Mac's tailnet name (Sharing). `url-template` and `command` need options, so
+ * a fork that wants one (or its own) changes this function. Throws on an id it
+ * doesn't know.
  */
 export function selectPreviewExposure(
   env: Record<string, string | undefined> = process.env
 ): PreviewExposure {
   const id = backendSwitch("PREVIEW_EXPOSURE", env) ?? "loopback"
   if (id === "loopback") return loopbackExposure()
-  throw new Error(`PREVIEW_EXPOSURE "${id}" isn’t known (known: loopback)`)
+  if (id === "tailscale") return tailscaleExposure()
+  throw new Error(
+    `PREVIEW_EXPOSURE "${id}" isn’t known (known: loopback, tailscale)`
+  )
 }
 
 /**
