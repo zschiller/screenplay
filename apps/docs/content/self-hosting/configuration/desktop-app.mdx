@@ -103,7 +103,7 @@ key, or a link for a canvas you deleted, shows nothing. There’s no home screen
 for viewers either: a link opens one canvas, and nothing else.
 
 Links work only on the **viewer listener**, which serves a short list of reads
-and refuses every write (see [Viewer identity](/self-hosting/configuration/viewer-identity)).
+and refuses every write but comments (see [Viewer identity](/self-hosting/configuration/viewer-identity)).
 Someone who opens a link there watches the canvas live, as themselves:
 
 - **The canvas**, as you change it. A viewer can’t change it: the server drops
@@ -117,8 +117,15 @@ Someone who opens a link there watches the canvas live, as themselves:
   their page claims.
 - **Every chat** on the canvas: its messages, steps and plans, live as the
   agent works, and the earlier turns from before they opened the link.
+- **Comments**: a viewer can [comment](/guides/collaboration#comments) on a
+  frame, a document or the canvas, reply to any thread, and edit or delete
+  their own comments, all under their own name. They can resolve and reopen
+  only the threads they started, and can’t send a thread to an agent. You see
+  their comments as they post them and reply from your own canvas; your
+  comments reach them the same way. Comments are the only thing a viewer can
+  write.
 
-A viewer only watches. None of these show on their page, and the viewer
+A viewer otherwise only watches. None of these show on their page, and the viewer
 listener refuses the requests behind them:
 
 - Sending a message, stopping a turn, or starting a new chat

@@ -96,6 +96,13 @@ describe("Room Access guard", () => {
     ).toBe(true)
   })
 
+  it("the viewer's comment writer is used only by the Comments module", () => {
+    const users = filesMatching(/\bopenRoomForViewerComments\b/).filter(
+      (file) => file !== "lib/room-access.ts"
+    )
+    expect(users).toEqual(["lib/comments.ts"])
+  })
+
   it("the session-less writer is used only by the PR Watch tick", () => {
     const users = filesMatching(/\bopenRoomForPrWatchTick\b/).filter(
       (file) => file !== "lib/room-access.ts"

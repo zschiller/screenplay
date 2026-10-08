@@ -9,7 +9,7 @@ import {
 import { SidebarGroupLabel } from "@workspace/ui/components/sidebar"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
-import { buildIdentity, multiUserSurface } from "@/lib/capabilities"
+import { buildIdentity, commenting } from "@/lib/capabilities"
 import type { PanelLayout } from "@/lib/panel-layout"
 
 /**
@@ -114,7 +114,7 @@ export function CanvasSkeleton({
             <PillIcon icon={<NavigationArrowIcon />} />
             <PillIcon icon={<FrameCornersIcon />} />
             <PillIcon icon={<FileTextIcon />} />
-            {multiUserSurface && <PillIcon icon={<ChatIcon />} />}
+            {commenting && <PillIcon icon={<ChatIcon />} />}
           </Pill>
         </div>
       </div>

@@ -25,7 +25,9 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useNow } from "@/hooks/use-now"
 import { useAppSession } from "@/lib/auth-client"
 import type { Placement } from "@/lib/comment-anchor"
+import { canResolveThread } from "@/lib/comment-permissions"
 import type { ThreadWithComments } from "@/lib/comments"
+import { useViewing } from "@/lib/viewer/context"
 import {
   filterThreads,
   groupThreads,
@@ -158,6 +160,7 @@ export function CommentsPanel({
   const { threads, markRead, setResolved } = commentThreads
   const { data: session } = useAppSession()
   const userId = session?.user.id ?? null
+  const viewing = !!useViewing()
   const [filter, setFilter] = useState<CommentFilter>("open")
   const [selectedId, setSelectedId] = useState<string | null>(activeThreadId)
   const [openDetachedId, setOpenDetachedId] = useState<string | null>(null)
@@ -253,6 +256,7 @@ export function CommentsPanel({
     if (e.key === "e") {
       const thread = ordered[index]
       if (!thread) return
+      if (!canResolveThread(thread, userId, { viewer: viewing })) return
       e.preventDefault()
       setResolved(thread.id, !thread.resolved)
       // It leaves this filter's list: move on to the one after it.

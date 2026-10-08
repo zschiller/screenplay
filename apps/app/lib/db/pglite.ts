@@ -30,8 +30,8 @@ export interface PgliteHandle {
 
 // The migration set drizzle-kit writes for this profile. The Mac app (and
 // tests, which run PGlite under the default profile) has no
-// multi-user surface (auth, room_member, comments; PRD #404, issue #417), so it
-// runs `drizzle/local`, generated from `schema-core` alone (see
+// multi-user surface (auth, room_member; PRD #404, issue #417), so it runs
+// `drizzle/local`, generated from `schema-core` and `schema-comments` (see
 // drizzle.local.config.ts), and those tables are never created on disk.
 // Headless has the multi-user surface, so it runs the full hosted `drizzle/`
 // history, as the screenshot harness's hosted capture already does on PGlite.

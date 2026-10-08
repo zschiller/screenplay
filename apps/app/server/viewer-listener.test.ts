@@ -144,6 +144,42 @@ describe("a viewer listener", () => {
     expect(seen).toEqual([])
   })
 
+  it("takes comments as the only write", async () => {
+    // Every entry but comments serves reads alone (#1934).
+    const writes = VIEWER_ALLOWLIST.flatMap((entry) =>
+      entry.methods
+        .filter((m) => m !== "GET" && m !== "HEAD")
+        .map((m) => `${m} ${entry.name}`)
+    )
+    expect(writes).toEqual(["POST comments"])
+
+    const { base, seen } = await viewerListener(identified)
+    const res = await fetch(`${base}/s/room-1/key/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "reply", threadId: "t1", body: "Hi" }),
+    })
+    expect(res.status).toBe(200)
+    expect(seen).toEqual([
+      {
+        url: "/s/room-1/key/comments",
+        method: "POST",
+        viewer: ANA,
+        refusal: null,
+      },
+    ])
+  })
+
+  it("refuses a server action posted to the comments path", async () => {
+    const { base, seen } = await viewerListener(identified)
+    const res = await fetch(`${base}/s/room-1/key/comments`, {
+      method: "POST",
+      headers: { "Next-Action": "abc123" },
+    })
+    expect(res.status).toBe(403)
+    expect(seen).toEqual([])
+  })
+
   it("serves no terminal data", async () => {
     const { base, seen } = await viewerListener(identified)
     for (const path of [

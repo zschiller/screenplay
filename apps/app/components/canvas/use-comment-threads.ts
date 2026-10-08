@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { useAppSession } from "@/lib/auth-client"
-import { useViewing } from "@/lib/viewer/context"
+import { useViewing, type Viewing } from "@/lib/viewer/context"
+import { viewerCommentsClient } from "@/lib/viewer/comments-client"
 import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
+import type { NewThreadInput } from "@/lib/comment-input"
 import {
   appendCommentAction,
   createThreadAction,
@@ -41,7 +43,26 @@ const FAILED = {
 
 /** A new thread: where it points and its first comment. The Room is the
  *  store's. */
-export type NewThread = Omit<Parameters<typeof createThreadAction>[0], "roomId">
+export type NewThread = NewThreadInput
+
+/** Every comment call the store makes: the server actions for the host or a
+ *  member, the canvas link's comments route for a viewer (#1934), whose
+ *  listener refuses server actions. */
+function commentCalls(viewing: Viewing | null, roomId: string) {
+  if (viewing) return viewerCommentsClient(viewing)
+  return {
+    listThreads: () => listThreadsAction(roomId),
+    createThread: (thread: NewThread) =>
+      createThreadAction({ ...thread, roomId }),
+    appendComment: appendCommentAction,
+    editComment: editCommentAction,
+    deleteComment: deleteCommentAction,
+    deleteThread: deleteThreadAction,
+    setThreadResolved: setThreadResolvedAction,
+    markThreadRead: markThreadReadAction,
+    markThreadUnread: markThreadUnreadAction,
+  }
+}
 
 export interface CommentThreads {
   threads: ThreadWithComments[]
@@ -87,9 +108,8 @@ export function useCommentThreads(
 ): CommentThreads {
   const { data: session } = useAppSession()
   const user = session?.user
-  // A viewer (#1932) can't call the comment server actions yet: they see the
-  // threads the page was rendered with.
-  const viewing = !!useViewing()
+  const viewing = useViewing()
+  const calls = useMemo(() => commentCalls(viewing, roomId), [viewing, roomId])
   const [fetched, setThreads] = useState<ThreadWithComments[]>(
     () => initialThreads ?? []
   )
@@ -123,9 +143,9 @@ export function useCommentThreads(
   const readRevision = useCommentsReadRevision(user?.id ?? null)
 
   useEffect(() => {
-    if (viewing) return
     let cancelled = false
-    listThreadsAction(roomId)
+    calls
+      .listThreads()
       .then((rows) => {
         if (cancelled) return
         setThreads(rows)
@@ -157,8 +177,7 @@ export function useCommentThreads(
       cancelled = true
     }
   }, [
-    viewing,
-    roomId,
+    calls,
     attempt,
     revision,
     readRevision,
@@ -215,7 +234,7 @@ export function useCommentThreads(
   const createThread = useCallback(
     async (thread: NewThread) => {
       try {
-        const saved = await createThreadAction({ ...thread, roomId })
+        const saved = await calls.createThread(thread)
         // Shown now rather than on the refetch its save rings for.
         setThreads((prev) =>
           prev.some((t) => t.id === saved.id) ? prev : [...prev, saved]
@@ -226,7 +245,7 @@ export function useCommentThreads(
         return null
       }
     },
-    [roomId]
+    [calls]
   )
 
   const reply = useCallback(
@@ -245,7 +264,7 @@ export function useCommentThreads(
       })
       try {
         // Held under its placeholder until a fetch carries it.
-        setReply(key, await appendCommentAction({ threadId, body }))
+        setReply(key, await calls.appendComment({ threadId, body }))
         return true
       } catch (e) {
         setReply(key, null)
@@ -253,14 +272,14 @@ export function useCommentThreads(
         return false
       }
     },
-    [user?.id, user?.name, user?.image, setReply]
+    [calls, user?.id, user?.name, user?.image, setReply]
   )
 
   const editComment = useCallback(
     async (commentId: string, body: string) => {
       const undo = setBodyOverride(commentId, { body, editedAt: Date.now() })
       try {
-        await editCommentAction({ commentId, body })
+        await calls.editComment({ commentId, body })
         return true
       } catch (e) {
         undo()
@@ -268,13 +287,13 @@ export function useCommentThreads(
         return false
       }
     },
-    [setBodyOverride]
+    [calls, setBodyOverride]
   )
 
   const setUnread = useCallback(
     (threadId: string, unread: boolean) => {
       const undo = setUnreadOverride(threadId, unread)
-      const save = unread ? markThreadUnreadAction : markThreadReadAction
+      const save = unread ? calls.markThreadUnread : calls.markThreadRead
       save(threadId).catch((e) => {
         undo()
         fail(
@@ -284,7 +303,7 @@ export function useCommentThreads(
         )
       })
     },
-    [setUnreadOverride]
+    [calls, setUnreadOverride]
   )
   const markRead = useCallback(
     (threadId: string) => setUnread(threadId, false),
@@ -298,7 +317,7 @@ export function useCommentThreads(
   const setResolved = useCallback(
     function setResolved(threadId: string, resolved: boolean) {
       const undo = setResolvedOverride(threadId, resolved)
-      setThreadResolvedAction({ threadId, resolved }).then(
+      calls.setThreadResolved({ threadId, resolved }).then(
         () => {
           if (!resolved) return
           toast("Thread resolved", {
@@ -318,7 +337,7 @@ export function useCommentThreads(
         }
       )
     },
-    [setResolvedOverride]
+    [calls, setResolvedOverride]
   )
 
   // Deletes still inside their undo window, flushed at once if the canvas
@@ -346,8 +365,8 @@ export function useCommentThreads(
         clearTimeout(timer)
         pending.current.delete(id)
         const run = commentId
-          ? deleteCommentAction({ commentId })
-          : deleteThreadAction(threadId)
+          ? calls.deleteComment({ commentId })
+          : calls.deleteThread(threadId)
         run.catch((e) => {
           unhide()
           fail(
@@ -371,7 +390,7 @@ export function useCommentThreads(
         },
       })
     },
-    []
+    [calls]
   )
 
   return {

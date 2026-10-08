@@ -138,7 +138,8 @@ export function createHostServer(handle, portOf = localWsPort) {
 
 /**
  * A viewer listener's server: the allowlist only, each request identified
- * before Next sees it. A write no entry allows is refused with 403. A viewer
+ * before Next sees it. A write no entry allows is refused with 403, as is any
+ * server action: a viewer's one write is their comments (#1934). A viewer
  * with no identity gets the refused page, whatever they asked for; an
  * identified viewer gets Next for an allowed read, else 404. The one upgrade
  * it takes is a canvas's Yjs socket with the canvas link's key (#1932), which
@@ -228,7 +229,10 @@ async function serveViewer(req, res, handle, listener, identify, allowlist) {
   const method = req.method ?? "GET"
   const { pathname } = new URL(req.url ?? "/", "http://viewer.invalid")
   const entry = allowlistEntry(pathname, allowlist)
-  const allowed = entry?.methods.includes(method) ?? false
+  // A server action can ride any POST to a page, so none reaches Next from
+  // a viewer, whatever path it names.
+  const action = req.headers["next-action"] !== undefined
+  const allowed = !action && (entry?.methods.includes(method) ?? false)
   const reads = method === "GET" || method === "HEAD"
   if (!allowed && !reads) {
     res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" })

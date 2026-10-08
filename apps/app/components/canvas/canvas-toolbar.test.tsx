@@ -12,6 +12,7 @@ import { IconButton, shortcutKeys } from "@workspace/ui/components/icon-button"
 
 import { CanvasToolbar, NO_REPOSITORY_HINT } from "./canvas-toolbar"
 import { useToolMode } from "./use-tool-mode"
+import { ViewingProvider } from "@/lib/viewer/context"
 
 // Radix's floating content measures itself; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class {
@@ -119,6 +120,25 @@ describe("CanvasToolbar", () => {
         .getByRole("button", { name: "Select" })
         .getAttribute("aria-pressed")
     ).toBe("false")
+  })
+
+  it("gives a viewer Select and Comment only (#1933)", () => {
+    const { result } = renderHook(() => useToolMode())
+    render(
+      <ViewingProvider
+        value={{
+          person: { id: "ana", name: "Ana" },
+          roomId: "room-1",
+          shareKey: "key",
+        }}
+      >
+        <CanvasToolbar toolMode={result.current} onClearMode={() => {}} />
+      </ViewingProvider>
+    )
+    const tools = screen
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label"))
+    expect(tools).toEqual(["Select", "Comment"])
   })
 
   it("puts Mockup between Frame and Document, on M (#1359)", () => {
