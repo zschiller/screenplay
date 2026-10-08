@@ -49,13 +49,13 @@ describe("build profiles", () => {
     expect(caps.yjsHostDefault).toBeUndefined()
   })
 
-  it("desktop: the host in the Mac shell, alone, on local backends", async () => {
+  it("desktop: the host in the Mac shell with viewers, on local backends", async () => {
     const caps = await load({ NEXT_PUBLIC_SCREENPLAY_PROFILE: "desktop" })
     expect(caps.buildProfile).toBe("desktop")
     expect(caps.buildIdentity).toBe("host")
     expect(caps.multiUserSurface).toBe(false)
     expect(caps.macShell).toBe(true)
-    expect(caps.viewers).toBe(false)
+    expect(caps.viewers).toBe(true)
     expect(backendsOf(caps)).toEqual({
       SANDBOX_BACKEND: "local",
       SCREENPLAY_DB: "pglite",
@@ -66,13 +66,13 @@ describe("build profiles", () => {
     expect(caps.yjsHostDefault).toBe("local")
   })
 
-  it("headless: the host with viewers and the multi-user surface, no Mac shell", async () => {
+  it("headless: the host with the multi-user surface, no Mac shell or viewers", async () => {
     const caps = await load({ NEXT_PUBLIC_SCREENPLAY_PROFILE: "headless" })
     expect(caps.buildProfile).toBe("headless")
     expect(caps.buildIdentity).toBe("host")
     expect(caps.multiUserSurface).toBe(true)
     expect(caps.macShell).toBe(false)
-    expect(caps.viewers).toBe(true)
+    expect(caps.viewers).toBe(false)
     expect(backendsOf(caps)).toEqual({
       SANDBOX_BACKEND: "local",
       SCREENPLAY_DB: "pglite",

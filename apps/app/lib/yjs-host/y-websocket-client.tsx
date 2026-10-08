@@ -8,7 +8,7 @@ import {
 } from "react"
 import { WebsocketProvider } from "y-websocket"
 import * as Y from "yjs"
-import { WS_ROUTES } from "@/headless/ws-routes.mjs"
+import { WS_ROUTES } from "@/server/ws-routes.mjs"
 import { withBasePath } from "@/lib/base-path"
 import { hostTunnel } from "@/lib/capabilities"
 import {

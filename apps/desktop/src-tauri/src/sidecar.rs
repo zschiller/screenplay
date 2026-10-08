@@ -169,7 +169,9 @@ fn ensure_executable(path: &std::path::Path) {
     }
 }
 
-/// Spawn `node apps/app/server.js` with the desktop backend profile.
+/// Spawn the front server (`node apps/app/server/front-server.mjs`) with the
+/// desktop backend profile. It runs Next in-process like the standalone
+/// `server.js`, and also owns the viewer listeners Sharing needs (#1931).
 fn spawn(
     app: &AppHandle,
     dir: &std::path::Path,
@@ -180,7 +182,7 @@ fn spawn(
     let app_root = dir.join("apps").join("app");
 
     let mut cmd = Command::new(dir.join("node"));
-    cmd.arg(app_root.join("server.js"))
+    cmd.arg(app_root.join("server").join("front-server.mjs"))
         .current_dir(&app_root)
         // A packaged .app launches with a minimal PATH; the agent path shells
         // out to `npx` for the ACP adapter, so prepend the usual node install

@@ -42,6 +42,15 @@ export async function register(): Promise<void> {
     selectGitHubAccess()
     selectPreviewExposure()
     selectCodingClis()
+    // Sharing (the Mac app): the front server asks this identity who each
+    // request on a viewer listener is from, before Next sees it.
+    const { viewers } = await import("@/lib/capabilities")
+    if (viewers) {
+      const { selectViewerIdentity } = await import("@/lib/viewer-identity")
+      const { setViewerIdentity } = await import("@/server/viewer.mjs")
+      const { id, identity } = selectViewerIdentity()
+      setViewerIdentity(id, identity)
+    }
   } catch (err) {
     console.error(
       `Screenplay won’t start: ${err instanceof Error ? err.message : err}`
@@ -99,10 +108,10 @@ export async function register(): Promise<void> {
   }
 
   // On Headless the host listener carries both socket servers under a path
-  // (`headless/ws-routes.mjs`), so they take any free loopback port and say
+  // (`server/ws-routes.mjs`), so they take any free loopback port and say
   // which; elsewhere the client connects to their ports directly.
   const { hostTunnel } = await import("@/lib/capabilities")
-  const { setLocalWsPort } = await import("@/headless/ws-routes.mjs")
+  const { setLocalWsPort } = await import("@/server/ws-routes.mjs")
 
   if (backendSwitch("NEXT_PUBLIC_YJS_HOST") === "local") {
     const { startLocalYjsServer } =

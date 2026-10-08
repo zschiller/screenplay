@@ -4,6 +4,7 @@ const meta = {
   "sandbox-provider": "Sandbox provider",
   "preview-exposure": "Preview exposure",
   "github-access": "GitHub access",
+  "viewer-identity": "Viewer identity",
   "yjs-host": "Yjs host",
   "blob-store": "Blob store",
   "mount-path": "Mount path",

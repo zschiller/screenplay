@@ -14,6 +14,7 @@ import {
 } from "@/lib/local-setup/github-skip"
 import { isLocalSetupComplete } from "@/lib/local-setup/is-complete"
 import { buildIdentity } from "@/lib/capabilities"
+import { requestRole } from "@/lib/viewer-identity/request"
 
 export const metadata: Metadata = {
   title: {
@@ -65,8 +66,10 @@ export default async function RootLayout({
   // canvas load) from this one mount site. On the hosted build `buildIdentity === "host"`
   // is a compile-time `false`, so this branch — and the gate plus its status
   // probes — is dead-code-eliminated and the sign-in path is untouched.
+  // Viewers (Headless's viewer listener, #1931) never set up the host's
+  // machine, so the gate is the host's alone.
   let body: React.ReactNode = children
-  if (buildIdentity === "host") {
+  if (buildIdentity === "host" && (await requestRole()).role === "host") {
     const { initiallyBlocked, status, githubSkipped } = await computeGateState()
     body = (
       <LocalSetupGate

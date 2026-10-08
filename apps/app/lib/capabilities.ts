@@ -8,8 +8,8 @@
  * | Profile    | Identity  | Multi-user surface | Mac shell | Viewers |
  * | ---------- | --------- | ------------------ | --------- | ------- |
  * | `hosted`   | `account` | on                 | off       | off     |
- * | `desktop`  | `host`    | off                | on        | off     |
- * | `headless` | `host`    | on                 | off       | on      |
+ * | `desktop`  | `host`    | off                | on        | on      |
+ * | `headless` | `host`    | on                 | off       | off     |
  *
  * Headless also sets {@link hostTunnel}: the host works over an SSH tunnel.
  *
@@ -25,7 +25,8 @@
  *   dialogs, opening files in Finder, cheap webview thumbnails, Frame Drive in
  *   your own canvas.
  * - **Viewers**: people who watch a canvas by link on the viewer listener
- *   (Sharing). Nothing reads it yet.
+ *   (Sharing in the Mac app, #1921). The front server serves them only when
+ *   the shell names a viewer listener.
  *
  * Set `NEXT_PUBLIC_SCREENPLAY_PROFILE` at build time. Unset means `hosted`,
  * and the older `NEXT_PUBLIC_SCREENPLAY_LOCAL=1` still means `desktop`. It is a
@@ -64,8 +65,8 @@ export const multiUserSurface: boolean = buildProfile !== "desktop"
 /** The Tauri window around the app (the Mac app). */
 export const macShell: boolean = buildProfile === "desktop"
 
-/** People watching a canvas by link on the viewer listener (Sharing). */
-export const viewers: boolean = buildProfile === "headless"
+/** People watching a canvas by link on the viewer listener (Sharing in the Mac app, #1921). */
+export const viewers: boolean = buildProfile === "desktop"
 
 /**
  * The host reaches the server over a tunnel to two ports (Headless, #1930):
@@ -117,6 +118,7 @@ export type BackendSwitch =
   | "GITHUB_ACCESS"
   | "PREVIEW_EXPOSURE"
   | "CODING_CLIS"
+  | "VIEWER_IDENTITY"
 
 /**
  * A backend switch's value: the environment's when set, else this profile's.

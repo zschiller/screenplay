@@ -1,0 +1,72 @@
+---
+title: Viewer identity
+description: How the desktop app knows who each person watching a shared canvas is, from Tailscale, and how a fork identifies them another way.
+---
+
+# Viewer identity
+
+<Only desktop />
+
+Sharing lets people watch a canvas in the desktop app by link. They reach it on
+a **viewer listener**, separate from the listener the app itself uses.
+Whoever arrives there is a viewer: the role comes from the listener, never from
+anything in the request. A viewer listener serves a short list of reads, and
+the server refuses every write on it before the app sees the request.
+
+**Viewer identity** decides who each viewer is, so they show up under their
+own name. It runs for every request on a viewer listener, before the app sees
+it; the app’s own listener never runs it. It’s a small interface in
+`apps/app/lib/viewer-identity/` with one built-in, Tailscale.
+
+## The interface
+
+```ts
+interface ViewerIdentity {
+  // A cheap key for this request's answer, or null to never remember it.
+  cacheKey(request: ViewerRequest): string | null
+  // A person, or a refusal saying what to do to get in.
+  identify(request: ViewerRequest): Promise<ViewerAnswer>
+}
+
+interface ViewerRequest {
+  headers: Headers // as received; Screenplay trusts none of them
+  remoteAddress: string // the TCP peer
+  listener: { name: string; address: string; port: number }
+}
+
+type ViewerAnswer =
+  | { person: { id: string; name: string; email?: string; avatarUrl?: string }; ttlSeconds: number }
+  | { person: null; message: string; ttlSeconds: number }
+```
+
+An answer is remembered for its cache key for `ttlSeconds`. A viewer it
+refuses sees one page, whatever they opened: the Screenplay logo and the
+refusal’s message, with no wording of Screenplay’s own. Person ids are stored
+as `<identity id>:<id>`, so switching identities makes everyone a new person.
+
+## Tailscale
+
+Viewers on the same tailnet as the Mac are named by Tailscale:
+
+- Behind `tailscale serve`, which proxies to the viewer listener from the Mac
+  itself, the person comes from the `Tailscale-User-Login`, `Tailscale-User-Name`
+  and `Tailscale-User-Profile-Pic` headers serve adds. Serve removes any copy a
+  client sent first.
+- A viewer who reaches the listener directly over the tailnet is looked up
+  with `tailscale whois --json <their address>`.
+
+It refuses a device outside the tailnet, a tagged device (Tailscale names no
+person for it), and a request from the Mac itself or through Funnel, which
+carry no identity. It uses the Tailscale app’s CLI at
+`/Applications/Tailscale.app/Contents/MacOS/Tailscale`, or `tailscale` on
+`PATH`.
+
+## Picking one
+
+`selectViewerIdentity()` in `apps/app/lib/viewer-identity/index.ts` picks
+one: `tailscale`. `VIEWER_IDENTITY` overrides it, and `tailscale` is the only
+value it takes. An id it doesn’t know stops the server from starting.
+
+To identify viewers another way, like headers a company proxy adds, change
+`selectViewerIdentity()` in your fork. Every replaceable part of Screenplay is
+picked the same way, like the [Yjs host](/self-hosting/configuration/yjs-host).

@@ -46,8 +46,8 @@ so nobody assembles a combination by hand:
 | Profile | Identity | Multi-user surface | Mac app | Viewers |
 | --- | --- | --- | --- | --- |
 | `hosted` (default) | `account` | on | off | off |
-| `desktop` | `host` | off | on | off |
-| `headless` | `host` | on | off | on |
+| `desktop` | `host` | off | on | on |
+| `headless` | `host` | on | off | off |
 
 - **Identity** is who writes. `account` is many people signed in with GitHub.
   `host` is one person running the server on their own machine, with no
@@ -58,8 +58,10 @@ so nobody assembles a combination by hand:
 - **Mac app** is the desktop app’s window around the app: traffic lights,
   native dialogs, opening files in Finder, webview thumbnails, and the agent
   controlling frames in your own canvas.
-- **Viewers** are people watching a canvas by link (Sharing). Nothing uses it
-  yet.
+- **Viewers** are people watching a canvas by link on a viewer listener
+  (Sharing, in the desktop app only). Each request there is identified by the
+  [viewer identity](/self-hosting/configuration/viewer-identity) before the app
+  sees it.
 
 `headless` is the profile for running the server on a machine you control.
 `pnpm headless` builds and runs it; see [Headless](/self-hosting/headless). It
