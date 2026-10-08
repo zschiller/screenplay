@@ -11,9 +11,8 @@ export type { GitAccess, GitHubAccess, GitIdentity } from "./types"
 /**
  * Pick this server's GitHub access: `GITHUB_ACCESS` when set, else
  * `oauth-account` when people sign in with GitHub (Hosted) and `gh-cli` when
- * the host is the only writer (the Mac app, Headless). A fork that needs
- * another implementation (a `gh` wrapper, GitHub Enterprise) changes this
- * function. Throws on an id it doesn't know.
+ * the host is the only writer (the Mac app, Headless). Throws on an id it
+ * doesn't know.
  */
 export function selectGitHubAccess(
   env: Record<string, string | undefined> = process.env
@@ -48,12 +47,6 @@ function current(): GitHubAccess {
 export const githubAccess: GitHubAccess = {
   get id() {
     return current().id
-  },
-  get apiUrl() {
-    return current().apiUrl
-  },
-  get webUrl() {
-    return current().webUrl
   },
   apiToken: (userId) => current().apiToken(userId),
   get git() {

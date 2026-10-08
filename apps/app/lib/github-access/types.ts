@@ -1,29 +1,15 @@
 /**
- * GitHub access (spec #1923, #1925): the one place that knows which GitHub a
- * Screenplay server talks to and with whose credentials. Every server-side
- * GitHub call reads its host and token from here, and git inside a chat learns
- * from here whether to broker credentials or leave the host's own git alone.
+ * GitHub access (#1925): whose credentials a Screenplay server talks to
+ * GitHub with. Every server-side GitHub call reads its token from here, and
+ * git inside a chat learns from here whether to broker credentials or leave
+ * the host's own git alone.
  *
- * The interface stays small. Built-ins, both on github.com: `oauth-account`
- * (Hosted) and `gh-cli` (the Mac app, Headless). `selectGitHubAccess`
- * (`./index.ts`) picks one; a fork on GitHub Enterprise adds its own there.
+ * Built-ins: `oauth-account` (Hosted) and `gh-cli` (the Mac app, Headless).
+ * `selectGitHubAccess` (`./index.ts`) picks one.
  */
 export interface GitHubAccess {
   /** The implementation's id, e.g. `"gh-cli"`. */
   readonly id: string
-
-  /**
-   * REST base, no trailing slash: `https://api.github.com`, or
-   * `https://ghe.corp.example/api/v3` on GitHub Enterprise Server. Every
-   * server-side GitHub call is built from this; nothing else names a host.
-   */
-  readonly apiUrl: string
-
-  /**
-   * Web base, no trailing slash: `https://github.com` or
-   * `https://ghe.corp.example`. Recognises a repo's remote and builds clone URLs.
-   */
-  readonly webUrl: string
 
   /**
    * A token for the server's own REST calls on behalf of `userId`. `null`

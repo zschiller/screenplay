@@ -58,12 +58,6 @@ esac
   const calls = async () =>
     (await fs.readFile(log, "utf8").catch(() => "")).trim().split("\n")
 
-  it("binds 127.0.0.1, for tailscale serve to proxy to", () => {
-    expect(tailscaleExposure({ cli: [cli] }).bind).toEqual({
-      host: "127.0.0.1",
-    })
-  })
-
   it("serves the port in the background over the Mac's tailnet name", async () => {
     const exposure = tailscaleExposure({ cli: [cli] })
     expect(await exposure.expose(51234)).toEqual({

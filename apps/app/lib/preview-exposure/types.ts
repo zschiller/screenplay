@@ -5,22 +5,11 @@
  * stays this small.
  *
  * Only browser-facing listeners go through it: the bridge proxy a frame
- * loads, and the frame stream. The dev server itself, and everything the
- * server reads (probes, thumbnails, agent page reads), stay on 127.0.0.1.
+ * loads, and the frame stream. Every listener binds 127.0.0.1, and everything
+ * the server reads (probes, thumbnails, agent page reads) stays there; an
+ * exposure forwards a port from there.
  */
 export interface PreviewExposure {
-  /**
-   * Where browser-facing preview listeners bind, and which ports they may
-   * take.
-   *
-   * - `host`: "127.0.0.1" when something on this machine forwards them (the
-   *   Mac app, an SSH tunnel, `tailscale serve`); "0.0.0.0" when an outside
-   *   proxy must reach them.
-   * - `ports`: an inclusive range to take ports from, lowest free first, so
-   *   a port is reused once its preview is gone. Omitted ⇒ any free port.
-   */
-  readonly bind: { host: string; ports?: PortRange }
-
   /**
    * Make `port` reachable for browsers, once its listener is started.
    * Idempotent: called again after a restart or a reconnect with the same
@@ -38,10 +27,4 @@ export interface PreviewExposure {
 export interface ExposedPort {
   /** What a browser loads, origin only, no trailing slash: "https://box.tailnet.ts.net:5123". */
   browserOrigin: string
-}
-
-/** An inclusive port range. */
-export interface PortRange {
-  from: number
-  to: number
 }

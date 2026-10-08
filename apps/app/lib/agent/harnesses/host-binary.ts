@@ -1,7 +1,7 @@
 import "server-only"
 
 import { spawn } from "node:child_process"
-import type { HostFacts, HostHarness } from "./types"
+import type { Harness, HostFacts } from "./types"
 
 /**
  * The host-binary detector behind the **desktop** Harness Availability resolver
@@ -52,8 +52,8 @@ export const defaultHostBinaryProber: HostBinaryProber = (binary) =>
  * it: {@link detectInstalledHarnessKeys} probes each distinct binary exactly once,
  * and the **Harness Setup** module renders one row per representative (ADR 0015).
  */
-export function distinctByHostBinary(harnesses: HostHarness[]): HostHarness[] {
-  const representatives: HostHarness[] = []
+export function distinctByHostBinary(harnesses: Harness[]): Harness[] {
+  const representatives: Harness[] = []
   const seen = new Set<string>()
   for (const harness of harnesses) {
     if (seen.has(harness.hostBinary)) continue
@@ -70,7 +70,7 @@ export function distinctByHostBinary(harnesses: HostHarness[]): HostHarness[] {
  * and the setup rows all read it, so OpenCode is one "OpenCode" everywhere on
  * desktop rather than two hosted slots (#1589).
  */
-export function hostHarnesses(harnesses: HostHarness[]): HostHarness[] {
+export function hostHarnesses(harnesses: Harness[]): Harness[] {
   return distinctByHostBinary(harnesses).map((harness) =>
     harness.hostLabel ? { ...harness, label: harness.hostLabel } : harness
   )
@@ -104,7 +104,7 @@ export async function probeHostFacts(
  * every harness keyed on it.
  */
 export async function detectInstalledHarnessKeys(
-  harnesses: HostHarness[],
+  harnesses: Harness[],
   probe: HostBinaryProber
 ): Promise<Set<string>> {
   const binaries = distinctByHostBinary(harnesses).map((h) => h.hostBinary)

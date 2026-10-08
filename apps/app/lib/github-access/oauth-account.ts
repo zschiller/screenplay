@@ -1,7 +1,6 @@
 import "server-only"
 
 import type { GitHubAccess, GitIdentity } from "./types"
-import { GITHUB_DOT_COM_URLS } from "./urls"
 
 export const OAUTH_ACCOUNT_ID = "oauth-account"
 
@@ -14,13 +13,12 @@ export const OAUTH_ACCOUNT_ID = "oauth-account"
 export function createOAuthAccountAccess(): GitHubAccess {
   return {
     id: OAUTH_ACCOUNT_ID,
-    ...GITHUB_DOT_COM_URLS,
     apiToken: accountToken,
     git: { kind: "brokered", token: accountToken, identity: userIdentity },
   }
 }
 
-// The db loads on first use, so modules that only read `apiUrl` (and their
+// The db loads on first use, so modules that only read `id` or `git` (and their
 // tests) don't open a database.
 async function accountToken(userId: string): Promise<string | null> {
   const { db, schema } = await import("@/lib/db")

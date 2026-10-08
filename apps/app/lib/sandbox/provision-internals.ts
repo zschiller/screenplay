@@ -1,7 +1,6 @@
 import "server-only"
 
 import type { SandboxInstance } from "@/lib/sandbox"
-import { getPreviewExposure } from "@/lib/preview-exposure"
 import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import { PORTLESS_PROXY_PORT, portlessCliPath } from "@/lib/sandbox/portless"
 
@@ -397,9 +396,9 @@ export async function launchDevAndProxy(
     // Resolved, not logical: the proxy must bind the port the preview URL
     // (`domain`, which maps identically) advertises, and upstream to the port
     // the dev server was told to bind.
-    // The local backend binds the proxy where the preview exposure says
-    // (loopback, off the LAN, in the Mac app); a hosted sandbox must listen
-    // on every interface for its forwarded port (#997).
+    // The local backend keeps the proxy on loopback, off the LAN (a preview
+    // exposure forwards it from there); a hosted sandbox must listen on every
+    // interface for its forwarded port (#997).
     env: {
       SCREENPLAY_UPSTREAM_PORT: String(devPort),
       SCREENPLAY_LISTEN_PORT: String(proxyPort),
@@ -412,12 +411,10 @@ export async function launchDevAndProxy(
 
 /**
  * The env that binds a browser-facing listener (`envName`: the bridge
- * proxy's or the frame stream's host variable) where the preview exposure
- * says, on the local backend. Empty on the hosted backend, whose listeners
- * keep their every-interface default.
+ * proxy's or the frame stream's host variable) to loopback on the local
+ * backend. Empty on the hosted backend, whose listeners keep their
+ * every-interface default.
  */
 export function previewListenEnv(envName: string): Record<string, string> {
-  return isLocalSandboxBackend()
-    ? { [envName]: getPreviewExposure().bind.host }
-    : {}
+  return isLocalSandboxBackend() ? { [envName]: "127.0.0.1" } : {}
 }

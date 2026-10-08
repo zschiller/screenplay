@@ -11,7 +11,6 @@ import {
   type HarnessPrintModel,
   type HarnessProcessRunner,
   type HostFacts,
-  type HostHarness,
 } from "./types"
 import { probeOk } from "./process-runner"
 
@@ -23,9 +22,6 @@ import { probeOk } from "./process-runner"
  * they point at and the provider that brokers their auth.
  */
 export const OPENCODE_INSTALL_PACKAGE = "opencode-ai"
-
-/** The command the install puts on `PATH`. */
-const OPENCODE_COMMAND = "opencode"
 
 /**
  * opencode's official no-`npm` installer. Piped to `bash`, it lands an `opencode`
@@ -140,7 +136,7 @@ export async function probeOpencodeAuth(
 ): Promise<boolean> {
   // 1. The CLI's own view of its credential store.
   if (
-    await probeOk(run, OPENCODE_COMMAND, ["auth", "list"], (r) =>
+    await probeOk(run, "opencode", ["auth", "list"], (r) =>
       listsConfiguredProvider(r.stdout)
     )
   ) {
@@ -161,7 +157,7 @@ export async function probeOpencodeAuth(
  * So the parse is a trim, as for `claude -p`. Exported for the descriptor test.
  */
 export const opencodePrintModel: HarnessPrintModel = {
-  buildArgv: (prompt) => [OPENCODE_COMMAND, "run", prompt],
+  buildArgv: (prompt) => ["opencode", "run", prompt],
   parseOutput: (stdout) => {
     const text = stdout.trim()
     return text.length > 0 ? text : null
@@ -254,7 +250,7 @@ export function parseOpencodeModels(stdout: string): HarnessModelChoice[] {
  * no curated list; people pick the few the model menu shows.
  */
 export const opencodeModelList: HarnessModelList = {
-  argv: [OPENCODE_COMMAND, "models", "--verbose"],
+  argv: ["opencode", "models", "--verbose"],
   parse: parseOpencodeModels,
 }
 
@@ -541,27 +537,4 @@ export const opencodeCompatHarness: Harness = {
     })
   ),
   ...opencodeSetup,
-}
-
-/**
- * The **OpenCode** Coding CLI built-in (#1926): OpenCode on the host, on its
- * own sign-in, as the Mac app runs it. A fork that runs OpenCode under another
- * command adds its own Coding CLI in `selectCodingClis`.
- */
-export const opencodeHostHarness: HostHarness = {
-  key: opencodeGatewayHarness.key,
-  label: opencodeGatewayHarness.hostLabel!,
-  launchCommand: OPENCODE_COMMAND,
-  launchArgv: [OPENCODE_COMMAND],
-  hostBinary: OPENCODE_COMMAND,
-  ownSkills: {
-    ...opencodeOwnSkills,
-    agentName: opencodeGatewayHarness.hostLabel!,
-  },
-  acpAdapter: opencodeAcpAdapter,
-  probeAuth: probeOpencodeAuth,
-  printModel: opencodePrintModel,
-  modelList: opencodeModelList,
-  buildInstallCommand: buildOpencodeInstallCommand,
-  authCommand: [OPENCODE_COMMAND, "auth", "login"],
 }

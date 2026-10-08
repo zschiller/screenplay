@@ -170,16 +170,14 @@ backing now); workspace (the UI label for a Repo); using "sandbox" to mean the
 Branch itself; calling its contents "never durable" (true only for the Vercel VM).
 
 **GitHub Access**:
-The one interface that knows which GitHub a server talks to and with whose
-credentials (spec #1923): its API and web base URLs, a token per person for the
-server's own REST calls, and how git inside a chat authenticates and authors,
-either the **host**'s own git or **brokered** (the person's token per command
-and their identity on commits). Built-ins: `oauth-account` (Hosted, brokered)
-and `gh-cli` (the Mac app and Headless, host git), both on github.com; a fork
-on GitHub Enterprise adds its own. It is a credentials fact, separate from
-where the Sandbox lives (the Sandbox Provider).
-_Avoid_: deciding credentials from the build or the sandbox backend; naming a
-GitHub host anywhere else.
+The one interface that knows whose credentials a server talks to GitHub with:
+a token per person for the server's own REST calls, and how git inside a chat
+authenticates and authors, either the **host**'s own git or **brokered** (the
+person's token per command and their identity on commits). Built-ins:
+`oauth-account` (Hosted, brokered) and `gh-cli` (the Mac app and Headless, host
+git). It is a credentials fact, separate from where the Sandbox lives (the
+Sandbox Provider).
+_Avoid_: deciding credentials from the build or the sandbox backend.
 
 **Sandbox Provider**:
 The swappable backend that creates and reconnects Sandboxes. There are now

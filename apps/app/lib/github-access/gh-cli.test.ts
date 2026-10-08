@@ -3,14 +3,12 @@ import { describe, expect, it } from "vitest"
 import { createGhCliAccess, ghCliOf } from "@/lib/github-access/gh-cli"
 
 describe("gh-cli", () => {
-  it("runs gh on github.com and leaves git to the host", async () => {
+  it("runs gh auth token and leaves git to the host", async () => {
     const calls: string[][] = []
     const access = createGhCliAccess(async (cmd, args) => {
       calls.push([cmd, ...args])
       return { exitCode: 0, stdout: "gho_x\n" }
     })
-    expect(access.apiUrl).toBe("https://api.github.com")
-    expect(access.webUrl).toBe("https://github.com")
     expect(await access.apiToken("local")).toBe("gho_x")
     expect(calls).toEqual([["gh", "auth", "token"]])
     expect(access.git).toEqual({ kind: "host" })

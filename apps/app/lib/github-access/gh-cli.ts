@@ -7,12 +7,11 @@ import {
 } from "@/lib/github-local/gh-cli"
 
 import type { GitHubAccess } from "./types"
-import { GITHUB_DOT_COM_URLS } from "./urls"
 
 export const GH_CLI_ID = "gh-cli"
 
 /**
- * The `gh-cli` built-in: the Mac app and Headless, on github.com. The token is
+ * The `gh-cli` built-in: the Mac app and Headless. The token is
  * whatever `gh auth token` prints, for every person (one host, one login). Git
  * is the host's own: credentials and identity come from the machine's git
  * config, so commits are the host's.
@@ -21,7 +20,6 @@ export function createGhCliAccess(run?: GhProcessRunner): GitHubAccess {
   const cli = makeGhCli(run)
   const access: GitHubAccess = {
     id: GH_CLI_ID,
-    ...GITHUB_DOT_COM_URLS,
     apiToken: () => cli.getToken(),
     git: { kind: "host" },
   }

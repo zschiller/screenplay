@@ -758,12 +758,14 @@ describe("startDevServer", () => {
     }
   })
 
-  it("binds the bridge proxy where the preview exposure says, and returns its browser origin", async () => {
+  it("returns the bridge proxy's exposed browser origin", async () => {
     vi.stubEnv("SANDBOX_BACKEND", "local")
-    // A fork's exposure whose listeners an outside proxy reaches.
+    // A fork's exposure, serving each port at its own origin.
     setPreviewExposure({
-      ...loopbackExposure({ origin: "https://{port}-box.tailnet.example" }),
-      bind: { host: "0.0.0.0" },
+      expose: async (port) => ({
+        browserOrigin: `https://${port}-box.tailnet.example`,
+      }),
+      release: async () => {},
     })
     try {
       const calls: RecordedCall[] = []
@@ -781,7 +783,7 @@ describe("startDevServer", () => {
 
       expect(findProxyLaunch(calls)!.env).toMatchObject({
         SCREENPLAY_LISTEN_PORT: "54000",
-        SCREENPLAY_LISTEN_HOST: "0.0.0.0",
+        SCREENPLAY_LISTEN_HOST: "127.0.0.1",
       })
       expect(result).toMatchObject({
         success: true,

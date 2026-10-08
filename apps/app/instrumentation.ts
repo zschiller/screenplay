@@ -19,9 +19,9 @@
  *    daemon. It exists only on the local sandbox backend; the hosted (Vercel)
  *    build skips it and keeps the ttyd/`domain(port)` path. The dynamic import
  *    keeps node-pty/`ws` out of the hosted build's graph.
- *  - **Seam overrides.** Runs the select modules for GitHub access, preview
- *    exposure and Coding CLIs first, so an override they don't know
- *    (`GITHUB_ACCESS`, `PREVIEW_EXPOSURE`, `CODING_CLIS`) refuses start.
+ *  - **Seam overrides.** Runs the select modules for GitHub access and preview
+ *    exposure first, so an override they don't know (`GITHUB_ACCESS`,
+ *    `PREVIEW_EXPOSURE`) refuses start.
  *  - **PR Watch tick.** In the local desktop build, looks at every canvas with
  *    an open PR once a minute (#1702), so PR events reach chats with no canvas
  *    open. The hosted build runs the same tick from Vercel Cron instead
@@ -37,11 +37,8 @@ export async function register(): Promise<void> {
   try {
     const { selectGitHubAccess } = await import("@/lib/github-access")
     const { selectPreviewExposure } = await import("@/lib/preview-exposure")
-    const { selectCodingClis } =
-      await import("@/lib/agent/harnesses/coding-cli")
     selectGitHubAccess()
     selectPreviewExposure()
-    selectCodingClis()
     // Sharing (the Mac app): the front server asks this identity who each
     // request on a viewer listener is from, before Next sees it.
     const { viewers } = await import("@/lib/capabilities")

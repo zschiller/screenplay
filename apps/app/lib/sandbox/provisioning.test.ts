@@ -53,8 +53,6 @@ vi.mock("@/lib/auth-helpers", () => ({
 vi.mock("@/lib/github-access", () => ({
   githubAccess: {
     id: "gh-cli",
-    apiUrl: "https://api.github.com",
-    webUrl: "https://github.com",
     git: { kind: "host" },
   },
 }))

@@ -31,8 +31,7 @@ headless Chrome.
   ([details](#the-terminal-module))
 - Chrome for thumbnails: Puppeteer downloads one during `pnpm install`, or set
   [`CHROMIUM_PATH`](/self-hosting/environment-variables#serving)
-- at least one coding CLI, signed in: Claude Code, Codex or OpenCode, or every
-  one [`CODING_CLIS`](#environment) lists
+- at least one coding CLI, signed in: Claude Code, Codex or OpenCode
 - the GitHub CLI, `gh`, signed in
 
 ### Clone and install
@@ -91,11 +90,6 @@ needs just two ports, the host listener and portless’s `1355`, however many
 chats are running. Browsers send every `*.localhost` name to your own computer,
 which is where the tunnel picks it up.
 
-This holds even when a fork picks another
-[preview exposure](/self-hosting/configuration/preview-exposure): that
-exposure is for viewers, who reach the machine over the network. The host’s
-frames never go through it.
-
 ## Restarts
 
 Nothing keeps the server running. When the machine stops (an idle stop, a
@@ -116,13 +110,11 @@ The data folder holds:
 ## Changing what it runs
 
 Headless runs the same built-ins as the desktop app: `gh-cli`
-[GitHub access](/self-hosting/configuration/github-access), `loopback`
-[preview exposure](/self-hosting/configuration/preview-exposure), and every
-[coding CLI](/self-hosting/configuration/byo-harnesses) the machine has. Each
-is picked by a select module in the repo, which an environment variable can
-override. A company setup that needs more, like a `gh` wrapper, GitHub
-Enterprise, a port proxy or an internal CLI, changes those select modules in a
-fork.
+[GitHub access](/self-hosting/configuration/github-access) and every
+[coding CLI](/self-hosting/configuration/byo-harnesses) the machine has.
+GitHub access is picked by a select module in the repo, which
+`GITHUB_ACCESS` can override. A company setup that needs more, like a `gh`
+wrapper, GitHub Enterprise or an internal CLI, changes the code in a fork.
 
 ## The terminal module
 
@@ -144,6 +136,5 @@ On Debian or Ubuntu, `sudo apt-get install python3 make g++` covers all three.
 | `SCREENPLAY_DATA_FOLDER` | Where Screenplay keeps its data. Default: `~/.screenplay/headless` |
 | `SCREENPLAY_HOST_PORT` | The host listener’s port. It always listens on `127.0.0.1`. Default: `4100` |
 | `GITHUB_ACCESS` | `gh-cli` (the default) or `oauth-account`. See [GitHub access](/self-hosting/configuration/github-access#picking-one) |
-| `CODING_CLIS` | The coding CLIs chats can use, comma-separated, in the order the model menu shows them: `claude-code`, `codex`, `opencode`. The setup check then needs every one listed; without it, any one is enough |
 | `CHROMIUM_PATH` | The Chrome thumbnails use, instead of Puppeteer’s |
 | `PORTLESS_STATE_DIR` | Where portless keeps its routes. Default: `~/.portless` |

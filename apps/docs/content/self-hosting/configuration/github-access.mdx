@@ -1,13 +1,12 @@
 ---
 title: GitHub access
-description: Which GitHub a Screenplay server talks to and with whose credentials, and the built-ins for Hosted and the Mac app.
+description: Whose credentials a Screenplay server talks to GitHub with, and the built-ins for Hosted and the Mac app.
 ---
 
 # GitHub access
 
 Every GitHub call Screenplay makes, and every push from a chat, needs to know
-which GitHub to talk to and whose credentials to use. **GitHub access**
-decides both. It’s a small interface in `apps/app/lib/github-access/` with two
+whose credentials to use. **GitHub access** decides that. It’s a small interface in `apps/app/lib/github-access/` with two
 built-ins:
 
 | Built-in        | Token for API calls                    | Git in a chat                                  | For                                           |
@@ -15,18 +14,12 @@ built-ins:
 | `oauth-account` | each person’s GitHub sign-in           | brokered: each person’s token, commits as them | Hosted (the default there)                    |
 | `gh-cli`        | `gh auth token`                        | the machine’s own git credentials and identity | The Mac app (the default there), your own box |
 
-Both use github.com. Repositories, pull requests, links and API calls all use
-the GitHub host the access names, so a fork on GitHub Enterprise changes only
-its GitHub access.
+Both talk to github.com.
 
 ## The interface
 
 ```ts
 interface GitHubAccess {
-  // REST base, e.g. "https://api.github.com" or "https://ghe.corp.example/api/v3".
-  readonly apiUrl: string
-  // Web base, e.g. "https://github.com". Recognises remotes and builds clone URLs.
-  readonly webUrl: string
   // A token for the server's own API calls for this person, or null (GitHub features stay off).
   apiToken(userId: string): Promise<string | null>
   // How git inside a chat signs in and authors commits.
@@ -67,6 +60,5 @@ host is the only writer (the Mac app, Headless). Set
 `GITHUB_ACCESS` to `oauth-account` or `gh-cli` to override that. An id it
 doesn’t know stops the server from starting.
 
-An implementation of your own, like a company `gh` wrapper or GitHub
-Enterprise, is a change to `selectGitHubAccess()` in your fork. Every replaceable part of Screenplay is
-picked the same way, like the [Yjs host](/self-hosting/configuration/yjs-host).
+Every replaceable part of Screenplay is picked the same way, like the
+[Yjs host](/self-hosting/configuration/yjs-host).

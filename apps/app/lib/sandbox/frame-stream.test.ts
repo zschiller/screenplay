@@ -86,11 +86,13 @@ describe("ensureFrameStream", () => {
     vi.unstubAllEnvs()
   })
 
-  it("binds where the preview exposure says, and hands browsers the exposed origin", async () => {
-    // A fork's exposure whose listeners an outside proxy reaches.
+  it("binds loopback, and hands browsers the exposed origin", async () => {
     setPreviewExposure({
-      ...loopbackExposure({ origin: "https://{port}-box.tailnet.example" }),
-      bind: { host: "0.0.0.0" },
+      // A fork's exposure, serving each port at its own origin.
+      expose: async (port) => ({
+        browserOrigin: `https://${port}-box.tailnet.example`,
+      }),
+      release: async () => {},
     })
     const launches: SandboxRunCommandOptions[] = []
     fake.sandbox = fakeSandbox(launches)
@@ -99,7 +101,7 @@ describe("ensureFrameStream", () => {
 
     expect(launches[0]!.env).toMatchObject({
       SCREENPLAY_STREAM_PORT: String(STREAM_HOST_PORT),
-      SCREENPLAY_STREAM_HOST: "0.0.0.0",
+      SCREENPLAY_STREAM_HOST: "127.0.0.1",
     })
     expect(result).toEqual({
       success: true,

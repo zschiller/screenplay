@@ -16,10 +16,9 @@ small interface in `apps/app/lib/preview-exposure/` with two built-ins:
 | `loopback`  | `127.0.0.1`   | `http://localhost:{port}`               | The Mac app (the default) |
 | `tailscale` | `127.0.0.1`   | `https://<mac>.<tailnet>.ts.net:{port}` | Sharing over your tailnet |
 
-On [Headless](/self-hosting/headless), it’s how viewers reach previews. The
-host’s own frames always load through portless at
-`http://screenplay-<port>.localhost:1355`, over the host’s SSH tunnel, whatever
-exposure is picked.
+[Headless](/self-hosting/headless) doesn’t use it: the host’s frames load
+through portless at `http://screenplay-<port>.localhost:1355`, over the host’s
+SSH tunnel.
 
 It covers only what a browser loads: each chat’s bridge proxy (the page a
 frame shows) and its frame stream. The preview itself always listens on
@@ -32,8 +31,6 @@ each Vercel Sandbox has its own public URL.
 
 ```ts
 interface PreviewExposure {
-  // Where browser-facing listeners bind, and the range their ports come from.
-  readonly bind: { host: string; ports?: { from: number; to: number } }
   // Make a port reachable, once its listener is started. Idempotent.
   expose(port: number): Promise<{ browserOrigin: string }>
   // Undo expose when the chat is deleted. Never throws.
@@ -41,29 +38,12 @@ interface PreviewExposure {
 }
 ```
 
-### Ports
-
-With `ports` set, each chat’s browser-facing ports come from that range,
-lowest free first, and a deleted chat’s ports are the next ones handed out, so
-the set of exposed ports stays small. Ports a chat already holds stay its own across restarts.
-Without a range, any free port is used. When every port in the range is taken,
-a new chat fails with an error saying so: delete a chat, or widen the range.
-
 ## Built-ins
-
-Each built-in is a function in `apps/app/lib/preview-exposure/builtins.ts` that
-takes its options as an object and refuses one it doesn’t recognise with a
-message naming it.
 
 ### `loopback`: `loopbackExposure()`
 
-The Mac app’s behaviour, and the default: previews bind `127.0.0.1` and load at
+The Mac app’s behaviour, and the default: each port loads at
 `http://localhost:{port}`.
-
-| Option   | Default                   |                                                       |
-| -------- | ------------------------- | ----------------------------------------------------- |
-| `origin` | `http://localhost:{port}` | The browser origin pattern                            |
-| `ports`  | any free port             | A range, e.g. to match a fixed list of `ssh -L` ports |
 
 ### `tailscale`: `tailscaleExposure()`
 
@@ -88,8 +68,5 @@ which.
 one: `loopback`, everywhere. `PREVIEW_EXPOSURE` overrides it with `loopback`
 or `tailscale`. An id it doesn’t know stops the server from starting.
 
-A built-in with options, or an implementation of your own (a company proxy
-that gives every port its own URL, or a command that exposes each port), is a
-change to `selectPreviewExposure()` in your fork. Every
-replaceable part of Screenplay is picked the same way, like the
+Every replaceable part of Screenplay is picked the same way, like the
 [Yjs host](/self-hosting/configuration/yjs-host).

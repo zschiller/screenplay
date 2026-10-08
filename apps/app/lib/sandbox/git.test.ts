@@ -36,7 +36,6 @@ const fake = vi.hoisted(() => {
 // git without re-importing the module under test.
 const access = vi.hoisted(() => ({
   hostGit: false,
-  webUrl: "https://github.com",
   token: vi.fn(async (_userId: string): Promise<string | null> => null),
   identity: vi.fn(
     async (_userId: string): Promise<{ name: string; email: string } | null> =>
@@ -46,7 +45,6 @@ const access = vi.hoisted(() => ({
 vi.mock("@/lib/github-access", () => ({
   get githubAccess() {
     return {
-      webUrl: access.webUrl,
       git: access.hostGit
         ? { kind: "host" }
         : { kind: "brokered", token: access.token, identity: access.identity },
@@ -148,7 +146,6 @@ function fakeSandbox(
 beforeEach(() => {
   vi.clearAllMocks()
   access.hostGit = false
-  access.webUrl = "https://github.com"
   // clearAllMocks wipes call history but keeps implementations; restore the
   // null defaults so a test that scripts an identity doesn't leak into the next.
   vi.mocked(getUserId).mockResolvedValue(null)
@@ -234,8 +231,7 @@ describe("configureAgentGit", () => {
     expect(joined).not.toContain("agent@screenplay.dev")
   })
 
-  it("points origin at the configured GitHub's web URL", async () => {
-    access.webUrl = "https://ghe.corp.example"
+  it("points origin at github.com", async () => {
     const seen: string[] = []
     fake.setInstance(
       fakeSandbox((cmd, args) => {
@@ -247,7 +243,7 @@ describe("configureAgentGit", () => {
     await configureAgentGit("sandbox-a", repo, "feature")
 
     expect(seen.join("\n")).toContain(
-      `git remote set-url origin https://ghe.corp.example/${repo.repoOwner}/${repo.repoName}.git`
+      `git remote set-url origin https://github.com/${repo.repoOwner}/${repo.repoName}.git`
     )
   })
 
