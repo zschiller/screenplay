@@ -78,13 +78,13 @@ knows.
 
 ## Two ways to run it
 
-|                  | Desktop app                                                                      | Hosted app (you deploy it)                                                                                |
-| ---------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **For**          | One person on a Mac with Apple silicon                                           | A team, on infrastructure you deploy                                                                      |
-| **Chats run in** | Git worktrees on your machine                                                    | A sandbox VM per chat                                                                                     |
-| **Agent**        | Claude Code, Codex or OpenCode, with the login and subscription you already have | The built-in agent, on Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint |
-| **Together**     | Single user                                                                      | Shared canvases, live cursors, comments and live frames                                                   |
-| **Start**        | [Quickstart](https://screenplay.space/docs/guides/quickstart)                    | [Self-hosting guide](https://screenplay.space/docs/self-hosting)                                          |
+|                  | Desktop app                                                                                   | Hosted app (you deploy it)                                                                                |
+| ---------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **For**          | One person on a Mac with Apple silicon                                                        | A team, on infrastructure you deploy                                                                      |
+| **Chats run in** | Git worktrees on your machine                                                                 | A sandbox VM per chat                                                                                     |
+| **Agent**        | Claude Code, Codex, OpenCode or Antigravity, with the login and subscription you already have | The built-in agent, on Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint |
+| **Together**     | Single user                                                                                   | Shared canvases, live cursors, comments and live frames                                                   |
+| **Start**        | [Quickstart](https://screenplay.space/docs/guides/quickstart)                                 | [Self-hosting guide](https://screenplay.space/docs/self-hosting)                                          |
 
 Both are the same product, built from this repository.
 

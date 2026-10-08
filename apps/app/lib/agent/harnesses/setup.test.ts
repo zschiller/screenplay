@@ -90,11 +90,13 @@ describe("rows (the live read + the dedupe rule)", () => {
       "claude",
       "codex",
       "opencode",
+      "agy_acp_server.par",
     ])
     expect(rows.map((r) => r.key)).toEqual([
       "claude-code",
       "codex",
       "opencode-gateway",
+      "antigravity",
     ])
   })
 

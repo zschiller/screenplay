@@ -5,8 +5,9 @@ import type { AgentMessage } from "@/lib/agent/types"
  * it reaches our tools over MCP (#903): Claude Code reports
  * `mcp__screenplay__read_canvas`, Codex `mcp.screenplay.read_canvas`
  * (`Tool: screenplay/read_canvas` before codex-acp 2) and OpenCode
- * `screenplay_read_canvas` (its `<server>_<tool>`, #1589), where the
- * in-process engine reports `read_canvas`. Any other title comes back as is.
+ * `screenplay_read_canvas` (its `<server>_<tool>`, #1589) and Antigravity
+ * `Running read_canvas`, where the in-process engine reports `read_canvas`.
+ * Any other title comes back as is.
  */
 export function bareToolName(title: string): string {
   const claude = title.match(/^mcp__[^_]+(?:_[^_]+)*__([a-z][a-z0-9_]*)$/)
@@ -17,6 +18,8 @@ export function bareToolName(title: string): string {
   if (codex) return codex[1]!
   const opencode = title.match(/^screenplay_([a-z][a-z0-9_]*)$/)
   if (opencode) return opencode[1]!
+  const antigravity = title.match(/^Running ([a-z][a-z0-9_]*)$/)
+  if (antigravity) return antigravity[1]!
   return title
 }
 

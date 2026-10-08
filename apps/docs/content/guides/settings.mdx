@@ -32,8 +32,8 @@ chat.
 <Only desktop />
 
 On desktop, the agent is a coding CLI on your machine. Under the default
-model there’s one row per supported CLI: **Claude Code**, **Codex**, and
-**OpenCode**. Each row shows whether it’s **Signed in**, **Signed out** or
+model there’s one row per supported CLI: **Claude Code**, **Codex**,
+**OpenCode** and **Antigravity**. Each row shows whether it’s **Signed in**, **Signed out** or
 **Not installed**:
 
 - **Install and sign in** installs the CLI, then runs its own login in an inline
@@ -50,6 +50,11 @@ search box; check the ones you want and they show in the model picker under
 **OpenCode** straight away. With none checked, the picker has one **OpenCode**
 entry that runs the model you chose in OpenCode itself. The choice is kept on
 this computer.
+
+Antigravity’s row installs Google’s Antigravity agent server, which chats
+talk to, and signs it in with your Google account in the browser. It keeps
+its own sign-in, separate from the `agy` command line tool’s, so sign in here
+even if `agy` already is.
 
 A CLI you connect here shows up in the model picker straight away, with no
 restart. The app never uninstalls a CLI or signs you

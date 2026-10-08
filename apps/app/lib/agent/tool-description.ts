@@ -882,17 +882,34 @@ export function toolKind(name: string): ToolKind {
   return SCREENPLAY_TOOLS[name]?.kind ?? "other"
 }
 
-/** The name and input of a call, unwrapping Codex's `mcp.<server>.<tool>`. */
+/**
+ * The name and input of a call, unwrapping Codex's `mcp.<server>.<tool>` and
+ * Antigravity's `call_mcp_tool`.
+ */
 export function callIdentity(call: ToolCallMessage): {
   name: string
   input: Input
 } {
+  const raw = record(call.rawInput)
+  // Antigravity calls an MCP tool through its own `call_mcp_tool`, whose
+  // input is `{ ServerName, ToolName, Arguments, … }`.
+  if (typeof raw.ServerName === "string" && typeof raw.ToolName === "string") {
+    return { name: raw.ToolName, input: mcpArguments(raw.Arguments) }
+  }
   const name = bareToolName(call.title)
   // codex-acp 2 wraps an MCP call's input as `{ server, tool, arguments }`.
-  const input = /^mcp\./.test(call.title)
-    ? record(record(call.rawInput).arguments)
-    : record(call.rawInput)
+  const input = /^mcp\./.test(call.title) ? record(raw.arguments) : raw
   return { name, input }
+}
+
+/** An MCP call's arguments, as an object or the JSON of one. */
+function mcpArguments(value: unknown): Input {
+  if (typeof value !== "string") return record(value)
+  try {
+    return record(JSON.parse(value))
+  } catch {
+    return {}
+  }
 }
 
 function resultText(call: ToolCallMessage): string {

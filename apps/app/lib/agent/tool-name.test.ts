@@ -10,12 +10,14 @@ describe("bareToolName", () => {
     expect(bareToolName("Tool: screenplay/read_canvas")).toBe("read_canvas")
     expect(bareToolName("mcp.screenplay.read_canvas")).toBe("read_canvas")
     expect(bareToolName("screenplay_read_canvas")).toBe("read_canvas")
+    expect(bareToolName("Running read_canvas")).toBe("read_canvas")
   })
 
   it("leaves every other title as is", () => {
     expect(bareToolName("read_canvas")).toBe("read_canvas")
     expect(bareToolName("Read `src/a.ts`")).toBe("Read `src/a.ts`")
     expect(bareToolName("ToolSearch")).toBe("ToolSearch")
+    expect(bareToolName("Running npm test")).toBe("Running npm test")
   })
 })
 

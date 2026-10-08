@@ -262,7 +262,17 @@ function chainInstallIntoAuth(
   install: string,
   authCommand: string[]
 ): string[] {
-  return ["sh", "-c", `${install} && ${authCommand.join(" ")}`]
+  return ["sh", "-c", `${install} && ${authCommand.map(shellWord).join(" ")}`]
+}
+
+/**
+ * `arg` as one shell word: as is when it is plain (`claude`, `/login`), else
+ * single-quoted, so a sign-in that takes a script (Antigravity's) survives
+ * the `sh -c`.
+ */
+function shellWord(arg: string): string {
+  if (/^[\w@%+=:,./-]+$/.test(arg)) return arg
+  return `'${arg.replaceAll("'", `'\\''`)}'`
 }
 
 /** The status message shown above the working terminal. */

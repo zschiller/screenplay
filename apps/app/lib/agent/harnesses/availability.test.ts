@@ -115,8 +115,9 @@ describe("createDesktopResolver (Harness Availability — desktop fold)", () => 
     await resolver.list()
     await resolver.list()
 
-    // Three distinct binaries, probed once total across both list() calls.
+    // Four distinct binaries, probed once total across both list() calls.
     expect(probedBinaries(probe).sort()).toEqual([
+      "agy_acp_server.par",
       "claude",
       "codex",
       "opencode",

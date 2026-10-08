@@ -2,6 +2,7 @@ import "server-only"
 
 import type { ModelProvider } from "@/lib/agent/providers"
 import type { ToolNaming } from "@/lib/agent/tool-name"
+import { antigravityHarness } from "./antigravity"
 import { claudeCodeHarness } from "./claude-code"
 import { codexHarness } from "./codex"
 import { opencodeCompatHarness, opencodeGatewayHarness } from "./opencode"
@@ -43,6 +44,7 @@ export const HARNESSES: Harness[] = [
   codexHarness,
   opencodeGatewayHarness,
   opencodeCompatHarness,
+  antigravityHarness,
 ]
 
 const HARNESSES_BY_KEY = new Map<string, Harness>(
