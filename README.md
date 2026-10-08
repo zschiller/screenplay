@@ -2,6 +2,7 @@ Archive of Screenplay design explorations, audits and storybooks: snapshots of t
 
 | Date | Title | Question |
 | --- | --- | --- |
+| 2026-10-08 | [Viewer chat panel](2026-10-08-viewer-chat-panel/) | With the host-only controls gone, what does a viewer’s chat panel and canvas chrome look like? |
 | 2026-10-07 | [Draw a Mockup or Document](2026-10-07-draw-a-mockup-or-document/) | How does the card on a drawn Mockup or Document box get from the prompt to opening an existing file? |
 | 2026-10-07 | [File-backed Documents and Mockups](2026-10-07-file-backed-documents-and-mockups/) | What would it take for a Document or Mockup to be a file, with every canvas layer only a view of it? |
 | 2026-10-07 | [Pages sidebar headings](2026-10-07-pages-sidebar-headings/) | With the Pages and Layers headings gone, how do you collapse the page list? |
