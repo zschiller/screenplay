@@ -10,8 +10,9 @@ description: How the desktop app knows who each person watching a shared canvas 
 Sharing lets people watch a canvas in the desktop app by link. They reach it on
 a **viewer listener**, separate from the listener the app itself uses.
 Whoever arrives there is a viewer: the role comes from the listener, never from
-anything in the request. A viewer listener serves a short list of reads, and
-the server refuses every write on it before the app sees the request.
+anything in the request. A viewer listener serves a short list of reads and a
+viewer’s comments, and the server refuses every other write on it before the
+app sees the request.
 
 **Viewer identity** decides who each viewer is, so they show up under their
 own name. It runs for every request on a viewer listener, before the app sees

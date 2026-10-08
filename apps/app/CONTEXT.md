@@ -258,28 +258,25 @@ snapshot, deliberately not in the Y.Doc).
 Everything the hosted, multi-tenant app needs to let many people share one Room
 and that the **local desktop build excludes** (PRD #404): GitHub OAuth login
 (`session`/`account`/`verification`) and the login screen; `room_member`
-membership and sharing; Yjs **awareness/presence** (remote cursors, the follow
-toolbar); and the _persisted_ comment thread (`thread`/`comment`/`thread_read` —
-pins, replies, read-state, co-view). The element/selection
-**reference-to-agent** path that rides on the same comment UI — anchoring an
-element or doc text span and hitting "Send to Claude", which injects the
-reference into a Chat Session and persists nothing — is single-user and **kept**;
-only the composer's "Comment" (persist) button is dropped on the local build. It
-is one of the capabilities a **Build profile** sets (`@/lib/capabilities`'
-`multiUserSurface`; the login half is its identity capability,
-`buildIdentity`). On the local build `canAccess`/`room_member` collapse
-to a single seeded local user (`@/lib/local-user`), the app opens straight into
-the work with no login, and the excluded tables aren't even created on disk: the
-schema is split (`lib/db/schema-core.ts` vs `lib/db/schema-multiuser.ts`) and the
-desktop PGlite backend migrates from the core half alone (`drizzle/local`). The
+membership and sharing; and Yjs **awareness/presence** (remote cursors, the
+follow toolbar). Persisted comment threads (`thread`/`comment`/`thread_read`)
+used to be part of it; since **Sharing** (#1934) every build has them, behind
+their own capability (`commenting`), so the Mac app's host and their viewers
+comment. It is one of the capabilities a **Build profile** sets
+(`@/lib/capabilities`' `multiUserSurface`; the login half is its identity
+capability, `buildIdentity`). On the local build `canAccess`/`room_member`
+collapse to a single seeded local user (`@/lib/local-user`), the app opens
+straight into the work with no login, and the excluded tables aren't even
+created on disk: the schema is split (`lib/db/schema-core.ts`,
+`lib/db/schema-comments.ts` and `lib/db/schema-multiuser.ts`) and the desktop
+PGlite backend migrates from the first two alone (`drizzle/local`). The
 hosted build keeps the whole surface, unchanged. Re-enabling multi-tenant
 operation on the local build is explicitly out of scope; ADR 0002's egress
 key-brokering / firewall trust boundary dissolves on the host and is not ported.
 _Avoid_: "auth" alone (it's more than login — it's the whole access model);
 implying presence is _deleted_ (the Yjs awareness plumbing the editor needs
 stays; the local build simply has one peer, so there are no others to show);
-saying "comments are gone" flatly (the persisted thread is, but the
-anchor-and-send-to-agent reference path survives).
+counting comments in it (they have their own capability now).
 
 **Build profile** (`@/lib/capabilities`, #1924):
 One of the three ways to run Screenplay, picked at build time by
@@ -307,7 +304,8 @@ letting others watch (that's **Sharing**).
 
 **Sharing**:
 Letting anyone you send a canvas link watch it live: frames, presence, every
-chat read-only, and comments. They write nothing else. In the Mac app
+chat read-only, and comments (#1934), through the canvas link's comments route
+as the viewer. They write nothing else. In the Mac app
 (#1921); a capability (`viewers`) only the `desktop` profile turns on.
 _Avoid_: "sharing" for hosted Room membership invites (that's `room_member`,
 part of the **Multi-user surface**).
@@ -368,10 +366,13 @@ The server module that owns comment threads: it opens the thread's Room through
 **Room Access**, enforces the same `comment-permissions` rules the thread card
 reads (any member replies and resolves; only a comment's author edits or
 deletes it; only a thread's starter deletes the thread; every other attempt
-fails with one `NotYourCommentError`), gates the local build in one place,
-creates a thread with its first comment in one SQL statement, and rings the
-comment doorbells. Listing never writes. `comments-actions.ts` is transport
-only.
+fails with one `NotYourCommentError`), gates builds without `commenting` in one
+place, creates a thread with its first comment in one SQL statement, and rings
+the comment doorbells. Listing never writes. A **Viewer** comments through
+`commentsForViewer`, which runs the same operations as the person their viewer
+identity named, held to their canvas link's canvas, resolving only threads they
+started and never sending one to an agent. `comments-actions.ts` and the canvas
+link's `comments` route are transport only.
 _Avoid_: permission checks or build-profile checks in the comment actions.
 
 **GitHub Connection** (local build):

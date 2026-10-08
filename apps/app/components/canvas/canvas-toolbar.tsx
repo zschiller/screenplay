@@ -13,7 +13,7 @@ import {
   FloatingToolbarButton,
 } from "@workspace/ui/components/floating-toolbar"
 
-import { multiUserSurface } from "@/lib/capabilities"
+import { commenting } from "@/lib/capabilities"
 
 import type { ToolModeController } from "./use-tool-mode"
 
@@ -97,11 +97,9 @@ export function CanvasToolbar({
         >
           <FileTextIcon />
         </FloatingToolbarButton>
-        {/* Comment mode is web-only: it places multi-user comment
-            threads. The local build has no persisted threads (#417) and
-            its element→agent targeting now lives in the composer token
-            path (#618), so there's no comment tool on desktop. */}
-        {multiUserSurface && (
+        {/* Comment mode places persisted comment threads, in every build
+            that has them (the Mac app's host and viewers too, #1934). */}
+        {commenting && (
           <FloatingToolbarButton
             label="Comment"
             shortcut="C"

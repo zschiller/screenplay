@@ -4,6 +4,7 @@ import {
   canDeleteComment,
   canDeleteThread,
   canEditComment,
+  canResolveThread,
 } from "./comment-permissions"
 
 describe("comment permissions", () => {
@@ -27,5 +28,13 @@ describe("comment permissions", () => {
     expect(canDeleteThread(thread, "a")).toBe(true)
     expect(canDeleteThread(thread, "b")).toBe(false)
     expect(canDeleteThread(thread, null)).toBe(false)
+  })
+
+  it("lets any member resolve, and a viewer only a thread they started", () => {
+    const thread = { createdBy: "a" }
+    expect(canResolveThread(thread, "b", { viewer: false })).toBe(true)
+    expect(canResolveThread(thread, "a", { viewer: true })).toBe(true)
+    expect(canResolveThread(thread, "b", { viewer: true })).toBe(false)
+    expect(canResolveThread(thread, null, { viewer: false })).toBe(false)
   })
 })

@@ -59,7 +59,12 @@ import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 import { useAppSession } from "@/lib/auth-client"
 import { useViewing } from "@/lib/viewer/context"
 
-import { buildIdentity, macShell, multiUserSurface } from "@/lib/capabilities"
+import {
+  buildIdentity,
+  commenting,
+  macShell,
+  multiUserSurface,
+} from "@/lib/capabilities"
 
 import { inputStore } from "@/lib/input-store"
 import { chatDraftSourceStore } from "@/lib/chat-draft-source-store"
@@ -2187,6 +2192,8 @@ export function Canvas({
     agents,
     sendComments: branchActions.sendComments,
   })
+  // A viewer comments but never sends a thread to an agent (#1934).
+  const commentAgentRequests = viewing ? undefined : commentRequests
 
   // The frame-seed-on-provision effect (auto-seed + zoom-to once an agent's
   // sandbox finishes provisioning) lives on the Branch Intake controller now
@@ -2982,7 +2989,7 @@ export function Canvas({
                       onActivateThread={reference.setActiveThread}
                       describeLayer={describeCommentLayer}
                       hidePins={commentPinsHidden}
-                      requests={commentRequests}
+                      requests={commentAgentRequests}
                     />
                   </div>
 
@@ -3268,19 +3275,19 @@ export function Canvas({
                           onZoomToFit: zoomControls.zoomToFit,
                         })}
                       />
+                      {commenting && (
+                        <CommentsButton
+                          threads={commentThreads.threads}
+                          open={commentsPanelOpen}
+                          pinsHidden={commentPinsHidden}
+                          onToggle={() => setCommentsPanelOpen((open) => !open)}
+                        />
+                      )}
                       {/* Following other users' viewports and sharing are part of
                     the multi-user surface, excluded from the local build
                     (PRD #404, issue #417). */}
                       {multiUserSurface && (
                         <>
-                          <CommentsButton
-                            threads={commentThreads.threads}
-                            open={commentsPanelOpen}
-                            pinsHidden={commentPinsHidden}
-                            onToggle={() =>
-                              setCommentsPanelOpen((open) => !open)
-                            }
-                          />
                           <FollowingToolbar
                             followingId={followingConnectionId}
                             onFollow={camera.follow}
@@ -3319,7 +3326,7 @@ export function Canvas({
                       )}
                     </div>
                   </div>
-                  {multiUserSurface && commentsPanelOpen && (
+                  {commenting && commentsPanelOpen && (
                     <CommentsPanel
                       roomId={roomId}
                       commentThreads={commentThreads}
@@ -3331,7 +3338,7 @@ export function Canvas({
                       onClose={() => setCommentsPanelOpen(false)}
                       describeLayer={describeCommentLayer}
                       getDocumentEditor={reference.getDocumentEditor}
-                      requests={commentRequests}
+                      requests={commentAgentRequests}
                     />
                   )}
                 </div>

@@ -87,24 +87,30 @@ describe("local build — access model", () => {
     await expect(listCollaborators("r1")).rejects.toThrow(/desktop app/)
   })
 
-  it("excludes persisted comments but keeps thread reads safe (so the reference composer can mount)", async () => {
-    // The element/selection "Send to Claude" path stays in the local build, so
-    // the Comments component still mounts and reads threads — which must be a
-    // safe empty result, never a query against the absent `thread` table.
+  it("persists the host's comment threads (Sharing's viewers comment too, #1934)", async () => {
+    const { db, dbReady, schema } = await import("@/lib/db")
+    await dbReady
+    await db.insert(schema.user).values({
+      id: "local",
+      name: "Local User",
+      email: "local@localhost",
+    })
+    await db.insert(schema.room).values({ id: "r1", ownerId: "local" })
     const { listThreads, createThread } = await import("./comments")
     await expect(listThreads("r1")).resolves.toEqual([])
-    // Persisting a comment thread is the multi-user half — it refuses.
-    await expect(
-      createThread({
-        roomId: "r1",
-        x: 0,
-        y: 0,
-        iframeLayerId: null,
-        selector: null,
-        offsetX: null,
-        offsetY: null,
-        body: "hi",
-      })
-    ).rejects.toThrow(/desktop app/)
+    const thread = await createThread({
+      roomId: "r1",
+      x: 0,
+      y: 0,
+      iframeLayerId: null,
+      selector: null,
+      offsetX: null,
+      offsetY: null,
+      body: "hi",
+    })
+    expect(thread.comments).toMatchObject([
+      { authorId: "local", authorName: "Local User", body: "hi" },
+    ])
+    expect((await listThreads("r1")).map((t) => t.id)).toEqual([thread.id])
   })
 })
