@@ -659,6 +659,59 @@ html.dark .nextra-callout > div:last-child {
   overflow-wrap: anywhere;
 }
 
+/* On a phone, columns don't fit: each row stacks, its first cell as the
+   row's title and the rest below it. With three or more columns each later
+   cell leads with its column’s label (`--sp-head-N`, set in
+   mdx-components.tsx), since the header row is hidden. */
+@media (max-width: 639px) {
+  .sp-table :is(table, tbody, tr, td) {
+    display: block;
+  }
+  .sp-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sp-table tr {
+    padding: 0.75rem 0;
+  }
+  .sp-table tbody tr:first-child {
+    padding-top: 0.25rem;
+  }
+  .sp-table td {
+    padding: 0;
+    overflow-wrap: anywhere;
+  }
+  .sp-table td:first-child {
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+  }
+  .sp-table td:not(:first-child) code {
+    white-space: normal;
+  }
+  .sp-table td:not(:first-child) + td {
+    margin-top: 0.25rem;
+  }
+  .sp-table:not([data-columns="2"]) td::before {
+    font-weight: 500;
+  }
+  .sp-table:not([data-columns="2"]) td:nth-child(2)::before {
+    content: var(--sp-head-2) ": ";
+  }
+  .sp-table:not([data-columns="2"]) td:nth-child(3)::before {
+    content: var(--sp-head-3) ": ";
+  }
+  .sp-table:not([data-columns="2"]) td:nth-child(4)::before {
+    content: var(--sp-head-4) ": ";
+  }
+  .sp-table:not([data-columns="2"]) td:nth-child(5)::before {
+    content: var(--sp-head-5) ": ";
+  }
+}
+
 /* An environment variable's row: its # shows while the row is hovered, like a
    heading's, and stays on the row a link landed on. */
 .sp-anchored-row:is(:hover, :target) .subheading-anchor {
