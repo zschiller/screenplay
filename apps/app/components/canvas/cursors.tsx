@@ -3,6 +3,7 @@
 import { resolvePageId } from "@/lib/canvas/pages"
 import { presenceInkClass } from "@/lib/canvas/presence-ink"
 import type { PageData } from "@/lib/types"
+import { useViewing } from "@/lib/viewer/context"
 import { useOtherPresences } from "@/lib/yjs/react"
 
 interface CursorsProps {
@@ -14,6 +15,9 @@ interface CursorsProps {
 
 export function Cursors({ viewport, pages, pageId }: CursorsProps) {
   const others = useOtherPresences()
+  // On a canvas link the server stamps every viewer's presence, so the one
+  // without the stamp is the Host's (#1932).
+  const viewing = !!useViewing()
 
   return (
     <>
@@ -26,6 +30,9 @@ export function Cursors({ viewport, pages, pageId }: CursorsProps) {
         const message = presence.message ?? null
         const name = presence.identity.name || "Anonymous"
         const ink = presenceInkClass(presence.color)
+        const label = (
+          <NameLabel name={name} host={viewing && presence.viewer !== true} />
+        )
 
         return (
           <div
@@ -58,7 +65,7 @@ export function Cursors({ viewport, pages, pageId }: CursorsProps) {
                 className={`mt-1 ml-3 w-max max-w-60 rounded px-2 py-1 ${ink}`}
                 style={{ backgroundColor: presence.color }}
               >
-                <div className="text-xs font-medium">{name}</div>
+                <div className="text-xs font-medium">{label}</div>
                 <div className="text-sm leading-snug break-words whitespace-pre-wrap">
                   {message || " "}
                 </div>
@@ -68,12 +75,25 @@ export function Cursors({ viewport, pages, pageId }: CursorsProps) {
                 className={`mt-1 ml-3 block w-max rounded px-1.5 py-0.5 text-xs whitespace-nowrap ${ink}`}
                 style={{ backgroundColor: presence.color }}
               >
-                {name}
+                {label}
               </span>
             )}
           </div>
         )
       })}
     </>
+  )
+}
+
+/** The tag's name, and for the Host a hairline in the tag's ink, then "Host". */
+function NameLabel({ name, host }: { name: string; host: boolean }) {
+  if (!host) return name
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {name}
+      <span className="border-l border-current pl-1.5 leading-3 font-medium">
+        Host
+      </span>
+    </span>
   )
 }

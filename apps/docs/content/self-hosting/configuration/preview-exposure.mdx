@@ -18,6 +18,10 @@ small interface in `apps/app/lib/preview-exposure/` with four built-ins:
 | `url-template` | `0.0.0.0`     | an origin from a pattern                  | A proxy that gives every port its own URL |
 | `command`      | `127.0.0.1`   | an origin from a pattern, after a command | A company tool                            |
 
+In the Mac app, it’s how [viewers](/self-hosting/configuration/desktop-app#sharing)
+reach previews: a viewer’s frame asks for its port’s origin when it opens.
+Your own frames always load at `http://localhost:{port}`.
+
 On [Headless](/self-hosting/headless), it’s how viewers reach previews. The
 host’s own frames always load through portless at
 `http://screenplay-<port>.localhost:1355`, over the host’s SSH tunnel, whatever

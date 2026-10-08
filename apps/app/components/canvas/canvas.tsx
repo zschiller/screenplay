@@ -57,6 +57,7 @@ import { workingChatsOf } from "@/components/canvas/working-chat"
 import type { TerminalTabRecord } from "@/lib/terminal-tabs"
 
 import { useAppSession } from "@/lib/auth-client"
+import { useViewing } from "@/lib/viewer/context"
 
 import { buildIdentity, macShell, multiUserSurface } from "@/lib/capabilities"
 
@@ -501,6 +502,9 @@ export function Canvas({
   const others = useOtherPeers()
   const { data: session } = useAppSession()
   const userId = session?.user.id
+  // A viewer watching by the canvas link (Sharing, #1932), or null for the
+  // host.
+  const viewing = useViewing()
   const history = useYjsHistory()
   const collections = useRoomCollections()
   // Canvas Operations seam (#157): the single transaction entry point + the
@@ -2668,7 +2672,7 @@ export function Canvas({
       <CanvasOpsContext.Provider value={ops}>
         {/* The agent drives this canvas's frames and mockups on the Mac
         (#1389), and its mockups on hosted (#1391). */}
-        {macShell ? (
+        {viewing ? null : macShell ? (
           <FrameDriveRelay
             roomId={roomId}
             viewerId={userId ?? null}

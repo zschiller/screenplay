@@ -352,6 +352,10 @@ export type CanvasPresence = {
   // The canvas page (#1840) this user is looking at. Absent from clients
   // from before pages, which show the first page.
   pageId?: string
+  // Set by the server on a Viewer's presence (Sharing, #1932), with the
+  // identity their viewer identity named; a page can't set or clear it. A
+  // presence without it is the Host's.
+  viewer?: boolean
 }
 
 function useAwareness(): AwarenessLike {

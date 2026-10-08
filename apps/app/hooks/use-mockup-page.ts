@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { withBasePath } from "@/lib/base-path"
 import { mockupHasPage, type MockupPageResponse } from "@/lib/mockup-folder"
 import type { MockupLayerData } from "@/lib/types"
+import { type Viewing, useViewing } from "@/lib/viewer/context"
 import { useRoomId } from "@/lib/yjs/context"
 import { useMockupHtml } from "@/lib/yjs/react"
 
@@ -48,6 +49,7 @@ export function useMockupPage(
   layer: Pick<MockupLayerData, "id" | "fileId" | "revision" | "copyOf">
 ): MockupPageState {
   const roomId = useRoomId()
+  const viewing = useViewing()
   const fileId = layer.fileId ?? layer.id
   // A page from before folders still in the room doc: the server moves it
   // into the folder on the first read, which empties this.
@@ -73,7 +75,7 @@ export function useMockupPage(
     if (!key) return
     let promise = cache.get(key)
     if (!promise) {
-      promise = fetchPage(roomId, fileId)
+      promise = fetchPage(pagePath(roomId, fileId, viewing))
       cache.set(key, promise)
       // A failed fetch tries again next time the page changes or opens.
       void promise.then((res) => {
@@ -105,7 +107,7 @@ export function useMockupPage(
       live = false
       if (timer) clearTimeout(timer)
     }
-  }, [key, roomId, fileId])
+  }, [key, roomId, fileId, viewing])
 
   if (!key) return { page: NO_PAGE, hasPage, current: true }
   const current = loaded?.key === key
@@ -114,20 +116,28 @@ export function useMockupPage(
   return { page: same ? loaded!.page : null, hasPage, current }
 }
 
-async function fetchPage(
+/**
+ * Where a Mockup's page is read: the members-only folder route, or for a
+ * viewer (#1932) the same read under the canvas link.
+ */
+function pagePath(
   roomId: string,
-  fileId: string
-): Promise<MockupPageResponse | null> {
+  fileId: string,
+  viewing: Viewing | null
+): string {
+  const file = encodeURIComponent(fileId)
+  return viewing
+    ? `/s/${encodeURIComponent(viewing.roomId)}/${viewing.shareKey}/mockups/${file}`
+    : `/api/mockup-folders/${encodeURIComponent(roomId)}/${file}`
+}
+
+async function fetchPage(path: string): Promise<MockupPageResponse | null> {
   try {
-    const res = await fetch(
-      withBasePath(
-        `/api/mockup-folders/${encodeURIComponent(roomId)}/${encodeURIComponent(fileId)}`
-      )
-    )
+    const res = await fetch(withBasePath(path))
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return (await res.json()) as MockupPageResponse
   } catch (e) {
-    console.warn(`Mockup ${fileId}: couldn’t load its page`, e)
+    console.warn(`Mockup page ${path}: couldn’t load`, e)
     return null
   }
 }

@@ -15,6 +15,7 @@ import {
 import { roomChatId } from "@/lib/chat/room-chat"
 import { viewRequests } from "@/lib/canvas/view-requests"
 import { ensureRoomChatAction } from "@/lib/room-chat-actions"
+import { useViewing } from "@/lib/viewer/context"
 import type { ChatSessionData } from "@/lib/types"
 
 /**
@@ -70,14 +71,16 @@ export function CoordinatorChat({
   )
 
   const requestedRef = useRef(false)
+  // The host creates the Coordinator chat; a viewer (#1932) waits for it.
+  const viewing = !!useViewing()
   useEffect(() => {
-    if (chatSession || requestedRef.current) return
+    if (viewing || chatSession || requestedRef.current) return
     requestedRef.current = true
     ensureRoomChatAction(roomId).catch((e) => {
       requestedRef.current = false
       console.error("Couldn’t create the Coordinator chat:", e)
     })
-  }, [chatSession, roomId])
+  }, [chatSession, roomId, viewing])
 
   return (
     <div className="min-h-0 flex-1">

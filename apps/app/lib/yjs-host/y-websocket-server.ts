@@ -21,6 +21,11 @@ import {
 import { acceptFrameDriveConnection } from "@/lib/frame-drive/mac/channel"
 import { FRAME_DRIVE_PATH } from "@/lib/frame-drive/canvas/protocol"
 import { FileYjsPersistence } from "@/lib/yjs-host/file-persistence"
+import {
+  type ViewerPresencePerson,
+  viewerMessageFilter,
+} from "@/lib/yjs-host/viewer-messages"
+import { setViewerYjs } from "@/server/ws-routes.mjs"
 import type { IssueTokenResult, YjsHost } from "@/lib/yjs-host/types"
 
 const DEFAULT_PORT = 1234
@@ -208,10 +213,13 @@ let serverHandle: YjsServerHandle | null = null
  */
 async function connectWhenLoaded(
   conn: WebSocket,
-  req: IncomingMessage
+  req: IncomingMessage,
+  {
+    // Same room-name derivation `setupWSConnection` uses by default.
+    docName = (req.url ?? "").slice(1).split("?")[0]!,
+    viewer,
+  }: { docName?: string; viewer?: ViewerPresencePerson } = {}
 ): Promise<void> {
-  // Same room-name derivation `setupWSConnection` uses by default.
-  const docName = (req.url ?? "").slice(1).split("?")[0]
   const buffered: [RawData, boolean][] = []
   const buffer = (data: RawData, isBinary: boolean) =>
     buffered.push([data, isBinary])
@@ -232,11 +240,61 @@ async function connectWhenLoaded(
   if (conn.readyState !== WebSocket.OPEN) return
 
   setupWSConnection(conn, req, { docName })
+  if (viewer) readOnly(conn, docName, viewer)
   for (const [data, isBinary] of buffered) conn.emit("message", data, isBinary)
 }
 
+/**
+ * Put a viewer's socket behind {@link viewerMessageFilter} (#1932): y-websocket's
+ * own message listener only ever sees what a viewer may send, so the doc
+ * never takes a viewer's change.
+ */
+function readOnly(
+  conn: WebSocket,
+  docName: string,
+  person: ViewerPresencePerson
+): void {
+  const filter = viewerMessageFilter({
+    person,
+    heldElsewhere: (clientId) => {
+      for (const [other, ids] of docs.get(docName)?.conns ?? []) {
+        if (other !== conn && ids.has(clientId)) return true
+      }
+      return false
+    },
+  })
+  const listeners = conn.listeners("message") as Array<
+    (data: RawData, isBinary: boolean) => void
+  >
+  conn.removeAllListeners("message")
+  conn.on("message", (data: RawData, isBinary: boolean) => {
+    const passed = filter(toBytes(data))
+    if (!passed) return
+    const out = Buffer.from(passed.buffer, passed.byteOffset, passed.byteLength)
+    for (const listener of listeners) listener.call(conn, out, isBinary)
+  })
+}
+
+function toBytes(data: RawData): Uint8Array {
+  if (Array.isArray(data)) return new Uint8Array(Buffer.concat(data))
+  if (data instanceof ArrayBuffer) return new Uint8Array(data)
+  return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+}
+
+/** Whether a canvas is still there, so a link to a deleted one finds nothing. */
+async function roomExists(roomId: string): Promise<boolean> {
+  // Lazily: the rooms module pulls in the database, which this one otherwise
+  // never needs.
+  const { getRoom } = await import("@/lib/rooms")
+  return (await getRoom(roomId)) !== null
+}
+
 export async function startLocalYjsServer(
-  opts: { port?: number } & GuardOptions = {}
+  opts: {
+    port?: number
+    /** Whether a viewer's canvas exists; the rooms table by default. */
+    viewerRoomExists?: (roomId: string) => Promise<boolean>
+  } & GuardOptions = {}
 ): Promise<YjsServerHandle> {
   if (serverHandle) return serverHandle
 
@@ -249,6 +307,25 @@ export async function startLocalYjsServer(
   })
   const wss = new WebSocketServer({ noServer: true })
   wss.on("connection", (conn, req) => void connectWhenLoaded(conn, req))
+  // A viewer's socket (Sharing, #1932) arrives from the front server's viewer
+  // listener, already checked there, and is read-only plus presence.
+  // A link to a deleted canvas opens nothing, rather than an empty doc.
+  const viewerWss = new WebSocketServer({ noServer: true })
+  const viewerRoomExists = opts.viewerRoomExists ?? roomExists
+  setViewerYjs((req, socket, head, { roomId, person }) => {
+    viewerRoomExists(roomId).then(
+      (exists) => {
+        if (!exists) return rejectUpgrade(socket, 404)
+        viewerWss.handleUpgrade(req, socket, head, (conn) => {
+          void connectWhenLoaded(conn, req, { docName: roomId, viewer: person })
+        })
+      },
+      (err: unknown) => {
+        console.warn(`yjs-host: couldn’t look up room ${roomId}`, err)
+        rejectUpgrade(socket, 500)
+      }
+    )
+  })
   // The Mac drive channel (#1389) shares the port and the gate.
   const driveWss = new WebSocketServer({ noServer: true })
   driveWss.on("connection", acceptFrameDriveConnection)
@@ -282,6 +359,8 @@ export async function startLocalYjsServer(
       new Promise<void>((resolve, reject) => {
         wss.close()
         driveWss.close()
+        viewerWss.close()
+        setViewerYjs(undefined)
         server.close((err) => (err ? reject(err) : resolve()))
         serverHandle = null
       }),

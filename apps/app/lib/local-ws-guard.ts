@@ -98,8 +98,18 @@ export function checkLocalUpgrade(
 }
 
 /** Refuse an upgrade before the handshake, with a plain HTTP status. */
-export function rejectUpgrade(socket: Duplex, status: 401 | 403): void {
-  const text = status === 401 ? "Unauthorized" : "Forbidden"
+const STATUS_TEXT = {
+  401: "Unauthorized",
+  403: "Forbidden",
+  404: "Not Found",
+  500: "Internal Server Error",
+} as const
+
+export function rejectUpgrade(
+  socket: Duplex,
+  status: keyof typeof STATUS_TEXT
+): void {
+  const text = STATUS_TEXT[status]
   socket.end(
     `HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`
   )

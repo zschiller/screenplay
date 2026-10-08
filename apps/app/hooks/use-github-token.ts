@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 
 import { hasGitHubToken } from "@/lib/github-actions"
+import { useViewing } from "@/lib/viewer/context"
 
 /**
  * Whether the GitHub API is reachable for this user, for client surfaces that
@@ -46,8 +47,11 @@ function probe(): Promise<boolean> {
  */
 export function useGitHubTokenProbe(): boolean | undefined {
   const [available, setAvailable] = useState<boolean | undefined>(lastKnown)
+  // A viewer (#1932) never acts on GitHub, so there's nothing to ask.
+  const viewing = !!useViewing()
 
   useEffect(() => {
+    if (viewing) return
     let cancelled = false
     void probe().then((ok) => {
       if (!cancelled) setAvailable(ok)
@@ -55,7 +59,7 @@ export function useGitHubTokenProbe(): boolean | undefined {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [viewing])
 
-  return available
+  return viewing ? false : available
 }

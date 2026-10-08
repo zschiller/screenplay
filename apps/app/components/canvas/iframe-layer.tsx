@@ -11,6 +11,8 @@ import {
 import { resolveFrameStage } from "@/components/frame-status/frame-stage"
 import { FrameStatus } from "@/components/frame-status/frame-status"
 import { useDevServerProbe } from "@/hooks/use-dev-server-probe"
+import { useViewing } from "@/lib/viewer/context"
+import { useViewerFrame } from "@/lib/viewer/use-viewer-frame"
 import { type ResizeEdge } from "@/hooks/use-layer-resize"
 import type { ScreenplayDom, WheelForward } from "@/hooks/use-screenplay-dom"
 import {
@@ -290,7 +292,7 @@ interface IframeLayerProps {
 }
 
 function IframeLayerImpl({
-  iframeLayer,
+  iframeLayer: recordedIframeLayer,
   zoom,
   focused,
   driver = NOBODY_DRIVES,
@@ -351,6 +353,12 @@ function IframeLayerImpl({
   remoteSelectedColor,
   placement,
 }: IframeLayerProps) {
+  // A viewer (#1932) loads their own copy of the preview from the viewer
+  // origin; the host's frame is the record as it is.
+  const { frame: iframeLayer, probe: viewerProbe } =
+    useViewerFrame(recordedIframeLayer)
+  const viewing = !!useViewing()
+
   // Track the path last reported by the iframe itself. When iframeLayer.route
   // changes to match this path, we know the change was the echo of in-iframe
   // navigation and should not reload the iframe.
@@ -494,7 +502,8 @@ function IframeLayerImpl({
       // regardless of the bridge-version housekeeping below. A shared frame
       // is ready when its picture is.
       if (!sharedFrameRef.current) setContentReady(true)
-      if (!iframeLayer.branchId) return
+      // Keeping the Workspace's bridge current is the host's job.
+      if (!iframeLayer.branchId || viewing) return
       const expected = await fetchExpectedBridgeVersion()
       if (!expected || expected === reportedVersion) return
       if (reinstalledSandboxes.has(iframeLayer.branchId)) return
@@ -506,7 +515,7 @@ function IframeLayerImpl({
       }
       reloadIframe()
     },
-    [iframeLayer.branchId, reloadIframe]
+    [iframeLayer.branchId, reloadIframe, viewing]
   )
 
   const [hmrStatus, setHmrStatus] = useState<HmrStatus | null>(null)
@@ -773,9 +782,13 @@ function IframeLayerImpl({
   // the source of the Create Flow "navigates then snaps back / double frame"
   // bug.) A branch switch still changes `iframeUrl`, so it re-probes correctly.
   const { state: probeState, retry: retryProbe } = useDevServerProbe(
-    iframeLayer.iframeUrl && iframeLayer.workspace
-      ? { ...iframeLayer.workspace, url: iframeLayer.iframeUrl }
-      : undefined
+    recordedIframeLayer.iframeUrl && recordedIframeLayer.workspace
+      ? {
+          ...recordedIframeLayer.workspace,
+          url: recordedIframeLayer.iframeUrl,
+        }
+      : undefined,
+    { probe: viewerProbe }
   )
 
   // The iframe mounts immediately (see render below) so the warm path paints

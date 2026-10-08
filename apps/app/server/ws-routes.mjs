@@ -42,3 +42,20 @@ export function matchWsRoute(url) {
   }
   return null
 }
+
+const VIEWER_YJS = Symbol.for("screenplay.viewerYjs")
+
+/**
+ * Register what takes a viewer's Yjs socket (Sharing, #1932): the local Yjs
+ * server, once it listens. The front server hands it upgrades it has already
+ * checked (the canvas link's key and the viewer's identity), so the socket
+ * never meets the host's per-launch secret.
+ */
+export function setViewerYjs(accept) {
+  globalThis[VIEWER_YJS] = accept
+}
+
+/** What takes a viewer's Yjs socket, once the Yjs server listens. */
+export function viewerYjs() {
+  return globalThis[VIEWER_YJS]
+}
