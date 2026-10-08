@@ -75,7 +75,7 @@ export function AgentStep({
     setLoadFailed(false)
   }, [])
 
-  const recommended = rows?.[0] ?? null
+  const recommended = rows?.find((r) => r.recommended) ?? rows?.[0] ?? null
   const selected =
     rows?.find((r) => r.key === selectedKey) ??
     rows?.find((r) => r.connected) ??

@@ -112,6 +112,11 @@ export interface HarnessSetupRow {
    * models for people to pick from (`Harness.modelList`, OpenCode, #1589).
    */
   choosesModels: boolean
+  /**
+   * Whether this is the agent setup recommends: the catalog's first, which
+   * the rows' alphabetical order no longer puts on top.
+   */
+  recommended: boolean
 }
 
 /** What a row's action runs in the inline host terminal, and how it's narrated. */
@@ -181,12 +186,14 @@ export function createHarnessSetup(
   const availability = opts.availability ?? harnessAvailability
   const facts = opts.facts ?? (() => probeHostFacts(probe))
 
-  const rows = () =>
-    Promise.all(
-      alphabetical(hostHarnesses(harnesses)).map((harness) =>
-        resolveRow(harness)
+  const rows = () => {
+    const listed = hostHarnesses(harnesses)
+    return Promise.all(
+      alphabetical(listed).map((harness) =>
+        resolveRow(harness, harness === listed[0])
       )
     )
+  }
 
   /**
    * One row: probe presence, then — only for an installed binary whose
@@ -195,14 +202,22 @@ export function createHarnessSetup(
    * descriptor without a probe is `null` ("can't tell"), which the row policy
    * treats as *not authed* (offer sign-in), never a false "connected".
    */
-  async function resolveRow(harness: Harness): Promise<HarnessSetupRow> {
+  async function resolveRow(
+    harness: Harness,
+    recommended = false
+  ): Promise<HarnessSetupRow> {
     const installed = await probe(harness.hostBinary)
     const [authenticated, version, path] = await Promise.all([
       installed && harness.probeAuth ? harness.probeAuth(run) : null,
       installed ? readVersion(run, harness.hostBinary) : null,
       installed ? locateBinary(run, harness.hostBinary) : null,
     ])
-    return { ...describeRow(harness, installed, authenticated), version, path }
+    return {
+      ...describeRow(harness, installed, authenticated),
+      version,
+      path,
+      recommended,
+    }
   }
 
   const readiness = () =>
@@ -309,7 +324,7 @@ function describeRow(
   harness: Harness,
   installed: boolean,
   authenticated: boolean | null
-): Omit<HarnessSetupRow, "version" | "path"> {
+): Omit<HarnessSetupRow, "version" | "path" | "recommended"> {
   const base = {
     key: harness.key,
     label: harness.label,

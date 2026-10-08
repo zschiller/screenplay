@@ -1361,7 +1361,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
                 <span className="pl-0.75 text-sm text-muted-foreground">
                   {buildIdentity === "host" ? (
                     <>
-                      No coding agent found. Install Claude Code or Codex in{" "}
+                      No coding agent found. Install Antigravity, Claude Code,
+                      Codex or OpenCode in{" "}
                       <Link
                         href="/settings?section=coding-agents"
                         className="text-foreground underline"
