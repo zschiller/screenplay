@@ -20,6 +20,9 @@
  *    `codex login` / `CODEX_API_KEY` (#1271).
  *  - the opencode slots → `opencode acp`, the CLI's own adapter, riding
  *    `opencode auth login` (#1589).
+ *  - `antigravity` → `agy_acp_server.par`, Google's ACP server for
+ *    Antigravity, installed beside the `agy` CLI and riding its own Google
+ *    sign-in.
  *  - A terminal-only harness (no `acpAdapter`) and `gemini` (its native ACP
  *    support retired with no adapter successor, spike #405) both fall
  *    through like any unknown key.

@@ -63,6 +63,29 @@ describe("callIdentity", () => {
       )
     ).toEqual({ name: "frame_click", input: { a: 1 } })
   })
+
+  it("unwraps Antigravity’s call_mcp_tool and its arguments", () => {
+    const antigravity = (Arguments: unknown) =>
+      callIdentity(
+        call({
+          title: "Running read_canvas",
+          rawInput: {
+            ServerName: "screenplay",
+            ToolName: "read_canvas",
+            Arguments,
+            toolSummary: "Reading the canvas",
+          },
+        })
+      )
+    expect(antigravity({ a: 1 })).toEqual({
+      name: "read_canvas",
+      input: { a: 1 },
+    })
+    expect(antigravity('{"a":1}')).toEqual({
+      name: "read_canvas",
+      input: { a: 1 },
+    })
+  })
 })
 
 describe("relativePath", () => {

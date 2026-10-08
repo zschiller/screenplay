@@ -143,7 +143,8 @@ back into your composer, so you can decide whether to send them.
 The built-in agent works this way in every chat, including the Coordinator,
 and so do chats running Claude Code or Codex on desktop: each reads the message
 at the same point it would if you typed it into its own terminal. Chats
-running OpenCode don’t: there the button reads **Queue message**,
+running Antigravity or OpenCode don’t: there the button reads **Queue
+message**,
 and the message waits in a **Queued** row above the composer, where you can
 **Edit** or remove it, and sends when the agent finishes.
 
@@ -158,10 +159,12 @@ new model answers from your next message on, with the whole conversation so far.
 Switching to another coding CLI’s model starts that CLI with the conversation
 replayed to it.
 
-- **Desktop** lists your installed coding CLIs with their models, for example
-  **Claude Code**: Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 4.5, and **Codex**:
-  GPT-6 Astra, GPT-6 Luna, GPT-5.5. **OpenCode** lists the models you
-  checked in its row’s [**Choose models**](/guides/settings#agent),
+- **Desktop** lists your installed coding CLIs alphabetically with their
+  models. **Antigravity** lists Google’s Gemini models: Gemini 3.1 Pro (High),
+  Gemini 3.1 Pro (Low), and Gemini 3.8 Flash at High, Medium and Low.
+  **Claude Code** lists Fable 5.1, Opus 5.5, Sonnet 5.5 and Haiku 4.5, and
+  **Codex** lists GPT-6 Astra, GPT-6 Luna and GPT-5.5. **OpenCode** lists the
+  models you checked in its row’s [**Choose models**](/guides/settings#agent),
   or one entry that runs the model you chose in OpenCode itself.
 - **Hosted** lists the models of every provider the operator configured
   (Anthropic, OpenAI, Google, Vercel AI Gateway, OpenAI-compatible).
@@ -250,11 +253,12 @@ token to highlight the element on the canvas. <kbd>Esc</kbd> cancels picking.
 
 Turn on **Plan** in the composer when you want to approve the approach before
 any code changes. The agent investigates, then presents a **Plan** card
-instead of editing. It works the same in chats running Claude Code, Codex or
-OpenCode on desktop: Codex plans in its own Plan setting, OpenCode in its
-read-only plan agent, and you approve their plans on the same card. OpenCode
-has no step that asks to carry out its plan, so its last reply in a plan turn
-is the plan the card shows. The Coordinator’s **Plan** toggle plans what it
+instead of editing. It works the same in chats running Antigravity, Claude Code,
+Codex or OpenCode on desktop: Codex plans in its own Plan setting,
+OpenCode in its read-only plan agent, and you approve their plans on the same
+card. Antigravity and OpenCode have no step that asks to carry out a plan, so
+their last reply in a plan turn is the plan the card shows. Antigravity has
+no read-only plan setting either, so it plans from its instructions alone. The Coordinator’s **Plan** toggle plans what it
 will start and send instead (see
 [Chatting with the Coordinator](/guides/coordinator#chatting-with-the-coordinator)).
 

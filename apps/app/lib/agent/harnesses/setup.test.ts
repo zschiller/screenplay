@@ -79,7 +79,7 @@ function setup(
 }
 
 describe("rows (the live read + the dedupe rule)", () => {
-  it("collapses the catalog to one row per distinct hostBinary, in catalog order", async () => {
+  it("collapses the catalog to one row per distinct hostBinary, alphabetically", async () => {
     const rows = await setup({
       present: ["claude", "codex", "opencode"],
     }).rows()
@@ -87,11 +87,13 @@ describe("rows (the live read + the dedupe rule)", () => {
     // The two opencode slots share one binary → a single row (opencode-gateway
     // is the representative, the first catalog entry on the binary).
     expect(rows.map((r) => r.hostBinary)).toEqual([
+      "agy_acp_server.par",
       "claude",
       "codex",
       "opencode",
     ])
     expect(rows.map((r) => r.key)).toEqual([
+      "antigravity",
       "claude-code",
       "codex",
       "opencode-gateway",

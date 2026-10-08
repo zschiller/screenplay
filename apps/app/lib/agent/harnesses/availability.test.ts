@@ -115,8 +115,9 @@ describe("createDesktopResolver (Harness Availability — desktop fold)", () => 
     await resolver.list()
     await resolver.list()
 
-    // Three distinct binaries, probed once total across both list() calls.
+    // Four distinct binaries, probed once total across both list() calls.
     expect(probedBinaries(probe).sort()).toEqual([
+      "agy_acp_server.par",
       "claude",
       "codex",
       "opencode",
@@ -206,7 +207,7 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
 
     const models = harnessModels(available)
 
-    // Per-Harness headings, in catalog order, each carrying its own models —
+    // Per-Harness headings, alphabetically, each carrying its own models —
     // exactly what the shared groupModelsByProvider fold draws in the dropdown.
     expect(
       groupModelsByProvider(models).map((g) => ({
@@ -301,6 +302,17 @@ describe("harnessModels (desktop arm of backend-uniform enumeration)", () => {
 })
 
 describe("harnessDefaultModelId (desktop default fold)", () => {
+  it("keeps the catalog's preference when another agent lists first alphabetically", async () => {
+    const available = await createDesktopResolver({
+      probe: fakeProbe(["agy_acp_server.par", "claude"]),
+    }).list()
+
+    expect(groupModelsByProvider(harnessModels(available))[0]!.key).toBe(
+      "antigravity"
+    )
+    expect(harnessDefaultModelId(available)).toBe("harness:claude-code:opus")
+  })
+
   it("is the first detected chat-capable Harness's curated default, encoded", async () => {
     // claude-code lists before codex in the catalog, so the overall desktop
     // default is claude-code's curated default model.
