@@ -1,8 +1,7 @@
 import "server-only"
 
-import { optionUrl, rejectUnknownOptions } from "./options"
 import type { GitHubAccess, GitIdentity } from "./types"
-import { GITHUB_DOT_COM, githubUrlsForHostname } from "./urls"
+import { GITHUB_DOT_COM_URLS } from "./urls"
 
 export const OAUTH_ACCOUNT_ID = "oauth-account"
 
@@ -11,18 +10,11 @@ export const OAUTH_ACCOUNT_ID = "oauth-account"
  * Auth stored on their `account` row when they signed in with GitHub, and git
  * is brokered: their token per command and their `user` row as author, so
  * every push and commit in a shared sandbox is attributed to whoever drove it.
- *
- * Options: `apiUrl` / `webUrl` (default github.com).
  */
-export function createOAuthAccountAccess(
-  options: Record<string, unknown>
-): GitHubAccess {
-  rejectUnknownOptions(OAUTH_ACCOUNT_ID, options, ["apiUrl", "webUrl"])
-  const derived = githubUrlsForHostname(GITHUB_DOT_COM)
+export function createOAuthAccountAccess(): GitHubAccess {
   return {
     id: OAUTH_ACCOUNT_ID,
-    apiUrl: optionUrl(OAUTH_ACCOUNT_ID, options, "apiUrl") ?? derived.apiUrl,
-    webUrl: optionUrl(OAUTH_ACCOUNT_ID, options, "webUrl") ?? derived.webUrl,
+    ...GITHUB_DOT_COM_URLS,
     apiToken: accountToken,
     git: { kind: "brokered", token: accountToken, identity: userIdentity },
   }

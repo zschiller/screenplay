@@ -138,31 +138,19 @@ function authJsonHasProvider(stdout: string): boolean {
 export async function probeOpencodeAuth(
   run: HarnessProcessRunner
 ): Promise<boolean> {
-  return probeOpencodeAuthFor(OPENCODE_COMMAND)(run)
-}
-
-/**
- * {@link probeOpencodeAuth} for OpenCode under `command`. A fork under
- * another command keeps its credentials wherever it chose, so only
- * `opencode` itself also reads OpenCode's own store on disk.
- */
-function probeOpencodeAuthFor(command: string) {
-  return async (run: HarnessProcessRunner): Promise<boolean> => {
-    // 1. The CLI's own view of its credential store.
-    if (
-      await probeOk(run, command, ["auth", "list"], (r) =>
-        listsConfiguredProvider(r.stdout)
-      )
-    ) {
-      return true
-    }
-    if (command !== OPENCODE_COMMAND) return false
-
-    // 2. The credential store on disk, read directly (a present, non-empty object).
-    return probeOk(run, "sh", ["-c", `cat ${OPENCODE_AUTH_JSON_PATH}`], (r) =>
-      authJsonHasProvider(r.stdout)
+  // 1. The CLI's own view of its credential store.
+  if (
+    await probeOk(run, OPENCODE_COMMAND, ["auth", "list"], (r) =>
+      listsConfiguredProvider(r.stdout)
     )
+  ) {
+    return true
   }
+
+  // 2. The credential store on disk, read directly (a present, non-empty object).
+  return probeOk(run, "sh", ["-c", `cat ${OPENCODE_AUTH_JSON_PATH}`], (r) =>
+    authJsonHasProvider(r.stdout)
+  )
 }
 
 /**
@@ -172,17 +160,12 @@ function probeOpencodeAuthFor(command: string) {
  * writes only the model's text there; its header and tool lines go to stderr.
  * So the parse is a trim, as for `claude -p`. Exported for the descriptor test.
  */
-export const opencodePrintModel: HarnessPrintModel =
-  opencodePrintModelFor(OPENCODE_COMMAND)
-
-function opencodePrintModelFor(command: string): HarnessPrintModel {
-  return {
-    buildArgv: (prompt) => [command, "run", prompt],
-    parseOutput: (stdout) => {
-      const text = stdout.trim()
-      return text.length > 0 ? text : null
-    },
-  }
+export const opencodePrintModel: HarnessPrintModel = {
+  buildArgv: (prompt) => [OPENCODE_COMMAND, "run", prompt],
+  parseOutput: (stdout) => {
+    const text = stdout.trim()
+    return text.length > 0 ? text : null
+  },
 }
 
 /**
@@ -270,11 +253,9 @@ export function parseOpencodeModels(stdout: string): HarnessModelChoice[] {
  * Settings row's Choose models (#1589). There can be hundreds, so OpenCode has
  * no curated list; people pick the few the model menu shows.
  */
-export const opencodeModelList: HarnessModelList =
-  opencodeModelListFor(OPENCODE_COMMAND)
-
-function opencodeModelListFor(command: string): HarnessModelList {
-  return { argv: [command, "models", "--verbose"], parse: parseOpencodeModels }
+export const opencodeModelList: HarnessModelList = {
+  argv: [OPENCODE_COMMAND, "models", "--verbose"],
+  parse: parseOpencodeModels,
 }
 
 /** opencode's global Skill folders, its own then Claude's and Codex's. */
@@ -562,55 +543,25 @@ export const opencodeCompatHarness: Harness = {
   ...opencodeSetup,
 }
 
-/** The OpenCode built-in's options (spec #1923): all optional. */
-export interface OpencodeOptions {
-  /**
-   * The key chats and settings store it under. Defaults to the Mac app's, so
-   * the same chats and model choices carry over.
-   */
-  key?: string
-  /** The name the model menu and Settings show. Defaults to “OpenCode”. */
-  label?: string
-  /**
-   * The command it runs, for an internal fork under another name. Defaults to
-   * `opencode`.
-   */
-  command?: string
-  /**
-   * Whether the CLI lists its models (`<command> models --verbose`), for
-   * Choose models in Settings. Defaults to `true`; a fork without it shows one
-   * default model.
-   */
-  listModels?: boolean
-}
-
 /**
  * The **OpenCode** Coding CLI built-in (#1926): OpenCode on the host, on its
- * own sign-in, as the Mac app runs it. Its options make an internal fork under
- * another command configuration rather than code: everything that runs the
- * CLI runs `command`. A fork isn’t installed from here, and its credentials
- * are probed only through its own `auth list`.
+ * own sign-in, as the Mac app runs it. A fork that runs OpenCode under another
+ * command adds its own Coding CLI in `selectCodingClis`.
  */
-export function opencodeHostHarness(
-  options: OpencodeOptions = {}
-): HostHarness {
-  const command = options.command ?? OPENCODE_COMMAND
-  const label = options.label ?? opencodeGatewayHarness.hostLabel!
-  const isOpencode = command === OPENCODE_COMMAND
-  return {
-    key: options.key ?? opencodeGatewayHarness.key,
-    label,
-    launchCommand: command,
-    launchArgv: [command],
-    hostBinary: command,
-    ownSkills: { ...opencodeOwnSkills, agentName: label },
-    acpAdapter: { ...opencodeAcpAdapter, command },
-    probeAuth: probeOpencodeAuthFor(command),
-    printModel: opencodePrintModelFor(command),
-    ...(options.listModels !== false && {
-      modelList: opencodeModelListFor(command),
-    }),
-    ...(isOpencode && { buildInstallCommand: buildOpencodeInstallCommand }),
-    authCommand: [command, "auth", "login"],
-  }
+export const opencodeHostHarness: HostHarness = {
+  key: opencodeGatewayHarness.key,
+  label: opencodeGatewayHarness.hostLabel!,
+  launchCommand: OPENCODE_COMMAND,
+  launchArgv: [OPENCODE_COMMAND],
+  hostBinary: OPENCODE_COMMAND,
+  ownSkills: {
+    ...opencodeOwnSkills,
+    agentName: opencodeGatewayHarness.hostLabel!,
+  },
+  acpAdapter: opencodeAcpAdapter,
+  probeAuth: probeOpencodeAuth,
+  printModel: opencodePrintModel,
+  modelList: opencodeModelList,
+  buildInstallCommand: buildOpencodeInstallCommand,
+  authCommand: [OPENCODE_COMMAND, "auth", "login"],
 }

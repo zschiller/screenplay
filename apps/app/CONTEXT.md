@@ -175,8 +175,8 @@ credentials (spec #1923): its API and web base URLs, a token per person for the
 server's own REST calls, and how git inside a chat authenticates and authors,
 either the **host**'s own git or **brokered** (the person's token per command
 and their identity on commits). Built-ins: `oauth-account` (Hosted, brokered)
-and `gh-cli` (the Mac app, host git; a company wrapper command or a GitHub
-Enterprise hostname are its options). It is a credentials fact, separate from
+and `gh-cli` (the Mac app and Headless, host git), both on github.com; a fork
+on GitHub Enterprise adds its own. It is a credentials fact, separate from
 where the Sandbox lives (the Sandbox Provider).
 _Avoid_: deciding credentials from the build or the sandbox backend; naming a
 GitHub host anywhere else.

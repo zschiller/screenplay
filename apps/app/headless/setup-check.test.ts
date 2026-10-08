@@ -16,7 +16,7 @@ const ready: SetupFacts = {
 const builtIn: SetupNeeds = {
   codingClis: null,
   builtInClis: ["claude", "codex", "opencode"],
-  githubCommand: "gh",
+  needsGh: true,
 }
 
 const without =
@@ -74,27 +74,20 @@ describe("missingPrerequisites", () => {
     ).toEqual([])
   })
 
-  it("needs every coding CLI CODING_CLIS lists, and its GitHub command", () => {
+  it("needs every coding CLI CODING_CLIS lists", () => {
     expect(
       missingPrerequisites(
-        { ...ready, onPath: without("corp-code", "corp-gh") },
-        {
-          ...builtIn,
-          codingClis: ["claude", "corp-code"],
-          githubCommand: "corp-gh",
-        }
+        { ...ready, onPath: without("codex") },
+        { ...builtIn, codingClis: ["claude", "codex"] }
       )
-    ).toEqual([
-      "The coding CLI corp-code, which CODING_CLIS lists",
-      "The GitHub command corp-gh, which GitHub access runs",
-    ])
+    ).toEqual(["The coding CLI codex, which CODING_CLIS lists"])
   })
 
-  it("needs no GitHub command when GitHub access uses none", () => {
+  it("needs no gh when GitHub access doesn’t run it", () => {
     expect(
       missingPrerequisites(
         { ...ready, onPath: without("gh") },
-        { ...builtIn, githubCommand: null }
+        { ...builtIn, needsGh: false }
       )
     ).toEqual([])
   })

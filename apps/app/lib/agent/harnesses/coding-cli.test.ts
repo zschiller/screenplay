@@ -61,11 +61,22 @@ const FAKE_AGENT = fileURLToPath(
   new URL("../acp/fake-acp-agent.mjs", import.meta.url)
 )
 
-const ACME = {
+/** A fork's own Coding CLI, the way its select module would add one. */
+const ACME: CodingCli = {
   key: "acme-code",
   label: "Acme Code",
   command: "acme-code",
+  acp: {
+    args: ["acp"],
+    modelOption: "model",
+    promptQueueing: false,
+    mcpToolName: (server, tool) => `${server}_${tool}`,
+  },
+  modelList: { argv: ["acme-code", "models"], parse: () => [] },
 }
+
+const acme = (overrides: Partial<CodingCli> = {}) =>
+  codingCliHarness({ ...ACME, ...overrides })
 
 /** Run the host with exactly these CLIs, as a fork's select module would. */
 function pick(...harnesses: HostHarness[]): void {
@@ -86,46 +97,15 @@ afterEach(() => {
 })
 
 describe("the OpenCode built-in", () => {
-  it("runs everything under the command it’s given", () => {
-    const cli = opencodeHostHarness(ACME)
-    expect(cli).toMatchObject({
-      key: "acme-code",
-      label: "Acme Code",
-      hostBinary: "acme-code",
-      launchArgv: ["acme-code"],
-      authCommand: ["acme-code", "auth", "login"],
-      acpAdapter: { command: "acme-code", args: ["acp"], plan: "reply" },
-    })
-    expect(cli!.modelList!.argv).toEqual(["acme-code", "models", "--verbose"])
-    expect(cli!.printModel!.buildArgv("hi")).toEqual(["acme-code", "run", "hi"])
-    // A fork isn’t installed from here.
-    expect(cli!.buildInstallCommand).toBeUndefined()
-  })
-
-  it("is the Mac app’s OpenCode with no options", () => {
-    const cli = opencodeHostHarness()
-    expect(cli).toMatchObject({
+  it("is the Mac app’s OpenCode", () => {
+    expect(opencodeHostHarness).toMatchObject({
       key: "opencode-gateway",
       label: "OpenCode",
       hostBinary: "opencode",
+      authCommand: ["opencode", "auth", "login"],
+      acpAdapter: { command: "opencode", args: ["acp"], plan: "reply" },
     })
-    expect(cli!.buildInstallCommand).toBeDefined()
-  })
-
-  it("probes a fork’s sign-in through its own command", async () => {
-    const cli = opencodeHostHarness(ACME)
-    const calls: string[] = []
-    const run: HarnessProcessRunner = async (cmd, args) => {
-      calls.push([cmd, ...args].join(" "))
-      return { exitCode: 0, stdout: "anthropic  oauth\n" }
-    }
-    expect(await cli!.probeAuth!(run)).toBe(true)
-    expect(calls).toEqual(["acme-code auth list"])
-  })
-
-  it("leaves out model listing when the fork has none", () => {
-    const cli = opencodeHostHarness({ ...ACME, listModels: false })
-    expect(cli!.modelList).toBeUndefined()
+    expect(opencodeHostHarness.buildInstallCommand).toBeDefined()
   })
 })
 
@@ -152,7 +132,7 @@ describe("selectCodingClis", () => {
 
 describe("configured Coding CLIs", () => {
   it("list under the configured label in the model menu", async () => {
-    pick(opencodeHostHarness(ACME))
+    pick(acme())
     const available = await createDesktopResolver({
       probe: onPath("acme-code"),
     }).list()
@@ -167,7 +147,7 @@ describe("configured Coding CLIs", () => {
   })
 
   it("show the configured label in Settings", async () => {
-    pick(opencodeHostHarness(ACME))
+    pick(acme())
     const rows = await createHarnessSetup({
       probe: onPath("acme-code"),
       run: failing,
@@ -216,7 +196,7 @@ describe("configured Coding CLIs", () => {
   })
 
   it("replace the catalog on the host, in order", () => {
-    pick(opencodeHostHarness(ACME), claudeCodeHarness)
+    pick(acme(), claudeCodeHarness)
     expect(hostCatalog().map((h) => h.key)).toEqual([
       "acme-code",
       "claude-code",
@@ -230,12 +210,12 @@ describe("configured Coding CLIs", () => {
   })
 
   it("refuse a bad or repeated key", () => {
-    expect(() =>
-      pick(opencodeHostHarness({ ...ACME, key: "acme:code" }))
-    ).toThrow(/must be non-empty and contain no comma or colon/)
-    expect(() =>
-      pick(opencodeHostHarness(ACME), opencodeHostHarness(ACME))
-    ).toThrow(/"acme-code" is used more than once/)
+    expect(() => pick(acme({ key: "acme:code" }))).toThrow(
+      /must be non-empty and contain no comma or colon/
+    )
+    expect(() => pick(acme(), acme())).toThrow(
+      /"acme-code" is used more than once/
+    )
   })
 })
 
@@ -253,7 +233,7 @@ describe("with nothing configured", () => {
   })
 
   it("Hosted ignores a host configuration", async () => {
-    pick(opencodeHostHarness(ACME))
+    pick(acme())
     const available = await createHostedResolver({
       sandboxHarnesses: "claude-code",
       providers: [{ key: "anthropic", egress: () => ({}) } as never],
@@ -263,11 +243,11 @@ describe("with nothing configured", () => {
 })
 
 /**
- * The OpenCode built-in under another command runs a chat: the configured
- * command is a real executable on `PATH` that starts a stub ACP agent for
- * `acp`, spawned by the production factory with nothing injected.
+ * A fork's own Coding CLI runs a chat: its command is a real executable on
+ * `PATH` that starts a stub ACP agent for `acp`, spawned by the production
+ * factory with nothing injected.
  */
-describe("a CLI configured under another command", () => {
+describe("a fork’s own Coding CLI", () => {
   let bin: string
   const factories: SpawnAcpSessionFactory[] = []
 
@@ -292,7 +272,7 @@ describe("a CLI configured under another command", () => {
   })
 
   it("runs a chat end to end", async () => {
-    pick(opencodeHostHarness(ACME))
+    pick(acme())
     const script: AcpScript = {
       instructions: [
         {

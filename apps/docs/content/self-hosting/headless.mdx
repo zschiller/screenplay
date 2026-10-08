@@ -28,7 +28,7 @@ headless Chrome.
 - Node 22 or later, and pnpm
 - git
 - Python 3, `make` and `g++`, to build the terminal module
-  ([details](/self-hosting/configuration/locked-down-network#the-terminal-module))
+  ([details](#the-terminal-module))
 - Chrome for thumbnails: Puppeteer downloads one during `pnpm install`, or set
   [`CHROMIUM_PATH`](/self-hosting/environment-variables#serving)
 - at least one coding CLI, signed in: Claude Code, Codex or OpenCode, or every
@@ -92,10 +92,9 @@ chats are running. Browsers send every `*.localhost` name to your own computer,
 which is where the tunnel picks it up.
 
 This holds even when a fork picks another
-[preview exposure](/self-hosting/configuration/preview-exposure), like a
-company proxy’s `url-template`: that exposure and its sign-in are for viewers,
-who reach the machine over the network. The host never needs the proxy or its
-sign-in.
+[preview exposure](/self-hosting/configuration/preview-exposure): that
+exposure is for viewers, who reach the machine over the network. The host’s
+frames never go through it.
 
 ## Restarts
 
@@ -125,9 +124,16 @@ override. A company setup that needs more, like a `gh` wrapper, GitHub
 Enterprise, a port proxy or an internal CLI, changes those select modules in a
 fork.
 
-A company proxy and certificate authority go in the environment you run
-`pnpm headless` with; see
-[Locked-down network](/self-hosting/configuration/locked-down-network).
+## The terminal module
+
+The terminal runs on `node-pty`, a native module. There’s no prebuilt copy for
+Linux, so `pnpm install` compiles it with `node-gyp`, which needs:
+
+- Python 3
+- `make`
+- a C++ compiler (`g++` or `clang++`)
+
+On Debian or Ubuntu, `sudo apt-get install python3 make g++` covers all three.
 
 ## Environment
 

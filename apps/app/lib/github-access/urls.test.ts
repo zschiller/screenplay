@@ -1,29 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import {
-  findPullRequestUrl,
-  githubUrlsForHostname,
-  parseGitHubRemote,
-} from "@/lib/github-access/urls"
-
-describe("githubUrlsForHostname", () => {
-  it.each([
-    ["github.com", "https://api.github.com", "https://github.com"],
-    ["GitHub.com", "https://api.github.com", "https://github.com"],
-    [
-      "ghe.corp.example",
-      "https://ghe.corp.example/api/v3",
-      "https://ghe.corp.example",
-    ],
-    [
-      "octocorp.ghe.com",
-      "https://api.octocorp.ghe.com",
-      "https://octocorp.ghe.com",
-    ],
-  ])("%s", (hostname, apiUrl, webUrl) => {
-    expect(githubUrlsForHostname(hostname)).toEqual({ apiUrl, webUrl })
-  })
-})
+import { findPullRequestUrl, parseGitHubRemote } from "@/lib/github-access/urls"
 
 describe("parseGitHubRemote", () => {
   const webUrl = "https://github.com"
@@ -54,7 +31,7 @@ describe("parseGitHubRemote", () => {
     expect(parseGitHubRemote(remote, webUrl)).toBeNull()
   })
 
-  it("parses remotes on the configured Enterprise host", () => {
+  it("parses remotes on the host its access names", () => {
     expect(
       parseGitHubRemote(
         "git@ghe.corp.example:acme/widgets.git",

@@ -4,28 +4,14 @@
  * browser.
  */
 
-/** The public github.com host, the default for every built-in. */
-export const GITHUB_DOT_COM = "github.com"
-
 /**
- * The REST and web bases for a GitHub hostname:
- * - `github.com` → `https://api.github.com`, `https://github.com`
- * - GHE.com data residency (`<sub>.ghe.com`) → `https://api.<sub>.ghe.com`
- * - anything else is GitHub Enterprise Server → `https://<host>/api/v3`
+ * github.com's REST and web bases, which every built-in uses. A fork on
+ * GitHub Enterprise gives its own {@link GitHubAccess} other ones.
  */
-export function githubUrlsForHostname(hostname: string): {
-  apiUrl: string
-  webUrl: string
-} {
-  const host = hostname.trim().toLowerCase()
-  if (host === GITHUB_DOT_COM) {
-    return { apiUrl: "https://api.github.com", webUrl: "https://github.com" }
-  }
-  if (host.endsWith(".ghe.com")) {
-    return { apiUrl: `https://api.${host}`, webUrl: `https://${host}` }
-  }
-  return { apiUrl: `https://${host}/api/v3`, webUrl: `https://${host}` }
-}
+export const GITHUB_DOT_COM_URLS = {
+  apiUrl: "https://api.github.com",
+  webUrl: "https://github.com",
+} as const
 
 /** A repo's identity on GitHub, as its remote names it. */
 export interface GitHubRepoIdentity {

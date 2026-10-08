@@ -1,8 +1,8 @@
 /**
  * **Preview exposure**: how a browser reaches a Workspace's preview on a
- * machine Screenplay runs on (the Mac app, a Headless box). One of the four
- * interfaces a company can implement for its own setup (#1923). Every member
- * is a compatibility promise, so it stays this small.
+ * machine Screenplay runs on (the Mac app, a Headless box). A fork swaps it
+ * in `selectPreviewExposure`. Every member is a compatibility promise, so it
+ * stays this small.
  *
  * Only browser-facing listeners go through it: the bridge proxy a frame
  * loads, and the frame stream. The dev server itself, and everything the
@@ -36,14 +36,8 @@ export interface PreviewExposure {
 }
 
 export interface ExposedPort {
-  /** What a browser loads, origin only, no trailing slash: "https://5123-box.corp.example". */
+  /** What a browser loads, origin only, no trailing slash: "https://box.tailnet.ts.net:5123". */
   browserOrigin: string
-  /**
-   * Set when a browser must visit a page once, in a new tab, before
-   * `browserOrigin` loads in a frame (a company proxy's sign-in). Omitted ⇒
-   * no sign-in step.
-   */
-  signInUrl?: string
 }
 
 /** An inclusive port range. */

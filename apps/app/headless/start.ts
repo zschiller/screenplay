@@ -90,10 +90,10 @@ async function findChrome(): Promise<string | null> {
 async function setupCheck(): Promise<string | null> {
   const chrome = await findChrome()
   let codingClis: string[] | null
-  let githubCommand: string | null
+  let needsGh: boolean
   try {
     codingClis = selectCodingClis()?.map((cli) => cli.hostBinary) ?? null
-    githubCommand = selectGitHubAccess().id === GH_CLI_ID ? "gh" : null
+    needsGh = selectGitHubAccess().id === GH_CLI_ID
   } catch (err) {
     fail([
       `Screenplay won’t start: ${err instanceof Error ? err.message : err}`,
@@ -109,7 +109,7 @@ async function setupCheck(): Promise<string | null> {
     {
       codingClis,
       builtInClis: [...new Set(HARNESSES.map((h) => h.hostBinary))],
-      githubCommand,
+      needsGh,
     }
   )
   if (missing.length > 0) {

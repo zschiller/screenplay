@@ -26,8 +26,8 @@ export interface SetupNeeds {
   codingClis: string[] | null
   /** Any of these is enough when `codingClis` is null. */
   builtInClis: string[]
-  /** The command that stands in for `gh`, or null when GitHub access needs none. */
-  githubCommand: string | null
+  /** Whether GitHub access runs `gh` (`gh-cli`). */
+  needsGh: boolean
 }
 
 /** Every missing prerequisite, one line each; empty when the box is ready. */
@@ -74,13 +74,7 @@ export function missingPrerequisites(
     )
   }
 
-  if (needs.githubCommand && !facts.onPath(needs.githubCommand)) {
-    missing.push(
-      needs.githubCommand === "gh"
-        ? "The GitHub CLI, gh"
-        : `The GitHub command ${needs.githubCommand}, which GitHub access runs`
-    )
-  }
+  if (needs.needsGh && !facts.onPath("gh")) missing.push("The GitHub CLI, gh")
 
   return missing
 }

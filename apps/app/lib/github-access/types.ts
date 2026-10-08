@@ -4,9 +4,9 @@
  * GitHub call reads its host and token from here, and git inside a chat learns
  * from here whether to broker credentials or leave the host's own git alone.
  *
- * The interface stays small. Built-ins: `oauth-account` (Hosted) and `gh-cli`
- * (the Mac app; a company wrapper or GitHub Enterprise through its options).
- * `selectGitHubAccess` (`./index.ts`) picks one.
+ * The interface stays small. Built-ins, both on github.com: `oauth-account`
+ * (Hosted) and `gh-cli` (the Mac app, Headless). `selectGitHubAccess`
+ * (`./index.ts`) picks one; a fork on GitHub Enterprise adds its own there.
  */
 export interface GitHubAccess {
   /** The implementation's id, e.g. `"gh-cli"`. */

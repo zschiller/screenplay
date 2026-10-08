@@ -43,16 +43,15 @@ export function codingCliHarness(cli: CodingCli): HostHarness {
 const CODING_CLI_BUILT_INS: Record<string, () => HostHarness> = {
   "claude-code": () => claudeCodeHarness,
   codex: () => codexHarness,
-  opencode: () => opencodeHostHarness(),
+  opencode: () => opencodeHostHarness,
 }
 
 /**
  * Pick the Coding CLIs this host offers, in the order the model menu lists
  * them: `CODING_CLIS` (comma-separated built-in ids) when set, else `null`,
  * which keeps the whole catalog (`hostCatalog`), every profile's default. A
- * fork that runs its own CLI ({@link codingCliHarness}) or OpenCode under
- * another command ({@link opencodeHostHarness}'s options) changes this
- * function. Throws on an id it doesn't know or a key named twice.
+ * fork that runs its own CLI, or OpenCode under another command, adds it here
+ * through {@link codingCliHarness}. Throws on an id it doesn't know or a key named twice.
  */
 export function selectCodingClis(
   env: Record<string, string | undefined> = process.env

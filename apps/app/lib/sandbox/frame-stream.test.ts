@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  getPreviewExposure,
-  loopbackExposure,
-  urlTemplateExposure,
-} from "@/lib/preview-exposure"
+import { getPreviewExposure, loopbackExposure } from "@/lib/preview-exposure"
 import type {
   SandboxCommandResult,
   SandboxInstance,
@@ -91,9 +87,11 @@ describe("ensureFrameStream", () => {
   })
 
   it("binds where the preview exposure says, and hands browsers the exposed origin", async () => {
-    setPreviewExposure(
-      urlTemplateExposure({ origin: "https://{port}-box.corp.example" })
-    )
+    // A fork's exposure whose listeners an outside proxy reaches.
+    setPreviewExposure({
+      ...loopbackExposure({ origin: "https://{port}-box.tailnet.example" }),
+      bind: { host: "0.0.0.0" },
+    })
     const launches: SandboxRunCommandOptions[] = []
     fake.sandbox = fakeSandbox(launches)
 
@@ -106,7 +104,7 @@ describe("ensureFrameStream", () => {
     expect(result).toEqual({
       success: true,
       value: {
-        url: `wss://${STREAM_HOST_PORT}-box.corp.example`,
+        url: `wss://${STREAM_HOST_PORT}-box.tailnet.example`,
         // The server's own connection stays on loopback.
         internalUrl: `ws://127.0.0.1:${STREAM_HOST_PORT}`,
       },

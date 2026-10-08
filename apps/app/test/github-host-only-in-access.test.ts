@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
 /**
- * Every GitHub API call is built from `githubAccess.apiUrl` (#1925), so a
- * GitHub Enterprise host works everywhere. Only `lib/github-access` may name
+ * Every GitHub API call is built from `githubAccess.apiUrl` (#1925), so a fork
+ * on GitHub Enterprise changes one place. Only `lib/github-access` may name
  * the github.com API host; tests and fixtures are exempt.
  */
 
