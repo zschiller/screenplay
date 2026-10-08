@@ -153,7 +153,7 @@ leaves them all unset.
 | `SCREENPLAY_ACP_HARNESS` | Optional | With `AGENT_ENGINE=external`, the coding CLI a chat uses when it hasn’t picked one: `claude-code`, `codex`, `opencode-gateway` or `opencode-compat`. Default: `claude-code`. See [Coding CLIs](/self-hosting/configuration/byo-harnesses). |
 | `THUMBNAIL_CAPTURER` | Optional | `tauri-webview`: capture thumbnails in the desktop webview. |
 | `GITHUB_ACCESS` | Optional | `oauth-account` or `gh-cli`: which GitHub access the server uses. Default: `oauth-account` on Hosted, `gh-cli` on the desktop app and Headless. See [GitHub access](/self-hosting/configuration/github-access#picking-one). |
-| `PREVIEW_EXPOSURE` | Optional | `loopback` (the default everywhere) or `tailscale`, which serves each preview over your tailnet. See [Preview exposure](/self-hosting/configuration/preview-exposure#picking-one). |
+| `PREVIEW_EXPOSURE` | Optional | `loopback` or `tailscale`, which serves each preview over your tailnet. Default: `tailscale` in the desktop app, where only Sharing uses it, and `loopback` elsewhere. See [Preview exposure](/self-hosting/configuration/preview-exposure#picking-one). |
 | `VIEWER_IDENTITY` | Optional | `tailscale`, the only built-in and the default: who each person watching a shared canvas in the desktop app is. See [Viewer identity](/self-hosting/configuration/viewer-identity#picking-one). |
 
 ## Desktop build
@@ -175,4 +175,5 @@ yourself when running the local build by hand.
 | `PGLITE_MIGRATIONS_DIR` | Optional | Where PGlite migrations are read from. The packaged app points it at its bundled `drizzle/local`. |
 | `SCREENPLAY_TERMINAL_WS_PORT` | Optional | Port for the local terminal WebSocket server. Default: an ephemeral port. The server listens on `127.0.0.1` and accepts only the app’s own page with the secret minted at launch. |
 | `TAURI_CONTROL_URL` | Optional | The desktop shell’s localhost control server, which captures thumbnails in a webview and opens the native folder picker. Without it, `tauri-webview` thumbnails fail and adding a local folder falls back to typing its path. |
+| `SCREENPLAY_SHARING_FILE` | Optional | Where the desktop app keeps whether Sharing is on, its viewer port and the ports it exposed. The desktop shell points it at `sharing.json` under the app’s data folder. Without it, Sharing starts off on every launch. See [Sharing](/self-hosting/configuration/desktop-app#sharing). |
 | `TAURI_CONTROL_TOKEN` | Optional | The per-launch token that control server asks for before it snapshots the canvas window for the agent on the Mac. |

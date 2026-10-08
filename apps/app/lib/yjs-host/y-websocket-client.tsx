@@ -10,6 +10,7 @@ import { WebsocketProvider } from "y-websocket"
 import * as Y from "yjs"
 import { SHARE_KEY_PARAM } from "@/server/share-link.mjs"
 import { WS_ROUTES } from "@/server/ws-routes.mjs"
+import { HostAwayScreen } from "@/components/viewer/host-away-screen"
 import { withBasePath } from "@/lib/base-path"
 import { hostTunnel } from "@/lib/capabilities"
 import {
@@ -245,5 +246,12 @@ export function YjsRoomProvider({
 
   if (!value || !synced) return <>{fallback}</>
 
-  return <YjsConnectionProvider value={value}>{children}</YjsConnectionProvider>
+  return (
+    <YjsConnectionProvider value={value}>
+      {children}
+      {/* A viewer is told when the host stops sharing or can't be reached
+          (#1953); the canvas stays mounted underneath. */}
+      {viewerKey && conn ? <HostAwayScreen provider={conn.provider} /> : null}
+    </YjsConnectionProvider>
+  )
 }

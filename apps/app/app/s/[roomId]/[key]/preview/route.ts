@@ -1,7 +1,7 @@
-import { getPreviewExposure } from "@/lib/preview-exposure"
 import { probeWorkspacePreview } from "@/lib/sandbox/lifecycle"
 import { openRoomForViewer } from "@/lib/room-access"
 import { viewerPreview } from "@/lib/viewer/preview"
+import { getSharing } from "@/server/sharing.mjs"
 
 /**
  * Where a viewer's frame loads a Workspace's preview, and whether it answers
@@ -13,6 +13,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ roomId: string; key: string }> }
 ) {
+  const sharing = getSharing()
+  if (!sharing) return new Response("Not found", { status: 404 })
   const { roomId, key } = await params
   const room = await openRoomForViewer(roomId, key)
   if (!room) return new Response("Not found", { status: 404 })
@@ -33,7 +35,9 @@ export async function GET(
     frames,
     sandboxName,
     devPort,
-    expose: (port) => getPreviewExposure().expose(port),
+    // Through Sharing, so turning it off releases every port a viewer's
+    // frame exposed (#1953).
+    expose: (port) => sharing.expose(port),
     probe: probeWorkspacePreview,
   }).catch((err: unknown) => {
     console.warn(

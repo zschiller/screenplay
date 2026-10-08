@@ -89,8 +89,34 @@ Origin check as the Yjs sync connection.
 
 ## Sharing
 
-People on your tailnet can watch a canvas while you work in it. Each canvas
-has one link:
+People on your tailnet can watch a canvas while you work in it. Sharing is
+off until you turn it on.
+
+### Turning it on and off
+
+Click **Share** in a canvas’s top right and turn on **Sharing**. The dialog
+then shows the canvas’s link; **Copy link** copies it to send. Sharing is one
+switch for the whole Mac: while it’s on, anyone you sent any canvas’s link to
+can open it. It stays on when you quit and reopen the app, until you turn it
+off.
+
+Turning it on opens the **viewer listener** on `127.0.0.1` and serves it to
+your tailnet with `tailscale serve`, through the
+[preview exposure](/self-hosting/configuration/preview-exposure). It needs
+Tailscale installed, signed in and connected, with MagicDNS and HTTPS
+Certificates turned on for your tailnet. When something’s missing, the switch
+stays off and the dialog says what.
+
+Turning it off closes the viewer listener, ends every viewer’s connection,
+and stops serving the listener and every preview a viewer opened over your
+tailnet (`tailscale serve … off` for each port). Whether Sharing is on, its
+port and the ports it served are kept in `sharing.json` in the app’s data
+folder, so a canvas keeps its link and an exposure left over from a crash is
+released on the next launch.
+
+### What viewers see
+
+Each canvas has one link:
 
 ```
 https://<your Mac>.<tailnet>.ts.net:<viewer port>/s/<canvas id>/<key>
@@ -134,6 +160,12 @@ listener refuses the requests behind them:
 - Editing the canvas: moving, resizing, renaming, the toolbar, and every ⋯
   menu on frames, pages and chats
 - Settings and Copy link
+
+When you turn Sharing off, a viewer’s page says you stopped sharing. When
+your Mac sleeps or leaves the network, it says it can’t reach your Mac and
+keeps trying. Either way the canvas comes back on its own, as it is now, once
+Sharing is on and your Mac is reachable again. A link opened while Sharing is
+off doesn’t load at all, since nothing is listening.
 
 ## Building
 

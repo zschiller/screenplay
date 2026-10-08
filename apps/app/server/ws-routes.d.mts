@@ -24,3 +24,12 @@ export type ViewerYjsAccept = (
 export declare function setViewerYjs(accept: ViewerYjsAccept | undefined): void
 
 export declare function viewerYjs(): ViewerYjsAccept | undefined
+
+export declare function setViewerYjsClose(
+  close: (() => Promise<void>) | undefined
+): void
+
+export declare function closeViewerYjs(): Promise<void>
+
+export declare const SHARING_OFF_CLOSE_CODE: 4001
+export declare const SHARING_OFF_REASON: "sharing off"

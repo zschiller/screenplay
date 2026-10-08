@@ -8,6 +8,7 @@ import path from "node:path"
 
 import { hostTunnel, viewers } from "@/lib/capabilities"
 import { getPreviewExposure } from "@/lib/preview-exposure"
+import { getSharing } from "@/server/sharing.mjs"
 import { devServerEnv } from "@/lib/sandbox/local/host-env"
 import { acquireRepo, type RepoSource } from "@/lib/sandbox/local/worktree"
 import { PortAllocator } from "@/lib/sandbox/port-allocator"
@@ -307,6 +308,8 @@ export class LocalSandboxProvider implements SandboxProvider {
       const hostPort = meta.portMap[String(logical)]
       if (hostPort === undefined) continue
       if (hostTunnel) await removeHostRoute(hostPort)
+      // In the Mac app only Sharing exposes ports, for viewers' frames.
+      else if (viewers) await getSharing()?.release(hostPort)
       else await getPreviewExposure().release(hostPort)
     }
     for (const logical of Object.keys(meta.portMap)) {

@@ -47,6 +47,11 @@ export async function register(): Promise<void> {
       const { setViewerIdentity } = await import("@/server/viewer.mjs")
       const { id, identity } = selectViewerIdentity()
       setViewerIdentity(id, identity)
+      // The front server serves the viewer listener and viewers' previews
+      // over the preview exposure while Sharing is on.
+      const { getPreviewExposure } = await import("@/lib/preview-exposure")
+      const { setSharingExposure } = await import("@/server/sharing.mjs")
+      setSharingExposure(getPreviewExposure())
     }
   } catch (err) {
     console.error(

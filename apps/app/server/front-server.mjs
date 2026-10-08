@@ -5,11 +5,11 @@
 // each (`ws-routes.mjs`), so a Headless host tunnels one port for the app and
 // one, portless's, for frames.
 //
-// In the Mac app, each viewer listener (Sharing, #1921) binds the address it
-// is given, serves only `viewer-allowlist.mjs`, and asks the Viewer identity
-// who each request is from (`viewer.mjs`). The role comes from the listener a
-// request arrived on, never from a header: both listeners strip a client's
-// copy of the identity header before Next sees the request.
+// In the Mac app, the viewer listener (Sharing, #1921) opens while the owner
+// has Sharing on (`sharing.mjs`), serves only `viewer-allowlist.mjs`, and asks
+// the Viewer identity who each request is from (`viewer.mjs`). The role comes
+// from the listener a request arrived on, never from a header: both listeners
+// strip a client's copy of the identity header before Next sees the request.
 //
 // Plain Node, no TS: the sidecar build and `pnpm headless` copy this folder
 // into the standalone server and run it with the standalone tree's `next`.
@@ -30,8 +30,14 @@ import {
   stripReservedHeaders,
 } from "./viewer.mjs"
 import { SHARE_KEY_PARAM, isShareKey } from "./share-link.mjs"
+import { createSharing, setSharing, sharingExposure } from "./sharing.mjs"
 import { VIEWER_ALLOWLIST, allowlistEntry } from "./viewer-allowlist.mjs"
-import { localWsPort, matchWsRoute, viewerYjs } from "./ws-routes.mjs"
+import {
+  closeViewerYjs,
+  localWsPort,
+  matchWsRoute,
+  viewerYjs,
+} from "./ws-routes.mjs"
 
 /** The host listener's address. Never anything else: the role comes from it. */
 export const HOST_ADDRESS = "127.0.0.1"
@@ -71,12 +77,14 @@ export function pipeUpgrade(req, socket, head, portOf = localWsPort) {
 
 /**
  * Start Next from a built app folder (the standalone server's `apps/app`) and
- * listen on the host listener and each viewer listener.
+ * listen on the host listener. With `sharing`, the Mac app's, the viewer
+ * listener opens while Sharing is on, and Sharing turns back on if it was on
+ * when the app last quit.
  *
- * @param {{ dir: string, port: number, viewers?: ViewerListener[] }} opts
- * @returns {Promise<import("node:http").Server[]>}
+ * @param {{ dir: string, port: number, sharing?: { file?: string } }} opts
+ * @returns {Promise<import("node:http").Server>}
  */
-export async function startFrontServer({ dir, port, viewers = [] }) {
+export async function startFrontServer({ dir, port, sharing }) {
   process.env.NODE_ENV = "production"
   // The standalone `server.js` sets this before it loads Next; the config is
   // also what `required-server-files.json` records.
@@ -101,13 +109,51 @@ export async function startFrontServer({ dir, port, viewers = [] }) {
   await app.prepare()
   const handle = app.getRequestHandler()
   const toNext = (req, res) => void handle(req, res)
-  const identify = createIdentifier()
-  return Promise.all([
-    listenOnHost(createHostServer(toNext), port),
-    ...viewers.map((listener) =>
-      listenOn(createViewerServer(toNext, listener, { identify }), listener)
-    ),
-  ])
+  const host = await listenOnHost(createHostServer(toNext), port)
+  if (sharing) {
+    const identify = createIdentifier()
+    const viewers = createSharing({
+      open: async (listener) =>
+        closable(
+          await listenOn(
+            createViewerServer(toNext, listener, { identify }),
+            listener
+          )
+        ),
+      exposure: sharingExposure,
+      closeViewerSockets: closeViewerYjs,
+      file: sharing.file,
+    })
+    setSharing(viewers)
+    const state = await viewers.start()
+    if (state.on) console.log(`[sharing] on at ${state.origin}`)
+    if (state.error) console.warn(`[sharing] couldn’t turn on: ${state.error}`)
+  }
+  return host
+}
+
+/**
+ * A listening server and a `close` that stops it and ends every connection
+ * it took, sockets a viewer's canvas upgraded included, so nothing a viewer
+ * opened outlives it.
+ *
+ * @param {import("node:http").Server} server
+ */
+export function closable(server) {
+  /** @type {Set<import("node:net").Socket>} */
+  const sockets = new Set()
+  server.on("connection", (socket) => {
+    sockets.add(socket)
+    socket.once("close", () => sockets.delete(socket))
+  })
+  return {
+    server,
+    close: () =>
+      new Promise((resolve) => {
+        server.close(() => resolve(undefined))
+        for (const socket of sockets) socket.destroy()
+      }),
+  }
 }
 
 /**
@@ -303,41 +349,6 @@ export function listenOn(server, { address, port }) {
   })
 }
 
-/**
- * The viewer listeners `SCREENPLAY_VIEWER_LISTENERS` names, as JSON: a list of
- * `{ name, address, port }`. Only the Mac app serves viewers (Sharing,
- * #1921); any other profile serves none.
- *
- * @param {Record<string, string | undefined>} env
- * @returns {ViewerListener[]}
- */
-export function viewerListenersOf(env) {
-  const raw = env.SCREENPLAY_VIEWER_LISTENERS
-  if (!raw) return []
-  if (env.NEXT_PUBLIC_SCREENPLAY_PROFILE !== "desktop") {
-    console.warn(
-      "SCREENPLAY_VIEWER_LISTENERS is for the Mac app’s Sharing; ignoring it"
-    )
-    return []
-  }
-  const listeners = JSON.parse(raw)
-  if (
-    !Array.isArray(listeners) ||
-    !listeners.every(
-      (l) =>
-        l &&
-        typeof l.name === "string" &&
-        typeof l.address === "string" &&
-        Number.isInteger(l.port)
-    )
-  ) {
-    throw new Error(
-      "SCREENPLAY_VIEWER_LISTENERS must be a JSON list of { name, address, port }"
-    )
-  }
-  return listeners
-}
-
 /** Run as the server the sidecar or `pnpm headless` starts, configured by its environment. */
 async function main() {
   const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -346,13 +357,12 @@ async function main() {
   if (!Number.isInteger(port) || port <= 0) {
     throw new Error("PORT must name the host listener’s port")
   }
-  const viewers = viewerListenersOf(process.env)
-  await startFrontServer({ dir, port, viewers })
-  for (const viewer of viewers) {
-    console.log(
-      `[viewers] ${viewer.name} listening on ${viewer.address}:${viewer.port}`
-    )
-  }
+  // Only the Mac app serves viewers (Sharing, #1921).
+  const sharing =
+    process.env.NEXT_PUBLIC_SCREENPLAY_PROFILE === "desktop"
+      ? { file: process.env.SCREENPLAY_SHARING_FILE || undefined }
+      : undefined
+  await startFrontServer({ dir, port, sharing })
   if (process.env.NEXT_PUBLIC_SCREENPLAY_PROFILE === "headless") {
     const { bannerLines } = await import("../headless/banner.mjs")
     const portlessPort = Number(process.env.SCREENPLAY_PORTLESS_PORT || 1355)

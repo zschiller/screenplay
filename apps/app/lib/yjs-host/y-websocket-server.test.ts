@@ -16,7 +16,11 @@ import {
   startLocalYjsServer,
   type YjsServerHandle,
 } from "@/lib/yjs-host/y-websocket-server"
-import { viewerYjs } from "@/server/ws-routes.mjs"
+import {
+  SHARING_OFF_CLOSE_CODE,
+  closeViewerYjs,
+  viewerYjs,
+} from "@/server/ws-routes.mjs"
 
 async function waitFor(
   predicate: () => boolean | Promise<boolean>,
@@ -298,6 +302,25 @@ describe("LocalYjsHost", () => {
           await waitFor(
             () => viewerDoc.getMap("canvas").get("title") === "after"
           )
+        } finally {
+          viewer.destroy()
+          viewerDoc.destroy()
+        }
+      })
+
+      it("is closed with Sharing's off code when Sharing turns off (#1953)", async () => {
+        const viewerDoc = new Y.Doc()
+        const viewer = connect(viewerDoc, "viewer")
+        const codes: number[] = []
+        viewer.on("connection-close", (event) => {
+          if (event) codes.push(event.code)
+        })
+        try {
+          await waitFor(() => viewer.synced)
+          viewer.shouldConnect = false
+          await closeViewerYjs()
+          await waitFor(() => codes.length > 0)
+          expect(codes[0]).toBe(SHARING_OFF_CLOSE_CODE)
         } finally {
           viewer.destroy()
           viewerDoc.destroy()

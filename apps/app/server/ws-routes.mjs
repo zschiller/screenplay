@@ -59,3 +59,25 @@ export function setViewerYjs(accept) {
 export function viewerYjs() {
   return globalThis[VIEWER_YJS]
 }
+
+/** The close code a viewer's canvas socket gets when Sharing turns off (#1953). */
+export const SHARING_OFF_CLOSE_CODE = 4001
+
+/** The close reason that goes with it. */
+export const SHARING_OFF_REASON = "sharing off"
+
+const VIEWER_YJS_CLOSE = Symbol.for("screenplay.viewerYjsClose")
+
+/**
+ * Register how the local Yjs server ends every viewer's canvas socket, so
+ * turning Sharing off (#1953) tells each open page why before the viewer
+ * listener closes.
+ */
+export function setViewerYjsClose(close) {
+  globalThis[VIEWER_YJS_CLOSE] = close
+}
+
+/** End every viewer's canvas socket, if the Yjs server listens. */
+export async function closeViewerYjs() {
+  await globalThis[VIEWER_YJS_CLOSE]?.()
+}

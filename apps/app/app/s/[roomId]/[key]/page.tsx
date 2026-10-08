@@ -71,7 +71,7 @@ export default async function SharedCanvasPage({
       <YjsRoomProvider
         roomId={room.id}
         viewerKey={key}
-        fallback={<CanvasSkeleton initialLayout={initialLayout} />}
+        fallback={<CanvasSkeleton initialLayout={initialLayout} viewer />}
       >
         <Canvas
           roomId={room.id}
