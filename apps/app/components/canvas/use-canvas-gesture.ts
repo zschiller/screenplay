@@ -77,6 +77,9 @@ export type CanvasGestureInputs = {
    *  setters (canvas-mutating intents write the Y.Doc; `marqueeSelect` /
    *  `selectMember` apply to local selection state). */
   applyIntent: (intent: GestureIntent) => void
+  /** A viewer's canvas (#1933): presses select and marquees sweep, but
+   *  nothing moves, resizes or reorders. */
+  readOnly?: boolean
   /** Live pan/zoom transform, or `null` before the controller mounts. */
   getTransform: () => CanvasTransform | null
   /** Current zoom — hit-test radii are evaluated in screen pixels. */
@@ -154,6 +157,21 @@ function toCanvas(i: CanvasGestureInputs, e: React.PointerEvent) {
 }
 
 /**
+ * Whether `event` would change the canvas from `state`: starting or dragging
+ * a gap, reorder or resize, or dragging a move. A move that never moves still
+ * releases as a press, which selects.
+ */
+function changesCanvas(state: GestureState, event: GestureEvent): boolean {
+  if (event.type === "start") {
+    return event.start.kind !== "move" && event.start.kind !== "marquee"
+  }
+  if (event.type === "move" || event.type === "resizeMove") {
+    return state.kind !== "marquee"
+  }
+  return false
+}
+
+/**
  * The Canvas Gesture seam — the one place gesture I/O lives. It owns the gesture
  * state ref and the canvas-root pointer handlers (returned in {@link handlers}
  * to spread onto the wrapper), routes a pointer-down through the pure
@@ -196,6 +214,8 @@ export function useCanvasGesture(
 
   const dispatch = useCallback(
     (event: GestureEvent) => {
+      if (inputsRef.current?.readOnly && changesCanvas(stateRef.current, event))
+        return
       const result = reduceGesture(stateRef.current, event)
       stateRef.current = result.state
       setPreview(result.preview)

@@ -14,6 +14,7 @@ import {
 } from "@workspace/ui/components/floating-toolbar"
 
 import { commenting } from "@/lib/capabilities"
+import { useViewing } from "@/lib/viewer/context"
 
 import type { ToolModeController } from "./use-tool-mode"
 
@@ -40,6 +41,8 @@ export function CanvasToolbar({
   onClearMode: () => void
 }) {
   const { frameMode, mockupMode, documentMode, commentMode } = toolMode
+  // A viewer (#1933) draws nothing: Select and Comment are their tools.
+  const draws = !useViewing()
   return (
     <div className="pointer-events-none absolute bottom-0 left-1/2 z-(--z-canvas-chrome) flex h-12 -translate-x-1/2 items-center px-2">
       <FloatingToolbar
@@ -58,45 +61,49 @@ export function CanvasToolbar({
         >
           <NavigationArrowIcon />
         </FloatingToolbarButton>
-        {/* A frame shows a Workspace, so with no repository the tool is off;
-            the tooltip still opens and says why. */}
-        <FloatingToolbarButton
-          label="Frame"
-          shortcut={toolMode.frameAvailable ? "F" : undefined}
-          hint={toolMode.frameAvailable ? undefined : NO_REPOSITORY_HINT}
-          disabled={!toolMode.frameAvailable}
-          pressed={frameMode}
-          onClick={() => {
-            toolMode.toggle("frame")
-            onClearMode()
-          }}
-        >
-          <FrameCornersIcon />
-        </FloatingToolbarButton>
-        {/* Draw a box, then ask a chat to sketch a static page into it
-            (#1359). The layers list shows Mockups with the same scribble. */}
-        <FloatingToolbarButton
-          label="Mockup"
-          shortcut="M"
-          pressed={mockupMode}
-          onClick={() => {
-            toolMode.toggle("mockup")
-            onClearMode()
-          }}
-        >
-          <ScribbleIcon />
-        </FloatingToolbarButton>
-        <FloatingToolbarButton
-          label="Document"
-          shortcut="D"
-          pressed={documentMode}
-          onClick={() => {
-            toolMode.toggle("document")
-            onClearMode()
-          }}
-        >
-          <FileTextIcon />
-        </FloatingToolbarButton>
+        {draws && (
+          <>
+            {/* A frame shows a Workspace, so with no repository the tool is off;
+              the tooltip still opens and says why. */}
+            <FloatingToolbarButton
+              label="Frame"
+              shortcut={toolMode.frameAvailable ? "F" : undefined}
+              hint={toolMode.frameAvailable ? undefined : NO_REPOSITORY_HINT}
+              disabled={!toolMode.frameAvailable}
+              pressed={frameMode}
+              onClick={() => {
+                toolMode.toggle("frame")
+                onClearMode()
+              }}
+            >
+              <FrameCornersIcon />
+            </FloatingToolbarButton>
+            {/* Draw a box, then ask a chat to sketch a static page into it
+              (#1359). The layers list shows Mockups with the same scribble. */}
+            <FloatingToolbarButton
+              label="Mockup"
+              shortcut="M"
+              pressed={mockupMode}
+              onClick={() => {
+                toolMode.toggle("mockup")
+                onClearMode()
+              }}
+            >
+              <ScribbleIcon />
+            </FloatingToolbarButton>
+            <FloatingToolbarButton
+              label="Document"
+              shortcut="D"
+              pressed={documentMode}
+              onClick={() => {
+                toolMode.toggle("document")
+                onClearMode()
+              }}
+            >
+              <FileTextIcon />
+            </FloatingToolbarButton>
+          </>
+        )}
         {/* Comment mode places persisted comment threads, in every build
             that has them (the Mac app's host and viewers too, #1934). */}
         {commenting && (

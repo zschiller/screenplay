@@ -42,8 +42,8 @@ export const VIEWER_ALLOWLIST = [
   },
   {
     // What a viewer's canvas reads below its link, each checking the key:
-    // where a frame loads its preview, a Mockup's page, and the script
-    // Mockup pages run first.
+    // where a frame loads its preview, a Mockup's page, the script Mockup
+    // pages run first, and a chat's transcript (#1933).
     name: "canvas link reads",
     methods: ["GET", "HEAD"],
     identify: true,
@@ -52,6 +52,7 @@ export const VIEWER_ALLOWLIST = [
       return (
         rest === "preview" ||
         rest === "mockup-runtime" ||
+        rest === "history" ||
         /^mockups\/[^/]+$/.test(rest ?? "")
       )
     },

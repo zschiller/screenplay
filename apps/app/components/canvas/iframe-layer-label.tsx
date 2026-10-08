@@ -27,6 +27,7 @@ import { LayerMenu, type LayerMenuActions } from "./layer-menu"
 import { LabelChat } from "./label-chat"
 import { LayerLabelRow } from "./layer-title-bar"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
+import { useViewing } from "@/lib/viewer/context"
 
 interface IframeLayerLabelProps {
   label: string
@@ -225,6 +226,16 @@ function BranchPicker({
 }: BranchPickerProps) {
   const [open, setOpen] = useState(false)
   const currentBranchId = workspace?.branchId
+  // A viewer (#1933) reads the frame's chat and picks none.
+  if (useViewing()) {
+    return workspace ? (
+      <MaybeWorkspaceHoverCard branchId={currentBranchId} side="bottom">
+        <span className="flex h-5 min-w-10 shrink-[100] items-center text-xs text-muted-foreground">
+          <CompactWorkspaceMention workspace={workspace} />
+        </span>
+      </MaybeWorkspaceHoverCard>
+    ) : null
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

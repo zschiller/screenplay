@@ -309,7 +309,7 @@ function IframeLayerImpl({
   createFlow,
   selected,
   onFocus,
-  onToggleCreateFlow,
+  onToggleCreateFlow: onToggleCreateFlowProp,
   onSelect,
   onResize,
   onResizeStart,
@@ -319,12 +319,12 @@ function IframeLayerImpl({
   onRouteChange,
   onScrollChange,
   writes,
-  onColorSchemeChange,
+  onColorSchemeChange: onColorSchemeChangeProp,
   onRemove,
   onPlay,
   onOpenInBrowser,
   onDuplicate,
-  onAskForKnob,
+  onAskForKnob: onAskForKnobProp,
   onSetFitToContent,
   onFollowContentHeight,
   onSetSize,
@@ -339,14 +339,14 @@ function IframeLayerImpl({
   onCaptureReadyChange,
   onCaptureDirty,
   workspace,
-  onRestartWorkspace,
-  onOpenLogs,
-  onStartChat,
+  onRestartWorkspace: onRestartWorkspaceProp,
+  onOpenLogs: onOpenLogsProp,
+  onStartChat: onStartChatProp,
   asking,
   assignableBranches,
-  onAssignBranch,
+  onAssignBranch: onAssignBranchProp,
   discoveredRoutes,
-  onSelectRoute,
+  onSelectRoute: onSelectRouteProp,
   groupLabel,
   showWorkspace,
   groupSelected,
@@ -358,6 +358,18 @@ function IframeLayerImpl({
   const { frame: iframeLayer, probe: viewerProbe } =
     useViewerFrame(recordedIframeLayer)
   const viewing = !!useViewing()
+  // What only the host does from a frame: pick or start its chat, steer its
+  // preview, record a flow, restyle it or ask for a knob (#1933).
+  const hostOnly = <T,>(handler: T): T | undefined =>
+    viewing ? undefined : handler
+  const onToggleCreateFlow = hostOnly(onToggleCreateFlowProp)
+  const onColorSchemeChange = hostOnly(onColorSchemeChangeProp)
+  const onAskForKnob = hostOnly(onAskForKnobProp)
+  const onRestartWorkspace = hostOnly(onRestartWorkspaceProp)
+  const onOpenLogs = hostOnly(onOpenLogsProp)
+  const onStartChat = hostOnly(onStartChatProp)
+  const onSelectRoute = hostOnly(onSelectRouteProp)
+  const onAssignBranch = hostOnly(onAssignBranchProp)
 
   // Track the path last reported by the iframe itself. When iframeLayer.route
   // changes to match this path, we know the change was the echo of in-iframe
@@ -971,8 +983,10 @@ function IframeLayerImpl({
                   onReload={reloadIframe}
                   recording={createFlow}
                   recordedScreens={recordedScreens}
-                  onToggleRecording={() =>
-                    onToggleCreateFlow(createFlow ? null : iframeLayer.id)
+                  onToggleRecording={
+                    onToggleCreateFlow &&
+                    (() =>
+                      onToggleCreateFlow(createFlow ? null : iframeLayer.id))
                   }
                 />
                 <FloatingToolbarSeparator />

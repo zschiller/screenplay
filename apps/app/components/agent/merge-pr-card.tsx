@@ -28,6 +28,7 @@ import {
 } from "@/lib/github-merge-actions"
 import { inputStore } from "@/lib/input-store"
 import { InlineRef } from "./inline-ref"
+import { useViewing } from "@/lib/viewer/context"
 
 type ToolCallMessage = AgentMessage & { role: "tool_call" }
 
@@ -118,6 +119,8 @@ export function MergePrCard({
   const key = offered ? `${offered.repo}#${offered.number}` : null
   const [state, setState] = useState<State>({ kind: "loading" })
   const [merging, setMerging] = useState(false)
+  // Only the host acts on it; a viewer (#1933) reads it.
+  const watching = !!useViewing()
   const [error, setError] = useState<string | null>(null)
   const [declined, setDeclined] = useState(false)
 
@@ -258,22 +261,24 @@ export function MergePrCard({
           {error}
         </p>
       )}
-      <ConfirmationActions>
-        <ConfirmationAction
-          variant="outline"
-          disabled={!chatId || merging}
-          onClick={notNow}
-        >
-          {NOT_NOW}
-        </ConfirmationAction>
-        <ConfirmationAction
-          disabled={!canMerge || merging || pr?.mergeableState === "dirty"}
-          onClick={merge}
-        >
-          {merging && <Spinner />}
-          {method ? METHOD_LABEL[method] : "Merge"}
-        </ConfirmationAction>
-      </ConfirmationActions>
+      {!watching && (
+        <ConfirmationActions>
+          <ConfirmationAction
+            variant="outline"
+            disabled={!chatId || merging}
+            onClick={notNow}
+          >
+            {NOT_NOW}
+          </ConfirmationAction>
+          <ConfirmationAction
+            disabled={!canMerge || merging || pr?.mergeableState === "dirty"}
+            onClick={merge}
+          >
+            {merging && <Spinner />}
+            {method ? METHOD_LABEL[method] : "Merge"}
+          </ConfirmationAction>
+        </ConfirmationActions>
+      )}
     </Confirmation>
   )
 }

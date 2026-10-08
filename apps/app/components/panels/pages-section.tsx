@@ -18,6 +18,8 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type SensorDescriptor,
+  type SensorOptions,
 } from "@dnd-kit/core"
 import {
   SortableContext,
@@ -66,6 +68,7 @@ import {
 import { PagePeople, usePeopleByPage } from "@/components/panels/page-people"
 import type { PageData } from "@/lib/types"
 import type { PeerPresence } from "@/lib/yjs/react"
+import { useViewing } from "@/lib/viewer/context"
 
 /** One row's height, and the section's chrome around its rows (the label
  *  row plus the group's padding), for sizing the Pages panel. */
@@ -139,6 +142,8 @@ export const PagesSection = memo(function PagesSection({
   const layerOver = useDndContext().over?.id
   // The page just added, whose name opens for renaming once its row is in.
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  // A viewer (#1933) switches pages and changes none.
+  const watching = !!useViewing()
   const sensors = useSensors(
     // A click (no movement) still switches page; a real drag past 6px moves.
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -184,17 +189,19 @@ export const PagesSection = memo(function PagesSection({
           listId={listId}
           onToggle={() => onOpenChange(!open)}
         />
-        <IconButton
-          label="New page"
-          tooltipSide="right"
-          className="-mr-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent"
-          onClick={() => {
-            onOpenChange(true)
-            setRenamingId(onAddPage())
-          }}
-        >
-          <PlusIcon />
-        </IconButton>
+        {!watching && (
+          <IconButton
+            label="New page"
+            tooltipSide="right"
+            className="-mr-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent"
+            onClick={() => {
+              onOpenChange(true)
+              setRenamingId(onAddPage())
+            }}
+          >
+            <PlusIcon />
+          </IconButton>
+        )}
       </div>
       {pages.map((page) => (
         <PageDropTarget
@@ -208,7 +215,7 @@ export const PagesSection = memo(function PagesSection({
         // Stable id keeps dnd-kit's a11y `aria-describedby` deterministic
         // across SSR/hydration.
         id="room-sidebar-pages"
-        sensors={sensors}
+        sensors={watching ? NO_SENSORS : sensors}
         collisionDetection={closestCenter}
         onDragStart={() => {
           draggingRef.current = true
@@ -263,6 +270,9 @@ function fade(shown: boolean) {
  * cross-fade in one cell whose width follows the one showing, so the caret
  * slides with it rather than jumping.
  */
+/** No way to pick a page up: a viewer's list only switches. */
+const NO_SENSORS: SensorDescriptor<SensorOptions>[] = []
+
 function PagesHeading({
   open,
   currentName,
@@ -375,6 +385,7 @@ function PageRow({
   onSelect: (pageId: string) => void
 } & PageRowActions) {
   const nameRef = useRef<EditableTextHandle | null>(null)
+  const watching = !!useViewing()
   useEffect(() => {
     if (!renameOnMount) return
     nameRef.current?.startEditing()
@@ -445,47 +456,49 @@ function PageRow({
         />
         {people ? <PagePeople people={people} /> : null}
       </SidebarMenuButton>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <IconButton label="Page options" tooltipSide="right" asChild>
-            <SidebarMenuAction className={frameRowActionClass}>
-              <DotsThreeIcon />
-            </SidebarMenuAction>
-          </IconButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          side="right"
-          align="start"
-          onCloseAutoFocus={(e) => {
-            if (!renamePendingRef.current) return
-            renamePendingRef.current = false
-            e.preventDefault()
-            nameRef.current?.startEditing()
-          }}
-        >
-          <DropdownMenuItem
-            onSelect={() => {
-              renamePendingRef.current = true
+      {!watching && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton label="Page options" tooltipSide="right" asChild>
+              <SidebarMenuAction className={frameRowActionClass}>
+                <DotsThreeIcon />
+              </SidebarMenuAction>
+            </IconButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="right"
+            align="start"
+            onCloseAutoFocus={(e) => {
+              if (!renamePendingRef.current) return
+              renamePendingRef.current = false
+              e.preventDefault()
+              nameRef.current?.startEditing()
             }}
           >
-            <PencilSimpleIcon />
-            Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onDuplicatePage(page.id)}>
-            <CopyIcon />
-            Duplicate
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={!canDelete}
-            onSelect={() => onDeletePage(page.id)}
-          >
-            <TrashIcon />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <DropdownMenuItem
+              onSelect={() => {
+                renamePendingRef.current = true
+              }}
+            >
+              <PencilSimpleIcon />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onDuplicatePage(page.id)}>
+              <CopyIcon />
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={!canDelete}
+              onSelect={() => onDeletePage(page.id)}
+            >
+              <TrashIcon />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </SidebarMenuItem>
   )
 }

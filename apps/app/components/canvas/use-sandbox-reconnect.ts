@@ -9,6 +9,7 @@ import {
 } from "@/lib/sandbox/lifecycle"
 import { resolveReconnect } from "@/lib/sandbox/reconnect"
 import type { BranchData, RepoData } from "@/lib/types"
+import { useViewing } from "@/lib/viewer/context"
 
 /**
  * Sandbox Reconnect controller (PRD #579, cut 2/4) — the single home for all of
@@ -59,13 +60,16 @@ export function useSandboxReconnect({
   roomId,
   updateAgentInStorage,
 }: SandboxReconnectInputs): void {
+  // The host's client keeps the host's code running; a viewer (#1933) has
+  // nothing to reconnect.
+  const watching = !!useViewing()
   // Reconnect agents on mount — check if they're still alive, and recover any
   // that were mid-creation when the page was reloaded. The mount-once guard
   // waits for the first non-empty `agents` (post Yjs initial sync), then never
   // fires again.
   const reconnectedRef = useRef(false)
   useEffect(() => {
-    if (isFixtureWorld) return
+    if (isFixtureWorld || watching) return
     if (reconnectedRef.current || agents.length === 0) return
     reconnectedRef.current = true
 
@@ -171,14 +175,14 @@ export function useSandboxReconnect({
           break
       }
     }
-  }, [agents, repos, updateAgentInStorage, roomId])
+  }, [agents, repos, updateAgentInStorage, roomId, watching])
 
   // Heartbeat: extend sandbox timeouts while the tab is visible so they stay
   // alive as long as the user is actively using the page. Fires every 20
   // minutes (well within the 30-minute timeout) and pauses when the tab is
   // hidden so sandboxes can expire when the user leaves.
   useEffect(() => {
-    if (isFixtureWorld) return
+    if (isFixtureWorld || watching) return
     const HEARTBEAT_MS = 20 * 60 * 1000
 
     const pingAll = () => {
@@ -201,5 +205,5 @@ export function useSandboxReconnect({
       clearInterval(interval)
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
-  }, [agents])
+  }, [agents, watching])
 }

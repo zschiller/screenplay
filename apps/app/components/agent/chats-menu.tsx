@@ -66,6 +66,7 @@ import { BranchOverflowMenuContent } from "@/components/panels/branch-overflow-m
 import { WorkspaceStatusIcon } from "@/components/panels/workspace-status-icon"
 
 import { RecreateBranchDialog } from "@/components/recreate-branch-dialog"
+import { useViewing } from "@/lib/viewer/context"
 
 import { WorkspaceHoverCard } from "@/components/workspace-hover-card"
 import {
@@ -694,6 +695,7 @@ function SketchChatMenuRow({
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const line = menu.sketchLineOf(chat)
+  const watching = !!useViewing()
   return (
     <CommandItem
       value={`${chat.label} ${chat.id}`}
@@ -747,7 +749,9 @@ function SketchChatMenuRow({
         className={cn(
           "absolute inset-y-0 right-0.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
           menuOpen && "opacity-100",
-          renaming && "invisible"
+          renaming && "invisible",
+          // A viewer (#1933) only switches chats.
+          watching && "hidden"
         )}
       >
         <span className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-(--row-bg)" />
@@ -816,6 +820,7 @@ function WorkspaceMenuRow({
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const isHighlighted = useIsWorkspaceHighlighted(branch.id)
+  const watching = !!useViewing()
   const hover = { branchId: branch.id, source: "workspace" } as const
   // A row unmounting mid-hover (the menu closing) must not leave its frames
   // outlined.
@@ -920,7 +925,9 @@ function WorkspaceMenuRow({
         className={cn(
           "absolute inset-y-0 right-0.5 flex items-center bg-(--row-bg) opacity-0 [--row-bg:var(--popover)] group-data-highlighted/ws-row:[--row-bg:var(--muted)] group-data-selected/ws-row:opacity-100 group-data-selected/ws-row:[--row-bg:var(--muted)] focus-within:opacity-100",
           menuOpen && "opacity-100",
-          renaming && "invisible"
+          renaming && "invisible",
+          // A viewer (#1933) only switches chats.
+          watching && "hidden"
         )}
       >
         <span className="pointer-events-none absolute inset-y-0 -left-4 w-4 bg-gradient-to-r from-transparent to-(--row-bg)" />

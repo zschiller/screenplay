@@ -100,7 +100,8 @@ interface FrameAddressBarProps {
   recording: boolean
   /** Screens this recording has laid down, the frame's own included. */
   recordedScreens: number
-  onToggleRecording: () => void
+  /** Absent where nothing records, e.g. a viewer's frame (#1933). */
+  onToggleRecording?: () => void
 }
 
 export function FrameAddressBar({
@@ -159,24 +160,26 @@ export function FrameAddressBar({
           setLockedWidth(editing ? barRef.current?.offsetWidth : undefined)
         }
       />
-      <IconButton
-        label={recording ? "Stop recording" : "Record flow"}
-        pressed={recording}
-        className={cn(
-          // Idle it's a muted dot like Reload's grey; red is for a recording.
-          recording
-            ? "text-destructive-foreground hover:bg-transparent hover:text-destructive-foreground aria-pressed:bg-transparent dark:hover:bg-transparent"
-            : "text-muted-foreground"
-        )}
-        onClick={onToggleRecording}
-      >
-        <span
+      {onToggleRecording && (
+        <IconButton
+          label={recording ? "Stop recording" : "Record flow"}
+          pressed={recording}
           className={cn(
-            "size-2 bg-current",
-            recording ? "rounded-[1.5px]" : "rounded-full"
+            // Idle it's a muted dot like Reload's grey; red is for a recording.
+            recording
+              ? "text-destructive-foreground hover:bg-transparent hover:text-destructive-foreground aria-pressed:bg-transparent dark:hover:bg-transparent"
+              : "text-muted-foreground"
           )}
-        />
-      </IconButton>
+          onClick={onToggleRecording}
+        >
+          <span
+            className={cn(
+              "size-2 bg-current",
+              recording ? "rounded-[1.5px]" : "rounded-full"
+            )}
+          />
+        </IconButton>
+      )}
       {!recording && (
         <IconButton
           label="Reload"

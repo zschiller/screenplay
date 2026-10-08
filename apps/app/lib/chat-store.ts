@@ -266,10 +266,29 @@ const DEFAULT_STATE: ChatState = {
   sends: 0,
 }
 
+/** The canvas link a viewer's page reads chats through, or null for the host. */
+let viewerLink: { roomId: string; shareKey: string } | null = null
+
+/**
+ * Read chat transcripts through a canvas link (Sharing, #1933): a viewer's
+ * page can't reach `/api/agent/history`, so it reads each chat of the canvas
+ * it watches under the link. Null goes back to the host's route.
+ */
+export function readChatsThroughLink(
+  link: { roomId: string; shareKey: string } | null
+): void {
+  viewerLink = link
+}
+
+function historyPath(chatId: string): string {
+  const chat = encodeURIComponent(chatId)
+  return viewerLink
+    ? `/s/${encodeURIComponent(viewerLink.roomId)}/${viewerLink.shareKey}/history?chatId=${chat}`
+    : `/api/agent/history?chatId=${chat}`
+}
+
 async function fetchHistory(chatId: string): Promise<AgentMessage[]> {
-  const res = await fetch(
-    withBasePath(`/api/agent/history?chatId=${encodeURIComponent(chatId)}`)
-  )
+  const res = await fetch(withBasePath(historyPath(chatId)))
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }

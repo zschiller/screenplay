@@ -64,6 +64,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
+import { useViewing } from "@/lib/viewer/context"
 
 interface MockupLayerProps {
   layer: MockupLayerData
@@ -367,6 +368,9 @@ function MockupLayerImpl({
   // viewer.
   const link = useMockupChatLink()
   const question = useMockupQuestion(link, layer.id)
+  // A viewer (#1933) sees the question and speaks to no chat.
+  const watching = !!useViewing()
+  const speaks = !!link && !watching
   const viewer = { focused, driver, live: shared, liveDriver }
   const voice = pageVoice(viewer)
   // The page matches the app's theme; a live page keeps its own control's.
@@ -383,15 +387,16 @@ function MockupLayerImpl({
     question,
     answerable: pageAnswers(viewer),
     onDraft:
-      link && voice.draft ? (text) => link.draft(layer.id, text) : undefined,
+      speaks && voice.draft ? (text) => link!.draft(layer.id, text) : undefined,
     onAnswer:
-      link && voice.answer
-        ? (found, index) => link.answer(found, index)
+      speaks && voice.answer
+        ? (found, index) => link!.answer(found, index)
         : undefined,
   })
-  const onAskForKnob = link?.canAsk(layer.id)
-    ? () => link.askForKnob(layer.id)
-    : undefined
+  const onAskForKnob =
+    speaks && link!.canAsk(layer.id)
+      ? () => link!.askForKnob(layer.id)
+      : undefined
 
   const chrome = livePageChrome({
     driver,

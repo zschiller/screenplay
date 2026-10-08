@@ -22,6 +22,7 @@ import type { FrameWorkspace } from "./frame-nav"
 import { LabelChat, useLabelChatHidden } from "./label-chat"
 import { LayerMenu, type LayerMenuActions } from "./layer-menu"
 import { CompactWorkspaceMention, WorkspaceCommandList } from "./workspace-list"
+import { useViewing } from "@/lib/viewer/context"
 
 /** Switching a whole Group's Workspace from its label (#869), or one frame's
  *  from its own label. */
@@ -117,6 +118,8 @@ export function GroupLabel({ workspace, menu, ...props }: GroupLabelProps) {
   const editableRef = useRef<EditableTextHandle>(null)
   const rowRef = useRef<HTMLDivElement>(null)
   const chatHidden = useLabelChatHidden(rowRef)
+  // A viewer (#1933) reads which chat a Group shows and switches none.
+  const watching = !!useViewing()
   const menuButton = menu && (
     <LayerMenu
       placement="label"
@@ -155,7 +158,7 @@ export function GroupLabel({ workspace, menu, ...props }: GroupLabelProps) {
           />
         ) : workspace.branchId === undefined ? (
           <WorkspaceChooser switcher={workspace.switcher} />
-        ) : workspace.switcher ? (
+        ) : workspace.switcher && !watching ? (
           <GroupWorkspaceSwitcher
             label={props.label}
             workspace={workspace}
@@ -271,6 +274,8 @@ export function WorkspaceChooser({
   className?: string
 }) {
   const [open, setOpen] = useState(false)
+  // Picking writes the canvas: a viewer (#1933) has nothing to choose.
+  if (useViewing()) return null
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>

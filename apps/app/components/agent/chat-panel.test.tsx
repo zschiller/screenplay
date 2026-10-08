@@ -86,6 +86,8 @@ vi.mock("@/components/workspace-mention", () => ({
   ),
 }))
 
+import { ViewingProvider } from "@/lib/viewer/context"
+
 import { ChatPanel } from "./chat-panel"
 import type { DevServerControls } from "./terminal-pane"
 
@@ -179,6 +181,8 @@ function renderWorkspacePanel(
     devServerControls?: DevServerControls
     diffStats?: { additions: number; deletions: number }
     branchPr?: BranchPrInfo | null
+    /** Render it on a viewer's page (Sharing, #1933). */
+    viewer?: boolean
   } = {}
 ) {
   const onSelectChat = vi.fn()
@@ -214,7 +218,22 @@ function renderWorkspacePanel(
     diffStats: options.diffStats,
     branchPr: options.branchPr,
   }
-  const view = render(<ChatPanel {...props} />)
+  const panel = <ChatPanel {...props} />
+  const view = render(
+    options.viewer ? (
+      <ViewingProvider
+        value={{
+          person: { id: "ana", name: "Ana" },
+          roomId: "room-1",
+          shareKey: "key",
+        }}
+      >
+        {panel}
+      </ViewingProvider>
+    ) : (
+      panel
+    )
+  )
   return { ...view, props, onSelectChat, onCloseTerminal }
 }
 
@@ -488,6 +507,38 @@ describe("ChatPanel with a Workspace target", () => {
       selectedChatId: "chat-1",
     })
     expect(screen.queryByRole("button", { name: "Chat history" })).toBeNull()
+  })
+})
+
+describe("ChatPanel on a viewer's page (#1933)", () => {
+  it("shows the chat with no terminals and no Create PR", () => {
+    renderWorkspacePanel({
+      viewer: true,
+      diffStats: { additions: 3, deletions: 1 },
+    })
+    expect(screen.getByTestId("agent-chat").dataset.chatId).toBe("chat-1")
+    expect(screen.queryByRole("tablist", { name: "Terminals" })).toBeNull()
+    expect(screen.queryByRole("tab", { name: "Preview" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /Create PR/ })).toBeNull()
+    expect(screen.getByText("+3")).toBeTruthy()
+  })
+
+  it("still links the chat's pull request", () => {
+    renderWorkspacePanel({
+      viewer: true,
+      branchPr: {
+        number: 482,
+        url: "https://github.com/acme/storefront/pull/482",
+        state: "open",
+      } as BranchPrInfo,
+    })
+    expect(screen.getByRole("link", { name: /#482/ })).toBeTruthy()
+  })
+
+  it("offers no New chat on a Workspace without one", () => {
+    renderWorkspacePanel({ viewer: true, chatSessions: [] })
+    expect(screen.getByText("No chat yet")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /New chat/ })).toBeNull()
   })
 })
 

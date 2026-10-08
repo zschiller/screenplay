@@ -27,6 +27,8 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
+  type SensorDescriptor,
+  type SensorOptions,
 } from "@dnd-kit/core"
 
 import {
@@ -130,6 +132,7 @@ import {
   useIsFrameHighlighted,
   useWorkspaceHoverProps,
 } from "@/lib/workspace-hover-store"
+import { useViewing } from "@/lib/viewer/context"
 
 /**
  * Resolved sidebar member — pairs the kind + id with the underlying data
@@ -449,6 +452,9 @@ function writePagesOpen(open: boolean) {
  * on the current one, and nothing else. The Workspaces list lives in the chat panel's
  * Chats menu (#1152).
  */
+/** No way to pick a row up: a viewer's sidebar only selects. */
+const NO_SENSORS: SensorDescriptor<SensorOptions>[] = []
+
 function RoomSidebarImpl({
   branches,
   iframeLayers,
@@ -698,6 +704,7 @@ function RoomSidebarImpl({
     [flattenedRows]
   )
 
+  const watching = !!useViewing()
   const sensors = useSensors(
     // Activation distance lets clicks/double-clicks (no movement) through to
     // selection + zoom handlers, but any real drag past 6px starts moving.
@@ -842,7 +849,8 @@ function RoomSidebarImpl({
             // Stable id keeps dnd-kit's a11y `aria-describedby` deterministic
             // across SSR/hydration (see file-dnd.tsx for the full rationale).
             id="room-sidebar-canvases"
-            sensors={sensors}
+            // A viewer (#1933) reorders nothing.
+            sensors={watching ? NO_SENSORS : sensors}
             collisionDetection={canvasCollision}
             onDragStart={handleDragStart}
             onDragMove={handleDragMove}

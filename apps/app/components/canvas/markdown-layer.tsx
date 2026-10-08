@@ -120,6 +120,7 @@ import {
   WorkingChatMention,
   type WorkingChat,
 } from "@/components/canvas/working-chat"
+import { useViewing } from "@/lib/viewer/context"
 
 export interface InlineCommentDraft {
   documentId: string
@@ -469,6 +470,8 @@ function MarkdownLayerImpl({
   // and fold back away when it stops.
   const blockControlsRef = useRef<HTMLDivElement>(null)
   const blockControlsMounted = useToolbarReveal(editing, blockControlsRef)
+  // A viewer (#1933) reads the Document and never edits it.
+  const watching = !!useViewing()
 
   // Images: paste, drop and Upload image save into the canvas's files under
   // `uploads/`, as chat attachments do, and Image from files picks one there
@@ -1181,23 +1184,25 @@ function MarkdownLayerImpl({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
-                <FloatingToolbarButton
-                  label="Edit"
-                  shortcut={editing ? ["Esc"] : undefined}
-                  pressed={editing}
-                  // On, it takes Interact's selection fill, like the 2px ring
-                  // around the page.
-                  className={
-                    editing
-                      ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
-                      : undefined
-                  }
-                  onClick={() =>
-                    editing ? onStopEdit() : onStartEdit(layer.id)
-                  }
-                >
-                  <PencilSimpleIcon />
-                </FloatingToolbarButton>
+                {!watching && (
+                  <FloatingToolbarButton
+                    label="Edit"
+                    shortcut={editing ? ["Esc"] : undefined}
+                    pressed={editing}
+                    // On, it takes Interact's selection fill, like the 2px ring
+                    // around the page.
+                    className={
+                      editing
+                        ? "bg-canvas-selection-fill text-black hover:bg-canvas-selection-fill/90 hover:text-black dark:hover:bg-canvas-selection-fill/90"
+                        : undefined
+                    }
+                    onClick={() =>
+                      editing ? onStopEdit() : onStartEdit(layer.id)
+                    }
+                  >
+                    <PencilSimpleIcon />
+                  </FloatingToolbarButton>
+                )}
                 {blockControlsMounted && editor && (
                   <div
                     ref={blockControlsRef}

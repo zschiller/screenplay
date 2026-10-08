@@ -54,6 +54,7 @@ import {
   MoveToPageSubMenu,
   type MoveToPageTarget,
 } from "./move-to-page"
+import { useViewing } from "@/lib/viewer/context"
 
 /**
  * One menu per object (I7): a frame, mockup, document or Group has one menu,
@@ -377,6 +378,9 @@ export function LayerMenu(
       }
   )
 ) {
+  // Every item changes the canvas or its chats: a viewer (#1933) has no ⋯.
+  const watching = !!useViewing()
+  if (watching) return null
   if (props.placement === "row") return <RowLayerMenu {...props} />
   const { placement, actions, onRename, className } = props
   const label = layerMenuLabel(actions.noun)

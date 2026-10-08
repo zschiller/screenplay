@@ -4,6 +4,7 @@ import { withBasePath } from "@/lib/base-path"
 import { chatStore } from "@/lib/chat-store"
 import { useChatStreamEvents } from "@/lib/yjs/react"
 import type { ChatSessionData } from "@/lib/types"
+import { useViewing } from "@/lib/viewer/context"
 
 /**
  * Chat Sync controller (PRD #588) — the single home for the chat-store ↔
@@ -42,11 +43,17 @@ export interface ChatSyncDeps {
   updateChatSession: (id: string, patch: Partial<ChatSessionData>) => void
 }
 
+function skipWrite(): void {}
+
 export function useChatSync({
   chatSessions,
   roomId,
-  updateChatSession,
+  updateChatSession: writeChatSession,
 }: ChatSyncDeps): void {
+  // A viewer (#1933) reads the host's chats: it heals nothing and writes no
+  // Chat Session, which the host's own client keeps current.
+  const watching = !!useViewing()
+  const updateChatSession = watching ? skipWrite : writeChatSession
   // Load history for all chat sessions so other clients can see past messages
   // for chats they haven't opened yet.
   useEffect(() => {
@@ -69,13 +76,14 @@ export function useChatSync({
     for (const cs of chatSessions) {
       if (!cs.isStreaming) continue
       chatStore.setStreaming(cs.id, true)
+      if (watching) continue
       fetch(withBasePath("/api/branch/heal"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId, chatId: cs.id }),
       }).catch((e) => console.error("Heal request failed:", e))
     }
-  }, [chatSessions, roomId])
+  }, [chatSessions, roomId, watching])
 
   // The sessions as the latest render saw them, for the broadcast handler.
   const sessionsRef = useRef(chatSessions)
