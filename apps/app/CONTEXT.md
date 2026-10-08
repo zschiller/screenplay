@@ -321,7 +321,7 @@ _Avoid_: "owner" (a Room role on hosted), "admin".
 
 **Viewer**:
 Someone watching a canvas through **Sharing**, on the **Viewer listener**. Named
-by the viewer identity extension, never by typing a name; never writes anything
+by the viewer identity seam, never by typing a name; never writes anything
 but comments.
 _Avoid_: "guest", "collaborator" (a hosted Room member who can write).
 

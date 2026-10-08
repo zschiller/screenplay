@@ -31,9 +31,9 @@ headless Chrome.
   ([details](/self-hosting/configuration/locked-down-network#the-terminal-module))
 - Chrome for thumbnails: Puppeteer downloads one during `pnpm install`, or set
   [`CHROMIUM_PATH`](/self-hosting/environment-variables#serving)
-- at least one coding CLI, signed in: Claude Code, Codex or OpenCode, or the
-  ones your config lists
-- the GitHub CLI, `gh`, signed in, or the command your config names
+- at least one coding CLI, signed in: Claude Code, Codex or OpenCode, or every
+  one [`CODING_CLIS`](#environment) lists
+- the GitHub CLI, `gh`, signed in
 
 ### Clone and install
 
@@ -43,17 +43,11 @@ cd screenplay
 pnpm install
 ```
 
-### Write a config file
+### Set its environment
 
-Optional. Without one, every setting keeps its default and the data folder is
-`~/.screenplay/headless`. With one, keep it in your data folder and name it
-with `SCREENPLAY_CONFIG`:
-
-```bash
-export SCREENPLAY_CONFIG=/srv/screenplay/screenplay.config.jsonc
-```
-
-Every field is [below](#the-config-file).
+Optional. With nothing set, the data folder is `~/.screenplay/headless` and the
+host listener’s port is `4100`. Every variable it reads is
+[below](#environment).
 
 ### Start it
 
@@ -97,7 +91,7 @@ needs just two ports, the host listener and portless’s `1355`, however many
 chats are running. Browsers send every `*.localhost` name to your own computer,
 which is where the tunnel picks it up.
 
-This holds even when the config picks another
+This holds even when a fork picks another
 [preview exposure](/self-hosting/configuration/preview-exposure), like a
 company proxy’s `url-template`: that exposure and its sign-in are for viewers,
 who reach the machine over the network. The host never needs the proxy or its
@@ -118,87 +112,22 @@ The data folder holds:
 | `blobs/`, `files/` | Thumbnails, and files on canvases |
 | `worktrees/` | Each chat’s code |
 | `coordinator/` | Each canvas’s Coordinator folder |
-| `extensions/` | A folder for each [extension](/self-hosting/configuration/extensions) that keeps files |
 | `secrets.json` | Keys minted on first start; keep it with the rest |
 
-## The config file
+## Changing what it runs
 
-JSON with comments. Relative paths are relative to the file’s folder. A field
-the file leaves out keeps its default. The server checks every field when it
-starts and won’t start with a bad one; the message names each field.
+Headless runs the same built-ins as the desktop app: `gh-cli`
+[GitHub access](/self-hosting/configuration/github-access), `loopback`
+[preview exposure](/self-hosting/configuration/preview-exposure), and every
+[coding CLI](/self-hosting/configuration/byo-harnesses) the machine has. Each
+is picked by a select module in the repo, which an environment variable can
+override. A company setup that needs more, like a `gh` wrapper, GitHub
+Enterprise, a port proxy or an internal CLI, changes those select modules in a
+fork.
 
-```jsonc filename="screenplay.config.jsonc"
-{
-  // Where Screenplay keeps its data. Default: the folder this file is in.
-  "dataFolder": ".",
-
-  "listeners": {
-    "host": { "port": 4100 },
-  },
-
-  // The company proxy that gives every port its own URL, for viewers.
-  "previewExposure": {
-    "use": "url-template",
-    "origin": "https://{port}-box.corp.example",
-    "signInUrl": "https://{port}-box.corp.example/",
-    "ports": { "from": 20000, "to": 20199 },
-  },
-
-  "githubAccess": {
-    "use": "gh-cli",
-    "command": "corp-gh",
-    "hostname": "ghe.corp.example",
-  },
-
-  "codingCli": [
-    { "use": "claude-code" },
-    { "use": "opencode", "key": "corp-code", "label": "Corp Code", "command": "corp-code" },
-  ],
-
-  "outboundProxy": {
-    "url": "http://proxy.corp:3128",
-    "noProxy": [".corp.example"],
-    "caFile": "corp-ca.pem",
-  },
-}
-```
-
-### Settings
-
-| Field | Default | |
-| --- | --- | --- |
-| `dataFolder` | the config file’s folder | Where Screenplay keeps its data |
-| `listeners.host.port` | `4100` | The host listener’s port. It always listens on `127.0.0.1` |
-| `listeners.viewers` | none | Network listeners for viewers: a list of `{ "name", "address", "port" }`. Printed at start; served once Sharing ships |
-| `outboundProxy.url` | none | The proxy server requests go through, like `http://proxy.corp:3128` |
-| `outboundProxy.noProxy` | loopback only | Hosts that skip the proxy. Loopback always does |
-| `outboundProxy.caFile` | none | A PEM file of the certificate authorities the proxy uses |
-
-`pnpm headless` sets the [outbound network](/self-hosting/configuration/locked-down-network)
-variables from `outboundProxy` before the server starts.
-
-### Interfaces
-
-Each is `{ "use": "<id>", …options }`: a built-in’s bare id, or an
-[extension’s](/self-hosting/configuration/extensions) `<extension>/<name>`.
-
-| Field | Default | Built-ins |
-| --- | --- | --- |
-| `previewExposure` | `{ "use": "loopback" }` | `loopback`, `url-template`, `command`: [Preview exposure](/self-hosting/configuration/preview-exposure) |
-| `githubAccess` | `{ "use": "gh-cli" }` | `gh-cli`, `oauth-account`: [GitHub access](/self-hosting/configuration/github-access) |
-| `codingCli` | every built-in the machine has | A **list**: `claude-code`, `codex`, `opencode`: [Coding CLIs](#coding-clis) |
-
-### Coding CLIs
-
-`codingCli` lists the CLIs chats can use, in the order the model menu shows
-them. With it, the setup check needs every command listed; without it, any one
-built-in is enough.
-
-| Built-in | Options |
-| --- | --- |
-| `claude-code` | none |
-| `codex` | none |
-| `opencode` | `key`, `label` and `command`, for an internal fork under another name; `listModels: false` when the fork can’t list its models |
+A company proxy and certificate authority go in the environment you run
+`pnpm headless` with; see
+[Locked-down network](/self-hosting/configuration/locked-down-network).
 
 ## Environment
 
@@ -206,6 +135,10 @@ built-in is enough.
 
 | Variable | |
 | --- | --- |
-| `SCREENPLAY_CONFIG` | The config file |
+| `SCREENPLAY_DATA_FOLDER` | Where Screenplay keeps its data. Default: `~/.screenplay/headless` |
+| `SCREENPLAY_HOST_PORT` | The host listener’s port. It always listens on `127.0.0.1`. Default: `4100` |
+| `SCREENPLAY_VIEWER_LISTENERS` | Network listeners for viewers, as JSON: a list of `{ "name", "address", "port" }`. Printed at start |
+| `GITHUB_ACCESS` | `gh-cli` (the default) or `oauth-account`. See [GitHub access](/self-hosting/configuration/github-access#picking-one) |
+| `CODING_CLIS` | The coding CLIs chats can use, comma-separated, in the order the model menu shows them: `claude-code`, `codex`, `opencode`. The setup check then needs every one listed; without it, any one is enough |
 | `CHROMIUM_PATH` | The Chrome thumbnails use, instead of Puppeteer’s |
 | `PORTLESS_STATE_DIR` | Where portless keeps its routes. Default: `~/.portless` |

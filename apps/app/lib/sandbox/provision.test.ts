@@ -4,7 +4,6 @@ import type { ModelProvider } from "@/lib/agent/providers"
 import {
   getPreviewExposure,
   loopbackExposure,
-  setPreviewExposure,
   urlTemplateExposure,
 } from "@/lib/preview-exposure"
 import type {
@@ -14,6 +13,28 @@ import type {
   SandboxInstance,
   SandboxProvider,
 } from "@/lib/sandbox/types"
+
+/**
+ * The preview exposure these tests run with: what each test sets, else the
+ * select module's own pick. A fork's exposure replaces the select module, so
+ * the tests stand in for it here.
+ */
+const exposure = vi.hoisted(() => ({
+  current: null as import("@/lib/preview-exposure").PreviewExposure | null,
+}))
+vi.mock("@/lib/preview-exposure", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/preview-exposure")>()
+  return {
+    ...actual,
+    getPreviewExposure: () => exposure.current ?? actual.getPreviewExposure(),
+  }
+})
+
+function setPreviewExposure(
+  next: import("@/lib/preview-exposure").PreviewExposure
+): void {
+  exposure.current = next
+}
 
 // The provision actions resolve (or create) the live instance through the
 // provider seam. A fake provider — scripted, no real VM — stands in for Vercel

@@ -2,7 +2,6 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { z } from "zod"
 
-import { defineImplementation } from "@/lib/extensions/types"
 import type {
   ExposedPort,
   PortRange,
@@ -37,8 +36,8 @@ const portTemplate = z
 const command = z.array(z.string().min(1)).min(1)
 
 /**
- * The options each built-in takes, as config writes them next to `use`. A
- * config file is validated against these before the server starts.
+ * The options each built-in takes. Each built-in checks its own against these,
+ * so a fork that passes a bad one fails with a message naming it.
  */
 export const previewExposureOptions = {
   /** The Mac app: previews on 127.0.0.1, loaded at `http://localhost:{port}`. */
@@ -80,14 +79,26 @@ export type PreviewExposureOptions = {
   [Id in PreviewExposureId]: z.infer<(typeof previewExposureOptions)[Id]>
 }
 
-/** A config entry: which implementation to use and its options. */
-export type PreviewExposureConfig = {
-  [Id in PreviewExposureId]: { use: Id } & PreviewExposureOptions[Id]
-}[PreviewExposureId]
+/** Check a built-in's options, naming the bad one. */
+function checked<Id extends PreviewExposureId>(
+  id: Id,
+  options: unknown
+): PreviewExposureOptions[Id] {
+  const parsed = previewExposureOptions[id].safeParse(options)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    const at = issue?.path.length ? ` ${issue.path.join(".")}` : ""
+    throw new Error(
+      `Preview exposure "${id}":${at} ${issue?.message ?? "invalid options"}`
+    )
+  }
+  return parsed.data as PreviewExposureOptions[Id]
+}
 
 export function loopbackExposure(
-  options: PreviewExposureOptions["loopback"] = {}
+  input: PreviewExposureOptions["loopback"] = {}
 ): PreviewExposure {
+  const options = checked("loopback", input)
   const origin = options.origin ?? "http://localhost:{port}"
   return templateExposure({
     bind: { host: "127.0.0.1", ports: options.ports },
@@ -96,8 +107,9 @@ export function loopbackExposure(
 }
 
 export function urlTemplateExposure(
-  options: PreviewExposureOptions["url-template"]
+  input: PreviewExposureOptions["url-template"]
 ): PreviewExposure {
+  const options = checked("url-template", input)
   return templateExposure({
     bind: { host: options.bindHost ?? "0.0.0.0", ports: options.ports },
     origin: options.origin,
@@ -106,8 +118,9 @@ export function urlTemplateExposure(
 }
 
 export function commandExposure(
-  options: PreviewExposureOptions["command"]
+  input: PreviewExposureOptions["command"]
 ): PreviewExposure {
+  const options = checked("command", input)
   const urls = templateExposure({
     bind: { host: options.bindHost ?? "127.0.0.1", ports: options.ports },
     origin: options.origin,
@@ -136,43 +149,6 @@ export function commandExposure(
       }
     },
   }
-}
-
-/**
- * Build a built-in from a config entry, validating its options. Throws with a
- * message naming the bad option, so the server can refuse to start with it.
- */
-export function createPreviewExposure(config: {
-  use: string
-  [option: string]: unknown
-}): PreviewExposure {
-  const { use, ...rest } = config
-  if (!isBuiltin(use)) {
-    const known = Object.keys(previewExposureOptions).join(", ")
-    throw new Error(`Unknown preview exposure "${use}". Built-ins: ${known}.`)
-  }
-  const parsed = previewExposureOptions[use].safeParse(rest)
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0]
-    const at = issue?.path.length ? ` ${issue.path.join(".")}` : ""
-    throw new Error(
-      `Preview exposure "${use}":${at} ${issue?.message ?? "invalid options"}`
-    )
-  }
-  switch (use) {
-    case "loopback":
-      return loopbackExposure(parsed.data as PreviewExposureOptions["loopback"])
-    case "url-template":
-      return urlTemplateExposure(
-        parsed.data as PreviewExposureOptions["url-template"]
-      )
-    case "command":
-      return commandExposure(parsed.data as PreviewExposureOptions["command"])
-  }
-}
-
-function isBuiltin(id: string): id is PreviewExposureId {
-  return Object.hasOwn(previewExposureOptions, id)
 }
 
 /** The URL part every template built-in shares: origins from a `{port}` pattern. */
@@ -218,23 +194,4 @@ function commandError(err: unknown): string {
   const stderr = (err as { stderr?: unknown })?.stderr
   if (typeof stderr === "string" && stderr.trim()) return stderr.trim()
   return err instanceof Error ? err.message : String(err)
-}
-
-/**
- * The built-ins as the config file's `previewExposure` field names them
- * (`lib/extensions/interfaces.ts`), each checked against its options above.
- */
-export const previewExposureBuiltIns = {
-  loopback: defineImplementation({
-    options: previewExposureOptions.loopback,
-    create: (options) => loopbackExposure(options),
-  }),
-  "url-template": defineImplementation({
-    options: previewExposureOptions["url-template"],
-    create: (options) => urlTemplateExposure(options),
-  }),
-  command: defineImplementation({
-    options: previewExposureOptions.command,
-    create: (options) => commandExposure(options),
-  }),
 }

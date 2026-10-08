@@ -22,7 +22,7 @@ export interface SetupFacts {
 }
 
 export interface SetupNeeds {
-  /** The commands of the Coding CLIs the config picks, or null for the built-in list. */
+  /** The commands of the Coding CLIs `CODING_CLIS` picks, or null for the built-in list. */
   codingClis: string[] | null
   /** Any of these is enough when `codingClis` is null. */
   builtInClis: string[]
@@ -65,12 +65,12 @@ export function missingPrerequisites(
   if (needs.codingClis) {
     for (const command of needs.codingClis) {
       if (!facts.onPath(command)) {
-        missing.push(`The coding CLI ${command}, which the config lists`)
+        missing.push(`The coding CLI ${command}, which CODING_CLIS lists`)
       }
     }
   } else if (!needs.builtInClis.some((c) => facts.onPath(c))) {
     missing.push(
-      `A coding CLI: one of ${needs.builtInClis.join(", ")}, or list yours in the config`
+      `A coding CLI: one of ${needs.builtInClis.join(", ")}, or name yours in CODING_CLIS`
     )
   }
 
@@ -78,7 +78,7 @@ export function missingPrerequisites(
     missing.push(
       needs.githubCommand === "gh"
         ? "The GitHub CLI, gh"
-        : `The GitHub command ${needs.githubCommand}, which the config names`
+        : `The GitHub command ${needs.githubCommand}, which GitHub access runs`
     )
   }
 

@@ -5,9 +5,11 @@ import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import {
-  createPreviewExposure,
+  commandExposure,
   loopbackExposure,
-} from "@/lib/preview-exposure/builtins"
+  selectPreviewExposure,
+  urlTemplateExposure,
+} from "@/lib/preview-exposure"
 
 describe("loopback", () => {
   it("binds 127.0.0.1 and loads each port at http://localhost, as the Mac app does", async () => {
@@ -19,8 +21,7 @@ describe("loopback", () => {
   })
 
   it("takes a port range, for a fixed list of forwarded ports", () => {
-    const exposure = createPreviewExposure({
-      use: "loopback",
+    const exposure = loopbackExposure({
       ports: { from: 20000, to: 20009 },
     })
     expect(exposure.bind).toEqual({
@@ -32,8 +33,7 @@ describe("loopback", () => {
 
 describe("url-template", () => {
   it("returns each port's origin and sign-in URL from its pattern", async () => {
-    const exposure = createPreviewExposure({
-      use: "url-template",
+    const exposure = urlTemplateExposure({
       origin: "https://{port}-box.corp.example/",
       signInUrl: "https://{port}-box.corp.example/login",
       ports: { from: 20000, to: 20199 },
@@ -45,14 +45,12 @@ describe("url-template", () => {
   })
 
   it("binds every interface by default, so an outside proxy reaches the listeners", () => {
-    const exposure = createPreviewExposure({
-      use: "url-template",
+    const exposure = urlTemplateExposure({
       origin: "https://{port}-box.corp.example",
     })
     expect(exposure.bind).toEqual({ host: "0.0.0.0" })
     expect(
-      createPreviewExposure({
-        use: "url-template",
+      urlTemplateExposure({
         origin: "https://{port}-box.corp.example",
         bindHost: "10.0.0.5",
       }).bind.host
@@ -60,8 +58,7 @@ describe("url-template", () => {
   })
 
   it("omits the sign-in URL when none is configured", async () => {
-    const exposure = createPreviewExposure({
-      use: "url-template",
+    const exposure = urlTemplateExposure({
       origin: "https://box.corp.example:{port}",
     })
     expect(await exposure.expose(443)).toEqual({
@@ -93,8 +90,7 @@ describe("command", () => {
   })
 
   it("runs the expose and release commands with the port filled in", async () => {
-    const exposure = createPreviewExposure({
-      use: "command",
+    const exposure = commandExposure({
       exposeCommand: [script, "expose", "{port}"],
       releaseCommand: [script, "release", "{port}"],
       origin: "https://box.tailnet.ts.net:{port}",
@@ -108,8 +104,7 @@ describe("command", () => {
   })
 
   it("fails the expose with the command's own message", async () => {
-    const exposure = createPreviewExposure({
-      use: "command",
+    const exposure = commandExposure({
       exposeCommand: [script, "expose", "{port}"],
       origin: "https://box.example:{port}",
     })
@@ -117,8 +112,7 @@ describe("command", () => {
   })
 
   it("never throws from a failed release", async () => {
-    const exposure = createPreviewExposure({
-      use: "command",
+    const exposure = commandExposure({
       exposeCommand: [script, "expose", "{port}"],
       releaseCommand: [script, "release", "{port}"],
       origin: "https://box.example:{port}",
@@ -127,31 +121,38 @@ describe("command", () => {
   })
 })
 
-describe("createPreviewExposure", () => {
-  it("names the built-ins when the id is unknown", () => {
-    expect(() => createPreviewExposure({ use: "tailscale" })).toThrow(
-      'Unknown preview exposure "tailscale". Built-ins: loopback, url-template, command.'
-    )
-  })
-
+describe("each built-in's options", () => {
   it("names the option that's wrong", () => {
+    expect(() => urlTemplateExposure({ origin: "https://box" })).toThrow(
+      'Preview exposure "url-template": origin must contain {port}'
+    )
     expect(() =>
-      createPreviewExposure({ use: "url-template", origin: "https://box" })
-    ).toThrow('Preview exposure "url-template": origin must contain {port}')
-    expect(() =>
-      createPreviewExposure({
-        use: "loopback",
-        ports: { from: 20010, to: 20000 },
-      })
+      loopbackExposure({ ports: { from: 20010, to: 20000 } })
     ).toThrow("ports")
     expect(() =>
-      createPreviewExposure({ use: "loopback", origni: "x" })
+      loopbackExposure({ origni: "x" } as Parameters<
+        typeof loopbackExposure
+      >[0])
     ).toThrow('Preview exposure "loopback"')
     expect(() =>
-      createPreviewExposure({
-        use: "command",
-        origin: "https://box.example:{port}",
-      })
+      commandExposure({ origin: "https://box.example:{port}" } as Parameters<
+        typeof commandExposure
+      >[0])
     ).toThrow("exposeCommand")
+  })
+})
+
+describe("selectPreviewExposure", () => {
+  it("is loopback with no override", () => {
+    expect(selectPreviewExposure({}).bind).toEqual({ host: "127.0.0.1" })
+    expect(
+      selectPreviewExposure({ PREVIEW_EXPOSURE: "loopback" }).bind
+    ).toEqual({ host: "127.0.0.1" })
+  })
+
+  it("refuses an id it doesn't know", () => {
+    expect(() =>
+      selectPreviewExposure({ PREVIEW_EXPOSURE: "tailscale" })
+    ).toThrow('PREVIEW_EXPOSURE "tailscale" isn’t known (known: loopback)')
   })
 })

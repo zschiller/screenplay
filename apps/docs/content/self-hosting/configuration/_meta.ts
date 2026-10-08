@@ -6,7 +6,6 @@ const meta = {
   "github-access": "GitHub access",
   "yjs-host": "Yjs host",
   "blob-store": "Blob store",
-  extensions: "Extensions",
   "mount-path": "Mount path",
   "locked-down-network": "Locked-down network",
   "local-build": "Local (single-user) build",

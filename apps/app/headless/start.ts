@@ -8,8 +8,8 @@
  *   pnpm headless              check, build, serve
  *   pnpm headless --no-build   serve the last build
  *
- * Run with tsx (and `register.mjs` for `server-only`), so it reads the config
- * file with the server's own checks.
+ * Run with tsx (and `register.mjs` for `server-only` and the profile), so its
+ * setup check asks the server's own select modules what the server will run.
  */
 
 import { execFileSync, spawn } from "node:child_process"
@@ -27,16 +27,10 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { hostHarnessOf } from "@/lib/agent/harnesses/coding-cli"
-import { hostCatalog } from "@/lib/agent/harnesses"
-import {
-  CONFIG_ENV_VAR,
-  ConfigError,
-  createConfigured,
-  loadConfig,
-  type ScreenplayConfig,
-} from "@/lib/extensions/config"
-import { outboundProxyEnv } from "@/lib/network/outbound-proxy"
+import { HARNESSES } from "@/lib/agent/harnesses"
+import { selectCodingClis } from "@/lib/agent/harnesses/coding-cli"
+import { selectGitHubAccess } from "@/lib/github-access"
+import { GH_CLI_ID } from "@/lib/github-access/gh-cli"
 import { PORTLESS_PROXY_PORT } from "@/lib/sandbox/portless"
 
 import { isOnPath, missingPrerequisites } from "./setup-check"
@@ -45,7 +39,7 @@ const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const distDir = path.join(appDir, ".next", "headless")
 const standaloneApp = path.join(distDir, "standalone", "apps", "app")
 
-/** The host listener's port when the config names none. */
+/** The host listener's port when `SCREENPLAY_HOST_PORT` is unset. */
 export const DEFAULT_HOST_PORT = 4100
 
 function log(line: string): void {
@@ -57,19 +51,27 @@ function fail(lines: string[]): never {
   process.exit(1)
 }
 
-/** The config file, or the defaults with the data folder in the home folder. */
-function readConfig(): { config: ScreenplayConfig; dataFolder: string } {
-  let config: ScreenplayConfig
-  try {
-    config = loadConfig()
-  } catch (err) {
-    if (err instanceof ConfigError) fail([err.message])
-    throw err
-  }
-  const dataFolder = config.file
-    ? config.dataFolder
+/** Where Screenplay keeps its data: `SCREENPLAY_DATA_FOLDER`, else the home folder's. */
+export function dataFolderOf(
+  env: Record<string, string | undefined> = process.env
+): string {
+  const configured = env.SCREENPLAY_DATA_FOLDER
+  return configured
+    ? path.resolve(configured)
     : path.join(os.homedir(), ".screenplay", "headless")
-  return { config, dataFolder }
+}
+
+/** The host listener's port: `SCREENPLAY_HOST_PORT`, else {@link DEFAULT_HOST_PORT}. */
+export function hostPortOf(
+  env: Record<string, string | undefined> = process.env
+): number {
+  const configured = env.SCREENPLAY_HOST_PORT
+  if (!configured) return DEFAULT_HOST_PORT
+  const port = Number(configured)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    fail([`SCREENPLAY_HOST_PORT must be a port number, not "${configured}".`])
+  }
+  return port
 }
 
 /** The Chrome thumbnails would launch, or null. */
@@ -85,19 +87,18 @@ async function findChrome(): Promise<string | null> {
   }
 }
 
-async function setupCheck(config: ScreenplayConfig): Promise<string | null> {
+async function setupCheck(): Promise<string | null> {
   const chrome = await findChrome()
-  const codingClis = config.named.includes("codingCli")
-    ? (await createConfigured("codingCli", config)).map(
-        (cli) => hostHarnessOf(cli).hostBinary
-      )
-    : null
-  const [github] = config.interfaces.githubAccess
-  const command = (github?.options as { command?: string | string[] })?.command
-  const githubCommand =
-    github?.use === "gh-cli"
-      ? ((Array.isArray(command) ? command[0] : command) ?? "gh")
-      : null
+  let codingClis: string[] | null
+  let githubCommand: string | null
+  try {
+    codingClis = selectCodingClis()?.map((cli) => cli.hostBinary) ?? null
+    githubCommand = selectGitHubAccess().id === GH_CLI_ID ? "gh" : null
+  } catch (err) {
+    fail([
+      `Screenplay won’t start: ${err instanceof Error ? err.message : err}`,
+    ])
+  }
   const missing = missingPrerequisites(
     {
       nodeVersion: process.versions.node,
@@ -107,7 +108,7 @@ async function setupCheck(config: ScreenplayConfig): Promise<string | null> {
     },
     {
       codingClis,
-      builtInClis: [...new Set(hostCatalog().map((h) => h.hostBinary))],
+      builtInClis: [...new Set(HARNESSES.map((h) => h.hostBinary))],
       githubCommand,
     }
   )
@@ -251,7 +252,6 @@ function startPortless(): number {
 
 /** Everything the server process runs with. */
 export function serverEnv(opts: {
-  config: ScreenplayConfig
   dataFolder: string
   hostPort: number
   portlessPort: number
@@ -259,7 +259,7 @@ export function serverEnv(opts: {
   secrets: { encryptionKey: string; terminalAuthSecret: string }
   appDir: string
 }): Record<string, string> {
-  const { config, dataFolder } = opts
+  const { dataFolder } = opts
   const folder = (name: string) => {
     const dir = path.join(dataFolder, name)
     mkdirSync(dir, { recursive: true })
@@ -269,7 +269,6 @@ export function serverEnv(opts: {
     ...PROFILE_ENV,
     PORT: String(opts.hostPort),
     HOSTNAME: "127.0.0.1",
-    ...(config.file && { [CONFIG_ENV_VAR]: config.file }),
     // Everything restart-safe lives in the data folder.
     PGLITE_DATA_DIR: folder("pglite"),
     PGLITE_MIGRATIONS_DIR: path.join(opts.appDir, "drizzle"),
@@ -284,20 +283,17 @@ export function serverEnv(opts: {
     ENCRYPTION_KEY: opts.secrets.encryptionKey,
     TERMINAL_AUTH_SECRET: opts.secrets.terminalAuthSecret,
     ...(opts.chrome && { CHROMIUM_PATH: opts.chrome }),
-    ...(config.outboundProxy && outboundProxyEnv(config.outboundProxy)),
     SCREENPLAY_PORTLESS_PORT: String(opts.portlessPort),
-    SCREENPLAY_VIEWER_LISTENERS: JSON.stringify(
-      config.listeners?.viewers ?? []
-    ),
   }
 }
 
 async function main(): Promise<void> {
   const skipBuild = process.argv.includes("--no-build")
-  const { config, dataFolder } = readConfig()
+  const dataFolder = dataFolderOf()
+  const hostPort = hostPortOf()
   mkdirSync(dataFolder, { recursive: true })
   log(`Data folder: ${dataFolder}`)
-  const chrome = await setupCheck(config)
+  const chrome = await setupCheck()
 
   if (!skipBuild) build()
   else if (!existsSync(path.join(standaloneApp, "server.js"))) {
@@ -305,9 +301,7 @@ async function main(): Promise<void> {
   }
 
   const portlessPort = startPortless()
-  const hostPort = config.listeners?.host?.port ?? DEFAULT_HOST_PORT
   const env = serverEnv({
-    config,
     dataFolder,
     hostPort,
     portlessPort,

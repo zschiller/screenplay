@@ -54,7 +54,7 @@ describe("missingPrerequisites", () => {
       "git, for every chat’s code",
       "A C++ toolchain for the terminal (make, g++), then pnpm install again",
       "Chrome for thumbnails: set CHROMIUM_PATH, or run pnpm --filter app exec puppeteer browsers install chrome",
-      "A coding CLI: one of claude, codex, opencode, or list yours in the config",
+      "A coding CLI: one of claude, codex, opencode, or name yours in CODING_CLIS",
       "The GitHub CLI, gh",
     ])
   })
@@ -74,7 +74,7 @@ describe("missingPrerequisites", () => {
     ).toEqual([])
   })
 
-  it("needs every coding CLI the config lists, and its GitHub command", () => {
+  it("needs every coding CLI CODING_CLIS lists, and its GitHub command", () => {
     expect(
       missingPrerequisites(
         { ...ready, onPath: without("corp-code", "corp-gh") },
@@ -85,8 +85,8 @@ describe("missingPrerequisites", () => {
         }
       )
     ).toEqual([
-      "The coding CLI corp-code, which the config lists",
-      "The GitHub command corp-gh, which the config names",
+      "The coding CLI corp-code, which CODING_CLIS lists",
+      "The GitHub command corp-gh, which GitHub access runs",
     ])
   })
 

@@ -4,12 +4,12 @@
  * GitHub call reads its host and token from here, and git inside a chat learns
  * from here whether to broker credentials or leave the host's own git alone.
  *
- * Each member is a compatibility promise to extensions (#1928), so the
- * interface stays small. Built-ins: `oauth-account` (Hosted) and `gh-cli` (the
- * Mac app; a company wrapper or GitHub Enterprise through its options).
+ * The interface stays small. Built-ins: `oauth-account` (Hosted) and `gh-cli`
+ * (the Mac app; a company wrapper or GitHub Enterprise through its options).
+ * `selectGitHubAccess` (`./index.ts`) picks one.
  */
 export interface GitHubAccess {
-  /** The built-in or extension id that config picked, e.g. `"gh-cli"`. */
+  /** The implementation's id, e.g. `"gh-cli"`. */
   readonly id: string
 
   /**
@@ -59,12 +59,3 @@ export interface GitIdentity {
   name: string
   email: string
 }
-
-/**
- * Builds one implementation from the options config gives it. Runs once at
- * server start, and throws a message the host can act on when the options are
- * wrong.
- */
-export type GitHubAccessFactory = (
-  options: Record<string, unknown>
-) => GitHubAccess

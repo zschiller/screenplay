@@ -7,12 +7,12 @@
  * Node boots, never by app code at runtime: Node reads `NODE_EXTRA_CA_CERTS`
  * and `NODE_USE_ENV_PROXY` once at startup, and the same variables carry on to
  * everything the server spawns (coding CLIs, git, previews' installs and dev
- * servers). `outboundProxyEnv` turns the config's settings into that
- * environment; `chromiumNetworkArgs` reads it back for the thumbnail browser,
+ * servers). `outboundProxyEnv` spells out that environment from a proxy and
+ * CA; `chromiumNetworkArgs` reads it back for the thumbnail browser,
  * so the environment stays the one source of truth.
  */
 
-/** The `outboundProxy` settings a Headless config gives. */
+/** A proxy and CA, as `outboundProxyEnv` takes them. */
 export type OutboundProxySettings = {
   /** The proxy every off-box request goes through, e.g. `http://proxy.corp:3128`. */
   url?: string

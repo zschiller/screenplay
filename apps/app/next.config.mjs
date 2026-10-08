@@ -1,16 +1,5 @@
 import { fileURLToPath } from "node:url"
 
-import {
-  generateExtensionRegistry,
-  watchExtensions,
-} from "./lib/extensions/codegen.mjs"
-
-// Write the extension registries from the git-ignored `extensions/` folder
-// every time Next loads its config (`next build`, `next dev` and `next start`
-// alike), so no separate prebuild step can be forgotten. The desktop sidecar
-// build calls `next build` directly.
-generateExtensionRegistry()
-
 // Mount prefix for the product. Empty by default (served at root); set to a
 // path like `/app` to serve every page, `_next/static` asset, and route handler
 // beneath it. This file is plain Node config loaded before the TS pipeline, so
@@ -29,7 +18,8 @@ const isDesktopBuild = process.env.SCREENPLAY_DESKTOP === "1"
 // Headless (#1930) runs the same standalone tree from a clone, built by
 // `pnpm headless` into its own folder inside `.next`, so it never clobbers a dev
 // or desktop build and everything that skips `.next` skips it too.
-const isHeadlessBuild = process.env.NEXT_PUBLIC_SCREENPLAY_PROFILE === "headless"
+const isHeadlessBuild =
+  process.env.NEXT_PUBLIC_SCREENPLAY_PROFILE === "headless"
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -94,9 +84,4 @@ const nextConfig = {
   },
 }
 
-// Under `next dev`, also regenerate when an extension is added or removed, so
-// it shows up without a restart.
-export default function config(phase) {
-  if (phase === "phase-development-server") watchExtensions()
-  return nextConfig
-}
+export default nextConfig

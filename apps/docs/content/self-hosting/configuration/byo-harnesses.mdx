@@ -78,6 +78,20 @@ frames, documents, mockups, skills and opening a pull request. Their output
 has the chat’s environment variable values removed, as in the built-in
 agent.
 
+## Choosing the CLIs on the host
+
+`selectCodingClis()` in `apps/app/lib/agent/harnesses/coding-cli.ts` picks the
+CLIs the desktop app and Headless offer. By default that’s every CLI above the
+machine has. `CODING_CLIS=claude-code,codex` offers only those built-ins, in
+that order; the built-ins are `claude-code`, `codex` and `opencode`. An id it
+doesn’t know stops the server from starting.
+
+A CLI the repo doesn’t ship, or OpenCode under another command
+(`opencodeHostHarness({ key, label, command })`), is a change to
+`selectCodingClis()` in your fork. A CLI that speaks ACP only needs the small
+`CodingCli` interface in `coding-cli-types.ts`, turned into a catalog entry with
+`codingCliHarness()`.
+
 ## Adding a CLI
 
 A harness descriptor declares its catalog key and label, the command to

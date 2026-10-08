@@ -19,8 +19,9 @@
  *    daemon. It exists only on the local sandbox backend; the hosted (Vercel)
  *    build skips it and keeps the ttyd/`domain(port)` path. The dynamic import
  *    keeps node-pty/`ws` out of the hosted build's graph.
- *  - **Config file.** Checks the config file (`lib/extensions/config.ts`)
- *    first and refuses to start when it's wrong.
+ *  - **Seam overrides.** Runs the select modules for GitHub access, preview
+ *    exposure and Coding CLIs first, so an override they don't know
+ *    (`GITHUB_ACCESS`, `PREVIEW_EXPOSURE`, `CODING_CLIS`) refuses start.
  *  - **PR Watch tick.** In the local desktop build, looks at every canvas with
  *    an open PR once a minute (#1702), so PR events reach chats with no canvas
  *    open. The hosted build runs the same tick from Vercel Cron instead
@@ -31,10 +32,22 @@ export async function register(): Promise<void> {
   // WebSocket server (no edge usage).
   if (process.env.NEXT_RUNTIME !== "nodejs") return
 
-  // A bad config file (`SCREENPLAY_CONFIG`) refuses start with a message naming
-  // each field, before anything below reads it. No file: nothing to check.
-  const { checkConfigAtStart } = await import("@/lib/extensions/start")
-  await checkConfigAtStart()
+  // A seam override the select module doesn't know refuses start with its
+  // message, rather than failing on first use.
+  try {
+    const { selectGitHubAccess } = await import("@/lib/github-access")
+    const { selectPreviewExposure } = await import("@/lib/preview-exposure")
+    const { selectCodingClis } =
+      await import("@/lib/agent/harnesses/coding-cli")
+    selectGitHubAccess()
+    selectPreviewExposure()
+    selectCodingClis()
+  } catch (err) {
+    console.error(
+      `Screenplay won’t start: ${err instanceof Error ? err.message : err}`
+    )
+    process.exit(1)
+  }
 
   // Desktop only: exit if the Tauri shell that spawned us goes away, so a
   // Ctrl-C / hot-reload / crash of the shell can't leave this sidecar orphaned

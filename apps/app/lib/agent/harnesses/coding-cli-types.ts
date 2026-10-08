@@ -6,9 +6,9 @@ import type {
 
 /**
  * The **Coding CLI** interface (spec #1923, #1926): a coding CLI that runs on
- * the host, on its own sign-in, and speaks ACP. It’s one of the four places a
- * company’s setup can differ, so it’s public: an extension implements it, and
- * every member is a compatibility promise, so it stays small. How the hosted
+ * the host, on its own sign-in, and speaks ACP. A fork that runs a CLI the
+ * repo doesn't ship implements it and lists it in `selectCodingClis`
+ * (`./coding-cli.ts`), so it stays small. How the hosted
  * sandbox installs a CLI and brokers its key stays internal (`./types`'
  * `Harness`).
  */
