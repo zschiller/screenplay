@@ -1,6 +1,6 @@
 ---
 title: Preview exposure
-description: How a browser reaches a chat’s preview when Screenplay runs on your own machine, and the built-ins for the Mac app, a company proxy, and commands like tailscale serve.
+description: How a browser reaches a chat’s preview when Screenplay runs on your own machine, and the built-ins for the Mac app, Tailscale, a company proxy, and commands.
 ---
 
 # Preview exposure
@@ -9,13 +9,14 @@ description: How a browser reaches a chat’s preview when Screenplay runs on yo
 
 When Screenplay runs on a machine you control, every chat’s preview runs there
 too, and a browser has to reach it. **Preview exposure** decides how. It’s a
-small interface in `apps/app/lib/preview-exposure/` with three built-ins:
+small interface in `apps/app/lib/preview-exposure/` with four built-ins:
 
 | Built-in       | Previews bind | A browser loads                           | For                                       |
 | -------------- | ------------- | ----------------------------------------- | ----------------------------------------- |
 | `loopback`     | `127.0.0.1`   | `http://localhost:{port}`                 | The Mac app (the default)                 |
+| `tailscale`    | `127.0.0.1`   | `https://<mac>.<tailnet>.ts.net:{port}`   | Sharing over your tailnet                 |
 | `url-template` | `0.0.0.0`     | an origin from a pattern                  | A proxy that gives every port its own URL |
-| `command`      | `127.0.0.1`   | an origin from a pattern, after a command | `tailscale serve`, or a company tool      |
+| `command`      | `127.0.0.1`   | an origin from a pattern, after a command | A company tool                            |
 
 On [Headless](/self-hosting/headless), it’s how viewers reach previews. The
 host’s own frames always load through portless at
@@ -70,6 +71,23 @@ The Mac app’s behaviour, and the default: previews bind `127.0.0.1` and load a
 | `origin` | `http://localhost:{port}` | The browser origin pattern                            |
 | `ports`  | any free port             | A range, e.g. to match a fixed list of `ssh -L` ports |
 
+### `tailscale`: `tailscaleExposure()`
+
+Shares each port with everyone on your tailnet. Exposing a port runs
+`tailscale serve --bg --https=<port> http://127.0.0.1:<port>`, and the port
+loads at `https://<mac>.<tailnet>.ts.net:<port>`; releasing it runs
+`tailscale serve --https=<port> off`. `--bg` keeps each port served after a
+restart until it’s released.
+
+It needs Tailscale installed, signed in and connected, with MagicDNS and HTTPS
+Certificates turned on for your tailnet (the DNS page of the Tailscale admin
+console). When any of those is missing, the preview shows an error saying
+which.
+
+| Option | Default                                                                  |                               |
+| ------ | ------------------------------------------------------------------------ | ----------------------------- |
+| `cli`  | `tailscale`, then `/Applications/Tailscale.app/Contents/MacOS/Tailscale` | The commands to try, in order |
+
 ### `url-template`: `urlTemplateExposure()`
 
 For a proxy that gives every port on the machine its own HTTPS URL. Previews
@@ -117,9 +135,9 @@ commandExposure({
 ## Picking one
 
 `selectPreviewExposure()` in `apps/app/lib/preview-exposure/index.ts` picks
-one: `loopback`, everywhere. `PREVIEW_EXPOSURE` overrides it, and `loopback` is
-the only value it takes, since the other built-ins need options. An id it
-doesn’t know stops the server from starting.
+one: `loopback`, everywhere. `PREVIEW_EXPOSURE` overrides it with `loopback`
+or `tailscale`; the other built-ins need options. An id it doesn’t know stops
+the server from starting.
 
 `url-template`, `command`, `loopback` with options, or an implementation of
 your own is a change to `selectPreviewExposure()` in your fork. Every

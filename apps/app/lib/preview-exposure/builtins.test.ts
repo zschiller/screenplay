@@ -150,9 +150,15 @@ describe("selectPreviewExposure", () => {
     ).toEqual({ host: "127.0.0.1" })
   })
 
+  it("picks tailscale when asked, binding 127.0.0.1 for tailscale serve", () => {
+    expect(
+      selectPreviewExposure({ PREVIEW_EXPOSURE: "tailscale" }).bind
+    ).toEqual({ host: "127.0.0.1" })
+  })
+
   it("refuses an id it doesn't know", () => {
-    expect(() =>
-      selectPreviewExposure({ PREVIEW_EXPOSURE: "tailscale" })
-    ).toThrow('PREVIEW_EXPOSURE "tailscale" isn’t known (known: loopback)')
+    expect(() => selectPreviewExposure({ PREVIEW_EXPOSURE: "funnel" })).toThrow(
+      'PREVIEW_EXPOSURE "funnel" isn’t known (known: loopback, tailscale)'
+    )
   })
 })
