@@ -1,7 +1,7 @@
 import http from "node:http"
 import type { AddressInfo } from "node:net"
 
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { WebSocket } from "ws"
 
 import type { ViewerAnswer, ViewerRequest } from "@/lib/viewer-identity/types"
@@ -19,6 +19,7 @@ import {
   decodeHeaderValue,
   encodeHeaderValue,
 } from "./viewer.mjs"
+import { shareKey } from "./share-link.mjs"
 import { VIEWER_ALLOWLIST } from "./viewer-allowlist.mjs"
 
 const servers: http.Server[] = []
@@ -207,21 +208,81 @@ describe("a viewer listener", () => {
     ])
   })
 
-  it("refuses every socket upgrade", async () => {
-    const { base } = await viewerListener(identified)
-    const ws = base.replace("http", "ws")
-    for (const path of ["/_ws/yjs/room-1", "/_ws/terminal/ws"]) {
-      await expect(
-        new Promise((resolve, reject) => {
-          const socket = new WebSocket(`${ws}${path}`)
-          socket.on("open", () => resolve("open"))
-          socket.on("error", reject)
-          socket.on("unexpected-response", (_req, res) =>
-            reject(new Error(`status ${res.statusCode}`))
+  describe("socket upgrades", () => {
+    const SECRET = "a".repeat(64)
+    let previous: string | undefined
+    beforeEach(() => {
+      previous = process.env.ENCRYPTION_KEY
+      process.env.ENCRYPTION_KEY = SECRET
+    })
+    afterEach(() => {
+      if (previous === undefined) delete process.env.ENCRYPTION_KEY
+      else process.env.ENCRYPTION_KEY = previous
+    })
+
+    /** Open `path` on a viewer listener; resolve "open" or the refusal's status. */
+    async function upgrade(
+      identify: (request: ViewerRequest) => Promise<ViewerAnswer>,
+      path: string
+    ) {
+      const accepted: Array<{ roomId: string; person: unknown }> = []
+      const server = createViewerServer(fakeNext([]), LISTENER, {
+        identify,
+        acceptYjs: () => (req, socket, head, viewer) => {
+          accepted.push(viewer)
+          socket.end(
+            "HTTP/1.1 418 Accepted\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
           )
-        })
-      ).rejects.toThrow("status 404")
+        },
+      })
+      servers.push(server)
+      await listenOn(server, LISTENER)
+      const ws = `ws://127.0.0.1:${(server.address() as AddressInfo).port}`
+      const outcome = await new Promise<string>((resolve) => {
+        const socket = new WebSocket(`${ws}${path}`)
+        socket.on("open", () => resolve("open"))
+        socket.on("error", () => {})
+        socket.on("unexpected-response", (_req, res) =>
+          resolve(`status ${res.statusCode}`)
+        )
+      })
+      return { outcome, accepted }
     }
+
+    it("refuses terminals, other sockets and a canvas socket without its key", async () => {
+      const key = shareKey("room-1")
+      for (const path of [
+        "/_ws/terminal/ws",
+        `/_ws/terminal/ws?key=${key}`,
+        "/_ws/yjs/room-1",
+        "/_ws/yjs/room-1?key=wrong",
+        `/_ws/yjs/room-2?key=${key}`,
+        `/_ws/yjs/room-1/x?key=${key}`,
+        `/elsewhere?key=${key}`,
+      ]) {
+        const { outcome, accepted } = await upgrade(identified, path)
+        expect(outcome, path).toBe("status 404")
+        expect(accepted).toEqual([])
+      }
+    })
+
+    it("refuses a canvas socket from someone the identity refuses", async () => {
+      const { outcome, accepted } = await upgrade(
+        async () => ({ person: null, message: "No.", ttlSeconds: 0 }),
+        `/_ws/yjs/room-1?key=${shareKey("room-1")}`
+      )
+      expect(outcome).toBe("status 403")
+      expect(accepted).toEqual([])
+    })
+
+    it("hands the Yjs server a canvas socket with its key, and who it's from", async () => {
+      const { outcome, accepted } = await upgrade(
+        identified,
+        `/_ws/yjs/room-1?key=${shareKey("room-1")}`
+      )
+      expect(outcome).toBe("status 418")
+      expect(accepted).toEqual([{ roomId: "room-1", person: ANA }])
+    })
   })
 })
 

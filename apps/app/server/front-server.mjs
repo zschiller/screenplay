@@ -29,8 +29,9 @@ import {
   setReservedHeader,
   stripReservedHeaders,
 } from "./viewer.mjs"
+import { SHARE_KEY_PARAM, isShareKey } from "./share-link.mjs"
 import { VIEWER_ALLOWLIST, allowlistEntry } from "./viewer-allowlist.mjs"
-import { localWsPort, matchWsRoute } from "./ws-routes.mjs"
+import { localWsPort, matchWsRoute, viewerYjs } from "./ws-routes.mjs"
 
 /** The host listener's address. Never anything else: the role comes from it. */
 export const HOST_ADDRESS = "127.0.0.1"
@@ -139,20 +140,27 @@ export function createHostServer(handle, portOf = localWsPort) {
  * A viewer listener's server: the allowlist only, each request identified
  * before Next sees it. A write no entry allows is refused with 403. A viewer
  * with no identity gets the refused page, whatever they asked for; an
- * identified viewer gets Next for an allowed read, else 404. Every upgrade is
- * refused until viewers get the canvas's Yjs (#1932).
+ * identified viewer gets Next for an allowed read, else 404. The one upgrade
+ * it takes is a canvas's Yjs socket with the canvas link's key (#1932), which
+ * the local Yjs server serves read-only plus presence; terminals and every
+ * other socket are refused.
  *
  * @param {import("node:http").RequestListener} handle
  * @param {ViewerListener} listener
  * @param {{
  *   identify?: (request: import("@/lib/viewer-identity/types").ViewerRequest) => Promise<import("@/lib/viewer-identity/types").ViewerAnswer>
  *   allowlist?: AllowlistEntry[]
+ *   acceptYjs?: () => import("./ws-routes.mjs").ViewerYjsAccept | undefined
  * }} [opts]
  */
 export function createViewerServer(
   handle,
   listener,
-  { identify = createIdentifier(), allowlist = VIEWER_ALLOWLIST } = {}
+  {
+    identify = createIdentifier(),
+    allowlist = VIEWER_ALLOWLIST,
+    acceptYjs = viewerYjs,
+  } = {}
 ) {
   const server = http.createServer((req, res) => {
     stripReservedHeaders(req)
@@ -164,12 +172,56 @@ export function createViewerServer(
       }
     )
   })
-  server.on("upgrade", (_req, socket) => {
-    socket.end(
-      "HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+  server.on("upgrade", (req, socket, head) => {
+    stripReservedHeaders(req)
+    upgradeViewer(req, socket, head, listener, identify, acceptYjs).catch(
+      (err) => {
+        console.error(err)
+        refuseUpgrade(socket, 500, "Internal Server Error")
+      }
     )
   })
   return server
+}
+
+/**
+ * A viewer's canvas socket: `/_ws/yjs/<canvas id>?key=<the canvas link's
+ * key>`, from someone the identity names. Checked here, then handed to the
+ * local Yjs server with the person, so the socket never needs the host's
+ * per-launch secret.
+ */
+async function upgradeViewer(req, socket, head, listener, identify, acceptYjs) {
+  const route = matchWsRoute(req.url ?? "/")
+  if (route?.name !== "yjs") return refuseUpgrade(socket, 404, "Not Found")
+  const url = new URL(route.path, "http://viewer.invalid")
+  let roomId
+  try {
+    roomId = decodeURIComponent(url.pathname.slice(1))
+  } catch {
+    return refuseUpgrade(socket, 404, "Not Found")
+  }
+  if (
+    !roomId ||
+    roomId.includes("/") ||
+    !isShareKey(roomId, url.searchParams.get(SHARE_KEY_PARAM))
+  ) {
+    return refuseUpgrade(socket, 404, "Not Found")
+  }
+  const answer = await identify({
+    headers: headersOf(req),
+    remoteAddress: req.socket.remoteAddress ?? "",
+    listener,
+  })
+  if (!answer.person) return refuseUpgrade(socket, 403, "Forbidden")
+  const accept = acceptYjs()
+  if (!accept) return refuseUpgrade(socket, 503, "Service Unavailable")
+  accept(req, socket, head, { roomId, person: answer.person })
+}
+
+function refuseUpgrade(socket, status, reason) {
+  socket.end(
+    `HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`
+  )
 }
 
 async function serveViewer(req, res, handle, listener, identify, allowlist) {

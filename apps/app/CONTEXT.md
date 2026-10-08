@@ -307,10 +307,17 @@ letting others watch (that's **Sharing**).
 
 **Sharing**:
 Letting anyone you send a canvas link watch it live: frames, presence, every
-chat read-only, and comments. They write nothing else. On Headless now; the
-Mac app later (#1921). A capability (`viewers`) any profile can turn on.
+chat read-only, and comments. They write nothing else. In the Mac app
+(#1921); a capability (`viewers`) only the `desktop` profile turns on.
 _Avoid_: "sharing" for hosted Room membership invites (that's `room_member`,
 part of the **Multi-user surface**).
+
+**Canvas link**:
+A canvas's one link for **Viewers** (#1932): `/s/<canvas id>/<key>` on the
+**Viewer listener**. The key is a keyed digest of the canvas id under the
+install's `ENCRYPTION_KEY`, so nothing is stored and there is no reset. The
+viewer's Yjs socket carries the same key, and reads only the doc and presence.
+_Avoid_: "invite", "share token".
 
 **Host**:
 The one person who runs a Headless server (or the Mac app) and the only one who

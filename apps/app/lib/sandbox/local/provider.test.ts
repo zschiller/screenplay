@@ -42,10 +42,15 @@ function setPreviewExposure(
 
 // Headless's host tunnel (#1930) is a build constant; these tests flip it.
 let tunnel = false
+// So is the Mac app's viewers capability (Sharing, #1932).
+let macViewers = false
 vi.mock("@/lib/capabilities", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/capabilities")>()),
   get hostTunnel() {
     return tunnel
+  },
+  get viewers() {
+    return macViewers
   },
 }))
 // The portless CLI, recorded instead of run.
@@ -885,6 +890,32 @@ describe("LocalSandboxProvider on loopback (the Mac app)", () => {
       browserOrigin: a.domain(4000),
     })
     expect(a.domain(4000)).toBe(`http://localhost:${a.hostPort(4000)}`)
+  })
+})
+
+describe("LocalSandboxProvider in the Mac app with Sharing's exposure", () => {
+  afterEach(() => {
+    macViewers = false
+    setPreviewExposure(loopbackExposure())
+  })
+
+  it("keeps the host's frame on loopback; the exposure is for viewers", async () => {
+    macViewers = true
+    const exposed: number[] = []
+    setPreviewExposure({
+      ...loopbackExposure(),
+      expose: async (port) => {
+        exposed.push(port)
+        return { browserOrigin: `https://mac.tail1234.ts.net:${port}` }
+      },
+    })
+    const a = await provider.create(
+      createOpts("branch-a", sourceRepo, { browserPorts: [4000] })
+    )
+    expect(await a.expose(4000)).toEqual({
+      browserOrigin: `http://localhost:${a.hostPort(4000)}`,
+    })
+    expect(exposed).toEqual([])
   })
 })
 

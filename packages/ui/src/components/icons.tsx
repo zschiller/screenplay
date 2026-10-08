@@ -73,6 +73,7 @@ import { GitBranchIcon as GitBranchBase } from "@phosphor-icons/react/dist/ssr/G
 import { GitDiffIcon as GitDiffBase } from "@phosphor-icons/react/dist/ssr/GitDiff"
 import { GitForkIcon as GitForkBase } from "@phosphor-icons/react/dist/ssr/GitFork"
 import { GlobeIcon as GlobeBase } from "@phosphor-icons/react/dist/ssr/Globe"
+import { HouseSimpleIcon as HouseSimpleBase } from "@phosphor-icons/react/dist/ssr/HouseSimple"
 import { ImageIcon as ImageBase } from "@phosphor-icons/react/dist/ssr/Image"
 import { InfoIcon as InfoBase } from "@phosphor-icons/react/dist/ssr/Info"
 import { FrameCornersIcon as FrameCornersBase } from "@phosphor-icons/react/dist/ssr/FrameCorners"
@@ -385,6 +386,7 @@ export const GitPullRequestClosedIcon = lucide("lu-git-pull-request-closed", [
   <circle key="f" cx="6" cy="6" r="3" />,
 ])
 export const GlobeIcon = phosphor(GlobeBase, "ph-globe")
+export const HouseSimpleIcon = phosphor(HouseSimpleBase, "ph-house-simple")
 export const ImageIcon = phosphor(ImageBase, "ph-image")
 export const InfoIcon = phosphor(InfoBase, "ph-info")
 export const FrameCornersIcon = phosphor(FrameCornersBase, "ph-frame-corners")

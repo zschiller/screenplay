@@ -9,3 +9,18 @@ export declare function localWsPort(name: WsRouteName): number | undefined
 export declare function matchWsRoute(
   url: string
 ): { name: WsRouteName; path: string } | null
+
+/** A checked viewer upgrade the local Yjs server takes over. */
+export type ViewerYjsAccept = (
+  req: import("node:http").IncomingMessage,
+  socket: import("node:stream").Duplex,
+  head: Buffer,
+  viewer: {
+    roomId: string
+    person: import("@/lib/viewer-identity/types").ViewerPerson
+  }
+) => void
+
+export declare function setViewerYjs(accept: ViewerYjsAccept | undefined): void
+
+export declare function viewerYjs(): ViewerYjsAccept | undefined

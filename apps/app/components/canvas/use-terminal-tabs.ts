@@ -10,6 +10,7 @@ import {
 } from "@/lib/terminal/restore-tabs"
 import type { TerminalTabStore } from "@/lib/terminal/tab-store"
 import type { BranchData, TerminalTabData } from "@/lib/types"
+import { useViewing } from "@/lib/viewer/context"
 
 /**
  * Terminal Tabs (#1265) — the one owner of this client's Terminal Tab list and
@@ -129,7 +130,10 @@ export function useTerminalTabs(deps: TerminalTabsDeps): TerminalTabs {
   // doesn't remount, so the seed above is stale) and reconciles tabs opened on
   // another device. Merge rather than replace (`mergeRestoredTabs`), so a tab
   // the user opened before this resolved isn't dropped.
+  // A viewer (#1932) has no terminals: nothing of the host's to restore.
+  const viewing = !!useViewing()
   useEffect(() => {
+    if (viewing) return
     let cancelled = false
     store
       .list(roomId)
@@ -142,7 +146,7 @@ export function useTerminalTabs(deps: TerminalTabsDeps): TerminalTabs {
     return () => {
       cancelled = true
     }
-  }, [roomId, store])
+  }, [viewing, roomId, store])
 
   // Prune: drop tabs whose Branch no longer exists, so a dead terminal never
   // lingers pointing at a gone sandbox (#260). We get here only post-sync

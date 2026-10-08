@@ -7,6 +7,9 @@ import { agentChat } from "@/lib/db/schema"
 import { NOT_A_MEMBER, requireMember, type RoomRole } from "@/lib/rooms"
 import { mutateRoomDoc, readRoomDoc } from "@/lib/yjs/server"
 import type { RoomCollections } from "@/lib/yjs/schema"
+import { requestRole } from "@/lib/viewer-identity/request"
+import type { ViewerPerson } from "@/lib/viewer-identity/types"
+import { isShareKey } from "@/server/share-link.mjs"
 
 /**
  * **Room Access**: the one way a server entry point turns (session, Room) into
@@ -74,6 +77,22 @@ export async function openRoom(roomId: string): Promise<RoomAccess> {
 export function readRoomForServer(roomId: string): RoomReader {
   const { readDoc } = roomDoc(roomId)
   return { roomId, readDoc }
+}
+
+/**
+ * Read a Room's doc for a viewer watching it by its link (Sharing, #1932):
+ * read only, for a request the viewer listener named a person for, carrying
+ * the canvas link's own key. Null for anyone else, the host included, who
+ * opens the Room with {@link openRoom}.
+ */
+export async function openRoomForViewer(
+  roomId: string,
+  key: string
+): Promise<(RoomReader & { person: ViewerPerson }) | null> {
+  const role = await requestRole()
+  if (role.role !== "viewer" || !isShareKey(roomId, key)) return null
+  const { readDoc } = roomDoc(roomId)
+  return { roomId, readDoc, person: role.person }
 }
 
 /**

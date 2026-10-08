@@ -8,6 +8,7 @@ import {
 } from "react"
 import { WebsocketProvider } from "y-websocket"
 import * as Y from "yjs"
+import { SHARE_KEY_PARAM } from "@/server/share-link.mjs"
 import { WS_ROUTES } from "@/server/ws-routes.mjs"
 import { withBasePath } from "@/lib/base-path"
 import { hostTunnel } from "@/lib/capabilities"
@@ -25,10 +26,11 @@ import {
  * The sidecar holds the authoritative Y.Doc; this provider is a plain peer that
  * syncs against it. Mirrors `liveblocks-client.tsx`'s sync-gate behaviour.
  */
-export function websocketUrl(): string {
+export function websocketUrl({ viewer = false } = {}): string {
   // Headless: the host listener carries the socket under a path on the app's
-  // own origin, so the host's tunnel needs no port of its own for it.
-  if (hostTunnel && typeof window !== "undefined") {
+  // own origin, so the host's tunnel needs no port of its own for it. A
+  // viewer's socket (#1932) is on the viewer listener's origin the same way.
+  if ((hostTunnel || viewer) && typeof window !== "undefined") {
     const scheme = window.location.protocol === "https:" ? "wss" : "ws"
     return `${scheme}://${window.location.host}${WS_ROUTES.yjs}`
   }
@@ -131,14 +133,21 @@ function getSnapshot(roomId: string): Snapshot {
   return snap
 }
 
-function getOrCreate(roomId: string): CachedConn {
+function getOrCreate(roomId: string, viewerKey?: string): CachedConn {
   let conn = connections.get(roomId)
   if (!conn) {
     const doc = new Y.Doc()
-    const provider = new WebsocketProvider(websocketUrl(), roomId, doc, {
-      connect: false,
-    })
-    connectWithToken(provider)
+    const provider = new WebsocketProvider(
+      websocketUrl({ viewer: !!viewerKey }),
+      roomId,
+      doc,
+      viewerKey
+        ? // A viewer (#1932) shows the canvas link's key instead of the
+          // host's secret; the viewer listener checks it.
+          { params: { [SHARE_KEY_PARAM]: viewerKey } }
+        : { connect: false }
+    )
+    if (!viewerKey) connectWithToken(provider)
     const created: CachedConn = { doc, provider, refs: 0, destroyTimer: null }
     provider.on("sync", (isSynced: boolean) => {
       if (isSynced) notify(roomId)
@@ -180,10 +189,13 @@ export function prewarmRoom(roomId: string): void {
 
 export function YjsRoomProvider({
   roomId,
+  viewerKey,
   fallback,
   children,
 }: {
   roomId: string
+  /** A viewer's canvas link key (#1932): connect on the viewer listener with it. */
+  viewerKey?: string
   fallback: ReactNode
   children: ReactNode
 }) {
@@ -192,7 +204,7 @@ export function YjsRoomProvider({
   // rather than reopened.
   const subscribe = useCallback(
     (onStoreChange: () => void) => {
-      const entry = getOrCreate(roomId)
+      const entry = getOrCreate(roomId, viewerKey)
       entry.refs += 1
       let set = listeners.get(roomId)
       if (!set) {
@@ -210,7 +222,7 @@ export function YjsRoomProvider({
         }
       }
     },
-    [roomId]
+    [roomId, viewerKey]
   )
 
   const { conn, synced } = useSyncExternalStore(

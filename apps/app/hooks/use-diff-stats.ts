@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { compareBranches, type DiffStatQuery } from "@/lib/github-actions"
+import { useViewing } from "@/lib/viewer/context"
 import { useRoomId } from "@/lib/yjs/context"
 
 export type DiffStats = { additions: number; deletions: number }
@@ -37,6 +38,9 @@ export function useDiffStats(
   }>
 ): Map<string, DiffStats> {
   const roomId = useRoomId()
+  // The host's poll writes the stats to the room doc; a viewer (#1932) reads
+  // them from there and never polls.
+  const viewing = !!useViewing()
   const agentsRef = useRef(agents)
   const reposRef = useRef(repos)
   // Latest inputs kept in refs (updated after commit) so the polling loop
@@ -63,6 +67,7 @@ export function useDiffStats(
   }, [agents])
 
   const refresh = useCallback(async () => {
+    if (viewing) return
     const currentAgents = agentsRef.current
     const repoMap = new Map(reposRef.current.map((w) => [w.id, w]))
     const queries: DiffStatQuery[] = []
@@ -80,7 +85,7 @@ export function useDiffStats(
     }
     if (queries.length === 0) return
     await compareBranches(roomId, queries)
-  }, [roomId])
+  }, [roomId, viewing])
 
   useEffect(() => {
     refresh()

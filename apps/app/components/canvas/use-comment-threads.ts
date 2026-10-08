@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { useAppSession } from "@/lib/auth-client"
+import { useViewing } from "@/lib/viewer/context"
 import type { CommentRecord, ThreadWithComments } from "@/lib/comments"
 import {
   appendCommentAction,
@@ -86,6 +87,9 @@ export function useCommentThreads(
 ): CommentThreads {
   const { data: session } = useAppSession()
   const user = session?.user
+  // A viewer (#1932) can't call the comment server actions yet: they see the
+  // threads the page was rendered with.
+  const viewing = !!useViewing()
   const [fetched, setThreads] = useState<ThreadWithComments[]>(
     () => initialThreads ?? []
   )
@@ -119,6 +123,7 @@ export function useCommentThreads(
   const readRevision = useCommentsReadRevision(user?.id ?? null)
 
   useEffect(() => {
+    if (viewing) return
     let cancelled = false
     listThreadsAction(roomId)
       .then((rows) => {
@@ -152,6 +157,7 @@ export function useCommentThreads(
       cancelled = true
     }
   }, [
+    viewing,
     roomId,
     attempt,
     revision,

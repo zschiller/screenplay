@@ -6,6 +6,8 @@
 //
 // Plain Node, no TS: the front server loads it outside the app's bundles.
 
+import { parseSharePath } from "./share-link.mjs"
+
 /**
  * @typedef {{
  *   name: string
@@ -26,6 +28,41 @@ export const VIEWER_ALLOWLIST = [
     identify: false,
     match: (pathname) => pathname.startsWith("/_next/static/"),
     example: "/_next/static/chunks/app.js",
+  },
+  {
+    // The canvas a viewer watches (#1932). The page checks the key and finds
+    // nothing for a wrong one; its Yjs socket is checked here, in the front
+    // server.
+    name: "canvas link",
+    methods: ["GET", "HEAD"],
+    identify: true,
+    match: (pathname) => parseSharePath(pathname)?.rest === "",
+    example: "/s/room-1/key",
+  },
+  {
+    // What a viewer's canvas reads below its link, each checking the key:
+    // where a frame loads its preview, a Mockup's page, and the script
+    // Mockup pages run first.
+    name: "canvas link reads",
+    methods: ["GET", "HEAD"],
+    identify: true,
+    match: (pathname) => {
+      const rest = parseSharePath(pathname)?.rest
+      return (
+        rest === "preview" ||
+        rest === "mockup-runtime" ||
+        /^mockups\/[^/]+$/.test(rest ?? "")
+      )
+    },
+    example: "/s/room-1/key/mockups/file-1",
+  },
+  {
+    // A Mockup page's own files, behind a token signed for one Mockup.
+    name: "mockup pages",
+    methods: ["GET", "HEAD"],
+    identify: true,
+    match: (pathname) => pathname.startsWith("/api/mockup-pages/"),
+    example: "/api/mockup-pages/token/r1/index.html",
   },
   {
     name: "app icon",

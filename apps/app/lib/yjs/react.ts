@@ -352,6 +352,10 @@ export type CanvasPresence = {
   // The canvas page (#1840) this user is looking at. Absent from clients
   // from before pages, which show the first page.
   pageId?: string
+  // Set by the server on a Viewer's presence (Sharing, #1932), with the
+  // identity their viewer identity named; a page can't set or clear it. A
+  // presence without it is the Host's.
+  viewer?: boolean
 }
 
 function useAwareness(): AwarenessLike {
@@ -501,6 +505,7 @@ const samePeer = (a: PeerPresence, b: PeerPresence) =>
   a.identity.avatar === b.identity.avatar &&
   a.color === b.color &&
   a.pageId === b.pageId &&
+  a.viewer === b.viewer &&
   sameIds(a.selectedIframeLayerIds, b.selectedIframeLayerIds) &&
   sameIds(a.groupSelectedIframeLayerIds, b.groupSelectedIframeLayerIds)
 

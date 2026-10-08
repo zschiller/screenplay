@@ -86,6 +86,16 @@ describe("Room Access guard", () => {
     expect(users).toEqual(["lib/thumbnail/rebuild-layout.ts"])
   })
 
+  it("the viewer's reader is used only under the canvas link", () => {
+    const users = filesMatching(/\bopenRoomForViewer\b/).filter(
+      (file) => file !== "lib/room-access.ts"
+    )
+    expect(
+      users.every((file) => file.startsWith("app/s/")),
+      users.join()
+    ).toBe(true)
+  })
+
   it("the session-less writer is used only by the PR Watch tick", () => {
     const users = filesMatching(/\bopenRoomForPrWatchTick\b/).filter(
       (file) => file !== "lib/room-access.ts"

@@ -87,6 +87,35 @@ request without it is refused. The agent’s steps reach the canvas over a
 WebSocket on the local Yjs server’s port, behind the same per-launch secret and
 Origin check as the Yjs sync connection.
 
+## Sharing
+
+People on your tailnet can watch a canvas while you work in it. Each canvas
+has one link:
+
+```
+https://<your Mac>.<tailnet>.ts.net:<viewer port>/s/<canvas id>/<key>
+```
+
+The key is worked out from the install’s `ENCRYPTION_KEY`, so nothing is
+stored: a canvas’s link stays the same for as long as the install does, and
+there’s no way to reset it. Anyone you sent it to can come back to it. A wrong
+key, or a link for a canvas you deleted, shows nothing. There’s no home screen
+for viewers either: a link opens one canvas, and nothing else.
+
+Links work only on the **viewer listener**, which serves a short list of reads
+and refuses every write (see [Viewer identity](/self-hosting/configuration/viewer-identity)).
+Someone who opens a link there watches the canvas live, as themselves:
+
+- **The canvas**, as you change it. A viewer can’t change it: the server drops
+  every change their copy sends.
+- **Frames**, each their own copy of the preview, loaded from the
+  [preview exposure](/self-hosting/configuration/preview-exposure)’s address
+  for viewers. Your own frames stay on `localhost`.
+- **Presence**: everyone’s cursor and who’s on each page. Your cursor’s name
+  tag reads “Your name (Host)”, and your avatar in the Pages panel has a house
+  badge. The server names each viewer from their viewer identity, whatever
+  their page claims.
+
 ## Building
 
 ```bash

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useYjs } from "@/lib/yjs/context"
 import { withBasePath } from "@/lib/base-path"
+import { useViewing } from "@/lib/viewer/context"
 import { buildIdentity, macShell } from "@/lib/capabilities"
 import type { DirtyFrameTracker } from "@/lib/thumbnail/dirty-frames"
 import {
@@ -49,11 +50,14 @@ export function useThumbnailHeartbeat(
   tracker: DirtyFrameTracker
 ): { flushLayout: () => Promise<void> } {
   const { doc } = useYjs()
+  // The host keeps the thumbnail; a viewer (#1932) never posts it.
+  const viewing = !!useViewing()
   // Holds the live effect's flush so the stable callback returned below always
   // calls the current room's implementation; reset to a no-op on unmount.
   const flushRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   useEffect(() => {
+    if (viewing) return
     let layoutTimer: ReturnType<typeof setTimeout> | null = null
     let captureTimer: ReturnType<typeof setTimeout> | null = null
     let initialTimer: ReturnType<typeof setTimeout> | null = null
@@ -205,7 +209,7 @@ export function useThumbnailHeartbeat(
         }
       }
     }
-  }, [doc, roomId, hasThumbnail, tracker])
+  }, [viewing, doc, roomId, hasThumbnail, tracker])
 
   // Stable handle that defers to whichever effect run is live (or a no-op once
   // unmounted), so callers can hold it across renders.
