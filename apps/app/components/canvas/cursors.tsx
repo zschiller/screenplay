@@ -30,9 +30,8 @@ export function Cursors({ viewport, pages, pageId }: CursorsProps) {
         const message = presence.message ?? null
         const name = presence.identity.name || "Anonymous"
         const ink = presenceInkClass(presence.color)
-        const label = (
-          <NameLabel name={name} host={viewing && presence.viewer !== true} />
-        )
+        const label =
+          viewing && presence.viewer !== true ? `${name} (Host)` : name
 
         return (
           <div
@@ -82,18 +81,5 @@ export function Cursors({ viewport, pages, pageId }: CursorsProps) {
         )
       })}
     </>
-  )
-}
-
-/** The tag's name, and for the Host a hairline in the tag's ink, then "Host". */
-function NameLabel({ name, host }: { name: string; host: boolean }) {
-  if (!host) return name
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {name}
-      <span className="border-l border-current pl-1.5 leading-3 font-medium">
-        Host
-      </span>
-    </span>
   )
 }

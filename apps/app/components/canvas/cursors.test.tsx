@@ -101,12 +101,13 @@ describe("the Host badge on a canvas link (#1932)", () => {
         viewers: ["Ben"],
       }
     )
-    expect(screen.getAllByText("Host")).toHaveLength(1)
-    expect(screen.getByText("Host").parentElement?.textContent).toBe("MayaHost")
+    expect(screen.queryByText("Maya (Host)")).not.toBeNull()
+    expect(screen.queryByText("Ben")).not.toBeNull()
+    expect(screen.getAllByText(/\(Host\)/)).toHaveLength(1)
   })
 
   it("marks no one on the host's own canvas", () => {
     renderOn("page-1", { Maya: undefined, Ben: undefined })
-    expect(screen.queryByText("Host")).toBeNull()
+    expect(screen.queryByText(/\(Host\)/)).toBeNull()
   })
 })
