@@ -4,6 +4,7 @@ import { isLocalSandboxBackend } from "@/lib/sandbox/backend"
 import type { ModelInfo, ModelProvider } from "@/lib/agent/providers"
 import { HARNESSES, resolveLaunchArgv, selectHarnesses } from "./index"
 import {
+  alphabetical,
   defaultHostBinaryProber,
   detectInstalledHarnessKeys,
   hostHarnesses,
@@ -117,27 +118,29 @@ export function filterByCapability(
  * the list's (catalog) order, models in curated order within each.
  */
 export function harnessModels(available: AvailableHarness[]): ModelInfo[] {
-  return filterByCapability(available, "chat").flatMap(({ harness }) => {
-    const provider = { key: harness.key, label: harness.label }
-    const models = harness.models ?? []
-    if (models.length === 0) {
-      return [
-        {
-          id: encodeHarnessModelId(harness.key),
-          label: harness.label,
-          provider,
-          isDefault: true,
-        },
-      ]
+  return alphabetical(filterByCapability(available, "chat")).flatMap(
+    ({ harness }) => {
+      const provider = { key: harness.key, label: harness.label }
+      const models = harness.models ?? []
+      if (models.length === 0) {
+        return [
+          {
+            id: encodeHarnessModelId(harness.key),
+            label: harness.label,
+            provider,
+            isDefault: true,
+          },
+        ]
+      }
+      const defaultId = harness.defaultModelId ?? models[0]!.id
+      return models.map((model) => ({
+        id: encodeHarnessModelId(harness.key, model.id),
+        label: model.label,
+        provider,
+        ...(model.id === defaultId && { isDefault: true }),
+      }))
     }
-    const defaultId = harness.defaultModelId ?? models[0]!.id
-    return models.map((model) => ({
-      id: encodeHarnessModelId(harness.key, model.id),
-      label: model.label,
-      provider,
-      ...(model.id === defaultId && { isDefault: true }),
-    }))
-  })
+  )
 }
 
 /**

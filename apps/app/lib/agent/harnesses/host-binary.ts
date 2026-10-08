@@ -77,6 +77,19 @@ export function hostHarnesses(harnesses: Harness[]): Harness[] {
 }
 
 /**
+ * `harnesses` in the order people see them listed: alphabetical by label.
+ * The catalog's own order stays the preference order behind the desktop
+ * default and naming, so a newly added agent doesn't take those over.
+ */
+export function alphabetical<T extends { harness: Harness } | Harness>(
+  harnesses: T[]
+): T[] {
+  const label = (h: { harness: Harness } | Harness): string =>
+    "harness" in h ? h.harness.label : h.label
+  return [...harnesses].sort((a, b) => label(a).localeCompare(label(b)))
+}
+
+/**
  * Probe the live {@link HostFacts} a descriptor's `buildInstallCommand` maps to a
  * shell command (ADR 0015): `npm` / `brew` presence through the **same** prober
  * host-binary detection uses, plus the Node runtime's CPU arch. The one

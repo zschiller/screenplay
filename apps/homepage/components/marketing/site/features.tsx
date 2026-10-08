@@ -22,7 +22,7 @@ const features: { title: string; body: string }[] = [
   },
   {
     title: "Your agents and models",
-    body: "Use Claude Code, Codex, OpenCode or Antigravity with the subscription you already have, and pick the model per chat. Steer an agent mid-turn by sending a message while it works.",
+    body: "Use Antigravity, Claude Code, Codex or OpenCode with the subscription you already have, and pick the model per chat. Steer an agent mid-turn by sending a message while it works.",
   },
   {
     title: "Runs on your Mac",
