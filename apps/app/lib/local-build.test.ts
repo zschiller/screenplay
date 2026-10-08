@@ -29,6 +29,7 @@ describe("local build — access model", () => {
   // this file run in local mode, so one stub for the file is correct and the
   // per-test `resetModules` the old shape needed falls away.
   let harness: SharedPgliteDb
+  let roomsActions: typeof import("./rooms-actions")
   beforeAll(async () => {
     vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_PROFILE", "desktop")
     // The desktop build also selects the local Yjs host; set it so importing
@@ -36,6 +37,10 @@ describe("local build — access model", () => {
     // Liveblocks secret the local build never has.
     vi.stubEnv("NEXT_PUBLIC_YJS_HOST", "local")
     harness = await setupSharedPgliteDb()
+    // `rooms-actions` pulls in Room teardown, the repository library and the
+    // Yjs host: a cold import can take over 5s, so it loads here under the
+    // boot's budget rather than timing out the test that uses it.
+    roomsActions = await import("./rooms-actions")
   }, 30000)
 
   afterAll(async () => {
@@ -82,7 +87,7 @@ describe("local build — access model", () => {
   })
 
   it("refuses the sharing actions as a backstop", async () => {
-    const { shareRoom, listCollaborators } = await import("./rooms-actions")
+    const { shareRoom, listCollaborators } = roomsActions
     await expect(shareRoom("r1", "a@b.com")).rejects.toThrow(/desktop app/)
     await expect(listCollaborators("r1")).rejects.toThrow(/desktop app/)
   })
