@@ -100,6 +100,13 @@ describe("rows (the live read + the dedupe rule)", () => {
     ])
   })
 
+  it("recommends the catalog's first agent, wherever it sorts", async () => {
+    const rows = await setup({ present: [] }).rows()
+    expect(rows.filter((r) => r.recommended).map((r) => r.key)).toEqual([
+      "claude-code",
+    ])
+  })
+
   it("drives the one opencode row from opencode's own auth probe", async () => {
     const rows = await setup({
       present: ["opencode"],
