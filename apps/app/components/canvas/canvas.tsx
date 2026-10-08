@@ -64,6 +64,7 @@ import {
   commenting,
   macShell,
   multiUserSurface,
+  viewers,
 } from "@/lib/capabilities"
 
 import { inputStore } from "@/lib/input-store"
@@ -84,6 +85,7 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 import { type EditableTextHandle } from "@workspace/ui/components/editable-text"
 
 import { ShareRoomDialog } from "@/components/share-room-dialog"
+import { SharingDialog } from "@/components/sharing-dialog"
 
 import type { RepoConfig } from "@/lib/repo-configs.types"
 import { switchOnWithEnv } from "@/lib/repository-library"
@@ -3325,6 +3327,25 @@ export function Canvas({
                               />
                             </>
                           )}
+                        </>
+                      )}
+                      {/* The Mac app's owner shares by link over their
+                        tailnet (Sharing, #1953); a viewer never sees it. */}
+                      {viewers && !viewing && (
+                        <>
+                          <Button
+                            size="sm"
+                            className="ml-1"
+                            onClick={() => setShareDialogOpen(true)}
+                          >
+                            Share
+                          </Button>
+                          <SharingDialog
+                            open={shareDialogOpen}
+                            onOpenChange={setShareDialogOpen}
+                            roomId={roomId}
+                            roomName={currentRoomName}
+                          />
                         </>
                       )}
                       {chatCollapsed && (

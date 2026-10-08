@@ -9,7 +9,7 @@ import {
 import { SidebarGroupLabel } from "@workspace/ui/components/sidebar"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
-import { buildIdentity, commenting } from "@/lib/capabilities"
+import { buildIdentity, commenting, viewers } from "@/lib/capabilities"
 import type { PanelLayout } from "@/lib/panel-layout"
 
 /**
@@ -32,8 +32,11 @@ import type { PanelLayout } from "@/lib/panel-layout"
  */
 export function CanvasSkeleton({
   initialLayout,
+  viewer = false,
 }: {
   initialLayout?: PanelLayout
+  /** A viewer's canvas link (Sharing), which has no Share button. */
+  viewer?: boolean
 }) {
   const sidebarGrow = initialLayout?.sidebar
   const canvasGrow = initialLayout?.canvas
@@ -93,14 +96,14 @@ export function CanvasSkeleton({
             <div className="size-7" />
           </Pill>
         </div>
-        {/* Top-right: the zoom menu (always), Share on web, and the
-            chat-expand button while chat is closed. */}
+        {/* Top-right: the zoom menu (always), Share on web and for the Mac
+            app's owner, and the chat-expand button while chat is closed. */}
         <div className="absolute top-0 right-0 flex h-12 items-center px-2">
           <Pill>
             <Placeholder className="flex h-7 w-13 items-center px-1.5">
               <Skeleton className="h-3 w-full" />
             </Placeholder>
-            {buildIdentity === "account" && (
+            {(buildIdentity === "account" || (viewers && !viewer)) && (
               <Placeholder className="ml-1 flex">
                 <Skeleton className="h-6 w-14" />
               </Placeholder>

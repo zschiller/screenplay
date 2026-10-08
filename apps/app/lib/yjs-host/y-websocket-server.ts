@@ -25,7 +25,12 @@ import {
   type ViewerPresencePerson,
   viewerMessageFilter,
 } from "@/lib/yjs-host/viewer-messages"
-import { setViewerYjs } from "@/server/ws-routes.mjs"
+import {
+  SHARING_OFF_CLOSE_CODE,
+  SHARING_OFF_REASON,
+  setViewerYjs,
+  setViewerYjsClose,
+} from "@/server/ws-routes.mjs"
 import type { IssueTokenResult, YjsHost } from "@/lib/yjs-host/types"
 
 const DEFAULT_PORT = 1234
@@ -275,6 +280,27 @@ function readOnly(
   })
 }
 
+/**
+ * Close every socket with Sharing's off code, waiting for each to finish (or
+ * a second at most) so the close frame reaches the page before the viewer
+ * listener drops the connection.
+ */
+function closeAll(clients: Set<WebSocket>): Promise<void> {
+  const closing = [...clients].map(
+    (conn) =>
+      new Promise<void>((resolve) => {
+        if (conn.readyState === WebSocket.CLOSED) return resolve()
+        const timer = setTimeout(resolve, 1000)
+        conn.once("close", () => {
+          clearTimeout(timer)
+          resolve()
+        })
+        conn.close(SHARING_OFF_CLOSE_CODE, SHARING_OFF_REASON)
+      })
+  )
+  return Promise.all(closing).then(() => {})
+}
+
 function toBytes(data: RawData): Uint8Array {
   if (Array.isArray(data)) return new Uint8Array(Buffer.concat(data))
   if (data instanceof ArrayBuffer) return new Uint8Array(data)
@@ -326,6 +352,9 @@ export async function startLocalYjsServer(
       }
     )
   })
+  // Turning Sharing off (#1953) ends each viewer's socket with a close code
+  // its page shows as "stopped sharing", rather than a dropped connection.
+  setViewerYjsClose(() => closeAll(viewerWss.clients))
   // The Mac drive channel (#1389) shares the port and the gate.
   const driveWss = new WebSocketServer({ noServer: true })
   driveWss.on("connection", acceptFrameDriveConnection)
@@ -361,6 +390,7 @@ export async function startLocalYjsServer(
         driveWss.close()
         viewerWss.close()
         setViewerYjs(undefined)
+        setViewerYjsClose(undefined)
         server.close((err) => (err ? reject(err) : resolve()))
         serverHandle = null
       }),

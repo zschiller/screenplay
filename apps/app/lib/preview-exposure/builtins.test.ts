@@ -13,10 +13,22 @@ describe("loopback", () => {
 describe("selectPreviewExposure", () => {
   it("is loopback with no override", async () => {
     for (const env of [{}, { PREVIEW_EXPOSURE: "loopback" }]) {
-      expect(await selectPreviewExposure(env).expose(4000)).toEqual({
-        browserOrigin: "http://localhost:4000",
-      })
+      expect(
+        await selectPreviewExposure(env, { sharing: false }).expose(4000)
+      ).toEqual({ browserOrigin: "http://localhost:4000" })
     }
+  })
+
+  it("is tailscale in the Mac app, where only Sharing exposes ports", async () => {
+    const exposure = selectPreviewExposure({}, { sharing: true })
+    // No `tailscale` here: the Tailscale built-in says so.
+    await expect(exposure.expose(4000)).rejects.toThrow("Tailscale")
+    expect(
+      await selectPreviewExposure(
+        { PREVIEW_EXPOSURE: "loopback" },
+        { sharing: true }
+      ).expose(4000)
+    ).toEqual({ browserOrigin: "http://localhost:4000" })
   })
 
   it("picks tailscale when asked", () => {

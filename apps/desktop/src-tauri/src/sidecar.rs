@@ -273,6 +273,9 @@ fn apply_desktop_env(
         .env("LOCAL_BLOB_DIR", &blobs)
         .env("LOCAL_FILES_DIR", &files)
         .env("SCREENPLAY_COORDINATOR_ROOT", &coordinator)
+        // Whether Sharing is on and its viewer port (#1953), so it stays on
+        // and each canvas keeps its link across launches.
+        .env("SCREENPLAY_SHARING_FILE", data.join("sharing.json"))
         // Origin-relative on purpose: blob URLs are persisted in room rows, and
         // the port is random per launch — an absolute URL would strand every
         // previously captured thumbnail on a dead origin after a restart. The

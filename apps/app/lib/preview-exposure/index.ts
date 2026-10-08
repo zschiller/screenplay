@@ -1,6 +1,6 @@
 import "server-only"
 
-import { backendSwitch } from "@/lib/capabilities"
+import { backendSwitch, viewers } from "@/lib/capabilities"
 import { loopbackExposure } from "@/lib/preview-exposure/builtins"
 import { tailscaleExposure } from "@/lib/preview-exposure/tailscale"
 import type { PreviewExposure } from "@/lib/preview-exposure/types"
@@ -12,15 +12,18 @@ export type { ExposedPort, PreviewExposure } from "@/lib/preview-exposure/types"
 
 /**
  * Pick this server's preview exposure: `PREVIEW_EXPOSURE` when set, else
- * `loopback`, every profile's default. `tailscale` serves each port over the
- * Mac's tailnet name (Sharing). A fork that needs its own exposure (a company
- * proxy, its own command) changes this function. Throws on an id it
- * doesn't know.
+ * `tailscale` in the Mac app, where only Sharing exposes ports (each over the
+ * Mac's tailnet name), and `loopback` everywhere else. A fork that needs its
+ * own exposure (a company proxy, its own command) changes this function.
+ * Throws on an id it doesn't know.
  */
 export function selectPreviewExposure(
-  env: Record<string, string | undefined> = process.env
+  env: Record<string, string | undefined> = process.env,
+  { sharing = viewers }: { sharing?: boolean } = {}
 ): PreviewExposure {
-  const id = backendSwitch("PREVIEW_EXPOSURE", env) ?? "loopback"
+  const id =
+    backendSwitch("PREVIEW_EXPOSURE", env) ??
+    (sharing ? "tailscale" : "loopback")
   if (id === "loopback") return loopbackExposure()
   if (id === "tailscale") return tailscaleExposure()
   throw new Error(

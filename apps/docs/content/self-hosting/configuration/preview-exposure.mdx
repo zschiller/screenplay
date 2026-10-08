@@ -13,12 +13,14 @@ small interface in `apps/app/lib/preview-exposure/` with two built-ins:
 
 | Built-in    | Previews bind | A browser loads                         | For                       |
 | ----------- | ------------- | --------------------------------------- | ------------------------- |
-| `loopback`  | `127.0.0.1`   | `http://localhost:{port}`               | The Mac app (the default) |
-| `tailscale` | `127.0.0.1`   | `https://<mac>.<tailnet>.ts.net:{port}` | Sharing over your tailnet |
+| `loopback`  | `127.0.0.1`   | `http://localhost:{port}`               | Everywhere else           |
+| `tailscale` | `127.0.0.1`   | `https://<mac>.<tailnet>.ts.net:{port}` | The Mac app’s Sharing     |
 
 In the Mac app, it’s how [viewers](/self-hosting/configuration/desktop-app#sharing)
-reach previews: a viewer’s frame asks for its port’s origin when it opens.
-Your own frames always load at `http://localhost:{port}`.
+reach the app and its previews, and only while Sharing is on: the viewer
+listener is exposed when Sharing turns on, and a viewer’s frame asks for its
+port’s origin when it opens. Turning Sharing off releases every port it
+exposed. Your own frames always load at `http://localhost:{port}`.
 
 [Headless](/self-hosting/headless) doesn’t use it: the host’s frames load
 through portless at `http://screenplay-<port>.localhost:1355`, over the host’s
@@ -46,8 +48,8 @@ interface PreviewExposure {
 
 ### `loopback`: `loopbackExposure()`
 
-The Mac app’s behaviour, and the default: each port loads at
-`http://localhost:{port}`.
+Each port loads at `http://localhost:{port}`. The default everywhere but the
+Mac app.
 
 ### `tailscale`: `tailscaleExposure()`
 
@@ -69,7 +71,7 @@ which.
 ## Picking one
 
 `selectPreviewExposure()` in `apps/app/lib/preview-exposure/index.ts` picks
-one: `loopback`, everywhere. `PREVIEW_EXPOSURE` overrides it with `loopback`
+one: `tailscale` in the Mac app, `loopback` everywhere else. `PREVIEW_EXPOSURE` overrides it with `loopback`
 or `tailscale`. An id it doesn’t know stops the server from starting.
 
 Every replaceable part of Screenplay is picked the same way, like the
