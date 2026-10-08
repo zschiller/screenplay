@@ -16,6 +16,10 @@ small interface in `apps/app/lib/preview-exposure/` with two built-ins:
 | `loopback`  | `127.0.0.1`   | `http://localhost:{port}`               | The Mac app (the default) |
 | `tailscale` | `127.0.0.1`   | `https://<mac>.<tailnet>.ts.net:{port}` | Sharing over your tailnet |
 
+In the Mac app, it’s how [viewers](/self-hosting/configuration/desktop-app#sharing)
+reach previews: a viewer’s frame asks for its port’s origin when it opens.
+Your own frames always load at `http://localhost:{port}`.
+
 [Headless](/self-hosting/headless) doesn’t use it: the host’s frames load
 through portless at `http://screenplay-<port>.localhost:1355`, over the host’s
 SSH tunnel.

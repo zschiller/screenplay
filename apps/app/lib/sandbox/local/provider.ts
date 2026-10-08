@@ -6,7 +6,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { hostTunnel } from "@/lib/capabilities"
+import { hostTunnel, viewers } from "@/lib/capabilities"
 import { getPreviewExposure } from "@/lib/preview-exposure"
 import { devServerEnv } from "@/lib/sandbox/local/host-env"
 import { acquireRepo, type RepoSource } from "@/lib/sandbox/local/worktree"
@@ -547,9 +547,17 @@ function makeInstance(
     },
     // A browser-facing port goes out through the preview exposure; `loopback`
     // (the Mac app) answers `http://localhost:<hostPort>`, as `domain` does.
-    // On Headless the host's frames go through portless instead (#1930).
+    // On Headless the host's frames go through portless instead (#1930). In
+    // the Mac app the host's frames stay on loopback, and the exposure is for
+    // viewers (Sharing, #1932): a viewer's frame asks for its origin when it
+    // opens.
     async expose(port: number) {
       const bound = forwarded(port)
+      if (viewers) {
+        const browserOrigin = `http://localhost:${bound}`
+        await onExposed?.(String(port), browserOrigin)
+        return { browserOrigin }
+      }
       if (hostTunnel) {
         const browserOrigin = await addHostRoute(bound)
         await onExposed?.(String(port), browserOrigin)

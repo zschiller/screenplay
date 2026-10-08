@@ -1,6 +1,5 @@
 import { fileStore } from "@/lib/files"
-import type { MockupPageResponse } from "@/lib/mockup-folder"
-import { mockupFolderOn, mockupPageBase } from "@/lib/mockup-folder-server"
+import { mockupFolderOn, mockupPageFor } from "@/lib/mockup-folder-server"
 import { openRoomForRoute } from "@/lib/room-access"
 
 export const runtime = "nodejs"
@@ -21,15 +20,8 @@ export async function GET(
   const room = await openRoomForRoute(roomId)
   if (room instanceof Response) return room
 
-  const page = await mockupFolderOn(room, fileStore).page(fileId)
-  if (!page) return new Response("Not found", { status: 404 })
-  const base = mockupPageBase(roomId, page.fileId, page.revision)
-  const body: MockupPageResponse = {
-    html: page.html,
-    revision: page.revision,
-    base: base.path,
-    expiresAt: base.expiresAt,
-  }
+  const body = await mockupPageFor(room, fileStore, fileId)
+  if (!body) return new Response("Not found", { status: 404 })
   return Response.json(body, {
     headers: { "Cache-Control": "private, no-store" },
   })

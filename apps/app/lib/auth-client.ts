@@ -4,6 +4,8 @@ import { createAuthClient } from "better-auth/react"
 import { AUTH_BASE_PATH } from "@/lib/base-path"
 import { buildIdentity } from "@/lib/capabilities"
 import { LOCAL_USER } from "@/lib/local-user"
+import { useViewing } from "@/lib/viewer/context"
+import type { ViewerPerson } from "@/lib/viewer-identity/types"
 
 // Mirror the server's `basePath`: in the browser the client resolves its fetch
 // target as `window.location.origin` + this path, so it must include the `/app`
@@ -40,7 +42,38 @@ const LOCAL_SESSION_RESULT = {
  * given build (despite the rules-of-hooks lint).
  */
 export function useAppSession(): ReturnType<typeof useSession> {
-  if (buildIdentity === "host") return LOCAL_SESSION_RESULT
+  if (buildIdentity === "host") {
+    // A viewer's page (Sharing, #1932) runs as the person the viewer
+    // identity named, not the host.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const viewing = useViewing()
+    return viewing ? viewerSession(viewing.person) : LOCAL_SESSION_RESULT
+  }
   // eslint-disable-next-line react-hooks/rules-of-hooks
   return useSession()
+}
+
+const viewerSessions = new Map<string, ReturnType<typeof useSession>>()
+
+/** The session a viewer's page reads, one object per person so it stays stable. */
+function viewerSession(person: ViewerPerson): ReturnType<typeof useSession> {
+  let result = viewerSessions.get(person.id)
+  if (!result) {
+    result = {
+      data: {
+        user: {
+          id: person.id,
+          name: person.name,
+          email: person.email ?? "",
+          image: person.avatarUrl ?? null,
+        },
+        session: { id: "viewer", userId: person.id },
+      },
+      isPending: false,
+      error: null,
+      refetch: () => {},
+    } as unknown as ReturnType<typeof useSession>
+    viewerSessions.set(person.id, result)
+  }
+  return result
 }

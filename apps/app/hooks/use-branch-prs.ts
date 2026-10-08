@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { listBranchPrs, type BranchPrInfo } from "@/lib/github-actions"
 import { prCacheUpdate } from "@/lib/branch/pr-history"
+import { useViewing } from "@/lib/viewer/context"
 import { useRoomId } from "@/lib/yjs/context"
 import { useRoomCollections } from "@/lib/yjs/react"
 
@@ -55,6 +56,9 @@ export function useBranchPrs(
   }>
 ): BranchPrsHandle {
   const roomId = useRoomId()
+  // The host's poll writes each Branch's PR to the room doc; a viewer
+  // (#1932) reads it from there and never polls.
+  const viewing = !!useViewing()
   const collections = useRoomCollections()
   const agentsRef = useRef(agents)
   const reposRef = useRef(repos)
@@ -82,6 +86,7 @@ export function useBranchPrs(
   }, [agents])
 
   const refresh = useCallback(async () => {
+    if (viewing) return
     const repoMap = new Map(reposRef.current.map((w) => [w.id, w]))
     // Skip the round-trip when no Branch can have a PR of its own.
     const anyCandidate = agentsRef.current.some((a) => {
@@ -90,7 +95,7 @@ export function useBranchPrs(
     })
     if (!anyCandidate) return
     await listBranchPrs(roomId)
-  }, [roomId])
+  }, [roomId, viewing])
 
   // Through the Branch's PR history, so a new PR moves the merged one before
   // it into the past PRs (#1701).

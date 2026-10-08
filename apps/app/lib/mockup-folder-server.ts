@@ -11,6 +11,7 @@ import {
   isMockupFileId,
   mockupFolderPrefix,
   mockupPagesPath,
+  type MockupPageResponse,
 } from "@/lib/mockup-folder"
 import type { RoomDoc, RoomReader } from "@/lib/room-access"
 import type { LayerFileData } from "@/lib/types"
@@ -333,4 +334,25 @@ export function mockupPageBase(
 ): { path: string; expiresAt: number } {
   const { token, expiresAt } = mockupPageToken(roomId, fileId, now)
   return { path: mockupPagesPath(token, revision), expiresAt }
+}
+
+/**
+ * A Mockup's page for a canvas (#1886): its `index.html`, its revision, and
+ * the pages-route base its relative paths load from, signed for this Mockup.
+ * Null when the canvas has no such Mockup.
+ */
+export async function mockupPageFor(
+  room: RoomDoc | RoomReader,
+  store: FileStore,
+  fileId: string
+): Promise<MockupPageResponse | null> {
+  const page = await mockupFolderOn(room, store).page(fileId)
+  if (!page) return null
+  const base = mockupPageBase(room.roomId, page.fileId, page.revision)
+  return {
+    html: page.html,
+    revision: page.revision,
+    base: base.path,
+    expiresAt: base.expiresAt,
+  }
 }
