@@ -16,7 +16,7 @@ import {
   FieldContent,
   FieldDescription,
   FieldError,
-  FieldLabel,
+  FieldTitle,
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import { Switch } from "@workspace/ui/components/switch"
@@ -44,7 +44,7 @@ export function SharingDialog({
   roomId,
   roomName,
 }: SharingDialogProps) {
-  const switchId = useId()
+  const titleId = useId()
   const [sharing, setSharing] = useState<SharingView | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -100,14 +100,14 @@ export function SharingDialog({
 
         <Field orientation="horizontal">
           <FieldContent>
-            <FieldLabel htmlFor={switchId}>Sharing</FieldLabel>
+            <FieldTitle id={titleId}>Sharing</FieldTitle>
             <FieldDescription>
               People on your tailnet can watch any canvas whose link you send.
               Turning it off stops every link.
             </FieldDescription>
           </FieldContent>
           <Switch
-            id={switchId}
+            aria-labelledby={titleId}
             checked={on}
             disabled={!sharing || busy}
             onCheckedChange={(next) => void handleChange(next)}
@@ -120,14 +120,15 @@ export function SharingDialog({
           <FieldError>Sharing works only in the packaged app.</FieldError>
         )}
 
-        {sharing?.link && (
-          <Input
-            readOnly
-            aria-label="Link"
-            value={sharing.link}
-            onFocus={(e) => e.currentTarget.select()}
-          />
-        )}
+        {/* Always here, so the dialog keeps its height as Sharing turns on. */}
+        <Input
+          readOnly
+          aria-label="Link"
+          disabled={!sharing?.link}
+          value={sharing?.link ?? ""}
+          placeholder="Turn on Sharing to get this canvas’s link"
+          onFocus={(e) => e.currentTarget.select()}
+        />
 
         <DialogFooter className="sm:justify-start">
           <Button

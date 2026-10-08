@@ -51,7 +51,10 @@ export function HostAwayScreen({ provider }: { provider: WebsocketProvider }) {
     // The host is the one present who isn't a viewer; remember their name
     // for when they're gone.
     const onAwareness = () => {
-      for (const state of provider.awareness.getStates().values()) {
+      const self = provider.awareness.clientID
+      for (const [clientId, state] of provider.awareness.getStates()) {
+        // This page's own presence carries no server stamp yet.
+        if (clientId === self) continue
         const presence = state as {
           viewer?: boolean
           identity?: { name?: string }
