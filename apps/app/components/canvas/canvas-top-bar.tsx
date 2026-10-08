@@ -45,6 +45,7 @@ import { SHORTCUT_SHEET_KEY } from "@/lib/canvas/shortcuts"
 import { deleteRoom } from "@/lib/rooms-actions"
 import { withBasePath } from "@/lib/base-path"
 import type { PageData } from "@/lib/types"
+import { useViewing } from "@/lib/viewer/context"
 
 /**
  * The top-left room-identity pill (PRD #571) — sidebar-expand, the breadcrumb
@@ -111,6 +112,9 @@ export function CanvasTopBar({
 }) {
   const router = useRouter()
   const currentPage = pages.find((p) => p.id === currentPageId)
+  // A viewer (Sharing, #1933) has no home to go back to and nothing to
+  // change: the folder reads as text and ⋯ goes.
+  const watching = !!useViewing()
   return (
     <div
       className={`pointer-events-none absolute top-0 left-0 z-(--z-canvas-chrome) flex h-12 items-center pr-2 ${
@@ -137,35 +141,41 @@ export function CanvasTopBar({
         <Breadcrumb>
           <BreadcrumbList className="gap-0 text-sm sm:gap-0">
             <BreadcrumbItem className="gap-0">
-              <BreadcrumbLink
-                href={parentFolder ? `/files/${parentFolder.id}` : "/files"}
-                className="max-w-[14rem] truncate px-1.5 py-0.5"
-                onClick={(e) => {
-                  e.preventDefault()
-                  stopRoomDevServers()
-                  const target = withBasePath(
-                    parentFolder ? `/files/${parentFolder.id}` : "/files"
-                  )
-                  // Full-page navigation (not router.push): a soft nav
-                  // serves the home page from the client Router Cache,
-                  // which is the copy captured when we ENTERED the room —
-                  // so a layout edit made in here shows up stale on the
-                  // grid. A hard navigation re-renders home from the
-                  // server (fresh thumbnail manifest) every time.
-                  //
-                  // But a full-page unload skips React's unmount cleanup,
-                  // so flush the pending layout edit FIRST and await it
-                  // (the route rebuilds the manifest inline) — otherwise
-                  // the last edit never reaches the server and the fresh
-                  // render is still stale. `.finally` so a failed flush
-                  // still navigates rather than trapping the user.
-                  void flushLayout().finally(() =>
-                    window.location.assign(target)
-                  )
-                }}
-              >
-                {parentFolder ? parentFolder.name : "All files"}
-              </BreadcrumbLink>
+              {watching ? (
+                <span className="max-w-[14rem] truncate px-1.5 py-0.5 text-muted-foreground">
+                  {parentFolder ? parentFolder.name : "All files"}
+                </span>
+              ) : (
+                <BreadcrumbLink
+                  href={parentFolder ? `/files/${parentFolder.id}` : "/files"}
+                  className="max-w-[14rem] truncate px-1.5 py-0.5"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    stopRoomDevServers()
+                    const target = withBasePath(
+                      parentFolder ? `/files/${parentFolder.id}` : "/files"
+                    )
+                    // Full-page navigation (not router.push): a soft nav
+                    // serves the home page from the client Router Cache,
+                    // which is the copy captured when we ENTERED the room —
+                    // so a layout edit made in here shows up stale on the
+                    // grid. A hard navigation re-renders home from the
+                    // server (fresh thumbnail manifest) every time.
+                    //
+                    // But a full-page unload skips React's unmount cleanup,
+                    // so flush the pending layout edit FIRST and await it
+                    // (the route rebuilds the manifest inline) — otherwise
+                    // the last edit never reaches the server and the fresh
+                    // render is still stale. `.finally` so a failed flush
+                    // still navigates rather than trapping the user.
+                    void flushLayout().finally(() =>
+                      window.location.assign(target)
+                    )
+                  }}
+                >
+                  {parentFolder ? parentFolder.name : "All files"}
+                </BreadcrumbLink>
+              )}
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-muted-foreground/60">
               /
@@ -200,73 +210,75 @@ export function CanvasTopBar({
                     pages={pages}
                     currentPage={currentPage}
                     onSelectPage={onSelectPage}
-                    onAddPage={onAddPage}
+                    onAddPage={watching ? undefined : onAddPage}
                   />
                 </BreadcrumbItem>
               </>
             )}
-            <BreadcrumbItem className="gap-0 pl-0.5">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <IconButton
-                    label="Canvas options"
-                    tooltipSide="bottom"
-                    className="text-muted-foreground"
+            {!watching && (
+              <BreadcrumbItem className="gap-0 pl-0.5">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <IconButton
+                      label="Canvas options"
+                      tooltipSide="bottom"
+                      className="text-muted-foreground"
+                    >
+                      <DotsThreeIcon />
+                    </IconButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    onCloseAutoFocus={onRoomMenuCloseAutoFocus}
                   >
-                    <DotsThreeIcon />
-                  </IconButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  onCloseAutoFocus={onRoomMenuCloseAutoFocus}
-                >
-                  {/* Only the owner can rename; a collaborator's
+                    {/* Only the owner can rename; a collaborator's
                       rename would be refused server-side. */}
-                  {isOwner && (
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        pendingRoomRenameRef.current = true
-                      }}
-                    >
-                      <PencilSimpleIcon />
-                      Rename
-                    </DropdownMenuItem>
-                  )}
-                  {/* Everyone on the canvas can edit its repositories, as
+                    {isOwner && (
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          pendingRoomRenameRef.current = true
+                        }}
+                      >
+                        <PencilSimpleIcon />
+                        Rename
+                      </DropdownMenuItem>
+                    )}
+                    {/* Everyone on the canvas can edit its repositories, as
                       from the sidebar. */}
-                  <DropdownMenuItem onSelect={onOpenSettings}>
-                    <GearIcon />
-                    Settings
-                  </DropdownMenuItem>
-                  {/* Where Figma's main menu keeps Help ▸ Keyboard shortcuts. */}
-                  <DropdownMenuItem onSelect={onOpenShortcuts}>
-                    <KeyboardIcon />
-                    Keyboard shortcuts
-                    <MenuKeys keys={[SHORTCUT_SHEET_KEY]} />
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {isOwner && (
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={() => onDeleteDialogOpenChange(true)}
-                    >
-                      <TrashIcon />
-                      Delete
+                    <DropdownMenuItem onSelect={onOpenSettings}>
+                      <GearIcon />
+                      Settings
                     </DropdownMenuItem>
-                  )}
-                  {/* A shared Room the user doesn't own: they leave it
+                    {/* Where Figma's main menu keeps Help ▸ Keyboard shortcuts. */}
+                    <DropdownMenuItem onSelect={onOpenShortcuts}>
+                      <KeyboardIcon />
+                      Keyboard shortcuts
+                      <MenuKeys keys={[SHORTCUT_SHEET_KEY]} />
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {isOwner && (
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => onDeleteDialogOpenChange(true)}
+                      >
+                        <TrashIcon />
+                        Delete
+                      </DropdownMenuItem>
+                    )}
+                    {/* A shared Room the user doesn't own: they leave it
                       rather than destroy it for everyone else. */}
-                  {!isOwner && (
-                    <DropdownMenuItem
-                      onSelect={() => onDeleteDialogOpenChange(true)}
-                    >
-                      <SignOutIcon />
-                      Leave
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </BreadcrumbItem>
+                    {!isOwner && (
+                      <DropdownMenuItem
+                        onSelect={() => onDeleteDialogOpenChange(true)}
+                      >
+                        <SignOutIcon />
+                        Leave
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </BreadcrumbItem>
+            )}
           </BreadcrumbList>
         </Breadcrumb>
         <DeleteRoomDialog
@@ -299,7 +311,8 @@ function PageMenu({
   pages: PageData[]
   currentPage: PageData
   onSelectPage: (pageId: string) => void
-  onAddPage: () => void
+  /** Absent for a viewer, who only switches pages. */
+  onAddPage?: () => void
 }) {
   return (
     <DropdownMenu>
@@ -325,11 +338,15 @@ function PageMenu({
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onAddPage}>
-          <PlusIcon />
-          New page
-        </DropdownMenuItem>
+        {onAddPage && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onAddPage}>
+              <PlusIcon />
+              New page
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

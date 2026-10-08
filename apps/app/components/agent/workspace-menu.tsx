@@ -28,6 +28,7 @@ import type { BranchData } from "@/lib/types"
 import { workspaceLabel } from "@/lib/workspace-label"
 
 import { useChatsMenu } from "./chats-menu"
+import { useViewing } from "@/lib/viewer/context"
 
 /**
  * One Workspace's menu items, the same ones as its Chats row's … (H4): the
@@ -120,6 +121,7 @@ export function WorkspaceHeaderTitle({ branch }: { branch: BranchData }) {
   const editableRef = useRef<EditableTextHandle>(null)
   const pendingEditRef = useRef(false)
   const [renaming, setRenaming] = useState(false)
+  const watching = !!useViewing()
 
   // Rename picked from a frame's Chat submenu opens this chat; the
   // title takes the request once it's showing.
@@ -131,7 +133,8 @@ export function WorkspaceHeaderTitle({ branch }: { branch: BranchData }) {
     editableRef.current?.startEditing()
   }, [renameRequest, clearRenameRequest, branch.id])
 
-  if (!menu) {
+  // A viewer (#1933) reads the title; the host renames and acts on it.
+  if (!menu || watching) {
     return (
       <WorkspaceHoverCard
         branchId={branch.id}

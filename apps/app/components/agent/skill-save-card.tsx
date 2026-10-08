@@ -29,6 +29,7 @@ import {
 } from "@/lib/skills/actions"
 import type { OpenedSkill, SkillFile } from "@/lib/skills/saved"
 import { InlineRef } from "./inline-ref"
+import { useViewing } from "@/lib/viewer/context"
 
 type ToolCallMessage = AgentMessage & { role: "tool_call" }
 
@@ -129,6 +130,8 @@ export function SkillSaveCard({
   const done = message.status === "completed"
   const [state, setState] = useState<State>({ kind: "loading" })
   const [saving, setSaving] = useState<SkillSaveScope | null>(null)
+  // Only the host acts on it; a viewer (#1933) reads it.
+  const watching = !!useViewing()
   const [error, setError] = useState<string | null>(null)
   const [viewing, setViewing] = useState(false)
   const key = offered ? JSON.stringify(offered) : null
@@ -239,23 +242,25 @@ export function SkillSaveCard({
             {error}
           </p>
         )}
-        <ConfirmationActions>
-          {state.kind === "loading" ? (
-            <Spinner className="size-4" aria-label="Checking skill…" />
-          ) : (
-            [...scopes].reverse().map((scope, i) => (
-              <ConfirmationAction
-                key={scope}
-                variant={i === scopes.length - 1 ? "default" : "outline"}
-                disabled={saving !== null}
-                onClick={() => save(scope)}
-              >
-                {saving === scope && <Spinner />}
-                {SCOPE_LABEL[scope]}
-              </ConfirmationAction>
-            ))
-          )}
-        </ConfirmationActions>
+        {!watching && (
+          <ConfirmationActions>
+            {state.kind === "loading" ? (
+              <Spinner className="size-4" aria-label="Checking skill…" />
+            ) : (
+              [...scopes].reverse().map((scope, i) => (
+                <ConfirmationAction
+                  key={scope}
+                  variant={i === scopes.length - 1 ? "default" : "outline"}
+                  disabled={saving !== null}
+                  onClick={() => save(scope)}
+                >
+                  {saving === scope && <Spinner />}
+                  {SCOPE_LABEL[scope]}
+                </ConfirmationAction>
+              ))
+            )}
+          </ConfirmationActions>
+        )}
       </Confirmation>
       <SkillDialog
         skill={

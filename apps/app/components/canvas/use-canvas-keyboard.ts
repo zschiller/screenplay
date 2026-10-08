@@ -59,7 +59,20 @@ export interface CanvasKeyboardInputs {
   openShortcutSheet: () => void
   /** The Comments panel, which Escape closes from anywhere on the canvas. */
   commentsPanel: { isOpen: () => boolean; close: () => void }
+  /** A viewer's canvas (#1933): the keys that draw or change layers do nothing. */
+  readOnly?: boolean
 }
+
+/** What a viewer's keys skip: every action that draws or changes the canvas. */
+const EDIT_ACTIONS = new Set([
+  "tool-document",
+  "tool-frame",
+  "tool-mockup",
+  "delete-selection",
+  "duplicate-selection",
+  "undo",
+  "redo",
+])
 
 export function useCanvasKeyboard({
   toolMode,
@@ -73,6 +86,7 @@ export function useCanvasKeyboard({
   zoom,
   openShortcutSheet,
   commentsPanel,
+  readOnly = false,
 }: CanvasKeyboardInputs): void {
   useEffect(() => {
     // Everything Escape's precedence reads, gathered in one place: the
@@ -96,6 +110,7 @@ export function useCanvasKeyboard({
       const action = matchCanvasKey(e, keyTargetOf(e.target), {
         comments: multiUserSurface,
       })
+      if (readOnly && action && EDIT_ACTIONS.has(action)) return
       switch (action) {
         case null:
           return
@@ -249,5 +264,6 @@ export function useCanvasKeyboard({
     zoom,
     openShortcutSheet,
     commentsPanel,
+    readOnly,
   ])
 }

@@ -124,6 +124,39 @@ describe("a viewer listener", () => {
     }
   )
 
+  // What a viewer's page would send if its hidden controls were still there
+  // (#1933): each refused before Next sees it.
+  it.each([
+    ["sending a message", "POST", "/api/agent/stream"],
+    ["stopping a run", "POST", "/api/agent/stop"],
+    ["approving a plan", "POST", "/api/agent/plan"],
+    ["opening a chat's code", "POST", "/api/branch/create"],
+    ["opening a terminal", "POST", "/api/terminal/url"],
+    ["a server action from the canvas link", "POST", "/s/room-1/key"],
+    ["a server action under the link", "POST", "/s/room-1/key/history"],
+  ])("refuses %s", async (_what, method, path) => {
+    const { base, seen } = await viewerListener(identified)
+    const res = await fetch(`${base}${path}`, {
+      method,
+      headers: { "Next-Action": "abc123" },
+    })
+    expect(res.status).toBe(403)
+    expect(seen).toEqual([])
+  })
+
+  it("serves no terminal data", async () => {
+    const { base, seen } = await viewerListener(identified)
+    for (const path of [
+      "/api/terminal/host",
+      "/api/terminal/url",
+      "/api/terminal/auth",
+      "/s/room-1/key/terminal",
+    ]) {
+      expect((await fetch(`${base}${path}`)).status, path).toBe(404)
+    }
+    expect(seen).toEqual([])
+  })
+
   it("answers 404 to an identified viewer's read off the allowlist", async () => {
     const { base, seen } = await viewerListener(identified)
     for (const path of ["/", "/files", "/settings", "/api/health"]) {

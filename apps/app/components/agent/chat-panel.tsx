@@ -49,6 +49,7 @@ import { chatTargetOf, type ChatPanelTarget } from "@/lib/chat/chat-target"
 import type { WorkspaceTaskRef } from "@/lib/agent/workspace-task"
 import { workspaceBooting } from "@/lib/branch/workspace-state"
 import { setupProgress } from "@/lib/branch/setup-steps"
+import { useViewing } from "@/lib/viewer/context"
 
 /** A Workspace target: its chat over the Terminal Pane. */
 type WorkspaceTarget = Extract<ChatPanelTarget, { kind: "agent" }>
@@ -248,6 +249,9 @@ function WorkspaceChatPanel({
   }, [selectedChatId, ownChatId, onSelectChat])
 
   const { data: session } = useAppSession()
+  // A viewer (Sharing, #1933) reads the chat: no terminals, no PR to create,
+  // nothing to retry or reopen.
+  const watching = !!useViewing()
   const pane = useTerminalPaneController({
     userId: session?.user.id,
     branchId: agent.id,
@@ -314,9 +318,10 @@ function WorkspaceChatPanel({
       <ChatDoneProvider
         value={{
           done: Boolean(agent.doneAt),
-          onReopen: chatsMenu
-            ? () => chatsMenu.onReopenBranch(agent.id)
-            : undefined,
+          onReopen:
+            chatsMenu && !watching
+              ? () => chatsMenu.onReopenBranch(agent.id)
+              : undefined,
         }}
       >
         <AgentChat
@@ -328,11 +333,15 @@ function WorkspaceChatPanel({
               <SetupSteps
                 progress={setup}
                 onRetry={
-                  chatsMenu
+                  chatsMenu && !watching
                     ? () => chatsMenu.onRetryBranch(agent.id)
                     : undefined
                 }
-                onOpenLogs={() => openPaneOn(DEV_SERVER_TERMINAL_ID)}
+                onOpenLogs={
+                  watching
+                    ? undefined
+                    : () => openPaneOn(DEV_SERVER_TERMINAL_ID)
+                }
               />
             )
           }
@@ -387,7 +396,7 @@ function WorkspaceChatPanel({
                 </a>
               </Button>
             </HintTooltip>
-          ) : prReadiness.shown ? (
+          ) : prReadiness.shown && !watching ? (
             // A disabled button fires no pointer events, so its reason hangs
             // off a wrapping span.
             <HintTooltip hint={prReadiness.blocker?.reason}>
@@ -413,7 +422,8 @@ function WorkspaceChatPanel({
         </div>
       </ChatPanelHeader>
 
-      <TerminalPane
+      <ChatBody
+        watching={watching}
         pane={pane}
         agent={agent}
         roomId={roomId}
@@ -433,9 +443,11 @@ function WorkspaceChatPanel({
                 <ChatCircleIcon />
               </EmptyMedia>
               <EmptyTitle>No chat yet</EmptyTitle>
-              <EmptyDescription>Start a chat for this code.</EmptyDescription>
+              {!watching && (
+                <EmptyDescription>Start a chat for this code.</EmptyDescription>
+              )}
             </EmptyHeader>
-            <EmptyContent>
+            <EmptyContent hidden={watching}>
               <Button
                 type="button"
                 size="sm"
@@ -450,9 +462,24 @@ function WorkspaceChatPanel({
           </Empty>
         ) : null}
         {shownEarlierChat && renderChat(shownEarlierChat, true)}
-      </TerminalPane>
+      </ChatBody>
     </div>
   )
+}
+
+/**
+ * Under a Workspace chat's header: the chat over its Terminal Pane, or for a
+ * viewer (#1933) the chat alone, since terminals never reach a viewer.
+ */
+function ChatBody({
+  watching,
+  children,
+  ...pane
+}: React.ComponentProps<typeof TerminalPane> & { watching: boolean }) {
+  if (watching) {
+    return <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+  }
+  return <TerminalPane {...pane}>{children}</TerminalPane>
 }
 
 /** The stock tooltip around a header control, empty while there's nothing to

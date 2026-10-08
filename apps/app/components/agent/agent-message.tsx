@@ -149,6 +149,7 @@ import {
   WORKSPACE_LINK_SCHEME,
   workspaceTasksOf,
 } from "@/lib/agent/workspace-task"
+import { useViewing } from "@/lib/viewer/context"
 
 // The glyph for each icon a tool's description names (tool-description.ts).
 const TOOL_ICONS: Record<ToolIcon, typeof FileTextIcon> = {
@@ -985,6 +986,8 @@ function PlanCard({
 
   const isRejected = status === "rejected"
   const [expanded, setExpanded] = useState(!isRejected)
+  // Only the host decides a plan; a viewer (#1933) reads it.
+  const watching = !!useViewing()
 
   return (
     <ChatDisclosure
@@ -1006,7 +1009,7 @@ function PlanCard({
         <ChatMarkdown className="prose-headings:text-sm prose-headings:font-semibold">
           {content}
         </ChatMarkdown>
-        {status === "pending" && (
+        {status === "pending" && !watching && (
           <div className="mt-3 flex items-center gap-2">
             <Button
               size="sm"

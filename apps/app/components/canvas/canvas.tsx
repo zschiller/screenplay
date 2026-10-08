@@ -787,7 +787,10 @@ export function Canvas({
   const setCreateFlowIframeLayerId = interaction.setCreateFlowIframeLayerId
   const hoveredIframeLayerId = interaction.hoveredIframeLayerId
   const setHoveredIframeLayerId = interaction.setHoveredIframeLayerId
-  const editingDocumentLayerId = interaction.editingDocumentLayerId
+  // A viewer (#1933) never edits a Document.
+  const editingDocumentLayerId = viewing
+    ? null
+    : interaction.editingDocumentLayerId
   const setEditingDocumentLayerId = interaction.setEditingDocumentLayerId
   const spaceHeld = interaction.spaceHeld
   const chatAnchor = interaction.chatAnchor
@@ -1379,6 +1382,7 @@ export function Canvas({
     zoom: zoomControls,
     openShortcutSheet,
     commentsPanel: commentsPanelKeys,
+    readOnly: !!viewing,
   })
 
   // Canvas Gesture FSM (gap-resize + reorder + group-move/merge + marquee +
@@ -2301,6 +2305,7 @@ export function Canvas({
   useEffect(() => {
     gestureInputsRef.current = {
       applyIntent: applyGestureIntent,
+      readOnly: !!viewing,
       getTransform: () => transformRef.current?.state ?? null,
       zoom,
       spaceHeld,
@@ -2987,14 +2992,16 @@ export function Canvas({
                   </div>
 
                   {/* Takes a file tile dragged out of the chat (#1887). */}
-                  <FileDropSurface
-                    layouts={effectiveIframeLayerLayouts}
-                    camera={() => transformRef.current?.state ?? null}
-                    sizeOf={ops.fileViewSize}
-                    onDrop={(fileId, at) => void dropFile(fileId, at)}
-                    embedAt={embedFileAt}
-                    onEmbed={embedFile}
-                  />
+                  {!viewing && (
+                    <FileDropSurface
+                      layouts={effectiveIframeLayerLayouts}
+                      camera={() => transformRef.current?.state ?? null}
+                      sizeOf={ops.fileViewSize}
+                      onDrop={(fileId, at) => void dropFile(fileId, at)}
+                      embedAt={embedFileAt}
+                      onEmbed={embedFile}
+                    />
+                  )}
 
                   {/* Portal target for floating frame toolbars. Lives above the
                   SelectionOverlay so the toolbar isn't painted over by hover
@@ -3037,6 +3044,8 @@ export function Canvas({
                     iframeLayerLayouts={effectiveIframeLayerLayouts}
                     drivenFrames={drivenFrames}
                     hideResizeHandles={
+                      // A viewer (#1933) resizes nothing.
+                      !!viewing ||
                       editingDocumentLayerId !== null ||
                       selectedGroupIds.size > 0 ||
                       // An interacting frame is for using the preview, not
@@ -3110,7 +3119,7 @@ export function Canvas({
                     />
                   ) : null}
                   {/* A drawn Mockup box asking what to show already took the click. */}
-                  {isCanvasEmpty && !askMockupBox && (
+                  {isCanvasEmpty && !askMockupBox && !viewing && (
                     <CanvasEmptyState toolMode={toolMode} repos={repos} />
                   )}
                   {/* Window-drag strip: spans the full toolbar height across the top
@@ -3190,12 +3199,15 @@ export function Canvas({
                     layerFiles={layerFilesInTree}
                     skills={canvasSkills}
                   />
-                  <CanvasToolbarMemo
-                    {...chromeStable.value("toolbar", {
-                      toolMode,
-                      onClearMode: reference.clearMode,
-                    })}
-                  />
+                  {/* A viewer (#1933) draws nothing. */}
+                  {!viewing && (
+                    <CanvasToolbarMemo
+                      {...chromeStable.value("toolbar", {
+                        toolMode,
+                        onClearMode: reference.clearMode,
+                      })}
+                    />
+                  )}
                   {askFrameId ? (
                     <FrameAskCard
                       key={askFrameId}

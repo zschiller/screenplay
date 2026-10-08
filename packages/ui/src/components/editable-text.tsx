@@ -16,6 +16,10 @@ export type EditableTextHandle = {
 export const editableTextFieldClass =
   "relative z-10 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden rounded-xs bg-white text-black shadow-sm ring-[0.5px] ring-black/15"
 
+/** True below a page that renames nothing, e.g. a canvas watched read-only:
+ *  every EditableText under it stays a label. */
+export const EditableTextLocked = React.createContext(false)
+
 type ElementTag = "span" | "div" | "h1" | "h2" | "h3" | "h4" | "p"
 
 export type EditableTextProps = {
@@ -75,7 +79,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
       style,
       viewClassName,
       editClassName,
-      disabled,
+      disabled: disabledProp,
       tabIndex = 0,
       singleLine = true,
       selectAllOnEdit = true,
@@ -89,6 +93,7 @@ const EditableText = React.forwardRef<EditableTextHandle, EditableTextProps>(
     },
     ref
   ) {
+    const disabled = React.useContext(EditableTextLocked) || disabledProp
     const [isEditing, setIsEditing] = React.useState(false)
     const elRef = React.useRef<HTMLElement | null>(null)
     const isComposingRef = React.useRef(false)

@@ -16,7 +16,7 @@ function panel(collapsed = false) {
   }
 }
 
-function setup({ commentsPanelOpen = false } = {}) {
+function setup({ commentsPanelOpen = false, readOnly = false } = {}) {
   const sidebar = panel()
   const chat = panel()
   const selection = {
@@ -54,6 +54,7 @@ function setup({ commentsPanelOpen = false } = {}) {
     },
     openShortcutSheet: vi.fn(),
     commentsPanel,
+    readOnly,
   } as unknown as CanvasKeyboardInputs
   renderHook(() => useCanvasKeyboard(inputs))
   return { sidebar, chat, selection, history, interaction, commentsPanel }
@@ -220,5 +221,25 @@ describe("Space", () => {
     )
     press(button, " ")
     expect(interaction.setSpaceHeld).toHaveBeenCalledWith(true)
+  })
+})
+
+describe("a viewer's canvas (#1933)", () => {
+  it("ignores delete, duplicate, undo and tool keys", () => {
+    const { selection, history } = setup({ readOnly: true })
+    press(document.body, "Backspace")
+    press(document.body, "d", { metaKey: true })
+    press(document.body, "z", { metaKey: true })
+    expect(selection.deleteSelected).not.toHaveBeenCalled()
+    expect(selection.duplicateSelected).not.toHaveBeenCalled()
+    expect(history.undo).not.toHaveBeenCalled()
+  })
+
+  it("still clears the selection and toggles panels", () => {
+    const { selection, sidebar } = setup({ readOnly: true })
+    press(document.body, "Escape")
+    press(document.body, "b", { metaKey: true })
+    expect(selection.clear).toHaveBeenCalledTimes(1)
+    expect(sidebar.collapse).toHaveBeenCalledTimes(1)
   })
 })

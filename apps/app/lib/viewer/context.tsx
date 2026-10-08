@@ -2,6 +2,9 @@
 
 import { createContext, useContext, type ReactNode } from "react"
 
+import { EditableTextLocked } from "@workspace/ui/components/editable-text"
+
+import { readChatsThroughLink } from "@/lib/chat-store"
 import type { ViewerPerson } from "@/lib/viewer-identity/types"
 
 /**
@@ -25,7 +28,16 @@ export function ViewingProvider({
   value: Viewing
   children: ReactNode
 }) {
-  return <ViewingContext value={value}>{children}</ViewingContext>
+  // Before any chat below loads its history: children's effects run before
+  // this component's, so the store learns the link while rendering. One
+  // viewer page watches one canvas, so setting it again is a no-op.
+  readChatsThroughLink({ roomId: value.roomId, shareKey: value.shareKey })
+  // A viewer renames nothing (#1933): every name on the page stays a label.
+  return (
+    <ViewingContext value={value}>
+      <EditableTextLocked value>{children}</EditableTextLocked>
+    </ViewingContext>
+  )
 }
 
 /** The viewer this page is for, or null on the host's own pages. */

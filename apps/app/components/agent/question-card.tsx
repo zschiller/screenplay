@@ -19,6 +19,7 @@ import { fileModal } from "@/lib/canvas/file-modal"
 import { useLayerFile } from "@/lib/yjs/react"
 import { InlineRef } from "./inline-ref"
 import { LayerHoverCard } from "./layer-hover-card"
+import { useViewing } from "@/lib/viewer/context"
 
 /**
  * A chat's question (#1312), drawn with shadcn's Questionnaire: one item, a
@@ -55,6 +56,8 @@ export function QuestionCard({
   // Picked here but not yet in the transcript: holds the card shut until the
   // sent message lands, so a second pick can't send a second answer.
   const [sent, setSent] = useState<number | null>(null)
+  // Only the host answers; a viewer (#1933) reads the choices.
+  const watching = !!useViewing()
   const question = parseQuestion(message.rawInput)
   if (!question) return null
 
@@ -62,7 +65,7 @@ export function QuestionCard({
   const chosen = answer ? answer.chosen : sent
 
   const pick = (index: number) => {
-    if (answered || !chatId) return
+    if (answered || !chatId || watching) return
     setSent(index)
     // A refused send holds its text in the chat for Retry; the card opens
     // again so a pick can be made here.
@@ -116,7 +119,10 @@ export function QuestionCard({
         {/* The answer line sits as close under the choices as a sender's
             name sits over their message. */}
         <div className="flex flex-col gap-1">
-          <QuestionnaireChoices onKeyDown={onChoicesKeyDown}>
+          <QuestionnaireChoices
+            onKeyDown={onChoicesKeyDown}
+            className={watching ? "pointer-events-none" : undefined}
+          >
             {question.options.map((option, i) => (
               <QuestionnaireChoice
                 key={i}

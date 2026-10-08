@@ -21,6 +21,7 @@ import {
   type LayerMenuActions,
 } from "./layer-menu"
 import { MoveToPageContext, type MoveToPage } from "./move-to-page"
+import { ViewingProvider } from "@/lib/viewer/context"
 
 // Radix's dropdown content positions itself with floating-ui, which needs a
 // ResizeObserver, and uses pointer-capture APIs jsdom doesn't implement.
@@ -211,6 +212,25 @@ describe("LayerMenu", () => {
     )
     expect(screen.getAllByRole("button", { name: names[noun] })).toHaveLength(3)
     expect(screen.queryByRole("button", { name: "More" })).toBeNull()
+  })
+
+  it("gives a viewer no menu at all (#1933)", () => {
+    render(
+      <ViewingProvider
+        value={{
+          person: { id: "ana", name: "Ana" },
+          roomId: "room-1",
+          shareKey: "key",
+        }}
+      >
+        <LayerMenuProvider>
+          <LayerMenu placement="toolbar" actions={frame()} />
+          <LayerMenu placement="label" actions={frame()} />
+          <LayerMenu placement="row" layerId="layer-1" actions={frame()} />
+        </LayerMenuProvider>
+      </ViewingProvider>
+    )
+    expect(screen.queryByRole("button", { name: "Frame options" })).toBeNull()
   })
 
   it("opens the object's menu from the toolbar", () => {

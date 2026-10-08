@@ -76,6 +76,7 @@ import {
   type DraftSource,
 } from "@/lib/chat-draft-source-store"
 import { useMarkdownLayers } from "@/lib/yjs/react"
+import { useViewing } from "@/lib/viewer/context"
 import { removeAttachment, uploadAttachment } from "@/lib/chat-attachments"
 
 // Stable subscribe reference for `useSyncExternalStore` — a fresh closure each
@@ -169,6 +170,8 @@ export function AgentChat({
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const pinToBottomRef = useRef<() => void>(() => {})
   const composerRef = useRef<ComposerHandle>(null)
+  // A viewer (Sharing, #1933) reads the chat live and sends nothing.
+  const watching = !!useViewing()
 
   const markdownLayers = useMarkdownLayers()
 
@@ -470,6 +473,7 @@ export function AgentChat({
         // Retry only while the error is the last thing in the chat: once the
         // conversation has moved on, redoing it would act out of turn.
         onRetry={
+          !watching &&
           msg === messages[messages.length - 1] &&
           !isStreaming &&
           chatStore.canRetryError(msg)
@@ -583,7 +587,7 @@ export function AgentChat({
       </SkillIndexContext.Provider>
 
       {/* Input. An earlier chat is read-only (#1315): only the Workspace's
-          own chat sends. */}
+          own chat sends. A viewer (#1933) sends nothing, so has none. */}
       {onOpenWorkspaceChat ? (
         <div className="flex items-center gap-3 border-t border-border p-4 text-sm text-muted-foreground">
           <p className="min-w-0 flex-1 text-balance">
@@ -598,7 +602,7 @@ export function AgentChat({
             Open chat
           </Button>
         </div>
-      ) : (
+      ) : watching ? null : (
         <Composer
           ref={composerRef}
           markdownLayers={markdownLayers}
