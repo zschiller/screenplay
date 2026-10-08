@@ -29,7 +29,7 @@ Code blocks use the terminal’s ANSI palette (`@workspace/ui/lib/ansi-palette`)
 
 ## Search
 
-Search is [Pagefind](https://pagefind.app), indexed from the prerendered pages by `search-index.mjs` after `next build` and written to `public/_pagefind` (gitignored). `pnpm dev` doesn’t build the index, so search finds nothing in dev unless a build has run before. Elements marked `data-pagefind-ignore` (the page nav, Copy page) stay out of the index.
+Search is [Pagefind](https://pagefind.app), indexed from the prerendered pages by `search-index.mjs` after `next build` and written to `public/_pagefind` (gitignored). On Vercel the build adapter has already copied `public/` into its deploy output by then, so the script also writes the index to `.next/output/static/docs/_pagefind`; without that the live site has no index and search fails to load. `pnpm dev` doesn’t build the index, so search finds nothing in dev unless a build has run before. Elements marked `data-pagefind-ignore` (the page nav, Copy page) stay out of the index.
 
 ## Before and after shots
 
