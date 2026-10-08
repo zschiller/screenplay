@@ -10,7 +10,7 @@ const faqs = [
   },
   {
     q: "Which agents does it work with?",
-    a: "The Mac app runs Claude Code, Codex or OpenCode, using the one you already have installed and its login, subscriptions included. The hosted web app has a built-in agent that runs on Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint.",
+    a: "The Mac app runs Claude Code, Codex, OpenCode or Antigravity, using the one you already have installed and its login, subscriptions included. The hosted web app has a built-in agent that runs on Anthropic, OpenAI, Google, the Vercel AI Gateway or any OpenAI-compatible endpoint.",
   },
   {
     q: "Should I use the Mac app or host it?",
@@ -18,7 +18,7 @@ const faqs = [
   },
   {
     q: "What do I need for the Mac app?",
-    a: "A Mac with Apple Silicon, Claude Code, Codex or OpenCode installed and signed in, and a project that runs a local preview. There’s no build for Intel Macs, Windows or Linux; on those, use a hosted deployment in the browser.",
+    a: "A Mac with Apple Silicon, Claude Code, Codex, OpenCode or Antigravity installed and signed in, and a project that runs a local preview. There’s no build for Intel Macs, Windows or Linux; on those, use a hosted deployment in the browser.",
   },
   {
     q: "Do I need GitHub?",

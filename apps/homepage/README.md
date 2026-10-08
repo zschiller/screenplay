@@ -44,7 +44,7 @@ Each of these was on the page once and was false. Check the code before writing 
 
 | Question | Fact | Where it lives |
 | --- | --- | --- |
-| Which agents | Mac chats run Claude Code, Codex or OpenCode through the user’s own CLI login. Hosted chats use only the built-in agent. | `apps/app/lib/agent/acp/engine-choice.ts`, `apps/app/lib/agent/harnesses/` (`SANDBOX_HARNESSES` installs CLIs for hosted terminals only) |
+| Which agents | Mac chats run Claude Code, Codex, OpenCode or Antigravity through the user’s own CLI login. Hosted chats use only the built-in agent. | `apps/app/lib/agent/acp/engine-choice.ts`, `apps/app/lib/agent/harnesses/` (`SANDBOX_HARNESSES` installs CLIs for hosted terminals only) |
 | Mac app or host it | No Screenplay-run service; the web app is self-hosted. | |
 | What the Mac app needs | Apple Silicon only; no Intel, Windows or Linux build. | `apps/desktop/scripts/release.mjs` |
 | Do I need GitHub | Optional on the Mac (a local folder or any clone URL); hosted signs in with GitHub and uses GitHub repositories. | |
