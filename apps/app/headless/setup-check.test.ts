@@ -14,9 +14,8 @@ const ready: SetupFacts = {
 }
 
 const builtIn: SetupNeeds = {
-  codingClis: null,
-  builtInClis: ["claude", "codex", "opencode"],
-  githubCommand: "gh",
+  codingClis: ["claude", "codex", "opencode"],
+  needsGh: true,
 }
 
 const without =
@@ -54,7 +53,7 @@ describe("missingPrerequisites", () => {
       "git, for every chat’s code",
       "A C++ toolchain for the terminal (make, g++), then pnpm install again",
       "Chrome for thumbnails: set CHROMIUM_PATH, or run pnpm --filter app exec puppeteer browsers install chrome",
-      "A coding CLI: one of claude, codex, opencode, or name yours in CODING_CLIS",
+      "A coding CLI: one of claude, codex, opencode",
       "The GitHub CLI, gh",
     ])
   })
@@ -65,7 +64,7 @@ describe("missingPrerequisites", () => {
     ).toEqual(["The terminal’s native build: run pnpm rebuild node-pty"])
   })
 
-  it("needs any one built-in coding CLI", () => {
+  it("needs any one coding CLI", () => {
     expect(
       missingPrerequisites(
         { ...ready, onPath: without("claude", "opencode") },
@@ -74,27 +73,11 @@ describe("missingPrerequisites", () => {
     ).toEqual([])
   })
 
-  it("needs every coding CLI CODING_CLIS lists, and its GitHub command", () => {
-    expect(
-      missingPrerequisites(
-        { ...ready, onPath: without("corp-code", "corp-gh") },
-        {
-          ...builtIn,
-          codingClis: ["claude", "corp-code"],
-          githubCommand: "corp-gh",
-        }
-      )
-    ).toEqual([
-      "The coding CLI corp-code, which CODING_CLIS lists",
-      "The GitHub command corp-gh, which GitHub access runs",
-    ])
-  })
-
-  it("needs no GitHub command when GitHub access uses none", () => {
+  it("needs no gh when GitHub access doesn’t run it", () => {
     expect(
       missingPrerequisites(
         { ...ready, onPath: without("gh") },
-        { ...builtIn, githubCommand: null }
+        { ...builtIn, needsGh: false }
       )
     ).toEqual([])
   })

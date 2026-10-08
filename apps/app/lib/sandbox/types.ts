@@ -82,9 +82,9 @@ export interface SandboxCreateOptions {
   ports: number[]
   /**
    * The subset of `ports` a browser loads (the bridge proxy, the frame
-   * stream). A backend that shares the host's network takes these from the
-   * preview exposure's port range and binds them where it says; a backend
-   * with its own network ignores it.
+   * stream). A backend that shares the host's network releases them from the
+   * preview exposure when the Sandbox is deleted; a backend with its own
+   * network ignores it.
    */
   browserPorts?: number[]
   /** Auto-stop after this many ms of inactivity. */

@@ -204,7 +204,14 @@ export interface HostFacts {
   arch: string
 }
 
-/** See {@link HostHarness.ownSkills}. */
+/**
+ * A coding-harness descriptor. The flat catalog in `index.ts` is an array of
+ * these keyed by `key`, mirroring the model-provider registry
+ * (`lib/agent/providers`): teach the system a new harness by dropping a
+ * descriptor in the array — the selection fold, brokered-env fold, and
+ * installer all generalize over it for free.
+ */
+/** See {@link Harness.ownSkills}. */
 export interface HarnessOwnSkills {
   /** How the `/` menu names the agent, e.g. "Claude Code". */
   agentName: string
@@ -213,17 +220,7 @@ export interface HarnessOwnSkills {
   dirs: readonly string[]
 }
 
-/**
- * A coding-harness descriptor as the **host** reads it: what the desktop and
- * Headless builds list, launch, sign in and back chat with, for a CLI that runs
- * on the host on its own login. The hosted sandbox catalog extends it with
- * install and broker facts ({@link Harness}). The flat catalog in `index.ts`
- * is an array of those keyed by `key`, mirroring the model-provider registry
- * (`lib/agent/providers`): teach the system a new harness by dropping a
- * descriptor in the array — the selection fold, brokered-env fold, and
- * installer all generalize over it for free.
- */
-export interface HostHarness {
+export interface Harness {
   /**
    * Stable key named in `SANDBOX_HARNESSES` (comma-separated). Must contain
    * neither a comma (it's the list separator) nor a colon (it's the model-id
@@ -236,6 +233,9 @@ export interface HostHarness {
   /** Human-readable label shown in docs / config UIs. */
   label: string
 
+  /** npm package installed globally via `npm install -g <installPackage>`. */
+  installPackage: string
+
   /**
    * Shell command that starts the harness CLI in the terminal (e.g. `claude`).
    * A terminal tab stores the harness *key*, not this command — the server
@@ -246,6 +246,29 @@ export interface HostHarness {
    * persistent tmux session rather than killing the tab.
    */
   launchCommand: string
+
+  /**
+   * Key of the model provider whose egress brokers this harness's API auth. A
+   * harness is only installable when this provider is configured AND its
+   * `egress()` is header-brokerable (non-null) — that's the firewall rule that
+   * lets the harness reach its API without ever holding the real key.
+   */
+  brokerProviderKey: string
+
+  /**
+   * Env var the harness gates on at boot (e.g. `ANTHROPIC_API_KEY`).
+   * `buildBrokeredEnv` emits `<gateEnvVar>=<BROKERED_VALUE>` — a dummy, never a
+   * real key — so the harness boots and the firewall injects the real key on
+   * egress.
+   */
+  gateEnvVar: string
+
+  /**
+   * Optional base-url override emitted into the boot env so the harness points
+   * at the brokered host (e.g. a harness that defaults elsewhere). Omitted when
+   * the harness already targets its provider's host by default.
+   */
+  baseUrlEnv?: { name: string; value: string }
 
   /**
    * Argv that launches the harness CLI in an interactive terminal tab — the
@@ -319,6 +342,13 @@ export interface HostHarness {
   defaultModelId?: string
 
   /**
+   * Reproduce the harness's in-sandbox setup after install (onboarding state,
+   * config files, …). Best-effort: runs as the unprivileged sandbox user, so
+   * it writes under `sandbox.homeDir` / `sandbox.worktreePath`.
+   */
+  seed(sandbox: SandboxInstance): Promise<void>
+
+  /**
    * Probe whether this harness's **own login** is present on the desktop host
    * (ADR 0015) — the auth fact the "Coding agents" Settings surface surfaces
    * per row, additively on top of presence. There is no shared `auth token`
@@ -371,48 +401,6 @@ export interface HostHarness {
    * (OpenCode, #1589). Omitted when the curated list is the whole story.
    */
   modelList?: HarnessModelList
-}
-
-/**
- * A harness in the **hosted sandbox catalog**: everything the host reads, plus
- * how the sandbox installs it and brokers its API key. This half stays
- * internal (spec #1923): a CLI people add for their own host is a
- * {@link HostHarness}, built from the public Coding CLI interface
- * (`./coding-cli`).
- */
-export interface Harness extends HostHarness {
-  /** npm package installed globally via `npm install -g <installPackage>`. */
-  installPackage: string
-
-  /**
-   * Key of the model provider whose egress brokers this harness's API auth. A
-   * harness is only installable when this provider is configured AND its
-   * `egress()` is header-brokerable (non-null) — that's the firewall rule that
-   * lets the harness reach its API without ever holding the real key.
-   */
-  brokerProviderKey: string
-
-  /**
-   * Env var the harness gates on at boot (e.g. `ANTHROPIC_API_KEY`).
-   * `buildBrokeredEnv` emits `<gateEnvVar>=<BROKERED_VALUE>` — a dummy, never a
-   * real key — so the harness boots and the firewall injects the real key on
-   * egress.
-   */
-  gateEnvVar: string
-
-  /**
-   * Optional base-url override emitted into the boot env so the harness points
-   * at the brokered host (e.g. a harness that defaults elsewhere). Omitted when
-   * the harness already targets its provider's host by default.
-   */
-  baseUrlEnv?: { name: string; value: string }
-
-  /**
-   * Reproduce the harness's in-sandbox setup after install (onboarding state,
-   * config files, …). Best-effort: runs as the unprivileged sandbox user, so
-   * it writes under `sandbox.homeDir` / `sandbox.worktreePath`.
-   */
-  seed(sandbox: SandboxInstance): Promise<void>
 }
 
 /** A harness named in `SANDBOX_HARNESSES` that won't be installed, with why. */

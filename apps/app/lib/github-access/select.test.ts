@@ -6,7 +6,6 @@ describe("selectGitHubAccess", () => {
   it("is oauth-account on Hosted, with no override", () => {
     const access = selectGitHubAccess({})
     expect(access.id).toBe("oauth-account")
-    expect(access.apiUrl).toBe("https://api.github.com")
     expect(access.git.kind).toBe("brokered")
   })
 

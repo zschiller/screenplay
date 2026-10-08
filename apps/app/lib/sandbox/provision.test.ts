@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ModelProvider } from "@/lib/agent/providers"
-import {
-  getPreviewExposure,
-  loopbackExposure,
-  urlTemplateExposure,
-} from "@/lib/preview-exposure"
+import { getPreviewExposure, loopbackExposure } from "@/lib/preview-exposure"
 import type {
   SandboxCommandResult,
   SandboxCreateOptions,
@@ -762,11 +758,15 @@ describe("startDevServer", () => {
     }
   })
 
-  it("binds the bridge proxy where the preview exposure says, and returns its browser origin", async () => {
+  it("returns the bridge proxy's exposed browser origin", async () => {
     vi.stubEnv("SANDBOX_BACKEND", "local")
-    setPreviewExposure(
-      urlTemplateExposure({ origin: "https://{port}-box.corp.example" })
-    )
+    // A fork's exposure, serving each port at its own origin.
+    setPreviewExposure({
+      expose: async (port) => ({
+        browserOrigin: `https://${port}-box.tailnet.example`,
+      }),
+      release: async () => {},
+    })
     try {
       const calls: RecordedCall[] = []
       const sandbox = fakeSandbox(() => ({ exitCode: 0 }), {
@@ -783,11 +783,11 @@ describe("startDevServer", () => {
 
       expect(findProxyLaunch(calls)!.env).toMatchObject({
         SCREENPLAY_LISTEN_PORT: "54000",
-        SCREENPLAY_LISTEN_HOST: "0.0.0.0",
+        SCREENPLAY_LISTEN_HOST: "127.0.0.1",
       })
       expect(result).toMatchObject({
         success: true,
-        value: { previewDomain: "https://54000-box.corp.example" },
+        value: { previewDomain: "https://54000-box.tailnet.example" },
       })
     } finally {
       setPreviewExposure(loopbackExposure())

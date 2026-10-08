@@ -1,31 +1,25 @@
 ---
 title: GitHub access
-description: Which GitHub a Screenplay server talks to and with whose credentials, and the built-ins for Hosted, the Mac app, a company gh wrapper and GitHub Enterprise.
+description: Whose credentials a Screenplay server talks to GitHub with, and the built-ins for Hosted and the Mac app.
 ---
 
 # GitHub access
 
 Every GitHub call Screenplay makes, and every push from a chat, needs to know
-which GitHub to talk to and whose credentials to use. **GitHub access**
-decides both. It’s a small interface in `apps/app/lib/github-access/` with two
+whose credentials to use. **GitHub access** decides that. It’s a small interface in `apps/app/lib/github-access/` with two
 built-ins:
 
 | Built-in        | Token for API calls                    | Git in a chat                                  | For                                           |
 | --------------- | -------------------------------------- | ---------------------------------------------- | --------------------------------------------- |
 | `oauth-account` | each person’s GitHub sign-in           | brokered: each person’s token, commits as them | Hosted (the default there)                    |
-| `gh-cli`        | `gh auth token`, or a wrapper’s output | the machine’s own git credentials and identity | The Mac app (the default there), your own box |
+| `gh-cli`        | `gh auth token`                        | the machine’s own git credentials and identity | The Mac app (the default there), your own box |
 
-Repositories, pull requests, links and API calls all use the GitHub host it
-names, so a GitHub Enterprise host works everywhere.
+Both talk to github.com.
 
 ## The interface
 
 ```ts
 interface GitHubAccess {
-  // REST base, e.g. "https://api.github.com" or "https://ghe.corp.example/api/v3".
-  readonly apiUrl: string
-  // Web base, e.g. "https://github.com". Recognises remotes and builds clone URLs.
-  readonly webUrl: string
   // A token for the server's own API calls for this person, or null (GitHub features stay off).
   apiToken(userId: string): Promise<string | null>
   // How git inside a chat signs in and authors commits.
@@ -48,49 +42,23 @@ token for each command and sets them as author and committer.
 
 ## Built-ins
 
-Each built-in is a function in `apps/app/lib/github-access/` that takes its
-options as an object.
-
 ### `oauth-account`
 
 Hosted’s behaviour. The token is the one saved when the person signed in with
 GitHub.
 
-| Option   | Default                  |               |
-| -------- | ------------------------ | ------------- |
-| `apiUrl` | `https://api.github.com` | The REST base |
-| `webUrl` | `https://github.com`     | The web base  |
-
 ### `gh-cli`
 
 The Mac app’s behaviour. The token is whatever `gh auth token` prints, and git
-uses the machine’s own credentials. A fork for a company box can point it at a
-wrapper command and a GitHub Enterprise host:
-
-```ts
-createGhCliAccess({ command: "corp-gh", hostname: "ghe.corp.example" })
-```
-
-| Option     | Default          |                                                                                      |
-| ---------- | ---------------- | ------------------------------------------------------------------------------------ |
-| `command`  | `gh`             | The command to run instead of `gh`: a name, or a list of words like `["corp", "gh"]` |
-| `hostname` | gh’s own default | The GitHub host. Adds `--hostname` to every `gh` call                                |
-| `apiUrl`   | from `hostname`  | Overrides the REST base                                                              |
-| `webUrl`   | from `hostname`  | Overrides the web base                                                               |
-
-The URLs come from the hostname: `github.com` uses `https://api.github.com`,
-a `*.ghe.com` host uses `https://api.<host>`, and any other host is GitHub
-Enterprise Server at `https://<host>/api/v3`. Git still needs to be able to
-push to that host on its own, for example after `gh auth setup-git`.
+uses the machine’s own credentials.
 
 ## Picking one
 
 `selectGitHubAccess()` in `apps/app/lib/github-access/index.ts` picks one:
-`oauth-account` when people sign in with GitHub (Hosted), and `gh-cli` with its
-defaults when the host is the only writer (the Mac app, Headless). Set
+`oauth-account` when people sign in with GitHub (Hosted), and `gh-cli` when the
+host is the only writer (the Mac app, Headless). Set
 `GITHUB_ACCESS` to `oauth-account` or `gh-cli` to override that. An id it
 doesn’t know stops the server from starting.
 
-A built-in with options, or an implementation of your own, is a change to
-`selectGitHubAccess()` in your fork. Every replaceable part of Screenplay is
-picked the same way, like the [Yjs host](/self-hosting/configuration/yjs-host).
+Every replaceable part of Screenplay is picked the same way, like the
+[Yjs host](/self-hosting/configuration/yjs-host).

@@ -5,7 +5,7 @@ import path from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { loopbackExposure, urlTemplateExposure } from "@/lib/preview-exposure"
+import { loopbackExposure } from "@/lib/preview-exposure"
 import {
   LocalSandboxProvider,
   RefAlreadyOpenError,
@@ -805,20 +805,15 @@ describe("LocalSandboxProvider with a preview exposure", () => {
       source: { type: "git", url: sourceRepo, revision },
       browserPorts: [4000],
     })
-  let from: number
   let released: number[]
 
   beforeEach(() => {
-    from = 46000 + Math.floor(Math.random() * 400) * 5
     released = []
-    const urls = urlTemplateExposure({
-      origin: "https://{port}-box.corp.example",
-      signInUrl: "https://{port}-box.corp.example/",
-      bindHost: "127.0.0.1",
-      ports: { from, to: from + 4 },
-    })
+    // A fork's exposure, serving each port at its own origin.
     setPreviewExposure({
-      ...urls,
+      expose: async (port) => ({
+        browserOrigin: `https://${port}-box.tailnet.example`,
+      }),
       release: async (port) => {
         released.push(port)
       },
@@ -829,50 +824,48 @@ describe("LocalSandboxProvider with a preview exposure", () => {
     setPreviewExposure(loopbackExposure())
   })
 
-  it("takes a browser port from the range and exposes it at the pattern's origin", async () => {
+  it("exposes a browser port at the exposure's origin", async () => {
     const a = await provider.create(exposedOpts("branch-a"))
+    const port = a.hostPort(4000)
 
-    expect(a.hostPort(4000)).toBe(from)
     expect(await a.expose(4000)).toEqual({
-      browserOrigin: `https://${from}-box.corp.example`,
-      signInUrl: `https://${from}-box.corp.example/`,
+      browserOrigin: `https://${port}-box.tailnet.example`,
     })
     // The server's own address stays on loopback.
-    expect(a.internalUrl(4000)).toBe(`http://127.0.0.1:${from}`)
+    expect(a.internalUrl(4000)).toBe(`http://127.0.0.1:${port}`)
   })
 
-  it("reuses a deleted Workspace's port, so its proxy sign-in still holds", async () => {
+  it("releases a deleted Workspace's browser ports", async () => {
     const a = await provider.create(exposedOpts("branch-a"))
+    const port = a.hostPort(4000)
     await a.delete()
-    expect(released).toEqual([from])
-
-    const b = await provider.create(exposedOpts("branch-b", "feature"))
-    expect(b.hostPort(4000)).toBe(from)
+    expect(released).toEqual([port])
   })
 
   it("keeps a previous run's ports for its own Workspaces", async () => {
-    await provider.create(exposedOpts("branch-a"))
+    const a = await provider.create(exposedOpts("branch-a"))
     // A restarted server: a fresh provider over the same data folder.
     const restarted = new LocalSandboxProvider(root)
-    const b = await restarted.create(exposedOpts("branch-b", "feature"))
-    expect(b.hostPort(4000)).toBe(from + 1)
+    const again = await restarted.get({ name: "branch-a" })
+    expect(again.hostPort(4000)).toBe(a.hostPort(4000))
   })
 
   it("maps an exposed browser URL back to its internal address", async () => {
     const a = await provider.create(exposedOpts("branch-a"))
+    const port = a.hostPort(4000)
     await a.expose(4000)
 
     expect(
       await provider.internalUrlFor(
-        `https://${from}-box.corp.example/pricing?plan=pro`
+        `https://${port}-box.tailnet.example/pricing?plan=pro`
       )
-    ).toBe(`http://127.0.0.1:${from}/pricing?plan=pro`)
+    ).toBe(`http://127.0.0.1:${port}/pricing?plan=pro`)
     // Another origin, and a loopback URL, pass through.
     expect(await provider.internalUrlFor("https://example.com/")).toBe(
       "https://example.com/"
     )
-    expect(await provider.internalUrlFor(`http://localhost:${from}/`)).toBe(
-      `http://localhost:${from}/`
+    expect(await provider.internalUrlFor(`http://localhost:${port}/`)).toBe(
+      `http://localhost:${port}/`
     )
   })
 
@@ -901,56 +894,38 @@ describe("LocalSandboxProvider on Headless (host frames through portless)", () =
       source: { type: "git", url: sourceRepo, revision },
       browserPorts: [4000],
     })
-  let from: number
-  let exposedForViewers: number[]
 
   beforeEach(() => {
     tunnel = true
     routes.clear()
-    from = 48000 + Math.floor(Math.random() * 400) * 5
-    exposedForViewers = []
-    const urls = urlTemplateExposure({
-      origin: "https://{port}-box.corp.example",
-      signInUrl: "https://{port}-box.corp.example/",
-      bindHost: "127.0.0.1",
-      ports: { from, to: from + 4 },
-    })
-    setPreviewExposure({
-      ...urls,
-      expose: async (port) => {
-        exposedForViewers.push(port)
-        return urls.expose(port)
-      },
-    })
   })
 
   afterEach(() => {
     tunnel = false
-    setPreviewExposure(loopbackExposure())
   })
 
-  it("loads the host's frame at a portless URL, never the proxy's, even with url-template", async () => {
+  it("loads the host's frame at a portless URL", async () => {
     const a = await provider.create(exposedOpts("branch-a"))
+    const port = a.hostPort(4000)
 
     expect(await a.expose(4000)).toEqual({
-      browserOrigin: `http://screenplay-${from}.localhost:1355`,
+      browserOrigin: `http://screenplay-${port}.localhost:1355`,
     })
-    // The configured exposure still runs, for viewers.
-    expect(exposedForViewers).toEqual([from])
-    expect(routes.get(from)).toBe(`http://screenplay-${from}.localhost:1355`)
+    expect(routes.get(port)).toBe(`http://screenplay-${port}.localhost:1355`)
     // The server maps the portless URL back to the listener.
     expect(
       await provider.internalUrlFor(
-        `http://screenplay-${from}.localhost:1355/pricing`
+        `http://screenplay-${port}.localhost:1355/pricing`
       )
-    ).toBe(`http://127.0.0.1:${from}/pricing`)
+    ).toBe(`http://127.0.0.1:${port}/pricing`)
   })
 
   it("removes the portless route when the chat is deleted", async () => {
     const a = await provider.create(exposedOpts("branch-a"))
+    const port = a.hostPort(4000)
     await a.expose(4000)
     await a.delete()
-    expect(routes.has(from)).toBe(false)
+    expect(routes.has(port)).toBe(false)
   })
 
   it("brings the same frame URL back after a restart", async () => {
@@ -962,19 +937,6 @@ describe("LocalSandboxProvider on Headless (host frames through portless)", () =
     const restarted = new LocalSandboxProvider(root)
     const again = await restarted.get({ name: "branch-a" })
     expect(await again.expose(4000)).toEqual(before)
-    expect(routes.get(from)).toBe(before.browserOrigin)
-  })
-
-  it("still loads the host's frame when exposing for viewers fails", async () => {
-    setPreviewExposure({
-      ...loopbackExposure({ ports: { from, to: from + 4 } }),
-      expose: async () => {
-        throw new Error("corp-expose: not signed in")
-      },
-    })
-    const a = await provider.create(exposedOpts("branch-a"))
-    expect((await a.expose(4000)).browserOrigin).toBe(
-      `http://screenplay-${from}.localhost:1355`
-    )
+    expect(routes.get(a.hostPort(4000))).toBe(before.browserOrigin)
   })
 })

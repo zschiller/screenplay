@@ -1,7 +1,7 @@
 import "server-only"
 
 import type { DetectFileSystem } from "@/lib/add-repo/detect-fs"
-import { githubAccess } from "@/lib/github-access"
+import { GITHUB_API_URL } from "@/lib/github-access/urls"
 
 /**
  * The GitHub-contents-API virtual FS (PRD #673, slice #678): a
@@ -51,7 +51,7 @@ export class GitHubDetectFileSystem implements DetectFileSystem {
   private async doSeed(): Promise<void> {
     const { owner, repo, ref } = this.config
     const res = await this.fetch(
-      `${githubAccess.apiUrl}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`
+      `${GITHUB_API_URL}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`
     )
     if (!res.ok) return
     // `truncated: true` on a huge repo means we seeded a partial tree; detection
@@ -114,7 +114,7 @@ export class GitHubDetectFileSystem implements DetectFileSystem {
 
     const { owner, repo, ref } = this.config
     const res = await this.fetch(
-      `${githubAccess.apiUrl}/repos/${owner}/${repo}/contents/${key
+      `${GITHUB_API_URL}/repos/${owner}/${repo}/contents/${key
         .slice(1)
         .split("/")
         .map(encodeURIComponent)

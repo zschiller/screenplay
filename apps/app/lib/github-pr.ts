@@ -1,5 +1,5 @@
 import { getGitHubTokenForUser } from "@/lib/auth-helpers"
-import { githubAccess } from "@/lib/github-access"
+import { GITHUB_API_URL } from "@/lib/github-access/urls"
 import type { RoomReader } from "@/lib/room-access"
 
 export interface CreateGitHubPrInput {
@@ -64,7 +64,7 @@ async function fetchPrContent(
 ): Promise<{ title: string; body: string } | null> {
   try {
     const res = await fetch(
-      `${githubAccess.apiUrl}/repos/${owner}/${repo}/compare/${base}...${head}`,
+      `${GITHUB_API_URL}/repos/${owner}/${repo}/compare/${base}...${head}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -121,7 +121,7 @@ export async function createGitHubPr(
       : null
 
   const res = await fetch(
-    `${githubAccess.apiUrl}/repos/${repoOwner}/${repoName}/pulls`,
+    `${GITHUB_API_URL}/repos/${repoOwner}/${repoName}/pulls`,
     {
       method: "POST",
       headers: {

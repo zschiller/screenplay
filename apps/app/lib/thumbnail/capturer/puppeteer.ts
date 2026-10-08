@@ -1,10 +1,5 @@
 import "server-only"
 
-import {
-  chromiumNetworkArgs,
-  hasExtraCa,
-  isLoopbackHost,
-} from "@/lib/network/outbound-proxy"
 import type {
   CaptureViewport,
   FramePageReader,
@@ -23,7 +18,6 @@ const NAV_TIMEOUT_MS = 15_000
 const READ_SETTLE_MS = 1_500
 
 type Browser = import("puppeteer-core").Browser
-type Page = import("puppeteer-core").Page
 
 /**
  * The Chromium viewport for a frame: its **own** width and height, 1:1, with no
@@ -72,62 +66,7 @@ async function launchBrowser(): Promise<Browser> {
   return puppeteer.launch({
     headless: true,
     executablePath,
-    // Behind a company proxy (#1929), off-box requests a preview makes (fonts,
-    // images from a CDN) go through it, as the server's own do.
-    args: chromiumNetworkArgs(process.env),
   })
-}
-
-/** Response headers that no longer describe the body once Node has read it. */
-const STALE_RESPONSE_HEADERS = new Set([
-  "content-encoding",
-  "content-length",
-  "transfer-encoding",
-  "connection",
-])
-
-/**
- * A new page, ready to load a preview. With a company CA configured (#1929),
- * Chromium can't verify off-box hosts: it doesn't read `NODE_EXTRA_CA_CERTS`,
- * and adding a CA to it on Linux takes NSS tools the box may not have. So the
- * page hands every off-box request to the server's own `fetch`, which trusts
- * the CA and takes the proxy. Loopback (the preview itself) loads directly.
- */
-async function newPage(browser: Browser): Promise<Page> {
-  const page = await browser.newPage()
-  if (!hasExtraCa(process.env)) return page
-
-  await page.setRequestInterception(true)
-  page.on("request", (request) => {
-    const url = new URL(request.url())
-    if (
-      (url.protocol !== "http:" && url.protocol !== "https:") ||
-      isLoopbackHost(url.hostname)
-    ) {
-      void request.continue()
-      return
-    }
-    void fetch(url, {
-      method: request.method(),
-      headers: request.headers(),
-      body: request.postData(),
-      // Chromium follows a redirect itself, so it sees each hop.
-      redirect: "manual",
-    })
-      .then(async (response) => {
-        const headers: Record<string, string> = {}
-        response.headers.forEach((value, name) => {
-          if (!STALE_RESPONSE_HEADERS.has(name)) headers[name] = value
-        })
-        await request.respond({
-          status: response.status,
-          headers,
-          body: Buffer.from(await response.arrayBuffer()),
-        })
-      })
-      .catch(() => request.abort("failed").catch(() => {}))
-  })
-  return page
 }
 
 /**
@@ -143,7 +82,7 @@ class PuppeteerCapturer implements ThumbnailCapturer, FramePageReader {
   ): Promise<Buffer> {
     const browser = await launchBrowser()
     try {
-      const page = await newPage(browser)
+      const page = await browser.newPage()
       // At 2x, like the Mac app's Retina snapshot, so a narrow frame still has
       // the pixels for a sharp hover-card preview (`frameCaptureSize`).
       await page.setViewport({
@@ -169,7 +108,7 @@ class PuppeteerCapturer implements ThumbnailCapturer, FramePageReader {
   ): Promise<string> {
     const browser = await launchBrowser()
     try {
-      const page = await newPage(browser)
+      const page = await browser.newPage()
       await page.setViewport(resolveViewport(viewport))
       await page.goto(previewUrl, {
         waitUntil: "load",

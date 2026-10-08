@@ -8,7 +8,6 @@ const meta = {
   "yjs-host": "Yjs host",
   "blob-store": "Blob store",
   "mount-path": "Mount path",
-  "locked-down-network": "Locked-down network",
   "local-build": "Local (single-user) build",
   "desktop-app": "Desktop app",
 }

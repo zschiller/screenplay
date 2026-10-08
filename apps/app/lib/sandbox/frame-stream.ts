@@ -129,8 +129,7 @@ async function launch(
       SCREENPLAY_STREAM_KEY: frameStreamKey(name),
       SCREENPLAY_FRAME_ORIGIN: origin,
       SCREENPLAY_CHROME: CHROME,
-      // Where the preview exposure binds browser-facing listeners (local
-      // backend); a hosted VM keeps every interface.
+      // Loopback on the local backend; a hosted VM keeps every interface.
       ...listen,
     },
   })

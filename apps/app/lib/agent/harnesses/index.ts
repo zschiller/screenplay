@@ -3,7 +3,6 @@ import "server-only"
 import type { ModelProvider } from "@/lib/agent/providers"
 import type { ToolNaming } from "@/lib/agent/tool-name"
 import { claudeCodeHarness } from "./claude-code"
-import { selectCodingClis } from "./coding-cli"
 import { codexHarness } from "./codex"
 import { opencodeCompatHarness, opencodeGatewayHarness } from "./opencode"
 import { BROKERED_VALUE } from "./types"
@@ -12,7 +11,6 @@ import type {
   Harness,
   HarnessOwnSkills,
   HarnessSelection,
-  HostHarness,
   SkippedHarness,
 } from "./types"
 
@@ -21,7 +19,6 @@ export type {
   AcpAdapter,
   Harness,
   HarnessOwnSkills,
-  HostHarness,
   HarnessSelection,
   SkippedHarness,
 } from "./types"
@@ -52,26 +49,6 @@ const HARNESSES_BY_KEY = new Map<string, Harness>(
   HARNESSES.map((h) => [h.key, h])
 )
 
-function configuredHarnesses(): HostHarness[] | undefined {
-  return selectCodingClis() ?? undefined
-}
-
-/**
- * The CLIs the host can run: the Coding CLIs `selectCodingClis` picks, else
- * the whole catalog (the Mac app). The desktop Harness Availability resolver
- * and Harness Setup read it on every call.
- */
-export function hostCatalog(): HostHarness[] {
-  return configuredHarnesses() ?? HARNESSES
-}
-
-/** The host descriptor for `key`: the configured CLIs, else the catalog. */
-function harnessByKey(key: string): HostHarness | undefined {
-  const configured = configuredHarnesses()
-  if (configured) return configured.find((h) => h.key === key)
-  return HARNESSES_BY_KEY.get(key)
-}
-
 /**
  * The ACP adapter spawn argv for harness `key`, or `null` when `key` names no
  * catalog entry or names a terminal-only harness (one whose descriptor carries
@@ -84,7 +61,7 @@ export function harnessAcpAdapter(
   key: string | null | undefined
 ): AcpAdapter | null {
   if (!key) return null
-  return harnessByKey(key)?.acpAdapter ?? null
+  return HARNESSES_BY_KEY.get(key)?.acpAdapter ?? null
 }
 
 /**
@@ -123,7 +100,7 @@ export function harnessOwnSkills(
   key: string | null | undefined
 ): HarnessOwnSkills | null {
   if (!key) return null
-  return harnessByKey(key)?.ownSkills ?? null
+  return HARNESSES_BY_KEY.get(key)?.ownSkills ?? null
 }
 
 /**
@@ -134,7 +111,7 @@ export function harnessOwnSkills(
  * a plain shell rather than failing.
  */
 export function harnessLaunchArgv(key: string): string[] | null {
-  return harnessByKey(key)?.launchArgv ?? null
+  return HARNESSES_BY_KEY.get(key)?.launchArgv ?? null
 }
 
 /**
@@ -234,7 +211,7 @@ export function buildBrokeredEnv(harnesses: Harness[]): Record<string, string> {
  */
 export function resolveLaunchArgv(
   harnessKey: string | null | undefined,
-  installable: HostHarness[]
+  installable: Harness[]
 ): string[] {
   if (!harnessKey) return []
   const harness = installable.find((h) => h.key === harnessKey)
