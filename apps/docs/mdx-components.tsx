@@ -34,8 +34,8 @@ function rowVariable(children: ReactNode): string | null {
   return ENV_VAR.test(name) ? name : null
 }
 
-/** A table's header labels joined with "|", so CSS can size same-shape tables alike. */
-function headerLabels(children: ReactNode): string {
+/** A table's header labels, in column order. */
+function headerLabels(children: ReactNode): string[] {
   const labels: string[] = []
   const walk = (node: ReactNode) =>
     Children.forEach(node, (child) => {
@@ -45,7 +45,7 @@ function headerLabels(children: ReactNode): string {
       else walk(child.props.children)
     })
   walk(children)
-  return labels.join("|")
+  return labels
 }
 function text(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node)
@@ -67,14 +67,25 @@ export function useMDXComponents(components?: MDXComponents): MDXComponents {
     ScreenshotRow,
     // A full-width table in a scroll container, like the stock shadcn Table.
     // Nextra's own makes the table itself the scroller, so it can't fill the column.
-    table: (props) => (
-      <div
-        className="sp-table nextra-scrollbar"
-        data-head={headerLabels(props.children)}
-      >
-        <table {...props} />
-      </div>
-    ),
+    // `data-head` (the labels joined with "|") lets CSS size same-shape tables
+    // alike; `--sp-head-N` carries each label for a phone's stacked rows.
+    table: (props) => {
+      const labels = headerLabels(props.children)
+      const style: Record<string, string> = {}
+      labels.forEach((label, i) => {
+        if (label) style[`--sp-head-${i + 1}`] = JSON.stringify(label)
+      })
+      return (
+        <div
+          className="sp-table nextra-scrollbar"
+          data-head={labels.join("|")}
+          data-columns={labels.length}
+          style={style}
+        >
+          <table {...props} />
+        </div>
+      )
+    },
     // A row documenting one environment variable is linkable by its name,
     // with a # on hover like a heading's.
     tr: ({ children, ...props }) => {
