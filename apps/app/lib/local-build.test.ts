@@ -29,6 +29,7 @@ describe("local build — access model", () => {
   // this file run in local mode, so one stub for the file is correct and the
   // per-test `resetModules` the old shape needed falls away.
   let harness: SharedPgliteDb
+  let roomsActions: typeof import("./rooms-actions")
   beforeAll(async () => {
     vi.stubEnv("NEXT_PUBLIC_SCREENPLAY_PROFILE", "desktop")
     // The desktop build also selects the local Yjs host; set it so importing
@@ -36,6 +37,10 @@ describe("local build — access model", () => {
     // Liveblocks secret the local build never has.
     vi.stubEnv("NEXT_PUBLIC_YJS_HOST", "local")
     harness = await setupSharedPgliteDb()
+    // `rooms-actions` pulls in Room teardown, the repository library and the
+    // Yjs host: a cold import can take over 5s, so it loads here under the
+    // boot's budget rather than timing out the test that uses it.
+    roomsActions = await import("./rooms-actions")
   }, 30000)
 
   afterAll(async () => {
@@ -82,29 +87,35 @@ describe("local build — access model", () => {
   })
 
   it("refuses the sharing actions as a backstop", async () => {
-    const { shareRoom, listCollaborators } = await import("./rooms-actions")
+    const { shareRoom, listCollaborators } = roomsActions
     await expect(shareRoom("r1", "a@b.com")).rejects.toThrow(/desktop app/)
     await expect(listCollaborators("r1")).rejects.toThrow(/desktop app/)
   })
 
-  it("excludes persisted comments but keeps thread reads safe (so the reference composer can mount)", async () => {
-    // The element/selection "Send to Claude" path stays in the local build, so
-    // the Comments component still mounts and reads threads — which must be a
-    // safe empty result, never a query against the absent `thread` table.
+  it("persists the host's comment threads (Sharing's viewers comment too, #1934)", async () => {
+    const { db, dbReady, schema } = await import("@/lib/db")
+    await dbReady
+    await db.insert(schema.user).values({
+      id: "local",
+      name: "Local User",
+      email: "local@localhost",
+    })
+    await db.insert(schema.room).values({ id: "r1", ownerId: "local" })
     const { listThreads, createThread } = await import("./comments")
     await expect(listThreads("r1")).resolves.toEqual([])
-    // Persisting a comment thread is the multi-user half — it refuses.
-    await expect(
-      createThread({
-        roomId: "r1",
-        x: 0,
-        y: 0,
-        iframeLayerId: null,
-        selector: null,
-        offsetX: null,
-        offsetY: null,
-        body: "hi",
-      })
-    ).rejects.toThrow(/desktop app/)
+    const thread = await createThread({
+      roomId: "r1",
+      x: 0,
+      y: 0,
+      iframeLayerId: null,
+      selector: null,
+      offsetX: null,
+      offsetY: null,
+      body: "hi",
+    })
+    expect(thread.comments).toMatchObject([
+      { authorId: "local", authorName: "Local User", body: "hi" },
+    ])
+    expect((await listThreads("r1")).map((t) => t.id)).toEqual([thread.id])
   })
 })

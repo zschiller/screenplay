@@ -22,7 +22,7 @@ import {
   setDocumentCommentRanges,
   type DocumentCommentRange,
 } from "@/lib/document-comments-extension"
-import { multiUserSurface } from "@/lib/capabilities"
+import { commenting, multiUserSurface } from "@/lib/capabilities"
 
 import {
   CommentPinMark,
@@ -362,7 +362,7 @@ export function Comments({
                     so placing a comment previews its result. */}
                 <div aria-hidden className="absolute bottom-0 left-0">
                   <CommentPinMark
-                    number={multiUserSurface ? numberById.size + 1 : null}
+                    number={commenting ? numberById.size + 1 : null}
                   />
                 </div>
               </PopoverAnchor>

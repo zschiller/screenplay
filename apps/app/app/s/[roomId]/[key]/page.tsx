@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation"
 import { Canvas } from "@/components/canvas/canvas"
 import { CanvasSkeleton } from "@/components/canvas/canvas-skeleton"
 import { PAGE_PARAM } from "@/lib/canvas/pages"
-import { listThreads } from "@/lib/comments"
+import { commentsForViewer } from "@/lib/comments"
 import {
   panelLayoutCookieName,
   parsePanelLayoutValue,
@@ -59,7 +59,10 @@ export default async function SharedCanvasPage({
   const initialLayout = parsePanelLayoutValue(
     cookieStore.get(panelLayoutCookieName("canvas-layout"))?.value
   )
-  const initialThreads = await listThreads(room.id).catch(() => undefined)
+  // The threads as this viewer sees them (#1934): their own read marks.
+  const initialThreads = await commentsForViewer(room.id, key)
+    .then((viewer) => viewer?.listThreads())
+    .catch(() => undefined)
 
   return (
     <ViewingProvider

@@ -71,6 +71,13 @@
       "when": 1790951485220,
       "tag": "0009_steer_seq",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791462735919,
+      "tag": "0010_viewer_comments",
+      "breakpoints": true
     }
   ]
 }

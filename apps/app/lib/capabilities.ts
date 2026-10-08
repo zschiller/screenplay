@@ -18,15 +18,18 @@
  *   server on their own machine: no sign-in, a single seeded local user
  *   (`@/lib/local-user`), and the machine's own git, `gh`, coding CLIs and
  *   folders.
- * - **Multi-user surface**: `room_member` membership, persisted comment
- *   threads, chat senders and remote presence. Off, those tables aren't even
- *   created (`lib/db/schema-multiuser.ts`).
+ * - **Multi-user surface**: `room_member` membership, chat senders and remote
+ *   presence. Off, its tables aren't even created
+ *   (`lib/db/schema-multiuser.ts`).
  * - **Mac shell**: the Tauri window around the app: traffic lights, native
  *   dialogs, opening files in Finder, cheap webview thumbnails, Frame Drive in
  *   your own canvas.
  * - **Viewers**: people who watch a canvas by link on the viewer listener
  *   (Sharing in the Mac app, #1921). The front server serves them only when
  *   the shell names a viewer listener.
+ * - **Commenting**: persisted comment threads. On wherever more than one person
+ *   can see a canvas: hosted and Headless members, and the Mac app's host and
+ *   viewers (#1934).
  *
  * Set `NEXT_PUBLIC_SCREENPLAY_PROFILE` at build time. Unset means `hosted`,
  * and the older `NEXT_PUBLIC_SCREENPLAY_LOCAL=1` still means `desktop`. It is a
@@ -59,7 +62,7 @@ export const buildProfile: BuildProfile = readProfile()
 export const buildIdentity: "account" | "host" =
   buildProfile === "hosted" ? "account" : "host"
 
-/** Membership, persisted comments, chat senders and remote presence. */
+/** Membership, chat senders and remote presence. */
 export const multiUserSurface: boolean = buildProfile !== "desktop"
 
 /** The Tauri window around the app (the Mac app). */
@@ -67,6 +70,9 @@ export const macShell: boolean = buildProfile === "desktop"
 
 /** People watching a canvas by link on the viewer listener (Sharing in the Mac app, #1921). */
 export const viewers: boolean = buildProfile === "desktop"
+
+/** Persisted comment threads: members comment, and so do viewers (#1934). */
+export const commenting: boolean = multiUserSurface || viewers
 
 /**
  * The host reaches the server over a tunnel to two ports (Headless, #1930):
