@@ -15,7 +15,7 @@ Work out from the ask which stage you are in, then do that stage only. A **small
    - In a monorepo, start from the workspace config (`pnpm-workspace.yaml`, `package.json` workspaces, `turbo.json`, `nx.json`, `Cargo.toml` workspace, `go.work`) and list the deployable apps. Shared packages are not surfaces.
    - In a single-app repo, the app is one surface. Also count a docs folder or site, and a marketing page when it has its own route tree.
    - Give each surface a one-letter id, and make the ids unique across the audit.
-2. **Rules**: gather the design rules the audits check against, as [`../design-exploration/RULES.md`](../design-exploration/RULES.md) describes. Also collect the settled lists that memory keeps: findings already filed and decisions already rejected.
+2. **Rules**: gather the design rules the audits check against, as [`../design-exploration/RULES.md`](../design-exploration/RULES.md) describes. Also collect the settled lists: findings already filed (the tracker, and earlier audits' READMEs in the design archive) and directions already rejected (the design guide's rejected list and the archive READMEs).
 3. **Run**: find how each surface starts locally and how to capture it in every theme it ships, following [`../design-exploration/CAPTURE.md`](../design-exploration/CAPTURE.md). Use the repo's screenshot harness if it has one; otherwise use Playwright against the dev server.
 
 Done when every surface has an id, a start command and a capture method, and the rules list names its sources.
@@ -48,14 +48,14 @@ Done when every call in every plan is either a question on the page or its own e
 
 ## 4. Fan out: when the owner pastes their decisions back
 
-1. Record the answers in memory next to the plans. Write out every answer that differs from the recommendation, and every note.
+1. Record the answers in the audit's topic file in memory, its live state until the audit is archived, next to the plans' links. Write out every answer that differs from the recommendation, and every note.
 2. Answer each question asked in a note from the code or git history, citing the PR or `file:line`. When a note asks for an issue, file it now in the repo's tracker with its triage label (see `AGENTS.md` or `docs/agents/`).
 3. When the answer is "None of these" and the note reopens the question, take that item out of its PR and list it as an open discussion.
 4. Start one thread or agent per PR, and brief each with its plan link, its PR section and the answers it waits on. PRs that wait on no call start first. Steps that need the owner's own machine run there.
 
-5. Archive every page of the audit (each findings page and the decisions page) as [`../design-exploration/ARCHIVE.md`](../design-exploration/ARCHIVE.md) describes.
+5. Archive every page of the audit (each findings page and the decisions page) and close out its record as [`../design-exploration/ARCHIVE.md`](../design-exploration/ARCHIVE.md) describes. The decisions page's README holds the answers and notes.
 
-Done when every note has an answer, every PR has a thread whose brief carries the answers it depends on, and every page of the audit is in the archive index (or the repo keeps no archive).
+Done when every note has an answer, every PR has a thread whose brief carries the answers it depends on, every page of the audit is in the archive index, and the topic file is gone (or the repo keeps no archive).
 
 ## Small audits
 
@@ -63,7 +63,7 @@ When the scope is one screen or one flow, one thread does the whole audit:
 
 1. Gather the rules as stage 0 describes, for that screen only.
 2. Audit it through all three depths as stage 1 describes and publish one findings page. A handful of findings with no calls can go straight in the reply instead. Ask each call on its own, tagged as stage 1 describes.
-3. Once the owner has answered, fix what they picked on one branch, smallest and surest first, and check each fix in every theme. A skipped finding is dropped; a rejected direction goes in memory's settled list so no later audit raises it again.
-4. Archive the findings page as [`../design-exploration/ARCHIVE.md`](../design-exploration/ARCHIVE.md) describes.
+3. Once the owner has answered, fix what they picked on one branch, smallest and surest first, and check each fix in every theme. A skipped finding is dropped; a rejected direction goes in the findings page's archive README (and the design guide when it applies beyond this audit) so no later audit raises it again.
+4. Archive the findings page and close out its record as [`../design-exploration/ARCHIVE.md`](../design-exploration/ARCHIVE.md) describes.
 
 Done when every picked finding is fixed or named as left open. Reply with the PR link, what changed by tag, and anything left open.

@@ -15,6 +15,7 @@ How Screenplay looks, reads and behaves: the rules every UI change in `apps/app`
 - Before building chat UI, check shadcn’s chat components (Message, Bubble, Marker, Message Scroller, Attachment, Questionnaire) and name the one used.
 - Decorative UI only shows behaviour the app has.
 - A new mode hint or tag goes in existing chrome, never in a new pill style beside it.
+- Leave the chat pills on frame and group labels as they are; restyle them only when the owner asks.
 - Creating something leaves focus where it was: nothing enters edit mode or takes focus on arrival (PR [#822](https://github.com/zschiller/screenplay/pull/822)).
 
 ## Type and size
@@ -25,7 +26,7 @@ How Screenplay looks, reads and behaves: the rules every UI change in `apps/app`
 - **Active states** pair `font-medium` with `font-stretch-[98.8%]`, so a label keeps its width as it bolds. Static bold text needs only the weight.
 - Code inside a heading scales with the heading.
 - **Buttons**: icon buttons 28px with 16px icons. Text buttons are `sm` (28px, 13px label, 16px icon); `default` (32px) only in dialog footers and page actions (PR [#1720](https://github.com/zschiller/screenplay/pull/1720)). In the app, ESLint’s `design/button-size` (`packages/eslint-config/design-rules.js`) fails any Button size but `sm`, `icon-sm`, `default` and `lg`.
-- **Icons**: Phosphor, imported from `@workspace/ui/components/icons` (the wrapper sets the weight and class). Light above 16px, Regular at 16px and under, stock weights only; dot glyphs and tiny state glyphs use Bold. PR state icons are the Lucide PR family at Phosphor’s stroke weight (PR [#1721](https://github.com/zschiller/screenplay/pull/1721)).
+- **Icons**: Phosphor, imported from `@workspace/ui/components/icons` (the wrapper sets the weight and class). Light above 16px, Regular at 16px and under, stock weights only; dot glyphs and tiny state glyphs use Bold. Inside a `Button`, menu item or select item, leave the icon unsized: the parent sizes any `svg` without a `size-*` class and ignores `h-*`/`w-*`. PR state icons are the Lucide PR family at Phosphor’s stroke weight (PR [#1721](https://github.com/zschiller/screenplay/pull/1721)).
 - **No sparkle icon**, in any product: pick an icon that says what the thing is. ESLint (`packages/eslint-config/banned-icons.js`, run in CI) fails on the import.
 
 ## Colour
@@ -34,6 +35,7 @@ How Screenplay looks, reads and behaves: the rules every UI change in `apps/app`
 - **Status**: ink for a standalone status; outline (border, regular text, coloured icon) for chips, badges and banners; fill for small marks (dots, pins, the record dot) and the Interact button. A badge’s text matches its icon colour. Error banners use red text; warnings keep regular text with an amber icon.
 - **Idle controls are uncoloured**: red only while recording, not on an idle Record button.
 - **Needs you** is the orange `NeedsYouDot` (`bg-attention-fill`), never a warning icon.
+- **Info** is magenta and clashes with Interact’s pink fill (`canvas-selection-fill`), so keep it out of the frame bar (PR [#1466](https://github.com/zschiller/screenplay/pull/1466)).
 - **Dark mode**: the page is pure black, and every fill must read on it. Muted, secondary and accent sit at 0.25 lightness, popover at 0.175 (PR [#1690](https://github.com/zschiller/screenplay/pull/1690)); keep new dark fills at 0.2 or above.
 - **Chats carry no colour** anywhere: no swatches, tinted names or coloured pills.
 - **Text selection**: the app uses a softer hot pink under black (`apps/app/app/globals.css`); the homepage and docs keep magenta. Selected text, SVG `fill` included, is black (PR [#1736](https://github.com/zschiller/screenplay/pull/1736)).
@@ -43,7 +45,7 @@ How Screenplay looks, reads and behaves: the rules every UI change in `apps/app`
 
 - **Spinners**: the regular `Spinner` for loading and progress; the 9-dot `AgentActivityDots` only for agent activity (runs, streaming, thinking).
 - **Kbd** is for keys only, one cap per key, in the UI font (`apps/app/test/kbd-keys-only.test.ts` fails on a mouse word). Pointer actions (Click, Drag) are plain muted text. Shortcuts go in a control’s tooltip, never in a hint row under a text box.
-- **Surfaces**: tooltips, toasts, menus (`DropdownMenu`, `Select`) and the `@` and `/` lists in the composer and Documents are inverted (the `inverted` class). Searchable pickers built on `Command` (the chat picker, comboboxes) use the normal popover surface (`packages/ui/src/components/command.tsx`), as do popovers, hover cards and dialogs.
+- **Surfaces**: tooltips, toasts, menus (`DropdownMenu`, `Select`) and the `@` and `/` lists in the composer and Documents are inverted (the `inverted` class). Searchable pickers built on `Command` (the chat picker, comboboxes) use the normal popover surface (`packages/ui/src/components/command.tsx`), as do popovers, hover cards and dialogs. Floating canvas chrome (the tool toolbar, the top bar, a frame’s bar, a Document’s formatting bubble) shares the `FloatingToolbar` shell (`packages/ui/src/components/floating-toolbar.tsx`), and other floating UI on the canvas matches its surface.
 - **Menus** hug their widest item, 224px minimum, never wrap; the sizing lives in `packages/ui/src/components/dropdown-menu.tsx`, so individual menus set no width. Every item carries an icon. A checkmark column appears only when items are checkable. A menu leaves out what a tap already does (no “Open”).
 - **One of a few choices** uses `Tabs`, not `ToggleGroup`.
 - **List pickers in a dialog** use the repo picker’s chrome (`apps/app/components/picker-dialog.tsx`).

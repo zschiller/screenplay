@@ -49,12 +49,12 @@ Open every capture at full size in every theme before publishing, the way the ow
 
 Reply with the link and one line on what's in it: how many controls and states, and anything already noticed. The owner steps through the states and pastes back the copied notes.
 
-When the notes arrive, record them in memory in the storybook's topic file (`<part>-storybook`): the Artifact link, the round, each note with its state. Each note is work on its state: a note asking for a change to the part is the owner's ask, so make it, in the branch in flight when there is one, otherwise on a new branch. A note that asks a design question with more than one fair answer becomes a `design-exploration` when the owner wants options. A note that only observes waits for the owner to say what to do with it.
+When the notes arrive, record them in the storybook's topic file in memory (`<part>-storybook`), its live state while the storybook runs: the Artifact link, the round, each note with its state. Each note is work on its state: a note asking for a change to the part is the owner's ask, so make it, in the branch in flight when there is one, otherwise on a new branch. A note that asks a design question with more than one fair answer becomes a `design-exploration` when the owner wants options. A note that only observes waits for the owner to say what to do with it.
 
 Done when every note is recorded against its state and each has a next step or is waiting on the owner.
 
 ## 6. Archive the page
 
-When the owner says the storybook is done, archive the page as [`../design-exploration/ARCHIVE.md`](../design-exploration/ARCHIVE.md) describes, then add the archive folder's link to the topic file.
+When the owner says the storybook is done, archive the page and close out its record as [`../design-exploration/ARCHIVE.md`](../design-exploration/ARCHIVE.md) describes: the folder's README takes each note with its state and what came of it, and the topic file is deleted.
 
-Done when the page's row is in the archive index, or the repo keeps no archive.
+Done when the page's row is in the archive index and the topic file is gone, or the repo keeps no archive.

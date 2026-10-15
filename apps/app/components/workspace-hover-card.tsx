@@ -47,7 +47,9 @@ export function useCloseWorkspaceHoverCard(): () => void {
  * in a tooltip), then its repository, branch, base and line changes. The
  * branch lives here rather than on the row (spec #880, wireframe 2.4A).
  *
- * `children` is the trigger. Pressing it closes the card, so a click that opens
+ * `children` is the trigger, and must be one element that passes props and a
+ * ref through to a DOM node (the trigger is `asChild`): wrap a component that
+ * doesn't in a `span`. Pressing it closes the card, so a click that opens
  * a menu or a picker, or starts a drag, never leaves the card on top.
  * `suppressed` keeps it closed while that picker is open: the hover that led
  * to the click would otherwise open the card over it once its delay runs out.

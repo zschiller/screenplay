@@ -173,6 +173,16 @@ mentions Xvfb under any other name. In the browser job,
 instead of a skip, so copy that check into a new browser test after its own
 stack gate.
 
+A pull request that changes only a workflow file changes no package’s inputs,
+so CI replays `main`’s cached test results and the browser tests never really
+run. Its green check doesn’t show that the workflow change works.
+
+To try an OpenCode chat without a model provider, run a scripted
+OpenAI-compatible mock server and add it as `provider.mock` in the JSON you
+pass in `OPENCODE_CONFIG_CONTENT`. Screenplay adds its own settings to a config
+already in that variable rather than replacing it (`opencodeDirectoriesEnv` in
+`apps/app/lib/agent/harnesses/opencode.ts`).
+
 ### Linux isn’t a Mac
 
 The desktop app renders in the Mac’s WKWebView, and nothing on Linux paints
@@ -195,6 +205,16 @@ layout, copy and behaviour, but not for pixel-level rendering:
   animated `<svg>` its own layer and pivots it off the pixel grid, so
   spinners rotate their `<path>` instead
   ([PR #1783](https://github.com/zschiller/screenplay/pull/1783)).
+
+To check a layout or JavaScript fix in WebKit from a Linux container, where
+Playwright’s WebKit may not download, run WebKitGTK under Xvfb. Install
+`xvfb python3-gi gir1.2-webkit2-4.1 gir1.2-gtk-3.0 imagemagick` with apt,
+start `Xvfb :99`, and open the page in a short Python GTK WebView script (use
+a Python that can import `gi`: in the cloud container that’s python3.12, not
+the default 3.13). Have the script poll a file for JavaScript to evaluate, so
+you can control the page, for example the fixture world’s camera with
+`window.__canvasCamera.setTransform(x, y, zoom)`, and shoot the screen with
+`import -window root`. It shows layout, never proof of a raster fix.
 
 Zoomed frames blur on the Mac by choice; see
 [ADR 0034](https://github.com/zschiller/screenplay/blob/main/apps/app/docs/adr/0034-mac-webkit-zoom-blur-left-as-is.md)
