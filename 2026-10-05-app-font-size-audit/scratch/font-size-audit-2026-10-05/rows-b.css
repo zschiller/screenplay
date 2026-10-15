@@ -1,0 +1,20 @@
+/* A: chat rows 14px with 16px icons, padding trimmed so the row height holds at 30px */
+[data-testid=tool-call], .group\/summary, .group\/delegated,
+[data-slot=collapsible-trigger].px-2.py-1\.5.text-xs,
+[data-testid=run-in-progress], [data-testid=run-in-progress] .text-xs {
+  font-size: 14px !important; line-height: 20px !important;
+}
+[data-testid=tool-call] *:not([data-slot=kbd]):not([data-slot=badge]):not([data-slot=badge] *):not(.tabular-nums),
+.group\/summary *:not([data-slot=badge]):not([data-slot=badge] *), .group\/delegated * {
+  font-size: inherit !important; line-height: inherit !important;
+}
+[data-testid=tool-call].py-1\.5, [data-slot=collapsible-trigger].px-2.py-1\.5.text-xs { padding-top: 4px !important; padding-bottom: 4px !important; }
+[data-testid=tool-call] > svg:first-child,
+.group\/delegated > svg:first-child,
+[data-slot=collapsible-trigger].px-2.py-1\.5.text-xs > svg:first-child,
+[data-testid=run-in-progress] svg { width: 16px !important; height: 16px !important; }
+/* B: also prose bodies (markdown results, prose results, failure reasons) at 14px; code, diffs and logs stay 12px mono */
+div[data-testid=tool-content-text], div[data-testid=tool-content-text] *:not(code):not(pre):not(pre *),
+[data-testid=tool-call-no-reason], .group\/summary ~ * .text-xs:not(.font-mono) {
+  font-size: 14px !important; line-height: 20px !important;
+}

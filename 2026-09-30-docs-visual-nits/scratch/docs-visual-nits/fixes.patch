@@ -1,0 +1,506 @@
+diff --git a/apps/docs/app/globals.css b/apps/docs/app/globals.css
+index e94d3b0..d103cf9 100644
+--- a/apps/docs/app/globals.css
++++ b/apps/docs/app/globals.css
+@@ -512,3 +512,134 @@ footer {
+ html.dark footer {
+   color: oklch(0.708 0 0);
+ }
++
++/* ---- Visual nits audit, 2026-09-30 (prototype; one block per finding) ---- */
++
++/* Navbar on the solid page colour, like the app's headers: Nextra's 70%
++   frosted bar smears the text scrolling under it into a grey ghost. */
++.nextra-navbar-blur {
++  backdrop-filter: none;
++  background: #fff;
++}
++html.dark .nextra-navbar-blur {
++  background: #000;
++}
++
++/* "On this page": the current heading in the foreground at medium weight, the
++   same active state as the sidebar, instead of magenta. */
++.nextra-toc a.x\:text-primary-600 {
++  color: #000;
++  font-weight: 500;
++  font-stretch: 98.8%;
++}
++html.dark .nextra-toc a.x\:text-primary-600 {
++  color: #fff;
++}
++
++/* Code blocks on the same hairline as cards, tables, callouts and the search
++   box. Nextra's gray-300 / neutral-700 ring was the one darker line. */
++article pre {
++  --tw-ring-color: oklch(0 0 0 / 12%);
++}
++html.dark article pre {
++  --tw-ring-color: oklch(1 0 0 / 16%);
++}
++
++/* Previous / next links at the sidebar's 14px, not 18px. */
++article div.x\:mb-8.x\:border-t > a {
++  font-size: 0.875rem;
++  font-weight: 500;
++}
++article div.x\:mb-8.x\:border-t > a svg {
++  height: 16px;
++}
++
++/* Sidebar section labels sit on their group, not halfway between groups. */
++.nextra-sidebar li:not(:has(*)),
++.nextra-mobile-nav li:not(:has(*)) {
++  margin-bottom: 0;
++}
++
++/* Callout text in the foreground like the rest of the article. */
++.nextra-callout > div:last-child {
++  color: #000;
++}
++html.dark .nextra-callout > div:last-child {
++  color: #fff;
++}
++
++/* Tables: code chips and short labels in the first column never break
++   mid-word; tables of the same shape on a page share their column widths. */
++.sp-table code,
++.sp-table td:first-child:not(:has(code, kbd)) {
++  white-space: nowrap;
++}
++.sp-table:is([data-head^="Variable|"], [data-head="Shortcut|Action"]) table {
++  table-layout: fixed;
++}
++.sp-table[data-head^="Variable|"] th:first-child {
++  width: 32%;
++}
++.sp-table[data-head="Shortcut|Action"] th:first-child {
++  width: 30%;
++}
++.sp-table[data-head="Variable|Required|Description"] th:nth-child(2) {
++  width: 15%;
++}
++.sp-table:is([data-head^="Variable|"], [data-head="Shortcut|Action"]) td {
++  overflow-wrap: anywhere;
++}
++
++/* A code chip that wraps in prose keeps its padding and corners on both
++   lines. */
++article :not(pre) > code.nextra-code {
++  -webkit-box-decoration-break: clone;
++  box-decoration-break: clone;
++}
++
++/* Code in a heading: text-sized mono without the heading's tight tracking,
++   so it doesn't grow the heading box. */
++article :is(h2, h3) > code.nextra-code:not([class*="twoslash-"]) {
++  font-size: 0.8em;
++  letter-spacing: normal;
++  padding-block: 0;
++}
++
++/* Emphasis in a heading (e.g. "(desktop)"): Unbounded has no italic, so it
++   reads as a quiet aside in the text face instead of a slanted display face. */
++article :is(h1, h2, h3) em {
++  font-family: var(--x-font-sans);
++  font-size: 0.85em;
++  font-style: normal;
++  letter-spacing: normal;
++  opacity: 0.6;
++}
++
++/* File trees: one row pitch, whether or not the row above had children. */
++.nextra-filetree,
++.nextra-filetree ul {
++  gap: 0.25rem;
++}
++
++/* Steps end on the paragraph rhythm, not Nextra's 48px. */
++article .nextra-steps {
++  margin-bottom: 1.25em;
++}
++
++/* External links: the arrow sits after the last word (see mdx-components). */
++.sp-ext-link {
++  white-space: nowrap;
++}
++.sp-ext-link svg {
++  display: inline;
++  margin-left: 0.15em;
++  vertical-align: baseline;
++}
++
++/* 404 title in the heading face. */
++.sp-not-found {
++  font-family: var(--font-unbounded), sans-serif;
++  font-size: 1.6875rem;
++  font-weight: 400;
++  letter-spacing: -0.03em;
++}
+diff --git a/apps/docs/app/layout.tsx b/apps/docs/app/layout.tsx
+index 5a17b78..2a3f9f0 100644
+--- a/apps/docs/app/layout.tsx
++++ b/apps/docs/app/layout.tsx
+@@ -22,6 +22,8 @@ import { ANSI_PALETTE_CSS } from "@workspace/ui/lib/ansi-palette"
+ // variables onto Nextra's fonts.
+ const sans = Instrument_Sans({
+   subsets: ["latin"],
++  // Real italics for *emphasis*, instead of the browser slanting the upright.
++  style: ["normal", "italic"],
+   variable: "--font-instrument-sans",
+ })
+ const serif = Instrument_Serif({
+diff --git a/apps/docs/app/not-found.tsx b/apps/docs/app/not-found.tsx
+new file mode 100644
+index 0000000..3fab5ad
+--- /dev/null
++++ b/apps/docs/app/not-found.tsx
+@@ -0,0 +1,10 @@
++import { NotFoundPage } from "nextra-theme-docs"
++
++// Nextra's 404 in the docs chrome and type, instead of Next's unstyled default.
++export default function NotFound() {
++  return (
++    <NotFoundPage content="Report this broken link">
++      <h1 className="sp-not-found">This page could not be found</h1>
++    </NotFoundPage>
++  )
++}
+diff --git a/apps/docs/components/diagram/diagram.module.css b/apps/docs/components/diagram/diagram.module.css
+index 7f167ac..094605d 100644
+--- a/apps/docs/components/diagram/diagram.module.css
++++ b/apps/docs/components/diagram/diagram.module.css
+@@ -7,7 +7,8 @@
+   --dg-hair: oklch(0 0 0 / 12%);
+   --dg-bg: #fff;
+   --dg-accent: oklch(0.667 0.295 322.15);
+-  margin: 1.5rem 0 0;
++  /* The same rhythm as screenshots (.sp-screenshot), centred in the column. */
++  margin: 1.75rem 0;
+ }
+ :global(html.dark) .figure {
+   --dg-fg: #fff;
+@@ -22,6 +23,7 @@
+ }
+ .svg {
+   display: block;
++  margin-inline: auto;
+   max-width: none;
+   font-family: var(--x-font-sans);
+ }
+diff --git a/apps/docs/components/diagram/diagrams.tsx b/apps/docs/components/diagram/diagrams.tsx
+index 2fb1adb..9f2c829 100644
+--- a/apps/docs/components/diagram/diagrams.tsx
++++ b/apps/docs/components/diagram/diagrams.tsx
+@@ -10,8 +10,8 @@ export function ArchitectureDiagram() {
+   const app = box(128, 88, 136, SIZE.pair)
+   const busX = 288
+   const col = 308
+-  const w = 160
+-  const notes = 484
++  const w = 184
++  const notes = 508
+   const yjs = box(col, 44, w, SIZE.row)
+   const postgres = box(col, 96, w, SIZE.row)
+   const sandbox = box(col, 148, w, 92)
+@@ -22,7 +22,7 @@ export function ArchitectureDiagram() {
+   const services = [yjs, postgres, sandbox, model, blob, github]
+   return (
+     <Diagram
+-      width={672}
++      width={704}
+       height={400}
+       label="The browser talks to the Next.js app, which uses Postgres, a Yjs host, a sandbox provider, model providers, a blob store and GitHub OAuth. The browser also syncs live with the Yjs host."
+     >
+@@ -65,10 +65,10 @@ export function ArchitectureDiagram() {
+       />
+       <Node b={sandbox} title="Sandbox provider" />
+       <Note x={notes} y={sandboxRow} text="one VM per workspace" />
+-      <Chip b={box(col + 8, sandbox.y + 40, 68, 20)} text="dev server" />
+-      <Chip b={box(col + 80, sandbox.y + 40, 72, 20)} text="git" />
+-      <Chip b={box(col + 8, sandbox.y + 64, 68, 20)} text="terminals" />
+-      <Chip b={box(col + 80, sandbox.y + 64, 72, 20)} text="coding CLIs" />
++      <Chip b={box(col + 8, sandbox.y + 40, 80, 20)} text="dev server" />
++      <Chip b={box(col + 96, sandbox.y + 40, 80, 20)} text="git" />
++      <Chip b={box(col + 8, sandbox.y + 64, 80, 20)} text="terminals" />
++      <Chip b={box(col + 96, sandbox.y + 64, 80, 20)} text="coding CLIs" />
+       <Node b={model} title="Model provider(s)" />
+       <Note x={notes} y={model.left[1]} text="the agent" />
+       <Node b={blob} title="Blob store" />
+@@ -145,7 +145,7 @@ export function ScreenshotsFolderDiagram() {
+       label="apps/app/.screenshots/ holds the seeded world (pglite, yjs, blobs), secrets.env, and captures/<label>/ with a PNG per screen and theme plus manifest.json."
+     >
+       <Node b={root} title="apps/app/.screenshots/" mono />
+-      <Note of={root} text="gitignored" />
++      <Note x={notes} y={root.left[1]} text="gitignored" />
+       <Edge
+         points={[
+           [spine, root.y + root.h],
+@@ -181,7 +181,6 @@ export function ScreenshotsFolderDiagram() {
+         x={notes}
+         y={captures}
+         text="<screen>.<theme>.png + manifest.json"
+-        mono
+       />
+     </Diagram>
+   )
+diff --git a/apps/docs/components/screenshot.tsx b/apps/docs/components/screenshot.tsx
+index 3ebfa12..5a6102f 100644
+--- a/apps/docs/components/screenshot.tsx
++++ b/apps/docs/components/screenshot.tsx
+@@ -14,7 +14,9 @@ type ScreenshotProps = {
+  * `app/globals.css` shows the one matching the docs theme. Screenshots are
+  * captured from a real running Screenplay and framed by the capture pipeline:
+  * full-window shots carry their own background and window chrome, while
+- * details are the bare UI, which the CSS rounds and outlines.
++ * details are the bare UI, which the CSS rounds and outlines. Captures are 2x,
++ * so `srcSet` shows each at its own size (capped at the column) instead of
++ * stretching a small detail to the column's width.
+  */
+ export function Screenshot({ name, alt, caption }: ScreenshotProps) {
+   const src = (theme: "light" | "dark") =>
+@@ -25,6 +27,7 @@ export function Screenshot({ name, alt, caption }: ScreenshotProps) {
+       <img
+         className="sp-screenshot-light"
+         src={src("light")}
++        srcSet={`${src("light")} 2x`}
+         alt={alt}
+         loading="lazy"
+       />
+@@ -32,6 +35,7 @@ export function Screenshot({ name, alt, caption }: ScreenshotProps) {
+       <img
+         className="sp-screenshot-dark"
+         src={src("dark")}
++        srcSet={`${src("dark")} 2x`}
+         alt=""
+         aria-hidden
+         loading="lazy"
+diff --git a/apps/docs/content/building/skills.mdx b/apps/docs/content/building/skills.mdx
+index b96d2f3..fe171f1 100644
+--- a/apps/docs/content/building/skills.mdx
++++ b/apps/docs/content/building/skills.mdx
+@@ -58,7 +58,9 @@ name:
+ ```md
+ ---
+ name: add-api-route
+-description: Add a new API route with validation and tests. Use when the user asks for a new endpoint.
++description: >-
++  Add a new API route with validation and tests.
++  Use when the user asks for a new endpoint.
+ ---
+ 
+ # Adding an API route
+diff --git a/apps/docs/content/guides/agent.mdx b/apps/docs/content/guides/agent.mdx
+index 4497bbc..8874088 100644
+--- a/apps/docs/content/guides/agent.mdx
++++ b/apps/docs/content/guides/agent.mdx
+@@ -299,7 +299,7 @@ you can expand for details:
+ | ---------------------------------- | -------------------------------------------- |
+ | **Read** _n_ lines `path`          | Read a file                                  |
+ | **Edit** / **Write** `path`        | Changed a file (expand to see the diff)      |
+-| **Run command** `…`                | Ran a shell command in the sandbox           |
++| **Run command** `command`             | Ran a shell command in the sandbox           |
+ | **List files**, **Grep**, **Glob** | Searched the code                            |
+ | **Read skill** `name`              | Loaded a skill's instructions                |
+ | **Read dev server logs**           | Read the dev server's recent output          |
+diff --git a/apps/docs/content/guides/frames.mdx b/apps/docs/content/guides/frames.mdx
+index bc915dd..12ee47a 100644
+--- a/apps/docs/content/guides/frames.mdx
++++ b/apps/docs/content/guides/frames.mdx
+@@ -50,11 +50,13 @@ stays put. Only a page with no client-side router reloads onto the new route.
+ 
+ <Screenshot
+   name="route-picker"
++  caption="Click the route to edit it, or pick one the workspace has visited."
+   alt="The route selected for editing in the address bar, with /, /customers and /pricing listed under it"
+ />
+ 
+ <Screenshot
+   name="frame-branch-picker"
++  caption="Click the workspace to point the frame at another one."
+   alt="The workspace list, opened from the selected frame's address bar"
+ />
+ 
+diff --git a/apps/docs/content/guides/home.mdx b/apps/docs/content/guides/home.mdx
+index 366d611..7228e46 100644
+--- a/apps/docs/content/guides/home.mdx
++++ b/apps/docs/content/guides/home.mdx
+@@ -35,11 +35,13 @@ page.
+ 
+ <Screenshot
+   name="home-search"
++  caption="Search results name the folder each canvas lives in."
+   alt="Search results under the sidebar's search field, each naming the folder it lives in"
+ />
+ 
+ <Screenshot
+   name="home-folder"
++  caption="Inside a folder, the breadcrumb leads back to All files."
+   alt="Inside the Marketing folder, with the All files / Marketing breadcrumb"
+ />
+ 
+diff --git a/apps/docs/content/guides/terminals.mdx b/apps/docs/content/guides/terminals.mdx
+index ec9cc69..45b3dd5 100644
+--- a/apps/docs/content/guides/terminals.mdx
++++ b/apps/docs/content/guides/terminals.mdx
+@@ -20,7 +20,7 @@ If several coding CLIs are available, pick one to launch it straight away:
+ | --- | --- |
+ | **Claude Code** | Anthropic's coding CLI |
+ | **Codex** | OpenAI's coding CLI |
+-| **opencode (Vercel AI Gateway)** / **opencode (OpenAI-compatible)** | opencode against the gateway or a compatible endpoint (terminal only) |
++| **opencode (Vercel AI Gateway)** / **opencode (OpenAI‑compatible)** | opencode against the gateway or a compatible endpoint (terminal only) |
+ 
+ The CLI starts in the workspace. Quitting it (for example with
+ <kbd>Ctrl</kbd> <kbd>D</kbd>) drops you into a normal shell rather than closing
+diff --git a/apps/docs/content/quickstart.mdx b/apps/docs/content/quickstart.mdx
+index 5e2e906..5a3a27d 100644
+--- a/apps/docs/content/quickstart.mdx
++++ b/apps/docs/content/quickstart.mdx
+@@ -58,7 +58,6 @@ seconds, so there's no need to reload.
+ 
+ **Finish** creates your first canvas and opens it, with the agent panel open
+ and a **Get started** checklist in the corner. Later, **New canvas** on the home screen (or
+-
+ <kbd>N</kbd>) creates and opens another one; rename it from its title. A canvas
+ holds one piece of work: one or more repositories, their workspaces, and
+ everything you lay out around them.
+diff --git a/apps/docs/content/screenshots.mdx b/apps/docs/content/screenshots.mdx
+index ea00a53..2a1458c 100644
+--- a/apps/docs/content/screenshots.mdx
++++ b/apps/docs/content/screenshots.mdx
+@@ -16,10 +16,10 @@ named interaction.
+ Run them from `apps/app`.
+ 
+ ```bash
+-pnpm screenshots:browsers   # once per machine: download Chromium + ffmpeg
+-pnpm screenshots:boot       # seed a fresh world and serve it at :3947
+-pnpm screenshots:shots      # capture every named screen, light and dark
+-pnpm screenshots:video open-canvas   # record one named interaction (GIF + MP4)
++pnpm screenshots:browsers          # once per machine: download Chromium + ffmpeg
++pnpm screenshots:boot              # seed a fresh world and serve it at :3947
++pnpm screenshots:shots             # capture every named screen, light and dark
++pnpm screenshots:video open-canvas # record one named interaction (GIF + MP4)
+ ```
+ 
+ `shots` and `video` boot the app themselves when nothing is serving the port,
+diff --git a/apps/docs/content/self-hosting/configuration/desktop-app.mdx b/apps/docs/content/self-hosting/configuration/desktop-app.mdx
+index 04020cc..d0bd2f9 100644
+--- a/apps/docs/content/self-hosting/configuration/desktop-app.mdx
++++ b/apps/docs/content/self-hosting/configuration/desktop-app.mdx
+@@ -35,8 +35,8 @@ SCREENPLAY_DB=pglite            # embedded Postgres
+ BLOB_STORE=local-fs             # thumbnails to local disk
+ AGENT_ENGINE=external           # chat via the installed CLI's ACP adapter
+ THUMBNAIL_CAPTURER=tauri-webview
+-# SCREENPLAY_ACP_HARNESS=codex        # optional: which installed CLI backs agent
+-                                      # chat; unset → defaults to claude-code
++# SCREENPLAY_ACP_HARNESS=codex  # optional: which installed CLI backs agent
++                                # chat; unset → defaults to claude-code
+ ```
+ 
+ The `NEXT_PUBLIC_*` half is inlined at `next build`; the seam selectors are read
+diff --git a/apps/docs/content/self-hosting/environment-variables.mdx b/apps/docs/content/self-hosting/environment-variables.mdx
+index e0c8c9b..264eb0b 100644
+--- a/apps/docs/content/self-hosting/environment-variables.mdx
++++ b/apps/docs/content/self-hosting/environment-variables.mdx
+@@ -17,9 +17,9 @@ Generate secrets with `openssl rand -hex 32`.
+ 
+ The minimum for a working deployment with the default backends:
+ 
+-```bash
++```dotenv
+ # Auth
+-BETTER_AUTH_URL=https://screenplay.example.com       # production only
++BETTER_AUTH_URL=https://screenplay.example.com  # production only
+ BETTER_AUTH_PRODUCTION_URL=https://screenplay.example.com
+ BETTER_AUTH_SECRET=<openssl rand -hex 32>
+ GITHUB_CLIENT_ID=...
+@@ -28,7 +28,7 @@ GITHUB_CLIENT_SECRET=...
+ # Data
+ DATABASE_URL=postgres://...
+ LIVEBLOCKS_SECRET_KEY=sk_...
+-BLOB_READ_WRITE_TOKEN=...                              # injected when you connect Vercel Blob
++BLOB_READ_WRITE_TOKEN=...  # injected when you connect Vercel Blob
+ 
+ # Agent
+ ANTHROPIC_API_KEY=sk-ant-...
+diff --git a/apps/docs/mdx-components.tsx b/apps/docs/mdx-components.tsx
+index 269c877..ac6b765 100644
+--- a/apps/docs/mdx-components.tsx
++++ b/apps/docs/mdx-components.tsx
+@@ -1,5 +1,7 @@
+ import { useMDXComponents as getThemeComponents } from "nextra-theme-docs"
++import { LinkArrowIcon } from "nextra/icons"
+ import type { MDXComponents } from "nextra/mdx-components"
++import { Children, isValidElement, type ReactNode } from "react"
+ import { Callout } from "./components/callout"
+ import {
+   ArchitectureDiagram,
+@@ -9,6 +11,28 @@ import {
+ import { Screenshot } from "./components/screenshot"
+ 
+ const themeComponents = getThemeComponents()
++const ThemeLink = themeComponents.a!
++
++/** A table's header labels joined with "|", so CSS can size same-shape tables alike. */
++function headerLabels(children: ReactNode): string {
++  const labels: string[] = []
++  const walk = (node: ReactNode) =>
++    Children.forEach(node, (child) => {
++      if (!isValidElement<{ children?: ReactNode }>(child)) return
++      if (child.type === "th" || child.type === themeComponents.th)
++        labels.push(text(child.props.children))
++      else walk(child.props.children)
++    })
++  walk(children)
++  return labels.join("|")
++}
++function text(node: ReactNode): string {
++  if (typeof node === "string" || typeof node === "number") return String(node)
++  if (Array.isArray(node)) return node.map(text).join("")
++  if (isValidElement<{ children?: ReactNode }>(node))
++    return text(node.props.children)
++  return ""
++}
+ 
+ export function useMDXComponents(components?: MDXComponents): MDXComponents {
+   return {
+@@ -21,10 +45,38 @@ export function useMDXComponents(components?: MDXComponents): MDXComponents {
+     // A full-width table in a scroll container, like the stock shadcn Table.
+     // Nextra's own makes the table itself the scroller, so it can't fill the column.
+     table: (props) => (
+-      <div className="sp-table nextra-scrollbar">
++      <div
++        className="sp-table nextra-scrollbar"
++        data-head={headerLabels(props.children)}
++      >
+         <table {...props} />
+       </div>
+     ),
++    // External links keep Nextra's arrow, but without the underlined
++    // non-breaking space before it, and glued to the last word so it never
++    // wraps onto a line of its own.
++    a: ({ href, children, ...props }) => {
++      if (
++        typeof children !== "string" ||
++        typeof href !== "string" ||
++        !/^https?:\/\//.test(href)
++      )
++        return (
++          <ThemeLink href={href} {...props}>
++            {children}
++          </ThemeLink>
++        )
++      const cut = children.lastIndexOf(" ") + 1
++      return (
++        <ThemeLink href={href} {...props}>
++          {children.slice(0, cut)}
++          <span className="sp-ext-link">
++            {children.slice(cut)}
++            <LinkArrowIcon height="1em" aria-hidden />
++          </span>
++        </ThemeLink>
++      )
++    },
+     ...components,
+   }
+ }

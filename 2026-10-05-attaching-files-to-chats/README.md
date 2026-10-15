@@ -9,3 +9,7 @@
 **Question:** How does someone find out a chat takes files?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

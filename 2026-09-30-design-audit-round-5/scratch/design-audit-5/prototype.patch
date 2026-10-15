@@ -1,0 +1,234 @@
+diff --git a/apps/app/components/agent/agent-message.tsx b/apps/app/components/agent/agent-message.tsx
+index e0fc8a4..f72240f 100644
+--- a/apps/app/components/agent/agent-message.tsx
++++ b/apps/app/components/agent/agent-message.tsx
+@@ -743,11 +743,12 @@ export function TurnSummaryRow({
+         />
+         <span className="min-w-0">
+           {summary.text}
++          {failures.length > 0 && " "}
+           {failures.length > 0 && (
+             // Inline, so it follows the text onto a wrapped line.
+             <span
+               data-testid="turn-summary-failure"
+-              className="mt-px ml-1.5 inline-flex h-[18px] items-center gap-1 rounded-md border px-1.5 align-top text-xs font-medium whitespace-nowrap text-foreground"
++              className="mt-px inline-flex h-[18px] items-center gap-1 rounded-md border px-1.5 align-top text-xs font-medium whitespace-nowrap text-foreground"
+             >
+               <WarningCircleIcon
+                 aria-hidden
+diff --git a/apps/app/components/agent/chat-panel.tsx b/apps/app/components/agent/chat-panel.tsx
+index 2459e63..d6e6584 100644
+--- a/apps/app/components/agent/chat-panel.tsx
++++ b/apps/app/components/agent/chat-panel.tsx
+@@ -1040,7 +1040,7 @@ export function ChatPanel({
+           <TabsList
+             variant="line"
+             // Tall enough for the 28px close buttons to sit inside the tabs.
+-            className="px-2 group-data-horizontal/tabs:h-10"
++            className="px-2.5 group-data-horizontal/tabs:h-10"
+           >
+             {isAgentTarget && (
+               <TabsTrigger
+diff --git a/apps/app/components/agent/composer.tsx b/apps/app/components/agent/composer.tsx
+index 8274c18..5613db5 100644
+--- a/apps/app/components/agent/composer.tsx
++++ b/apps/app/components/agent/composer.tsx
+@@ -918,7 +918,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
+           <EditorContent editor={editor} className="w-full" />
+           <InputGroupAddon align="block-end" className="gap-0.5">
+             {noAgents ? (
+-              <span className="-ml-1 text-xs text-muted-foreground">
++              <span className="-ml-1.5 text-xs text-muted-foreground">
+                 No coding agent detected — install a CLI (e.g. Claude Code or
+                 Codex) and restart, or add one in Settings.
+               </span>
+@@ -927,7 +927,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
+                 <TooltipProvider>
+                   <Tooltip>
+                     <TooltipTrigger asChild>
+-                      <span className="-ml-1 inline-flex">
++                      <span className="-ml-1.5 inline-flex">
+                         <DropdownMenuTrigger asChild>
+                           <InputGroupButton
+                             size="xs"
+diff --git a/apps/app/components/agent/workspaces-menu.tsx b/apps/app/components/agent/workspaces-menu.tsx
+index 3991a47..cc17be2 100644
+--- a/apps/app/components/agent/workspaces-menu.tsx
++++ b/apps/app/components/agent/workspaces-menu.tsx
+@@ -1131,7 +1131,15 @@ function WorkspaceMenuRow({
+           {repoShortName(repo)}
+         </span>
+       )}
+-      <span {...isolate} className="flex shrink-0">
++      <span
++        {...isolate}
++        className={cn(
++          "shrink-0",
++          menuOpen || renaming
++            ? "flex"
++            : "hidden group-data-selected/ws-row:flex"
++        )}
++      >
+         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+           <DropdownMenuTrigger asChild>
+             <IconButton
+diff --git a/apps/app/components/canvas/canvas-settings-dialog.tsx b/apps/app/components/canvas/canvas-settings-dialog.tsx
+index d7deb13..96684f6 100644
+--- a/apps/app/components/canvas/canvas-settings-dialog.tsx
++++ b/apps/app/components/canvas/canvas-settings-dialog.tsx
+@@ -120,7 +120,7 @@ export function CanvasSettingsDialog({
+   return (
+     <Dialog open={open} onOpenChange={onOpenChange}>
+       <DialogContent
+-        className="overflow-hidden p-0 md:max-h-[500px] md:max-w-[700px]"
++        className="overflow-hidden p-0 md:max-h-[500px] md:max-w-[700px] [&>[data-slot=dialog-close]]:top-2.5"
+         // Focus the dialog itself rather than its first control, so opening
+         // doesn't paint a focus ring on the section list.
+         onOpenAutoFocus={(event) => {
+@@ -163,7 +163,9 @@ export function CanvasSettingsDialog({
+                   <BreadcrumbItem className="hidden md:block">
+                     Canvas settings
+                   </BreadcrumbItem>
+-                  <BreadcrumbSeparator className="hidden md:block" />
++                  <BreadcrumbSeparator className="hidden text-muted-foreground/60 md:block">
++                    /
++                  </BreadcrumbSeparator>
+                   <BreadcrumbItem>
+                     <BreadcrumbPage>{active.title}</BreadcrumbPage>
+                   </BreadcrumbItem>
+diff --git a/apps/app/components/canvas/canvas-top-bar.tsx b/apps/app/components/canvas/canvas-top-bar.tsx
+index 283d1c3..8020b45 100644
+--- a/apps/app/components/canvas/canvas-top-bar.tsx
++++ b/apps/app/components/canvas/canvas-top-bar.tsx
+@@ -167,6 +167,7 @@ export function CanvasTopBar({
+                 </DropdownMenuTrigger>
+                 <DropdownMenuContent
+                   align="start"
++                  sideOffset={8}
+                   onCloseAutoFocus={onRoomMenuCloseAutoFocus}
+                 >
+                   {/* Only the owner can rename; a collaborator's
+diff --git a/apps/app/components/canvas/canvas-zoom-menu.tsx b/apps/app/components/canvas/canvas-zoom-menu.tsx
+index a5827f5..870dda3 100644
+--- a/apps/app/components/canvas/canvas-zoom-menu.tsx
++++ b/apps/app/components/canvas/canvas-zoom-menu.tsx
+@@ -54,7 +54,7 @@ export function CanvasZoomMenu({
+           variant="ghost"
+           size="xs"
+           aria-label={`Zoom, ${percent}%`}
+-          className="gap-0.5 px-1.5 font-normal tabular-nums"
++          className="h-7 gap-0.5 px-1.5 font-normal tabular-nums"
+         >
+           {percent}%
+           <CaretDownIcon className="text-muted-foreground" />
+diff --git a/apps/app/components/home/room-grid.tsx b/apps/app/components/home/room-grid.tsx
+index 62ea004..d91b58c 100644
+--- a/apps/app/components/home/room-grid.tsx
++++ b/apps/app/components/home/room-grid.tsx
+@@ -177,8 +177,7 @@ function RoomTileFace({
+       <Link
+         href={`/${room.id}`}
+         className={cn(
+-          "relative block aspect-[4/3] w-full overflow-hidden",
+-          hasThumbnail(room.thumbnailManifest) && "bg-canvas-plane"
++          "relative block aspect-[4/3] w-full overflow-hidden bg-canvas-plane"
+         )}
+         aria-label={`Open ${room.name}`}
+       >
+diff --git a/apps/app/components/home/room-table.tsx b/apps/app/components/home/room-table.tsx
+index 65822a9..d355b88 100644
+--- a/apps/app/components/home/room-table.tsx
++++ b/apps/app/components/home/room-table.tsx
+@@ -46,7 +46,9 @@ function FolderRowName({ folder }: { folder: FolderSummary }) {
+   const { folderContents } = useHome()
+   return (
+     <Link href={`/files/${folder.id}`} className="flex items-center gap-2">
+-      <FolderIcon className="size-4 shrink-0 text-primary" />
++      <span className={cn(ROW_THUMBNAIL, "grid place-items-center")}>
++        <FolderIcon className="size-4 shrink-0 text-primary" />
++      </span>
+       <span className="truncate">
+         <span className="font-medium">{folder.name}</span>
+         <span className="text-muted-foreground">
+@@ -64,11 +66,11 @@ function FolderRowName({ folder }: { folder: FolderSummary }) {
+ // card uses, so a captured canvas shows its real layout. An uncaptured one
+ // gets the grid's dashed empty preview. The composite never draws text.
+ const ROW_THUMBNAIL =
+-  "relative aspect-[4/3] h-14 shrink-0 overflow-hidden rounded-xs @2xl/home:h-20"
++  "relative aspect-[4/3] h-10 shrink-0 overflow-hidden rounded-xs"
+ 
+ function RoomRowThumbnail({ room }: { room: RoomSummary }) {
+   if (!hasThumbnail(room.thumbnailManifest)) {
+-    return <EmptyThumbnail className={ROW_THUMBNAIL} />
++    return <EmptyThumbnail className={cn(ROW_THUMBNAIL, "bg-canvas-plane")} />
+   }
+   return (
+     <div className={cn(ROW_THUMBNAIL, "bg-canvas-plane ring-1 ring-border ring-inset")}>
+diff --git a/apps/app/components/home/settings-row.tsx b/apps/app/components/home/settings-row.tsx
+index c087b1d..3cdd427 100644
+--- a/apps/app/components/home/settings-row.tsx
++++ b/apps/app/components/home/settings-row.tsx
+@@ -69,7 +69,7 @@ export function SettingsRow({
+           </span>
+           {state && (
+             <Badge
+-              variant={status === "on" ? "outline" : "secondary"}
++              variant="outline"
+               className={cn(
+                 "shrink-0 gap-1 font-normal",
+                 status !== "on" && "text-muted-foreground"
+diff --git a/apps/app/components/local-setup/setup-step.tsx b/apps/app/components/local-setup/setup-step.tsx
+index 0204afe..a641b30 100644
+--- a/apps/app/components/local-setup/setup-step.tsx
++++ b/apps/app/components/local-setup/setup-step.tsx
+@@ -127,9 +127,8 @@ export function StepMarker({
+     <span
+       className={cn(
+         "flex shrink-0 items-center justify-center rounded-full font-semibold tabular-nums",
+-        state === "current"
+-          ? "size-5 border-[1.5px] border-foreground text-xs"
+-          : "size-4 text-xs",
++        "size-5 text-xs",
++        state === "current" && "border-[1.5px] border-foreground",
+         state === "upcoming" && "border border-border text-muted-foreground",
+         state === "done" && "bg-success-fill text-success-foreground",
+         state === "skipped" && "bg-muted text-muted-foreground",
+diff --git a/apps/app/lib/layer-mention-suggestion.tsx b/apps/app/lib/layer-mention-suggestion.tsx
+index 73aff6c..cb99c8b 100644
+--- a/apps/app/lib/layer-mention-suggestion.tsx
++++ b/apps/app/lib/layer-mention-suggestion.tsx
+@@ -73,7 +73,7 @@ export function buildLayerMentionSuggestion(opts: {
+         const maxLeft = anchor ? anchor.right - 280 : window.innerWidth - 280
+         const left = Math.max(minLeft, Math.min(rect.left, maxLeft))
+         containerEl.style.left = `${left}px`
+-        containerEl.style.bottom = `${window.innerHeight - rect.top + 4}px`
++        containerEl.style.bottom = `${window.innerHeight - Math.min(rect.top, anchor?.top ?? rect.top) + 4}px`
+       }
+ 
+       return {
+diff --git a/apps/app/lib/skill-mention-suggestion.tsx b/apps/app/lib/skill-mention-suggestion.tsx
+index 12fcfe2..b546188 100644
+--- a/apps/app/lib/skill-mention-suggestion.tsx
++++ b/apps/app/lib/skill-mention-suggestion.tsx
+@@ -61,7 +61,7 @@ export function buildSkillMentionSuggestion(opts: {
+         const maxLeft = anchor ? anchor.right - 320 : window.innerWidth - 320
+         const left = Math.max(minLeft, Math.min(rect.left, maxLeft))
+         containerEl.style.left = `${left}px`
+-        containerEl.style.bottom = `${window.innerHeight - rect.top + 4}px`
++        containerEl.style.bottom = `${window.innerHeight - Math.min(rect.top, anchor?.top ?? rect.top) + 4}px`
+       }
+ 
+       return {
+diff --git a/packages/ui/src/components/badge.tsx b/packages/ui/src/components/badge.tsx
+index 2c7a1eb..69d1e23 100644
+--- a/packages/ui/src/components/badge.tsx
++++ b/packages/ui/src/components/badge.tsx
+@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority"
+ import { cn } from "@workspace/ui/lib/utils"
+ 
+ const badgeVariants = cva(
+-  "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none",
++  "inline-flex h-5 items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none",
+   {
+     variants: {
+       variant: {

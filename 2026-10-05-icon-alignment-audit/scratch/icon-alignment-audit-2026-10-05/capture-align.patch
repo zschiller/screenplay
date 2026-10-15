@@ -1,0 +1,26 @@
+diff --git a/apps/app/screenshots/lib/capture.ts b/apps/app/screenshots/lib/capture.ts
+index e92d797..49e7740 100644
+--- a/apps/app/screenshots/lib/capture.ts
++++ b/apps/app/screenshots/lib/capture.ts
+@@ -204,6 +204,21 @@ async function captureOne(
+     }
+     await settle(page, { extraMs: screen.settleMs ?? 0 })
+     await page.screenshot({ path, fullPage: screen.fullPage ?? false })
++    if (process.env.ALIGN_AUDIT) {
++      const { appendFileSync, readFileSync } = await import("node:fs")
++      const script = readFileSync(process.env.ALIGN_AUDIT_JS!, "utf8")
++      const rows = (await page.evaluate(script)) as unknown[]
++      if (process.env.ALIGN_MENUS_JS) {
++        const menus = readFileSync(process.env.ALIGN_MENUS_JS, "utf8")
++        rows.push(...((await page.evaluate(menus)) as unknown[]))
++      }
++      appendFileSync(
++        process.env.ALIGN_AUDIT,
++        rows
++          .map((r) => JSON.stringify({ screen: screen.name, theme, ...(r as object) }))
++          .join("\n") + "\n"
++      )
++    }
+     return response?.status() ?? null
+   } finally {
+     await context.close()

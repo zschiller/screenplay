@@ -9,3 +9,7 @@
 **Question:** How should the collapsed preview bar sit under the composer, and what should the chat panel show while the code is still being set up?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

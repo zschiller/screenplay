@@ -1,0 +1,42 @@
+[
+ {
+  "name": "TurboRepo + Vite packages/skill-templates",
+  "packagePath": "packages/skill-templates",
+  "framework": {
+   "id": "vite",
+   "name": "Vite"
+  },
+  "devCommand": "turbo run dev --filter @workspace/skill-templates",
+  "port": 5173
+ },
+ {
+  "name": "TurboRepo + Next.js apps/app",
+  "packagePath": "apps/app",
+  "framework": {
+   "id": "next",
+   "name": "Next.js"
+  },
+  "devCommand": "turbo run dev --filter app",
+  "port": 3000
+ },
+ {
+  "name": "TurboRepo + Next.js apps/docs",
+  "packagePath": "apps/docs",
+  "framework": {
+   "id": "next",
+   "name": "Next.js"
+  },
+  "devCommand": "turbo run dev --filter docs",
+  "port": 3000
+ },
+ {
+  "name": "TurboRepo + Next.js apps/homepage",
+  "packagePath": "apps/homepage",
+  "framework": {
+   "id": "next",
+   "name": "Next.js"
+  },
+  "devCommand": "turbo run dev --filter homepage",
+  "port": 3000
+ }
+]

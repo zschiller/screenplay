@@ -1,0 +1,324 @@
+diff --git a/apps/app/components/canvas/canvas.tsx b/apps/app/components/canvas/canvas.tsx
+index 7dcfa15..6ee75ba 100644
+--- a/apps/app/components/canvas/canvas.tsx
++++ b/apps/app/components/canvas/canvas.tsx
+@@ -644,6 +644,13 @@ export function Canvas({
+   const setEditingDocumentLayerId = interaction.setEditingDocumentLayerId
+   const spaceHeld = interaction.spaceHeld
+   const chatAnchor = interaction.chatAnchor
++  // EXPLORATION ONLY: draw your own cursor chat at a scripted spot.
++  const [exploreChat, setExploreChat] = useState<{ x: number; y: number; color: string; value: string } | null>(null)
++  useEffect(() => {
++    const h = (e: Event) => setExploreChat((e as CustomEvent).detail)
++    window.addEventListener("explore-chat", h)
++    return () => window.removeEventListener("explore-chat", h)
++  }, [])
+ 
+   // Frame Control (#1387): who drives each frame and mockup (#1391).
+   // Interact is the driver's seat; the agent always yields it.
+@@ -2605,6 +2612,16 @@ export function Canvas({
+                   highlightRect={targeting.highlightRect}
+                 />
+                 <Cursors viewport={{ ...viewportPos, zoom }} />
++                {exploreChat ? (
++                  <CursorChat
++                    screenX={exploreChat.x * zoom + viewportPos.x}
++                    screenY={exploreChat.y * zoom + viewportPos.y}
++                    color={exploreChat.color}
++                    value={exploreChat.value}
++                    onChange={() => {}}
++                    onClose={() => {}}
++                  />
++                ) : null}
+                 {chatAnchor && self?.message != null ? (
+                   <CursorChat
+                     screenX={chatAnchor.x * zoom + viewportPos.x}
+diff --git a/apps/app/components/canvas/cursor-chat.tsx b/apps/app/components/canvas/cursor-chat.tsx
+index 0b1c9c1..b8644e0 100644
+--- a/apps/app/components/canvas/cursor-chat.tsx
++++ b/apps/app/components/canvas/cursor-chat.tsx
+@@ -3,6 +3,7 @@
+ import { useEffect, useRef } from "react"
+ 
+ import { presenceInk } from "@/lib/canvas/presence-ink"
++import { explore } from "@/lib/canvas/explore-presence"
+ 
+ interface CursorChatProps {
+   /** Screen-space position of the local cursor. */
+@@ -35,6 +36,55 @@ export function CursorChat({
+     inputRef.current?.focus()
+   }, [])
+ 
++  const q1 = explore("q1")
++  const q2 = explore("q2")
++  const dark = q1 !== "t" || presenceInk(color) === "dark"
++  if (q2 !== "t") {
++    const input = (
++      <input
++        ref={inputRef}
++        type="text"
++        value={value}
++        maxLength={140}
++        placeholder="Say something…"
++        onChange={(e) => onChange(e.target.value)}
++        onKeyDown={(e) => {
++          if (e.key === "Escape" || e.key === "Enter") {
++            e.preventDefault()
++            onClose()
++          }
++          e.stopPropagation()
++        }}
++        onBlur={onClose}
++        className={
++          q2 === "c"
++            ? "w-56 bg-transparent text-sm text-popover-foreground outline-none placeholder:text-muted-foreground"
++            : dark
++              ? "w-56 bg-transparent text-sm text-black outline-none placeholder:text-black/60"
++              : "w-56 bg-transparent text-sm text-white outline-none placeholder:text-white/70"
++        }
++      />
++    )
++    return (
++      <div
++        className="pointer-events-none absolute z-(--z-canvas-presence)"
++        style={{ left: screenX, top: screenY }}
++      >
++        {q2 === "c" ? (
++          <div className="inverted pointer-events-auto mt-1 ml-3 flex items-center rounded-[3px] bg-popover px-2 py-1" style={{ boxShadow: `inset 3px 0 0 ${color}` }}>
++            {input}
++          </div>
++        ) : (
++          <div
++            className={`pointer-events-auto mt-1 ml-3 flex items-center ${q2 === "b" ? "rounded-[14px] rounded-tl-none px-3 py-1.5" : "rounded-[3px] px-2 py-1"}`}
++            style={{ backgroundColor: color }}
++          >
++            {input}
++          </div>
++        )}
++      </div>
++    )
++  }
+   return (
+     <div
+       className="pointer-events-none absolute z-(--z-canvas-presence)"
+diff --git a/apps/app/components/canvas/cursors.tsx b/apps/app/components/canvas/cursors.tsx
+index e771d41..9525f62 100644
+--- a/apps/app/components/canvas/cursors.tsx
++++ b/apps/app/components/canvas/cursors.tsx
+@@ -1,6 +1,7 @@
+ "use client"
+ 
+ import { presenceInkClass } from "@/lib/canvas/presence-ink"
++import { explore } from "@/lib/canvas/explore-presence"
+ import { useOtherPresences } from "@/lib/yjs/react"
+ 
+ interface CursorsProps {
+@@ -9,6 +10,8 @@ interface CursorsProps {
+ 
+ export function Cursors({ viewport }: CursorsProps) {
+   const others = useOtherPresences()
++  const q1 = explore("q1")
++  const q2 = explore("q2")
+ 
+   return (
+     <>
+@@ -19,7 +22,92 @@ export function Cursors({ viewport }: CursorsProps) {
+         const screenY = presence.pointer.y * viewport.zoom + viewport.y
+         const message = presence.message ?? null
+         const name = presence.identity.name || "Anonymous"
+-        const ink = presenceInkClass(presence.color)
++        const ink = q1 === "t" ? presenceInkClass(presence.color) : "text-black"
++        const c = presence.color
++
++        const tag =
++          q1 === "b" ? (
++            <span className="inverted mt-1 ml-3 flex w-max items-center gap-1.5 rounded-[3px] bg-popover px-1.5 py-0.5 text-xs whitespace-nowrap text-popover-foreground">
++              <span className="size-2 rounded-full" style={{ backgroundColor: c }} />
++              {name}
++            </span>
++          ) : q1 === "c" ? (
++            <span
++              className="mt-1 ml-3 block w-max rounded-[3px] bg-background px-1.5 py-0.5 text-xs whitespace-nowrap text-foreground"
++              style={{ boxShadow: `inset 0 0 0 1px ${c}` }}
++            >
++              {name}
++            </span>
++          ) : q1 === "a" ? (
++            <span
++              className={`mt-1 ml-3 block w-max rounded-[3px] px-1.5 py-0.5 text-xs whitespace-nowrap ${ink}`}
++              style={{ backgroundColor: c }}
++            >
++              {name}
++            </span>
++          ) : (
++            <span
++              className={`mt-1 ml-3 rounded px-1.5 py-0.5 text-xs whitespace-nowrap ${ink}`}
++              style={{ backgroundColor: c }}
++            >
++              {name}
++            </span>
++          )
++
++        let bubble: React.ReactNode = null
++        if (message !== null) {
++          if (q2 === "a") {
++            bubble = (
++              <div
++                className={`mt-1 ml-3 w-max max-w-60 rounded-[3px] px-2 py-1 ${ink}`}
++                style={{ backgroundColor: c }}
++              >
++                <div className="text-xs font-medium">{name}</div>
++                <div className="text-sm leading-snug break-words whitespace-pre-wrap">
++                  {message || " "}
++                </div>
++              </div>
++            )
++          } else if (q2 === "b") {
++            bubble = (
++              <div
++                className={`mt-1 ml-3 w-max max-w-60 rounded-[14px] rounded-tl-none px-3 py-1.5 ${ink}`}
++                style={{ backgroundColor: c }}
++              >
++                <div className="text-xs font-medium">{name}</div>
++                <div className="text-sm leading-snug break-words whitespace-pre-wrap">
++                  {message || " "}
++                </div>
++              </div>
++            )
++          } else if (q2 === "c") {
++            bubble = (
++              <div className="mt-1 ml-3 flex w-max max-w-60 flex-col items-start">
++                <span
++                  className={`rounded-t-[3px] px-1.5 py-0.5 text-xs whitespace-nowrap ${ink}`}
++                  style={{ backgroundColor: c }}
++                >
++                  {name}
++                </span>
++                <div className="inverted rounded-[3px] rounded-tl-none bg-popover px-2 py-1 text-sm leading-snug break-words whitespace-pre-wrap text-popover-foreground">
++                  {message || " "}
++                </div>
++              </div>
++            )
++          } else {
++            bubble = (
++              <div
++                className={`mt-1 ml-3 max-w-xs rounded-2xl rounded-tl-none px-2.5 py-1 text-xs shadow-md ${ink}`}
++                style={{ backgroundColor: c }}
++              >
++                <div className="text-xs font-medium opacity-80">{name}</div>
++                <div className="leading-snug break-words whitespace-pre-wrap">
++                  {message || " "}
++                </div>
++              </div>
++            )
++          }
++        }
+ 
+         return (
+           <div
+@@ -32,31 +120,26 @@ export function Cursors({ viewport }: CursorsProps) {
+               height="20"
+               viewBox="0 0 16 20"
+               fill="none"
+-              style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }}
++              style={
++                q1 === "t"
++                  ? { filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }
++                  : { overflow: "visible" }
++              }
+             >
+               <path
+                 d="M0.928711 0.0737305L15.0713 11.3833L8.20055 11.8235L4.56463 19.0005L0.928711 0.0737305Z"
+-                fill={presence.color}
++                fill={c}
++                {...(q1 === "t"
++                  ? {}
++                  : {
++                      stroke: "var(--background)",
++                      strokeWidth: 1.5,
++                      strokeLinejoin: "round" as const,
++                      paintOrder: "stroke",
++                    })}
+               />
+             </svg>
+-            {message !== null ? (
+-              <div
+-                className={`mt-1 ml-3 max-w-xs rounded-2xl rounded-tl-none px-2.5 py-1 text-xs shadow-md ${ink}`}
+-                style={{ backgroundColor: presence.color }}
+-              >
+-                <div className="text-xs font-medium opacity-80">{name}</div>
+-                <div className="leading-snug break-words whitespace-pre-wrap">
+-                  {message || " "}
+-                </div>
+-              </div>
+-            ) : (
+-              <span
+-                className={`mt-1 ml-3 rounded px-1.5 py-0.5 text-xs whitespace-nowrap ${ink}`}
+-                style={{ backgroundColor: presence.color }}
+-              >
+-                {name}
+-              </span>
+-            )}
++            {bubble ?? tag}
+           </div>
+         )
+       })}
+diff --git a/apps/app/components/canvas/following-toolbar.tsx b/apps/app/components/canvas/following-toolbar.tsx
+index e06e8a4..4fd2f33 100644
+--- a/apps/app/components/canvas/following-toolbar.tsx
++++ b/apps/app/components/canvas/following-toolbar.tsx
+@@ -9,7 +9,9 @@ import {
+ } from "@workspace/ui/components/avatar"
+ import { IconButton } from "@workspace/ui/components/icon-button"
+ import { useOtherPresences, useSelfIdentity } from "@/lib/yjs/react"
+-import { presenceInkClass } from "@/lib/canvas/presence-ink"
++import { presenceInkClass as inkOf } from "@/lib/canvas/presence-ink"
++import { explore } from "@/lib/canvas/explore-presence"
++const presenceInkClass = (c: string) => (explore("q1") === "t" ? inkOf(c) : "text-black")
+ 
+ interface FollowingToolbarProps {
+   followingId: number | null
+@@ -22,6 +24,7 @@ const AVATAR_BUTTON_CLASS =
+   "relative size-auto rounded-full border-0 p-0 ring-2 ring-background transition-shadow hover:bg-transparent hover:ring-foreground/20 dark:hover:bg-transparent"
+ 
+ function getInitials(name: string) {
++  if (explore("q3") === "a") return name.slice(0, 1).toUpperCase()
+   return name
+     .split(" ")
+     .map((w) => w[0])
+@@ -38,7 +41,7 @@ export function FollowingToolbar({
+   const self = useSelfIdentity()
+ 
+   return (
+-    <div className="ml-0.5 flex flex-row-reverse items-center [&>*:not(:last-child)]:-ml-2">
++    <div className={`ml-0.5 flex flex-row-reverse items-center ${explore("q3") === "a" ? "[&>*:not(:last-child)]:-ml-1" : explore("q3") === "b" ? "gap-1" : "[&>*:not(:last-child)]:-ml-2"}`}>
+       {self && (
+         <IconButton
+           label={`${self.name || "You"} (you)`}
+@@ -51,7 +54,7 @@ export function FollowingToolbar({
+             <AvatarFallback
+               aria-hidden
+               style={{ backgroundColor: self.color }}
+-              className="text-xs font-medium text-white"
++              className={`text-xs font-medium ${explore("q1") === "t" ? "text-white" : "text-black"}`}
+             >
+               {getInitials(self.name || "?")}
+             </AvatarFallback>
+diff --git a/apps/app/components/canvas/use-canvas-camera.ts b/apps/app/components/canvas/use-canvas-camera.ts
+index 41940d3..46424ec 100644
+--- a/apps/app/components/canvas/use-canvas-camera.ts
++++ b/apps/app/components/canvas/use-canvas-camera.ts
+@@ -1,3 +1,4 @@
++import { exploreSelfColor } from "@/lib/canvas/explore-presence"
+ import {
+   useCallback,
+   useEffect,
+@@ -474,7 +475,7 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
+         "#FF8A65",
+         "#A1887F",
+       ]
+-      colorRef.current = palette[Math.floor(Math.random() * palette.length)]!
++      colorRef.current = exploreSelfColor() ?? palette[Math.floor(Math.random() * palette.length)]!
+     }
+     setPresence({
+       identity: {

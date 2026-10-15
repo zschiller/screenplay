@@ -9,3 +9,7 @@
 **Question:** What should the hover card on a Mockup, frame or document mention in chat show?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

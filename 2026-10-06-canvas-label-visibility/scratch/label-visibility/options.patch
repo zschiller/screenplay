@@ -1,0 +1,160 @@
+diff --git a/apps/app/app/globals.css b/apps/app/app/globals.css
+index df38e1b..d3523ff 100644
+--- a/apps/app/app/globals.css
++++ b/apps/app/app/globals.css
+@@ -622,3 +622,7 @@ button.inline-ref:focus-visible {
+ .inline-ref[data-inline-ref-mask="mockup"] {
+   --inline-ref-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><path d='M208.5,192.49a10.6,10.6,0,0,0,0,15,12,12,0,0,1-17,17,34.62,34.62,0,0,1,0-49l9.37-9.37a10.63,10.63,0,0,0-15-15l-66.76,66.75a34.63,34.63,0,0,1-49-49l98.76-98.75a10.63,10.63,0,0,0-15-15L87.11,121.86a34.63,34.63,0,0,1-49-49L79.51,31.51a12,12,0,1,1,17,17L55.1,89.86a10.63,10.63,0,0,0,15,15l66.76-66.75a34.63,34.63,0,1,1,49,49L87.11,185.86a10.63,10.63,0,0,0,15,15l66.75-66.75a34.63,34.63,0,0,1,49,49Z'/></svg>");
+ }
++/* EXPLORATION ONLY */
++[data-lx-hidden] { visibility: hidden !important; }
++[data-lx-names-hidden] > :not(:has(.group\/group-label)) { display: none !important; }
++[data-lx-group-hidden] > :has(.group\/group-label) { visibility: hidden !important; }
+diff --git a/apps/app/components/canvas/canvas-member-layer.tsx b/apps/app/components/canvas/canvas-member-layer.tsx
+index ad09f7b..db7409a 100644
+--- a/apps/app/components/canvas/canvas-member-layer.tsx
++++ b/apps/app/components/canvas/canvas-member-layer.tsx
+@@ -39,6 +39,7 @@ import type { LayerMutations } from "./use-layer-mutations"
+ import type { GroupActions } from "./use-group-actions"
+ import { frameWorkspaceOf } from "./frame-nav"
+ import type { WorkingChat } from "./working-chat"
++import { LX } from "./lx-labels"
+ import {
+   hiddenGroupLabels,
+   hiddenLayerLabels,
+@@ -266,7 +267,7 @@ function CanvasMemberLayerImpl({
+     setCreateFlowIframeLayerId(null)
+   }
+   const labelsHidden = useMemo(
+-    () => hiddenLayerLabels(effectiveIframeLayerLayouts.values(), zoom),
++    () => LX ? new Set<string>() : hiddenLayerLabels(effectiveIframeLayerLayouts.values(), zoom),
+     [effectiveIframeLayerLayouts, zoom]
+   )
+   const groupLabelsHidden = useMemo(() => {
+@@ -276,6 +277,7 @@ function CanvasMemberLayerImpl({
+       if (members.length > 1)
+         labelled.set(group.id, { memberIds: members.map((m) => m.id) })
+     }
++    if (LX) return new Set<string>()
+     return hiddenGroupLabels(
+       effectiveIframeLayerLayouts.values(),
+       labelled,
+diff --git a/apps/app/components/canvas/canvas.tsx b/apps/app/components/canvas/canvas.tsx
+index c8b91d7..5c2a696 100644
+--- a/apps/app/components/canvas/canvas.tsx
++++ b/apps/app/components/canvas/canvas.tsx
+@@ -262,6 +262,7 @@ import { CanvasSettingsDialog } from "./canvas-settings-dialog"
+ 
+ import { addMemory, editMemory, removeMemory } from "@/lib/memory/canvas"
+ import { LabelLayerContext } from "./label-layer"
++import { useLxLabels } from "./lx-labels"
+ import { LiveZoomContext } from "./live-zoom"
+ 
+ import { ChatPanelHost } from "./chat-panel-host"
+@@ -1072,6 +1073,7 @@ export function Canvas({
+     ]
+   )
+   const effectiveIframeLayerLayouts = canvasLayout.layouts
++  useLxLabels(labelLayer, effectiveIframeLayerLayouts, iframeLayerGroups)
+   const sortedIframeLayerGroups = useMemo(() => {
+     return [...iframeLayerGroups].sort((a, b) => {
+       const ao = a.sidebarOrder ?? Number.MAX_SAFE_INTEGER
+diff --git a/apps/app/components/canvas/lx-labels.ts b/apps/app/components/canvas/lx-labels.ts
+new file mode 100644
+index 0000000..2ba02a5
+--- /dev/null
++++ b/apps/app/components/canvas/lx-labels.ts
+@@ -0,0 +1,93 @@
++"use client"
++// EXPLORATION ONLY (label visibility round 1) — never commit.
++import { useEffect } from "react"
++import { getGroupMembers } from "@/lib/canvas/layout"
++import type { LabelLayer } from "./label-layer"
++
++type R = { id: string; x: number; y: number; width: number; height: number }
++
++export const LX: string | null =
++  typeof window === "undefined" ? null : window.localStorage.getItem("lx")
++
++const NAME = 20
++const GROUP = 22
++const MINW = 64
++
++function overlaps(a: Omit<R, "id">, b: Omit<R, "id">) {
++  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
++}
++
++type State = { hidden: boolean; names: boolean; group: boolean }
++
++export function lxStates(rects: R[], groups: { members: string[] }[], z: number, textW: Map<string, { name: number; group: number }> = new Map()) {
++  const out = new Map<string, State>()
++  const grouped = new Set(groups.flatMap((g) => g.members))
++  const all = [...groups.map((g) => g.members), ...rects.filter((r) => !grouped.has(r.id)).map((r) => [r.id])]
++  for (const ids of all) {
++    const ms = ids.map((id) => rects.find((r) => r.id === id)).filter((r): r is R => !!r)
++    if (!ms.length) continue
++    const L = ms[0]
++    const hasGL = ms.length > 1
++    const top = Math.min(...ms.map((m) => m.y))
++    const right = Math.max(...ms.map((m) => m.x + m.width))
++    const clear = (h: number, x = L.x, w = right - L.x) => {
++      const strip = { x, y: top - h / z, width: w, height: h / z }
++      return !rects.some((o) => !ids.includes(o.id) && overlaps(strip, o))
++    }
++    const wide = (m: R) => m.width * z >= MINW - 1e-3
++    const set = (m: R, s: State) => out.set(m.id, s)
++    if (LX === "a") {
++      const namesRoom = clear(NAME)
++      const groupRoom = hasGL && clear(NAME + GROUP)
++      for (const m of ms) {
++        const shown = namesRoom && wide(m)
++        set(m, { hidden: !shown, names: true, group: m === L && groupRoom && shown })
++      }
++    } else if (LX === "b") {
++      for (const m of ms) set(m, { hidden: !wide(m), names: true, group: m === L && hasGL && wide(m) })
++    } else if (LX === "c") {
++      const full = clear(hasGL ? NAME + GROUP : NAME) && ms.every(wide)
++      const groupOnly = hasGL && !full && clear(NAME) && (right - L.x) * z >= MINW
++      for (const m of ms) {
++        if (full) set(m, { hidden: false, names: true, group: m === L && hasGL })
++        else if (groupOnly) set(m, { hidden: m !== L, names: false, group: m === L })
++        else set(m, { hidden: true, names: true, group: false })
++      }
++    }
++  }
++  return out
++}
++
++export function useLxLabels(
++  labelLayer: LabelLayer | null,
++  layouts: Map<string, { x: number; y: number; width: number; height: number }>,
++  groups: readonly Parameters<typeof getGroupMembers>[0][]
++) {
++  useEffect(() => {
++    if (!LX || !labelLayer) return
++    const rects = [...layouts.entries()].map(([id, l]) => ({ id, x: l.x, y: l.y, width: l.width, height: l.height }))
++    const gs = groups.map((g) => ({ members: getGroupMembers(g).map((m) => m.id) }))
++    const apply = () => {
++      const z = labelLayer.camera.get().zoom
++      const textW = new Map<string, { name: number; group: number }>()
++      for (const el of labelLayer.element.querySelectorAll<HTMLElement>("[data-layer-label]")) {
++        const kids = [...el.children] as HTMLElement[]
++        const g = kids.find((k) => k.querySelector(".group\\/group-label"))
++        const n = kids.find((k) => k !== g)
++        const inner = (k?: HTMLElement) => (k ? Math.max(0, ...[...k.querySelectorAll<HTMLElement>(".group\\/layer-label, .group\\/group-label")].map((e) => [...e.children].reduce((w, c) => w + (c as HTMLElement).getBoundingClientRect().width + 8, -8))) : 0)
++        textW.set(el.getAttribute("data-layer-label")!, { name: inner(n), group: inner(g) })
++      }
++      for (const [id, s] of lxStates(rects, gs, z, textW)) {
++        const el = labelLayer.element.querySelector(`[data-layer-label="${id}"]`)
++        if (!el) continue
++        el.toggleAttribute("data-lx-hidden", s.hidden)
++        el.toggleAttribute("data-lx-names-hidden", !s.names)
++        el.toggleAttribute("data-lx-group-hidden", !s.group)
++      }
++    }
++    apply()
++    const t = setInterval(apply, 250)
++    const un = labelLayer.camera.subscribe(apply)
++    return () => { un(); clearInterval(t) }
++  }, [labelLayer, layouts, groups])
++}

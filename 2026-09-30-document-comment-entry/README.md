@@ -9,3 +9,7 @@
 **Question:** When someone selects text in a Document, where do Comment and Send to agent live?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

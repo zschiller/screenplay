@@ -1,0 +1,351 @@
+diff --git a/apps/app/components/agent/workspace-menu.tsx b/apps/app/components/agent/workspace-menu.tsx
+index f6caba9..a7f289d 100644
+--- a/apps/app/components/agent/workspace-menu.tsx
++++ b/apps/app/components/agent/workspace-menu.tsx
+@@ -37,7 +37,13 @@ export function WorkspaceMenuItems({
+   onRename,
+   onPlay,
+   onOpenInBrowser,
++  only,
++  openChat,
++  audited,
+ }: {
++  audited?: boolean
++  only?: "preview" | "chat"
++  openChat?: boolean
+   branchId: string
+   /** Starts the inline rename. */
+   onRename: () => void
+@@ -75,6 +81,9 @@ export function WorkspaceMenuItems({
+       onReopen={menu.onReopenBranch}
+       onDelete={menu.askDelete}
+       isBusy={menu.stateOf(branch).agentWorking}
++      only={only}
++      audited={audited}
++      onOpenChat={openChat ? () => menu.onSelectWorkspace(branch.id) : undefined}
+     />
+   )
+ }
+diff --git a/apps/app/components/canvas/layer-menu.tsx b/apps/app/components/canvas/layer-menu.tsx
+index debb9cd..be017f5 100644
+--- a/apps/app/components/canvas/layer-menu.tsx
++++ b/apps/app/components/canvas/layer-menu.tsx
+@@ -13,6 +13,9 @@ import {
+ } from "react"
+ import {
+   ArrowsOutSimpleIcon,
++  AppWindowIcon,
++  MonitorIcon,
++  TerminalWindowIcon,
+   ChatCircleIcon,
+   CopyIcon,
+   DotsThreeIcon,
+@@ -218,7 +221,15 @@ function LayerMenuItems({
+               Fit to content
+             </DropdownMenuCheckboxItem>
+           )}
+-          {showChat && chat && (
++          {showChat && chat && hasWorkspaceMenu && branchId && MOCK_OPT !== "today" ? (
++            <MockChatItems
++              opt={MOCK_OPT}
++              branchId={branchId}
++              chat={chat}
++              onRename={() => onPendingRename({ kind: "chat", branchId })}
++            />
++          ) : null}
++          {showChat && chat && !(hasWorkspaceMenu && branchId && MOCK_OPT !== "today") && (
+             <DropdownMenuSub>
+               <DropdownMenuSubTrigger>
+                 <ChatCircleIcon />
+@@ -252,6 +263,7 @@ function LayerMenuItems({
+           )}
+         </>
+       )}
++
+       {actions.onDelete && (
+         <>
+           {(canRename || actions.onDuplicate || showFrameItems) && (
+@@ -458,3 +470,96 @@ export function useLayerMenu(id: string): LayerMenuActions | undefined {
+     () => undefined
+   )
+ }
++
++const MOCK_OPT =
++  (typeof window !== "undefined" &&
++    window.localStorage.getItem("frame-menu-opt")) ||
++  "today"
++
++function MockChatItems({
++  opt,
++  branchId,
++  chat,
++  onRename,
++}: {
++  opt: string
++  branchId: string
++  chat: NonNullable<LayerMenuActions["chat"]>
++  onRename: () => void
++}) {
++  const common = {
++    branchId,
++    onRename,
++    onPlay: chat.onPlay,
++    onOpenInBrowser: chat.onOpenInBrowser,
++  }
++  const sub = (icon: React.ReactNode, label: string, body: React.ReactNode) => (
++    <DropdownMenuSub>
++      <DropdownMenuSubTrigger>
++        {icon}
++        {label}
++      </DropdownMenuSubTrigger>
++      <DropdownMenuSubContent>{body}</DropdownMenuSubContent>
++    </DropdownMenuSub>
++  )
++  if (opt === "a")
++    return sub(<AppWindowIcon />, "Preview", <WorkspaceMenuItems {...common} />)
++  if (opt === "b" || opt === "e")
++    return (
++      <>
++        {sub(
++          MOCK_LABEL.icon,
++          MOCK_LABEL.label,
++          <WorkspaceMenuItems {...common} only="preview" audited={opt === "e"} />
++        )}
++        {sub(
++          <ChatCircleIcon />,
++          "Chat",
++          <WorkspaceMenuItems {...common} only="chat" openChat audited={opt === "e"} />
++        )}
++      </>
++    )
++  if (opt === "c")
++    return (
++      <>
++        <DropdownMenuSeparator />
++        <WorkspaceMenuItems {...common} only="preview" />
++        <DropdownMenuSeparator />
++        {sub(
++          <ChatCircleIcon />,
++          "Chat",
++          <WorkspaceMenuItems {...common} only="chat" openChat />
++        )}
++      </>
++    )
++  // d: the preview's items, then Open chat; the chat's own menu stays in its header.
++  return (
++    <>
++      <DropdownMenuSeparator />
++      <WorkspaceMenuItems {...common} only="preview" />
++      <DropdownMenuSeparator />
++      <MockOpenChat branchId={branchId} />
++    </>
++  )
++}
++
++function MockOpenChat({ branchId }: { branchId: string }) {
++  const menu = useChatsMenu()
++  return (
++    <DropdownMenuItem onSelect={() => menu?.onSelectWorkspace(branchId)}>
++      <ChatCircleIcon />
++      Open chat
++    </DropdownMenuItem>
++  )
++}
++
++const MOCK_LABEL = (() => {
++  const k =
++    (typeof window !== "undefined" &&
++      window.localStorage.getItem("frame-menu-label")) ||
++    "a"
++  if (k === "b") return { icon: <MonitorIcon />, label: "Preview" }
++  if (k === "c") return { icon: <PlayIcon />, label: "Prototype" }
++  if (k === "d") return { icon: <TerminalWindowIcon />, label: "Dev server" }
++  return { icon: <AppWindowIcon />, label: "Preview" }
++})()
+diff --git a/apps/app/components/panels/branch-overflow-menu.tsx b/apps/app/components/panels/branch-overflow-menu.tsx
+index de9bc73..78aee03 100644
+--- a/apps/app/components/panels/branch-overflow-menu.tsx
++++ b/apps/app/components/panels/branch-overflow-menu.tsx
+@@ -7,6 +7,7 @@ import {
+   ArrowUUpLeftIcon,
+   ArrowUpRightIcon,
+   ArrowsClockwiseIcon,
++  ChatCircleIcon,
+   CheckCircleIcon,
+   GitMergeIcon,
+   GitPullRequestIcon,
+@@ -14,6 +15,7 @@ import {
+   PencilSimpleIcon,
+   PlayIcon,
+   RecycleIcon,
++  TerminalWindowIcon,
+   TrashIcon,
+ } from "@workspace/ui/components/icons"
+ import {
+@@ -198,8 +200,18 @@ export interface BranchOverflowMenuContentProps {
+    * `prReadiness`.
+    */
+   isBusy?: boolean
++  /** MOCK: only the preview's or the chat's items. */
++  only?: "preview" | "chat"
++  /** MOCK: an Open chat item leading the chat items. */
++  onOpenChat?: () => void
++  /** MOCK: round 2's audited frame copy. */
++  audited?: boolean
+ }
+ 
++const MOCK_PREVIEW_KEYS: ReadonlySet<BranchMenuItemKey> = new Set([
++  "retry", "play", "open-in-browser", "routes", "restart",
++])
++
+ /**
+  * Renders the Workspace overflow menu's `<DropdownMenuContent>`: the lead
+  * action from {@link workspaceMenuLead}, then {@link BRANCH_MENU_SECTIONS} with
+@@ -240,7 +252,12 @@ export function BranchOverflowMenuItems({
+   onOpenInBrowser,
+   prReadiness,
+   isBusy = false,
++  only,
++  onOpenChat,
++  audited,
+ }: Omit<BranchOverflowMenuContentProps, "onCloseAutoFocus">) {
++  const allowed = (key: BranchMenuItemKey) =>
++    !only || (only === "preview") === MOCK_PREVIEW_KEYS.has(key)
+   const prs = branchPrList(branch, prReadiness.existingPr)
+   const nodes: Record<BranchMenuItemKey, ReactNode> = {
+     retry: (
+@@ -261,7 +278,7 @@ export function BranchOverflowMenuItems({
+         onClick={() => onPlay(branch.id)}
+       >
+         <PlayIcon />
+-        Open prototype player
++        {audited ? "Open in prototype player" : "Open prototype player"}
+       </DropdownMenuItem>
+     ),
+     // Pop the branch's live preview into a real browser tab, outside the
+@@ -289,10 +306,49 @@ export function BranchOverflowMenuItems({
+         onClick={() => onShowRoutes(branch.id)}
+       >
+         <PathIcon />
+-        Show all routes
++        {audited ? "Add frames for all routes" : "Show all routes"}
+       </DropdownMenuItem>
+     ),
+-    restart: (
++    restart: audited && MOCK_RESTART !== "today" ? (
++      MOCK_RESTART === "c" ? (
++        <>
++          <DropdownMenuSeparator />
++          <DropdownMenuItem disabled={!branch.sandboxName} onClick={() => onRestartDevServer(branch.id)}>
++            <ArrowsClockwiseIcon />
++            Restart preview
++          </DropdownMenuItem>
++          <DropdownMenuItem variant="destructive" disabled={!branch.sandboxName || isBusy} onClick={() => onRecreate(branch.id)}>
++            <RecycleIcon />
++            Set up again…
++          </DropdownMenuItem>
++        </>
++      ) : (
++        <DropdownMenuSub>
++          <DropdownMenuSubTrigger>
++            <ArrowsClockwiseIcon />
++            Restart
++          </DropdownMenuSubTrigger>
++          <DropdownMenuSubContent>
++            <DropdownMenuItem disabled={!branch.sandboxName} onClick={() => onRestartDevServer(branch.id)}>
++              <ArrowsClockwiseIcon />
++              Restart preview
++            </DropdownMenuItem>
++            {MOCK_RESTART === "a" && !isLocalBuild ? (
++              <DropdownMenuItem disabled={!branch.sandboxName || isBusy} onClick={() => onRestart(branch.id)}>
++                <ArrowCounterClockwiseIcon />
++                Restart everything
++              </DropdownMenuItem>
++            ) : null}
++            <DropdownMenuSeparator />
++            <DropdownMenuItem variant="destructive" disabled={!branch.sandboxName || isBusy} onClick={() => onRecreate(branch.id)}>
++              <RecycleIcon />
++              Set up again…
++            </DropdownMenuItem>
++          </DropdownMenuSubContent>
++        </DropdownMenuSub>
++      )
++    ) : (
++
+       <DropdownMenuSub>
+         <DropdownMenuSubTrigger>
+           <ArrowsClockwiseIcon />
+@@ -413,13 +469,19 @@ export function BranchOverflowMenuItems({
+         onClick={() => onDelete(branch.id)}
+       >
+         <TrashIcon />
+-        Delete
++        {audited ? "Delete chat" : "Delete"}
+       </DropdownMenuItem>
+     ),
+   }
+ 
+-  const lead = workspaceMenuLead({ branch, isBusy, prReadiness })
++  const rawLead = workspaceMenuLead({ branch, isBusy, prReadiness })
++  const lead =
++    rawLead && allowed(rawLead) && (only !== "preview" || rawLead === "retry")
++      ? rawLead
++      : null
+   const shown = (key: BranchMenuItemKey) => {
++    if (!allowed(key)) return false
++    if (audited && key === "reopen") return false
+     if (key === lead) return false
+     if (key === "create-pr") return prReadiness.shown
+     if (key === "pull-requests") return prs.length > 0
+@@ -434,14 +496,40 @@ export function BranchOverflowMenuItems({
+     })),
+   ].filter((group) => group.itemKeys.length > 0)
+ 
+-  return groups.map((group, i) => (
++  const merged =
++    only === "preview"
++      ? [{ id: "preview", itemKeys: groups.flatMap((g) => g.itemKeys) }]
++      : groups
++  if (audited && only === "preview") {
++    const keys = merged[0]?.itemKeys ?? []
++    const at = keys.indexOf("routes")
++    if (at >= 0) (keys as string[]).splice(at + 1, 0, "logs")
++    ;(nodes as Record<string, ReactNode>).logs = (
++      <DropdownMenuItem>
++        <TerminalWindowIcon />
++        Open logs
++      </DropdownMenuItem>
++    )
++  }
++  const items = merged.map((group, i) => (
+     <Fragment key={group.id}>
+       {i > 0 ? <DropdownMenuSeparator /> : null}
+       {group.itemKeys.map((key) => (
+-        <Fragment key={key}>{nodes[key]}</Fragment>
++        <Fragment key={key}>{(nodes as Record<string, ReactNode>)[key]}</Fragment>
+       ))}
+     </Fragment>
+   ))
++  if (!onOpenChat) return items
++  return (
++    <>
++      <DropdownMenuItem onClick={onOpenChat}>
++        <ChatCircleIcon />
++        Open chat
++      </DropdownMenuItem>
++      <DropdownMenuSeparator />
++      {items}
++    </>
++  )
+ }
+ 
+ /**
+@@ -479,3 +567,8 @@ function PullRequestItem({ pr }: { pr: PrListItem }) {
+     </DropdownMenuItem>
+   )
+ }
++
++const MOCK_RESTART =
++  (typeof window !== "undefined" &&
++    window.localStorage.getItem("frame-menu-restart")) ||
++  "today"

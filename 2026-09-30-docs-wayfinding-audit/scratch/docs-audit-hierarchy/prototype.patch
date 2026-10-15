@@ -1,0 +1,659 @@
+diff --git a/apps/docs/app/globals.css b/apps/docs/app/globals.css
+index e94d3b0..93953c8 100644
+--- a/apps/docs/app/globals.css
++++ b/apps/docs/app/globals.css
+@@ -512,3 +512,9 @@ footer {
+ html.dark footer {
+   color: oklch(0.708 0 0);
+ }
++
++/* Prototype: availability badge under a heading */
++.sp-only { margin-top: -0.25rem; margin-bottom: 0.25rem; font-weight: 500; }
++
++/* Prototype: availability badge under a heading */
++.sp-only { margin-top: 0.5rem; }
+diff --git a/apps/docs/components/copy-page.tsx b/apps/docs/components/copy-page.tsx
+index 563bbc5..369f3b5 100644
+--- a/apps/docs/components/copy-page.tsx
++++ b/apps/docs/components/copy-page.tsx
+@@ -42,7 +42,7 @@ export function CopyPage({ sourceCode }: { sourceCode: string }) {
+   }
+ 
+   return (
+-    <ButtonGroup className="float-end text-foreground">
++    <ButtonGroup data-pagefind-ignore className="float-end text-foreground">
+       <Button variant="outline" onClick={copy}>
+         {copied ? <CheckIcon /> : <CopyIcon />}
+         {copied ? "Copied" : "Copy page"}
+diff --git a/apps/docs/components/only.tsx b/apps/docs/components/only.tsx
+new file mode 100644
+index 0000000..a4f9372
+--- /dev/null
++++ b/apps/docs/components/only.tsx
+@@ -0,0 +1,10 @@
++import { Badge } from "@workspace/ui/components/badge"
++
++/** Marks a section or row that exists on one build only. Never inside a heading, so anchors stay stable. */
++export function Only({ desktop, hosted }: { desktop?: boolean; hosted?: boolean }) {
++  return (
++    <Badge variant="outline" className="sp-only">
++      {desktop ? "Desktop" : hosted ? "Hosted" : null}
++    </Badge>
++  )
++}
+diff --git a/apps/docs/content/_meta.ts b/apps/docs/content/_meta.ts
+index 57e6601..aecd680 100644
+--- a/apps/docs/content/_meta.ts
++++ b/apps/docs/content/_meta.ts
+@@ -4,14 +4,11 @@ const meta = {
+   quickstart: "Quickstart",
+   concepts: "Core concepts",
+   "-- use": { type: "separator", title: "Using Screenplay" },
+-  guides: { display: "children" },
++  guides: { title: "Using Screenplay", display: "children" },
+   "-- build": { type: "separator", title: "Building for Screenplay" },
+-  building: { display: "children" },
+-  "-- host": { type: "separator", title: "Self-hosting" },
+-  "self-hosting": { display: "children" },
+-  "-- contribute": { type: "separator", title: "Contributing" },
+-  development: "Development",
+-  screenshots: "Screenshots",
++  building: { title: "Building for Screenplay", display: "children" },
++  "self-hosting": { type: "page", title: "Self-hosting" },
++  contributing: { type: "page", title: "Contributing" },
+ }
+ 
+ export default meta
+diff --git a/apps/docs/content/building/knobs.mdx b/apps/docs/content/building/knobs.mdx
+index 6446a63..5a072e7 100644
+--- a/apps/docs/content/building/knobs.mdx
++++ b/apps/docs/content/building/knobs.mdx
+@@ -33,7 +33,7 @@ React 17 or later is a peer dependency.
+ 
+ `useKnob` returns the knob's current value:
+ 
+-```tsx
++```tsx filename="src/App.tsx"
+ import { useKnob } from "@screenplay.space/knobs"
+ 
+ export function App() {
+diff --git a/apps/docs/content/building/skills.mdx b/apps/docs/content/building/skills.mdx
+index b96d2f3..dc42227 100644
+--- a/apps/docs/content/building/skills.mdx
++++ b/apps/docs/content/building/skills.mdx
+@@ -29,9 +29,9 @@ Screenplay ships two skills, tagged **App** in the menu:
+ | `screenplay-add-knob` | Adding [knobs](/building/knobs): installing the package and declaring sliders, switches, selects, colors, and text inputs. |
+ | `screenplay-share-state` | Bridging UI state to the canvas with [shared state](/building/shared-state). |
+ 
+-The [Coordinator](/guides/agent#the-coordinator) has its own built-in skill,
++The [Coordinator](/guides/coordinator) has its own built-in skill,
+ `screenplay-try-variants`, which it follows when you ask to
+-[try something several ways](/guides/agent#trying-something-several-ways).
++[try something several ways](/guides/coordinator#trying-something-several-ways).
+ It isn't in a workspace's <kbd>/</kbd> menu, and workspace agents don't see it.
+ 
+ ## Adding your own
+diff --git a/apps/docs/content/contributing/_meta.ts b/apps/docs/content/contributing/_meta.ts
+new file mode 100644
+index 0000000..af67bfb
+--- /dev/null
++++ b/apps/docs/content/contributing/_meta.ts
+@@ -0,0 +1,6 @@
++const meta = {
++  index: "Development",
++  screenshots: "Screenshots",
++}
++
++export default meta
+diff --git a/apps/docs/content/development.mdx b/apps/docs/content/contributing/index.mdx
+similarity index 97%
+rename from apps/docs/content/development.mdx
+rename to apps/docs/content/contributing/index.mdx
+index 213503c..863360e 100644
+--- a/apps/docs/content/development.mdx
++++ b/apps/docs/content/contributing/index.mdx
+@@ -147,7 +147,7 @@ pnpm --filter app screenshots:boot    # a browsable, fully-populated local build
+ pnpm --filter app screenshots:shots   # capture the named screens, both themes
+ ```
+ 
+-See [Screenshots](/screenshots) for the before/after workflow,
++See [Screenshots](/contributing/screenshots) for the before/after workflow,
+ how to add a screen, and what the local build leaves out.
+ 
+ ## Writing docs
+@@ -165,7 +165,7 @@ light and a dark variant (`name.light.webp`, `name.dark.webp`). Embed one with:
+ 
+ The component shows the variant that matches the reader's theme. Every
+ screenshot is generated: run `pnpm --filter docs screenshots` to regenerate them
+-after a UI change, and see [Docs screenshots](/screenshots#docs-screenshots) to
++after a UI change, and see [Docs screenshots](/contributing/screenshots#docs-screenshots) to
+ add one.
+ 
+ ## Issues
+diff --git a/apps/docs/content/screenshots.mdx b/apps/docs/content/contributing/screenshots.mdx
+similarity index 100%
+rename from apps/docs/content/screenshots.mdx
+rename to apps/docs/content/contributing/screenshots.mdx
+diff --git a/apps/docs/content/guides/_meta.ts b/apps/docs/content/guides/_meta.ts
+index c368433..8d3e6f5 100644
+--- a/apps/docs/content/guides/_meta.ts
++++ b/apps/docs/content/guides/_meta.ts
+@@ -1,14 +1,16 @@
+ const meta = {
+-  home: "Home & organizing",
+   canvas: "The canvas",
+   repositories: "Repositories",
+   workspaces: "Workspaces",
+   frames: "Frames",
+   documents: "Documents",
+-  agent: "Agent chat",
++  coordinator: "The Coordinator",
++  agent: "Workspace chats",
+   terminals: "Terminal tabs",
+   "play-mode": "Play mode",
+   collaboration: "Sharing & collaboration",
++  home: "Home & organizing",
++  "-- ref": { type: "separator", title: "Reference" },
+   settings: "Settings",
+   "keyboard-shortcuts": "Keyboard shortcuts",
+ }
+diff --git a/apps/docs/content/guides/agent.mdx b/apps/docs/content/guides/agent.mdx
+index 4497bbc..8309600 100644
+--- a/apps/docs/content/guides/agent.mdx
++++ b/apps/docs/content/guides/agent.mdx
+@@ -1,165 +1,16 @@
+ ---
+-title: Agent chat
++title: Workspace chats
+ description: Give the agent work, point it at elements and documents, review plans, and follow what it does.
+ ---
+ 
+-# Agent chat
++# Workspace chats
+ 
+ The agent panel on the right (<kbd>⌘</kbd> <kbd>I</kbd>) is where you work
+ with the agent. With nothing selected it shows the canvas's
+-[Coordinator](#the-coordinator). Pick a workspace or a document and it chats
++[Coordinator](/guides/coordinator). Pick a workspace or a document and it chats
+ with that instead. In a workspace chat, everything the agent does happens
+ inside that workspace's sandbox.
+ 
+-<Screenshot
+-  name="hero"
+-  alt="The agent panel: a finished turn with tool calls and a summary, next to the updated previews"
+-/>
+-
+-## The Coordinator
+-
+-The **Coordinator** is one chat for the whole canvas. It's where the panel
+-opens, and every canvas has exactly one, shared by everyone on it. It can see
+-every workspace (its title, status, changed lines and pull request), every
+-frame and document, and your terminal tabs, so you can ask things like
+-"What's on this canvas?" or "Which workspaces have a PR?" without opening
+-each one. It reads documents too, including ones you @ mention.
+-
+-It can also look inside a workspace: what its agent was last asked, a summary
+-of what it did and its last reply (or the whole chat when it needs it), the
+-workspace's changes and its files. And it can look at a frame, taking a
+-screenshot of the live preview, or using the last saved one when the preview
+-isn't running. So you can ask "What did the sign-in workspace change, and how
+-does it look?"
+-
+-<Screenshot
+-  name="coordinator"
+-  alt="The Coordinator chat, the panel's home when no workspace is selected"
+-/>
+-
+-The Coordinator can also arrange the canvas. Ask it to add frames for a
+-workspace's routes, add a document, move or rename frames, groups and
+-documents, gather frames into a group, merge groups, or remove frames and
+-documents. It does these right away, without asking first. Removing a frame
+-never removes its workspace.
+-
+-To take a change back, ask it: "undo that". It keeps what each of its replies
+-changed, so a frame or document it removed comes back exactly as it was, and
+-you can undo an undo the same way. Your own ⌘Z still undoes only your own
+-edits, never the Coordinator's.
+-
+-The Coordinator never works inside a sandbox and never edits a workspace's
+-files. When you ask for work in a workspace, it sends that workspace's agent a
+-message, and the agent does the work. When no workspace fits, it can start new
+-ones, after you approve its plan.
+-
+-On a new canvas, the workspace that adding a repository started hasn't been
+-asked anything yet. The Coordinator sends your next ask for that repository
+-there, straight away, instead of planning a new workspace; if its app is still
+-starting, the ask runs as soon as it's up. Until then its empty chat asks what
+-should change in the repository.
+-
+-### Messages to workspaces
+-
+-Each workspace the Coordinator messaged shows up in its reply as a card with the
+-workspace's title, its changed lines and its state, and under them the message
+-it was sent. The state reads: **Starting** while its
+-sandbox comes up, **Working** while the
+-agent runs, **Needs you** when a plan waits for your approval, **Done**, or
+-**Failed**. The card updates as the workspace works. Click it to open that
+-workspace on the chat the message went to.
+-
+-In the workspace's chat, the message shows as one line, **Received a message
+-from the Coordinator**. Click it to read what was asked. The chat is still
+-yours: type in it at any time to take over.
+-
+-The Coordinator won't message a workspace whose agent is already working,
+-whose sandbox isn't running, or whose plan is waiting on you. It tells you
+-instead, and only you approve plans.
+-
+-### Starting workspaces
+-
+-When an ask needs work no workspace covers, the Coordinator proposes new
+-workspaces as a plan: one row per workspace with its title, its repository and
+-a one-line brief. Nothing is created until you click **Approve**. Click
+-**Request changes**, or just reply, to have it revise the list.
+-
+-Once you approve, each workspace starts its sandbox, and its agent begins on
+-the Coordinator's first message as soon as the sandbox is running. The new
+-workspaces show up as rows in the Coordinator's reply, **Starting** at first.
+-They belong to whoever asked for them. If one fails to start, the others carry
+-on: its row shows **Failed**, the Coordinator tells you, and **Retry** on the
+-workspace brings it up and sends that first message then.
+-
+-The Coordinator can also stop a workspace's running turn, which happens right
+-away. The workspace's chat keeps everything so far.
+-
+-### Pull requests and removing workspaces
+-
+-Ask the Coordinator to open a workspace's pull request or to remove a
+-workspace, and it asks you first with a card in its chat. Nothing happens until
+-you click **Open PR** or **Remove**; **Cancel** drops it, and the Coordinator
+-is told you said no.
+-
+-The pull request goes from the workspace's git branch into the repository's
+-default branch, with its title and description taken from the branch's
+-commits, as the workspace chat's **Create PR** button does. It's opened with the
+-GitHub account of whoever owns the workspace, even when someone else asked or
+-the Coordinator followed up on its own.
+-
+-Removing a workspace works like **Delete** in the Workspaces menu: its chats and
+-frames go and its sandbox is torn down. The git branch and any pull request
+-stay on GitHub.
+-
+-When the Coordinator runs on a desktop harness (Claude Code or Codex), it can't
+-show you a plan or a confirm card yet, so it can't start workspaces, open pull
+-requests or remove workspaces there.
+-
+-### Trying something several ways
+-
+-Ask the Coordinator to try one thing several ways, like "try the sign-in page
+-three ways", and it plans one workspace per variant, all from the same
+-repository and branch. Each row's brief says how that variant differs. Name
+-the directions yourself or let the Coordinator pick them; with no number, it
+-proposes three. Once you approve, the variants' frames sit side by side in one
+-group, so you can compare them on the canvas. When every variant has
+-finished, the Coordinator sums them up in one reply and leaves the pick to you.
+-
+-### When a workspace finishes
+-
+-The Coordinator hears from every workspace on the canvas, including ones you
+-started yourself. Each time a workspace's agent finishes, fails, is stopped or
+-stops to wait for plan approval, the Coordinator reads what happened. That
+-happens out of sight: while it reads, the chat shows only a quiet
+-**Catching up on** line naming the workspace, and its reads never appear in
+-the chat.
+-
+-It stays quiet unless there's something you need to know: a result, a
+-blocker, or a decision only you can make. When a workspace is waiting for you
+-to approve its plan, it tells you which one, with a link that opens it. You
+-approve the plan in the workspace; the Coordinator can't.
+-
+-### Canvas memory
+-
+-Each canvas keeps a shared **memory**: preferences, decisions and facts about
+-its repositories, like "Use pnpm, never npm." Every chat on the canvas reads
+-it, the Coordinator's and each workspace's and document's alike, so no chat has
+-to ask the same thing twice. On the desktop app, a chat that runs through an
+-external harness gets memory when the chat starts.
+-
+-The Coordinator saves to memory when you tell it something worth keeping or
+-ask it to remember something, and it edits or removes entries when you ask.
+-Workspace agents read memory but never write it.
+-
+-To read or change memory yourself, open **Canvas settings** from the **…**
+-next to the canvas name and choose **Memory**. **Edit** changes an entry,
+-**…** › **Delete** removes it, and **Add memory** adds one. Everyone on a
+-shared canvas sees the same entries.
+-
+-<Screenshot
+-  name="canvas-settings-memory"
+-  alt="Canvas settings open on Memory, listing three entries with Edit and more actions"
+-/>
+ 
+ ## Choosing a target
+ 
+@@ -222,7 +73,7 @@ and **Edit**.
+ 
+ The model menu sits at the bottom left of the composer and names the current
+ model; its list groups models under their coding CLI. New chats start with
+-the default agent and model from [Settings](/guides/settings#coding-agents-desktop).
++the default agent and model from [Settings](/guides/settings#coding-agents).
+ Changing the model in a chat changes only that chat, and the menu shows
+ **· not default** when it differs. You can switch at any point in a chat: the
+ new model answers from your next message on, with the whole conversation so far.
+diff --git a/apps/docs/content/guides/coordinator.mdx b/apps/docs/content/guides/coordinator.mdx
+new file mode 100644
+index 0000000..9cf23ba
+--- /dev/null
++++ b/apps/docs/content/guides/coordinator.mdx
+@@ -0,0 +1,149 @@
++---
++title: The Coordinator
++description: One chat for the whole canvas that reads every workspace, arranges the canvas, and starts new workspaces.
++---
++
++# The Coordinator
++
++The **Coordinator** is one chat for the whole canvas. It's where the panel
++opens, and every canvas has exactly one, shared by everyone on it. It can see
++every workspace (its title, status, changed lines and pull request), every
++frame and document, and your terminal tabs, so you can ask things like
++"What's on this canvas?" or "Which workspaces have a PR?" without opening
++each one. It reads documents too, including ones you @ mention.
++
++It can also look inside a workspace: what its agent was last asked, a summary
++of what it did and its last reply (or the whole chat when it needs it), the
++workspace's changes and its files. And it can look at a frame, taking a
++screenshot of the live preview, or using the last saved one when the preview
++isn't running. So you can ask "What did the sign-in workspace change, and how
++does it look?"
++
++<Screenshot
++  name="coordinator"
++  alt="The Coordinator chat, the panel's home when no workspace is selected"
++/>
++
++The Coordinator can also arrange the canvas. Ask it to add frames for a
++workspace's routes, add a document, move or rename frames, groups and
++documents, gather frames into a group, merge groups, or remove frames and
++documents. It does these right away, without asking first. Removing a frame
++never removes its workspace.
++
++To take a change back, ask it: "undo that". It keeps what each of its replies
++changed, so a frame or document it removed comes back exactly as it was, and
++you can undo an undo the same way. Your own ⌘Z still undoes only your own
++edits, never the Coordinator's.
++
++The Coordinator never works inside a sandbox and never edits a workspace's
++files. When you ask for work in a workspace, it sends that workspace's agent a
++message, and the agent does the work. When no workspace fits, it can start new
++ones, after you approve its plan.
++
++On a new canvas, the workspace that adding a repository started hasn't been
++asked anything yet. The Coordinator sends your next ask for that repository
++there, straight away, instead of planning a new workspace; if its app is still
++starting, the ask runs as soon as it's up. Until then its empty chat asks what
++should change in the repository.
++
++## Messages to workspaces
++
++Each workspace the Coordinator messaged shows up in its reply as a card with the
++workspace's title, its changed lines and its state, and under them the message
++it was sent. The state reads: **Starting** while its
++sandbox comes up, **Working** while the
++agent runs, **Needs you** when a plan waits for your approval, **Done**, or
++**Failed**. The card updates as the workspace works. Click it to open that
++workspace on the chat the message went to.
++
++In the workspace's chat, the message shows as one line, **Received a message
++from the Coordinator**. Click it to read what was asked. The chat is still
++yours: type in it at any time to take over.
++
++The Coordinator won't message a workspace whose agent is already working,
++whose sandbox isn't running, or whose plan is waiting on you. It tells you
++instead, and only you approve plans.
++
++## Starting workspaces
++
++When an ask needs work no workspace covers, the Coordinator proposes new
++workspaces as a plan: one row per workspace with its title, its repository and
++a one-line brief. Nothing is created until you click **Approve**. Click
++**Request changes**, or just reply, to have it revise the list.
++
++Once you approve, each workspace starts its sandbox, and its agent begins on
++the Coordinator's first message as soon as the sandbox is running. The new
++workspaces show up as rows in the Coordinator's reply, **Starting** at first.
++They belong to whoever asked for them. If one fails to start, the others carry
++on: its row shows **Failed**, the Coordinator tells you, and **Retry** on the
++workspace brings it up and sends that first message then.
++
++The Coordinator can also stop a workspace's running turn, which happens right
++away. The workspace's chat keeps everything so far.
++
++## Pull requests and removing workspaces
++
++Ask the Coordinator to open a workspace's pull request or to remove a
++workspace, and it asks you first with a card in its chat. Nothing happens until
++you click **Open PR** or **Remove**; **Cancel** drops it, and the Coordinator
++is told you said no.
++
++The pull request goes from the workspace's git branch into the repository's
++default branch, with its title and description taken from the branch's
++commits, as the workspace chat's **Create PR** button does. It's opened with the
++GitHub account of whoever owns the workspace, even when someone else asked or
++the Coordinator followed up on its own.
++
++Removing a workspace works like **Delete** in the Workspaces menu: its chats and
++frames go and its sandbox is torn down. The git branch and any pull request
++stay on GitHub.
++
++When the Coordinator runs on a desktop harness (Claude Code or Codex), it can't
++show you a plan or a confirm card yet, so it can't start workspaces, open pull
++requests or remove workspaces there.
++
++## Trying something several ways
++
++Ask the Coordinator to try one thing several ways, like "try the sign-in page
++three ways", and it plans one workspace per variant, all from the same
++repository and branch. Each row's brief says how that variant differs. Name
++the directions yourself or let the Coordinator pick them; with no number, it
++proposes three. Once you approve, the variants' frames sit side by side in one
++group, so you can compare them on the canvas. When every variant has
++finished, the Coordinator sums them up in one reply and leaves the pick to you.
++
++## When a workspace finishes
++
++The Coordinator hears from every workspace on the canvas, including ones you
++started yourself. Each time a workspace's agent finishes, fails, is stopped or
++stops to wait for plan approval, the Coordinator reads what happened. That
++happens out of sight: while it reads, the chat shows only a quiet
++**Catching up on** line naming the workspace, and its reads never appear in
++the chat.
++
++It stays quiet unless there's something you need to know: a result, a
++blocker, or a decision only you can make. When a workspace is waiting for you
++to approve its plan, it tells you which one, with a link that opens it. You
++approve the plan in the workspace; the Coordinator can't.
++
++## Canvas memory
++
++Each canvas keeps a shared **memory**: preferences, decisions and facts about
++its repositories, like "Use pnpm, never npm." Every chat on the canvas reads
++it, the Coordinator's and each workspace's and document's alike, so no chat has
++to ask the same thing twice. On the desktop app, a chat that runs through an
++external harness gets memory when the chat starts.
++
++The Coordinator saves to memory when you tell it something worth keeping or
++ask it to remember something, and it edits or removes entries when you ask.
++Workspace agents read memory but never write it.
++
++To read or change memory yourself, open **Canvas settings** from the **…**
++next to the canvas name and choose **Memory**. **Edit** changes an entry,
++**…** › **Delete** removes it, and **Add memory** adds one. Everyone on a
++shared canvas sees the same entries.
++
++<Screenshot
++  name="canvas-settings-memory"
++  alt="Canvas settings open on Memory, listing three entries with Edit and more actions"
++/>
+diff --git a/apps/docs/content/guides/keyboard-shortcuts.mdx b/apps/docs/content/guides/keyboard-shortcuts.mdx
+index d58778c..609a524 100644
+--- a/apps/docs/content/guides/keyboard-shortcuts.mdx
++++ b/apps/docs/content/guides/keyboard-shortcuts.mdx
+@@ -67,7 +67,9 @@ document.
+ | <kbd>⇧</kbd> <kbd>↵</kbd> | New line in a prompt |
+ | <kbd>Backspace</kbd> in an empty row | Remove that row |
+ 
+-## Comments *(hosted)*
++## Comments
++
++<Only hosted />
+ 
+ | Shortcut | Action |
+ | --- | --- |
+diff --git a/apps/docs/content/guides/settings.mdx b/apps/docs/content/guides/settings.mdx
+index aa084fc..770bcef 100644
+--- a/apps/docs/content/guides/settings.mdx
++++ b/apps/docs/content/guides/settings.mdx
+@@ -19,7 +19,9 @@ are in its **Canvas settings**; see [Repositories](/guides/repositories).
+ The **Theme**: **Light**, **Dark**, or **System**. This setting applies to
+ this device only.
+ 
+-## GitHub *(desktop)*
++## GitHub
++
++<Only desktop />
+ 
+ GitHub access is **optional** on desktop. Without it you can still add
+ repositories by local folder or clone URL, and git uses your machine's own
+@@ -47,7 +49,9 @@ itself when sign-in finishes.
+ On the hosted app, GitHub comes from your sign-in instead: you sign in with
+ GitHub, and Screenplay uses that account for cloning, pushing, and PRs.
+ 
+-## Coding agents *(desktop)*
++## Coding agents
++
++<Only desktop />
+ 
+ On desktop, the agent is a coding CLI on your machine. There's one row per
+ supported CLI: **Claude Code**, **Codex**, and **opencode**. Each row shows
+diff --git a/apps/docs/content/guides/workspaces.mdx b/apps/docs/content/guides/workspaces.mdx
+index c919311..65299e9 100644
+--- a/apps/docs/content/guides/workspaces.mdx
++++ b/apps/docs/content/guides/workspaces.mdx
+@@ -70,7 +70,7 @@ checkout. To rename the branch itself, use **… → Rename branch…**.
+ />
+ 
+ The **Workspaces** button sits at the far right of the
+-[Coordinator](/guides/agent#the-coordinator)'s header, the agent panel's top
++[Coordinator](/guides/coordinator)'s header, the agent panel's top
+ level. In a workspace, click **Coordinator** in the header to get back to it. A pink dot on it
+ means a workspace needs you: its setup failed or its pull request is open.
+ Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
+@@ -159,7 +159,7 @@ details:
+ This is where you find a workspace's branch name, since rows and labels show
+ its title.
+ 
+-## The workspace menu
++## Workspace actions
+ 
+ In the Workspaces menu, hover a workspace and click **…**. The menu starts with the one action the
+ workspace's state calls for (**Retry setup** after a failed setup, the pull
+diff --git a/apps/docs/content/index.mdx b/apps/docs/content/index.mdx
+index e765491..f4fa5d9 100644
+--- a/apps/docs/content/index.mdx
++++ b/apps/docs/content/index.mdx
+@@ -57,7 +57,7 @@ few places where they differ.
+ <Cards>
+   <Cards.Card title="Quickstart" href="/quickstart" arrow />
+   <Cards.Card title="Core concepts" href="/concepts" arrow />
+-  <Cards.Card title="Agent chat" href="/guides/agent" arrow />
++  <Cards.Card title="The Coordinator" href="/guides/coordinator" arrow />
+   <Cards.Card
+     title="Keyboard shortcuts"
+     href="/guides/keyboard-shortcuts"
+diff --git a/apps/docs/content/quickstart.mdx b/apps/docs/content/quickstart.mdx
+index 5e2e906..e6ddd04 100644
+--- a/apps/docs/content/quickstart.mdx
++++ b/apps/docs/content/quickstart.mdx
+@@ -57,9 +57,7 @@ seconds, so there's no need to reload.
+ ### Create a canvas
+ 
+ **Finish** creates your first canvas and opens it, with the agent panel open
+-and a **Get started** checklist in the corner. Later, **New canvas** on the home screen (or
+-
+-<kbd>N</kbd>) creates and opens another one; rename it from its title. A canvas
++and a **Get started** checklist in the corner. Later, **New canvas** on the home screen (or <kbd>N</kbd>) creates and opens another one; rename it from its title. A canvas
+ holds one piece of work: one or more repositories, their workspaces, and
+ everything you lay out around them.
+ 
+@@ -88,7 +86,7 @@ reads **New Workspace** until your first ask names it.
+ 
+ ### Ask the Coordinator for a change
+ 
+-The agent panel stays on the [Coordinator](/guides/agent#the-coordinator),
++The agent panel stays on the [Coordinator](/guides/coordinator),
+ which asks what should change. Describe it:
+ 
+ > Make the hero headline use a gradient from the accent color to cyan, and add
+@@ -110,7 +108,9 @@ changes. Your first ask also gives the workspace its title.
+   alt="The agent's finished change: the chat lists file reads, edits and git commands, and the previews show the new gradient headline"
+ />
+ 
+-### Keep going
++</Steps>
++
++## Next steps
+ 
+ - Add more [frames](/guides/frames) (<kbd>F</kbd>) for other routes and
+   device sizes.
+@@ -119,5 +119,3 @@ changes. Your first ask also gives the workspace its title.
+ - Turn on **Plan** in the composer to review the agent's plan before it
+   writes code.
+ - Use **Create PR** in the chat header when you're happy with a workspace.
+-
+-</Steps>
+diff --git a/apps/docs/content/self-hosting/configuration/byo-harnesses.mdx b/apps/docs/content/self-hosting/configuration/byo-harnesses.mdx
+index 57fa57e..99cd5a0 100644
+--- a/apps/docs/content/self-hosting/configuration/byo-harnesses.mdx
++++ b/apps/docs/content/self-hosting/configuration/byo-harnesses.mdx
+@@ -58,7 +58,7 @@ you pick in a chat decides which CLI runs it.
+ `SCREENPLAY_ACP_HARNESS=codex` changes the default for chats that haven't
+ picked a model (default `claude-code`).
+ 
+-The [Coordinator](/guides/agent#the-coordinator) runs on these CLIs too. Its
++The [Coordinator](/guides/coordinator) runs on these CLIs too. Its
+ canvas tools reach the CLI as an MCP server that only the desktop app serves,
+ on `127.0.0.1`, behind a token that works for that one canvas. Screenplay
+ allows those tools up front, so the CLI never asks you to approve them. Each
+diff --git a/apps/docs/content/self-hosting/environment-variables.mdx b/apps/docs/content/self-hosting/environment-variables.mdx
+index e0c8c9b..bc115c9 100644
+--- a/apps/docs/content/self-hosting/environment-variables.mdx
++++ b/apps/docs/content/self-hosting/environment-variables.mdx
+@@ -17,7 +17,7 @@ Generate secrets with `openssl rand -hex 32`.
+ 
+ The minimum for a working deployment with the default backends:
+ 
+-```bash
++```bash filename="apps/app/.env.local"
+ # Auth
+ BETTER_AUTH_URL=https://screenplay.example.com       # production only
+ BETTER_AUTH_PRODUCTION_URL=https://screenplay.example.com
+diff --git a/apps/docs/mdx-components.tsx b/apps/docs/mdx-components.tsx
+index 269c877..41092d0 100644
+--- a/apps/docs/mdx-components.tsx
++++ b/apps/docs/mdx-components.tsx
+@@ -6,6 +6,7 @@ import {
+   ConceptsDiagram,
+   ScreenshotsFolderDiagram,
+ } from "./components/diagram/diagrams"
++import { Only } from "./components/only"
+ import { Screenshot } from "./components/screenshot"
+ 
+ const themeComponents = getThemeComponents()
+@@ -17,6 +18,7 @@ export function useMDXComponents(components?: MDXComponents): MDXComponents {
+     Callout,
+     ConceptsDiagram,
+     ScreenshotsFolderDiagram,
++    Only,
+     Screenshot,
+     // A full-width table in a scroll container, like the stock shadcn Table.
+     // Nextra's own makes the table itself the scroller, so it can't fill the column.

@@ -9,3 +9,7 @@
 **Question:** How should other people’s cursors, their cursor chat and the avatar stack look on the canvas?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

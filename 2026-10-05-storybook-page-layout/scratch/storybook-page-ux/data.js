@@ -1,0 +1,86 @@
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
+const D=(d,t,cap)=>IMG(`${d}/${t}-desk-light.webp`,cap,`${d}/${t}-desk-dark.webp`);
+const P=(d,t,cap)=>IMG(`${d}/${t}-phone-light.webp`,cap);
+const PAGE={
+ date:"5 Oct 2026",
+ slug:"storybook-page-ux",
+ quote:"ok 1659 landed but i still want to do a deep ux exploration on each of these to improve the intertactions, usability and visual hierarchy. … i feel like all of these should probably be 2 col",
+ q:"How should the storybook page lay out a state so you can find, read and note it on one screen?"
+};
+const TODAY={facts:[
+ "Shown with the frame status storybook (14 states, 3 controls) at a Mockup’s default 1280×800 (<code>lib/constants.ts:5</code>), on state 2, “No workspace, can start a chat”. The bottom bar covers the last 53px.",
+ "One 832px column: stage 705×458 at y 71, then three control rows, then the state’s name at y 701. What to look at on this state (its “why”) starts at y 747 and the note field at y 825, both under the bar, so neither is on the first screen. On a phone the stage is 357×232 and the capture’s text is about 3px tall.",
+ "Only 14 of the 54 control combinations have a capture. In any state about 4.6 of the 12 values are dimmed, and tapping one jumps to the closest capture, silently changing another control: 64 of the 126 taps you could make do this, changing 76 other values (<code>storybook.tsx:212</code>).",
+ "The bar’s Note is a general note for the page; the note on a state is the separate always-open field, so the page has two notes with one label."
+],shots:[D("today","today","Today · Story"),P("today","today","Today · Story, phone")]};
+const ROUNDS=[
+{n:5,feedback:"Your picks: panel beside the stage, values with no capture disabled, the state menu in the stepper with grouped names, knobs rows, and no intro.",every:[
+ "Everything for a state is on the first screen at 1280×800: the stage is 879×571, the stepper, controls, why and note are in the 320px panel, and the note field starts at y 372, well above the bar (Today: y 825, under it).",
+ "The stepper is previous, the state menu, next. The menu is the app’s inverted menu, sized to its widest name, grouped by stage, with a check on the current state and a dot on states with a note; the dot sits in the check’s slot so the column lines up.",
+ "Controls are knobs rows: Stage has six values so it’s a menu, Detail and Canvas zoom are tabs, and a value with no capture next to the others is disabled.",
+ "The bar keeps the note count, General note (the note on the whole page) and Copy notes; the copied notes carry the file path that the intro used to show. On a phone the panel stacks under the stage in the same order."
+],questions:[
+ {key:"signoff",title:"The storybook page",intro:"Shown on state 2, “No workspace, can start a chat”, with notes on two states.",options:[
+  {id:"A",name:"Combined page",rec:true,state:"picked",why:"All of your picks together, with nothing new added.",cost:"States aren’t visible as a list on the page; you reach them through the menu, the arrows, the controls or the All states tab.",shots:[D("r5","s5","A · Story"),D("r5","s5m","A · State menu open"),P("r5","s5","A · Story, phone")]}
+ ]}
+]},
+{n:4,feedback:"“whats the weird footer section that says design storybook? can you do a better job designing the menu? could the middle part of the stepper be the menu?”",every:[
+ "The stepper is now one control: previous, the state menu in the middle (named for the current state), next. The count is gone so the name never truncates; the menu shows where you are.",
+ "Controls are round 3’s recommended knobs rows (your pick on that card is still open), and the description is the why alone, since the name is in the stepper.",
+ "That footer was the page’s intro (“Design storybook · date”, your words, and where the part lives). The template put it under the work so the stage came first; question 2 moves it out of the panel."
+],questions:[
+ {key:"menu",title:"The state menu",intro:"Shown open on state 2. Two states have notes.",options:[
+  {id:"A",name:"Grouped names",rec:true,state:"picked",why:"The app’s own menu (inverted, sized to its widest item): every state by name, grouped under its stage in the mono section label, a check on the current one and a dot on states with a note. Fourteen states fit without scrolling at 1280×800.",cost:"Names only; you can’t see a state before picking it.",shots:[D("r4","ma","A · Grouped names"),D("r4","m0","Closed stepper")]},
+  {id:"B",name:"Names with thumbnails",why:"The same menu with a 44×28 capture before each name, so you can spot a state by its look.",cost:"At that size this storybook’s captures are nearly blank (a small status in a big frame), so the thumbnails add 12px a row without helping; they only pay off for parts that fill their capture.",state:"",shots:[D("r4","mb","B · Names with thumbnails")]},
+  {id:"C",name:"Grid of states",why:"A 480px panel with the All states grid, three across: capture, number and full name, with a ring on the current one and a dot on noted ones. It could replace the All states tab.",cost:"A bigger surface that covers the stage while open, and the same nearly blank thumbnails as B. Not a menu, so no type-ahead or arrow keys between rows.",state:"",shots:[D("r4","mc","C · Grid of states")]}
+ ]},
+ {key:"intro",title:"The intro",intro:"What the storybook is for: date, your words, and the file the part lives in.",options:[
+  {id:"A",name:"Info button by the title",rec:true,why:"A 28px info icon button after the page title opens a popover with the intro. The panel ends at the note, and the intro is one click away wherever you are.",cost:"Easy to miss; your words are no longer on the page without a click.",state:"",shots:[D("r4","ia","A · Info open")]},
+  {id:"B",name:"About tab",why:"A third tab beside Story and All states holds the intro on its own page.",cost:"A whole tab for three lines, and it’s the one thing in the top bar that isn’t a way to look at the states.",state:"",shots:[D("r4","ib","B · About tab")]},
+  {id:"C",name:"Drop it",state:"picked",why:"No intro at all: the title names the part, the chat that asked for the storybook holds your words, and the file path goes into the copied notes.",cost:"Someone opening the page cold doesn’t learn where the part lives or why it was made.",shots:[D("r4","ic","C · No intro")]}
+ ]}
+]},
+{n:3,feedback:"“two col make sense, disabling controls with no cap makes sense. reevaluate the layout and hierarchy of right panel, what controls are supported? check knobs, we already have something similar. the idea of stepping through each state is weird a bit. i get the idea of having descriptions but maybe its stepper &gt; controls &gt; desc. &gt; add notes?”",every:[
+ "Built on round 2’s picks: A’s panel beside the stage, and values with no capture disabled. Every option follows your order: stepper, controls, description, note.",
+ "<b>What controls are supported.</b> A storybook control is a list of values (shown today as a segmented control), and a live storybook also takes a toggle, a number or a text field (<code>storybook/types.ts:28</code>). Knobs (<code>knobs-panel.tsx</code>) has number, slider, switch, text, select, tabs and colour. A captured storybook can only ever show a list of values, since each value needs a capture; slider, colour and the free fields only make sense live.",
+ "Knobs lays a control out as a row: a muted 12px label on the left, the control on the right, hairlines between rows, tabs for up to 3 options (<code>TABS_KNOB_MAX_OPTIONS</code>) and a menu for more, all 28px tall. The panel borrows that look in the template; it doesn’t load the knobs runtime.",
+ "The description is the state’s name in 14px medium over its why in 14px grey, under a divider with the note."
+],questions:[
+ {key:"stepper",title:"The stepper",intro:"Shown on state 2 with knobs rows (question 2’s B).",options:[
+  {id:"A",name:"Stepper bar",why:"A full-width bar at the top of the panel: previous, “State 2 of 14”, next. The state’s name moves down to head the description, so the top of the panel never changes height or wording length as you step.",cost:"The bar names only a number; you read the name further down. Stepping in order is still the only quick way through.",state:"",shots:[D("r3","sa","A · Stepper bar"),P("r3","sa","A · Stepper bar, phone")]},
+  {id:"B",name:"State menu",rec:true,state:"picked",why:"The top of the panel is a menu named for the current state, with previous and next beside it. It opens on all 14 states grouped by stage, so you pick a state by name instead of stepping to it; the arrows stay for going through in order. The name is the menu’s value, so the description shows only the why.",cost:"Two ways to reach a state at the top of the panel (the menu and the controls under it). A long state name truncates in the menu’s closed width.",shots:[D("r3","sb","B · State menu"),D("r3","sbo","B · State menu open"),P("r3","sb","B · State menu, phone")]},
+  {id:"C",name:"No stepper",why:"No stepper at all: the controls are how you move, the name heads the description, and the arrow keys still step for anyone who wants to. The panel is 48px shorter.",cost:"No visible way through the states in order, and no count of how many there are except the All states tab.",state:"",shots:[D("r3","sc","C · No stepper"),P("r3","sc","C · No stepper, phone")]}
+ ]},
+ {key:"controls",title:"The controls",intro:"Shown on state 2 with the stepper bar (question 1’s A).",options:[
+  {id:"A",name:"Segmented, stacked",why:"Round 2’s controls: a mono label over a segmented control, each value a segment, disabled when nothing is captured with it.",cost:"Stage’s six values wrap to three rows in 320px; the controls take 300px of the panel and look like nothing else in the app.",state:"",shots:[D("r3","ka","A · Segmented, stacked"),P("r3","ka","A · Segmented, stacked, phone")]},
+  {id:"B",name:"Knobs rows",rec:true,state:"picked",why:"The knobs panel’s rows: label left, control right, hairlines between. Up to three values are tabs, more are a menu, with disabled values greyed in both. Three controls take 150px, half of A, and read the same as the Knobs popover on the canvas.",cost:"Stage’s values hide behind a menu, so you see the current one only. The label column is 88px, wider than knobs’ hugging column, so long labels like “Canvas zoom” fit on one line.",shots:[D("r3","sa","B · Knobs rows"),P("r3","sa","B · Knobs rows, phone")]},
+  {id:"C",name:"Knobs rows, all menus",why:"The same rows with every control a menu, so each row is one size and the column reads as a list of current values.",cost:"Every value is a tap away even when there are only two or three; disabled values show only once a menu is open.",state:"",shots:[D("r3","kc","C · All menus"),D("r3","kco","C · Stage menu open"),P("r3","kc","C · All menus, phone")]}
+ ]}
+]},
+{n:2,feedback:"Round 1 moved here from the shared skill page exploration, its pick still open. Then: “i want to explore more layouts here, i feel like a two col. layout could help a lot … i feel like all of these should probably be 2 col”.",every:[
+ "Each option is a real build of the template (a scratch switch in <code>packages/skill-templates</code>), captured with Today’s data at 1280×800 in both themes and on a phone, with notes on two states.",
+ "From 1024px the page widens from 832px to 1232px (the top and bottom bars widen with it). Below that it stays one column, so phones change only in order.",
+ "The note on a state is an open field in the column beside the stage, which settles round 1’s question: there is room to show it without a button. The bar’s button is renamed General note.",
+ "The stage keeps one height for every state, so nothing beside or above the controls moves as you step. Pink stays only on Recommended.",
+ "Two-column patterns line up with the audit and decisions thread’s round 2 once it shares them."
+],questions:[
+ {key:"layout",title:"Two-column layout",intro:"Shown on state 2. Stage width at 1280×800: Today 705px, A 879px, B 702px, C 767px.",options:[
+  {id:"A",name:"Panel beside the stage",rec:true,state:"picked",why:"The stage takes the left and stays pinned; a 320px panel on the right holds the controls on top, then the state’s name, arrows and why, then the note. Everything for a state is on the first screen, the stage is 25% wider than Today, and the controls sit at the top of the panel so they never move. This is round 1’s B, with the panel 32px wider and the controls first.",cost:"The Stage control wraps to three rows in 320px. The name sits under the controls, so your eye goes stage, controls, then the name.",shots:[D("r2","la","A · Story"),P("r2","la","A · Story, phone")]},
+  {id:"B",name:"States beside the stage",why:"Like Storybook’s own sidebar: a 232px list on the left of every captured state, grouped by the first control (No workspace, Setting up…), with a dot on states that have a note. The stage, name, why and note fill the right. Every row is a real capture, so nothing is ever dimmed or jumps, and you can see where your notes are. On a phone the list becomes chips under the stage.",cost:"No controls on wide screens: the dimensions read only from the group and row names (“Long, 25%”). A live storybook, where any combination renders, still needs controls. The stage is no bigger than Today’s.",state:"",shots:[D("r2","lb","B · Story"),P("r2","lb","B · Story, phone")]},
+  {id:"C",name:"Notes beside the stage",why:"Today’s stage and controls stay together on the left; the right column is for reading and writing: the state’s name and arrows, why, and the note, with what the storybook is for under them. The controls keep their wide single-row look, and the name and note are the first thing beside the stage.",cost:"The stage is smaller than A’s (767×498) because the controls share its column. The right column is mostly empty below the note.",state:"",shots:[D("r2","lc","C · Story"),P("r2","lc","C · Story, phone")]}
+ ]},
+ {key:"dim",title:"Values no capture has",intro:"Today a dimmed value jumps to the closest capture and changes another control without saying so. Shown on A’s panel; with B there are no controls to dim.",options:[
+  {id:"A",name:"Say what it changes",why:"Dimmed values keep working. Hovering one says what else it sets (“Also sets Detail to Default”), and after the jump a grey line under the controls says what changed and why: “Detail changed to Default: no capture has Stopped with Status line.”",cost:"Every dimmed tap still changes two things at once; the line explains it after the fact. Phones get only the line, not the hover.",state:"",shots:[D("r2","da","A · Hovering Stopped"),D("r2","da2","A · After tapping Stopped")]},
+  {id:"B",name:"Disable them",rec:true,state:"picked",why:"A value with no capture next to the others is disabled, so a tap only ever changes the control you tapped. To reach Stopped you set Detail to Default first, or use the arrows or All states.",cost:"Some states take two taps, and a disabled value looks like Today’s dimmed one until you try it.",shots:[D("r2","db","B · Story, Preview failed and Stopped disabled")]}
+ ]}
+]},
+{n:1,feedback:"",every:["Asked on the shared skill page exploration on 5 Oct, shown on state 2 at 1280×800. Moved here when that exploration split up; round 2 takes it into the two-column layouts."],questions:[
+ {key:"note",title:"Leaving a note on a storybook state",intro:"Shown on state 2, “No workspace, can start a chat”.",options:[
+  {id:"A",name:"Note button in the name row",rec:true,why:"The state’s name row gets the kit’s Note button after the arrows, opening the field under it, as on the other three pages. The always-open field goes, so the page is 110px shorter and the button is on the first screen.",cost:"A note is one tap further away. On a phone the name wraps to two lines beside the arrows and Note.",state:"",shots:[D("r1","storybook-a","A · Storybook"),P("r1","storybook-a","A · Storybook, phone")]},
+  {id:"B",name:"Controls beside the stage",why:"On a screen at least 1024px wide the page widens to 1232px: the stage on the left, and a 288px column on the right with the name and arrows, the controls stacked, why, and the note. The whole Story fits a 1280×800 Mockup with no scrolling, and the stage gets the full height.",cost:"Breaks the one 832px column the other pages share. Controls wrap inside 288px (Stage takes three rows). Phones keep today’s page.",state:"",shots:[D("r1","storybook-b","B · Storybook")]},
+  {id:"C",name:"Pins on the stage",why:"Tap the capture where something is wrong to drop a numbered pin there, and type the note in a list under the name row, like comments on a design file. The copied text names each pin.",cost:"A new interaction and pin component; tapping the capture no longer enlarges it. The pin list sits below the first screen, and pins on a phone capture are hard to place.",state:"",shots:[D("r1","storybook-c","C · Storybook, two pins"),P("r1","storybook-c","C · Storybook, phone")]}
+ ]}
+]}
+];
+</script>

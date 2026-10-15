@@ -1,0 +1,1044 @@
+diff --git a/apps/app/app/globals.css b/apps/app/app/globals.css
+index e7e7219..fb1ec74 100644
+--- a/apps/app/app/globals.css
++++ b/apps/app/app/globals.css
+@@ -324,7 +324,8 @@ body {
+    theme-aware highlight.js token colours; code and tables scroll inside the
+    message instead of widening the panel. Colours are custom properties so the
+    user bubble can deepen its code fills against its own `muted` fill. */
+-.chat-markdown {
++.chat-markdown,
++.tool-output {
+   --chat-code-bg: var(--muted);
+   --chat-code-fg: var(--foreground);
+   --chat-block-bg: color-mix(in oklab, var(--muted) 45%, var(--background));
+@@ -342,7 +343,8 @@ body {
+   --hl-deletion-bg: #ffebe9;
+   overflow-wrap: anywhere;
+ }
+-.dark .chat-markdown {
++.dark .chat-markdown,
++.dark .tool-output {
+   --hl-keyword: #ff7b72;
+   --hl-string: #a5d6ff;
+   --hl-title: #d2a8ff;
+@@ -469,63 +471,63 @@ body {
+ }
+ 
+ /* highlight.js tokens (rehype-highlight). */
+-.chat-markdown .hljs-keyword,
+-.chat-markdown .hljs-selector-tag,
+-.chat-markdown .hljs-meta .hljs-keyword,
+-.chat-markdown .hljs-doctag,
+-.chat-markdown .hljs-template-tag,
+-.chat-markdown .hljs-type {
++:is(.chat-markdown, .tool-output) .hljs-keyword,
++:is(.chat-markdown, .tool-output) .hljs-selector-tag,
++:is(.chat-markdown, .tool-output) .hljs-meta .hljs-keyword,
++:is(.chat-markdown, .tool-output) .hljs-doctag,
++:is(.chat-markdown, .tool-output) .hljs-template-tag,
++:is(.chat-markdown, .tool-output) .hljs-type {
+   color: var(--hl-keyword);
+ }
+-.chat-markdown .hljs-string,
+-.chat-markdown .hljs-regexp,
+-.chat-markdown .hljs-meta .hljs-string {
++:is(.chat-markdown, .tool-output) .hljs-string,
++:is(.chat-markdown, .tool-output) .hljs-regexp,
++:is(.chat-markdown, .tool-output) .hljs-meta .hljs-string {
+   color: var(--hl-string);
+ }
+-.chat-markdown .hljs-title,
+-.chat-markdown .hljs-title.class_,
+-.chat-markdown .hljs-title.function_,
+-.chat-markdown .hljs-section {
++:is(.chat-markdown, .tool-output) .hljs-title,
++:is(.chat-markdown, .tool-output) .hljs-title.class_,
++:is(.chat-markdown, .tool-output) .hljs-title.function_,
++:is(.chat-markdown, .tool-output) .hljs-section {
+   color: var(--hl-title);
+ }
+-.chat-markdown .hljs-number,
+-.chat-markdown .hljs-literal,
+-.chat-markdown .hljs-attr,
+-.chat-markdown .hljs-attribute,
+-.chat-markdown .hljs-property,
+-.chat-markdown .hljs-selector-attr,
+-.chat-markdown .hljs-selector-class,
+-.chat-markdown .hljs-selector-id,
+-.chat-markdown .hljs-variable.constant_,
+-.chat-markdown .hljs-meta {
++:is(.chat-markdown, .tool-output) .hljs-number,
++:is(.chat-markdown, .tool-output) .hljs-literal,
++:is(.chat-markdown, .tool-output) .hljs-attr,
++:is(.chat-markdown, .tool-output) .hljs-attribute,
++:is(.chat-markdown, .tool-output) .hljs-property,
++:is(.chat-markdown, .tool-output) .hljs-selector-attr,
++:is(.chat-markdown, .tool-output) .hljs-selector-class,
++:is(.chat-markdown, .tool-output) .hljs-selector-id,
++:is(.chat-markdown, .tool-output) .hljs-variable.constant_,
++:is(.chat-markdown, .tool-output) .hljs-meta {
+   color: var(--hl-number);
+ }
+-.chat-markdown .hljs-built_in,
+-.chat-markdown .hljs-variable,
+-.chat-markdown .hljs-params,
+-.chat-markdown .hljs-symbol {
++:is(.chat-markdown, .tool-output) .hljs-built_in,
++:is(.chat-markdown, .tool-output) .hljs-variable,
++:is(.chat-markdown, .tool-output) .hljs-params,
++:is(.chat-markdown, .tool-output) .hljs-symbol {
+   color: var(--hl-builtin);
+ }
+-.chat-markdown .hljs-name,
+-.chat-markdown .hljs-tag,
+-.chat-markdown .hljs-quote,
+-.chat-markdown .hljs-selector-pseudo {
++:is(.chat-markdown, .tool-output) .hljs-name,
++:is(.chat-markdown, .tool-output) .hljs-tag,
++:is(.chat-markdown, .tool-output) .hljs-quote,
++:is(.chat-markdown, .tool-output) .hljs-selector-pseudo {
+   color: var(--hl-tag);
+ }
+-.chat-markdown .hljs-comment {
++:is(.chat-markdown, .tool-output) .hljs-comment {
+   color: var(--hl-comment);
+   font-style: italic;
+ }
+-.chat-markdown .hljs-addition {
++:is(.chat-markdown, .tool-output) .hljs-addition {
+   background-color: var(--hl-addition-bg);
+ }
+-.chat-markdown .hljs-deletion {
++:is(.chat-markdown, .tool-output) .hljs-deletion {
+   background-color: var(--hl-deletion-bg);
+ }
+-.chat-markdown .hljs-emphasis {
++:is(.chat-markdown, .tool-output) .hljs-emphasis {
+   font-style: italic;
+ }
+-.chat-markdown .hljs-strong {
++:is(.chat-markdown, .tool-output) .hljs-strong {
+   font-weight: 600;
+ }
+ 
+diff --git a/apps/app/components/agent/agent-message.tsx b/apps/app/components/agent/agent-message.tsx
+index 1cf2d4b..1a48b12 100644
+--- a/apps/app/components/agent/agent-message.tsx
++++ b/apps/app/components/agent/agent-message.tsx
+@@ -16,6 +16,9 @@ import {
+   CursorIcon,
+   LightbulbIcon,
+   ChatTextIcon,
++  ChatCircleIcon,
++  GlobeIcon,
++  ScribbleIcon,
+   CaretRightIcon,
+   CheckCircleIcon,
+   ClipboardTextIcon,
+@@ -64,6 +67,12 @@ import type { AgentMessage } from "@/lib/agent/types"
+ import type { ToolCallContent } from "@/lib/agent/acp/schema"
+ import type { TurnSummary } from "@/lib/agent/turn-summary"
+ import { bareToolName } from "@/lib/agent/tool-name"
++import {
++  callIdentity,
++  rowLabel,
++  relativePath,
++} from "@/lib/agent/tool-row-label"
++import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
+ import {
+   elementMarkersToPills,
+   mockupMarkersToRefs,
+@@ -93,8 +102,10 @@ import {
+ import { parseLayerLink } from "@/lib/agent/layer-link"
+ import { useMockupTitle } from "@/lib/yjs/react"
+ import { ElementDetail } from "./element-detail"
+-import { useElementHighlight } from "./use-element-highlight"
++import { highlight, languageFor, LogText } from "./tool-output"
+ import { ChatMarkdown } from "./chat-markdown"
++import { ANSI_PALETTE_CSS } from "@workspace/ui/lib/ansi-palette"
++import { useElementHighlight } from "./use-element-highlight"
+ import { ChatDisclosure } from "./chat-disclosure"
+ import { useWorkspaceTasks, WorkspaceTaskRow } from "./workspace-task-row"
+ import { QuestionCard } from "./question-card"
+@@ -165,6 +176,20 @@ const toolIcons: Record<string, typeof FileTextIcon> = {
+   ask_question: QuestionIcon,
+ }
+ 
++const protoIcons: Record<string, typeof FileTextIcon> = {
++  search: MagnifyingGlassIcon,
++  folder: FolderOpenIcon,
++  globe: GlobeIcon,
++  eye: EyeIcon,
++  robot: RobotIcon,
++  warning: WarningCircleIcon,
++  skill: SparkleIcon,
++  edit: PencilSimpleIcon,
++  mockup: ScribbleIcon,
++  chat: ChatCircleIcon,
++  send: ChatTextIcon,
++}
++
+ const toolLabels: Record<string, string> = {
+   read_file: "Read",
+   write_file: "Write",
+@@ -226,6 +251,31 @@ const toolLabels: Record<string, string> = {
+ // claude-agent-acp) instead sends an already human-readable, possibly
+ // markdown-formatted title like "Read `file.ts`" — which we must leave
+ // untouched rather than re-casing word by word.
++// PROTOTYPE: results that only restate the row, and results that are prose.
++const QUIET_RESULT = new Set(["Skill", "create_mockup", "update_mockup"])
++const MARKDOWN_RESULT = new Set([
++  "read_skill",
++  "read_document",
++  "read_workspace_chat",
++  "read_canvas",
++  "list_changes",
++])
++const LOG_RESULT = new Set([
++  "run_command",
++  "read_dev_server_logs",
++  "start_dev_server",
++  "restart_dev_server",
++])
++const PROSE_RESULT = new Set([
++  "read_canvas",
++  "read_workspace_chat",
++  "read_skill",
++  "read_document",
++  "frame_elements",
++  "read_mockup",
++  "list_changes",
++])
++
+ const RAW_TOOL_NAME = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/
+ 
+ function formatToolName(name: string): string {
+@@ -242,6 +292,7 @@ function formatToolName(name: string): string {
+ // still get a sensible icon rather than the bare default.
+ const kindIcons: Record<string, typeof FileTextIcon> = {
+   read: FileTextIcon,
++  search: MagnifyingGlassIcon,
+   edit: PencilSimpleIcon,
+   execute: TerminalIcon,
+   fetch: ArrowSquareOutIcon,
+@@ -269,9 +320,9 @@ function renderTitleWithCode(title: string): ReactNode[] {
+   while ((match = codeSpan.exec(title)) !== null) {
+     if (match.index > last) parts.push(title.slice(last, match.index))
+     parts.push(
+-      <code key={key++} className="align-baseline font-mono text-xs">
++      <span key={key++} data-row-detail>
+         {match[1]}
+-      </code>
++      </span>
+     )
+     last = match.index + match[0].length
+   }
+@@ -463,13 +514,19 @@ function cleanToolText(text: string): string {
+   // Drop the leading line-number gutter (`<spaces>123→`) prefixed onto each
+   // read line. The `→` (U+2192) makes this distinctive enough to not maul
+   // ordinary output.
+-  return out.replace(/^[ \t]*\d+→/gm, "")
++  out = out.replace(/^[ \t]*\d+→/gm, "")
++  // PROTOTYPE: the in-process engine's `<n>\t` gutter, only when every line has one.
++  const lines = out.split("\n")
++  if (lines.length > 0 && lines.every((l) => /^[ \t]*\d+\t/.test(l))) {
++    out = lines.map((l) => l.replace(/^[ \t]*\d+\t/, "")).join("\n")
++  }
++  return out
+ }
+ 
+ const DIFF_ROW_CLASS: Record<"context" | "added" | "removed", string> = {
+-  context: "text-muted-foreground",
+-  added: "bg-success/10 text-foreground",
+-  removed: "bg-destructive/10 text-foreground",
++  context: "",
++  added: "bg-success/10",
++  removed: "bg-destructive/10",
+ }
+ const DIFF_SIGN: Record<"context" | "added" | "removed", string> = {
+   context: " ",
+@@ -483,17 +540,28 @@ const DIFF_SIGN_CLASS: Record<"context" | "added" | "removed", string> = {
+ }
+ 
+ /** A file edit as a line diff: shared lines as context, changes marked +/-. */
+-function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
++function DiffBlock({
++  block,
++  single,
++}: {
++  block: ToolCallContent & { type: "diff" }
++  single?: boolean
++}) {
+   const rows = useMemo(
+     () => foldContext(diffLines(block.oldText, block.newText)),
+     [block.oldText, block.newText]
+   )
++  const lang = languageFor(block.path)
+   return (
+     <div data-testid="tool-content-diff">
+-      <div className="border-b border-border px-2 py-1 font-mono text-xs break-all text-muted-foreground">
+-        {block.path}
+-      </div>
+-      <div className={`${TOOL_OUTPUT_CAP} py-1 font-mono text-xs`}>
++      {single ? null : (
++        <div className="border-b border-border px-2 py-1 font-mono text-xs break-all text-muted-foreground">
++          {block.path}
++        </div>
++      )}
++      <div
++        className={`tool-output ${TOOL_OUTPUT_CAP} py-1 font-mono text-xs text-foreground`}
++      >
+         {rows.map((row, i) =>
+           row.kind === "skip" ? (
+             <div key={i} className="px-2 text-muted-foreground/70 select-none">
+@@ -519,7 +587,7 @@ function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
+                     : ""}
+               </span>
+               <span className="min-w-0 flex-1 break-words whitespace-pre-wrap">
+-                {row.text || " "}
++                {row.text ? highlight(row.text, lang) : " "}
+               </span>
+             </div>
+           )
+@@ -538,11 +606,80 @@ function DiffBlock({ block }: { block: ToolCallContent & { type: "diff" } }) {
+ function ToolContentBlock({
+   block,
+   failed,
++  prose,
++  single,
++  mode = "plain",
++  lang = null,
+ }: {
+   block: Exclude<ToolCallContent, { type: "terminal" }>
+   failed?: boolean
++  prose?: boolean
++  single?: boolean
++  mode?: "plain" | "code" | "log" | "markdown"
++  lang?: string | null
+ }) {
+-  if (block.type === "diff") return <DiffBlock block={block} />
++  if (block.type === "diff") return <DiffBlock block={block} single={single} />
++  if (block.content.type === "image") {
++    const img = block.content as { data: string; mimeType: string }
++    return (
++      <div className="p-2">
++        <img
++          alt="What the agent saw"
++          src={`data:${img.mimeType};base64,${img.data}`}
++          className="max-h-48 max-w-full rounded-sm border border-border"
++        />
++      </div>
++    )
++  }
++  if (mode === "markdown" && block.content.type === "text") {
++    return (
++      <div
++        data-testid="tool-content-text"
++        className="max-h-64 overflow-y-auto px-2 py-1.5"
++      >
++        <ChatMarkdown
++          tone="default"
++          size="xs"
++          className="[&_h1]:text-xs [&_h1]:font-semibold [&_h2]:text-xs [&_h2]:font-semibold [&_h3]:text-xs [&_li]:my-0 [&_ol]:my-1 [&_p]:my-1 [&_ul]:my-1"
++        >
++          {cleanToolText(block.content.text)}
++        </ChatMarkdown>
++      </div>
++    )
++  }
++  if (mode === "code" && block.content.type === "text") {
++    return (
++      <pre
++        data-testid="tool-content-text"
++        className={`tool-output ${TOOL_OUTPUT_CAP} px-2 py-1.5 font-mono text-xs text-foreground`}
++      >
++        {highlight(cleanToolText(block.content.text), lang)}
++      </pre>
++    )
++  }
++  if (mode === "log" && block.content.type === "text") {
++    return (
++      <pre
++        data-testid="tool-content-text"
++        className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 font-mono text-xs text-foreground`}
++      >
++        <style href="ansi-palette" precedence="default">
++          {ANSI_PALETTE_CSS}
++        </style>
++        <LogText text={cleanToolText(block.content.text)} />
++      </pre>
++    )
++  }
++  if (prose && block.content.type === "text") {
++    return (
++      <div
++        data-testid="tool-content-text"
++        className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 text-xs text-foreground`}
++      >
++        {cleanToolText(block.content.text)}
++      </div>
++    )
++  }
+   // A standard content block — render its text; non-text blocks (image, …) are
+   // deferred polish.
+   const text =
+@@ -550,7 +687,7 @@ function ToolContentBlock({
+   return (
+     <pre
+       data-testid="tool-content-text"
+-      className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 font-mono text-xs ${failed ? "text-destructive" : "text-muted-foreground"}`}
++      className={`${TOOL_OUTPUT_CAP} px-2 py-1.5 font-mono text-xs text-foreground`}
+     >
+       {text}
+     </pre>
+@@ -637,7 +774,8 @@ function ToolCallRow({
+   const failed = message.status === "failed"
+   // Our own tools reached over a harness's MCP connection carry its
+   // namespace (`mcp__screenplay__read_canvas`); label them by their own name.
+-  const name = bareToolName(message.title)
++  const identity = callIdentity(message)
++  const name = identity.name
+   const Icon =
+     toolIcons[name] ??
+     (message.kind ? kindIcons[message.kind] : undefined) ??
+@@ -650,13 +788,26 @@ function ToolCallRow({
+   // adapter's prose title is normalized via its ACP `kind`. A call we can't
+   // structure (an unknown kind with no recognizable input) keeps the adapter's
+   // prose title verbatim, rendered with inline `code` only.
++  const tasks = useWorkspaceTasks()
++  const proto = rowLabel(message, (id) => {
++    const b = tasks?.branches.find((x) => x.id === id)
++    return b ? (b.title?.trim() || null) : null
++  })
+   const isRawToolName = RAW_TOOL_NAME.test(name)
+-  const path = toolPath(message.rawInput)
++  const rawPath = toolPath(message.rawInput)
++  const diffPath =
++    message.content.find((b) => b.type === "diff")?.path ?? null
++  const path = rawPath ?? (message.kind === "edit" ? diffPath : null)
++  const command = toolCommand(message.rawInput)
+   const detail = isRawToolName
+-    ? toolDetail(name, message.rawInput)
++    ? toolDetail(name, identity.input)
+     : message.kind === "execute"
+-      ? toolCommand(message.rawInput)
++      ? command && /^(?:\/bin\/)?(?:bash|zsh|sh)\s+-/.test(command)
++        ? message.title
++        : command
+       : path
++        ? relativePath(path, message.title)
++        : null
+   const verb = isRawToolName
+     ? formatToolName(name)
+     : message.kind
+@@ -678,19 +829,66 @@ function ToolCallRow({
+   const outcome = outcomeLine(message)
+   // Structure it when we have a real verb (our own raw tool, or a known kind we
+   // could attach a detail to); otherwise fall back to the adapter's prose title.
+-  const structured = isRawToolName || (verb != null && detail != null)
++  const structured =
++    isRawToolName || (verb != null && detail != null)
+   const content = shownContent(message.content)
+-  const hasContent = content.length > 0 && !outcome
++  const restates =
++    QUIET_RESULT.has(name) ||
++    (name.startsWith("frame_") &&
++      !["frame_elements", "frame_screenshot"].includes(name) &&
++      content.every(
++        (b) =>
++          b.type === "content" &&
++          b.content.type === "text" &&
++          /^(Did |Started|Stopped|Opened)/.test(b.content.text)
++      ))
++  const hasContent = content.length > 0 && !outcome && !restates
++  const prose = PROSE_RESULT.has(name)
++  const readPath =
++    message.kind === "read" || /^read_(file|code_file|workspace_file)$/.test(name)
++      ? (toolPath(identity.input) ??
++        (message.title.match(/^Read file '(.+)'$/)?.[1] ?? null))
++      : null
++  const mode: "plain" | "code" | "log" | "markdown" = MARKDOWN_RESULT.has(name) ||
++    message.kind === "fetch"
++    ? "markdown"
++    : readPath && languageFor(readPath)
++      ? "code"
++      : message.kind === "execute" || LOG_RESULT.has(name)
++        ? "log"
++        : "plain"
++  const lang = languageFor(readPath)
++  const single = content.filter((b) => b.type === "diff").length === 1
+ 
++  const protoDetail = proto?.detail ? (
++    proto.as === "key" ? (
++      <KbdGroup className="align-baseline">
++        {proto.detail.split(" ").map((k) => (
++          <Kbd key={k} className="h-4 text-xs">
++            {k}
++          </Kbd>
++        ))}
++      </KbdGroup>
++    ) : (
++      <span data-row-detail>{proto.detail}</span>
++    )
++  ) : null
+   const title = outcome ? (
+     outcome
++  ) : proto ? (
++    <>
++      {proto.verb}
++      {protoDetail ? <> {protoDetail}</> : null}
++    </>
++  ) : !structured && /^[A-Z][a-z]+(?:[A-Z][a-z]+)+$/.test(message.title) ? (
++    message.title.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/ ([A-Z])/g, (_, c: string) => ` ${c.toLowerCase()}`)
+   ) : structured ? (
+     <>
+       {label}
+       {detail ? (
+         <>
+           {" "}
+-          <code className="align-baseline font-mono text-xs">{detail}</code>
++          <span data-row-detail>{detail}</span>
+         </>
+       ) : null}
+     </>
+@@ -699,7 +897,9 @@ function ToolCallRow({
+   )
+   const fullText = outcome
+     ? outcome
+-    : structured
++    : proto
++      ? [proto.verb, proto.detail].filter(Boolean).join(" ")
++      : structured
+       ? [label, detail].filter(Boolean).join(" ")
+       : message.title.replace(/`/g, "")
+ 
+@@ -715,7 +915,10 @@ function ToolCallRow({
+       className="size-3 shrink-0 text-destructive"
+     />
+   ) : (
+-    <Icon aria-hidden className="size-3 shrink-0" />
++    (() => {
++      const P = (proto?.icon && protoIcons[proto.icon]) || Icon
++      return <P aria-hidden className="size-3 shrink-0" />
++    })()
+   )
+   const headerProps = {
+     "data-testid": "tool-call",
+@@ -733,7 +936,14 @@ function ToolCallRow({
+       >
+         {hasFailureText(content) ? (
+           content.map((block, i) => (
+-            <ToolContentBlock key={i} block={block} failed />
++            <ToolContentBlock
++              key={i}
++              block={block}
++              failed
++              prose={prose}
++              mode={mode}
++              lang={lang}
++            />
+           ))
+         ) : (
+           <p
+@@ -759,7 +969,14 @@ function ToolCallRow({
+       {hasContent ? (
+         <div className="divide-y divide-border">
+           {content.map((block, i) => (
+-            <ToolContentBlock key={i} block={block} />
++            <ToolContentBlock
++              key={i}
++              block={block}
++              prose={prose}
++              single={single}
++              mode={mode}
++              lang={lang}
++            />
+           ))}
+         </div>
+       ) : undefined}
+diff --git a/apps/app/components/agent/chat-disclosure.tsx b/apps/app/components/agent/chat-disclosure.tsx
+index d8045f5..264c5ae 100644
+--- a/apps/app/components/agent/chat-disclosure.tsx
++++ b/apps/app/components/agent/chat-disclosure.tsx
+@@ -64,13 +64,22 @@ export function ChatDisclosure({
+       )}
+     </>
+   )
+-  const frame = cn("rounded-md border border-border bg-muted/30", className)
++  // PROTOTYPE: an open section takes the page background and full-strength text.
++  const frame = cn(
++    "rounded-md border border-border bg-muted/30 data-[state=open]:bg-background",
++    className
++  )
+   const body = "border-t border-border"
+ 
+   if (!collapsible) {
+     return (
+-      <div className={frame}>
+-        <div {...headerProps} className={HEADER_CLASS}>
++      <div
++        className={cn(frame, children != null && "bg-background")}
++      >
++        <div
++          {...headerProps}
++          className={cn(HEADER_CLASS, children != null && "text-foreground")}
++        >
+           {header}
+         </div>
+         {children != null && <div className={body}>{children}</div>}
+@@ -84,7 +93,7 @@ export function ChatDisclosure({
+         {...(headerProps as ComponentProps<"button">)}
+         className={cn(
+           HEADER_CLASS,
+-          "group/disclosure outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset data-[state=open]:rounded-b-none"
++          "group/disclosure outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset data-[state=open]:rounded-b-none data-[state=open]:text-foreground data-[state=open]:hover:bg-transparent"
+         )}
+       >
+         {header}
+diff --git a/apps/app/lib/agent/tool-name.ts b/apps/app/lib/agent/tool-name.ts
+index 7043c9a..79cec7d 100644
+--- a/apps/app/lib/agent/tool-name.ts
++++ b/apps/app/lib/agent/tool-name.ts
+@@ -62,7 +62,11 @@ export function harnessToolNaming(
+  * Coordinator's chat leaves it out unless it failed. A Workspace's chat keeps
+  * it.
+  */
+-const COORDINATOR_PLUMBING = new Set(["ToolSearch"])
++const COORDINATOR_PLUMBING = new Set([
++  "ToolSearch",
++  "Compact conversation",
++  "Ready to code?",
++])
+ 
+ /**
+  * Codex's automatic approval reviewer ("Guardian Review"), which codex-acp
+@@ -89,6 +93,6 @@ export function isHarnessPlumbing(
+   if (message.role !== "tool_call" || message.status === "failed") return false
+   return (
+     isGuardianReview(message) ||
+-    (coordinator && COORDINATOR_PLUMBING.has(message.title))
++    (void coordinator, COORDINATOR_PLUMBING.has(message.title))
+   )
+ }
+diff --git a/apps/app/package.json b/apps/app/package.json
+index 81070d0..c41f783 100644
+--- a/apps/app/package.json
++++ b/apps/app/package.json
+@@ -61,6 +61,7 @@
+     "anser": "^2.3.5",
+     "better-auth": "^1.7.6",
+     "drizzle-orm": "^0.45.3",
++    "lowlight": "3.3.0",
+     "motion": "^13.4.6",
+     "nanoid": "^6.0.1",
+     "next": "16.3.8",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index f961822..339f176 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -149,6 +149,9 @@ importers:
+       drizzle-orm:
+         specifier: ^0.45.3
+         version: 0.45.3(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.0)(@upstash/redis@1.37.0)(kysely@0.29.6)
++      lowlight:
++        specifier: 3.3.0
++        version: 3.3.0
+       motion:
+         specifier: ^13.4.6
+         version: 13.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+diff --git a/apps/app/lib/agent/tool-row-label.ts b/apps/app/lib/agent/tool-row-label.ts
+new file mode 100644
+index 0000000..c29aaab
+--- /dev/null
++++ b/apps/app/lib/agent/tool-row-label.ts
+@@ -0,0 +1,224 @@
++import type { AgentMessage } from "@/lib/agent/types"
++import { bareToolName } from "@/lib/agent/tool-name"
++
++/**
++ * PROTOTYPE (tool-row audit): one vocabulary for every engine's tool rows.
++ * A row is a verb plus what it acted on; the subject is code (a path,
++ * pattern, command or selector), plain text (a label someone sees, a query,
++ * a Workspace's title), or a key.
++ */
++export type RowLabel = {
++  verb: string
++  detail?: string
++  as?: "code" | "text" | "key"
++  icon?: string
++}
++
++type Call = AgentMessage & { role: "tool_call" }
++
++const str = (v: unknown) => (typeof v === "string" && v ? v : null)
++
++function record(raw: unknown): Record<string, unknown> {
++  return raw && typeof raw === "object" && !Array.isArray(raw)
++    ? (raw as Record<string, unknown>)
++    : {}
++}
++
++function resultText(call: Call): string {
++  return call.content
++    .map((b) =>
++      b.type === "content" && b.content.type === "text" ? b.content.text : ""
++    )
++    .join("")
++}
++
++/** The name and input of a call, unwrapping Codex's `mcp.<server>.<tool>`. */
++export function callIdentity(call: Call): {
++  name: string
++  input: Record<string, unknown>
++} {
++  const codexMcp = call.title.match(/^mcp\.[^.\s]+\.([a-z][a-z0-9_]*)$/)
++  if (codexMcp) {
++    return {
++      name: codexMcp[1]!,
++      input: record(record(call.rawInput).arguments),
++    }
++  }
++  return { name: bareToolName(call.title), input: record(call.rawInput) }
++}
++
++/** A repo-relative path: the tail an adapter's own title shows, if any. */
++export function relativePath(path: string, title: string): string {
++  if (!path.startsWith("/")) return path
++  const tokens = title.replace(/[`'"]/g, " ").split(/\s+/)
++  const tail = tokens.find((t) => t && !t.startsWith("/") && path.endsWith(`/${t}`))
++  if (tail) return tail
++  const parts = path.split("/")
++  return parts.slice(-3).join("/")
++}
++
++/** A selector's last step, which is usually the part that names the element. */
++function shortSelector(selector: string): string {
++  const last = selector.split(/\s*>\s*|\s+/).filter(Boolean).at(-1) ?? selector
++  return last.length > 32 ? `${last.slice(0, 31)}…` : last
++}
++
++function driveTarget(
++  t: unknown,
++  result: string
++): Pick<RowLabel, "detail" | "as"> {
++  // What the page says it acted on beats how the agent pointed at it.
++  const acted = result.match(/^Did \w+ on \w+ "([^"]+)"/)
++  if (acted) return { detail: acted[1], as: "text" }
++  const r = record(t)
++  if (str(r.text)) return { detail: str(r.text)!, as: "text" }
++  if (str(r.selector)) return { detail: shortSelector(str(r.selector)!), as: "code" }
++  if (typeof r.x === "number" && typeof r.y === "number") {
++    return { detail: `at ${Math.round(r.x)}, ${Math.round(r.y)}`, as: "text" }
++  }
++  return {}
++}
++
++function host(url: string): string {
++  try {
++    const u = new URL(url)
++    return `${u.host}${u.pathname === "/" ? "" : u.pathname}`
++  } catch {
++    return url
++  }
++}
++
++/** Codex's prose titles, read back into verb + subject. */
++function codexProse(title: string): RowLabel | null {
++  let m = title.match(/^Read file '(.+)'$/)
++  if (m) return { verb: "Read", detail: m[1], as: "code" }
++  m = title.match(/^Search for '(.+?)'(?: in (.+))?$/)
++  if (m) return { verb: "Search", detail: m[1], as: "code", icon: "search" }
++  m = title.match(/^List files in '(.+)'$/)
++  if (m) return { verb: "List files", detail: m[1], as: "code", icon: "folder" }
++  m = title.match(/^Web search: (.+)$/)
++  if (m) return { verb: "Search the web", detail: m[1], as: "text", icon: "globe" }
++  m = title.match(/^Open page: (.+)$/)
++  if (m) return { verb: "Open", detail: host(m[1]!), as: "code", icon: "globe" }
++  m = title.match(/^View Image (.+)$/)
++  if (m) return { verb: "Look at image", detail: m[1]!.split("/").at(-1), as: "code", icon: "eye" }
++  if (title === "Editing files" || title === "Edit files") return null
++  m = title.match(/^Start subagent (.+)$/)
++  if (m) return { verb: "Start subagent", detail: m[1], as: "text", icon: "robot" }
++  if (/^mcp__[^_]+(?:_[^_]+)*__startup$/.test(title)) {
++    return { verb: "Screenplay's tools didn't start", icon: "warning" }
++  }
++  return null
++}
++
++/** Claude Code's built-in tools, by the title claude-agent-acp gives them. */
++function claudeCodeBuiltIn(call: Call, input: Record<string, unknown>): RowLabel | null {
++  const t = call.title
++  if (t === "Skill") return { verb: "Read skill", detail: str(input.skill) ?? undefined, as: "code", icon: "skill" }
++  if (call.kind === "search" && t.startsWith("grep")) {
++    return { verb: "Search", detail: str(input.pattern) ?? undefined, as: "code", icon: "search" }
++  }
++  if (call.kind === "search" && t.startsWith("Find")) {
++    return { verb: "Find files", detail: str(input.pattern) ?? undefined, as: "code", icon: "folder" }
++  }
++  if (call.kind === "fetch" && str(input.url)) {
++    return { verb: "Fetch", detail: host(str(input.url)!), as: "code", icon: "globe" }
++  }
++  if (call.kind === "fetch" && str(input.query)) {
++    return { verb: "Search the web", detail: str(input.query)!, as: "text", icon: "globe" }
++  }
++  if (t === "NotebookEdit") {
++    const p = str(input.notebook_path)
++    return { verb: "Edit notebook", detail: p ? relativePath(p, t) : undefined, as: "code", icon: "edit" }
++  }
++  return null
++}
++
++/**
++ * The row label for a call this prototype knows better than the shipped
++ * renderer does, or null to keep the shipped one.
++ */
++export function rowLabel(
++  call: Call,
++  workspaceTitle: (id: string) => string | null
++): RowLabel | null {
++  const { name, input } = callIdentity(call)
++  const result = resultText(call)
++  const ws = (id: unknown) => (str(id) ? workspaceTitle(str(id)!) : null)
++  switch (name) {
++    case "grep":
++    case "search_code":
++      return { verb: "Search", detail: str(input.pattern) ?? undefined, as: "code", icon: "search" }
++    case "glob":
++    case "find_code_files":
++      return { verb: "Find files", detail: str(input.pattern) ?? undefined, as: "code", icon: "folder" }
++    case "create_mockup":
++      return { verb: "Create mockup", detail: str(input.title) ?? undefined, as: "text", icon: "mockup" }
++    case "update_mockup":
++      return { verb: "Update mockup", detail: str(input.title) ?? undefined, as: "text", icon: "mockup" }
++    case "read_mockup":
++      return { verb: "Read mockup", icon: "mockup" }
++    case "start_chat":
++      return { verb: "Start chat", detail: str(input.title) ?? undefined, as: "text", icon: "chat" }
++    case "send_to_chat":
++      return { verb: "Send to chat", icon: "send" }
++    case "read_workspace_chat":
++    case "read_workspace_diff":
++    case "stop_workspace": {
++      const title = ws(input.workspaceId ?? input.workspace_id)
++      const verb = {
++        read_workspace_chat: "Read chat in",
++        read_workspace_diff: "Read changes in",
++        stop_workspace: "Stop",
++      }[name]
++      return title ? { verb, detail: title, as: "text" } : null
++    }
++    case "frame_click":
++      return { verb: "Click", ...driveTarget(input.target, result) }
++    case "frame_type": {
++      const text = str(input.text)
++      return text ? { verb: "Type", detail: `“${text}”`, as: "text" } : { verb: "Type" }
++    }
++    case "frame_key": {
++      const mods = record(input.modifiers)
++      const keys = [
++        mods.metaKey && "⌘",
++        mods.ctrlKey && "Ctrl",
++        mods.altKey && "⌥",
++        mods.shiftKey && "⇧",
++        str(input.key),
++      ].filter((k): k is string => !!k)
++      return { verb: "Press", detail: keys.join(" "), as: "key" }
++    }
++    case "frame_scroll": {
++      const dy = typeof input.dy === "number" ? input.dy : 0
++      const dx = typeof input.dx === "number" ? input.dx : 0
++      const dir = dy > 0 ? "down" : dy < 0 ? "up" : dx > 0 ? "right" : dx < 0 ? "left" : null
++      return { verb: dir ? `Scroll ${dir}` : "Scroll" }
++    }
++    case "frame_select":
++      return { verb: "Pick", detail: str(input.value) ?? undefined, as: "text" }
++    case "frame_drag": {
++      const from = driveTarget(input.target, "")
++      const to = driveTarget(input.to, "")
++      return {
++        verb: "Drag",
++        detail: from.detail && to.detail ? `${from.detail} to ${to.detail}` : from.detail,
++        as: from.as,
++      }
++    }
++    case "frame_elements":
++      return { verb: "Read the page" }
++  }
++  return codexProse(call.title) ?? claudeCodeBuiltIn(call, input)
++}
++
++/** Harness steps that say nothing about the work, hidden in every chat. */
++export function isQuietHarnessStep(call: Call): boolean {
++  if (call.status === "failed") return false
++  return (
++    call.title === "ToolSearch" ||
++    call.title === "Compact conversation" ||
++    call.title === "Ready to code?"
++  )
++}
+diff --git a/apps/app/components/agent/tool-output.tsx b/apps/app/components/agent/tool-output.tsx
+new file mode 100644
+index 0000000..7609f67
+--- /dev/null
++++ b/apps/app/components/agent/tool-output.tsx
+@@ -0,0 +1,159 @@
++"use client"
++
++import Anser from "anser"
++import { createLowlight, common } from "lowlight"
++import type { ReactNode } from "react"
++import { ansiClassIndex, ansiColorVar } from "@workspace/ui/lib/ansi-palette"
++
++/**
++ * PROTOTYPE (tool-row audit, round 3): how an open tool row colours what it
++ * shows. Code is syntax-highlighted with the chat's highlight.js colours,
++ * command output and logs keep their ANSI colours (or, with none, mark
++ * errors, warnings and passes), and markdown results render as markdown.
++ */
++
++const lowlight = createLowlight(common)
++
++const EXT_LANG: Record<string, string> = {
++  ts: "typescript",
++  tsx: "typescript",
++  mts: "typescript",
++  js: "javascript",
++  jsx: "javascript",
++  mjs: "javascript",
++  cjs: "javascript",
++  json: "json",
++  css: "css",
++  scss: "scss",
++  html: "xml",
++  svg: "xml",
++  xml: "xml",
++  md: "markdown",
++  mdx: "markdown",
++  py: "python",
++  rb: "ruby",
++  go: "go",
++  rs: "rust",
++  sh: "bash",
++  yml: "yaml",
++  yaml: "yaml",
++  toml: "ini",
++  sql: "sql",
++  java: "java",
++  kt: "kotlin",
++  swift: "swift",
++}
++
++/** The highlight.js language for a file path, or null to leave it plain. */
++export function languageFor(path: string | null | undefined): string | null {
++  if (!path) return null
++  const ext = path.split(".").at(-1)?.toLowerCase() ?? ""
++  return EXT_LANG[ext] ?? null
++}
++
++type HastNode =
++  | { type: "text"; value: string }
++  | {
++      type: "element"
++      properties?: { className?: string[] }
++      children: HastNode[]
++    }
++  | { type: "root"; children: HastNode[] }
++
++function render(nodes: HastNode[], key = "k"): ReactNode[] {
++  return nodes.map((n, i) => {
++    if (n.type === "text") return n.value
++    if (n.type === "element") {
++      return (
++        <span key={`${key}-${i}`} className={n.properties?.className?.join(" ")}>
++          {render(n.children, `${key}-${i}`)}
++        </span>
++      )
++    }
++    return render(n.children, `${key}-${i}`)
++  })
++}
++
++/** `text` highlighted as `lang`, as React nodes; plain text when it can't be. */
++export function highlight(text: string, lang: string | null): ReactNode {
++  if (!lang || !lowlight.registered(lang)) return text
++  try {
++    const tree = lowlight.highlight(lang, text) as unknown as HastNode
++    return render(tree.type === "root" ? tree.children : [tree])
++  } catch {
++    return text
++  }
++}
++
++function ansiColor(cls: string | null): string | undefined {
++  if (!cls) return undefined
++  const index = ansiClassIndex(cls)
++  return index !== null ? ansiColorVar(index) : undefined
++}
++
++const ERROR_LINE = /(^|\s)(error|Error|ERROR|FAIL|failed|✖|✗|×)(\s|:|$)/
++const WARN_LINE = /(^|\s)(warn|warning|Warning|WARN|⚠)(\s|:|$)/
++const PASS_GLYPH = /^(\s*)(✓|✔|√)/
++
++/**
++ * Command output or a log. ANSI colours, when the output has them, render
++ * from the shared ANSI palette; output without any marks its error and
++ * warning lines and its pass ticks, and leaves the rest alone.
++ */
++export function LogText({ text }: { text: string }): ReactNode {
++  if (text.includes("\u001b[")) {
++    const tokens = Anser.ansiToJson(text, {
++      remove_empty: true,
++      json: true,
++      use_classes: true,
++    })
++    return tokens.map((t, i) => (
++      <span
++        key={i}
++        style={{
++          color: ansiColor(t.fg),
++          fontWeight: t.decorations.includes("bold") ? 600 : undefined,
++          opacity: t.decorations.includes("dim") ? 0.7 : undefined,
++        }}
++      >
++        {t.content}
++      </span>
++    ))
++  }
++  return text.split("\n").map((line, i, all) => {
++    const nl = i < all.length - 1 ? "\n" : ""
++    if (ERROR_LINE.test(line)) {
++      return (
++        <span key={i} style={{ color: ansiColorVar(1) }}>
++          {line}
++          {nl}
++        </span>
++      )
++    }
++    if (WARN_LINE.test(line)) {
++      return (
++        <span key={i} style={{ color: ansiColorVar(3) }}>
++          {line}
++          {nl}
++        </span>
++      )
++    }
++    const pass = PASS_GLYPH.exec(line)
++    if (pass) {
++      return (
++        <span key={i}>
++          {pass[1]}
++          <span style={{ color: ansiColorVar(2) }}>{pass[2]}</span>
++          {line.slice(pass[0].length)}
++          {nl}
++        </span>
++      )
++    }
++    return (
++      <span key={i}>
++        {line}
++        {nl}
++      </span>
++    )
++  })
++}

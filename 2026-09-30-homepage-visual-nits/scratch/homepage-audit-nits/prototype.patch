@@ -1,0 +1,286 @@
+diff --git a/apps/homepage/components/marketing/excerpts/canvas.tsx b/apps/homepage/components/marketing/excerpts/canvas.tsx
+index 58ef8ec..5bd4cd0 100644
+--- a/apps/homepage/components/marketing/excerpts/canvas.tsx
++++ b/apps/homepage/components/marketing/excerpts/canvas.tsx
+@@ -136,7 +136,7 @@ export function Frame({
+       ) : null}
+       <div
+         className={cn(
+-          "absolute bottom-full left-0 mb-1.5 truncate text-[11px] leading-none whitespace-nowrap",
++          "absolute bottom-full left-0 mb-1.5 truncate text-xs leading-none whitespace-nowrap",
+           selected ? "text-selection" : "text-muted-foreground"
+         )}
+       >
+@@ -178,7 +178,7 @@ function GroupLabel({
+   return (
+     <div
+       className={cn(
+-        "absolute flex items-center gap-2 text-[11px] leading-none whitespace-nowrap text-muted-foreground",
++        "absolute flex items-center gap-2 text-xs leading-none whitespace-nowrap text-muted-foreground",
+         className
+       )}
+       style={style}
+@@ -217,11 +217,11 @@ export function FrameBar({
+       <Tool>
+         <ArrowRightIcon />
+       </Tool>
+-      <span className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-muted pr-0.5 pl-2">
++      <span className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-muted pr-0.5 pl-2 text-xs">
+         <WorkspaceGlyph />
+-        <span className="truncate">{workspace}</span>
++        <span className="truncate font-medium">{workspace}</span>
+         <CaretUpDownIcon className="size-3 shrink-0 text-muted-foreground" />
+-        <span className="flex-1 text-muted-foreground">/</span>
++        <span className="flex-1 font-mono text-muted-foreground">/</span>
+         <Tool>
+           <span className="size-2 rounded-full bg-muted-foreground" />
+         </Tool>
+@@ -508,9 +508,11 @@ export function CanvasExcerpt() {
+         <FrameBar
+           workspace="Hero gradient & trust line"
+           className="z-[5] max-sm:hidden"
++          // Centred under the frame like the app's: as wide as the frame, or
++          // 360px under a narrow one, never past the canvas's edges.
+           style={{
+-            left: "6%",
+-            width: "max(66%, min(440px, 88%))",
++            left: "max(8px, calc(39% - min(max(33%, 180px), 50% - 8px)))",
++            width: "min(max(66%, 360px), calc(100% - 16px))",
+             top: "calc(var(--top) + 41.25cqw + 10px)",
+           }}
+         />
+@@ -524,9 +526,10 @@ export function CanvasExcerpt() {
+         <Frame
+           label="Pricing"
+           group={["Pricing", "Pricing FAQ"]}
++          className="[--gap:96px] max-sm:[--gap:56px]"
+           style={{
+             left: "6%",
+-            top: "calc(var(--top) + 41.25cqw + 96px)",
++            top: "calc(var(--top) + 41.25cqw + var(--gap))",
+             width: "66%",
+           }}
+         >
+diff --git a/apps/homepage/components/marketing/excerpts/steps.tsx b/apps/homepage/components/marketing/excerpts/steps.tsx
+index 008a64a..4e54555 100644
+--- a/apps/homepage/components/marketing/excerpts/steps.tsx
++++ b/apps/homepage/components/marketing/excerpts/steps.tsx
+@@ -138,7 +138,7 @@ export function CreateWorkspacesExcerpt() {
+       <div
+         className={cn(
+           surface,
+-          "absolute top-3 left-4 flex w-[288px] flex-col gap-2.5 p-3 text-xs"
++          "absolute top-3 left-4 flex w-[288px] flex-col gap-2 p-3 text-xs"
+         )}
+       >
+         <div className="flex items-start justify-between">
+@@ -167,28 +167,28 @@ export function CompareExcerpt() {
+         label="Home"
+         group={["Homepage", "Hero gradient"]}
+         selected
+-        style={{ left: 16, top: 52, width: 180 }}
++        style={{ left: 16, top: 46, width: 180 }}
+       >
+         <Northwind version="gradient" />
+       </Frame>
+       <Frame
+         label="Mobile"
+         device="mobile"
+-        style={{ left: 208, top: 52, width: 52 }}
++        style={{ left: 208, top: 46, width: 52 }}
+       >
+         <Northwind device="mobile" version="gradient" />
+       </Frame>
+       <Frame
+         label="Home"
+         group={["Homepage", "Main"]}
+-        style={{ left: 16, top: 204, width: 180 }}
++        style={{ left: 16, top: 212, width: 180 }}
+       >
+         <Northwind />
+       </Frame>
+       <Frame
+         label="Mobile"
+         device="mobile"
+-        style={{ left: 208, top: 204, width: 52 }}
++        style={{ left: 208, top: 212, width: 52 }}
+       >
+         <Northwind device="mobile" />
+       </Frame>
+@@ -222,7 +222,8 @@ export function PullRequestExcerpt() {
+       <div
+         className={cn(
+           surface,
+-          "absolute top-[88px] left-[108px] flex w-[200px] flex-col p-1 text-[13px]"
++          // Menus take the other theme in the app (`inverted`, #1073).
++          "inverted absolute top-[88px] left-[108px] flex w-[200px] flex-col p-1 text-[13px]"
+         )}
+       >
+         {menu.map((item, i) =>
+diff --git a/apps/homepage/components/marketing/footer.tsx b/apps/homepage/components/marketing/footer.tsx
+index 303e41e..856e79b 100644
+--- a/apps/homepage/components/marketing/footer.tsx
++++ b/apps/homepage/components/marketing/footer.tsx
+@@ -68,7 +68,7 @@ export function Footer() {
+                 {...(l.external ? { target: "_blank", rel: "noreferrer" } : {})}
+                 className={cn(
+                   "text-muted-foreground transition-colors hover:text-foreground",
+-                  "mono" in l && l.mono && "font-mono text-xs"
++                  "mono" in l && l.mono && "font-mono text-xs/5"
+                 )}
+               >
+                 {l.label}
+diff --git a/apps/homepage/components/marketing/header.tsx b/apps/homepage/components/marketing/header.tsx
+index 12163d0..c750d09 100644
+--- a/apps/homepage/components/marketing/header.tsx
++++ b/apps/homepage/components/marketing/header.tsx
+@@ -15,9 +15,9 @@ export function Header() {
+   return (
+     <header className="sticky top-0 z-50 border-b border-border bg-background">
+       <div
+-        className={`${measure} flex h-15 items-center justify-between gap-4`}
++        className={`${measure} grid h-15 grid-cols-[1fr_auto] items-center gap-4 md:grid-cols-[1fr_auto_1fr]`}
+       >
+-        <Link href="/" aria-label="Screenplay home">
++        <Link href="/" aria-label="Screenplay home" className="justify-self-start">
+           <Wordmark />
+         </Link>
+         <nav className="hidden items-center gap-7 text-[14.5px] md:flex">
+@@ -31,7 +31,7 @@ export function Header() {
+             </Link>
+           ))}
+         </nav>
+-        <div className="flex items-center gap-5 text-[14.5px]">
++        <div className="flex items-center justify-end gap-5 text-[14.5px]">
+           <a
+             href={githubUrl}
+             target="_blank"
+diff --git a/apps/homepage/components/marketing/site/cta.tsx b/apps/homepage/components/marketing/site/cta.tsx
+index 562308a..7273a30 100644
+--- a/apps/homepage/components/marketing/site/cta.tsx
++++ b/apps/homepage/components/marketing/site/cta.tsx
+@@ -14,7 +14,7 @@ export function CTA() {
+         Download Screenplay, add a repository, and ask your agent for a few
+         versions of a change. Review them side by side.
+       </p>
+-      <div className="mt-8 flex flex-wrap gap-3">
++      <div className="mt-8 flex flex-wrap gap-3 max-sm:flex-col">
+         <a
+           href={releasesUrl}
+           target="_blank"
+diff --git a/apps/homepage/components/marketing/site/editorial.tsx b/apps/homepage/components/marketing/site/editorial.tsx
+index 616020a..bdb107e 100644
+--- a/apps/homepage/components/marketing/site/editorial.tsx
++++ b/apps/homepage/components/marketing/site/editorial.tsx
+@@ -13,7 +13,7 @@ export function buttonClass(
+   size: "default" | "lg" = "default"
+ ) {
+   return cn(
+-    "focus-visible:outline-selection inline-flex items-center gap-2 rounded-sm border border-foreground font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
++    "focus-visible:outline-selection inline-flex items-center justify-center gap-2 rounded-sm border border-foreground font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+     size === "lg" ? "h-12 px-5.5 text-[15px]" : "h-9 px-4 text-sm",
+     variant === "solid"
+       ? "bg-foreground text-background hover:bg-foreground/85"
+diff --git a/apps/homepage/components/marketing/site/faq.tsx b/apps/homepage/components/marketing/site/faq.tsx
+index 3dd84ca..59cdfdd 100644
+--- a/apps/homepage/components/marketing/site/faq.tsx
++++ b/apps/homepage/components/marketing/site/faq.tsx
+@@ -40,7 +40,7 @@ export function Faq() {
+             key={f.q}
+             className="faq-item group border-b border-border py-5 [&_summary::-webkit-details-marker]:hidden"
+           >
+-            <summary className="flex cursor-pointer list-none items-baseline justify-between gap-4 font-heading text-[20px] leading-[1.25] tracking-[-0.03em]">
++            <summary className="focus-visible:outline-selection flex cursor-pointer list-none items-baseline justify-between gap-4 rounded-sm font-heading text-[20px] leading-[1.25] tracking-[-0.03em] outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-solid">
+               {f.q}
+               <span
+                 aria-hidden
+diff --git a/apps/homepage/components/marketing/site/features.tsx b/apps/homepage/components/marketing/site/features.tsx
+index 0b8a2ff..994d761 100644
+--- a/apps/homepage/components/marketing/site/features.tsx
++++ b/apps/homepage/components/marketing/site/features.tsx
+@@ -48,7 +48,7 @@ export function Features() {
+         slug="Features"
+         title="Built for comparing what your agents build."
+       />
+-      <div className="mt-14 grid border-t border-border md:grid-cols-3 md:gap-x-13">
++      <div className="mt-12 grid border-t border-border md:grid-cols-3 md:gap-x-13">
+         {features.map((f, i) => (
+           <div
+             key={f.title}
+diff --git a/apps/homepage/components/marketing/site/hero.tsx b/apps/homepage/components/marketing/site/hero.tsx
+index bafff6a..ece3f4c 100644
+--- a/apps/homepage/components/marketing/site/hero.tsx
++++ b/apps/homepage/components/marketing/site/hero.tsx
+@@ -30,7 +30,7 @@ export function Hero() {
+               Run your coding agents on separate branches and see every result
+               live on one canvas.
+             </p>
+-            <div data-veil className="flex flex-wrap gap-3">
++            <div data-veil className="flex flex-wrap gap-3 max-sm:flex-col">
+               <a
+                 href={releasesUrl}
+                 target="_blank"
+diff --git a/apps/homepage/components/marketing/site/problem.tsx b/apps/homepage/components/marketing/site/problem.tsx
+index 5654a6d..25a2a5b 100644
+--- a/apps/homepage/components/marketing/site/problem.tsx
++++ b/apps/homepage/components/marketing/site/problem.tsx
+@@ -24,8 +24,9 @@ export function Problem() {
+       />
+ 
+       <div className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
++        <div className="flex flex-col gap-2.5">
+         {/* A terminal is black in both themes. */}
+-        <div className="flex min-h-80 flex-col justify-between border border-border bg-black p-5.5 font-mono text-xs leading-[1.9] text-neutral-200 sm:text-[13.5px]">
++        <div className="min-h-64 flex-1 border border-border bg-black p-5.5 font-mono text-xs leading-[1.9] text-neutral-200 sm:text-[13.5px]">
+           <div>
+             {dance.map(([p, cmd], i) => (
+               <div key={i} className="flex gap-2.5">
+@@ -40,7 +41,8 @@ export function Problem() {
+               <span className="caret-blink h-4 w-2 translate-y-1 bg-neutral-400" />
+             </div>
+           </div>
+-          <p className={cn(monoLabel, "mt-8 text-neutral-500")}>
++        </div>
++          <p className={cn(monoLabel, "text-muted-foreground")}>
+             Without Screenplay
+           </p>
+         </div>
+diff --git a/apps/homepage/components/marketing/site/scenes.tsx b/apps/homepage/components/marketing/site/scenes.tsx
+index 13fbbea..daccca0 100644
+--- a/apps/homepage/components/marketing/site/scenes.tsx
++++ b/apps/homepage/components/marketing/site/scenes.tsx
+@@ -52,12 +52,20 @@ export function Scenes() {
+         title="From one prompt to several running versions."
+         body="Describe a change once, let your agents build it several ways, and review every version on the same canvas."
+       />
+-      <ol className="mt-14 grid gap-x-9 border-t border-foreground sm:grid-cols-2 lg:grid-cols-4">
++      <ol className="mt-12 grid gap-x-9 border-t border-foreground sm:grid-cols-2 lg:grid-cols-4 lg:grid-rows-[repeat(4,auto)]">
+         {scenes.map(({ slug, title, body, Excerpt }, i) => (
+           <li
+             key={slug}
+             className={cn(
+               "relative flex min-w-0 flex-col gap-3 pt-4.5 pb-8",
++              // One row per part across the columns, so a title that wraps
++              // doesn't push its excerpt below the others'.
++              "lg:row-span-4 lg:grid lg:grid-rows-subgrid lg:content-start",
++              // At two columns, a hairline over the second row, carried
++              // across the gutter like the Features grid's.
++              i >= 2 &&
++                "sm:max-lg:after:absolute sm:max-lg:after:inset-x-0 sm:max-lg:after:top-0 sm:max-lg:after:h-px sm:max-lg:after:bg-border",
++              i === 2 && "sm:max-lg:after:-right-9",
+               // A hairline in the gutter between columns, so every column
+               // (and every image) is the same width.
+               "before:absolute before:inset-y-0 before:-left-4.5 before:w-px before:bg-border",
+diff --git a/apps/homepage/components/marketing/site/self-hosting.tsx b/apps/homepage/components/marketing/site/self-hosting.tsx
+index d013f9a..9df207e 100644
+--- a/apps/homepage/components/marketing/site/self-hosting.tsx
++++ b/apps/homepage/components/marketing/site/self-hosting.tsx
+@@ -30,7 +30,7 @@ export function SelfHosting() {
+         title="Host it and review together."
+       />
+       <div className="mt-12 grid gap-12 md:grid-cols-2">
+-        <div className="flex flex-col items-start gap-5">
++        <div className="flex flex-col items-start gap-5 md:pt-3.5">
+           <p className="max-w-[44ch] text-lg leading-relaxed text-muted-foreground sm:text-[19px]">
+             Deploy the web app for your team and share a canvas. It&rsquo;s free
+             and MIT licensed.

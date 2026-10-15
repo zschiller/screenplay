@@ -1,0 +1,144 @@
+diff --git a/apps/app/components/agent/agent-chat.tsx b/apps/app/components/agent/agent-chat.tsx
+index 9635619f..fc74a162 100644
+--- a/apps/app/components/agent/agent-chat.tsx
++++ b/apps/app/components/agent/agent-chat.tsx
+@@ -657,7 +657,7 @@ function ChatEmptyState({
+   return (
+     <div className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance">
+       <div className="space-y-1">
+-        <p className="text-sm font-medium text-foreground">
++        <p className="font-heading text-title-sm text-foreground">
+           {fresh
+             ? roomStart.repoName
+               ? `What should change in ${roomStart.repoName}?`
+@@ -705,7 +705,7 @@ function ChatLoadError({ onRetry }: { onRetry: () => Promise<unknown> }) {
+       className="m-auto flex max-w-64 flex-col items-center gap-3 text-center text-balance"
+     >
+       <div className="space-y-1">
+-        <p className="text-sm font-medium text-foreground">
++        <p className="font-heading text-title-sm text-foreground">
+           Couldn’t load this chat
+         </p>
+         <p className="text-xs text-muted-foreground">
+diff --git a/apps/app/components/agent/mention-list.tsx b/apps/app/components/agent/mention-list.tsx
+index 423b5137..1486ad4f 100644
+--- a/apps/app/components/agent/mention-list.tsx
++++ b/apps/app/components/agent/mention-list.tsx
+@@ -48,8 +48,9 @@ interface MentionListProps {
+ 
+ /**
+  * Suggestion popover for the chat / document body Mention extension, drawn
+- * like the app's dropdown menus (the inverted surface, their labels and item
+- * rows). Items arrive grouped by kind, each group under its heading.
++ * with the app's dropdown menu labels and item rows, on the page's own surface
++ * like the other menu-like popovers (#1075). Items arrive grouped by kind,
++ * each group under its heading.
+  */
+ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
+   function MentionList({ items, command }, ref) {
+@@ -91,7 +92,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
+ 
+     if (items.length === 0) {
+       return (
+-        <div className="inverted w-max min-w-56 rounded-lg bg-popover px-2 py-1.5 text-sm text-muted-foreground shadow-md ring-1 ring-foreground/10">
++        <div className="w-max min-w-56 rounded-lg bg-popover px-2 py-1.5 text-sm text-muted-foreground shadow-md ring-1 ring-foreground/10">
+           No matches
+         </div>
+       )
+@@ -100,7 +101,7 @@ export const MentionList = forwardRef<MentionListHandle, MentionListProps>(
+     return (
+       <div
+         role="menu"
+-        className="inverted max-h-72 w-max max-w-70 min-w-56 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
++        className="max-h-72 w-max max-w-70 min-w-56 overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+       >
+         {items.map((item, i) => {
+           const startsGroup = items[i - 1]?.kind !== item.kind
+diff --git a/apps/app/components/agent/skill-save-card.tsx b/apps/app/components/agent/skill-save-card.tsx
+index 7c51d766..09e112cc 100644
+--- a/apps/app/components/agent/skill-save-card.tsx
++++ b/apps/app/components/agent/skill-save-card.tsx
+@@ -159,7 +159,7 @@ export function SkillSaveCard({
+       <ChatDisclosure
+         collapsible={false}
+         icon={<BookOpenIcon aria-hidden className="size-3 shrink-0" />}
+-        title={<span className="font-mono">{offered.name}</span>}
++        title={<span className="font-medium">{offered.name}</span>}
+         headerProps={{ "data-testid": "skill-save-card" }}
+       >
+         <div className="px-3 py-2.5">
+diff --git a/apps/app/components/canvas/canvas-files-section.tsx b/apps/app/components/canvas/canvas-files-section.tsx
+index 3ab95a48..ac875e15 100644
+--- a/apps/app/components/canvas/canvas-files-section.tsx
++++ b/apps/app/components/canvas/canvas-files-section.tsx
+@@ -376,7 +376,7 @@ export function FileRow({
+       {folder && open && children && (
+         // No stock 1px nudge: it adds up level by level and staggers the
+         // right-aligned sizes. The margin keeps the guide under the icon.
+-        <SidebarMenuSub className="ml-[15px] translate-x-0">
++        <SidebarMenuSub className="ml-[15px] translate-x-0 gap-0 py-0">
+           {children}
+         </SidebarMenuSub>
+       )}
+diff --git a/apps/app/components/canvas/canvas-settings-dialog.tsx b/apps/app/components/canvas/canvas-settings-dialog.tsx
+index f0d24691..ed8373b5 100644
+--- a/apps/app/components/canvas/canvas-settings-dialog.tsx
++++ b/apps/app/components/canvas/canvas-settings-dialog.tsx
+@@ -477,6 +477,7 @@ function RepositoriesSection({
+             <Button
+               asChild
+               variant="ghost"
++              size="sm"
+               className="-ml-2.5 text-muted-foreground"
+             >
+               <Link href="/settings?section=repositories">
+diff --git a/apps/app/components/canvas/document-slash-menu-list.tsx b/apps/app/components/canvas/document-slash-menu-list.tsx
+index ebb3146b..37fbaa42 100644
+--- a/apps/app/components/canvas/document-slash-menu-list.tsx
++++ b/apps/app/components/canvas/document-slash-menu-list.tsx
+@@ -91,8 +91,8 @@ export interface DocumentSlashMenuHandle {
+ }
+ 
+ /**
+- * The `/` menu's list, drawn like the app's dropdown menus (the inverted
+- * surface, their labels, item rows and shortcuts) while the caret stays in
++ * The `/` menu's list, drawn with the app's dropdown menu labels, item rows
++ * and shortcuts on the page's own surface (#1075) while the caret stays in
+  * the Document: arrows move the highlight, Enter or Tab picks.
+  */
+ export const DocumentSlashMenuList = forwardRef<
+@@ -130,7 +130,7 @@ export const DocumentSlashMenuList = forwardRef<
+   return (
+     <div
+       role="menu"
+-      className="inverted w-max min-w-56 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
++      className="w-max min-w-56 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+     >
+       {items.map((item, i) => {
+         const startsGroup = items[i - 1]?.group !== item.group
+diff --git a/apps/app/components/memory/memory-entries.tsx b/apps/app/components/memory/memory-entries.tsx
+index 104a7c3a..491581a9 100644
+--- a/apps/app/components/memory/memory-entries.tsx
++++ b/apps/app/components/memory/memory-entries.tsx
+@@ -150,7 +150,7 @@ export function MemoryEntries({
+             ))}
+           </SettingsRowList>
+           {!header && (
+-            <div className="flex justify-end">{addButton("default")}</div>
++            <div className="flex justify-end">{addButton("outline")}</div>
+           )}
+         </>
+       )}
+diff --git a/apps/app/components/skills/saved-skill-list.tsx b/apps/app/components/skills/saved-skill-list.tsx
+index 19886b0b..aa7b66ea 100644
+--- a/apps/app/components/skills/saved-skill-list.tsx
++++ b/apps/app/components/skills/saved-skill-list.tsx
+@@ -302,7 +302,7 @@ export function SkillDialog({
+             </Button>
+           </div>
+         ) : path.endsWith(".md") ? (
+-          <ChatMarkdown className="[&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
++          <ChatMarkdown className="prose-headings:text-sm prose-headings:font-semibold">
+             {content ?? ""}
+           </ChatMarkdown>
+         ) : (

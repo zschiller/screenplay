@@ -1,0 +1,1394 @@
+diff --git a/packages/skill-templates/src/audit/audit.tsx b/packages/skill-templates/src/audit/audit.tsx
+index 825ab48..d87baf2 100644
+--- a/packages/skill-templates/src/audit/audit.tsx
++++ b/packages/skill-templates/src/audit/audit.tsx
+@@ -34,6 +34,11 @@ import {
+ import { CopyBar, Html, load, store } from "../shared/page.tsx"
+ import { Shots, type Img } from "../shared/shots.tsx"
+ import { useTheme } from "../shared/theme.tsx"
++import { Button } from "@workspace/ui/components/button"
++import { cn } from "@workspace/ui/lib/utils"
++import { OPT, TWO, WIDE_CSS, nextOpen } from "../shared/opt.ts"
++import { PendLine, THUMBS } from "../shared/kit.tsx"
++import { Index } from "../shared/index-rail.tsx"
+ 
+ export type Page = {
+   title: string
+@@ -90,6 +95,8 @@ export function Audit({
+   React.useEffect(() => store(KEY, state), [KEY, state])
+   const [noteOpen, setNoteOpen] = React.useState(!!state.note)
+   const [filter, setFilter] = React.useState("all")
++  // Round 2 A: the item the detail column shows
++  const [sel, setSel] = React.useState("about")
+   // On a Screenplay canvas, every viewer sees the same picks, notes and
+   // filter (@screenplay.space/state; inert anywhere else)
+   useSharedState("audit", state, setState)
+@@ -190,13 +197,23 @@ export function Audit({
+   const n = (v: string) =>
+     findings.filter((f) => state.picks[f.id] === v).length
+   const skipped = n("skip")
+-  const status = (
+-    <>
+-      <b>{findings.filter((f) => state.picks[f.id]).length}</b> of{" "}
+-      {findings.length} answered
+-      {skipped > 0 && ` · ${skipped} skipped`}
+-    </>
+-  )
++  const needs = calls.filter((f) => !recOf(f) && !state.picks[f.id]).length
++  const changed = findings.filter(
++    (f) => state.picks[f.id] && state.picks[f.id] !== (f.call ? recOf(f)?.id : "fix")
++  ).length
++  const status =
++    OPT === "b" ? (
++      <>
++        <b>{changed}</b> changed · {findings.length - changed - needs} keep my
++        recommendation{needs > 0 && <> · <b>{needs}</b> need you</>}
++      </>
++    ) : (
++      <>
++        <b>{findings.filter((f) => state.picks[f.id]).length}</b> of{" "}
++        {findings.length} answered
++        {skipped > 0 && ` · ${skipped} skipped`}
++      </>
++    )
+ 
+   const tabs: Tab[] = [
+     { value: "all", label: "All", count: findings.length },
+@@ -233,25 +250,78 @@ export function Audit({
+           outLabel="Picks to copy"
+           text={text}
+           send
++          extra={
++            OPT === "a" ? (
++              <Button
++                type="button"
++                variant="outline"
++                onClick={() => nextOpen("article[data-open]", () => true)}
++              >
++                Next
++              </Button>
++            ) : null
++          }
+         />
+       }
+     >
+-      <Intro meta={`Design audit · ${page.date}`}>
++      {TWO && <style>{WIDE_CSS}</style>}
++      {OPT === "la" || OPT === "ld" ? (
++        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-12">
++        <Index
++          column
++          selected={OPT === "la" ? sel : undefined}
++          onPick={OPT === "la" ? setSel : undefined}
++          groups={[
++            ...(OPT === "la" ? [{ name: "Audit", items: [{ id: "about", anchor: "top", title: "About this audit", done: true }] }] : []),
++            ...depths.map((d) => ({
++              name: d.name,
++              items: findings
++                .filter((f) => f.id[0] === d.key && shows(f))
++                .map((f) => ({
++                  id: f.id,
++                  anchor: f.id.toLowerCase(),
++                  title: f.title,
++                  done: !!state.picks[f.id],
++                })),
++            })),
++          ]}
++        />
++          <div className="flex min-w-0 flex-col gap-6">
++      <Intro meta={`Design audit · ${page.date}`} className={OPT === "la" && sel !== "about" ? "lg:hidden" : undefined}>
+         {page.lede.map((l, i) => (
+           <Html as="p" key={i} html={l} />
+         ))}
+         <Links links={page.links ?? []} />
+       </Intro>
++      {(OPT as string) === "c" && (
++        <Index
++          groups={depths.map((d) => ({
++            name: d.name,
++            items: findings
++              .filter((f) => f.id[0] === d.key && shows(f))
++              .map((f) => ({
++                id: f.id,
++                anchor: f.id.toLowerCase(),
++                title: f.title,
++                done: !!state.picks[f.id],
++              })),
++          }))}
++        />
++      )}
+       {notices.map((x, i) => (
+-        <Notice key={i} title={x.title} body={x.body} />
++        <div key={i} className={OPT === "la" && sel !== "about" ? "lg:hidden" : undefined}>
++          <Notice title={x.title} body={x.body} />
++        </div>
+       ))}
+       {depths.map((d) => (
+         <section
+           key={d.key}
+           hidden={!findings.some((f) => f.id[0] === d.key && shows(f))}
+-          className="flex flex-col"
++          className={cn("flex flex-col", OPT === "la" && sel[0] !== d.key && "lg:hidden")}
+         >
+-          <SectionHead title={d.name} blurb={d.blurb} />
++          <div className={OPT === "la" ? "lg:hidden" : "contents"}>
++            <SectionHead title={d.name} blurb={d.blurb} />
++          </div>
+           {findings
+             .filter((f) => f.id[0] === d.key)
+             .map((f) => (
+@@ -262,6 +332,9 @@ export function Audit({
+                 picked={state.picks[f.id]}
+                 pick={pick}
+                 choose={choose}
++                rec={f.call ? recOf(f)?.id : "fix"}
++                shown={sel === f.id}
++                nav={OPT === "la" && sel === f.id ? <DetailNav findings={findings.filter(shows)} sel={sel} setSel={setSel} /> : null}
+                 note={state.notes[f.id] || ""}
+                 setNote={(v) =>
+                   setState((s) => ({
+@@ -274,13 +347,87 @@ export function Audit({
+         </section>
+       ))}
+       {filter === "all" && extra.length > 0 && (
+-        <div className="flex flex-col gap-3">
++        <div className={cn("flex flex-col gap-3", OPT === "la" && sel !== "about" && "lg:hidden")}>
+           {extra.map(([t, items]) => (
+             <Fold key={t} title={t}>
+               <FoldList items={items} />
+             </Fold>
+           ))}
+         </div>
++      )}
++          </div>
++        </div>
++      ) : (
++        <>
++      <Intro meta={`Design audit · ${page.date}`} className={OPT === "la" && sel !== "about" ? "lg:hidden" : undefined}>
++        {page.lede.map((l, i) => (
++          <Html as="p" key={i} html={l} />
++        ))}
++        <Links links={page.links ?? []} />
++      </Intro>
++      {(OPT as string) === "c" && (
++        <Index
++          groups={depths.map((d) => ({
++            name: d.name,
++            items: findings
++              .filter((f) => f.id[0] === d.key && shows(f))
++              .map((f) => ({
++                id: f.id,
++                anchor: f.id.toLowerCase(),
++                title: f.title,
++                done: !!state.picks[f.id],
++              })),
++          }))}
++        />
++      )}
++      {notices.map((x, i) => (
++        <div key={i} className={OPT === "la" && sel !== "about" ? "lg:hidden" : undefined}>
++          <Notice title={x.title} body={x.body} />
++        </div>
++      ))}
++      {depths.map((d) => (
++        <section
++          key={d.key}
++          hidden={!findings.some((f) => f.id[0] === d.key && shows(f))}
++          className={cn("flex flex-col", OPT === "la" && sel[0] !== d.key && "lg:hidden")}
++        >
++          <div className={OPT === "la" ? "lg:hidden" : "contents"}>
++            <SectionHead title={d.name} blurb={d.blurb} />
++          </div>
++          {findings
++            .filter((f) => f.id[0] === d.key)
++            .map((f) => (
++              <FindingCard
++                key={f.id}
++                f={f}
++                hidden={!shows(f)}
++                picked={state.picks[f.id]}
++                pick={pick}
++                choose={choose}
++                rec={f.call ? recOf(f)?.id : "fix"}
++                shown={sel === f.id}
++                nav={OPT === "la" && sel === f.id ? <DetailNav findings={findings.filter(shows)} sel={sel} setSel={setSel} /> : null}
++                note={state.notes[f.id] || ""}
++                setNote={(v) =>
++                  setState((s) => ({
++                    ...s,
++                    notes: { ...s.notes, [f.id]: v },
++                  }))
++                }
++              />
++            ))}
++        </section>
++      ))}
++      {filter === "all" && extra.length > 0 && (
++        <div className={cn("flex flex-col gap-3", OPT === "la" && sel !== "about" && "lg:hidden")}>
++          {extra.map(([t, items]) => (
++            <Fold key={t} title={t}>
++              <FoldList items={items} />
++            </Fold>
++          ))}
++        </div>
++      )}
++        </>
+       )}
+     </Shell>
+   )
+@@ -306,7 +453,13 @@ function FindingCard({
+   choose,
+   note,
+   setNote,
++  rec,
++  shown,
++  nav,
+ }: {
++  shown?: boolean
++  nav?: React.ReactNode
++  rec?: string
+   f: Finding
+   hidden: boolean
+   picked?: string
+@@ -315,16 +468,13 @@ function FindingCard({
+   note: string
+   setNote: (v: string) => void
+ }) {
+-  return (
+-    <article
+-      id={f.id.toLowerCase()}
+-      hidden={hidden}
+-      className="flex min-w-0 scroll-mt-16 flex-col gap-2.5 border-b py-5"
+-    >
++  const headBody = (
++    <>
+       <ItemHead id={f.id} title={f.title} />
+       <div className="flex flex-wrap gap-1.5">
+         <Tag tone={SEV_TONE[f.sev]}>{SEV[f.sev]}</Tag>
+         {f.call && <Tag>Call</Tag>}
++        {OPT === "b" && f.call && !rec && !picked && <Tag className="text-foreground">Needs you</Tag>}
+         {f.pend && <Tag tone="medium">{f.pend.tag}</Tag>}
+         {f.still && <Tag>{f.still}</Tag>}
+         {f.related && <Tag>Related {f.related}</Tag>}
+@@ -344,8 +494,22 @@ function FindingCard({
+       <p className="max-w-[72ch] text-sm">
+         <b className="font-semibold">Fix.</b> <Html as="span" html={f.fix} />
+       </p>
+-      {f.pend && <Notice title={f.pend.tag} body={f.pend.why} />}
+-      <Shots list={f.shots} className={PAIR} />
++      {f.pend &&
++        (OPT === "a" ? (
++          <PendLine tag={f.pend.tag} why={f.pend.why} />
++        ) : (
++          <Notice title={f.pend.tag} body={f.pend.why} />
++        ))}
++    </>
++  )
++  const shots = (
++    <Shots
++      list={f.shots}
++      className={OPT === "a" ? THUMBS : OPT === "lc" ? "flex flex-col gap-3" : PAIR}
++    />
++  )
++  const answer = (
++    <div className={cn("contents", (OPT === "la" || OPT === "ld") && "lg:flex lg:max-w-[640px] lg:flex-col lg:gap-2.5")}>
+       {f.call ? (
+         <>
+           <Html
+@@ -359,9 +523,10 @@ function FindingCard({
+             setNote={setNote}
+             stacked
+           >
++            <div className={cn("contents", OPT === "b" && !picked && rec && DEFAULTED)}>
+             <Choices
+               name={`pick-${f.id}`}
+-              value={picked}
++              value={picked ?? (OPT === "b" ? rec : undefined)}
+               onChange={(v) => choose(f, v)}
+               choices={[
+                 ...f.call.options.map((o) => ({
+@@ -372,14 +537,18 @@ function FindingCard({
+                 { value: "skip", label: "Skip", quiet: true },
+               ]}
+             />
++            </div>
+           </ItemNote>
+         </>
+       ) : (
+         <ItemNote label={`Note on ${f.id}`} note={note} setNote={setNote}>
+           <Segmented
+             aria-label={`Pick for ${f.id}`}
+-            value={picked ?? ""}
+-            onChange={(v) => pick(f.id, v || picked!)}
++            value={picked ?? (OPT === "b" ? "fix" : "")}
++            className={OPT === "b" && !picked ? DEFAULTED : undefined}
++            onChange={(v) =>
++              v ? pick(f.id, v) : pick(f.id, picked ?? "fix")
++            }
+             items={[
+               { value: "fix", label: "Fix" },
+               { value: "skip", label: "Skip" },
+@@ -387,6 +556,79 @@ function FindingCard({
+           />
+         </ItemNote>
+       )}
++    </div>
++  )
++  const cls = cn(
++    "min-w-0 scroll-mt-16 border-b py-5",
++    OPT === "la" && !shown && "lg:hidden",
++    OPT === "la" && "lg:border-b-0 lg:pt-0"
++  )
++  // Round 2 B: reading on the left, the answer in a column on the right
++  if (OPT === "lb")
++    return (
++      <article id={f.id.toLowerCase()} hidden={hidden} data-open={picked ? undefined : ""} className={cn(cls, "flex flex-col gap-2.5 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-x-10")}>
++        <div className="flex min-w-0 flex-col gap-2.5">
++          {headBody}
++          {shots}
++        </div>
++        <div className="flex min-w-0 flex-col gap-2.5 self-start lg:sticky lg:top-[calc(var(--top-bar,0px)+16px)]">
++          {answer}
++        </div>
++      </article>
++    )
++  // Round 2 C: the finding and its answer on the left, captures in a column on the right
++  if (OPT === "lc" && f.shots?.length)
++    return (
++      <article id={f.id.toLowerCase()} hidden={hidden} data-open={picked ? undefined : ""} className={cn(cls, "flex flex-col gap-2.5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-10")}>
++        <div className="flex min-w-0 flex-col gap-2.5">
++          {headBody}
++          {answer}
++        </div>
++        <div className="min-w-0 self-start lg:sticky lg:top-[calc(var(--top-bar,0px)+16px)]">{shots}</div>
++      </article>
++    )
++  return (
++    <article id={f.id.toLowerCase()} hidden={hidden} data-open={picked ? undefined : ""} className={cn(cls, "flex flex-col gap-2.5", OPT === "lc" && "lg:max-w-[calc(50%-20px)]")}>
++      {headBody}
++      {shots}
++      {answer}
++      {nav}
+     </article>
+   )
+ }
++
++/** SCRATCH (B): the recommendation shown as the answer until someone changes it: checked, but grey. */
++const DEFAULTED =
++  "[&_[data-state=on]]:!bg-transparent [&_[data-state=on]]:!text-muted-foreground [&_[data-checked]]:!bg-transparent [&_[data-checked]]:!border-input [&_[data-checked]_[data-slot=questionnaire-choice-indicator]]:!bg-muted-foreground [&_[data-checked]_[data-slot=questionnaire-choice-indicator]]:!border-muted-foreground"
++
++/** Round 2 A: Previous and Next under the shown finding. */
++function DetailNav({
++  findings,
++  sel,
++  setSel,
++}: {
++  findings: Finding[]
++  sel: string
++  setSel: (id: string) => void
++}) {
++  const i = findings.findIndex((f) => f.id === sel)
++  const prev = findings[i - 1]
++  const next = findings[i + 1]
++  const go = (id: string) => {
++    setSel(id)
++    scrollTo({ top: 0, behavior: "instant" })
++  }
++  return (
++    <div className="mt-4 hidden items-center justify-between gap-3 border-t pt-4 lg:flex">
++      <Button type="button" variant="ghost" disabled={!prev} onClick={() => prev && go(prev.id)} className="text-muted-foreground">
++        {prev ? `Previous: ${prev.id}` : "Previous"}
++      </Button>
++      <span className="font-mono text-xs text-muted-foreground tabular-nums">
++        {i + 1} of {findings.length}
++      </span>
++      <Button type="button" variant="outline" disabled={!next} onClick={() => next && go(next.id)}>
++        {next ? `Next: ${next.id}` : "Next"}
++      </Button>
++    </div>
++  )
++}
+diff --git a/packages/skill-templates/src/decisions/decisions.tsx b/packages/skill-templates/src/decisions/decisions.tsx
+index d916dd9..2d04bc4 100644
+--- a/packages/skill-templates/src/decisions/decisions.tsx
++++ b/packages/skill-templates/src/decisions/decisions.tsx
+@@ -33,6 +33,10 @@ import {
+ import { CopyBar, Label, load, store } from "../shared/page.tsx"
+ import { Shots, type Img } from "../shared/shots.tsx"
+ import { useTheme } from "../shared/theme.tsx"
++import { Button } from "@workspace/ui/components/button"
++import { OPT, TWO, WIDE_CSS, nextOpen } from "../shared/opt.ts"
++import { THUMBS } from "../shared/kit.tsx"
++import { Index } from "../shared/index-rail.tsx"
+ 
+ export type Page = {
+   label: string
+@@ -83,6 +87,8 @@ export function Decisions({
+   })
+   React.useEffect(() => store(KEY, answers), [KEY, answers])
+   const [filter, setFilter] = React.useState("all")
++  const [sel, setSel] = React.useState("about")
++  const LA = OPT === "la"
+   const [noteOpen, setNoteOpen] = React.useState(false)
+   const [note, setNote] = React.useState("")
+   // On a Screenplay canvas, every viewer sees the same answers and filter
+@@ -190,9 +196,27 @@ export function Decisions({
+       bar={
+         <CopyBar
+           status={
+-            <>
+-              <b>{n}</b> of {all.length} answered
+-            </>
++            OPT === "b" ? (
++              <>
++                <b>{all.filter((q) => isAnswered(answers[q.id]!) && answers[q.id]!.v !== "o0").length}</b>{" "}
++                changed · {all.length - all.filter((q) => isAnswered(answers[q.id]!) && answers[q.id]!.v !== "o0").length} keep my recommendation
++              </>
++            ) : (
++              <>
++                <b>{n}</b> of {all.length} answered
++              </>
++            )
++          }
++          extra={
++            OPT === "a" ? (
++              <Button
++                type="button"
++                variant="outline"
++                onClick={() => nextOpen("[data-open]", () => true)}
++              >
++                Next
++              </Button>
++            ) : null
+           }
+           note={note}
+           setNote={setNote}
+@@ -206,7 +230,9 @@ export function Decisions({
+         />
+       }
+     >
+-      <Intro meta={`${page.label} · ${page.date}`}>
++      {TWO && <style>{WIDE_CSS}</style>}
++      {(() => { const body = (<>
++      <Intro meta={`${page.label} · ${page.date}`} className={LA && sel !== "about" ? "lg:hidden" : undefined}>
+         <p>
+           {all.length} {all.length === 1 ? "question" : "questions"} from the{" "}
+           {page.plans}. Pick an option, pick{" "}
+@@ -220,13 +246,29 @@ export function Decisions({
+         />
+       </Intro>
+ 
++      {(OPT as string) === "c" && (
++        <Index
++          groups={surfaces
++            .filter((s) => filter === "all" || filter === s.key)
++            .map((s) => ({
++              name: s.name,
++              items: s.qs.map((q) => ({
++                id: q.id,
++                anchor: `q-${q.id}`,
++                title: q.t,
++                done: isAnswered(answers[q.id]!),
++              })),
++            }))}
++        />
++      )}
+       {surfaces.map((s) => (
+         <section
+           key={s.key}
+           id={s.key}
+           hidden={filter !== "all" && filter !== s.key}
+-          className="flex scroll-mt-16 flex-col"
++          className={cn("flex scroll-mt-16 flex-col", LA && !s.qs.some((q) => q.id === sel) && "lg:hidden")}
+         >
++          <div className={LA ? "lg:hidden" : "contents"}>
+           <SectionHead
+             title={s.name}
+             blurb={
+@@ -238,9 +280,12 @@ export function Decisions({
+               </>
+             }
+           />
++          </div>
+           {s.qs.map((q) => (
+             <Question
+               key={q.id}
++              shown={!LA || sel === q.id}
++              nav={LA && sel === q.id ? <DetailNav ids={surfaces.filter((x) => filter === "all" || filter === x.key).flatMap((x) => x.qs.map((y) => y.id))} sel={sel} setSel={setSel} /> : null}
+               q={q}
+               a={answers[q.id]!}
+               set={(a) => set(q.id, a)}
+@@ -253,7 +298,7 @@ export function Decisions({
+       <section
+         id="runs"
+         hidden={filter !== "all"}
+-        className="flex scroll-mt-16 flex-col gap-4"
++        className={cn("flex scroll-mt-16 flex-col gap-4", LA && sel !== "about" && "lg:hidden")}
+       >
+         <SectionHead
+           title="PRs that need no decision"
+@@ -288,6 +333,33 @@ export function Decisions({
+           </div>
+         ))}
+       </section>
++      </>)
++      if (OPT !== "la" && OPT !== "ld") return body
++      return (
++        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-12">
++          <Index
++            column
++            selected={LA ? sel : undefined}
++            onPick={LA ? setSel : undefined}
++            groups={[
++              ...(LA ? [{ name: "Decisions", items: [{ id: "about", anchor: "top", title: "About these decisions", done: true }] }] : []),
++              ...surfaces
++                .filter((x) => filter === "all" || filter === x.key)
++                .map((x) => ({
++                  name: x.name,
++                  items: x.qs.map((q) => ({
++                    id: q.id,
++                    anchor: `q-${q.id}`,
++                    title: q.t,
++                    done: isAnswered(answers[q.id]!),
++                  })),
++                })),
++            ]}
++          />
++          <div className="flex min-w-0 flex-col gap-6">{body}</div>
++        </div>
++      )
++      })()}
+     </Shell>
+   )
+ }
+@@ -297,30 +369,38 @@ function Question({
+   a,
+   set,
+   choose,
++  shown = true,
++  nav,
+ }: {
++  shown?: boolean
++  nav?: React.ReactNode
+   q: Q
+   a: Answer
+   set: (a: Partial<Answer>) => void
+   choose: (v: string) => void
+ }) {
+   const own = React.useRef<HTMLInputElement>(null)
+-  return (
+-    <div
+-      id={`q-${q.id}`}
+-      className="flex min-w-0 scroll-mt-16 flex-col gap-2.5 border-b py-5"
+-    >
++  const headBody = (
++    <>
+       <ItemHead id={q.id} title={q.t} meta={q.where} />
+       <p className="max-w-[72ch] text-sm text-muted-foreground">{q.c}</p>
+-      <Shots list={q.img} className={PAIR} />
++    </>
++  )
++  const shots = (
++    <Shots list={q.img} className={OPT === "a" ? THUMBS : OPT === "lc" ? "flex flex-col gap-3" : PAIR} />
++  )
++  const answer = (
++    <div className={cn("contents", (OPT === "la" || OPT === "ld") && "lg:flex lg:max-w-[640px] lg:flex-col lg:gap-2.5")}>
+       <ItemNote
+         label={`Note on ${q.id}`}
+         note={a.note}
+         setNote={(note) => set({ note })}
+         stacked
+       >
++        <div className={OPT === "b" && !a.v ? DEFAULTED : "contents"}>
+         <Choices
+           name={`q-${q.id}`}
+-          value={a.v}
++          value={a.v || (OPT === "b" ? "o0" : "")}
+           onChange={(v) => {
+             choose(v)
+             if (v === "own") requestAnimationFrame(() => own.current?.focus())
+@@ -332,19 +412,89 @@ function Question({
+               detail,
+               rec: i === 0,
+             })),
+-            { value: "none", label: "None of these", quiet: true },
+-            { value: "own", label: "Write my own", quiet: true },
++            ...(OPT === "a"
++              ? [{ value: "own", label: "Something else", quiet: true }]
++              : [
++                  { value: "none", label: "None of these", quiet: true },
++                  { value: "own", label: "Write my own", quiet: true },
++                ]),
+           ]}
+         />
++        </div>
+         <Input
+           ref={own}
+           hidden={a.v !== "own"}
+           aria-label={`Your answer for ${q.id}`}
+-          placeholder="Your answer"
++          placeholder={OPT === "a" ? "What instead? Leave it empty for none of these" : "Your answer"}
+           value={a.own}
+           onChange={(e) => set({ own: e.target.value })}
+         />
+       </ItemNote>
+     </div>
+   )
++  const cls = cn(
++    "min-w-0 scroll-mt-16 border-b py-5",
++    OPT === "la" && !shown && "lg:hidden",
++    OPT === "la" && "lg:border-b-0 lg:pt-0"
++  )
++  const props = { id: `q-${q.id}`, "data-open": a.v ? undefined : "" }
++  const sticky = "self-start lg:sticky lg:top-[calc(var(--top-bar,0px)+16px)]"
++  // Round 2 B: reading on the left, the answer in a column on the right
++  if (OPT === "lb")
++    return (
++      <div {...props} className={cn(cls, "flex flex-col gap-2.5 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-x-10")}>
++        <div className="flex min-w-0 flex-col gap-2.5">
++          {headBody}
++          {shots}
++        </div>
++        <div className={cn("flex min-w-0 flex-col gap-2.5", sticky)}>{answer}</div>
++      </div>
++    )
++  // Round 2 C: the question and its answer on the left, captures on the right
++  if (OPT === "lc" && q.img?.length)
++    return (
++      <div {...props} className={cn(cls, "flex flex-col gap-2.5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-10")}>
++        <div className="flex min-w-0 flex-col gap-2.5">
++          {headBody}
++          {answer}
++        </div>
++        <div className={cn("min-w-0", sticky)}>{shots}</div>
++      </div>
++    )
++  return (
++    <div {...props} className={cn(cls, "flex flex-col gap-2.5", OPT === "lc" && "lg:max-w-[calc(50%-20px)]")}>
++      {headBody}
++      {shots}
++      {answer}
++      {nav}
++    </div>
++  )
+ }
++
++/** Round 2 A: Previous and Next under the shown question. */
++function DetailNav({ ids, sel, setSel }: { ids: string[]; sel: string; setSel: (id: string) => void }) {
++  const i = ids.indexOf(sel)
++  const prev = ids[i - 1]
++  const next = ids[i + 1]
++  const go = (id: string) => {
++    setSel(id)
++    scrollTo({ top: 0, behavior: "instant" })
++  }
++  return (
++    <div className="mt-4 hidden items-center justify-between gap-3 border-t pt-4 lg:flex">
++      <Button type="button" variant="ghost" disabled={!prev} onClick={() => prev && go(prev)} className="text-muted-foreground">
++        {prev ? `Previous: ${prev}` : "Previous"}
++      </Button>
++      <span className="font-mono text-xs text-muted-foreground tabular-nums">
++        {i + 1} of {ids.length}
++      </span>
++      <Button type="button" variant="outline" disabled={!next} onClick={() => next && go(next)}>
++        {next ? `Next: ${next}` : "Next"}
++      </Button>
++    </div>
++  )
++}
++
++/** SCRATCH (B): the recommendation shown as the answer until someone changes it: checked, but grey. */
++const DEFAULTED =
++  "contents [&_[data-checked]]:!bg-transparent [&_[data-checked]]:!border-input [&_[data-checked]_[data-slot=questionnaire-choice-indicator]]:!bg-muted-foreground [&_[data-checked]_[data-slot=questionnaire-choice-indicator]]:!border-muted-foreground"
+diff --git a/packages/skill-templates/src/exploration/exploration.tsx b/packages/skill-templates/src/exploration/exploration.tsx
+index 6fee46a..dcda512 100644
+--- a/packages/skill-templates/src/exploration/exploration.tsx
++++ b/packages/skill-templates/src/exploration/exploration.tsx
+@@ -35,6 +35,7 @@ import { CopyBar, Facts, Html, Label, load, store } from "../shared/page.tsx"
+ import { Shots } from "../shared/shots.tsx"
+ import { useTheme } from "../shared/theme.tsx"
+ import type { Option, Page, Question, Round, Today } from "./types.ts"
++import { OPT } from "../shared/opt.ts"
+ 
+ const SIGN = [
+   ["ok", "Looks good"],
+@@ -389,9 +390,65 @@ function Card({
+   sent,
+ }: { q: Question; o: Option; live: boolean } & PickProps) {
+   const mine = picks[q.key]
++  // SCRATCH C: captures no taller than leaves the option's text and Pick on the first screen
++  const ref = React.useRef<HTMLElement>(null)
++  const [fit, setFit] = React.useState<number>()
++  React.useLayoutEffect(() => {
++    if (OPT !== "c") return
++    const measure = () => {
++      const el = ref.current
++      if (!el || el.closest("[hidden]")) return
++      const shots = el.querySelector<HTMLElement>("[data-shots]")
++      const rest = el.offsetHeight - (shots?.offsetHeight ?? 0)
++      const top = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--top-bar")) || 0
++      const bar = document.getElementById("copy-bar")?.offsetHeight ?? 0
++      // From where the option starts on the page, so it holds on first load too
++      const at = el.getBoundingClientRect().top + scrollY
++      void top
++      setFit(Math.max(160, innerHeight - bar - at - rest - 32))
++    }
++    measure()
++    const t = setTimeout(measure, 300)
++    addEventListener("resize", measure)
++    return () => {
++      clearTimeout(t)
++      removeEventListener("resize", measure)
++    }
++  }, [o.shots?.length])
++  const pickBtn = live && !signoff(q) && (
++    <Button
++      type="button"
++      variant={mine === o.id ? "default" : "outline"}
++      aria-pressed={mine === o.id}
++      disabled={!!sent && mine !== o.id}
++      onClick={() => pick(q.key, o.id)}
++    >
++      {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
++    </Button>
++  )
++  const text = (
++    <>
++      {o.why && <Html as="p" html={o.why} className="max-w-[72ch] text-sm" />}
++      {o.cost && (
++        <p className="m-0 max-w-[72ch] text-sm text-muted-foreground">
++          <b className="font-medium text-foreground">Cost</b>{" "}
++          <Html as="span" html={o.cost} />
++        </p>
++      )}
++    </>
++  )
+   return (
+-    <article className="flex min-w-0 flex-col gap-3">
+-      <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
++    <article ref={ref} className="flex min-w-0 flex-col gap-3">
++      {OPT === "a" ? (
++        <div className="flex items-center gap-3">
++          <div className="min-w-0 flex-1">
++            <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
++          </div>
++          {pickBtn}
++        </div>
++      ) : (
++        <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
++      )}
+       {(o.rec || o.state) && (
+         <div className="flex flex-wrap items-center gap-1.5">
+           {o.rec && <Rec />}
+@@ -399,19 +456,23 @@ function Card({
+           {o.state === "rejected" && <Tag tone="no">Rejected</Tag>}
+         </div>
+       )}
++      {OPT === "b" && text}
++      {OPT === "b" && live && !signoff(q) && <div>{pickBtn}</div>}
+       {o.html && <Html as="div" html={o.html} />}
++      <div data-shots>
+       <Shots
+         list={o.shots}
+         className={o.state === "rejected" ? "opacity-55" : undefined}
++        style={
++          OPT === "c" && fit
++            ? ({ "--fit": fit + "px" } as React.CSSProperties)
++            : undefined
++        }
++        imgClassName={OPT === "c" ? "max-h-(--fit) !w-auto" : undefined}
+       />
+-      {o.why && <Html as="p" html={o.why} className="max-w-[72ch] text-sm" />}
+-      {o.cost && (
+-        <p className="m-0 max-w-[72ch] text-sm text-muted-foreground">
+-          <b className="font-medium text-foreground">Cost</b>{" "}
+-          <Html as="span" html={o.cost} />
+-        </p>
+-      )}
+-      {live && (
++      </div>
++      {OPT !== "b" && text}
++      {live && (signoff(q) || (OPT !== "a" && OPT !== "b")) && (
+         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+           {signoff(q) ? (
+             <Segmented
+diff --git a/packages/skill-templates/src/shared/index-rail.tsx b/packages/skill-templates/src/shared/index-rail.tsx
+new file mode 100644
+index 0000000..2c6baa7
+--- /dev/null
++++ b/packages/skill-templates/src/shared/index-rail.tsx
+@@ -0,0 +1,155 @@
++// SCRATCH (exploration round 1, option C): a list of every item pinned in the
++// left margin on a wide screen, each with its answered state; tap to jump.
++import * as React from "react"
++
++import { cn } from "@workspace/ui/lib/utils"
++
++import { Label } from "./page.tsx"
++
++export type IndexItem = { id: string; anchor: string; title: string; done: boolean }
++
++export function Index({
++  groups,
++  column,
++  selected,
++  onPick,
++}: {
++  groups: { name: string; items: IndexItem[] }[]
++  /** Round 2: a real column of the layout, sticky, titles on two lines */
++  column?: boolean
++  /** List and detail: the item shown, and picking one shows it */
++  selected?: string
++  onPick?: (id: string) => void
++}) {
++  const [current, setCurrent] = React.useState<string | null>(null)
++  React.useEffect(() => {
++    const on = () => {
++      const top =
++        parseFloat(
++          getComputedStyle(document.documentElement).getPropertyValue(
++            "--top-bar"
++          )
++        ) || 0
++      let cur: string | null = null
++      for (const g of groups)
++        for (const i of g.items) {
++          const el = document.getElementById(i.anchor)
++          if (el && el.getBoundingClientRect().top <= top + 80) cur = i.id
++        }
++      setCurrent(cur)
++    }
++    on()
++    addEventListener("scroll", on, { passive: true })
++    return () => removeEventListener("scroll", on)
++  }, [groups])
++  if (column) {
++    const shown = selected ?? current
++    return (
++      <nav
++        aria-label="Index"
++        className="sticky top-[calc(var(--top-bar,0px)+24px)] hidden max-h-[calc(100vh-var(--top-bar,0px)-24px-76px)] flex-col gap-5 self-start overflow-y-auto pr-1 [scrollbar-width:thin] lg:flex"
++      >
++        {groups
++          .filter((g) => g.items.length)
++          .map((g) => (
++            <div key={g.name} className="flex flex-col">
++              <div className="mb-1 flex items-baseline justify-between">
++                <Label>{g.name}</Label>
++                <span className="font-mono text-xs text-muted-foreground tabular-nums">
++                  {g.items.filter((i) => i.done).length}/{g.items.length}
++                </span>
++              </div>
++              {g.items.map((i) => (
++                <a
++                  key={i.id}
++                  href={"#" + i.anchor}
++                  aria-current={shown === i.id ? "true" : undefined}
++                  onClick={(e) => {
++                    e.preventDefault()
++                    if (onPick) {
++                      onPick(i.id)
++                      scrollTo({ top: 0, behavior: "instant" })
++                      return
++                    }
++                    const el = document.getElementById(i.anchor)!
++                    const top =
++                      parseFloat(
++                        getComputedStyle(
++                          document.documentElement
++                        ).getPropertyValue("--top-bar")
++                      ) || 0
++                    scrollTo({
++                      top: scrollY + el.getBoundingClientRect().top - top - 16,
++                      behavior: "instant",
++                    })
++                  }}
++                  className={cn(
++                    "-mx-2 grid grid-cols-[8px_28px_minmax(0,1fr)] items-baseline gap-x-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground no-underline hover:bg-muted/60 hover:text-foreground",
++                    shown === i.id && "bg-muted font-medium text-foreground"
++                  )}
++                >
++                  <span
++                    aria-label={i.done ? "answered" : "open"}
++                    className={cn(
++                      "size-1.5 -translate-y-px rounded-full border border-current",
++                      i.done && "bg-current"
++                    )}
++                  />
++                  <span className="font-mono text-xs">{i.id === "about" ? "" : i.id}</span>
++                  <span className="line-clamp-2 min-w-0">{i.title}</span>
++                </a>
++              ))}
++            </div>
++          ))}
++      </nav>
++    )
++  }
++  return (
++    <nav
++      aria-label="Index"
++      className="fixed top-[calc(var(--top-bar,0px)+24px)] bottom-[76px] left-4 z-[4] hidden w-[188px] flex-col gap-4 overflow-y-auto [scrollbar-width:none] min-[1200px]:flex"
++    >
++      {groups
++        .filter((g) => g.items.length)
++        .map((g) => (
++          <div key={g.name} className="flex flex-col gap-0.5">
++            <Label className="mb-1">{g.name}</Label>
++            {g.items.map((i) => (
++              <a
++                key={i.id}
++                href={"#" + i.anchor}
++                onClick={(e) => {
++                  e.preventDefault()
++                  const el = document.getElementById(i.anchor)!
++                  const top =
++                    parseFloat(
++                      getComputedStyle(
++                        document.documentElement
++                      ).getPropertyValue("--top-bar")
++                    ) || 0
++                  scrollTo({
++                    top: scrollY + el.getBoundingClientRect().top - top - 16,
++                    behavior: "instant",
++                  })
++                }}
++                className={cn(
++                  "flex items-center gap-2 py-0.5 text-xs text-muted-foreground no-underline hover:text-foreground",
++                  current === i.id && "font-medium text-foreground"
++                )}
++              >
++                <span
++                  aria-label={i.done ? "answered" : "open"}
++                  className={cn(
++                    "size-1.5 flex-none rounded-full border border-current",
++                    i.done && "bg-current"
++                  )}
++                />
++                <span className="w-7 flex-none font-mono">{i.id}</span>
++                <span className="min-w-0 truncate">{i.title}</span>
++              </a>
++            ))}
++          </div>
++        ))}
++    </nav>
++  )
++}
+diff --git a/packages/skill-templates/src/shared/kit.tsx b/packages/skill-templates/src/shared/kit.tsx
+index 25e7384..119d2d0 100644
+--- a/packages/skill-templates/src/shared/kit.tsx
++++ b/packages/skill-templates/src/shared/kit.tsx
+@@ -472,3 +472,17 @@ export function useEdgeFade<T extends HTMLElement>() {
+     style: { maskImage: mask, WebkitMaskImage: mask },
+   }
+ }
++
++/** SCRATCH: captures as thumbnails, a row of them, each no taller than 176px. */
++export const THUMBS =
++  "flex flex-row flex-wrap gap-2 [&_figure]:w-auto [&_button]:w-auto [&_img]:!w-auto [&_img]:max-h-44"
++
++/** SCRATCH: a quiet one-line pending note in place of the boxed alert. */
++export function PendLine({ tag, why }: { tag: string; why: string }) {
++  return (
++    <p className="m-0 max-w-[72ch] text-sm text-muted-foreground">
++      <b className="font-medium text-warning">{tag}.</b>{" "}
++      <Html as="span" html={why} />
++    </p>
++  )
++}
+diff --git a/packages/skill-templates/src/shared/opt.ts b/packages/skill-templates/src/shared/opt.ts
+new file mode 100644
+index 0000000..c6825af
+--- /dev/null
++++ b/packages/skill-templates/src/shared/opt.ts
+@@ -0,0 +1,29 @@
++// SCRATCH (exploration round 1, never committed): ?opt=a|b|c picks a variant
++export const OPT =
++  typeof location === "undefined"
++    ? ""
++    : (new URLSearchParams(location.search).get("opt") ?? "")
++
++/** Scroll to the next item (by selector) that `open` says is unanswered, below the top bar. */
++export function nextOpen(sel: string, open: (el: Element) => boolean) {
++  const top =
++    parseFloat(
++      getComputedStyle(document.documentElement).getPropertyValue("--top-bar")
++    ) || 0
++  const els = [...document.querySelectorAll(sel)].filter(
++    (e) => !(e as HTMLElement).closest("[hidden]") && open(e)
++  )
++  const next =
++    els.find((e) => e.getBoundingClientRect().top > top + 24) ?? els[0]
++  if (next)
++    scrollTo({
++      top: scrollY + next.getBoundingClientRect().top - top - 16,
++      behavior: "instant",
++    })
++}
++
++/** Round 2: two-column layouts (la list+detail, lb answer column, lc captures column, ld index column). */
++export const TWO = OPT.startsWith("l")
++/** The page widens to 1232px on a screen at least 1024px wide. */
++export const WIDE_CSS =
++  "@media (min-width:64rem){.max-w-\\[880px\\]{max-width:1232px}#copy-bar>div{max-width:1184px!important}.sticky>div{max-width:1184px!important}}"
+diff --git a/packages/skill-templates/src/shared/page.tsx b/packages/skill-templates/src/shared/page.tsx
+index 742e016..f612b63 100644
+--- a/packages/skill-templates/src/shared/page.tsx
++++ b/packages/skill-templates/src/shared/page.tsx
+@@ -78,6 +78,7 @@ export function CopyBar({
+   text,
+   maxWidth = "832px",
+   send,
++  extra,
+ }: {
+   status: React.ReactNode
+   note: string
+@@ -91,6 +92,8 @@ export function CopyBar({
+   text: () => string
+   maxWidth?: string
+   send?: boolean
++  /** SCRATCH: a button before Note */
++  extra?: React.ReactNode
+ }) {
+   const sends = send && onCanvas()
+   const [flash, setFlash] = React.useState<string | null>(null)
+@@ -157,6 +160,7 @@ export function CopyBar({
+           >
+             {status}
+           </div>
++          {extra}
+           <Button
+             type="button"
+             variant="outline"
+diff --git a/packages/skill-templates/src/shared/shots.tsx b/packages/skill-templates/src/shared/shots.tsx
+index f8f3024..404e9a6 100644
+--- a/packages/skill-templates/src/shared/shots.tsx
++++ b/packages/skill-templates/src/shared/shots.tsx
+@@ -76,7 +76,9 @@ export function Shots({
+   list,
+   className,
+   style,
++  imgClassName,
+ }: {
++  imgClassName?: string
+   list?: Img[]
+   className?: string
+   style?: React.CSSProperties
+@@ -98,7 +100,7 @@ export function Shots({
+               src={captureSrc(i.p)}
+               alt={i.cap}
+               onLoad={atSize}
+-              className={cn("block h-auto w-full", i.dk && "dark:hidden")}
++              className={cn("block h-auto w-full", i.dk && "dark:hidden", imgClassName)}
+             />
+             {i.dk && (
+               <img
+@@ -106,7 +108,7 @@ export function Shots({
+                 alt=""
+                 aria-hidden
+                 onLoad={atSize}
+-                className="hidden h-auto w-full dark:block"
++                className={cn("hidden h-auto w-full dark:block", imgClassName)}
+               />
+             )}
+           </button>
+diff --git a/packages/skill-templates/src/storybook/storybook.tsx b/packages/skill-templates/src/storybook/storybook.tsx
+index a30c574..f423969 100644
+--- a/packages/skill-templates/src/storybook/storybook.tsx
++++ b/packages/skill-templates/src/storybook/storybook.tsx
+@@ -16,7 +16,8 @@ import { TabsContent } from "@workspace/ui/components/tabs"
+ import { Textarea } from "@workspace/ui/components/textarea"
+ import { cn } from "@workspace/ui/lib/utils"
+ 
+-import { Intro, Segmented, Shell } from "../shared/kit.tsx"
++import { Intro, ItemNote, Segmented, Shell } from "../shared/kit.tsx"
++import { OPT } from "../shared/opt.ts"
+ import { CopyBar, Html, Label, load, store } from "../shared/page.tsx"
+ import { Shots } from "../shared/shots.tsx"
+ import { useTheme } from "../shared/theme.tsx"
+@@ -159,11 +160,14 @@ export function Storybook({
+         16 * 3 + // the gaps, and room above the bar
+         bar
+       const top = stage.getBoundingClientRect().top + scrollY
++      const side = OPT === "b" && matchMedia("(min-width: 64rem)").matches
+       setBox({
+         width: stage.clientWidth,
+-        room: matchMedia("(min-width: 48rem)").matches
+-          ? Math.max(240, innerHeight - top - below)
+-          : Infinity,
++        room: side
++          ? Math.max(240, innerHeight - top - bar - 24)
++          : matchMedia("(min-width: 48rem)").matches
++            ? Math.max(240, innerHeight - top - below)
++            : Infinity,
+       })
+     }
+     measure()
+@@ -220,6 +224,7 @@ export function Storybook({
+     else delete next[noteKey]
+     setNotes(next)
+   }
++  const pinsRef = React.useRef<Record<string, { x: number; y: number; text: string }[]>>({})
+   const noted = Object.keys(notes).filter((k) => notes[k]!.trim())
+   const text = () => {
+     const lines = noted.map((k) => {
+@@ -234,11 +239,32 @@ export function Storybook({
+       .concat(general.trim() ? [`General: ${general.trim()}`] : [])
+       .join("\n")
+   }
+-  const status =
++  const pinCount = Object.values(pinsRef.current).flat().filter((p) => p.text.trim()).length
++  const status = OPT === "c" ? `${pinCount || "No"} ${pinCount === 1 ? "note" : "notes"}` :
+     (noted.length
+       ? `${noted.length} ${noted.length === 1 ? "note" : "notes"}`
+       : "No notes yet") + (general.trim() ? " · general note" : "")
+ 
++  // SCRATCH C: pinned notes per state
++  const [focused] = React.useState(() => new WeakSet<object>())
++  const [pins, setPins] = React.useState<Record<string, { x: number; y: number; text: string }[]>>({})
++  pinsRef.current = pins
++  const nameRow = (
++    <div ref={OPT === "b" ? nameRef : undefined} className="flex min-w-0 flex-1 items-center gap-2">
++      <h2 className="min-w-0 flex-1 text-lg font-medium text-balance">
++        {current ? current.name : label(vals)}
++      </h2>
++      <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums">
++        {current ? `${index + 1} of ${all.length}` : "Custom"}
++      </span>
++      <Button type="button" variant="outline" size="icon" aria-label="Previous state" onClick={() => step(-1)}>
++        <CaretLeftIcon />
++      </Button>
++      <Button type="button" variant="outline" size="icon" aria-label="Next state" onClick={() => step(1)}>
++        <CaretRightIcon />
++      </Button>
++    </div>
++  )
+   return (
+     <Shell
+       title={page.title}
+@@ -264,7 +290,15 @@ export function Storybook({
+         />
+       }
+     >
+-      <TabsContent value="story" className="flex min-w-0 flex-col gap-4">
++      <TabsContent
++        value="story"
++        className={
++          OPT === "b"
++            ? "flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_288px] lg:items-start lg:gap-6"
++            : "flex min-w-0 flex-col gap-4"
++        }
++      >
++        <div className={OPT === "c" ? "relative" : "contents"}>
+         <Stage
+           state={current}
+           caption={label(vals)}
+@@ -274,8 +308,36 @@ export function Storybook({
+           height={stageHeight}
+           stageRef={stageRef}
+         />
++        {OPT === "c" && (
++          <div
++            className="absolute inset-0 cursor-crosshair"
++            onClick={(e) => {
++              const r = e.currentTarget.getBoundingClientRect()
++              const list = pins[noteKey] ?? []
++              setPins({
++                ...pins,
++                [noteKey]: [
++                  ...list,
++                  { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height, text: "" },
++                ],
++              })
++            }}
++          >
++            {(pins[noteKey] ?? []).map((p, n) => (
++              <span
++                key={n}
++                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
++                className="absolute grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full rounded-bl-none bg-foreground text-xs font-medium text-background tabular-nums shadow"
++              >
++                {n + 1}
++              </span>
++            ))}
++          </div>
++        )}
++        </div>
++        <div className={OPT === "b" ? "flex min-w-0 flex-col gap-4 lg:order-first lg:col-start-2 lg:row-start-1" : "contents"}>
++        {OPT === "b" ? nameRow : null}
+         <div ref={controlsRef} className="flex flex-col gap-3">
+-          {/* Controls sit right under the stage, above the text that changes per state, so they never move as you tap. */}
+           {controls.map((c) => (
+             <ControlRow
+               key={c.key}
+@@ -283,35 +345,23 @@ export function Storybook({
+               value={vals[c.key]!}
+               choose={(v) => choose(c, v)}
+               reachable={(v) => reachable(c, v)}
++              stacked={OPT === "b"}
+             />
+           ))}
+         </div>
+-        <div ref={nameRef} className="flex items-center gap-2">
+-          <h2 className="min-w-0 flex-1 text-lg font-medium text-balance">
+-            {current ? current.name : label(vals)}
+-          </h2>
+-          <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+-            {current ? `${index + 1} of ${all.length}` : "Custom"}
+-          </span>
+-          <Button
+-            type="button"
+-            variant="outline"
+-            size="icon"
+-            aria-label="Previous state"
+-            onClick={() => step(-1)}
+-          >
+-            <CaretLeftIcon />
+-          </Button>
+-          <Button
+-            type="button"
+-            variant="outline"
+-            size="icon"
+-            aria-label="Next state"
+-            onClick={() => step(1)}
+-          >
+-            <CaretRightIcon />
+-          </Button>
+-        </div>
++        {OPT === "b" ? null : OPT === "a" ? (
++          <div ref={nameRef} className="flex flex-col gap-2">
++            <ItemNote
++              label="Note on this state"
++              note={notes[noteKey] ?? ""}
++              setNote={setNote}
++            >
++              {nameRow}
++            </ItemNote>
++          </div>
++        ) : (
++          <div ref={nameRef}>{nameRow}</div>
++        )}
+         {current?.why && (
+           <Html as="p" html={current.why} className="max-w-[72ch] text-sm" />
+         )}
+@@ -322,17 +372,56 @@ export function Storybook({
+             className="m-0 max-w-[68ch] border-l-2 pl-3 text-sm text-muted-foreground"
+           />
+         )}
+-        <label className="flex flex-col gap-1.5">
+-          <Label>Note on this state</Label>
+-          <Textarea
+-            id="state-note"
+-            placeholder="What should change here"
+-            value={notes[noteKey] ?? ""}
+-            onChange={(e) => setNote(e.target.value)}
+-            className="min-h-18 resize-y text-sm md:text-sm"
+-          />
+-        </label>
+-        <About page={page} />
++        {OPT === "c" ? (
++          <div className="flex flex-col gap-2">
++            {(pins[noteKey] ?? []).length === 0 && (
++              <p className="m-0 text-sm text-muted-foreground">
++                Tap the capture where something should change to leave a note there.
++              </p>
++            )}
++            {(pins[noteKey] ?? []).map((p, n) => (
++              <div key={n} className="flex items-start gap-2">
++                <span className="mt-2 grid size-5 flex-none place-items-center rounded-full rounded-bl-none bg-foreground text-xs font-medium text-background tabular-nums">
++                  {n + 1}
++                </span>
++                <Textarea
++                  ref={(el) => {
++                    if (el && !focused.has(p)) {
++                      focused.add(p)
++                      el.focus({ preventScroll: true })
++                    }
++                  }}
++                  aria-label={`Note ${n + 1}`}
++                  placeholder="What should change here"
++                  value={p.text}
++                  onChange={(e) => {
++                    const list = [...(pins[noteKey] ?? [])]
++                    list[n] = { ...p, text: e.target.value }
++                    setPins({ ...pins, [noteKey]: list })
++                  }}
++                  className="min-h-9 resize-y text-sm md:text-sm"
++                />
++              </div>
++            ))}
++          </div>
++        ) : OPT === "a" ? null : (
++          <label className="flex flex-col gap-1.5">
++            <Label>Note on this state</Label>
++            <Textarea
++              id="state-note"
++              placeholder="What should change here"
++              value={notes[noteKey] ?? ""}
++              onChange={(e) => setNote(e.target.value)}
++              className="min-h-18 resize-y text-sm md:text-sm"
++            />
++          </label>
++        )}
++        {OPT !== "b" && <About page={page} />}
++        </div>
++        {OPT === "b" && <div className="lg:col-span-2"><About page={page} /></div>}
++        {OPT === "b" && (
++          <style>{`@media (min-width:64rem){.max-w-\\[880px\\]{max-width:1232px}#copy-bar>div{max-width:1184px!important}.sticky>div{max-width:1184px!important}}`}</style>
++        )}
+       </TabsContent>
+       <TabsContent value="all" className="flex flex-col gap-6">
+         <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+@@ -458,7 +547,9 @@ function ControlRow({
+   value,
+   choose,
+   reachable,
++  stacked,
+ }: {
++  stacked?: boolean
+   control: Control
+   value: Value
+   choose: (v: Value) => void
+@@ -490,7 +581,7 @@ function ControlRow({
+       : c.values!.map((v) => [v, v])
+   return (
+     // On a wide screen the label sits beside its control, a row shorter each
+-    <div className="flex min-w-0 flex-col gap-1.5 md:grid md:grid-cols-[112px_minmax(0,1fr)] md:items-center md:gap-3">
++    <div className={stacked ? "flex min-w-0 flex-col gap-1.5" : "flex min-w-0 flex-col gap-1.5 md:grid md:grid-cols-[112px_minmax(0,1fr)] md:items-center md:gap-3"}>
+       <Label id={id}>{c.label}</Label>
+       <Segmented
+         aria-labelledby={id}
+diff --git a/packages/skill-templates/vite.config.ts b/packages/skill-templates/vite.config.ts
+index e892e3b..5dfa5e0 100644
+--- a/packages/skill-templates/vite.config.ts
++++ b/packages/skill-templates/vite.config.ts
+@@ -2,7 +2,7 @@
+ // /<name>/ serves one with its sample data, hot reloading as you edit.
+ // `pnpm build` (scripts/build.ts) writes the committed pages.
+ 
+-import { readFileSync } from "node:fs"
++import { existsSync, readFileSync } from "node:fs"
+ import tailwind from "@tailwindcss/postcss"
+ import react from "@vitejs/plugin-react"
+ import { defineConfig, type Plugin } from "vite"
+@@ -34,6 +34,12 @@ function pages(): Plugin {
+         }
+         if (!t) return next()
+         const rest = url.pathname.slice(t.name.length + 2)
++        const REAL = process.env.REAL_DIR
++        if (REAL && /\.(png|webp|jpe?g|gif)$/.test(rest) && existsSync(`${REAL}/${t.name}/${rest}`)) {
++          res.setHeader("content-type", rest.endsWith("png") ? "image/png" : rest.endsWith("webp") ? "image/webp" : "image/jpeg")
++          res.end(readFileSync(`${REAL}/${t.name}/${rest}`))
++          return
++        }
+         if (/\.(png|webp|jpe?g|gif)$/.test(rest)) {
+           res.setHeader("content-type", "image/svg+xml")
+           res.end(placeholder(rest))
+@@ -43,7 +49,7 @@ function pages(): Plugin {
+         const html = assemble({
+           ...t,
+           tokens: tokenBlock(),
+-          data: readFileSync(`src/${t.name}/data.js`, "utf8"),
++          data: readFileSync(process.env.REAL_DIR && existsSync(`${process.env.REAL_DIR}/${t.name}/data.js`) ? `${process.env.REAL_DIR}/${t.name}/data.js` : `src/${t.name}/data.js`, "utf8"),
+           body: `<div id="app"></div><script type="module" src="/src/${t.name}/main.tsx"></script>`,
+         })
+         res.setHeader("content-type", "text/html")

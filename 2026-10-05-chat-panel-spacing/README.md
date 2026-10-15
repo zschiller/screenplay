@@ -9,3 +9,7 @@
 **Question:** How much room should the chat panel give its content at the edges and between messages?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

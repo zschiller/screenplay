@@ -9,3 +9,7 @@
 **Question:** How can the homepage hero look more striking, and how should a copy reset without the black wipe?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

@@ -9,3 +9,7 @@
 **Question:** How should the audit and decisions pages get you from reading to answering?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

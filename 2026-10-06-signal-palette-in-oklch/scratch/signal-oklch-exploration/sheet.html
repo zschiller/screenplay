@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:IS;src:url(instrument-sans-latin.woff2) format("woff2");font-weight:400 700}
+*{box-sizing:border-box}body{margin:0;font-family:IS,system-ui;width:760px;background:#fff}
+.p{padding:20px 24px}.l{background:#fff;color:#000}.d{background:#000;color:#fff}
+h6{margin:0 0 10px;font-size:12px;font-weight:500;letter-spacing:.04em;color:#737373}
+.g{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.c{display:flex;flex-direction:column;gap:6px}
+.sw{height:56px;border-radius:2px;color:#000;font-size:13px;font-weight:500;padding:8px;display:flex;flex-direction:column;justify-content:space-between}
+.sw small{white-space:nowrap;font-size:10px;font-weight:400;font-family:ui-monospace,Menlo,monospace}
+.ink{font-size:14px;font-weight:500;display:flex;flex-direction:column;gap:1px}
+.ink small{white-space:nowrap;font-size:10px;font-weight:400;font-family:ui-monospace,Menlo,monospace;opacity:.7}
+.row{margin-top:16px}
+</style></head><body><div id=r></div><script>
+const P=JSON.parse(decodeURIComponent(decodeURIComponent(location.search.slice(3))));
+const short=c=>c.replace('oklch(','').replace(')','');
+const fills=[['Red','destructive'],['Orange','attention'],['Yellow','warning'],['Green','success'],['Pink','info'],['Violet','merged'],['Blue','blue'],['Cyan','cyan'],['Lime','lime'],['Lavender','lavender']];
+const sw=a=>a.map(([n,k])=>`<div class=sw style="background:${P.fill[k]}">${n}<small>${short(P.fill[k])}</small></div>`).join('');
+const inks=[['Red','destructive'],['Warning','warning'],['Green','success'],['Pink','info'],['Violet','merged']];
+const darkInk=k=>k==='info'?'oklch(0.667 0.295 322.15)':P.fill[k];
+let h=`<div class="p l"><h6>FILLS · STATUS (BLACK ON TOP)</h6><div class=g>${sw(fills.slice(0,6))}</div>
+<h6 class=row>FILLS · CURSORS</h6><div class=g>${sw([['Orange','attention'],['Green','success'],['Blue','blue'],['Cyan','cyan'],['Lime','lime'],['Lavender','lavender']])}</div>
+<h6 class=row>TEXT ON WHITE</h6><div class=g>${inks.map(([n,k])=>`<div class=ink style="color:${P.ink[k]}">${n}<small>${short(P.ink[k])}</small></div>`).join('')}</div></div>
+<div class="p d"><h6>TEXT ON BLACK</h6><div class=g>${inks.map(([n,k])=>`<div class=ink style="color:${darkInk(k)}">${n}<small>${short(darkInk(k))}</small></div>`).join('')}</div></div>`;
+document.getElementById('r').innerHTML=h;
+</script></body></html>

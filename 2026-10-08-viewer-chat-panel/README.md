@@ -23,3 +23,7 @@ One round, three questions. No picks came back before the build, so it shipped e
 After the merge with viewer comments (#1934), a viewer’s toolbar is Select and Comment.
 
 Never re-offer: none recorded.
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

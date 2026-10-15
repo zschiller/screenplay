@@ -1,0 +1,201 @@
+diff --git a/apps/app/app/globals.css b/apps/app/app/globals.css
+index 7c240d2a..b1169ffd 100644
+--- a/apps/app/app/globals.css
++++ b/apps/app/app/globals.css
+@@ -152,6 +152,12 @@ body {
+   visibility: hidden;
+ }
+ 
++/* Layer labels hide for the length of a zoom and come back laid out for the
++   settled zoom; see `data-camera-zooming` in use-canvas-camera.ts. */
++[data-camera-zooming] .canvas-label-layer {
++  visibility: hidden;
++}
++
+ /* GripSpinner — each dot of the Grip grid fades in/out on its own randomized
+    cadence to signal a running agent. See components/grip-spinner.tsx. */
+ @keyframes grip-dot-twinkle {
+diff --git a/apps/app/components/canvas/label-chat.tsx b/apps/app/components/canvas/label-chat.tsx
+index 3189c0cc..43396c9a 100644
+--- a/apps/app/components/canvas/label-chat.tsx
++++ b/apps/app/components/canvas/label-chat.tsx
+@@ -7,16 +7,13 @@ import {
+   useState,
+   type RefObject,
+ } from "react"
+-import { LabelLayerContext } from "./label-layer"
+ 
+ /**
+- * What a Layer's label rows fit in: the Layer's width in canvas units, the
+- * deferred zoom (for a label off the canvas, with no live camera), and whether
++ * What a Layer's label rows fit in: the Layer's on-screen width, and whether
+  * the label is compact (far out, menus hidden).
+  */
+ export const LabelFitContext = createContext({
+   width: Infinity,
+-  zoom: 1,
+   compact: false,
+ })
+ 
+@@ -47,12 +44,11 @@ export function LabelChat({ children }: { children: React.ReactNode }) {
+ export function useLabelChatHidden(
+   rowRef: RefObject<HTMLElement | null>
+ ): boolean {
+-  const { width, zoom, compact } = useContext(LabelFitContext)
+-  const labelLayer = useContext(LabelLayerContext)
++  const { width: available, compact } = useContext(LabelFitContext)
+   const [needed, setNeeded] = useState(0)
+-  // Labels keep one screen size, so zooming changes only the room they have.
+-  // The rest is measured when the row changes size (a font loading), content
+-  // (a rename, a menu showing) or goes compact (its menu hiding).
++  // Labels keep one screen size, so zooming changes only `available`. The rest
++  // is measured when the row changes size (a font loading), content (a
++  // rename, a menu showing) or goes compact (its menu hiding).
+   useLayoutEffect(() => {
+     const row = rowRef.current
+     if (!row) return
+@@ -67,19 +63,7 @@ export function useLabelChatHidden(
+       edits.disconnect()
+     }
+   }, [rowRef, compact])
+-  const [hidden, setHidden] = useState(false)
+-  // On the canvas the room follows the live camera, like the label's own
+-  // position and width, so the chat goes as the Layer narrows mid-zoom, not
+-  // once the zoom settles. State changes only when the answer flips.
+-  useLayoutEffect(() => {
+-    const update = () => {
+-      const z = labelLayer ? labelLayer.camera.get().zoom : zoom
+-      setHidden(needed > width * z + 0.5)
+-    }
+-    update()
+-    return labelLayer?.camera.subscribe(update)
+-  }, [labelLayer, needed, width, zoom])
+-  return hidden
++  return needed > available + 0.5
+ }
+ 
+ /**
+diff --git a/apps/app/components/canvas/layer-title-bar.tsx b/apps/app/components/canvas/layer-title-bar.tsx
+index 56e4493a..9c5ada7d 100644
+--- a/apps/app/components/canvas/layer-title-bar.tsx
++++ b/apps/app/components/canvas/layer-title-bar.tsx
+@@ -116,13 +116,13 @@ export function LayerTitleBar({
+   // fits (see `LabelChat`).
+   const compact = !showsLayerDetail(zoom)
+   const labelFit = useMemo(
+-    () => ({ width: layerWidth, zoom, compact }),
++    () => ({ width: layerWidth * zoom, compact }),
+     [layerWidth, zoom, compact]
+   )
+   // A group label runs the Group's width; the Layer's own rows run its own.
+   const groupWidth = Math.max(layerWidth, groupLabel?.width ?? 0)
+   const groupFit = useMemo(
+-    () => ({ width: groupWidth, zoom, compact }),
++    () => ({ width: groupWidth * zoom, compact }),
+     [groupWidth, zoom, compact]
+   )
+   // Compose the caller's base move-drag handlers with the reorder-request
+@@ -376,6 +376,7 @@ interface LayerLabelRowProps extends LayerTitleTextProps {
+   leading?: React.ReactNode
+   /** Content after the name: its `LabelChat`, then its menu. */
+   trailing?: React.ReactNode
++  style?: React.CSSProperties
+ }
+ 
+ /**
+@@ -389,6 +390,7 @@ interface LayerLabelRowProps extends LayerTitleTextProps {
+ export function LayerLabelRow({
+   leading,
+   trailing,
++  style,
+   ...titleProps
+ }: LayerLabelRowProps) {
+   const rowRef = useRef<HTMLDivElement>(null)
+@@ -397,6 +399,7 @@ export function LayerLabelRow({
+     <div
+       ref={rowRef}
+       className="group/layer-label flex min-h-[18px] max-w-full items-center gap-2 overflow-hidden has-[[data-editable-text=editing]]:overflow-visible has-[[data-label-chat]]:min-h-5"
++      style={style}
+       data-chat-hidden={chatHidden ? "" : undefined}
+     >
+       {leading}
+diff --git a/apps/app/components/canvas/markdown-layer.tsx b/apps/app/components/canvas/markdown-layer.tsx
+index 50cf2614..13219613 100644
+--- a/apps/app/components/canvas/markdown-layer.tsx
++++ b/apps/app/components/canvas/markdown-layer.tsx
+@@ -1001,7 +1001,10 @@ function MarkdownLayerImpl({
+       resizable={!editing}
+       groupLabel={groupLabel}
+       renderTitle={(api) => (
++        // The explicit max-width gives the name's `truncate` something to
++        // clip against inside the title bar's `items-start` column.
+         <LayerLabelRow
++          style={{ maxWidth: layer.width * zoom }}
+           title={layer.title}
+           placeholder="Untitled"
+           selected={selected || groupSelected}
+diff --git a/apps/app/components/canvas/mockup-layer.tsx b/apps/app/components/canvas/mockup-layer.tsx
+index 6acec5d5..56726e88 100644
+--- a/apps/app/components/canvas/mockup-layer.tsx
++++ b/apps/app/components/canvas/mockup-layer.tsx
+@@ -452,6 +452,7 @@ function MockupLayerImpl({
+       renderTitle={(api) => (
+         <LayerLabelRow
+           editableRef={titleEditableRef}
++          style={{ maxWidth: layer.width * zoom }}
+           title={layer.title}
+           placeholder="Untitled"
+           selected={selected || groupSelected}
+diff --git a/apps/app/components/canvas/use-canvas-camera.ts b/apps/app/components/canvas/use-canvas-camera.ts
+index b5954950..728a5586 100644
+--- a/apps/app/components/canvas/use-canvas-camera.ts
++++ b/apps/app/components/canvas/use-canvas-camera.ts
+@@ -247,7 +247,9 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
+   // it keeps syncing per frame and its overlays track live.
+   //
+   // `isZooming` also drives hiding the lagging screen-space overlays. Layer
+-  // labels don't lag: they follow `liveCamera` frame by frame.
++  // labels follow `liveCamera` frame by frame, but whether each one fits is
++  // decided from the settled zoom, so they hide for the zoom too and come
++  // back laid out for the new zoom (`data-camera-zooming`).
+   // The watchdog guarantees a flush even when no explicit stop fires (e.g. a
+   // wheel-zoom burst, which has no "end" event).
+   const zoomingRef = useRef(false)
+@@ -339,6 +341,13 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
+     if (isZooming || isPanning) return
+     canvasWrapperRef.current?.removeAttribute("data-camera-moving")
+   }, [isZooming, isPanning, canvasWrapperRef])
++  // Layer labels hide for a zoom only; a pan keeps their sizes, so they track
++  // it live. Same timing as above: hidden in the first zoomed frame, shown in
++  // the commit that lays them out for the settled zoom.
++  useLayoutEffect(() => {
++    if (isZooming) return
++    canvasWrapperRef.current?.removeAttribute("data-camera-zooming")
++  }, [isZooming, canvasWrapperRef])
+ 
+   const flushCameraSync = useCallback(
+     (vp: ViewportData) => {
+@@ -419,8 +428,9 @@ export function useCanvasCamera(deps: CanvasCameraDeps): CanvasCamera {
+     if (zoomingRef.current) return
+     zoomingRef.current = true
+     hideCameraOverlays()
++    canvasWrapperRef.current?.setAttribute("data-camera-zooming", "")
+     setIsZooming(true)
+-  }, [hideCameraOverlays])
++  }, [hideCameraOverlays, canvasWrapperRef])
+ 
+   // --- Pan defer (mirror of the zoom defer above) ---
+   // A pan keeps `scale` constant, so the layers just glide imperatively under
+diff --git a/apps/docs/content/guides/canvas.mdx b/apps/docs/content/guides/canvas.mdx
+index ccbe1cff..5eec498a 100644
+--- a/apps/docs/content/guides/canvas.mdx
++++ b/apps/docs/content/guides/canvas.mdx
+@@ -41,7 +41,7 @@ The names above frames, mockups and documents stay the same size at every
+ zoom. As you zoom out, a name hides only once its layer is too narrow on
+ screen to fit it, so a phone frame’s name goes before a desktop frame’s, and
+ layers of the same size always agree. A group’s name goes with its first
+-layer’s.
++layer’s. Names hide while you zoom and come back when you stop.
+ 
+ ## The top bar
+ 

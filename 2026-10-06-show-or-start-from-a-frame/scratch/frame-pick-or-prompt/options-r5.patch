@@ -1,0 +1,496 @@
+diff --git a/apps/app/components/canvas/canvas.tsx b/apps/app/components/canvas/canvas.tsx
+index 4541139..d26de50 100644
+--- a/apps/app/components/canvas/canvas.tsx
++++ b/apps/app/components/canvas/canvas.tsx
+@@ -1701,6 +1701,10 @@ export function Canvas({
+   })
+   const askFrameId =
+     drawAsk.open?.kind === "frame" ? drawAsk.open.frameId : null
++  const [followAsk, setFollowAsk] = useState<{
++    frameId: string
++    branchId: string
++  } | null>(null)
+   const askMockupBox = drawAsk.open?.kind === "mockup" ? drawAsk.open.box : null
+ 
+   // Draw tools (Document / Frame / Mockup) — the Tool Mode sibling that turns a released
+@@ -2308,7 +2312,10 @@ export function Canvas({
+                             onRestartWorkspace={branchActions.startWorkspace}
+                             onOpenLogs={openBranchLogs}
+                             onStartChat={drawAsk.startFrameChat}
+-                            askingIframeLayerId={askFrameId}
++                            askingIframeLayerId={
++                              askFrameId ??
++                              (exploreFpp() === "b" ? followAsk?.frameId : null)
++                            }
+                             repos={repos}
+                             zoom={zoom}
+                             spaceHeld={spaceHeld}
+@@ -2583,6 +2590,18 @@ export function Canvas({
+                     defaultAnswerer={drawAsk.answerer}
+                     onSubmit={drawAsk.send}
+                     onClose={drawAsk.close}
++                    onShow={(branchId) => {
++                      ops.assignBranch(askFrameId, branchId)
++                      const frameId = askFrameId
++                      drawAsk.close()
++                      if (["d", "e"].includes(exploreFpk())) {
++                        setFollowAsk(null)
++                        setTimeout(
++                          () => setFollowAsk({ frameId, branchId }),
++                          1500
++                        )
++                      }
++                    }}
+                   />
+                 ) : askMockupBox ? (
+                   <FrameAskCard
+@@ -2595,6 +2614,21 @@ export function Canvas({
+                     onSubmit={drawAsk.send}
+                     onClose={drawAsk.close}
+                   />
++                ) : followAsk ? (
++                  <FrameAskCard
++                    key={`follow-${followAsk.frameId}`}
++                    follow
++                    placement={exploreFpp() === "b" ? "centre" : "below"}
++                    locate={() => frameAskTarget(followAsk.frameId)}
++                    markdownLayers={markdownLayers}
++                    workspaces={agents}
++                    defaultAnswerer={{
++                      kind: "workspace",
++                      branchId: followAsk.branchId,
++                    }}
++                    onSubmit={() => setFollowAsk(null)}
++                    onClose={() => setFollowAsk(null)}
++                  />
+                 ) : null}
+                 <ShortcutSheet
+                   open={shortcutSheetOpen}
+@@ -2724,3 +2758,19 @@ export function Canvas({
+     </>
+   )
+ }
++
++function exploreFpk() {
++  try {
++    return localStorage.getItem("fpk") ?? ""
++  } catch {
++    return ""
++  }
++}
++
++function exploreFpp() {
++  try {
++    return localStorage.getItem("fpp") ?? ""
++  } catch {
++    return ""
++  }
++}
+diff --git a/apps/app/components/canvas/frame-ask-card.tsx b/apps/app/components/canvas/frame-ask-card.tsx
+index eb30c14..783007a 100644
+--- a/apps/app/components/canvas/frame-ask-card.tsx
++++ b/apps/app/components/canvas/frame-ask-card.tsx
+@@ -5,6 +5,18 @@ import { createPortal } from "react-dom"
+ import { FloatingToolbar } from "@workspace/ui/components/floating-toolbar"
+ import { CaretDownIcon } from "@workspace/ui/components/icons"
+ import { InputGroupButton } from "@workspace/ui/components/input-group"
++import {
++  Command,
++  CommandGroup,
++  CommandInput,
++  CommandItem,
++  CommandList,
++} from "@workspace/ui/components/command"
++import { AppWindowIcon, PlusIcon } from "@workspace/ui/components/icons"
++import { Kbd } from "@workspace/ui/components/kbd"
++import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
++import { WorkspaceMention } from "@/components/workspace-mention"
++import { useWorkspaceStates } from "@/hooks/use-workspace-states"
+ import {
+   Popover,
+   PopoverContent,
+@@ -13,6 +25,7 @@ import {
+ 
+ import {
+   Composer,
++  type ComposerHandle,
+   type ComposerSubmitPayload,
+ } from "@/components/agent/composer"
+ import { NEW_CHAT, NEW_SKETCH_CHAT, type FrameAnswerer } from "@/lib/draw-ask"
+@@ -21,7 +34,11 @@ import type {
+   ChatSessionData,
+   MarkdownLayerData,
+ } from "@/lib/types"
+-import { WorkspaceCommandList, WorkspaceName } from "./workspace-list"
++import {
++  pickableWorkspaces,
++  WorkspaceCommandList,
++  WorkspaceName,
++} from "./workspace-list"
+ 
+ /** Keeps the card clear of the canvas edges and the bottom tool toolbar. */
+ const INSET = 8
+@@ -88,7 +105,15 @@ export function FrameAskCard({
+   defaultAnswerer,
+   onSubmit,
+   onClose,
++  onShow,
++  follow,
++  placement = "centre",
+ }: {
++  /** EXPLORATION: the composer that opens once a picked chat's preview loads. */
++  follow?: boolean
++  placement?: "centre" | "below"
++  /** EXPLORATION: show an existing chat's preview in the frame. */
++  onShow?: (branchId: string) => void
+   kind?: AskCardKind
+   /** The box's screen rect, read every animation frame; null until it's up. */
+   locate: () => AskCardTarget | null
+@@ -107,9 +132,56 @@ export function FrameAskCard({
+ }) {
+   const cardRef = useRef<HTMLDivElement>(null)
+   const [answerer, setAnswerer] = useState(defaultAnswerer)
++  const stateOf = useWorkspaceStates()
++  const [variant] = useState(() => {
++    try {
++      return localStorage.getItem("fpk") ?? ""
++    } catch {
++      return ""
++    }
++  })
++  const [query, setQuery] = useState("")
++  const running = onShow
++    ? pickableWorkspaces(workspaces).filter(
++        (w) => w.status === "running" && !w.devServerStoppedAt
++      )
++    : []
++  const [composeText, setComposeText] = useState<string | null>(null)
++  const [typed, setTyped] = useState("")
++  const [tab, setTab] = useState<"show" | "new">("show")
++  const filtered = running
++    .filter((w) =>
++      (w.title || w.ref).toLowerCase().includes(typed.trim().toLowerCase())
++    )
++    .slice(0, 3)
++  const previewRows = (rows: BranchData[]) =>
++    rows.map((w) => (
++      <button
++        key={w.id}
++        type="button"
++        data-preview-row=""
++        onClick={() => onShow?.(w.id)}
++        className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent"
++      >
++        <WorkspaceMention branch={w} state={stateOf(w)} />
++      </button>
++    ))
++  const composerRef = useRef<ComposerHandle>(null)
++  useEffect(() => {
++    if (composeText === null) return
++    const t = setTimeout(() => {
++      composerRef.current?.focus()
++      composerRef.current?.insertText(composeText)
++    }, 50)
++    return () => clearTimeout(t)
++  }, [composeText])
++  const picker =
++    !follow && composeText === null && !!onShow && ["c", "d", "e"].includes(variant)
+   const onCloseRef = useRef(onClose)
+   const locateRef = useRef(locate)
++  const placementRef = useRef(placement)
+   useEffect(() => {
++    placementRef.current = placement
+     onCloseRef.current = onClose
+     locateRef.current = locate
+   })
+@@ -128,7 +200,10 @@ export function FrameAskCard({
+         const w = card.offsetWidth
+         const h = card.offsetHeight
+         const x = box.left + (box.width - w) / 2
+-        const y = box.top + (box.height - h) / 2
++        const y =
++          placementRef.current === "below"
++            ? box.top + box.height + 52
++            : box.top + (box.height - h) / 2
+         const clampedX = Math.max(INSET, Math.min(x, cw.width - w - INSET))
+         const clampedY = Math.max(
+           INSET,
+@@ -187,23 +262,143 @@ export function FrameAskCard({
+         onClose()
+       }}
+     >
++      {picker && onShow ? (
++        <Command shouldFilter className="bg-transparent">
++          <CommandInput
++            autoFocus
++            value={query}
++            onValueChange={setQuery}
++            placeholder="Show a chat, or describe a new one…"
++          />
++          <CommandList className="max-h-72">
++            {query.trim() ? (
++              <CommandGroup forceMount>
++                <CommandItem
++                  forceMount
++                  value={`__new ${query}`}
++                  onSelect={() => {
++                    if (variant === "e") setComposeText(query.trim())
++                  }}
++                >
++                  <PlusIcon className="text-muted-foreground" />
++                  <span className="min-w-0 flex-1 truncate">
++                    New chat: “{query.trim()}”
++                  </span>
++                  <Kbd>↵</Kbd>
++                </CommandItem>
++              </CommandGroup>
++            ) : null}
++            {running.length > 0 ? (
++              <CommandGroup heading="Running previews">
++                {running.map((w) => (
++                  <CommandItem
++                    key={w.id}
++                    value={w.title || w.ref}
++                    onSelect={() => onShow(w.id)}
++                  >
++                    <WorkspaceMention branch={w} state={stateOf(w)} />
++                  </CommandItem>
++                ))}
++              </CommandGroup>
++            ) : null}
++          </CommandList>
++        </Command>
++      ) : (
++        <>
++          {variant === "g" && onShow && running.length > 0 ? (
++            <div className="p-1 pb-0">
++              <Tabs
++                value={tab}
++                onValueChange={(v) => setTab(v as "show" | "new")}
++              >
++                <TabsList className="w-full">
++                  <TabsTrigger value="show" className="flex-1">Show a chat</TabsTrigger>
++                  <TabsTrigger value="new" className="flex-1">New chat</TabsTrigger>
++                </TabsList>
++              </Tabs>
++              {tab === "show" ? (
++                <div className="pt-1">{previewRows(running.slice(0, 5))}</div>
++              ) : null}
++            </div>
++          ) : null}
++          {variant === "f" && onShow && filtered.length > 0 ? (
++            <>
++              <div className="p-1 pb-0">
++                <div className="px-2 py-1.5 font-mono text-xs tracking-wider text-muted-foreground uppercase">
++                  Running previews
++                </div>
++                {previewRows(filtered)}
++              </div>
++              <div className="mx-1 my-1 h-px bg-border" />
++            </>
++          ) : null}
++          {variant === "b" && running.length > 0 ? (
++            <>
++              <div className="p-1 pb-0">
++                <div className="px-2 py-1.5 font-mono text-xs tracking-wider text-muted-foreground uppercase">
++                  Show a running preview
++                </div>
++                {running.slice(0, 3).map((w) => (
++                  <button
++                    key={w.id}
++                    type="button"
++                    data-preview-row=""
++                    onClick={() => onShow?.(w.id)}
++                    className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent"
++                  >
++                    <WorkspaceMention branch={w} state={stateOf(w)} />
++                  </button>
++                ))}
++              </div>
++              <div className="mx-1 my-1 h-px bg-border" />
++            </>
++          ) : null}
++      {variant === "g" && onShow && running.length > 0 && tab === "show" ? null : (
+       <Composer
++        ref={composerRef}
++        onChange={(payload) => setTyped(payload.text)}
+         markdownLayers={markdownLayers}
+         onModelChange={() => {}}
+         onSubmit={(payload) => onSubmit(payload, answerer)}
+         focusKey={1}
+-        placeholder={QUESTION[kind]}
++        placeholder={
++          follow
++            ? "What should change here?"
++            : variant === "f" && onShow && running.length > 0
++              ? "Describe a new chat, or pick one above…"
++              : QUESTION[kind]
++        }
+         modelSlot={
+-          <AnswererChip
+-            answerer={answerer}
+-            workspaces={workspaces}
+-            sketchChats={sketchChats}
+-            onChange={setAnswerer}
+-          />
++          <>
++            <AnswererChip
++              answerer={answerer}
++              workspaces={workspaces}
++              sketchChats={sketchChats}
++              onChange={setAnswerer}
++              showIn={variant === "j" && !follow ? onShow : undefined}
++              running={running}
++            />
++            {variant === "i" && onShow && !follow ? (
++              <ShowChatButton running={running} onShow={onShow} />
++            ) : null}
++            {variant === "a" && onShow && answerer.kind === "workspace" ? (
++              <InputGroupButton
++                size="sm"
++                className="text-foreground"
++                onClick={() => onShow(answerer.branchId)}
++              >
++                <AppWindowIcon />
++                Show preview
++              </InputGroupButton>
++            ) : null}
++          </>
+         }
+         // The card is the surface: the composer's own box goes borderless.
+         className="relative [&_[data-slot=input-group]]:border-transparent dark:[&_[data-slot=input-group]]:bg-transparent"
+       />
++      )}
++        </>
++      )}
+     </FloatingToolbar>,
+     portal
+   )
+@@ -215,18 +410,59 @@ export function FrameAskCard({
+  * with no repository after it. On a canvas with no repository a new chat with
+  * none is the default; with nothing else to pick, the chip only says so.
+  */
++function ShowChatButton({
++  running,
++  onShow,
++}: {
++  running: BranchData[]
++  onShow: (branchId: string) => void
++}) {
++  const [open, setOpen] = useState(false)
++  if (running.length === 0) return null
++  return (
++    <Popover open={open} onOpenChange={setOpen}>
++      <PopoverTrigger asChild>
++        <InputGroupButton size="sm" className="text-foreground">
++          <AppWindowIcon />
++          Show a chat
++        </InputGroupButton>
++      </PopoverTrigger>
++      <PopoverContent
++        {...{ [COMPOSER_POPUP_ATTRIBUTE]: "" }}
++        className="w-72 p-0"
++        side="bottom"
++        align="start"
++      >
++        <WorkspaceCommandList
++          branches={running}
++          onPick={(id) => {
++            setOpen(false)
++            onShow(id)
++          }}
++          placeholder="Search running previews…"
++        />
++      </PopoverContent>
++    </Popover>
++  )
++}
++
+ function AnswererChip({
+   answerer,
+   workspaces,
+   sketchChats,
+   onChange,
++  showIn,
++  running = [],
+ }: {
++  showIn?: (branchId: string) => void
++  running?: BranchData[]
+   answerer: FrameAnswerer
+   workspaces: BranchData[]
+   sketchChats?: ChatSessionData[]
+   onChange: (answerer: FrameAnswerer) => void
+ }) {
+   const [open, setOpen] = useState(false)
++  const stateOf = useWorkspaceStates()
+   const workspace =
+     answerer.kind === "workspace"
+       ? workspaces.find((b) => b.id === answerer.branchId)
+@@ -277,6 +513,33 @@ function AnswererChip({
+         side="bottom"
+         align="start"
+       >
++        {showIn ? (
++          <Command>
++            <CommandInput placeholder="Search chats…" />
++            <CommandList>
++              <CommandGroup>
++                <CommandItem value="New chat" onSelect={() => pick(NEW_CHAT)}>
++                  <PlusIcon className="text-muted-foreground" />
++                  <span className="flex-1">New chat</span>
++                </CommandItem>
++              </CommandGroup>
++              <CommandGroup heading="Show in this frame">
++                {running.map((w) => (
++                  <CommandItem
++                    key={w.id}
++                    value={w.title || w.ref}
++                    onSelect={() => {
++                      setOpen(false)
++                      showIn(w.id)
++                    }}
++                  >
++                    <WorkspaceMention branch={w} state={stateOf(w)} />
++                  </CommandItem>
++                ))}
++              </CommandGroup>
++            </CommandList>
++          </Command>
++        ) : (
+         <WorkspaceCommandList
+           branches={workspaces}
+           currentBranchId={workspace?.id}
+@@ -303,6 +566,7 @@ function AnswererChip({
+               : undefined
+           }
+         />
++        )}
+       </PopoverContent>
+     </Popover>
+   )
+diff --git a/apps/app/components/canvas/use-draw-ask.ts b/apps/app/components/canvas/use-draw-ask.ts
+index 51a6dd2..dfcfa49 100644
+--- a/apps/app/components/canvas/use-draw-ask.ts
++++ b/apps/app/components/canvas/use-draw-ask.ts
+@@ -156,10 +156,19 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
+   const startFromFrame = useCallback(
+     (frameId: string) => {
+       if (!newChatRepoId) return
+-      setAnswerer(answererFromSelection())
++      const picked = answererFromSelection()
++      let fpk = ""
++      try {
++        fpk = localStorage.getItem("fpk") ?? ""
++      } catch {}
++      if (fpk === "h" && picked.kind === "workspace") {
++        ops.assignBranch(frameId, picked.branchId)
++        return
++      }
++      setAnswerer(picked)
+       setAsk({ kind: "frame", frameId })
+     },
+-    [newChatRepoId, answererFromSelection]
++    [newChatRepoId, answererFromSelection, ops]
+   )
+ 
+   // With no repository there are no Workspaces, so a chat with none answers.

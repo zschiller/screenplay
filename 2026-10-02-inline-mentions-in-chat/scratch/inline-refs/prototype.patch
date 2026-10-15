@@ -1,0 +1,418 @@
+diff --git a/apps/app/app/globals.css b/apps/app/app/globals.css
+index 83fa7c4..ddc414b 100644
+--- a/apps/app/app/globals.css
++++ b/apps/app/app/globals.css
+@@ -527,3 +527,68 @@ body {
+ .chat-markdown .hljs-strong {
+   font-weight: 600;
+ }
++
++/* Inline references (exploration prototype, round 2): the outline Badge's
++   square border around an icon and a medium-weight name, sitting on the text
++   baseline. 20px tall, so tokens on adjacent 24px lines keep a gap. */
++.inline-ref {
++  display: inline-flex;
++  align-items: center;
++  /* 14px label + 2px padding + 1px border each way: 20px, the outline
++     Badge's height. The overhang past the 14px text is pulled back with
++     negative margins, so a chip never grows its line box. */
++  padding: 0.125rem 0.375rem;
++  margin-block: -0.1875rem;
++  border: 1px solid var(--border);
++  border-radius: var(--radius-md);
++  font-weight: 500;
++  font-stretch: 98.8%;
++  color: var(--foreground);
++  text-decoration: none;
++  white-space: nowrap;
++  cursor: default;
++}
++/* The label carries the chip's baseline, so the name sits on the line's
++   baseline whatever the icon is. */
++.inline-ref-label {
++  align-self: baseline;
++  line-height: 0.875rem;
++}
++a.inline-ref,
++button.inline-ref,
++.inline-ref[role="link"] {
++  cursor: pointer;
++}
++.inline-ref-icon {
++  display: inline-flex;
++  flex-shrink: 0;
++  align-items: center;
++  justify-content: center;
++  width: 0.875rem;
++  height: 0.875rem;
++  margin-right: 0.25rem;
++  color: currentColor;
++}
++[data-inline-ref="workspace"] > .inline-ref-icon > span {
++  width: 100%;
++  height: 100%;
++}
++/* The composer's and editor's mention nodes render through TipTap's
++   renderHTML, so they draw the document icon as a mask. */
++.inline-ref[data-inline-ref-css="document"]::before {
++  content: "";
++  display: inline-block;
++  flex-shrink: 0;
++  width: 0.875rem;
++  height: 0.875rem;
++  margin-right: 0.25rem;
++  background-color: currentColor;
++  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><path d='M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z'/></svg>")
++    center / contain no-repeat;
++}
++/* Chat text runs on 22px lines so 20px reference chips on adjacent lines
++   keep a 2px gap. */
++.chat-markdown.text-sm,
++.chat-composer-input {
++  line-height: 1.375rem;
++}
+diff --git a/apps/app/components/agent/agent-message.tsx b/apps/app/components/agent/agent-message.tsx
+index 83a4496..a727c29 100644
+--- a/apps/app/components/agent/agent-message.tsx
++++ b/apps/app/components/agent/agent-message.tsx
+@@ -78,7 +78,10 @@ import {
+ import { chatStore } from "@/lib/chat-store"
+ import { inputStore } from "@/lib/input-store"
+ import { diffLines, foldContext } from "@/lib/agent/line-diff"
+-import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
++import { InlineRef, type InlineRefKind } from "@/components/agent/inline-ref"
++import { WorkspaceStateGlyph } from "@/components/workspace-mention"
++import { useWorkspaceStates } from "@/hooks/use-workspace-states"
++import { useMockupLayers } from "@/lib/yjs/react"
+ import { ElementDetail } from "./element-detail"
+ import { useElementHighlight } from "./use-element-highlight"
+ import { ChatMarkdown } from "./chat-markdown"
+@@ -1005,10 +1008,9 @@ function ElementHistoryToken({
+   return (
+     <HoverCard onOpenChange={handleOpenChange}>
+       <HoverCardTrigger asChild>
+-        <span className={`${MENTION_TEXT_CLASS} font-mono`}>
+-          <CrosshairIcon className="mr-0.5 inline size-[1em] align-[-0.15em]" />
++        <InlineRef kind="element" className="font-mono">
+           {children}
+-        </span>
++        </InlineRef>
+       </HoverCardTrigger>
+       <HoverCardContent align="start">
+         <ElementDetail
+@@ -1111,9 +1113,14 @@ function UserBubble({
+   // `/`-skill marker and `elementMarkersToPills` for each `[element: …]`
+   // element token — the same markers the composer's `serializeSkill` /
+   // `serializeElement` emit, rendered back as inline references below.
++  const mockups = useMockupLayers()
+   const displayContent = useMemo(
+-    () => elementMarkersToPills(skillMarkersToPills(message.content)),
+-    [message.content]
++    () =>
++      mockupMarkersToRefs(
++        elementMarkersToPills(skillMarkersToPills(message.content)),
++        (id) => mockups.find((m) => m.id === id)?.title
++      ),
++    [message.content, mockups]
+   )
+   // The terse inline label hides the messy detail; the projection carries it,
+   // keyed by the same `ref` the inline `element:` link carries, so each
+@@ -1132,7 +1139,14 @@ function UserBubble({
+           typeof href === "string" &&
+           (href.startsWith("skill:") || href.startsWith("mention:"))
+         ) {
+-          return <span className={MENTION_TEXT_CLASS}>{children}</span>
++          if (href.startsWith("skill:"))
++            return <InlineRef kind="skill">{children}</InlineRef>
++          return (
++            <InlineRef kind="document">{stripAt(children)}</InlineRef>
++          )
++        }
++        if (typeof href === "string" && href.startsWith("mockup:")) {
++          return <InlineRef kind="mockup">{children}</InlineRef>
+         }
+         // element tokens: a clean crosshair + `font-mono` tag name,
+         // matching the composer token. Detail rides the footer, keyed by the
+@@ -1143,10 +1157,9 @@ function UserBubble({
+           const detail = targetedElements.get(refId)
+           if (!detail) {
+             return (
+-              <span className={`${MENTION_TEXT_CLASS} font-mono`}>
+-                <CrosshairIcon className="mr-0.5 inline size-[1em] align-[-0.15em]" />
++              <InlineRef kind="element" className="font-mono">
+                 {children}
+-              </span>
++              </InlineRef>
+             )
+           }
+           return (
+@@ -1185,9 +1198,14 @@ function UserBubble({
+  */
+ function AssistantMessage({ content }: { content: string }) {
+   const tasks = useWorkspaceTasks()
++  const stateOf = useWorkspaceStates()
+   const components = useMemo<Components>(
+     () => ({
+       a: ({ href, children, ...props }) => {
++        const layerKind =
++          typeof href === "string" ? LAYER_REF_KIND[href.split(":")[0]] : null
++        if (layerKind)
++          return <InlineRef kind={layerKind}>{children}</InlineRef>
+         if (
+           typeof href !== "string" ||
+           !href.startsWith(WORKSPACE_LINK_SCHEME)
+@@ -1199,25 +1217,25 @@ function AssistantMessage({ content }: { content: string }) {
+           )
+         }
+         const branchId = href.slice(WORKSPACE_LINK_SCHEME.length)
+-        const exists = tasks?.branches.some((b) => b.id === branchId)
+-        if (!tasks || !exists) return <span>{children}</span>
+-        // A link like any other in the reply; it opens the Workspace in place.
++        const branch = tasks?.branches.find((b) => b.id === branchId)
++        if (!tasks || !branch) return <span>{children}</span>
++        // Bold, led by the Workspace's state; it opens the Workspace in place.
+         return (
+-          <a
+-            href={href}
+-            {...props}
++          <InlineRef
++            kind="workspace"
++            role="link"
++            tabIndex={0}
+             data-testid="workspace-link"
+-            onClick={(e) => {
+-              e.preventDefault()
+-              tasks.onOpen({ branchId })
+-            }}
++            icon={<WorkspaceStateGlyph line={stateOf(branch).line} />}
++            className="cursor-pointer"
++            onClick={() => tasks.onOpen({ branchId })}
+           >
+             {children}
+-          </a>
++          </InlineRef>
+         )
+       },
+     }),
+-    [tasks]
++    [tasks, stateOf]
+   )
+   return (
+     <ChatMarkdown components={components} urlTransform={keepWorkspaceLinks}>
+@@ -1228,7 +1246,39 @@ function AssistantMessage({ content }: { content: string }) {
+ 
+ /** Markdown's default URL filter, letting `workspace:` links through. */
+ function keepWorkspaceLinks(url: string): string {
+-  return url.startsWith(WORKSPACE_LINK_SCHEME) ? url : defaultUrlTransform(url)
++  return url.startsWith(WORKSPACE_LINK_SCHEME) ||
++    LAYER_REF_KIND[url.split(":")[0]]
++    ? url
++    : defaultUrlTransform(url)
++}
++
++/** The layer link schemes a reply can name: `[title](frame:<id>)` and kin. */
++const LAYER_REF_KIND: Record<string, InlineRefKind | undefined> = {
++  frame: "frame",
++  document: "document",
++  mockup: "mockup",
++}
++
++/** A mention's text without its leading `@`: the icon marks it now. */
++function stripAt(children: ReactNode): ReactNode {
++  if (typeof children === "string") return children.replace(/^@/, "")
++  if (Array.isArray(children) && typeof children[0] === "string")
++    return [children[0].replace(/^@/, ""), ...children.slice(1)]
++  return children
++}
++
++/**
++ * A drawn Mockup's ask names it as `Mockup [mockup: <id>] with update_mockup`
++ * for the agent; the bubble shows the Mockup by its title instead.
++ */
++function mockupMarkersToRefs(
++  body: string,
++  titleOf: (id: string) => string | undefined
++): string {
++  return body.replace(
++    /Mockup \[mockup: ([^\]]+)\] with update_mockup/g,
++    (_m, id: string) => `[${(titleOf(id) || "Mockup").replace(/[[\]]/g, "")}](mockup:${id})`
++  )
+ }
+ 
+ /**
+diff --git a/apps/app/components/agent/composer.tsx b/apps/app/components/agent/composer.tsx
+index 707badf..b3b957e 100644
+--- a/apps/app/components/agent/composer.tsx
++++ b/apps/app/components/agent/composer.tsx
+@@ -72,7 +72,6 @@ import { isLocalBuild } from "@/lib/local-mode"
+ import { groupModelsByProvider } from "@/lib/model-selection"
+ import type { MarkdownLayerData } from "@/lib/types"
+ import type { PickedElement } from "@/lib/targeting-store"
+-import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+ import { readDraft, writeDraft } from "@/lib/composer-drafts"
+ import { COMPOSER_ATTRIBUTE } from "@/lib/canvas/key-target"
+ import { ElementTokenNodeView } from "./element-token-node"
+@@ -133,7 +132,7 @@ const ElementToken = Node.create({
+       "span",
+       mergeAttributes(HTMLAttributes, {
+         "data-element-token": "",
+-        class: `${MENTION_TEXT_CLASS} font-mono`,
++        class: "inline-ref font-mono",
+       }),
+       `${ELEMENT_TOKEN_GLYPH} ${node.attrs.label}`,
+     ]
+@@ -635,15 +634,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
+             const label =
+               (node.attrs.label as string | undefined) ??
+               (node.attrs.id as string)
+-            const prefix = node.attrs.mentionSuggestionChar === "/" ? "/" : "@"
+-            // Both `@`-doc and `/`-skill mentions render blue + medium weight so
+-            // they read as distinct affordances within the plaintext draft.
++            const skill = node.attrs.mentionSuggestionChar === "/"
++            // Inline references (#inline-refs): bold, a document led by its
++            // icon in place of the `@`.
+             return [
+               "span",
+               mergeAttributes(options.HTMLAttributes, {
+-                class: MENTION_TEXT_CLASS,
++                class: "inline-ref",
++                ...(skill ? {} : { "data-inline-ref-css": "document" }),
+               }),
+-              `${prefix}${label}`,
++              ["span", { class: "inline-ref-label" }, skill ? `/${label}` : label],
+             ]
+           },
+           deleteTriggerWithBackspace: true,
+@@ -692,7 +692,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
+       editorProps: {
+         attributes: {
+           class:
+-            "tiptap min-h-[40px] max-h-48 overflow-y-auto px-2.5 py-2.5 text-sm focus:outline-none",
++            "tiptap chat-composer-input min-h-[40px] max-h-48 overflow-y-auto px-2.5 py-2.5 text-sm focus:outline-none",
+           "data-placeholder": placeholder,
+           [COMPOSER_ATTRIBUTE]: "",
+         },
+diff --git a/apps/app/components/agent/element-token-node.tsx b/apps/app/components/agent/element-token-node.tsx
+index 6d76c31..fc8ab22 100644
+--- a/apps/app/components/agent/element-token-node.tsx
++++ b/apps/app/components/agent/element-token-node.tsx
+@@ -8,7 +8,6 @@ import {
+   HoverCardContent,
+   HoverCardTrigger,
+ } from "@workspace/ui/components/hover-card"
+-import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+ import { ElementDetail } from "./element-detail"
+ import { useElementHighlight } from "./use-element-highlight"
+ 
+@@ -40,7 +39,8 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
+       <HoverCard onOpenChange={handleOpenChange}>
+         <HoverCardTrigger asChild>
+           <span
+-            className={`${MENTION_TEXT_CLASS} cursor-default font-mono`}
++            data-inline-ref="element"
++            className="inline-ref cursor-default font-mono"
+             contentEditable={false}
+           >
+             {/*
+@@ -57,8 +57,8 @@ export function ElementTokenNodeView({ node }: NodeViewProps) {
+               (zero width) and composer-only; the sent bubble uses renderHTML.
+             */}
+             {"\u200B"}
+-            <CrosshairIcon className="mr-0.5 inline size-[1em] align-[-0.15em]" />
+-            {label}
++            <CrosshairIcon aria-hidden className="inline-ref-icon" />
++            <span className="inline-ref-label">{label}</span>
+           </span>
+         </HoverCardTrigger>
+         <HoverCardContent align="start">
+diff --git a/apps/app/components/agent/inline-ref.tsx b/apps/app/components/agent/inline-ref.tsx
+new file mode 100644
+index 0000000..0f11cd7
+--- /dev/null
++++ b/apps/app/components/agent/inline-ref.tsx
+@@ -0,0 +1,60 @@
++"use client"
++
++import type { ComponentProps, ReactNode } from "react"
++import {
++  CrosshairIcon,
++  FileTextIcon,
++  FrameCornersIcon,
++  ScribbleIcon,
++} from "@workspace/ui/components/icons"
++import { cn } from "@workspace/ui/lib/utils"
++
++/**
++ * One way to name a thing inline in a chat message: a Workspace, a document, a
++ * frame, a mockup, a targeted element or a skill. Bold text, no underline, led
++ * by the thing's icon (a Workspace's is its state glyph). The look lives in
++ * the `.inline-ref` rules in `app/globals.css`, which the composer's and the
++ * document editor's mention nodes share.
++ */
++export type InlineRefKind =
++  | "workspace"
++  | "document"
++  | "frame"
++  | "mockup"
++  | "element"
++  | "skill"
++
++const ICONS: Partial<Record<InlineRefKind, typeof FileTextIcon>> = {
++  document: FileTextIcon,
++  frame: FrameCornersIcon,
++  mockup: ScribbleIcon,
++  element: CrosshairIcon,
++}
++
++export function InlineRef({
++  kind,
++  icon,
++  children,
++  className,
++  ...props
++}: {
++  kind: InlineRefKind
++  /** Replaces the kind's icon: a Workspace passes its state glyph. */
++  icon?: ReactNode
++} & ComponentProps<"span">) {
++  const Icon = ICONS[kind]
++  return (
++    <span
++      data-inline-ref={kind}
++      className={cn("inline-ref", className)}
++      {...props}
++    >
++      {icon ? (
++        <span className="inline-ref-icon">{icon}</span>
++      ) : (
++        Icon && <Icon aria-hidden className="inline-ref-icon" />
++      )}
++      <span className="inline-ref-label">{children}</span>
++    </span>
++  )
++}
+diff --git a/apps/app/components/canvas/markdown-layer-mention-node.tsx b/apps/app/components/canvas/markdown-layer-mention-node.tsx
+index 088f55b..a2b656e 100644
+--- a/apps/app/components/canvas/markdown-layer-mention-node.tsx
++++ b/apps/app/components/canvas/markdown-layer-mention-node.tsx
+@@ -3,7 +3,6 @@
+ import { NodeViewWrapper } from "@tiptap/react"
+ import type { NodeViewProps } from "@tiptap/react"
+ import { useMarkdownLayers } from "@/lib/yjs/react"
+-import { MENTION_TEXT_CLASS } from "@/lib/mention-styles"
+ 
+ /**
+  * Renders a mention pill with the *live* title of the target layer. The
+@@ -22,9 +21,10 @@ export function MarkdownLayerMentionNodeView({ node }: NodeViewProps) {
+       as="span"
+       data-mention-id={id}
+       data-mention-kind="markdown-layer"
+-      className={MENTION_TEXT_CLASS}
++      data-inline-ref-css="document"
++      className="inline-ref"
+     >
+-      @{label}
++      <span className="inline-ref-label">{label}</span>
+     </NodeViewWrapper>
+   )
+ }

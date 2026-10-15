@@ -9,3 +9,7 @@
 **Question:** What should drawing something from the toolbar do for each kind of layer, and which kinds belong there?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

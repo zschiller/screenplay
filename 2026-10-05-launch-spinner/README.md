@@ -9,3 +9,7 @@
 **Question:** What should the Mac app’s launch spinner look like when it’s drawn with the homepage’s liquid dither?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

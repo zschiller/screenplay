@@ -2,7 +2,10 @@ Archive of Screenplay design explorations, audits and storybooks: snapshots of t
 
 | Date | Title | Question |
 | --- | --- | --- |
+| 2026-10-08 | [Host badge](2026-10-08-host-badge/) | How does a viewer watching a shared canvas tell which person is the host among the people present? |
+| 2026-10-08 | [Sharing on and off](2026-10-08-sharing-on-and-off/) | Where does the owner turn Sharing on and copy a canvas's link, and what does a viewer see when it's off or the Mac is away? |
 | 2026-10-08 | [Viewer chat panel](2026-10-08-viewer-chat-panel/) | With the host-only controls gone, what does a viewer’s chat panel and canvas chrome look like? |
+| 2026-10-07 | [Refused page](2026-10-07-refused-page/) | What does a viewer the identity extension refused see? |
 | 2026-10-07 | [Draw a Mockup or Document](2026-10-07-draw-a-mockup-or-document/) | How does the card on a drawn Mockup or Document box get from the prompt to opening an existing file? |
 | 2026-10-07 | [File-backed Documents and Mockups](2026-10-07-file-backed-documents-and-mockups/) | What would it take for a Document or Mockup to be a file, with every canvas layer only a view of it? |
 | 2026-10-07 | [Pages sidebar headings](2026-10-07-pages-sidebar-headings/) | With the Pages and Layers headings gone, how do you collapse the page list? |

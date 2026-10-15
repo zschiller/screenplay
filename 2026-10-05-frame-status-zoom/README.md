@@ -9,3 +9,7 @@
 **Question:** How should a frame’s status screen (No workspace, Starting, Failed…) size itself as you zoom?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

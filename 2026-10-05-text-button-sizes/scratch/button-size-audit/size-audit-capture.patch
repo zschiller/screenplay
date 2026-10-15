@@ -1,0 +1,60 @@
+diff --git a/apps/app/screenshots/lib/capture.ts b/apps/app/screenshots/lib/capture.ts
+index e92d797..4438be1 100644
+--- a/apps/app/screenshots/lib/capture.ts
++++ b/apps/app/screenshots/lib/capture.ts
+@@ -203,6 +203,55 @@ async function captureOne(
+       }
+     }
+     await settle(page, { extraMs: screen.settleMs ?? 0 })
++    if (process.env.SIZE_AUDIT) {
++      const rows = await page.evaluate(() => {
++        const out: unknown[] = []
++        const els = document.querySelectorAll(
++          'button, [role="button"], a[data-slot="button"], [data-slot="button"]'
++        )
++        const seen = new Set<Element>()
++        for (const el of Array.from(els)) {
++          if (seen.has(el)) continue
++          seen.add(el)
++          const r = el.getBoundingClientRect()
++          if (r.width < 4 || r.height < 4) continue
++          const cs = getComputedStyle(el)
++          if (cs.visibility === "hidden" || Number(cs.opacity) === 0) continue
++          const text = (el as HTMLElement).innerText?.trim() ?? ""
++          const svg = el.querySelector("svg")
++          const sr = svg?.getBoundingClientRect()
++          // nearest icon-only sibling button for comparison
++          out.push({
++            text: text.slice(0, 60),
++            aria: el.getAttribute("aria-label"),
++            slot: el.getAttribute("data-slot"),
++            size: el.getAttribute("data-size"),
++            variant: el.getAttribute("data-variant"),
++            tag: el.tagName,
++            x: Math.round(r.x),
++            y: Math.round(r.y),
++            w: Math.round(r.width * 10) / 10,
++            h: Math.round(r.height * 10) / 10,
++            fs: cs.fontSize,
++            fw: cs.fontWeight,
++            px: cs.paddingLeft + " " + cs.paddingRight,
++            radius: cs.borderRadius,
++            svg: sr ? Math.round(sr.width * 10) / 10 : null,
++            cls: (el.getAttribute("class") ?? "").slice(0, 400),
++          })
++        }
++        return out
++      })
++      const { appendFile } = await import("node:fs/promises")
++      await appendFile(
++        process.env.SIZE_AUDIT,
++        rows
++          .map((r) =>
++            JSON.stringify({ screen: screen.name, theme, file: path, ...(r as object) })
++          )
++          .join("\n") + "\n"
++      )
++    }
+     await page.screenshot({ path, fullPage: screen.fullPage ?? false })
+     return response?.status() ?? null
+   } finally {

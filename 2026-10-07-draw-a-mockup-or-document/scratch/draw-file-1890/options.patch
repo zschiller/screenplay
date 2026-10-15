@@ -1,0 +1,186 @@
+diff --git a/apps/app/components/canvas/canvas.tsx b/apps/app/components/canvas/canvas.tsx
+index d515374..c71ca9a 100644
+--- a/apps/app/components/canvas/canvas.tsx
++++ b/apps/app/components/canvas/canvas.tsx
+@@ -3068,6 +3068,7 @@ export function Canvas({
+                 ) : askMockupBox ? (
+                   <FrameAskCard
+                     kind="mockup"
++                    files={layerFiles.filter((f) => f.kind === "mockup")}
+                     locate={locateMockupBox}
+                     markdownLayers={markdownLayers}
+                     workspaces={agents}
+@@ -3080,6 +3081,7 @@ export function Canvas({
+                   <FrameAskCard
+                     key={askDocumentId}
+                     kind="document"
++                    files={layerFiles.filter((f) => f.kind === "document" && !!f.title && f.id !== askDocumentId)}
+                     locate={() => documentAskTarget(askDocumentId)}
+                     markdownLayers={markdownLayers}
+                     workspaces={agents}
+diff --git a/apps/app/components/canvas/frame-ask-card.tsx b/apps/app/components/canvas/frame-ask-card.tsx
+index 04fa646..58c3e57 100644
+--- a/apps/app/components/canvas/frame-ask-card.tsx
++++ b/apps/app/components/canvas/frame-ask-card.tsx
+@@ -12,6 +12,9 @@ import {
+ } from "@workspace/ui/components/command"
+ import {
+   CaretDownIcon,
++  FileTextIcon,
++  FolderOpenIcon,
++  ScribbleIcon,
+   PencilSimpleIcon,
+   PlusIcon,
+ } from "@workspace/ui/components/icons"
+@@ -130,7 +133,9 @@ export function FrameAskCard({
+   onSubmit,
+   onWriteMyself,
+   onClose,
++  files = [],
+ }: {
++  files?: { id: string; title: string }[]
+   kind?: AskCardKind
+   /** The box's screen rect, read every animation frame; null until it's up. */
+   locate: () => AskCardTarget | null
+@@ -156,6 +161,10 @@ export function FrameAskCard({
+   const cardRef = useRef<HTMLDivElement>(null)
+   const [answerer, setAnswerer] = useState(defaultAnswerer)
+   const [picking, setPicking] = useState(previews.length > 0 && !!onShow)
++  const dmx = typeof window !== "undefined" ? (localStorage.getItem("dmx") ?? "") : ""
++  const [openingFile, setOpeningFile] = useState(localStorage.getItem("dmx-files") === "1")
++  const fileKind = kind === "frame" ? null : kind
++  const canOpen = !!dmx && !!fileKind && files.length > 0
+   const composerRef = useRef<ComposerHandle>(null)
+   // What's typed, for Write it myself to carry into the title.
+   const draftRef = useRef("")
+@@ -251,11 +260,15 @@ export function FrameAskCard({
+         if (document.querySelector(`[${COMPOSER_POPUP_ATTRIBUTE}]`)) return
+         e.preventDefault()
+         e.stopPropagation()
++        if (openingFile) return setOpeningFile(false)
++        if (canOpen && dmx === "c") return setOpeningFile(true)
+         if (onWriteMyself) onWriteMyself(draftRef.current)
+         else onClose()
+       }}
+     >
+-      {picking && onShow ? (
++      {openingFile && fileKind ? (
++        <FilePicker kind={fileKind} files={files} onBack={() => setOpeningFile(false)} />
++      ) : picking && onShow ? (
+         <PreviewPicker
+           previews={previews}
+           onShow={onShow}
+@@ -289,7 +302,18 @@ export function FrameAskCard({
+             />
+           }
+           beforeSend={
+-            onWriteMyself && (
++            <>
++            {canOpen && dmx === "a" && (
++              <InputGroupButton
++                size="icon-sm"
++                className="text-foreground"
++                aria-label={`Open a ${fileKind}`}
++                onClick={() => setOpeningFile(true)}
++              >
++                <FolderOpenIcon />
++              </InputGroupButton>
++            )}
++            {onWriteMyself && (
+               <InputGroupButton
+                 size="sm"
+                 className="text-foreground"
+@@ -298,12 +322,25 @@ export function FrameAskCard({
+                 <PencilSimpleIcon />
+                 Write it myself
+               </InputGroupButton>
+-            )
++            )}
++            </>
+           }
+           // The card is the surface: the composer's own box goes borderless.
+           className="relative [&_[data-slot=input-group]]:border-transparent dark:[&_[data-slot=input-group]]:bg-transparent"
+         />
+       )}
++      {!openingFile && canOpen && dmx === "b" && (
++        <Command value="" className="bg-transparent p-0">
++          <CommandList className="max-h-none overflow-visible">
++            <CommandGroup className="p-0 pt-1">
++              <CommandItem value="open" className="px-[13px]" onSelect={() => setOpeningFile(true)}>
++                <FolderOpenIcon className="text-muted-foreground" />
++                <span className="flex-1 truncate">{`Open a ${fileKind}…`}</span>
++              </CommandItem>
++            </CommandGroup>
++          </CommandList>
++        </Command>
++      )}
+     </FloatingToolbar>,
+     portal
+   )
+@@ -409,6 +446,66 @@ function PreviewPicker({
+   )
+ }
+ 
++function FilePicker({
++  kind,
++  files,
++  onBack,
++}: {
++  kind: "mockup" | "document"
++  files: { id: string; title: string }[]
++  onBack: () => void
++}) {
++  const [query, setQuery] = useState("")
++  const inputRef = useRef<HTMLInputElement>(null)
++  useEffect(() => {
++    let rafId = 0
++    const focusWhenShown = () => {
++      const input = inputRef.current
++      if (!input) return
++      if (getComputedStyle(input).visibility === "hidden") {
++        rafId = requestAnimationFrame(focusWhenShown)
++        return
++      }
++      input.focus()
++    }
++    rafId = requestAnimationFrame(focusWhenShown)
++    return () => cancelAnimationFrame(rafId)
++  }, [])
++  const Icon = kind === "mockup" ? ScribbleIcon : FileTextIcon
++  const q = query.trim().toLowerCase()
++  const matches = q ? files.filter((f) => f.title.toLowerCase().includes(q)) : files
++  const { attach, onScroll, above, below } = useScrollEdges()
++  return (
++    <Command shouldFilter={false} loop className="bg-transparent p-0 [&_[data-slot=command-input-wrapper]]:p-1">
++      <CommandInput ref={inputRef} value={query} onValueChange={setQuery} placeholder={kind === "mockup" ? "Search mockups…" : "Search documents…"} />
++      <CommandList className="max-h-none overflow-visible">
++        {matches.length > 0 && (
++          <div className="relative">
++            <ScrollHairline shown={above} />
++            <div ref={attach} onScroll={onScroll} className="no-scrollbar max-h-72 overflow-y-auto px-1 pb-0.5">
++              <CommandGroup className="p-0">
++                {matches.map((f) => (
++                  <CommandItem key={f.id} value={f.id}>
++                    <Icon />
++                    <span className="flex-1 truncate">{f.title}</span>
++                  </CommandItem>
++                ))}
++              </CommandGroup>
++            </div>
++            <ScrollHairline shown={below} edge="bottom" />
++          </div>
++        )}
++        <CommandGroup className={cn("p-1", matches.length > 0 ? "pt-0.5" : "pt-0")}>
++          <CommandItem value="new" onSelect={onBack}>
++            <PlusIcon className="text-muted-foreground" />
++            <span className="flex-1 truncate">{kind === "mockup" ? "New mockup…" : "New document…"}</span>
++          </CommandItem>
++        </CommandGroup>
++      </CommandList>
++    </Command>
++  )
++}
++
+ /**
+  * Who answers, in the model pill's place and look (#1357). Its menu is the
+  * frames' Workspace list with New chat first, and for a Mockup box the chats

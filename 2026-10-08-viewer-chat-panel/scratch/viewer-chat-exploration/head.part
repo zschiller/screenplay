@@ -1,0 +1,72 @@
+<title>Viewer Chat Panel</title>
+<!-- Design exploration page. Fill PAGE, TODAY and ROUNDS in the data script; the page renders from them. Swap the tokens and the font link for the repo's brand; they use shadcn's variable names. -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Instrument+Sans:wdth,wght@75..100,400..700&family=Unbounded:wght@400&display=swap">
+<style>
+:root{--font-ui:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-title:"Unbounded",ui-sans-serif,system-ui,sans-serif;--font-code:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+:root,.dark .inverted{--background:oklch(1 0 0);--foreground:oklch(0 0 0);--card:oklch(1 0 0);--card-foreground:oklch(0 0 0);--primary:oklch(0 0 0);--primary-foreground:oklch(1 0 0);--secondary:oklch(0.975 0 0);--secondary-foreground:oklch(0 0 0);--muted:oklch(0.975 0 0);--muted-foreground:oklch(0.556 0 0);--destructive:oklch(0.56 0.226 27);--success:oklch(0.56 0.16 148);--warning:oklch(0.6 0.139 60);--info:oklch(0.56 0.259 326);--border:oklch(0 0 0 / 12%);--input:oklch(0 0 0 / 12%);--ring:oklch(0.667 0.295 322.15);--radius:0.125rem}
+.dark,:root:not(.dark) .inverted{--background:oklch(0 0 0);--foreground:oklch(1 0 0);--card:oklch(0 0 0);--card-foreground:oklch(1 0 0);--primary:oklch(1 0 0);--primary-foreground:oklch(0 0 0);--secondary:oklch(0.25 0 0);--secondary-foreground:oklch(1 0 0);--muted:oklch(0.25 0 0);--muted-foreground:oklch(0.708 0 0);--destructive:oklch(0.66 0.225 27);--success:oklch(0.82 0.235 148);--warning:oklch(0.88 0.179 95);--info:oklch(0.667 0.295 322.15);--border:oklch(1 0 0 / 16%);--input:oklch(1 0 0 / 16%);--ring:oklch(0.667 0.295 322.15)}
+</style>
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk});
+const S=(n,cap)=>IMG("shots/"+n+"-light.png",cap,"shots/"+n+"-dark.png");
+const PAGE={
+ date:"2026-10-08",
+ slug:"viewer-chat-exploration",
+ quote:"Viewers can open every chat and read messages, steps and plans live, but never send. Hidden for viewers and refused by the server: composer, New chat, plan and merge actions, terminals, canvas editing, frame ⋯ actions, settings and copy link. … Starts with a design exploration of the viewer’s chat panel and canvas chrome. (#1933, under #1921 Sharing in the Mac app)",
+ q:"With the host-only controls gone, what does a viewer’s chat panel and canvas chrome look like?"
+};
+const TODAY={facts:[
+ "Captures are the Mac app’s canvas (desktop profile) as the host sees it. A viewer’s page renders the same canvas today, with every control showing even though the viewer listener refuses each action behind it (<code>server/viewer-allowlist.mjs</code>).",
+ "Under the transcript sit the composer (97px: text box, model picker, Plan, target, attach, send) and the terminal strip (36px: Preview and shell tabs, New terminal, Stop) (<code>components/agent/composer.tsx:1276</code>, <code>components/agent/terminal-pane.tsx:357</code>).",
+ "The chat header holds Chat options ⋯ and Create PR beside the title and diff stats (<code>components/agent/chat-panel.tsx</code>).",
+ "A pending plan card ends with Approve and Request changes (28px buttons). Question and merge cards end the same way, with buttons (<code>components/agent/agent-message.tsx:954</code>).",
+ "Canvas chrome: the draw toolbar at the bottom, ⋯ in the breadcrumb pill, + in the Pages panel, and on a frame with no chat, “Choose a chat” and a “Start a chat” button.",
+ "The Host is already marked by “Name (Host)” on their cursor and a house badge in the Pages panel (PR #1958)."
+],shots:[
+ S("today-chat","Today · chat panel paused on a plan"),
+ S("today-canvas","Today · canvas, chat panel closed")
+]};
+const ROUNDS=[
+{n:1,feedback:"",every:[
+ "Every option hides what the issue lists: the composer, New chat, plan, question and merge buttons, terminals, the draw toolbar, layer editing, frame ⋯ actions, the breadcrumb ⋯ (settings and copy link), Pages +, Choose a chat and Start a chat. The server refuses each of them on the viewer listener too.",
+ "What stays: the transcript with live steps, the chat header’s title, status and diff stats, the PR badge link, the chats menu to switch chats, zoom, pages, and the canvas itself.",
+ "Captures: the host’s page with option styling injected as CSS and JS, light and dark. “Local User” stands in for the host’s name. No app code was changed."
+],questions:[
+ {key:"composer",title:"Where the composer was",intro:"What the bottom of a viewer’s chat panel shows.",options:[
+  {id:"A",name:"Nothing",rec:true,state:"",
+   why:"The composer and terminal strip go, and the transcript runs to the bottom of the panel. Every viewer knows they can’t send because nothing offers to, and the cursor tag and Pages badge already say who the host is. It adds no element.",
+   cost:"Nothing says why there’s no composer. A viewer who expected to type has to work that out.",
+   shots:[S("q1a-chat","A · plan paused, no composer")]},
+  {id:"B",name:"A line in its place",state:"",
+   why:"A hairline, then one muted 13px line centred where the composer was: “Only Maya Chen can send in this chat.” It names the host and says plainly why the box is gone.",
+   cost:"A new bit of chrome that repeats on every chat, and copy to keep right when the host has no name.",
+   shots:[S("q1b-chat","B · note in the composer’s place")]},
+  {id:"C",name:"Composer, disabled",state:"",
+   why:"The text box stays at half opacity with the placeholder “Only Maya Chen can send in this chat”, and its controls row goes. The panel keeps the shape the host sees.",
+   cost:"A control that does nothing, which the design guide steers away from (decorative UI only shows behaviour the app has). It costs 50px of transcript.",
+   shots:[S("q1c-chat","C · disabled composer")]}
+ ]},
+ {key:"cards",title:"Plan, question and merge cards",intro:"How a card that waits on the host reads to a viewer.",options:[
+  {id:"A",name:"Card without its buttons",rec:true,state:"",
+   why:"The card keeps its content and drops its button row. Once the host answers, it shows the same approved, rejected or merged state the host sees. The orange dot in the header already says it’s waiting.",
+   cost:"While it waits, nothing on the card itself says it is waiting.",
+   shots:[S("q1a-chat","A · plan card without buttons")]},
+  {id:"B",name:"“Waiting for” line",state:"",
+   why:"The button row becomes one muted line: “Waiting for Maya Chen to approve”, or to answer or to merge on the other cards. The card says what it’s waiting on and who decides.",
+   cost:"Three new strings, and one more muted line on each waiting card.",
+   shots:[S("q2b-chat","B · plan card waiting on the host")]}
+ ]},
+ {key:"chrome",title:"Saying it’s view only",intro:"Whether the canvas says the viewer can only watch.",options:[
+  {id:"A",name:"No mark",rec:true,state:"",
+   why:"The host-only chrome just goes. The missing toolbar and composer, the Host marks and the fact that they opened a link already tell a viewer they’re watching.",
+   cost:"Nothing names the mode.",
+   shots:[S("q1a-top","A · breadcrumb and Pages, controls gone"),S("q1a-canvas","A · whole canvas")]},
+  {id:"B",name:"“View only” in the breadcrumb",state:"",
+   why:"The breadcrumb pill, which loses its ⋯, gains a hairline, a 16px Eye icon and “View only” in muted 13px. It is inside existing chrome, as the guide asks of a mode tag.",
+   cost:"The pill grows about 100px, and it is a new string a viewer sees on every canvas.",
+   shots:[S("q3b-top","B · breadcrumb with View only"),S("q3b-canvas","B · whole canvas")]}
+ ]}
+]}
+];
+</script>

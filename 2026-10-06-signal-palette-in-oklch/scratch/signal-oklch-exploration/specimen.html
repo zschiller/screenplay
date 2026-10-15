@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:IS;src:url(instrument-sans-latin.woff2) format("woff2");font-weight:400 700;font-stretch:75% 100%}
+*{box-sizing:border-box}svg{width:16px;height:16px;flex:none}.out{white-space:nowrap}html,body{margin:0}
+body{font-family:IS,system-ui;font-size:13px;background:var(--bg);color:var(--fg);padding:20px 24px;width:720px}
+.light{--bg:#fff;--fg:#000;--muted:#737373;--border:rgba(0,0,0,.12)}
+.dark{--bg:#000;--fg:#fff;--muted:#a1a1a1;--border:rgba(255,255,255,.16)}
+h6{font-size:12px;font-weight:400;color:var(--muted);margin:0 0 8px;letter-spacing:.02em}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:2px;color:#000;font-weight:500}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.ink{display:inline-flex;align-items:center;gap:6px;padding:0 6px 0 0;font-weight:500}
+.ink svg{width:16px;height:16px}
+.cur{position:relative;display:inline-flex;align-items:flex-start;gap:0;margin-right:10px;height:34px}
+.cur svg{width:16px;height:16px}
+.tag{margin-top:14px;margin-left:-4px;height:20px;padding:0 6px;border-radius:2px;color:#000;font-size:12px;font-weight:500;display:inline-flex;align-items:center}
+.sw{display:flex;gap:0;margin-bottom:18px}.sw div{flex:1;height:40px}
+.out{border:1px solid currentColor;border-radius:2px;height:24px;padding:0 8px;display:inline-flex;align-items:center;gap:6px;color:var(--fg)}
+.out.r{border-color:var(--border)}
+</style></head><body><div id=root></div>
+<script>
+const q=new URLSearchParams(location.search),opt=q.get('opt'),theme=q.get('theme');
+document.body.className=theme;
+const P=JSON.parse(decodeURIComponent(q.get('p')));
+const f=k=>P.fill[k],ink=k=>theme==='dark'?(k==='info'?'oklch(0.667 0.295 322.15)':P.fill[k]):P.ink[k];
+const ic={x:'<path d="M18 6 6 18M6 6l12 12"/>',check:'<path d="M20 6 9 17l-5-5"/>',pr:'<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v7M18 15.5V9a3 3 0 0 0-3-3h-4"/>',merge:'<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 8.5v7M6 9a6 6 0 0 0 9.5 3"/>',warn:'<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4M12 17h.01"/>',alert:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>'};
+const svg=(n,c)=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic[n]}</svg>`;
+const fills=[['destructive','Failed','x'],['attention','Needs you',null],['warning','Comment',null],['success','Done','check'],['info','Unread',null],['merged','Merged','merge']];
+let h=`<h6>FILLS · BLACK ON TOP</h6><div class=sw>${['destructive','attention','warning','success','info','merged','blue','cyan'].map(k=>`<div style="background:${f(k)}"></div>`).join('')}</div><div class=row>`;
+h+=fills.map(([k,l,i])=>`<span class=chip style="background:${f(k)}">${i?svg(i,'#000'):''}${l}</span>`).join('');
+h+=`</div><div class=row>`+fills.map(([k])=>`<span class=dot style="background:${f(k)}"></span>`).join('<span style="width:10px"></span>');
+const curs=[['Ada','blue'],['Ben','cyan'],['Cyd','attention'],['Dev','success'],['Eli','lime'],['Fay','lavender']].filter(([n,k])=>P.fill[k]);
+h+=`</div><div class=row>`+curs.map(([n,k])=>`<span class=cur><svg viewBox="0 0 16 16"><path d="M2 1.5 14 7.2l-5.3 1.5L6.4 14Z" fill="${f(k)}" stroke="${theme==='dark'?'#000':'#000'}" stroke-width="1.2" stroke-linejoin="round"/></svg><span class=tag style="background:${f(k)}">${n}</span></span>`).join('')+`</div>`;
+h+=`<h6>INK · ICONS AND TEXT ON THE PAGE</h6><div class=row>`;
+const inks=[['success','pr','#482'],['merged','merge','#477'],['destructive','pr','#481'],['destructive','alert','pnpm lint failed'],['warning','warn','Setup slow'],['info','info','Plan']];
+h+=inks.map(([k,i,l])=>`<span class=ink style="color:${ink(k)}">${svg(i,ink(k))}${l}</span>`).join('<span style="width:8px"></span>');
+h+=`<span style="width:8px"></span><span class=ink style="color:${ink('success')}">+46</span><span class=ink style="color:${ink('destructive')}">−4</span></div>`;
+h+=`<div class=row style="margin-bottom:0">`+[['success','check','Approved'],['destructive','x','Changes requested'],['merged','merge','Merged'],['warning','warn','Needs setup']].map(([k,i,l])=>`<span class="out r">${svg(i,ink(k))}${l}</span>`).join('')+`</div>`;
+document.getElementById('root').innerHTML=h;
+</script></body></html>

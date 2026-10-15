@@ -13,3 +13,7 @@
 **Not picked:** B, an Open row pinned under the prompt; C, Esc backing out to the file search.
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

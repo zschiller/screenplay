@@ -1,0 +1,410 @@
+diff --git a/apps/app/components/agent/agent-chat.tsx b/apps/app/components/agent/agent-chat.tsx
+index e830edc..7835e01 100644
+--- a/apps/app/components/agent/agent-chat.tsx
++++ b/apps/app/components/agent/agent-chat.tsx
+@@ -749,10 +749,10 @@ function FailedSendNotice({
+         <span className="mr-2 min-w-0 truncate text-destructive" title={error}>
+           Not sent: {describeSendError(error)}
+         </span>
+-        <Button variant="ghost" size="xs" onClick={onRetry}>
++        <Button variant="ghost" size="sm" onClick={onRetry}>
+           Retry
+         </Button>
+-        <Button variant="ghost" size="xs" onClick={onEdit}>
++        <Button variant="ghost" size="sm" onClick={onEdit}>
+           Edit
+         </Button>
+       </div>
+@@ -808,7 +808,7 @@ function QueuedRow({
+       <span className="min-w-0 flex-1 truncate" title={message}>
+         {message}
+       </span>
+-      <Button variant="ghost" size="xs" onClick={onEdit}>
++      <Button variant="ghost" size="sm" onClick={onEdit}>
+         Edit
+       </Button>
+       <IconButton label="Remove from queue" onClick={onRemove}>
+diff --git a/apps/app/components/agent/agent-message.tsx b/apps/app/components/agent/agent-message.tsx
+index 38f701f..c8fb242 100644
+--- a/apps/app/components/agent/agent-message.tsx
++++ b/apps/app/components/agent/agent-message.tsx
+@@ -1489,7 +1489,7 @@ function ErrorMessage({
+         {message.content}
+       </p>
+       {detail && (
+-        <Button variant="ghost" size="xs" onClick={copyError}>
++        <Button variant="ghost" size="sm" onClick={copyError}>
+           <CopyIcon />
+           Copy error
+         </Button>
+@@ -1497,7 +1497,7 @@ function ErrorMessage({
+       {onRetry && (
+         <Button
+           variant="outline"
+-          size="xs"
++          size="sm"
+           disabled={retrying}
+           onClick={async () => {
+             setRetrying(true)
+diff --git a/apps/app/components/agent/chat-panel.tsx b/apps/app/components/agent/chat-panel.tsx
+index ba0524d..c679a3e 100644
+--- a/apps/app/components/agent/chat-panel.tsx
++++ b/apps/app/components/agent/chat-panel.tsx
+@@ -350,7 +350,7 @@ function WorkspaceChatPanel({
+           )}
+           {existingPr ? (
+             <HintTooltip hint={prBlocked ? "Merge blocked" : undefined}>
+-              <Button size="xs" variant="outline" asChild>
++              <Button size="sm" variant="outline" asChild>
+                 <a
+                   href={existingPr.url}
+                   target="_blank"
+@@ -368,7 +368,7 @@ function WorkspaceChatPanel({
+             <HintTooltip hint={prReadiness.blocker?.reason}>
+               <span className="flex">
+                 <Button
+-                  size="xs"
++                  size="sm"
+                   variant="outline"
+                   onClick={prReadiness.run}
+                   disabled={prReadiness.running || !!prReadiness.blocker}
+diff --git a/apps/app/components/agent/chats-menu.tsx b/apps/app/components/agent/chats-menu.tsx
+index edfc122..07c1a31 100644
+--- a/apps/app/components/agent/chats-menu.tsx
++++ b/apps/app/components/agent/chats-menu.tsx
+@@ -478,7 +478,7 @@ export function ChatsMenuButton() {
+       <PopoverTrigger asChild>
+         <Button
+           variant="outline"
+-          size="xs"
++          size="sm"
+           aria-label="Chats"
+           aria-description={menu.needsYou ? "A chat needs you" : undefined}
+         >
+@@ -487,9 +487,9 @@ export function ChatsMenuButton() {
+           <span data-icon="inline-start" className="relative flex">
+             <ChatsIcon
+               className={cn(
+-                "size-3",
++                "size-4",
+                 menu.needsYou &&
+-                  "[mask-image:radial-gradient(circle_at_12px_0px,transparent_4.5px,black_5px)]"
++                  "[mask-image:radial-gradient(circle_at_16px_0px,transparent_4.5px,black_5px)]"
+               )}
+             />
+             {menu.needsYou ? (
+diff --git a/apps/app/components/agent/composer.tsx b/apps/app/components/agent/composer.tsx
+index d45ef9b..4936b76 100644
+--- a/apps/app/components/agent/composer.tsx
++++ b/apps/app/components/agent/composer.tsx
+@@ -1307,8 +1307,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
+               <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                 Couldn’t load models.
+                 <InputGroupButton
+-                  size="xs"
+-                  className="text-xs text-foreground"
++                  size="sm"
++                  className="text-foreground"
+                   onClick={retryModels}
+                 >
+                   Retry
+@@ -1341,8 +1341,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
+                       <span className="-ml-1.5 inline-flex">
+                         <DropdownMenuTrigger asChild>
+                           <InputGroupButton
+-                            size="xs"
+-                            className="text-xs text-foreground"
++                            size="sm"
++                            className="text-foreground"
+                           >
+                             {currentModelLabel}
+                             <CaretDownIcon />
+@@ -1388,11 +1388,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
+                 <Tooltip>
+                   <TooltipTrigger asChild>
+                     <InputGroupButton
+-                      size="xs"
++                      size="sm"
+                       variant={planMode ? "secondary" : "ghost"}
+                       onClick={() => onPlanModeChange(!planMode)}
+                       aria-pressed={!!planMode}
+-                      className="text-xs text-foreground"
++                      className="text-foreground"
+                     >
+                       <ClipboardTextIcon />
+                       Plan
+diff --git a/apps/app/components/agent/logs-panel.tsx b/apps/app/components/agent/logs-panel.tsx
+index b3bfe6e..2d0dabe 100644
+--- a/apps/app/components/agent/logs-panel.tsx
++++ b/apps/app/components/agent/logs-panel.tsx
+@@ -288,7 +288,7 @@ export function LogsPanel({
+         </span>
+         <Button
+           variant="outline"
+-          size="xs"
++          size="sm"
+           className="shrink-0"
+           onClick={retry}
+         >
+diff --git a/apps/app/components/agent/terminal-pane.tsx b/apps/app/components/agent/terminal-pane.tsx
+index ee3bacc..0fcd894 100644
+--- a/apps/app/components/agent/terminal-pane.tsx
++++ b/apps/app/components/agent/terminal-pane.tsx
+@@ -145,7 +145,7 @@ function StopOrRunButton({ devServer }: { devServer: DevServer }) {
+     <Button
+       type="button"
+       variant="ghost"
+-      size="xs"
++      size="sm"
+       className="font-normal text-muted-foreground"
+       disabled={pending}
+       onClick={action}
+diff --git a/apps/app/components/canvas/canvas-zoom-menu.tsx b/apps/app/components/canvas/canvas-zoom-menu.tsx
+index d1fdd73..085ebaa 100644
+--- a/apps/app/components/canvas/canvas-zoom-menu.tsx
++++ b/apps/app/components/canvas/canvas-zoom-menu.tsx
+@@ -51,9 +51,9 @@ export function CanvasZoomMenu({
+       <DropdownMenuTrigger asChild>
+         <Button
+           variant="ghost"
+-          size="xs"
++          size="sm"
+           aria-label={`Zoom, ${percent}%`}
+-          className="h-7 gap-0.5 px-1.5 font-normal tabular-nums"
++          className="gap-0.5 px-1.5 font-normal tabular-nums"
+         >
+           {percent}%
+           <CaretDownIcon className="text-muted-foreground" />
+diff --git a/apps/app/components/canvas/canvas.tsx b/apps/app/components/canvas/canvas.tsx
+index 98716a4..537812f 100644
+--- a/apps/app/components/canvas/canvas.tsx
++++ b/apps/app/components/canvas/canvas.tsx
+@@ -2623,7 +2623,7 @@ export function Canvas({
+                         {isOwner && (
+                           <>
+                             <Button
+-                              size="xs"
++                              size="sm"
+                               className="ml-1"
+                               onClick={() => setShareDialogOpen(true)}
+                             >
+diff --git a/apps/app/components/canvas/comment-thread-card.tsx b/apps/app/components/canvas/comment-thread-card.tsx
+index 64e7adc..368b54b 100644
+--- a/apps/app/components/canvas/comment-thread-card.tsx
++++ b/apps/app/components/canvas/comment-thread-card.tsx
+@@ -135,7 +135,7 @@ export function ThreadCard({
+         {place && <PlaceChip place={place} />}
+         <div className="ml-auto flex shrink-0 items-center">
+           <Button
+-            size="xs"
++            size="sm"
+             variant="ghost"
+             className="text-muted-foreground"
+             onClick={thread.resolved ? onReopen : onResolve}
+@@ -214,7 +214,7 @@ export function ThreadCard({
+             onSubmit={submitReply}
+           />
+           <ComposerFooter>
+-            <Button size="xs" onClick={submitReply} disabled={!reply.trim()}>
++            <Button size="sm" onClick={submitReply} disabled={!reply.trim()}>
+               Reply
+             </Button>
+           </ComposerFooter>
+@@ -343,13 +343,13 @@ function CommentRow({
+             />
+             <ComposerFooter>
+               <Button
+-                size="xs"
++                size="sm"
+                 variant="ghost"
+                 onClick={() => setEditing(false)}
+               >
+                 Cancel
+               </Button>
+-              <Button size="xs" onClick={save} disabled={!draft.trim()}>
++              <Button size="sm" onClick={save} disabled={!draft.trim()}>
+                 Save
+               </Button>
+             </ComposerFooter>
+diff --git a/apps/app/components/canvas/comments-panel.tsx b/apps/app/components/canvas/comments-panel.tsx
+index 791a73d..9b658cf 100644
+--- a/apps/app/components/canvas/comments-panel.tsx
++++ b/apps/app/components/canvas/comments-panel.tsx
+@@ -73,7 +73,7 @@ export function CommentsButton({
+         <TooltipTrigger asChild>
+           <Button
+             variant={open ? "secondary" : "ghost"}
+-            size="xs"
++            size="sm"
+             aria-label={label}
+             aria-pressed={open}
+             onClick={onToggle}
+@@ -551,7 +551,7 @@ function FilterButton({
+ }) {
+   return (
+     <Button
+-      size="xs"
++      size="sm"
+       variant={selected ? "secondary" : "ghost"}
+       aria-pressed={selected}
+       onClick={onClick}
+diff --git a/apps/app/components/canvas/comments.tsx b/apps/app/components/canvas/comments.tsx
+index 2bbe2e4..f5d7c1c 100644
+--- a/apps/app/components/canvas/comments.tsx
++++ b/apps/app/components/canvas/comments.tsx
+@@ -748,10 +748,10 @@ function NewThreadComposer({
+         onEscape={onCancel}
+       />
+       <ComposerFooter>
+-        <Button size="xs" variant="ghost" onClick={onCancel} disabled={pending}>
++        <Button size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
+           Cancel
+         </Button>
+-        <Button size="xs" onClick={submit} disabled={pending || empty}>
++        <Button size="sm" onClick={submit} disabled={pending || empty}>
+           Comment
+         </Button>
+       </ComposerFooter>
+diff --git a/apps/app/components/canvas/frame-ask-card.tsx b/apps/app/components/canvas/frame-ask-card.tsx
+index 571788f..654abe2 100644
+--- a/apps/app/components/canvas/frame-ask-card.tsx
++++ b/apps/app/components/canvas/frame-ask-card.tsx
+@@ -239,7 +239,7 @@ function AnswererChip({
+   const noRepository = answerer.kind === "sketch" && workspaces.length === 0
+   if (noRepository && !sketchChats?.length) {
+     return (
+-      <span className="-ml-1.5 inline-flex min-w-0 items-center px-2 text-xs text-foreground">
++      <span className="-ml-1.5 inline-flex min-w-0 items-center px-2.5 text-sm text-foreground">
+         New chat
+       </span>
+     )
+@@ -262,9 +262,9 @@ function AnswererChip({
+       <span className="-ml-1.5 inline-flex min-w-0">
+         <PopoverTrigger asChild>
+           <InputGroupButton
+-            size="xs"
++            size="sm"
+             aria-label="Who answers"
+-            className="max-w-48 text-xs text-foreground"
++            className="max-w-48 text-foreground"
+           >
+             {label}
+             <CaretDownIcon />
+diff --git a/apps/app/components/canvas/knobs-popover.tsx b/apps/app/components/canvas/knobs-popover.tsx
+index 321c3f3..de663da 100644
+--- a/apps/app/components/canvas/knobs-popover.tsx
++++ b/apps/app/components/canvas/knobs-popover.tsx
+@@ -81,7 +81,7 @@ export function KnobsPopover({
+               </p>
+               {onAskForKnob ? (
+                 <Button
+-                  size="xs"
++                  size="sm"
+                   variant="outline"
+                   className="mt-1 self-start"
+                   onClick={() => {
+diff --git a/apps/app/components/canvas/markdown-layer.tsx b/apps/app/components/canvas/markdown-layer.tsx
+index a386652..2d8a176 100644
+--- a/apps/app/components/canvas/markdown-layer.tsx
++++ b/apps/app/components/canvas/markdown-layer.tsx
+@@ -257,7 +257,7 @@ function NodeTypeDropdown({
+       <DropdownMenuTrigger asChild>
+         <Button
+           variant="ghost"
+-          size="xs"
++          size="sm"
+           tabIndex={-1}
+           className="text-muted-foreground"
+         >
+diff --git a/apps/app/components/knobs-panel.tsx b/apps/app/components/knobs-panel.tsx
+index 9fb1af7..851182b 100644
+--- a/apps/app/components/knobs-panel.tsx
++++ b/apps/app/components/knobs-panel.tsx
+@@ -113,7 +113,7 @@ export function KnobsPanel({
+         <span className="text-xs font-medium text-foreground">Knobs</span>
+         {defs.length > 0 || theme ? (
+           <Button
+-            size="xxs"
++            size="sm"
+             variant="ghost"
+             disabled={!hasOverrides}
+             onClick={resetAll}
+diff --git a/apps/app/components/panels/workspace-status-icon.tsx b/apps/app/components/panels/workspace-status-icon.tsx
+index 9fd2df1..878fc91 100644
+--- a/apps/app/components/panels/workspace-status-icon.tsx
++++ b/apps/app/components/panels/workspace-status-icon.tsx
+@@ -97,7 +97,7 @@ export function WorkspaceStatusIcon({
+         </pre>
+         <div className="flex items-center gap-2">
+           <Button
+-            size="xs"
++            size="sm"
+             onClick={() => {
+               setOpen(false)
+               onRetry()
+@@ -106,7 +106,7 @@ export function WorkspaceStatusIcon({
+             Retry
+           </Button>
+           <Button
+-            size="xs"
++            size="sm"
+             variant="outline"
+             onClick={() => {
+               setOpen(false)
+@@ -116,7 +116,7 @@ export function WorkspaceStatusIcon({
+             Recreate
+           </Button>
+           <Button
+-            size="xs"
++            size="sm"
+             variant="ghost"
+             className="ml-auto"
+             onClick={copyError}
+diff --git a/apps/app/components/repo-settings-fields.tsx b/apps/app/components/repo-settings-fields.tsx
+index e672e14..c27f529 100644
+--- a/apps/app/components/repo-settings-fields.tsx
++++ b/apps/app/components/repo-settings-fields.tsx
+@@ -266,7 +266,7 @@ export function RepoSettingsFields({
+                     (envVarsAccess.locked ? (
+                       <Button
+                         variant="ghost"
+-                        size="xs"
++                        size="sm"
+                         className="-my-1"
+                         onClick={envVarsAccess.onReveal}
+                         disabled={envVarsAccess.revealing}
+@@ -284,7 +284,7 @@ export function RepoSettingsFields({
+                     ) : (
+                       <Button
+                         variant="ghost"
+-                        size="xs"
++                        size="sm"
+                         className="-my-1"
+                         onClick={envVarsAccess.onHide}
+                       >
+diff --git a/packages/ui/src/components/button.tsx b/packages/ui/src/components/button.tsx
+index c44ec67..373ba45 100644
+--- a/packages/ui/src/components/button.tsx
++++ b/packages/ui/src/components/button.tsx
+@@ -25,7 +25,7 @@ const buttonVariants = cva(
+           "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 has-data-[slot=kbd]:pr-1.5",
+         xxs: "h-5 gap-0.5 rounded-[min(var(--radius-md),6px)] px-1.5 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 has-data-[slot=kbd]:pr-1 [&_svg:not([class*='size-'])]:size-2.5",
+         xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 has-data-[slot=kbd]:pr-1 [&_svg:not([class*='size-'])]:size-3",
+-        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-sm in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 has-data-[slot=kbd]:pr-1.5 [&_svg:not([class*='size-'])]:size-3.5",
++        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-sm in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 has-data-[slot=kbd]:pr-1.5",
+         lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 has-data-[slot=kbd]:pr-1.5",
+         icon: "size-8",
+         "icon-xxs":
+diff --git a/packages/ui/src/components/input-group.tsx b/packages/ui/src/components/input-group.tsx
+index 000351a..f90c5b1 100644
+--- a/packages/ui/src/components/input-group.tsx
++++ b/packages/ui/src/components/input-group.tsx
+@@ -71,7 +71,7 @@ const inputGroupButtonVariants = cva(
+     variants: {
+       size: {
+         xs: "h-6 gap-1 rounded-[calc(var(--radius)-3px)] px-1.5 [&>svg:not([class*='size-'])]:size-3.5",
+-        sm: "",
++        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 has-[>svg]:px-2",
+         "icon-xs":
+           "size-6 rounded-[calc(var(--radius)-3px)] p-0 has-[>svg]:p-0 [&>svg:not([class*='size-'])]:size-3.5",
+         "icon-sm": "size-8 p-0 has-[>svg]:p-0",

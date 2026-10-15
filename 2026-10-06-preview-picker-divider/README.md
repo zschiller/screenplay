@@ -9,3 +9,7 @@
 **Question:** How should the running-previews picker separate New chat… from the previews, short list and long?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

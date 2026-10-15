@@ -1,0 +1,9 @@
+/* C: Soft chip. Bold ink text on the code-chip fill. */
+.inline-ref {
+  background-color: color-mix(in oklab, var(--foreground) 7%, transparent) !important;
+  border-radius: 0.375rem !important;
+  padding: 0.05em 0.35em 0.1em 0.3em !important;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.chat-markdown-bubble .inline-ref { background-color: color-mix(in oklab, var(--foreground) 9%, transparent) !important; }
+.inline-ref { white-space: nowrap; }

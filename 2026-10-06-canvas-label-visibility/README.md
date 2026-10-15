@@ -9,3 +9,7 @@
 **Question:** What rule should decide which canvas labels show as you zoom out?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Screenplay</title>
+<style>
+:root{color-scheme:light dark;--background:#fff;--foreground:#000}
+@media (prefers-color-scheme:dark){:root{--background:#000;--foreground:#fff}}
+:root[data-t=light]{--background:#fff;--foreground:#000;color-scheme:light}
+:root[data-t=dark]{--background:#000;--foreground:#fff;color-scheme:dark}
+html,body{margin:0;height:100%;background:var(--background);color:var(--foreground)}
+.wrap{height:100%;display:grid;place-items:center}
+.stage{position:relative;overflow:hidden}
+.stage canvas{position:absolute;left:0;top:0;image-rendering:pixelated}
+.status{opacity:1}
+:root[data-manual] .status{opacity:1;animation:none}
+@keyframes in{to{opacity:1}}
+</style>
+</head>
+<body>
+<main class="wrap"><div class="status" role="status" aria-label="Starting Screenplay"><div class="stage" id="stage"><canvas id="c"></canvas></div></div></main>
+<script>

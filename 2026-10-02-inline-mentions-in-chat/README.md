@@ -9,3 +9,7 @@
 **Question:** How should a Workspace, document, frame or mockup look when a chat message names it?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

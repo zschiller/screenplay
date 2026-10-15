@@ -1,0 +1,1042 @@
+diff --git a/packages/skill-templates/src/exploration/exploration.tsx b/packages/skill-templates/src/exploration/exploration.tsx
+index 6fee46a..c157a99 100644
+--- a/packages/skill-templates/src/exploration/exploration.tsx
++++ b/packages/skill-templates/src/exploration/exploration.tsx
+@@ -10,7 +10,12 @@ import { flushSync } from "react-dom"
+ import { useSharedState } from "@screenplay.space/state"
+ 
+ import { Button } from "@workspace/ui/components/button"
+-import { CheckIcon, XIcon } from "@workspace/ui/components/icons"
++import {
++  CaretLeftIcon,
++  CaretRightIcon,
++  CheckIcon,
++  XIcon,
++} from "@workspace/ui/components/icons"
+ import { TabsContent } from "@workspace/ui/components/tabs"
+ 
+ import {
+@@ -33,9 +38,21 @@ import {
+ } from "../shared/kit.tsx"
+ import { CopyBar, Facts, Html, Label, load, store } from "../shared/page.tsx"
+ import { Shots } from "../shared/shots.tsx"
++import { Choices } from "../shared/choices.tsx"
+ import { useTheme } from "../shared/theme.tsx"
+ import type { Option, Page, Question, Round, Today } from "./types.ts"
+ 
++// SCRATCH: round 2 variants (?p= pick, ?h= option head, ?o= round opening)
++const V = new URLSearchParams(location.search)
++const VP = V.get("p"), VH = V.get("h"), VO = V.get("o"), VL = V.get("l")
++// Round 3: two columns that navigate (?n=a questions+options rail, b questions rail + letters, c rounds too)
++const VN = V.get("n")
++const WIDE = VL || (VN && VN !== "e" && !(VN === "g" && innerWidth < 1024)) ? "1232px" : undefined
++const ONE = VN === "e" || VN === "g"
++const NavCtx = React.createContext<{ tab: string; setTab: (t: string) => void; rounds: Round[] } | null>(null)
++const STICK = "lg:sticky lg:top-[calc(var(--top-bar,0px)+16px)] lg:self-start"
++const BarPick = React.createContext<(p: { q: Question; opt: string } | null) => void>(() => {})
++
+ const SIGN = [
+   ["ok", "Looks good"],
+   ["changes", "Needs changes"],
+@@ -172,13 +189,27 @@ export function Exploration({
+   )
+ 
+   const [tab, setTab] = React.useState(`r${latest.n}`)
++  const [barQ, setBarQ] = React.useState<{ q: Question; opt: string } | null>(null)
++  const barPick =
++    VP === "b" && barQ && tab === `r${latest.n}` ? (
++      <Button
++        type="button"
++        variant={picks[barQ.q.key] === barQ.opt ? "default" : "outline"}
++        onClick={() => pick(barQ.q.key, barQ.opt)}
++      >
++        {picks[barQ.q.key] === barQ.opt ? `Picked ${barQ.opt}` : `Pick ${barQ.opt}`}
++      </Button>
++    ) : null
+   useSharedState("round", tab, setTab)
+   const pickProps = { picks, pick, sent: answered ? linked!.q.key : undefined }
+ 
+   return (
++    <BarPick.Provider value={setBarQ}>
+     <Shell
+       title={page.q}
+-      tabs={[
++      titleOnScroll={VO === "b" || VL === "c"}
++      width={WIDE}
++      tabs={VN === "c" && innerWidth >= 1024 ? [] : [
+         { value: "today", label: "Today" },
+         ...[...rounds].reverse().map((r) => ({
+           value: `r${r.n}`,
+@@ -200,10 +231,22 @@ export function Exploration({
+           outLabel="Reaction to copy"
+           text={text}
+           send
++          extra={barPick}
++          maxWidth={WIDE}
+         />
+       }
+     >
+-      <Intro meta={`Design exploration · ${page.date}`} quote={page.quote} />
++      {VO === "b" && (
++        <h2 id="page-q" className="m-0 max-w-[40ch] font-heading text-title-md text-balance">
++          {page.q}
++        </h2>
++      )}
++      {(!VO || VO === "b") && !(VL === "c" && tab !== "today") && !(VN && tab !== "today") && (
++        <Intro meta={`Design exploration · ${page.date}`} quote={page.quote} />
++      )}
++      {VO === "a" && tab === "today" && (
++        <Intro meta={`Design exploration · ${page.date}`} quote={page.quote} />
++      )}
+       {rounds.map((r) => (
+         <TabsContent
+           key={r.n}
+@@ -211,7 +254,13 @@ export function Exploration({
+           forceMount
+           hidden={tab !== `r${r.n}`}
+         >
+-          <RoundPanel round={r} live={r === latest} {...pickProps} />
++          <NavCtx.Provider value={{ tab, setTab, rounds }}>
++            {VN ? (
++              <NavRound round={r} live={r === latest} page={page} {...pickProps} />
++            ) : (
++              <RoundPanel round={r} live={r === latest} page={page} {...pickProps} />
++            )}
++          </NavCtx.Provider>
+         </TabsContent>
+       ))}
+       <TabsContent value="today" forceMount hidden={tab !== "today"}>
+@@ -223,6 +272,7 @@ export function Exploration({
+         </section>
+       </TabsContent>
+     </Shell>
++    </BarPick.Provider>
+   )
+ }
+ 
+@@ -235,11 +285,523 @@ const outcome = (r: Round) => {
+   return p.length ? p.join(", ") : "no pick"
+ }
+ 
++/** A capture stage: captures sit on a muted surface so they read as content, not page chrome. */
++function Stage({ o }: { o: Option }) {
++  if (!o.shots?.length && !o.html) return null
++  return (
++    <div className="flex min-w-0 flex-col items-center gap-4 bg-muted px-4 py-5 md:px-8 md:py-8">
++      {o.html && <Html as="div" html={o.html} />}
++      <Shots
++        list={o.shots}
++        className={"w-full items-center " + (o.state === "rejected" ? "opacity-55" : "")}
++      />
++    </div>
++  )
++}
++
++function NavRound({
++  round: r,
++  live,
++  page,
++  picks,
++  pick,
++}: { round: Round; live: boolean; page: Page } & PickProps) {
++  const nav = React.useContext(NavCtx)!
++  const n = r.questions.length
++  const [qi, setQi] = React.useState(VN === "g" && innerWidth >= 1024 ? -1 : 0)
++  const [opts, setOpts] = React.useState<Record<string, string>>(() =>
++    Object.fromEntries(
++      r.questions.map((q) => [q.key, (q.options.find((o) => o.state === "picked") ?? q.options[0]!).id])
++    )
++  )
++  const q = r.questions[Math.max(0, qi)]!
++  const opt = opts[q.key]!
++  const o = q.options.find((x) => x.id === opt)!
++  const goQ = (i: number) => {
++    setQi(i)
++    scrollTo({ top: 0, behavior: "instant" })
++  }
++  const setOpt = (id: string) => id && setOpts({ ...opts, [q.key]: id })
++  const answerOf = (qq: Question) => (live ? picks[qq.key] : qq.options.find((x) => x.state === "picked")?.id)
++  const row = (current: boolean) =>
++    "h-auto min-h-8 w-full justify-start gap-2.5 py-1.5 text-left whitespace-normal " +
++    (current ? "bg-muted font-medium font-stretch-[98.8%] text-foreground" : "font-normal text-muted-foreground")
++  const rail = (
++    <aside className={"hidden min-w-0 flex-col gap-5 pt-2.5 lg:flex " + STICK}>
++      {VN === "c" && (
++        <nav aria-label="Rounds" className="flex flex-col gap-0.5">
++          <Label className="mb-1">Rounds</Label>
++          {[{ value: "today", label: "Today" }, ...[...nav.rounds].reverse().map((x) => ({ value: `r${x.n}`, label: `Round ${x.n}` }))].map((t) => (
++            <Button key={t.value} type="button" variant="ghost" className={row(nav.tab === t.value)} onClick={() => nav.setTab(t.value)}>
++              {t.label}
++            </Button>
++          ))}
++        </nav>
++      )}
++      {r.feedback && (
++        <Intro
++          meta={`Round ${r.n} · ${live ? "open" : outcome(r)}`}
++          quote={<Html as="span" className="line-clamp-3" html={r.feedback} />}
++        />
++      )}
++      <nav aria-label="Questions" className="flex flex-col gap-0.5">
++        <Label className="mb-1">
++          {n} {n > 1 ? "questions" : "question"}
++        </Label>
++        {r.questions.map((qq, i) => {
++          const a = answerOf(qq)
++          return (
++            <div key={qq.key} className="flex flex-col gap-0.5">
++              <Button type="button" variant="ghost" className={row(i === qi) + (i === qi && VN !== "b" ? " bg-transparent" : "")} aria-current={i === qi} onClick={() => goQ(i)}>
++                <span className="w-4 flex-none font-mono text-xs text-muted-foreground tabular-nums">{i + 1}</span>
++                <span className="line-clamp-2 min-w-0 flex-1">{qq.title || page.q}</span>
++                {a ? (
++                  <span className="flex flex-none items-center gap-1 font-mono text-xs font-semibold text-foreground">
++                    {a}
++                    <CheckIcon className="size-3.5 text-success" />
++                  </span>
++                ) : (
++                  <span aria-label="open" className="size-1.5 flex-none rounded-full border border-muted-foreground" />
++                )}
++              </Button>
++              {VN !== "b" && i === qi && !signoff(qq) && (
++                <div className="ml-6 flex flex-col gap-0.5 border-l pl-2">
++                  {qq.options.map((x) => (
++                    <Button key={x.id} type="button" variant="ghost" className={row(x.id === opt)} aria-current={x.id === opt} onClick={() => setOpt(x.id)}>
++                      <span className="flex-none font-mono font-semibold text-foreground">{x.id}</span>
++                      <span className="min-w-0 flex-1">{x.name}</span>
++                      <Mark o={x} mine={live && picks[qq.key] === x.id} />
++                    </Button>
++                  ))}
++                </div>
++              )}
++            </div>
++          )
++        })}
++      </nav>
++      {r.every && (
++        <Fold title="In every option">
++          <Facts items={r.every} />
++        </Fold>
++      )}
++    </aside>
++  )
++  const letters = (
++    <Segmented
++      aria-label="Options"
++      value={opt}
++      onChange={setOpt}
++      items={q.options.map((x) => ({
++        value: x.id,
++        label: (
++          <>
++            <span className="font-mono font-semibold">{x.id}</span>
++            <Mark o={x} mine={live && picks[q.key] === x.id} />
++          </>
++        ),
++      }))}
++      className="flex w-fit"
++      itemClassName="min-w-14"
++    />
++  )
++  const mine = picks[q.key]
++  const oi = q.options.findIndex((x) => x.id === opt)
++  const stepO = (d: number) => setOpt(q.options[(oi + d + q.options.length) % q.options.length]!.id)
++  React.useEffect(() => {
++    if (VN !== "f" && !ONE) return
++    const on = (e: KeyboardEvent) => {
++      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
++      if (e.metaKey || e.ctrlKey || e.altKey || nav.tab !== `r${r.n}`) return
++      const t = e.target as HTMLElement
++      if (t.closest("input,textarea,[role=radiogroup],[role=group],[contenteditable=true]")) return
++      e.preventDefault()
++      stepO(e.key === "ArrowRight" ? 1 : -1)
++    }
++    addEventListener("keydown", on)
++    return () => removeEventListener("keydown", on)
++  })
++  if (VN === "g" && innerWidth >= 1024) {
++    const about = qi < 0
++    const answers = (qq: Question) => answerOf(qq)
++    return (
++      <section className="grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[224px_minmax(0,1fr)_320px]">
++        <nav aria-label="Questions" className={"hidden min-w-0 flex-col xl:flex " + STICK}>
++          <div className="mb-1 flex items-baseline justify-between">
++            <Label>Round {r.n}</Label>
++            <span className="font-mono text-xs text-muted-foreground tabular-nums">
++              {r.questions.filter((x) => answers(x)).length}/{n}
++            </span>
++          </div>
++          {[{ key: "about", title: "About this round" } as unknown as Question, ...r.questions].map((qq, j) => {
++            const i = j - 1
++            const done = i < 0 ? true : !!answers(qq)
++            return (
++              <button
++                key={qq.key}
++                type="button"
++                aria-current={i === qi ? "true" : undefined}
++                onClick={() => goQ(i)}
++                className={
++                  "-mx-2 grid grid-cols-[8px_28px_minmax(0,1fr)] items-baseline gap-x-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground " +
++                  (i === qi ? "bg-muted font-medium text-foreground" : "")
++                }
++              >
++                <span aria-label={done ? "answered" : "open"} className={"size-1.5 -translate-y-px rounded-full border border-current " + (done && i >= 0 ? "bg-current" : i < 0 ? "border-transparent bg-current" : "")} />
++                <span className="font-mono text-xs">{i < 0 ? "" : i + 1}</span>
++                <span className="line-clamp-2 min-w-0">{i < 0 ? "About this round" : qq.title || page.q}</span>
++              </button>
++            )
++          })}
++        </nav>
++        {about ? (
++          <div className="flex min-w-0 flex-col gap-5">
++            <Intro meta={`Round ${r.n} · ${live ? "open" : outcome(r)}`} quote={<Html as="span" html={r.feedback || page.quote} />} />
++            {r.every && (
++              <section className="flex flex-col gap-2">
++                <Label>In every option</Label>
++                <Facts items={r.every} />
++              </section>
++            )}
++          </div>
++        ) : (
++          <div className="flex min-w-0 flex-col gap-4">
++            {!signoff(q) && letters}
++            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
++              <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
++              {o.rec && <Rec />}
++              {o.state === "picked" && <Tag tone="done">Picked</Tag>}
++              {o.state === "rejected" && <Tag tone="no">Rejected</Tag>}
++            </div>
++            {o.why && <Html as="p" html={o.why} className="max-w-[72ch] text-sm" />}
++            {o.cost && (
++              <p className="m-0 max-w-[72ch] text-sm text-muted-foreground">
++                <b className="font-medium text-foreground">Cost</b> <Html as="span" html={o.cost} />
++              </p>
++            )}
++            <Stage o={o} />
++          </div>
++        )}
++        <aside className={"flex min-w-0 flex-col gap-4 " + STICK}>
++          {about ? (
++            <p className="m-0 text-sm text-muted-foreground">
++              {n} {n > 1 ? "questions" : "question"} this round. Each shows one option at a time; answer on the right.
++            </p>
++          ) : (
++            <>
++              <h2 className="m-0 text-base leading-snug font-medium text-pretty">{q.title || page.q}</h2>
++              {q.intro && <Html as="p" html={q.intro} className="text-sm text-muted-foreground" />}
++              {live ? (
++                <Choices
++                  name={`answer-${r.n}-${q.key}`}
++                  value={mine}
++                  onChange={(v) => {
++                    pick(q.key, v)
++                    if (!signoff(q)) setOpt(v)
++                  }}
++                  choices={
++                    signoff(q)
++                      ? SIGN.map(([value, label]) => ({ value, label }))
++                      : q.options.map((x) => ({ value: x.id, label: `${x.id} · ${x.name}`, rec: x.rec }))
++                  }
++                />
++              ) : (
++                <p className="m-0 text-sm">{outcome(r)}</p>
++              )}
++            </>
++          )}
++          <div className="flex items-center justify-between gap-3 border-t pt-4">
++            <Button type="button" variant="ghost" disabled={qi < 0} onClick={() => goQ(qi - 1)} className="-ml-2.5 text-muted-foreground">
++              {qi > 0 ? `Previous: ${qi}` : "Previous"}
++            </Button>
++            <span className="font-mono text-xs text-muted-foreground tabular-nums">{about ? `${n} questions` : `${qi + 1} of ${n}`}</span>
++            <Button type="button" variant="outline" disabled={qi === n - 1} onClick={() => goQ(qi + 1)}>
++              {qi < n - 1 ? `Next: ${qi + 2}` : "Next"}
++            </Button>
++          </div>
++        </aside>
++      </section>
++    )
++  }
++  if (VN === "f")
++    return (
++      <section className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-10">
++        <div className="flex min-w-0 flex-col gap-5">
++          {r.feedback && (
++            <Intro meta={`Round ${r.n} · ${live ? "open" : outcome(r)}`} quote={<Html as="span" className="line-clamp-3" html={r.feedback} />} />
++          )}
++          <header className="flex flex-col gap-1.5 border-b pb-4">
++            <Label>Question {qi + 1} of {n}</Label>
++            <h2 className="m-0 font-heading text-title-md text-balance">{q.title || page.q}</h2>
++            {q.intro && <Html as="p" html={q.intro} className="max-w-[72ch] text-sm text-muted-foreground" />}
++          </header>
++          {!signoff(q) && <div className="lg:hidden">{letters}</div>}
++          {/* Phone: the same as one column */}
++          <div className="flex items-center gap-3 lg:hidden">
++            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
++              <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
++              {o.rec && <Rec />}
++            </div>
++            {live && !signoff(q) && (
++              <Button type="button" variant={mine === o.id ? "default" : "outline"} aria-pressed={mine === o.id} onClick={() => pick(q.key, o.id)}>
++                {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
++              </Button>
++            )}
++          </div>
++          <Stage o={o} />
++          <div className="flex flex-col gap-3 lg:hidden">
++            {o.why && <Html as="p" html={o.why} className="text-sm" />}
++            {o.cost && (
++              <p className="m-0 text-sm text-muted-foreground">
++                <b className="font-medium text-foreground">Cost</b> <Html as="span" html={o.cost} />
++              </p>
++            )}
++            {qi < n - 1 && (
++              <Button type="button" variant="outline" className="w-fit" onClick={() => goQ(qi + 1)}>
++                Next: {r.questions[qi + 1]!.title || "question " + (qi + 2)}
++                <CaretRightIcon data-icon="inline-end" />
++              </Button>
++            )}
++          </div>
++        </div>
++        <aside className={"hidden min-w-0 flex-col gap-4 lg:flex " + STICK}>
++          {signoff(q) ? (
++            live && <Segmented aria-label="Sign off" value={mine ?? ""} onChange={(v) => pick(q.key, v || mine!)} items={SIGN.map(([value, label]) => ({ value, label }))} />
++          ) : (
++            <>
++              <div className="hidden lg:block">
++                <Choices
++                  name={`view-${r.n}-${q.key}`}
++                  value={opt}
++                  onChange={setOpt}
++                  choices={q.options.map((x) => ({
++                    value: x.id,
++                    label: `${x.id}  ${x.name}` + (live && mine === x.id ? "  · Picked" : x.state === "picked" ? "  · Picked" : x.state === "rejected" ? "  · Rejected" : ""),
++                    detail: x.id === opt ? x.why?.replace(/<[^>]+>/g, "") : undefined,
++                    rec: x.rec,
++                  }))}
++                />
++              </div>
++              <div className="flex flex-col gap-3 lg:hidden">
++                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
++                  <ItemHead id={o.id} title={o.name} large />
++                  {o.rec && <Rec />}
++                </div>
++                {o.why && <Html as="p" html={o.why} className="text-sm" />}
++              </div>
++              {o.cost && (
++                <p className="m-0 text-sm text-muted-foreground">
++                  <b className="font-medium text-foreground">Cost</b> <Html as="span" html={o.cost} />
++                </p>
++              )}
++              {live && (
++                <Button type="button" className="w-full" variant={mine === o.id ? "default" : "outline"} aria-pressed={mine === o.id} onClick={() => pick(q.key, o.id)}>
++                  {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
++                </Button>
++              )}
++            </>
++          )}
++          {n > 1 && (
++            <div className="flex items-center justify-between gap-3 border-t pt-4">
++              <Button type="button" variant="ghost" disabled={qi === 0} onClick={() => goQ(qi - 1)} className="-ml-2.5 text-muted-foreground">
++                Previous
++              </Button>
++              <span className="font-mono text-xs text-muted-foreground tabular-nums">
++                {qi + 1} of {n}
++              </span>
++              <Button type="button" variant="outline" disabled={qi === n - 1} onClick={() => goQ(qi + 1)}>
++                Next question
++              </Button>
++            </div>
++          )}
++        </aside>
++      </section>
++    )
++  if (VN === "d")
++    return (
++      <section className="grid min-w-0 gap-8 lg:grid-cols-[224px_minmax(0,1fr)_320px] lg:gap-10">
++        {rail}
++        <div className="flex min-w-0 flex-col gap-5">
++          <div className="flex flex-col gap-3 lg:hidden">
++            {r.feedback && (
++              <Intro meta={`Round ${r.n} · ${live ? "open" : outcome(r)}`} quote={<Html as="span" className="line-clamp-3" html={r.feedback} />} />
++            )}
++          </div>
++          <header className="flex flex-col gap-1.5 border-b pb-4">
++            <Label className="flex min-h-9 items-center">Question {qi + 1} of {n}</Label>
++            <h2 className="m-0 font-heading text-title-md text-balance">{q.title || page.q}</h2>
++            {q.intro && <Html as="p" html={q.intro} className="max-w-[72ch] text-sm text-muted-foreground" />}
++          </header>
++          {!signoff(q) && <div className="lg:hidden">{letters}</div>}
++          <Stage o={o} />
++        </div>
++        <aside className={"flex min-w-0 flex-col gap-4 lg:pt-2.5 " + STICK}>
++          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
++            <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
++            {o.rec && <Rec />}
++          </div>
++          {o.why && <Html as="p" html={o.why} className="text-sm" />}
++          {o.cost && (
++            <p className="m-0 text-sm text-muted-foreground">
++              <b className="font-medium text-foreground">Cost</b> <Html as="span" html={o.cost} />
++            </p>
++          )}
++          {live && !signoff(q) && (
++            <Button type="button" className="w-full" variant={mine === o.id ? "default" : "outline"} aria-pressed={mine === o.id} onClick={() => pick(q.key, o.id)}>
++              {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
++            </Button>
++          )}
++          <div className="flex items-center gap-2 border-t pt-3">
++            <Button type="button" variant="outline" size="icon" aria-label="Previous option" onClick={() => stepO(-1)}>
++              <CaretLeftIcon />
++            </Button>
++            <span className="flex-1 text-center font-mono text-xs text-muted-foreground tabular-nums">
++              {o.id} · {oi + 1} of {q.options.length}
++            </span>
++            <Button type="button" variant="outline" size="icon" aria-label="Next option" onClick={() => stepO(1)}>
++              <CaretRightIcon />
++            </Button>
++          </div>
++          {qi < n - 1 && (
++            <Button type="button" variant="ghost" className="-ml-2.5 h-auto w-fit justify-start py-1.5 text-left whitespace-normal text-muted-foreground" onClick={() => goQ(qi + 1)}>
++              Next question: {r.questions[qi + 1]!.title || qi + 2}
++              <CaretRightIcon data-icon="inline-end" />
++            </Button>
++          )}
++        </aside>
++      </section>
++    )
++  return (
++    <section className={ONE ? "flex min-w-0 flex-col" : "grid min-w-0 gap-8 lg:grid-cols-[272px_minmax(0,1fr)] lg:gap-12"}>
++      {!ONE && rail}
++      <div className="flex min-w-0 flex-col gap-5">
++        {/* Phone: the round's feedback opens the round, and a stepper moves between questions */}
++        <div className={"flex flex-col gap-3 " + (ONE ? "" : "lg:hidden")}>
++          {r.feedback && (
++            <Intro meta={`Round ${r.n} · ${live ? "open" : outcome(r)}`} quote={<Html as="span" className="line-clamp-3" html={r.feedback} />} />
++          )}
++        </div>
++        <header className="flex flex-col gap-1.5 border-b pb-4">
++          <div className="flex items-center gap-2">
++            <Label className="flex-1">
++              Question {qi + 1} of {n}
++            </Label>
++            <Button type="button" variant="outline" size="icon" aria-label="Previous question" disabled={qi === 0} onClick={() => goQ(qi - 1)}>
++              <CaretLeftIcon />
++            </Button>
++            <Button type="button" variant="outline" size="icon" aria-label="Next question" disabled={qi === n - 1} onClick={() => goQ(qi + 1)}>
++              <CaretRightIcon />
++            </Button>
++          </div>
++          <h2 className="m-0 font-heading text-title-md text-balance">{q.title || page.q}</h2>
++          {q.intro && <Html as="p" html={q.intro} className="max-w-[72ch] text-sm text-muted-foreground" />}
++        </header>
++        {!signoff(q) && <div className={VN === "b" || ONE ? "" : "lg:hidden"}>{letters}</div>}
++        <article className="flex min-w-0 flex-col gap-4">
++          <div className="flex items-center gap-3">
++            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
++              <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
++              {o.rec && <Rec />}
++              {o.state === "picked" && <Tag tone="done">Picked</Tag>}
++              {o.state === "rejected" && <Tag tone="no">Rejected</Tag>}
++            </div>
++            {live &&
++              (signoff(q) ? (
++                <Segmented aria-label="Sign off" value={mine ?? ""} onChange={(v) => pick(q.key, v || mine!)} items={SIGN.map(([value, label]) => ({ value, label }))} />
++              ) : (
++                <Button type="button" variant={mine === o.id ? "default" : "outline"} aria-pressed={mine === o.id} onClick={() => pick(q.key, o.id)}>
++                  {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
++                </Button>
++              ))}
++          </div>
++          <Stage o={o} />
++          {o.why && <Html as="p" html={o.why} className="max-w-[72ch] text-sm" />}
++          {o.cost && (
++            <p className="m-0 max-w-[72ch] text-sm text-muted-foreground">
++              <b className="font-medium text-foreground">Cost</b> <Html as="span" html={o.cost} />
++            </p>
++          )}
++        </article>
++        {qi < n - 1 && (
++          <Button type="button" variant="outline" className="w-fit" onClick={() => goQ(qi + 1)}>
++            Next: {r.questions[qi + 1]!.title || "question " + (qi + 2)}
++            <CaretRightIcon data-icon="inline-end" />
++          </Button>
++        )}
++      </div>
++    </section>
++  )
++}
++
+ function RoundPanel({
+   round: r,
+   live,
++  page,
+   ...pickProps
+-}: { round: Round; live: boolean } & PickProps) {
++}: { round: Round; live: boolean; page: Page } & PickProps) {
++  const qs = r.questions.map((q, i) => (
++    <QuestionBlock key={q.key} round={r} q={q} i={i} live={live} {...pickProps} />
++  ))
++  if (VL === "c")
++    return (
++      <section className="grid min-w-0 gap-10 lg:grid-cols-[288px_minmax(0,1fr)] lg:gap-12">
++        <aside className={"flex min-w-0 flex-col gap-3 " + STICK}>
++          <h2 id="page-q" className="m-0 font-heading text-title-sm text-balance">{page.q}</h2>
++          <Intro
++            meta={`Round ${r.n} · ${live ? "open" : outcome(r)}`}
++            quote={<Html as="span" html={r.feedback || page.quote} />}
++          />
++          {r.every && (
++            <Fold title="In every option">
++              <Facts items={r.every} />
++            </Fold>
++          )}
++        </aside>
++        <div className="flex min-w-0 flex-col gap-10">{qs}</div>
++      </section>
++    )
++  if (VO === "a")
++    return (
++      <section className="flex min-w-0 flex-col gap-10">
++        <div className="-mb-4 flex flex-col gap-3">
++          <Intro
++            meta={`Round ${r.n} · ${live ? "open" : outcome(r)}`}
++            quote={
++              <Html
++                as="span"
++                className="line-clamp-3"
++                html={r.feedback || page.quote}
++              />
++            }
++          />
++          {r.every && (
++            <Fold title="In every option">
++              <Facts items={r.every} />
++            </Fold>
++          )}
++        </div>
++        {qs}
++      </section>
++    )
++  if (VO === "c")
++    return (
++      <section className="flex min-w-0 flex-col gap-10">
++        <div className="-mb-4 flex flex-col gap-2">
++          <Fold title={`What started round ${r.n}`}>
++            <div className="flex flex-col gap-3.5">
++              <Label>Design exploration · {page.date}</Label>
++              <Quote><Html as="span" html={r.feedback || page.quote} /></Quote>
++              {r.every && (
++                <>
++                  <Label>In every option</Label>
++                  <Facts items={r.every} />
++                </>
++              )}
++            </div>
++          </Fold>
++        </div>
++        {qs}
++      </section>
++    )
+   return (
+     <section className="flex min-w-0 flex-col gap-10">
+       {(r.feedback || r.every) && (
+@@ -306,6 +868,10 @@ function QuestionBlock({
+     () => (q.options.find((o) => o.state === "picked") ?? q.options[0]!).id
+   )
+   useSharedState(`option:r${r.n}-${q.key}`, opt, setOpt)
++  const setBar = React.useContext(BarPick)
++  React.useEffect(() => {
++    if (live && i === 0 && !signoff(q)) setBar({ q, opt })
++  }, [live, i, q, opt, setBar])
+   const root = React.useRef<HTMLDivElement>(null)
+   const bar = React.useRef<HTMLDivElement>(null)
+   const choose = (id: string) => {
+@@ -324,6 +890,19 @@ function QuestionBlock({
+         behavior: "instant",
+       })
+   }
++  const idx = q.options.findIndex((o) => o.id === opt)
++  const step = (d: number) =>
++    choose(q.options[(idx + d + q.options.length) % q.options.length]!.id)
++  React.useEffect(() => {
++    if (VH !== "c" || !live || i !== 0) return
++    const on = (e: KeyboardEvent) => {
++      if ((e.target as HTMLElement).closest("input,textarea")) return
++      if (e.key === "ArrowLeft") step(-1)
++      if (e.key === "ArrowRight") step(1)
++    }
++    addEventListener("keydown", on)
++    return () => removeEventListener("keydown", on)
++  })
+   const card = (o: Option) => (
+     <Card
+       q={q}
+@@ -334,6 +913,7 @@ function QuestionBlock({
+       sent={live && sent === q.key ? sent : undefined}
+     />
+   )
++  const cur = q.options[idx]!
+   return (
+     <div ref={root} className="flex min-w-0 flex-col gap-4">
+       {(q.title || n > 1) && (
+@@ -346,35 +926,89 @@ function QuestionBlock({
+       {signoff(q) ? (
+         card(q.options[0]!)
+       ) : (
+-        <>
++        <div className={VL === "b" ? "flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-10" : "contents"}>
++          {VL === "b" && (
++            <nav aria-label="Options" className={"hidden flex-col gap-0.5 lg:flex " + STICK}>
++              {q.options.map((o) => (
++                <Button
++                  key={o.id}
++                  type="button"
++                  variant="ghost"
++                  aria-current={o.id === opt}
++                  onClick={() => choose(o.id)}
++                  className={
++                    "h-auto min-h-8 justify-start gap-2.5 py-1.5 text-left whitespace-normal " +
++                    (o.id === opt ? "bg-muted font-medium font-stretch-[98.8%]" : "font-normal text-muted-foreground")
++                  }
++                >
++                  <span className="flex-none font-mono font-semibold text-foreground">{o.id}</span>
++                  <span className="min-w-0 flex-1">{o.name}</span>
++                  <Mark o={o} mine={live && picks[q.key] === o.id} />
++                </Button>
++              ))}
++            </nav>
++          )}
++          <div className={VL === "b" ? "flex min-w-0 flex-col gap-4" : "contents"}>
+           {/* Stuck, the letters keep a page-coloured margin so content never shows around their corners */}
+           <div
+             ref={bar}
+-            className="sticky top-[calc(env(safe-area-inset-top,0px)+var(--top-bar,0px)+8px)] z-[5] bg-background shadow-[0_0_0_8px_var(--background)]"
++            className={
++              "sticky top-[calc(env(safe-area-inset-top,0px)+var(--top-bar,0px)+8px)] z-[5] bg-background shadow-[0_0_0_8px_var(--background)]" +
++              (VL === "b" ? " lg:hidden" : "")
++            }
+           >
+-            <Segmented
+-              aria-label="Options"
+-              value={opt}
+-              onChange={choose}
+-              items={q.options.map((o) => ({
+-                value: o.id,
+-                label: (
+-                  <>
+-                    <span className="font-mono font-semibold">{o.id}</span>
+-                    <Mark o={o} mine={live && picks[q.key] === o.id} />
+-                  </>
+-                ),
+-              }))}
+-              className="flex w-full"
+-              itemClassName="flex-1"
+-            />
++            {VH === "c" ? (
++              <div className="flex items-center gap-2 py-1">
++                <span className="flex-none font-mono text-sm font-semibold">
++                  {cur.id}
++                </span>
++                <h3 className="m-0 min-w-0 truncate font-heading text-title-sm">
++                  {cur.name}
++                </h3>
++                {cur.rec && <Rec className="max-md:hidden" />}
++                {cur.rec && <span className="flex md:hidden"><RecDot /></span>}
++                <span className="flex-1" />
++                <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums">
++                  {idx + 1} of {q.options.length}
++                </span>
++                <Button type="button" variant="outline" size="icon" aria-label="Previous option" onClick={() => step(-1)}>
++                  <CaretLeftIcon />
++                </Button>
++                <Button type="button" variant="outline" size="icon" aria-label="Next option" onClick={() => step(1)}>
++                  <CaretRightIcon />
++                </Button>
++              </div>
++            ) : (
++              <Segmented
++                aria-label="Options"
++                value={opt}
++                onChange={choose}
++                items={q.options.map((o) => ({
++                  value: o.id,
++                  label: (
++                    <>
++                      <span className="font-mono font-semibold">{o.id}</span>
++                      {VH === "a" && (
++                        <span className="min-w-0 truncate font-normal">{o.name}</span>
++                      )}
++                      <Mark o={o} mine={live && picks[q.key] === o.id} />
++                    </>
++                  ),
++                }))}
++                className={VH === "b" ? "flex w-fit" : "flex w-full"}
++                itemClassName={
++                  VH === "b" ? "min-w-14" : VH === "a" ? "min-w-0 flex-1" : "flex-1"
++                }
++              />
++            )}
+           </div>
+           {q.options.map((o) => (
+             <div key={o.id} data-option hidden={opt !== o.id}>
+               {card(o)}
+             </div>
+           ))}
+-        </>
++          </div>
++        </div>
+       )}
+     </div>
+   )
+@@ -389,21 +1023,61 @@ function Card({
+   sent,
+ }: { q: Question; o: Option; live: boolean } & PickProps) {
+   const mine = picks[q.key]
+-  return (
+-    <article className="flex min-w-0 flex-col gap-3">
+-      <ItemHead id={signoff(q) ? undefined : o.id} title={o.name} large />
+-      {(o.rec || o.state) && (
+-        <div className="flex flex-wrap items-center gap-1.5">
+-          {o.rec && <Rec />}
+-          {o.state === "picked" && <Tag tone="done">Picked</Tag>}
+-          {o.state === "rejected" && <Tag tone="no">Rejected</Tag>}
+-        </div>
++  const pickButton = live && !(VP === "b" && !signoff(q)) && (
++    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
++      {signoff(q) ? (
++        <Segmented
++          aria-label="Sign off"
++          value={mine ?? ""}
++          onChange={(v) => !sent && pick(q.key, v || mine!)}
++          items={SIGN.map(([value, label]) => ({ value, label }))}
++        />
++      ) : (
++        <Button
++          type="button"
++          variant={mine === o.id ? "default" : "outline"}
++          aria-pressed={mine === o.id}
++          disabled={!!sent && mine !== o.id}
++          onClick={() => pick(q.key, o.id)}
++        >
++          {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
++        </Button>
+       )}
++    </div>
++  )
++  const recInline = VH === "b"
++  const head =
++    VH === "c" && !signoff(q) ? null : (
++      <div className="flex items-center gap-3">
++        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
++          <ItemHead
++            id={signoff(q) || VH === "a" ? undefined : o.id}
++            title={o.name}
++            large
++          />
++          {recInline && o.rec && <Rec />}
++        </div>
++        {VP === "a" && pickButton}
++      </div>
++    )
++  const badges = ((o.rec && !recInline && VH !== "c") || o.state) && (
++    <div className="flex flex-wrap items-center gap-1.5">
++      {o.rec && !recInline && !(VH === "c") && <Rec />}
++      {o.state === "picked" && <Tag tone="done">Picked</Tag>}
++      {o.state === "rejected" && <Tag tone="no">Rejected</Tag>}
++    </div>
++  )
++  const shots = (
++    <>
+       {o.html && <Html as="div" html={o.html} />}
+       <Shots
+         list={o.shots}
+         className={o.state === "rejected" ? "opacity-55" : undefined}
+       />
++    </>
++  )
++  const reasons = (
++    <>
+       {o.why && <Html as="p" html={o.why} className="max-w-[72ch] text-sm" />}
+       {o.cost && (
+         <p className="m-0 max-w-[72ch] text-sm text-muted-foreground">
+@@ -411,27 +1085,36 @@ function Card({
+           <Html as="span" html={o.cost} />
+         </p>
+       )}
+-      {live && (
+-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+-          {signoff(q) ? (
+-            <Segmented
+-              aria-label="Sign off"
+-              value={mine ?? ""}
+-              onChange={(v) => !sent && pick(q.key, v || mine!)}
+-              items={SIGN.map(([value, label]) => ({ value, label }))}
+-            />
+-          ) : (
+-            <Button
+-              type="button"
+-              variant={mine === o.id ? "default" : "outline"}
+-              aria-pressed={mine === o.id}
+-              disabled={!!sent && mine !== o.id}
+-              onClick={() => pick(q.key, o.id)}
+-            >
+-              {mine === o.id ? `Picked ${o.id}` : `Pick ${o.id}`}
+-            </Button>
+-          )}
++    </>
++  )
++  if (VL === "a")
++    return (
++      <article className="flex min-w-0 flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,max-content)_minmax(280px,400px)] lg:justify-start lg:gap-8">
++        <div className="order-3 min-w-0 lg:col-start-1 lg:row-start-1">{shots}</div>
++        <div className="contents lg:sticky lg:top-[calc(var(--top-bar,0px)+72px)] lg:col-start-2 lg:row-start-1 lg:flex lg:flex-col lg:gap-3 lg:self-start">
++          <div className="order-1">{head}</div>
++          {badges && <div className="order-2">{badges}</div>}
++          <div className="order-4 flex flex-col gap-3">{reasons}</div>
++          {VP !== "a" && <div className="order-5">{pickButton}</div>}
+         </div>
++      </article>
++    )
++  return (
++    <article className="flex min-w-0 flex-col gap-3">
++      {head}
++      {badges}
++      {VP === "c" ? (
++        <>
++          {reasons}
++          {pickButton}
++          {shots}
++        </>
++      ) : (
++        <>
++          {shots}
++          {reasons}
++          {VP !== "a" && pickButton}
++        </>
+       )}
+     </article>
+   )
+diff --git a/packages/skill-templates/src/shared/kit.tsx b/packages/skill-templates/src/shared/kit.tsx
+index 25e7384..7e6a1f7 100644
+--- a/packages/skill-templates/src/shared/kit.tsx
++++ b/packages/skill-templates/src/shared/kit.tsx
+@@ -50,7 +50,11 @@ export function Shell({
+   theme: [dark, toggleTheme],
+   bar,
+   children,
++  titleOnScroll,
++  width = WIDTH,
+ }: {
++  width?: string
++  titleOnScroll?: boolean
+   title: string
+   tabs: Tab[]
+   tab: string
+@@ -63,6 +67,17 @@ export function Shell({
+   children: React.ReactNode
+ }) {
+   const fade = useEdgeFade<HTMLDivElement>()
++  const [showTitle, setShowTitle] = React.useState(!titleOnScroll)
++  React.useEffect(() => {
++    if (!titleOnScroll) return
++    const el = document.getElementById("page-q")
++    if (!el) return
++    const io = new IntersectionObserver(([e]) => setShowTitle(!e!.isIntersecting), {
++      rootMargin: "-60px 0px 0px 0px",
++    })
++    io.observe(el)
++    return () => io.disconnect()
++  }, [titleOnScroll])
+   // Its height, as --top-bar, for whatever sticks under it
+   const top = React.useRef<HTMLDivElement>(null)
+   React.useLayoutEffect(() => {
+@@ -91,11 +106,14 @@ export function Shell({
+           >
+             <div
+               className="mx-auto flex flex-wrap items-center gap-x-4 md:flex-nowrap"
+-              style={{ maxWidth: WIDTH }}
++              style={{ maxWidth: width }}
+             >
+               <h1
+                 title={title}
+-                className="min-w-0 flex-1 truncate py-3 font-heading text-title-sm"
++                className={cn(
++                  "min-w-0 flex-1 truncate py-3 font-heading text-title-sm transition-opacity",
++                  !showTitle && "opacity-0"
++                )}
+               >
+                 {title}
+               </h1>
+@@ -131,7 +149,10 @@ export function Shell({
+               </div>
+             </div>
+           </div>
+-          <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6 px-4 md:px-6">
++          <div
++            className="mx-auto flex w-full flex-col gap-6 px-4 md:px-6"
++            style={{ maxWidth: `calc(${width} + 48px)` }}
++          >
+             {children}
+           </div>
+         </Tabs>
+diff --git a/packages/skill-templates/src/shared/page.tsx b/packages/skill-templates/src/shared/page.tsx
+index 742e016..72741da 100644
+--- a/packages/skill-templates/src/shared/page.tsx
++++ b/packages/skill-templates/src/shared/page.tsx
+@@ -78,7 +78,9 @@ export function CopyBar({
+   text,
+   maxWidth = "832px",
+   send,
++  extra,
+ }: {
++  extra?: React.ReactNode
+   status: React.ReactNode
+   note: string
+   setNote: (note: string) => void
+@@ -157,6 +159,7 @@ export function CopyBar({
+           >
+             {status}
+           </div>
++          {extra}
+           <Button
+             type="button"
+             variant="outline"
+diff --git a/packages/skill-templates/vite.config.ts b/packages/skill-templates/vite.config.ts
+index e892e3b..04aa1d8 100644
+--- a/packages/skill-templates/vite.config.ts
++++ b/packages/skill-templates/vite.config.ts
+@@ -2,7 +2,7 @@
+ // /<name>/ serves one with its sample data, hot reloading as you edit.
+ // `pnpm build` (scripts/build.ts) writes the committed pages.
+ 
+-import { readFileSync } from "node:fs"
++import { existsSync, readFileSync } from "node:fs"
+ import tailwind from "@tailwindcss/postcss"
+ import react from "@vitejs/plugin-react"
+ import { defineConfig, type Plugin } from "vite"
+@@ -34,6 +34,12 @@ function pages(): Plugin {
+         }
+         if (!t) return next()
+         const rest = url.pathname.slice(t.name.length + 2)
++        const real = process.env.REAL_DIR
++        if (real && existsSync(`${real}/${rest}`) && rest) {
++          res.setHeader("content-type", rest.endsWith(".webp") ? "image/webp" : "image/png")
++          res.end(readFileSync(`${real}/${rest}`))
++          return
++        }
+         if (/\.(png|webp|jpe?g|gif)$/.test(rest)) {
+           res.setHeader("content-type", "image/svg+xml")
+           res.end(placeholder(rest))
+@@ -43,7 +49,12 @@ function pages(): Plugin {
+         const html = assemble({
+           ...t,
+           tokens: tokenBlock(),
+-          data: readFileSync(`src/${t.name}/data.js`, "utf8"),
++          data: readFileSync(
++            process.env.REAL_DIR && existsSync(`${process.env.REAL_DIR}/${t.name}.js`)
++              ? `${process.env.REAL_DIR}/${t.name}.js`
++              : `src/${t.name}/data.js`,
++            "utf8"
++          ),
+           body: `<div id="app"></div><script type="module" src="/src/${t.name}/main.tsx"></script>`,
+         })
+         res.setHeader("content-type", "text/html")

@@ -1,0 +1,11 @@
+/* C: open column, 20px edges, no rules */
+[data-testid=chat] .h-12.px-3 { padding-left: 20px !important; padding-right: 20px !important; }
+[data-testid=chat] .h-12 { border-bottom-color: transparent !important; }
+[data-testid=chat] .overflow-y-auto > .min-h-full.p-3 { padding: 8px 20px 20px !important; }
+[data-testid=chat] .overflow-y-auto > .min-h-full > .space-y-4 > :not(:last-child) { margin-bottom: 0 !important; }
+[data-testid=chat] .overflow-y-auto > .min-h-full > .space-y-4 > * + * { margin-top: 20px !important; }
+[data-testid=chat] .rounded-xl.bg-muted { padding: 8px 14px !important; }
+[data-testid=chat] [data-slot=composer] { padding-left: 20px !important; padding-right: 20px !important; padding-top: 4px !important; border-top-color: transparent !important; }
+[data-testid=chat] [data-pane=closed] .h-6.pl-1 { padding-left: 12px !important; }
+[data-testid=chat] .self-start.pr-3 { padding-right: 20px !important; }
+[data-testid=chat]:not(:has([data-pane])) [data-slot=composer] { padding-bottom: 20px !important; }

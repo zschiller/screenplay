@@ -1,0 +1,133 @@
+diff --git a/apps/app/app/globals.css b/apps/app/app/globals.css
+index fb1ec74..8d9a0a2 100644
+--- a/apps/app/app/globals.css
++++ b/apps/app/app/globals.css
+@@ -369,7 +369,9 @@ body {
+   background-color: var(--chat-code-bg);
+   border-radius: var(--radius);
+   padding: 0.1em 0.3em;
+-  font-size: 0.875em;
++  /* 12px beside 14px body text, never under 12px, and still scaling with a
++     heading. */
++  font-size: max(0.75rem, calc(12em / 14));
+   font-weight: 400;
+   color: var(--chat-code-fg);
+   overflow-wrap: anywhere;
+diff --git a/apps/app/components/agent/chats-menu.tsx b/apps/app/components/agent/chats-menu.tsx
+index a20492c..b4704e9 100644
+--- a/apps/app/components/agent/chats-menu.tsx
++++ b/apps/app/components/agent/chats-menu.tsx
+@@ -920,7 +920,7 @@ function WorkspacesLabel({
+       </DropdownMenu>
+       <IconButton
+         label="New chat"
+-        className="mr-1 text-muted-foreground"
++        className="mr-0.5 text-muted-foreground"
+         onClick={() => menu.openNewWorkspace(menu.lastUsedRepoId)}
+       >
+         <PlusIcon />
+diff --git a/apps/app/components/agent/tool-output.tsx b/apps/app/components/agent/tool-output.tsx
+index 4c43b7b..d14017d 100644
+--- a/apps/app/components/agent/tool-output.tsx
++++ b/apps/app/components/agent/tool-output.tsx
+@@ -127,7 +127,7 @@ export function LogText({ text }: { text: string }): ReactNode {
+     const nl = i < all.length - 1 ? "\n" : ""
+     if (ERROR_LINE.test(line)) {
+       return (
+-        <span key={i} style={{ color: ansiColorVar(1) }}>
++        <span key={i} style={{ color: "var(--destructive)" }}>
+           {line}
+           {nl}
+         </span>
+@@ -135,7 +135,7 @@ export function LogText({ text }: { text: string }): ReactNode {
+     }
+     if (WARN_LINE.test(line)) {
+       return (
+-        <span key={i} style={{ color: ansiColorVar(3) }}>
++        <span key={i} style={{ color: "var(--warning)" }}>
+           {line}
+           {nl}
+         </span>
+@@ -146,7 +146,7 @@ export function LogText({ text }: { text: string }): ReactNode {
+       return (
+         <span key={i}>
+           {pass[1]}
+-          <span style={{ color: ansiColorVar(2) }}>{pass[2]}</span>
++          <span style={{ color: "var(--success)" }}>{pass[2]}</span>
+           {line.slice(pass[0].length)}
+           {nl}
+         </span>
+diff --git a/apps/app/components/canvas/canvas-settings-dialog.tsx b/apps/app/components/canvas/canvas-settings-dialog.tsx
+index 6d780a3..5aeda0a 100644
+--- a/apps/app/components/canvas/canvas-settings-dialog.tsx
++++ b/apps/app/components/canvas/canvas-settings-dialog.tsx
+@@ -440,7 +440,9 @@ function RepositoriesSection({
+               </SettingsRowList>
+             </section>
+           ))}
+-          <div className="flex justify-end">{newButton}</div>
++          <div className="flex justify-end">
++            <NewRepositoryButton flow={addRepository} variant="outline" />
++          </div>
+         </>
+       )}
+       <AddRepositoryDialog
+@@ -528,7 +530,7 @@ function RunScripts({
+   if (scripts.length === 0) return "No scripts set"
+   return scripts.map((script, i) => (
+     <span key={i}>
+-      {i > 0 && <span className="mx-1">·</span>}
++      {i > 0 && <span className="mx-1.5">·</span>}
+       <code className="font-mono text-xs">{script}</code>
+     </span>
+   ))
+diff --git a/apps/app/components/canvas/frame-nav.tsx b/apps/app/components/canvas/frame-nav.tsx
+index c866dc5..4fdb33a 100644
+--- a/apps/app/components/canvas/frame-nav.tsx
++++ b/apps/app/components/canvas/frame-nav.tsx
+@@ -336,7 +336,7 @@ function FrameWorkspaceHost({
+             {host}
+             <CaretUpDownIcon
+               aria-hidden
+-              className="size-2.5 shrink-0 opacity-60"
++              className="size-3 shrink-0 text-muted-foreground"
+             />
+           </button>
+         </PopoverTrigger>
+diff --git a/apps/app/components/canvas/mockup-status-menu.tsx b/apps/app/components/canvas/mockup-status-menu.tsx
+index 6b2f188..bd4764d 100644
+--- a/apps/app/components/canvas/mockup-status-menu.tsx
++++ b/apps/app/components/canvas/mockup-status-menu.tsx
+@@ -83,7 +83,7 @@ export function MockupStatusMenu({
+           type="button"
+           aria-label={`Status: ${MOCKUP_STATUS_LABELS[status]}`}
+           className={cn(
+-            "flex shrink-0 items-center text-xs outline-none focus-visible:outline-none",
++            "group flex shrink-0 items-center text-xs outline-none focus-visible:outline-none",
+             statusColor(status)
+           )}
+           // Keep the press off the label's drag and select handlers.
+@@ -94,7 +94,7 @@ export function MockupStatusMenu({
+           <span>{MOCKUP_STATUS_LABELS[status]}</span>
+           <CaretUpDownIcon
+             aria-hidden
+-            className="ml-1 size-3 shrink-0 text-muted-foreground"
++            className="ml-0 h-3 w-0 shrink-0 text-muted-foreground opacity-0 transition-all duration-150 group-hover:ml-1 group-hover:w-3 group-hover:opacity-100 group-data-[state=open]:ml-1 group-data-[state=open]:w-3 group-data-[state=open]:opacity-100"
+           />
+         </button>
+       </DropdownMenuTrigger>
+diff --git a/apps/app/components/panels/branch-overflow-menu.tsx b/apps/app/components/panels/branch-overflow-menu.tsx
+index 709a5a9..f816511 100644
+--- a/apps/app/components/panels/branch-overflow-menu.tsx
++++ b/apps/app/components/panels/branch-overflow-menu.tsx
+@@ -443,8 +443,8 @@ export function BranchOverflowMenuContent({
+ 
+   return (
+     <DropdownMenuContent
+-      side="right"
+-      align="start"
++      side="bottom"
++      align="end"
+       onCloseAutoFocus={onCloseAutoFocus}
+     >
+       {groups.map((group, i) => (

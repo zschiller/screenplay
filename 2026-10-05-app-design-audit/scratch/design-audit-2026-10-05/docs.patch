@@ -1,0 +1,473 @@
+diff --git a/apps/docs/app/globals.css b/apps/docs/app/globals.css
+index 19fe1ee7..2a74d018 100644
+--- a/apps/docs/app/globals.css
++++ b/apps/docs/app/globals.css
+@@ -81,7 +81,7 @@ article .nextra-steps h3:not([style^="visibility:"])::before {
+ /* Sidebar: mono uppercase section labels, regular-weight links, and the
+    current page as the app sidebar's active row (SidebarMenuButton
+    data-active): a neutral sidebar-accent fill with medium-weight foreground
+-   text. Hover uses the same fill. The table of contents'
++   text, also on the phone menu's current tab, which Nextra draws as a button. Hover uses the same fill. The table of contents'
+    "On this page" heading uses the same label recipe. */
+ .nextra-sidebar li:not(:has(*)),
+ .nextra-mobile-nav li:not(:has(*)),
+@@ -105,7 +105,7 @@ html.dark .nextra-toc > div > p:first-child {
+ .nextra-sidebar :is(a, button):hover,
+ .nextra-mobile-nav :is(a, button):hover,
+ .nextra-sidebar a.x\:bg-primary-100,
+-.nextra-mobile-nav a.x\:bg-primary-100 {
++.nextra-mobile-nav :is(a, button).x\:bg-primary-100 {
+   border-radius: 2px;
+   background: oklch(0.965 0 0);
+   color: oklch(0 0 0);
+@@ -113,12 +113,12 @@ html.dark .nextra-toc > div > p:first-child {
+ html.dark .nextra-sidebar :is(a, button):hover,
+ html.dark .nextra-mobile-nav :is(a, button):hover,
+ html.dark .nextra-sidebar a.x\:bg-primary-100,
+-html.dark .nextra-mobile-nav a.x\:bg-primary-100 {
++html.dark .nextra-mobile-nav :is(a, button).x\:bg-primary-100 {
+   background: oklch(0.18 0 0);
+   color: oklch(1 0 0);
+ }
+ .nextra-sidebar a.x\:bg-primary-100,
+-.nextra-mobile-nav a.x\:bg-primary-100 {
++.nextra-mobile-nav :is(a, button).x\:bg-primary-100 {
+   font-weight: 500;
+ }
+ .nextra-toc a {
+@@ -388,12 +388,19 @@ html.dark .sp-screenshot .sp-screenshot-dark {
+   display: grid;
+   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+   gap: 1rem;
+-  align-items: start;
+   margin: 1.75rem 0;
+ }
++/* Shots of different heights keep their captions on one line: each figure
++   fills the row's height and its caption sits at the bottom. */
+ .sp-screenshot-row .sp-screenshot {
++  display: flex;
++  flex-direction: column;
+   margin: 0;
+ }
++.sp-screenshot-row figcaption {
++  margin-top: auto;
++  padding-top: 0.6rem;
++}
+ .sp-screenshot figcaption {
+   margin-top: 0.6rem;
+   text-align: center;
+diff --git a/apps/docs/app/layout.tsx b/apps/docs/app/layout.tsx
+index 07c6c24e..4b72118d 100644
+--- a/apps/docs/app/layout.tsx
++++ b/apps/docs/app/layout.tsx
+@@ -94,6 +94,9 @@ export default async function RootLayout({
+           docsRepositoryBase="https://github.com/zschiller/screenplay/tree/main/apps/docs"
+           footer={footer}
+           toc={{ title: "On this page" }}
++          // On a phone the menu lists every tab; keep the tabs you’re not on
++          // closed so Self-hosting and Contributing aren’t under every guide.
++          sidebar={{ defaultMenuCollapseLevel: 1 }}
+           // components/copy-page.tsx renders it as the app's split button.
+           copyPageButton={false}
+           // components/page-nav.tsx renders previous / next as buttons.
+diff --git a/apps/docs/content/guides/_meta.ts b/apps/docs/content/guides/_meta.ts
+index 07f1bd36..ea460a81 100644
+--- a/apps/docs/content/guides/_meta.ts
++++ b/apps/docs/content/guides/_meta.ts
+@@ -19,7 +19,12 @@ const meta = {
+   collaboration: "Sharing & collaboration",
+   home: "Home & organizing",
+   "-- build": { type: "separator", title: "Building for Screenplay" },
+-  building: { title: "Building for Screenplay", display: "children" },
++  building: {
++    title: "Building for Screenplay",
++    display: "children",
++    // Open even off its pages: the phone menu closes folders by default.
++    theme: { collapsed: false },
++  },
+   "-- ref": { type: "separator", title: "Reference" },
+   settings: "Settings",
+   "keyboard-shortcuts": "Keyboard shortcuts",
+diff --git a/apps/docs/content/guides/agent.mdx b/apps/docs/content/guides/agent.mdx
+index ce31ea45..ecece13e 100644
+--- a/apps/docs/content/guides/agent.mdx
++++ b/apps/docs/content/guides/agent.mdx
+@@ -24,10 +24,10 @@ on the canvas, and edits the ones it wrote.
+ ## Choosing a target
+ 
+ The **Chats** button at the far right of the Coordinator’s header opens the
+-list of every chat on the canvas: the **Coordinator** first, then each
+-workspace’s chat by its title, with the workspace’s status icon and pull
+-request (see [The Chats menu](/guides/workspaces#the-chats-menu)). Pick one to
+-open its chat. When you switch back to a target, the panel reopens the chat
++list of every workspace’s chat by its title, with the workspace’s status icon
++and pull request, grouped by what each is doing (see
++[The Chats menu](/guides/workspaces#the-chats-menu)). Pick one to open its
++chat. When you switch back to a target, the panel reopens the chat
+ you last used there.
+ 
+ In a workspace the header reads **Coordinator / _workspace_**: click
+@@ -205,15 +205,16 @@ shows in the chat.
+ Type <kbd>/</kbd> to insert a [skill](/guides/building/skills): a packaged set of
+ instructions the agent loads before starting. Each row ends with where the
+ skill comes from: **Built in** skills ship with Screenplay, **Repository**
+-skills come from the repository’s `.claude/skills/` folder, and **Canvas**
++skills come from the repository’s `.claude/skills/` folder, **Canvas**
+ skills were [saved to the canvas](/guides/building/skills#saving-a-skill-to-the-canvas)
+-by a chat on it. On the Mac app, your coding agent’s
++by a chat on it, and **Account** skills were
++[saved to your account](/guides/building/skills#saving-a-skill-to-your-account). On the Mac app, your coding agent’s
+ [own skills](/guides/building/skills#your-coding-agents-own-skills) are listed too,
+ marked with its name, like **Claude Code**.
+ 
+ <Screenshot
+   name="composer-skills"
+-  alt="The / menu listing screenplay-add-knob and screenplay-share-state"
++  alt="The / menu listing two Account skills above the Built in skills"
+ />
+ 
+ ### Targeting an element
+@@ -305,6 +306,13 @@ agent the chat runs on. Paths are relative to the repository.
+ | **Open frame** _route_                   | Opened a frame to use                                                                                                             |
+ | **Used** _page_, _n_ steps               | Used a frame or mockup (expand for each step)                                                                                     |
+ | **Read document**                        | Read a document on the canvas                                                                                                     |
++| **Create document** _title_              | Wrote a [document](/guides/documents#documents-a-chat-writes)                                                                     |
++| **Rewrite document**, **Set title**      | Changed a document it wrote                                                                                                       |
++| **Create mockup** _title_                | Drew a [mockup](/guides/mockups)                                                                                                  |
++| **Update mockup** _title_                | Rewrote a mockup’s page                                                                                                           |
++| **Read mockup**                          | Read a mockup’s page                                                                                                              |
++| **Save to account memory**               | Saved a [memory](/guides/memory) entry (or to canvas memory)                                                                      |
++| **Save file**, **Open saved file**       | Saved or opened one of the [saved files](/guides/files)                                                                           |
+ | **Create pull request**                  | Opened a pull request (shown as a link card)                                                                                      |
+ | **Submit plan**                          | Presented a plan for approval                                                                                                     |
+ | A question with options                  | Asked you to pick an option                                                                                                       |
+diff --git a/apps/docs/content/guides/building/skills.mdx b/apps/docs/content/guides/building/skills.mdx
+index dbbc8cdb..3c8d1b1e 100644
+--- a/apps/docs/content/guides/building/skills.mdx
++++ b/apps/docs/content/guides/building/skills.mdx
+@@ -22,7 +22,7 @@ The agent also loads skills on its own when a request matches a description.
+ 
+ <Screenshot
+   name="composer-skills"
+-  alt="The / menu listing Screenplay’s built-in skills"
++  alt="The / menu listing two Account skills above the Built in skills"
+ />
+ 
+ ## Where skills come from
+diff --git a/apps/docs/content/guides/canvas.mdx b/apps/docs/content/guides/canvas.mdx
+index bed1e7fe..848ec175 100644
+--- a/apps/docs/content/guides/canvas.mdx
++++ b/apps/docs/content/guides/canvas.mdx
+@@ -86,6 +86,8 @@ layer, by clicking, dragging or using a slot, selects it and returns to
+   each copy at the end of its group and selecting the copies.
+ - With more than one thing selected, groups included, toolbars and menus
+   hide so nothing acts on just one of them.
++- <kbd>Esc</kbd> backs out one step at a time: it closes whatever is open
++  (editing, a tool, interact mode), then clears the selection.
+ 
+ ## Layer menus
+ 
+@@ -98,8 +100,6 @@ name of a selected document or group. It holds, as they apply:
+ - A frame’s **Device size**, **Fit to content** and a **Chat** submenu with
+   its [chat menu](/guides/workspaces#workspace-actions).
+ - **Delete**.
+-- <kbd>Esc</kbd> backs out one step at a time: it closes whatever is open
+-  (editing, a tool, interact mode), then clears the selection.
+ 
+ ## Groups
+ 
+diff --git a/apps/docs/content/guides/concepts.mdx b/apps/docs/content/guides/concepts.mdx
+index d4231a16..bd143a09 100644
+--- a/apps/docs/content/guides/concepts.mdx
++++ b/apps/docs/content/guides/concepts.mdx
+@@ -60,8 +60,8 @@ A **workspace** is one git branch of a repository, running in its own isolated
+ 
+ Each workspace has a title (the agent writes it from your first message), its
+ own dev server, and its own agent chat and terminals. The **Chats**
+-button at the top right of the agent panel lists every chat in one flat
+-list, like threads in a project: each workspace’s chat by its title. On a canvas with several repositories each row ends with its
++button at the top right of the agent panel lists every chat, like threads in
++a project: each workspace’s chat by its title, grouped by what it’s doing. On a canvas with several repositories each row ends with its
+ repository’s name.
+ Workspaces are cheap: create one for every idea you want to try and compare
+ them side by side.
+@@ -83,10 +83,11 @@ write one for you and keep editing it.
+ 
+ ## Mockup
+ 
+-A **mockup** is a static page a workspace chat draws on the canvas to show a
++A **mockup** is a self-contained page a chat draws on the canvas to show a
+ design option. It needs no dev server, so it shows up at once, beside its
+-workspace’s frames or in a group of its own. It shows the workspace of the chat
+-that made it, and only that chat can change it. → [Mockups](/guides/mockups)
++workspace’s frames or in a group of its own, and you can click through it.
++It names the workspace of the chat that made it, and only that chat can change
++it. → [Mockups](/guides/mockups)
+ 
+ ## Group
+ 
+@@ -108,7 +109,7 @@ from depends on how you run Screenplay:
+ 
+ - **Desktop**: the coding CLI installed on your machine (Claude Code, Codex or OpenCode),
+   running on your own login.
+-- **Web app**: a built-in agent loop that uses the model providers the operator
++- **Hosted app**: a built-in agent loop that uses the model providers the operator
+   configured (Anthropic, OpenAI, Google, the Vercel AI Gateway, or any
+   OpenAI-compatible endpoint).
+ 
+@@ -129,6 +130,15 @@ in Settings. → [Memory](/guides/memory)
+ reference image. Every chat on the canvas can open them; agents organize
+ them, and you browse or delete them in Canvas settings. → [Files](/guides/files)
+ 
++## Skills
++
++A **skill** is a packaged set of instructions a chat loads when a task calls
++for it, like a release-notes checklist. Type <kbd>/</kbd> in any chat to pick
++one. Skills come from the workspace’s repository, the canvas, your account
++and Screenplay itself, which ships a few, such as a design audit. Ask a chat to
++save what you worked out as a skill, and it offers a card to save it to the
++canvas or your account. → [Agent skills](/guides/building/skills)
++
+ ## Names you’ll see in the code
+ 
+ The UI labels are deliberately friendlier than the code’s names. If you read
+diff --git a/apps/docs/content/guides/coordinator.mdx b/apps/docs/content/guides/coordinator.mdx
+index e6e6e711..ec5db9dc 100644
+--- a/apps/docs/content/guides/coordinator.mdx
++++ b/apps/docs/content/guides/coordinator.mdx
+@@ -70,7 +70,7 @@ as soon as it’s up.
+ Each workspace chat the Coordinator starts or messages shows up as a card
+ under the Coordinator message that started it, with the workspace’s title, its
+ changed lines and its state, and under them the message it was sent. The state
+-reads the same as the workspace’s row in the Workspaces menu:
++reads the same as the workspace’s row in the Chats menu:
+ 
+ - **Sending** while the message goes out;
+ - **Starting** while the workspace’s sandbox comes up;
+@@ -188,14 +188,15 @@ reads a workspace names it, such as **Read changes in** _Checkout_. Once a
+ change to the canvas finishes, its row says what changed, such as **Renamed
+ Group “Hero” to “Sign-in”**.
+ 
+-| Kind    | Rows                                                                                                                                                     |
+-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+-| Read    | **Read canvas**, **Read document**, **Read chat**, **Read workspace diff**, **Read workspace file**, **View frame**, **Read frame HTML**, **Read skill** |
+-| Arrange | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**   |
+-| View    | **Show on canvas**                                                                                                                                       |
+-| Chats   | **Start chats**, **Stop chat**, **Create pull request**, **Delete chat**                                                                                 |
+-| Memory  | **Save to memory**                                                                                                                                       |
+-| Skills  | **Save skill**, **Delete skill**                                                                                                                         |
++| Kind    | Rows                                                                                                                                                                          |
++| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| Read    | **Read canvas**, **Read document**, **Read chat**, **Read workspace diff**, **Read workspace file**, **View frame**, **Read frame HTML**, **Screenshot page**, **Read skill** |
++| Arrange | **Create frames**, **Move group**, **Arrange groups**, **Move to group**, **Merge groups**, **Rename**, **Remove**, **List changes**, **Undo changes**                        |
++| View    | **Show on canvas**                                                                                                                                                            |
++| Chats   | **Start chats**, **Start chat**, **Stop chat**, **Create pull request**, **Delete chat**                                                                                      |
++| Memory  | **Save to canvas memory**                                                                                                                                                     |
++| Files   | **List saved files**, **Open saved file**, **Save file**, **Move saved file**, **Delete saved file**, **Make folder**                                                         |
++| Skills  | **Save skill**, **Delete skill**                                                                                                                                              |
+ 
+ A message to a workspace shows as its [card](#messages-to-workspaces) rather
+ than a row, and a [question](/guides/agent#questions) it
+diff --git a/apps/docs/content/guides/documents.mdx b/apps/docs/content/guides/documents.mdx
+index d8e3a0bd..d754852c 100644
+--- a/apps/docs/content/guides/documents.mdx
++++ b/apps/docs/content/guides/documents.mdx
+@@ -78,7 +78,7 @@ end of the formatting toolbar). On a document a chat wrote, the passage goes
+ into that chat’s composer and the panel switches to it. On a document you made
+ yourself, it goes into the chat the agent panel is showing, whether that’s the
+ [Coordinator](/guides/coordinator) or a workspace’s chat. Either way the panel
+-opens if it was closed. This works the same in the web app and the desktop
++opens if it was closed. This works the same in the hosted app and the desktop
+ app.
+ 
+ The quote sits above the input with the document’s title, the line range and
+diff --git a/apps/docs/content/guides/index.mdx b/apps/docs/content/guides/index.mdx
+index d381a954..316c85f2 100644
+--- a/apps/docs/content/guides/index.mdx
++++ b/apps/docs/content/guides/index.mdx
+@@ -32,7 +32,7 @@ spatially:
+   arranged next to each other, and hot reload keeps them current.
+ - **Point, don’t describe.** Target an element in a preview, mention a
+   document, or load a skill straight from the [composer](/guides/agent). On
+-  the web app, [comments](/guides/collaboration) pinned to a preview can go
++  the hosted app, [comments](/guides/collaboration) pinned to a preview can go
+   straight to the agent too.
+ - **Keep the plan next to the product.** [Documents](/guides/documents) live
+   on the same canvas as your previews, and the agent can read and write them.
+@@ -48,7 +48,7 @@ spatially:
+     the agent is the coding CLI you already use (Claude Code, Codex, …), signed
+     in with your own account.
+   </Cards.Card>
+-  <Cards.Card title="Self-hosted web app" href="/self-hosting" arrow>
++  <Cards.Card title="Self-hosted app" href="/self-hosting" arrow>
+     A multi-user deployment. Each workspace is a cloud sandbox VM, the agent
+     runs on your model provider keys, and teammates share canvases, cursors, and
+     comments.
+@@ -68,7 +68,7 @@ CLI you signed in to, so your code and prompts go only to that CLI’s provider,
+ under your own account. A GitHub token you connect is kept in the macOS
+ Keychain. Screenplay itself sends no analytics.
+ 
+-**On the web app, the data lives in the services you deploy it with.** The
++**On the hosted app, the data lives in the services you deploy it with.** The
+ database holds users, canvases, comments, chat history and encrypted settings;
+ the realtime host holds each canvas’s live state; each workspace’s code runs in
+ a sandbox VM; and chats go to the model providers you configure. See
+diff --git a/apps/docs/content/guides/keyboard-shortcuts.mdx b/apps/docs/content/guides/keyboard-shortcuts.mdx
+index f0a27061..a4f5a89f 100644
+--- a/apps/docs/content/guides/keyboard-shortcuts.mdx
++++ b/apps/docs/content/guides/keyboard-shortcuts.mdx
+@@ -81,7 +81,7 @@ Each row in the sidebar is one Tab stop, followed by its **…** menu.
+ | <kbd>↵</kbd> | Send |
+ | <kbd>⇧</kbd> <kbd>↵</kbd> | New line |
+ | <kbd>@</kbd> | Mention a document |
+-| <kbd>/</kbd> | Insert a skill *(workspace chats)* |
++| <kbd>/</kbd> | Insert a skill |
+ | <kbd>⌘</kbd> <kbd>E</kbd> | Target an element in a frame |
+ | <kbd>↑</kbd> <kbd>↓</kbd>, <kbd>↵</kbd> or <kbd>Tab</kbd> | Navigate and pick in the @ and / menus |
+ | <kbd>⌘</kbd> <kbd>I</kbd> | Hide the agent panel |
+diff --git a/apps/docs/content/guides/mockups.mdx b/apps/docs/content/guides/mockups.mdx
+index 6b47b4dc..af9c55b3 100644
+--- a/apps/docs/content/guides/mockups.mdx
++++ b/apps/docs/content/guides/mockups.mdx
+@@ -1,12 +1,12 @@
+ ---
+ title: Mockups
+-description: Static design options a chat sketches on the canvas, next to the running app, on their own, or in a box you draw.
++description: Self-contained design pages a chat sketches on the canvas, next to the running app, on their own, or in a box you draw.
+ ---
+ 
+ # Mockups
+ 
+-A mockup is a single static page a chat draws on the canvas to show a
+-design idea. It needs no dev server, so it appears the moment it’s written.
++A mockup is a single self-contained page a chat draws on the canvas to show
++a design idea. It needs no dev server, so it appears the moment it’s written.
+ Mockups let you compare a few options side by side with the running app
+ before anything is built.
+ 
+@@ -87,9 +87,8 @@ conversation.
+ 
+ Mockups are layers like frames and documents. You can select, move, resize,
+ rename and delete them, group them with other layers, and find them in the
+-layers list with their own icon. Delete them with <kbd>Delete</kbd>, and
+-
+-<kbd>⌘Z</kbd> brings a deleted mockup back.
++layers list with their own icon. Delete them with <kbd>Delete</kbd>,
++and <kbd>⌘</kbd> <kbd>Z</kbd> brings a deleted mockup back.
+ 
+ **More** (⋯), at the end of the bar under a selected mockup, holds
+ **Rename**, **Duplicate** and **Delete**, the same
+@@ -99,9 +98,9 @@ group, with the same page, size and chat, its name ending in “copy”.
+ 
+ Clicking a mockup selects it rather than using the page. To click through
+ it, press **Interact** under the selected mockup or double-click it, as on a
+-[frame](/guides/frames): the page takes your clicks, scrolls and typing, and
+-
+-<kbd>Esc</kbd> or a click outside the mockup returns to the canvas. A mockup has
++[frame](/guides/frames): the page takes your clicks, scrolls and typing,
++and <kbd>Esc</kbd> or a click outside the mockup returns to the canvas. A
++mockup has
+ no address bar or reload. Mockups aren’t chat targets. A chat writes every
+ mockup’s page, including the ones you draw.
+ 
+diff --git a/apps/docs/content/guides/quickstart.mdx b/apps/docs/content/guides/quickstart.mdx
+index 04030f82..70c769e9 100644
+--- a/apps/docs/content/guides/quickstart.mdx
++++ b/apps/docs/content/guides/quickstart.mdx
+@@ -58,10 +58,9 @@ seconds, so there’s no need to reload.
+ ### Create a canvas
+ 
+ **Finish** creates your first canvas and opens it, with the agent panel open
+-and a **Get started** checklist in the corner. Later, **New canvas** on the home screen (or
+-
+-<kbd>N</kbd>) creates and opens another one; rename it from its title. A canvas
+-holds one piece of work: one or more repositories, their workspaces, and
++and a **Get started** checklist in the corner. Later, **New canvas** on the
++home screen (or <kbd>N</kbd>) creates and opens another one; rename it from its
++title. A canvas holds one piece of work: one or more repositories, their workspaces, and
+ everything you lay out around them.
+ 
+ The checklist’s three steps, **Add a repository**, **Ask the Coordinator for a
+@@ -83,7 +82,7 @@ canvas. It goes straight to choosing one:
+ Screenplay detects your setup and run scripts and shows them for review in
+ **Configure repository**. The repository is saved to your repositories, so
+ every other canvas lists it too. See [Repositories](/guides/repositories) for every
+-field; you can change them later in the canvas’s **Settings**. **Add
++field; you can change them later in **Canvas settings**. **Add
+ repository** closes it all and leaves you on the canvas.
+ 
+ Adding a repository only adds it. Nothing starts until you ask for a change.
+@@ -128,7 +127,7 @@ changes. Your first ask also gives the workspace its title.
+   parallel.
+ - Turn on **Plan** in the composer to review the agent’s plan before it
+   writes code.
+-- Use **Create pull request** in the chat header when you’re happy with a workspace.
++- Use **Create PR** in the chat header when you’re happy with a workspace.
+ 
+ Screenplay doesn’t update itself yet. To get a newer version, download
+ [Screenplay.dmg](https://github.com/zschiller/screenplay/releases/latest/download/Screenplay.dmg)
+diff --git a/apps/docs/content/guides/settings.mdx b/apps/docs/content/guides/settings.mdx
+index 959da72d..4f362dfb 100644
+--- a/apps/docs/content/guides/settings.mdx
++++ b/apps/docs/content/guides/settings.mdx
+@@ -14,7 +14,8 @@ and **Account**.
+ 
+ These are your own settings. A canvas’s repositories and their run settings
+ are in its **Canvas settings**; see [Repositories](/guides/repositories).
+-Canvas settings also lists the canvas’s [memory](/guides/memory) and
++Canvas settings also lists the canvas’s [memory](/guides/memory),
++[files](/guides/files) and
+ [skills](/guides/building/skills#saving-a-skill-to-the-canvas).
+ 
+ ## General
+diff --git a/apps/docs/content/guides/troubleshooting.mdx b/apps/docs/content/guides/troubleshooting.mdx
+index 9f700e22..04b7bb67 100644
+--- a/apps/docs/content/guides/troubleshooting.mdx
++++ b/apps/docs/content/guides/troubleshooting.mdx
+@@ -13,7 +13,7 @@ Each entry starts with what you see in the app.
+ coding CLI is installed or signed in, so the chat can’t send; the Send button’s
+ tooltip says **No coding agent detected**. Open **Settings → Agent** (the
+ composer’s **Settings** link goes there) and use **Install and sign in** on
+-Claude Code, Codex or opencode. The CLI shows up in the model picker straight
++Claude Code, Codex or OpenCode. The CLI shows up in the model picker straight
+ away, with no restart. See [Settings → Agent](/guides/settings#agent).
+ 
+ <Only hosted /> **“No models are set up on this server yet”**. The server has no
+diff --git a/apps/docs/content/guides/workspaces.mdx b/apps/docs/content/guides/workspaces.mdx
+index 636b4576..bd8dc16a 100644
+--- a/apps/docs/content/guides/workspaces.mdx
++++ b/apps/docs/content/guides/workspaces.mdx
+@@ -83,7 +83,8 @@ Click it (or Tab to it and press <kbd>↵</kbd>) to open the menu:
+   branch, including done ones;
+ - **+** and **…** beside the search field, which stay there while you
+   search;
+-- the **Chats** list, one row for each workspace’s chat;
++- one row for each workspace’s chat, under **Working**, **Needs you** and
++  **Idle** (see [Order](#order));
+ - under **No repository**, any
+   [chats with no repository](/guides/agent#chats-with-no-repository).
+ 
+@@ -223,7 +224,7 @@ without deleting anything:
+ - its frames leave the canvas. Documents and other workspaces’ frames in the
+   same group stay where they are;
+ - its row moves into a collapsed **Done** section at the bottom of the
+-  Workspaces list, with a check circle for its status icon;
++  Chats menu, with a check circle for its status icon;
+ - its chat and history stay, and frame workspace lists stop offering it.
+ 
+ Everyone on the canvas sees it as done. It isn’t available while the agent is
+diff --git a/apps/docs/content/self-hosting/_meta.ts b/apps/docs/content/self-hosting/_meta.ts
+index 0fb60629..d480f7e1 100644
+--- a/apps/docs/content/self-hosting/_meta.ts
++++ b/apps/docs/content/self-hosting/_meta.ts
+@@ -4,7 +4,9 @@ const meta = {
+   database: "Database",
+   "environment-variables": "Environment variables",
+   "deploying-to-vercel": "Deploying to Vercel",
+-  configuration: "Configuration",
++  // Open by default: the layout keeps the tabs you’re not on closed in the
++  // phone menu (defaultMenuCollapseLevel: 1), which would close this too.
++  configuration: { title: "Configuration", theme: { collapsed: false } },
+ }
+ 
+ export default meta

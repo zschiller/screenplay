@@ -9,3 +9,7 @@
 **Question:** How should the exploration page get you from reading an option to picking one?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

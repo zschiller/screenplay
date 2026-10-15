@@ -1,0 +1,136 @@
+diff --git a/apps/homepage/components/marketing/site/dither-veil.ts b/apps/homepage/components/marketing/site/dither-veil.ts
+index efa6667..32adb51 100644
+--- a/apps/homepage/components/marketing/site/dither-veil.ts
++++ b/apps/homepage/components/marketing/site/dither-veil.ts
+@@ -59,6 +59,70 @@ export function createDitherVeil(
+   const fract = (v: number) => v - Math.floor(v)
+   const ign = (x: number, y: number) =>
+     fract(52.9829189 * fract(0.06711056 * x + 0.00583715 * y))
++  // SCRATCH: exploration hook for other dither algorithms.
++  const MODE: string = (globalThis as any).__dither ?? "ign"
++  const BAYER = (() => {
++    let m = [[0]]
++    for (let n = 1; n < 8; n *= 2) {
++      const N = m.length
++      const o: number[][] = []
++      for (let y = 0; y < 2 * N; y++) {
++        o.push([])
++        for (let x = 0; x < 2 * N; x++) {
++          const b = m[y % N]![x % N]!
++          const q = [0, 2, 3, 1][(y >= N ? 2 : 0) + (x >= N ? 1 : 0)]!
++          o[y]!.push(4 * b + q)
++        }
++      }
++      m = o
++    }
++    return m
++  })()
++  const HT = (globalThis as any).__htPeriod ?? 4
++  const halftone = (x: number, y: number) => {
++    const a = Math.PI / 4
++    const u = ((x * Math.cos(a) + y * Math.sin(a)) / HT) * Math.PI * 2
++    const v = ((-x * Math.sin(a) + y * Math.cos(a)) / HT) * Math.PI * 2
++    // Dots grow from the centre of each cell as density rises.
++    return 1 - (0.5 + 0.25 * (Math.cos(u) + Math.cos(v)))
++  }
++  const pattern = (c: number, r: number) =>
++    MODE === "bayer"
++      ? (BAYER[r & 7]![c & 7]! + 0.5) / 64
++      : MODE === "halftone"
++        ? halftone(c, r)
++        : ign(c, r)
++  const DIFFUSE: Record<string, [number, number, number][]> = {
++    fs: [[1, 0, 7 / 16], [-1, 1, 3 / 16], [0, 1, 5 / 16], [1, 1, 1 / 16]],
++    atkinson: [[1, 0, 1 / 8], [2, 0, 1 / 8], [-1, 1, 1 / 8], [0, 1, 1 / 8], [1, 1, 1 / 8], [0, 2, 1 / 8]],
++  }
++  const kernel = DIFFUSE[MODE]
++  // Error diffusion over `val` (a cols-wide grid), serpentine, only where
++  // `mask` is set; writes 255/0 to `out`.
++  const diffuse = (
++    val: Float32Array, mask: (i: number) => boolean, out: Uint8Array,
++    x0: number, y0: number, x1: number, y1: number
++  ) => {
++    for (let r = y0; r <= y1; r++) {
++      const rev = (r - y0) & 1
++      for (let n = x0; n <= x1; n++) {
++        const c = rev ? x1 - (n - x0) : n
++        const i = r * cols + c
++        if (!mask(i)) continue
++        const v = val[i]!
++        const o = v > 0.5 ? 1 : 0
++        out[i] = o ? 255 : 0
++        const e = v - o
++        for (const [dx, dy, w] of kernel!) {
++          const cc = c + (rev ? -dx : dx)
++          const rr = r + dy
++          if (cc < x0 || cc > x1 || rr > y1) continue
++          const j = rr * cols + cc
++          if (mask(j)) val[j] = val[j]! + e * w
++        }
++      }
++    }
++  }
+ 
+   // The spacing of the grid the peek is worked out on, in
+   // CSS px.
+@@ -150,6 +214,8 @@ export function createDitherVeil(
+     inBand = new Uint8Array(cols * rows)
+     thr = new Float32Array(cols * rows)
+     still = new Uint8Array(cols * rows)
++    pv = new Float32Array(cols * rows)
++    pm = new Uint8Array(cols * rows)
+     for (let r = 0, i = 0; r < rows; r++) {
+       // How far above the solid line this row is.
+       const y = r * cell + cell / 2
+@@ -173,7 +239,7 @@ export function createDitherVeil(
+       for (let c = 0; c < cols; c++, i++) {
+         dist[i] = d
+         base[i] = k
+-        thr[i] = ign(c, r)
++        thr[i] = pattern(c, r)
+         if (k < 1 && k > 0) {
+           inBand[i] = 1
+           const v = k * k * (3 - 2 * k)
+@@ -181,6 +247,14 @@ export function createDitherVeil(
+         } else still[i] = d <= 0 ? 255 : 0
+       }
+     }
++    if (kernel) {
++      const val = new Float32Array(cols * rows)
++      for (let i = 0; i < val.length; i++) {
++        const k = Math.min(base[i]!, 1)
++        val[i] = inBand[i] ? k * k * (3 - 2 * k) : still[i]! ? 1 : 0
++      }
++      diffuse(val, (i) => !!inBand[i], still, 0, 0, cols - 1, rows - 1)
++    }
+     fluid = createFluid(gc, gr)
+     touched = null
+     peek.fresh = true
+@@ -300,10 +374,27 @@ export function createDitherVeil(
+         const k =
+           base[i]! - p * (0.95 + 1.05 * SIN[((w * 16 + phase) * TURN) & 1023]!)
+         const kk = k < 0 ? 0 : k > 1 ? 1 : k
++        if (kernel) {
++          pv[i] = kk * kk * (3 - 2 * kk)
++          pm[i] = 1
++          continue
++        }
+         data[i * 4 + 3] = kk * kk * (3 - 2 * kk) > thr[i]! ? 255 : 0
+       }
+     }
++    if (kernel && peek) {
++      const out = new Uint8Array(cols * rows)
++      diffuse(pv, (i) => pm[i] === 1, out, rect[0], rect[1], rect[2], rect[3])
++      for (let r = rect[1]; r <= rect[3]; r++)
++        for (let c = rect[0], i = r * cols + rect[0]; c <= rect[2]; c++, i++)
++          if (pm[i]) {
++            data[i * 4 + 3] = out[i]!
++            pm[i] = 0
++          }
++    }
+   }
++  let pv = new Float32Array(0)
++  let pm = new Uint8Array(0)
+ 
+   // `full` repaints every grain. Otherwise, while the peek runs at the
+   // display's rate, a frame only redraws the grains the peek covers and the

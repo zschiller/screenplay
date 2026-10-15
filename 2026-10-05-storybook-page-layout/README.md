@@ -9,3 +9,7 @@
 **Question:** How should the storybook page lay out a state so you can find, read and note it on one screen?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

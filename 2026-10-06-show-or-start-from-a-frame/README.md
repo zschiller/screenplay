@@ -9,3 +9,7 @@
 **Question:** After you draw a frame, how does one prompt card let you either show a chat whose preview is already running, or type a prompt that starts a new chat?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

@@ -1,0 +1,60 @@
+<title>Viewer Host Badge</title>
+<!-- Design exploration page. Fill PAGE, TODAY and ROUNDS in the data script; the page renders from them. Swap the tokens and the font link for the repo's brand; they use shadcn's variable names. -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Instrument+Sans:wdth,wght@75..100,400..700&family=Unbounded:wght@400&display=swap">
+<style>
+:root{--font-ui:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-title:"Unbounded",ui-sans-serif,system-ui,sans-serif;--font-code:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+:root,.dark .inverted{--background:oklch(1 0 0);--foreground:oklch(0 0 0);--card:oklch(1 0 0);--card-foreground:oklch(0 0 0);--primary:oklch(0 0 0);--primary-foreground:oklch(1 0 0);--secondary:oklch(0.975 0 0);--secondary-foreground:oklch(0 0 0);--muted:oklch(0.975 0 0);--muted-foreground:oklch(0.556 0 0);--destructive:oklch(0.56 0.226 27);--success:oklch(0.56 0.16 148);--warning:oklch(0.6 0.139 60);--info:oklch(0.56 0.259 326);--border:oklch(0 0 0 / 12%);--input:oklch(0 0 0 / 12%);--ring:oklch(0.667 0.295 322.15);--radius:0.125rem}
+.dark,:root:not(.dark) .inverted{--background:oklch(0 0 0);--foreground:oklch(1 0 0);--card:oklch(0 0 0);--card-foreground:oklch(1 0 0);--primary:oklch(1 0 0);--primary-foreground:oklch(0 0 0);--secondary:oklch(0.25 0 0);--secondary-foreground:oklch(1 0 0);--muted:oklch(0.25 0 0);--muted-foreground:oklch(0.708 0 0);--destructive:oklch(0.66 0.225 27);--success:oklch(0.82 0.235 148);--warning:oklch(0.88 0.179 95);--info:oklch(0.667 0.295 322.15);--border:oklch(1 0 0 / 16%);--input:oklch(1 0 0 / 16%);--ring:oklch(0.667 0.295 322.15)}
+</style>
+<script>
+const IMG=(p,cap,dk)=>({p,cap,dk}); // p: light (or only) capture, dk: optional dark capture
+const S=(n,cap)=>IMG("shots/"+n+"-light.png",cap,"shots/"+n+"-dark.png");
+const PAGE={
+ date:"2026-10-08",
+ slug:"host-badge-exploration",
+ quote:"A viewer opens a canvas’s secret link (one per canvas, no reset, no viewer home screen) on the viewer listener and watches live: canvas, presence and a Host badge. … Starts with a design exploration of the Host badge. (#1932, under #1921 Sharing in the Mac app)",
+ q:"How does a viewer watching a shared canvas tell which person is the host among the people present?"
+};
+const TODAY={facts:[
+ "The viewer page isn’t built yet. Every capture is the Mac app’s canvas (desktop profile) with two people injected over Yjs awareness: <b>Maya Chen</b>, the host, in orange, and <b>Ben Okafor</b>, another viewer, in blue. You are a third viewer.",
+ "Nothing marks a host today. A presence holds identity, pointer, viewport, colour, selection, cursor-chat message and page (<code>lib/yjs/react.ts:338</code>); the server will add a trusted host flag.",
+ "Other people’s cursors: a 16×20px pointer in their presence colour, then a name tag 20px tall, 12px Instrument Sans, black ink on the colour. “Maya Chen” is 74px wide. A cursor shows only while that person’s pointer is on the page you’re looking at (<code>components/canvas/cursors.tsx:20–23</code>).",
+ "When the host is typing in the chat panel or is on another page, nothing on the canvas shows that they’re there (second shot).",
+ "The Pages panel already lists people. Each page row ends with the other people on that page: 24px avatars (measured), overlapping 4px, at most 3 and then +N. They have no tooltip, and the names are only in an <code>aria-label</code> (<code>components/panels/page-people.tsx:43–75</code>).",
+ "The top-right pill is 36px tall. On desktop it holds only the zoom menu and the chat toggle. The facepile (<code>FollowingToolbar</code>, 24px avatars, click to follow), Comments and Share sit behind <code>multiUserSurface</code>, which is off for desktop (<code>components/canvas/canvas.tsx:3270</code>, <code>lib/capabilities.ts</code>).",
+ "The breadcrumb pill (36px, 239px wide here) holds the folder, the canvas name and ⋯.",
+ "Presence colours are six Signal fills, each under black ink (<code>lib/canvas/presence-colors.ts</code>)."
+],shots:[
+ S("today-full","Today · Checkout canvas, host and one other viewer present"),
+ S("today-cursor","Today · the host’s cursor looks like anyone’s"),
+ S("today-away","Today · the host is typing in the chat panel, so nothing on the canvas shows them"),
+ S("today-pages","Today · Pages panel row: the people on Page 1")
+]};
+const ROUNDS=[
+{n:1,feedback:"",every:[
+ "Whether someone is the host comes from the server’s flag on their presence, never from what their own client claims.",
+ "Captures: the desktop profile’s canvas, light and dark, with option styling injected as CSS and JS. No app code was changed.",
+ "The viewer’s chat panel and canvas chrome are #1933. Each option notes what it needs from that ticket."
+],questions:[
+ {key:"host",title:"",intro:"Four places a viewer could see who the host is, from the smallest change to the most new chrome.",options:[
+  {id:"A",name:"Host in the cursor tag",rec:true,state:"",
+   why:"The host’s name tag reads “Maya Chen | Host”: a hairline in the tag’s own ink, then “Host” at 12px in medium weight. The cursor is the only presence the canvas draws in every build, and the label sits where the viewer already reads the host’s name. It adds no element and needs no decision about viewer chrome from #1933. In cursor chat, the bubble’s name line carries the same label.",
+   cost:"It shows only while the host’s pointer is on the canvas page you’re on. When the host is typing in the chat panel or working on another page, nothing says who hosts (second shot). The host’s tag grows from 74px to 113px wide.",
+   shots:[S("a-cursor","A · the host’s cursor"),S("a-away","A · host in the chat panel: no cursor, so no label"),S("a-full","A · whole canvas")]},
+  {id:"B",name:"Badge in the Pages panel",state:"",
+   why:"The host’s avatar in its page row carries a 14px badge: the stock <code>AvatarBadge</code> look (primary fill, background ring) with a Phosphor HouseSimple glyph, Bold, at 8px. The host’s avatar moves to the end of the stack so nothing overlaps the badge. Hovering the stack names everyone, with the host marked: “Maya Chen (host), Ben Okafor”. This is the desktop app’s existing list of people. It stays while the host’s pointer is off the canvas, and it also shows which page the host is on.",
+   cost:"It works only if viewers keep the Pages panel, which is #1933’s call. The row has no tooltip today, so that is new. <code>AvatarBadge</code> runs 8 to 12px stock, so 14px is a size change. Viewers have to learn what the house glyph means.",
+   shots:[S("b-pages","B · Pages panel, with the stack hovered"),S("b-full","B · whole canvas")]},
+  {id:"C",name:"Facepile with a Host badge",state:"",
+   why:"The hosted build’s <code>FollowingToolbar</code> goes in the top-right pill after the zoom menu: 24px avatars, you last. The host’s avatar carries the same 14px badge, and its tooltip reads “Follow Maya Chen (host)”. Hosted and headless already show presence here. The badge stays on screen wherever the host’s pointer is, and one click follows the host, which is what someone watching wants.",
+   cost:"Desktop has to turn the facepile on for viewers, even though <code>multiUserSurface</code> stays off for the host’s own window. That puts new viewer chrome in front of #1933. The pill grows 70px wider. The mark is an icon, and its tooltip carries the word.",
+   shots:[S("c-pill","C · top-right pill, with the host’s avatar hovered"),S("c-full","C · whole canvas")]},
+  {id:"D",name:"“Hosted by” in the breadcrumb",state:"",
+   why:"After the canvas name and ⋯, the breadcrumb pill adds a hairline, a 20px avatar and “Hosted by Maya Chen” at 13px: muted text, with the name in the foreground colour. It names the host in words, once, always on screen, and nobody has to learn what an icon means. Because it sits inside the existing pill, no new pill style is needed.",
+   cost:"It ties the name to the host’s cursor only through colour. The pill grows from 239px to 416px, which costs breadcrumb width in narrow windows. It shows even while the host’s pointer is off the canvas, which is right for a canvas that always has its host. Whether a viewer’s breadcrumb keeps ⋯ is #1933’s call.",
+   shots:[S("d-pill","D · breadcrumb pill"),S("d-full","D · whole canvas")]}
+ ]}
+]}
+];
+</script>

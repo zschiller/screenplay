@@ -1,0 +1,30 @@
+diff --git a/apps/app/screenshots/lib/capture.ts b/apps/app/screenshots/lib/capture.ts
+index e92d797..defd2ea 100644
+--- a/apps/app/screenshots/lib/capture.ts
++++ b/apps/app/screenshots/lib/capture.ts
+@@ -202,8 +202,25 @@ async function captureOne(
+         )
+       }
+     }
++    if (process.env.TYPE_CSS) {
++      const { readFileSync } = await import("node:fs")
++      await page
++        .addStyleTag({ content: readFileSync(process.env.TYPE_CSS, "utf8") })
++        .catch(() => {})
++    }
+     await settle(page, { extraMs: screen.settleMs ?? 0 })
+     await page.screenshot({ path, fullPage: screen.fullPage ?? false })
++    if (process.env.TYPE_AUDIT) {
++      const { appendFileSync, readFileSync } = await import("node:fs")
++      const script = readFileSync(process.env.TYPE_AUDIT_JS!, "utf8")
++      const rows = (await page.evaluate(script)) as unknown[]
++      appendFileSync(
++        process.env.TYPE_AUDIT,
++        rows
++          .map((r) => JSON.stringify({ screen: screen.name, theme, ...(r as object) }))
++          .join("\n") + "\n"
++      )
++    }
+     return response?.status() ?? null
+   } finally {
+     await context.close()

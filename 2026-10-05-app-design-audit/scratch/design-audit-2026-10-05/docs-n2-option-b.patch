@@ -1,0 +1,50 @@
+diff --git a/apps/docs/app/globals.css b/apps/docs/app/globals.css
+index 19fe1ee7..d74e812f 100644
+--- a/apps/docs/app/globals.css
++++ b/apps/docs/app/globals.css
+@@ -383,17 +383,42 @@ html.dark .sp-screenshot .sp-screenshot-light {
+ html.dark .sp-screenshot .sp-screenshot-dark {
+   display: block;
+ }
+-/* Related shots side by side, stacking when the column is narrow. */
++/* Related shots side by side, stacking when the column is narrow. Each
++   caption is a 12px label above its shot; the shots span the row's tracks (a
++   subgrid), so the labels end on one line and the shots start on the next. */
+ .sp-screenshot-row {
+   display: grid;
+   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+-  gap: 1rem;
+-  align-items: start;
++  gap: 1.5rem 1rem;
+   margin: 1.75rem 0;
+ }
+ .sp-screenshot-row .sp-screenshot {
++  display: grid;
++  grid-row: span 2;
++  grid-template-rows: subgrid;
++  row-gap: 0.6rem;
+   margin: 0;
+ }
++.sp-screenshot-row .sp-screenshot img {
++  margin-inline: 0;
++}
++.sp-screenshot-row .sp-screenshot figcaption {
++  grid-row: 1;
++  align-self: end;
++  margin-top: 0;
++  text-align: left;
++  text-wrap: pretty;
++  font-size: 0.75rem;
++  line-height: 1rem;
++  opacity: 1;
++  color: oklch(0.556 0 0);
++}
++html.dark .sp-screenshot-row .sp-screenshot figcaption {
++  color: oklch(0.708 0 0);
++}
++.sp-screenshot-row .sp-screenshot img {
++  grid-row: 2;
++}
+ .sp-screenshot figcaption {
+   margin-top: 0.6rem;
+   text-align: center;

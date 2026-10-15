@@ -1,0 +1,226 @@
+diff --git a/apps/app/components/canvas/comments.tsx b/apps/app/components/canvas/comments.tsx
+index 63cceac..f7cfc66 100644
+--- a/apps/app/components/canvas/comments.tsx
++++ b/apps/app/components/canvas/comments.tsx
+@@ -24,7 +24,7 @@ import {
+   setDocumentCommentRanges,
+   type DocumentCommentRange,
+ } from "@/lib/document-comments-extension"
+-import { isLocalBuild } from "@/lib/local-mode"
++import { isLocalBuild as isLocalBuildReal, isLocalBuild } from "@/lib/local-mode"
+ 
+ import {
+   CommentPinMark,
+@@ -736,6 +736,10 @@ function NewThreadComposer({
+   const [body, setBody] = useState("")
+   const [pending, setPending] = useState(false)
+   const empty = !body.trim()
++  const isLocalBuild =
++    isLocalBuildReal ||
++    (typeof window !== "undefined" &&
++      !!(window as unknown as { __exploreSend?: boolean }).__exploreSend)
+   return (
+     <div className="flex flex-col gap-2.5">
+       {place && (
+diff --git a/apps/app/components/canvas/markdown-layer.tsx b/apps/app/components/canvas/markdown-layer.tsx
+index e48066d..7a90963 100644
+--- a/apps/app/components/canvas/markdown-layer.tsx
++++ b/apps/app/components/canvas/markdown-layer.tsx
+@@ -11,7 +11,10 @@ import {
+ import { createPortal } from "react-dom"
+ import {
+   type Icon,
++  ArrowUpIcon,
++  ArrowUUpLeftIcon,
+   CaretDownIcon,
++  ChatIcon,
+   CheckIcon,
+   CodeBlockIcon,
+   CodeIcon,
+@@ -67,6 +70,12 @@ import {
+ } from "@/components/canvas/layer-shell"
+ import { DocumentCommentsExtension } from "@/lib/document-comments-extension"
+ import type { MarkdownLayerData } from "@/lib/types"
++import { isLocalBuild } from "@/lib/local-mode"
++import {
++  encodeAnchor,
++  getLineNumbers,
++  getQuotedText,
++} from "@/lib/document-comments"
+ import type { GroupWorkspace } from "@/components/canvas/group-label"
+ 
+ export interface InlineCommentDraft {
+@@ -161,6 +170,31 @@ function FormatButton({
+   )
+ }
+ 
++function ExploreButton({
++  label,
++  onRun,
++  children,
++}: {
++  label: string
++  onRun: () => void
++  children: ReactNode
++}) {
++  return (
++    <FloatingToolbarButton
++      label={label}
++      variant="ghost"
++      tabIndex={-1}
++      onMouseDown={(e) => {
++        e.preventDefault()
++        e.stopPropagation()
++        onRun()
++      }}
++    >
++      {children}
++    </FloatingToolbarButton>
++  )
++}
++
+ /** The block types the selection toolbar's "Turn into" dropdown can switch
+  *  between. `key` matches the `blockType` string derived from the editor in
+  *  {@link MarkdownLayer}; `run` converts the block the caret sits in.
+@@ -418,8 +452,15 @@ export function MarkdownLayer({
+   onStartEdit,
+   onStopEdit,
+   onEditorReady,
++  onStartInlineComment,
+   onSelectInlineThread,
+ }: MarkdownLayerProps) {
++  // EXPLORATION (#1198, never committed): which option's entry point to draw.
++  const explore =
++    typeof window !== "undefined"
++      ? ((window as unknown as { __explore?: string }).__explore ?? "today")
++      : "today"
++
+   const { awareness } = useYjs()
+   const provider = useMemo(() => ({ awareness }), [awareness])
+   const fragment = useDocumentFragment(layer.id)
+@@ -734,6 +775,55 @@ export function MarkdownLayer({
+         : null,
+   })
+ 
++  const startExploreComment = (mode: "comment" | "send") => {
++    if (!editor) return
++    const live = editor.state.selection
++    if (live.from >= live.to) return
++    const sel = { from: live.from, to: live.to }
++    const anchorStart = encodeAnchor(editor, sel.from)
++    const anchorEnd = encodeAnchor(editor, sel.to)
++    if (!anchorStart || !anchorEnd) return
++    const quotedText = getQuotedText(editor.state.doc, sel.from, sel.to)
++    const { lineFrom, lineTo } = getLineNumbers(
++      editor.state.doc,
++      sel.from,
++      sel.to
++    )
++    const rect = rootRef.current?.getBoundingClientRect()
++    if (!rect) return
++    const fromCoords = editor.view.coordsAtPos(sel.from)
++    ;(window as unknown as { __exploreSend?: boolean }).__exploreSend =
++      mode === "send"
++    onStartInlineComment?.({
++      documentId: layer.id,
++      anchorStart,
++      anchorEnd,
++      quotedText,
++      lineFrom,
++      lineTo,
++      canvasX: layer.width,
++      canvasY: (fromCoords.top - rect.top) / zoom,
++    })
++    setBubbleAnchor(null)
++  }
++  useEffect(() => {
++    if (!editor) return
++    const w = window as unknown as {
++      __exploreEditors?: Record<string, Editor>
++      __exploreStart?: Record<string, (mode: "comment" | "send") => void>
++    }
++    w.__exploreEditors = { ...(w.__exploreEditors ?? {}), [layer.id]: editor }
++  }, [editor, layer.id])
++  useEffect(() => {
++    const w = window as unknown as {
++      __exploreStart?: Record<string, (mode: "comment" | "send") => void>
++    }
++    w.__exploreStart = {
++      ...(w.__exploreStart ?? {}),
++      [layer.id]: startExploreComment,
++    }
++  })
++
+   // Keep the portaled bubble anchored to the start of the selection.
+   useCanvasAnchoredPortal({
+     enabled: !!bubbleAnchor && editing && !!bubblePortalTarget,
+@@ -981,7 +1071,69 @@ export function MarkdownLayer({
+                   >
+                     <ListNumbersIcon />
+                   </FormatButton>
++                  {explore === "A" && (
++                    <>
++                      <FloatingToolbarSeparator />
++                      {!isLocalBuild && (
++                        <ExploreButton
++                          label="Comment"
++                          onRun={() => startExploreComment("comment")}
++                        >
++                          <ChatIcon />
++                        </ExploreButton>
++                      )}
++                      <ExploreButton
++                        label="Send to agent"
++                        onRun={() => startExploreComment("send")}
++                      >
++                        <ArrowUpIcon />
++                      </ExploreButton>
++                    </>
++                  )}
++                  {explore === "D" && (
++                    <>
++                      <FloatingToolbarSeparator />
++                      {!isLocalBuild && (
++                        <ExploreButton
++                          label="Comment"
++                          onRun={() => startExploreComment("comment")}
++                        >
++                          <ChatIcon />
++                        </ExploreButton>
++                      )}
++                      <ExploreButton
++                        label="Reply in chat"
++                        onRun={() =>
++                          window.dispatchEvent(new CustomEvent("explore-reply"))
++                        }
++                      >
++                        <ArrowUUpLeftIcon />
++                      </ExploreButton>
++                    </>
++                  )}
+                 </FloatingToolbar>
++                {explore === "B" && (
++                  <div
++                    className="absolute top-0"
++                    data-explore-margin
++                    style={{
++                      left:
++                        (layer.width - (bubbleAnchor?.left ?? 0)) * zoom + 8,
++                      transform: "translateY(calc(-50% + 12px))",
++                    }}
++                  >
++                    <FloatingToolbar>
++                      <ExploreButton
++                        label={isLocalBuild ? "Send to agent" : "Comment"}
++                        onRun={() =>
++                          startExploreComment(isLocalBuild ? "send" : "comment")
++                        }
++                      >
++                        {isLocalBuild ? <ArrowUpIcon /> : <ChatIcon />}
++                      </ExploreButton>
++                    </FloatingToolbar>
++                  </div>
++                )}
+               </div>,
+               bubblePortalTarget
+             )}

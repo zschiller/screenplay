@@ -9,3 +9,7 @@
 **Question:** What should the frame menu call, and how should it group, the actions it borrows from the frame’s chat?
 
 Snapshot of the exploration page; open index.html locally (it loads captures from the sibling folders).
+
+## Scratch
+
+The capture scripts, patches and drafts from the project folder are in `scratch/`.

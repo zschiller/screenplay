@@ -1,0 +1,369 @@
+diff --git a/apps/app/components/canvas/canvas.tsx b/apps/app/components/canvas/canvas.tsx
+index cdc70f1..bcca075 100644
+--- a/apps/app/components/canvas/canvas.tsx
++++ b/apps/app/components/canvas/canvas.tsx
+@@ -1685,6 +1685,16 @@ export function Canvas({
+     sendMessage: (opts) => chatStore.sendMessage(opts),
+     roomId,
+   })
++  // EXPLORATION (not for commit): open the ask card on any layer.
++  useEffect(() => {
++    const w = window as unknown as { __askFrame?: (id: string) => void }
++    w.__askFrame = (id: string, label?: string) => {
++      ;(window as unknown as { __askLabel?: string }).__askLabel = label
++      drawAsk.startFrameChat?.(id)
++    }
++    ;(window as unknown as { __askMockup?: unknown }).__askMockup =
++      drawAsk.startFromMockupBox
++  })
+   const askFrameId =
+     drawAsk.open?.kind === "frame" ? drawAsk.open.frameId : null
+   const askMockupBox = drawAsk.open?.kind === "mockup" ? drawAsk.open.box : null
+@@ -2452,6 +2462,7 @@ export function Canvas({
+                       startY: askMockupBox.y,
+                       currentX: askMockupBox.x + askMockupBox.width,
+                       currentY: askMockupBox.y + askMockupBox.height,
++                      pending: true,
+                     })
+                   }
+                   documentDraft={documentDraft}
+diff --git a/apps/app/components/canvas/frame-ask-card.tsx b/apps/app/components/canvas/frame-ask-card.tsx
+index 571788f..529b81c 100644
+--- a/apps/app/components/canvas/frame-ask-card.tsx
++++ b/apps/app/components/canvas/frame-ask-card.tsx
+@@ -53,12 +53,55 @@ const QUESTION: Record<AskCardKind, string> = {
+  * Where a frame sits on screen, relative to the canvas wrapper: the frame
+  * lives inside the world transform, the card in screen space.
+  */
++// EXPLORATION (not for commit): how the card meets the status screen, from
++// localStorage "fsk" ("p" hides the block, "q" takes the button's place).
++function askOption(): string {
++  try {
++    return window.localStorage.getItem("fsk") ?? ""
++  } catch {
++    return ""
++  }
++}
++
+ export function frameAskTarget(frameId: string): AskCardTarget | null {
+   const wrapper = document.querySelector<HTMLElement>("[data-canvas-wrapper]")
+-  const frame = document.getElementById(`iframe-layer-${frameId}`)
++  const frame =
++    document.getElementById(`iframe-layer-${frameId}`) ??
++    document.querySelector<HTMLElement>(`[data-layer-id="${frameId}"]`)
+   if (!wrapper || !frame) return null
+   const fr = frame.getBoundingClientRect()
+   const cw = wrapper.getBoundingClientRect()
++  const opt = askOption()
++  if (opt) frame.dataset.asking = opt
++  if (opt === "q") {
++    const block = frame.querySelector<HTMLElement>(
++      "[data-slot=frame-status-block]"
++    )
++    const desc = block?.querySelector<HTMLElement>(
++      "[data-slot=empty-description]"
++    )
++    const card = document.querySelector<HTMLElement>("[data-ask-card]")
++    const br = block?.getBoundingClientRect()
++    // Only while the whole block shows at UI size; otherwise as "p".
++    const full =
++      block &&
++      desc &&
++      block.dataset.tier !== "none" &&
++      desc.offsetParent !== null &&
++      br &&
++      Math.abs(br.width - block.offsetWidth) < 1
++    if (full && desc && card) {
++      frame.dataset.asking = "q"
++      const dr = desc.getBoundingClientRect()
++      return {
++        left: fr.left - cw.left,
++        top: dr.top - cw.top,
++        width: fr.width,
++        height: card.offsetHeight,
++      }
++    }
++    frame.dataset.asking = "p"
++  }
+   return {
+     left: fr.left - cw.left,
+     top: fr.top - cw.top,
+@@ -140,7 +183,12 @@ export function FrameAskCard({
+       rafId = requestAnimationFrame(tick)
+     }
+     rafId = requestAnimationFrame(tick)
+-    return () => cancelAnimationFrame(rafId)
++    return () => {
++      cancelAnimationFrame(rafId)
++      document
++        .querySelectorAll<HTMLElement>("[data-asking]")
++        .forEach((el) => delete el.dataset.asking)
++    }
+   }, [])
+ 
+   // A pointer-down anywhere but the card (or a picker it opened) closes it.
+@@ -170,6 +218,7 @@ export function FrameAskCard({
+   return createPortal(
+     <FloatingToolbar
+       ref={cardRef}
++      data-ask-card=""
+       role="dialog"
+       aria-label={QUESTION[kind]}
+       className="invisible absolute top-0 left-0 block w-88 max-w-[calc(100%-1rem)] p-1"
+@@ -192,7 +241,10 @@ export function FrameAskCard({
+         onModelChange={() => {}}
+         onSubmit={(payload) => onSubmit(payload, answerer)}
+         focusKey={1}
+-        placeholder={QUESTION[kind]}
++        placeholder={
++          (window as unknown as { __askLabel?: string }).__askLabel ??
++          QUESTION[kind]
++        }
+         modelSlot={
+           <AnswererChip
+             answerer={answerer}
+@@ -204,6 +256,7 @@ export function FrameAskCard({
+         // The card is the surface: the composer's own box goes borderless.
+         className="relative [&_[data-slot=input-group]]:border-transparent dark:[&_[data-slot=input-group]]:bg-transparent"
+       />
++      <style>{`[data-asking=p] [data-slot=frame-status-block]{visibility:hidden}[data-asking=q] [data-slot=frame-status-block] [data-slot=empty-description],[data-asking=q] [data-slot=frame-status-block] [data-slot=empty-content]{visibility:hidden}[data-asking=s]::after,[data-asking=f]::after{content:"";position:absolute;inset:0;z-index:40;pointer-events:none;border-radius:inherit}[data-asking=s]::after{background:rgb(0 0 0/.1);backdrop-filter:blur(4px)}[data-asking=f]::after{background:color-mix(in oklab,var(--background) 60%,transparent);backdrop-filter:blur(12px)}`}</style>
+     </FloatingToolbar>,
+     portal
+   )
+diff --git a/apps/app/components/canvas/selection-overlay.tsx b/apps/app/components/canvas/selection-overlay.tsx
+index d9df1fb..bd34b85 100644
+--- a/apps/app/components/canvas/selection-overlay.tsx
++++ b/apps/app/components/canvas/selection-overlay.tsx
+@@ -530,11 +530,42 @@ export function SelectionOverlay({
+       const bo = snap(Math.max(a.y, b.y))
+ 
+       ctx.globalAlpha = 1
+-      ctx.setLineDash([4, 4])
+-      ctx.strokeStyle = primaryColor
+-      ctx.lineWidth = 1
+-      ctx.strokeRect(l + HALF, t + HALF, r - l, bo - t)
+-      ctx.setLineDash([])
++      // EXPLORATION (not for commit): a pending Mockup box (its ask open)
++      // draws like a just-drawn frame: the frame's body, a solid selection
++      // ring and handles, instead of the dashed draft outline.
++      const pendingOpt = (() => {
++        try {
++          return window.localStorage.getItem("fsm") ?? ""
++        } catch {
++          return ""
++        }
++      })()
++      if ((frameDraft as { pending?: boolean }).pending && pendingOpt) {
++        const dark = document.documentElement.classList.contains("dark")
++        ctx.fillStyle = dark ? "#171717" : "#ffffff"
++        ctx.fillRect(l, t, r - l, bo - t)
++        ctx.strokeStyle = primaryColor
++        ctx.lineWidth = 1
++        ctx.strokeRect(l - HALF, t - HALF, r - l + 1, bo - t + 1)
++        const hs = HANDLE_SIZE
++        const hh = hs / 2
++        const mx = snap((l + r) / 2)
++        const my = snap((t + bo) / 2)
++        for (const [hx, hy] of [
++          [l, t], [r, t], [l, bo], [r, bo], [mx, t], [mx, bo], [l, my], [r, my],
++        ]) {
++          ctx.fillStyle = bgColor
++          ctx.fillRect(hx - hh, hy - hh, hs, hs)
++          ctx.strokeStyle = primaryColor
++          ctx.strokeRect(hx - hh + HALF, hy - hh + HALF, hs - 2 * HALF, hs - 2 * HALF)
++        }
++      } else {
++        ctx.setLineDash([4, 4])
++        ctx.strokeStyle = primaryColor
++        ctx.lineWidth = 1
++        ctx.strokeRect(l + HALF, t + HALF, r - l, bo - t)
++        ctx.setLineDash([])
++      }
+     }
+ 
+     // Draw document-draft rectangle (while dragging with the document tool)
+diff --git a/apps/app/components/canvas/use-draw-ask.ts b/apps/app/components/canvas/use-draw-ask.ts
+index 88b84b1..4e1f52e 100644
+--- a/apps/app/components/canvas/use-draw-ask.ts
++++ b/apps/app/components/canvas/use-draw-ask.ts
+@@ -296,7 +296,15 @@ export function useDrawAsk(deps: DrawAskDeps): DrawAsk {
+   const open = useMemo<OpenAsk | null>(() => {
+     if (ask?.kind !== "frame") return ask
+     const frame = iframeLayers.find((l) => l.id === ask.frameId)
+-    return frame && !frame.branchId ? ask : null
++    // EXPLORATION (not for commit): any layer can open the ask.
++    const anyLayer = (() => {
++      try {
++        return !!window.localStorage.getItem("fsk")
++      } catch {
++        return false
++      }
++    })()
++    return (frame && !frame.branchId) || anyLayer ? ask : null
+   }, [ask, iframeLayers])
+ 
+   const send = useCallback(
+diff --git a/apps/app/components/frame-status/frame-status.tsx b/apps/app/components/frame-status/frame-status.tsx
+index 839022c..b285817 100644
+--- a/apps/app/components/frame-status/frame-status.tsx
++++ b/apps/app/components/frame-status/frame-status.tsx
+@@ -1,6 +1,6 @@
+ "use client"
+ 
+-import { useRef } from "react"
++import { useLayoutEffect, useRef } from "react"
+ 
+ import {
+   ArrowClockwiseIcon,
+@@ -99,6 +99,80 @@ export function statusScale(
+   )
+ }
+ 
++// EXPLORATION (not for commit): which option renders, from localStorage "fsx".
++type Option = "today" | "a" | "b" | "c" | "d"
++function option(): Option {
++  if (typeof window === "undefined") return "today"
++  try {
++    const v = window.localStorage.getItem("fsx")
++    return v === "a" || v === "b" || v === "c" || v === "d" ? v : "today"
++  } catch {
++    return "today"
++  }
++}
++/** Clear space kept between the block and the frame's edges, on screen. */
++const EDGE = 24
++
++/** Lays the option out on the block for this zoom. */
++function applyOption(
++  el: HTMLDivElement,
++  opt: Option,
++  zoom: number,
++  frameWidth: number,
++  frameHeight: number
++) {
++  let transform = ""
++  let tier = "full"
++  if (opt === "today") {
++    transform = scaleTransform(statusScale(zoom, frameWidth, frameHeight))
++  } else {
++    const z = zoom > 0 ? zoom : 1
++    // On-screen room inside the frame, and in canvas px.
++    const sw = frameWidth * z - 2 * EDGE
++    const sh = frameHeight * z - 2 * EDGE
++    el.dataset.tier = "full"
++    const bw = el.offsetWidth
++    const bh = el.offsetHeight
++    if (opt === "a") {
++      // UI size; shrink with the frame once it no longer fits.
++      const s = Math.max(0, Math.min(1, sw / bw, sh / bh))
++      transform = `scale(${s / z})`
++    } else if (opt === "c") {
++      // Canvas size; shrink with the frame once it no longer fits.
++      const cw = frameWidth - 2 * EDGE
++      const ch = frameHeight - 2 * EDGE
++      const s = Math.max(0, Math.min(1, cw / bw, ch / bh))
++      transform = s === 1 ? "" : `scale(${s})`
++    } else {
++      // UI size (b) or canvas size (d); drop parts that no longer fit, never
++      // shrink. Canvas size measures room in canvas px, so it never changes
++      // with zoom.
++      const sw = opt === "d" ? frameWidth - 2 * EDGE : frameWidth * z - 2 * EDGE
++      const sh = opt === "d" ? frameHeight - 2 * EDGE : frameHeight * z - 2 * EDGE
++      const desc = el.querySelector<HTMLElement>("[data-slot=empty-description]")
++      const title = el.querySelector<HTMLElement>("[data-slot=empty-title]")
++      const actions = el.querySelector<HTMLElement>("[data-slot=empty-content]")
++      const media = el.querySelector<HTMLElement>("[data-slot=empty-icon]")
++      const dh = desc ? desc.offsetHeight + 8 : 0
++      const bareW = Math.max(
++        title?.scrollWidth ?? 0,
++        actions?.offsetWidth ?? 0,
++        32
++      )
++      const actionsH = actions ? actions.offsetHeight + 12 : 0
++      const iconH = (media?.offsetHeight ?? 32) + 4
++      if (bw <= sw && bh <= sh) tier = "full"
++      else if (bareW <= sw && bh - dh <= sh) tier = "no-desc"
++      else if (bareW <= sw && bh - dh - actionsH <= sh) tier = "title"
++      else if (sw + 2 * EDGE >= 48 && sh + 2 * EDGE >= iconH + 16) tier = "icon"
++      else tier = "none"
++      transform = opt === "d" ? "" : `scale(${1 / z})`
++    }
++  }
++  el.dataset.tier = tier
++  if (el.style.transform !== transform) el.style.transform = transform
++}
++
+ /** The counter-scale as a transform; none at 1. */
+ function scaleTransform(scale: number) {
+   return scale > 1 ? `scale(${scale})` : ""
+@@ -142,10 +216,14 @@ export function FrameStatus({
+   // snapping at the end of each step. A transform alone never relayouts, and
+   // only a changed one is written.
+   const blockRef = useRef<HTMLDivElement | null>(null)
++  const opt = option()
+   useLiveZoom((live) => {
+     const el = blockRef.current
+-    const next = scaleTransform(statusScale(live, frameWidth, frameHeight))
+-    if (el && el.style.transform !== next) el.style.transform = next
++    if (el) applyOption(el, opt, live, frameWidth, frameHeight)
++  })
++  useLayoutEffect(() => {
++    const el = blockRef.current
++    if (el && opt !== "today") applyOption(el, opt, zoom, frameWidth, frameHeight)
+   })
+ 
+   return (
+@@ -159,10 +237,15 @@ export function FrameStatus({
+       <div
+         ref={blockRef}
+         data-slot="frame-status-block"
+-        className="flex flex-col items-center gap-3"
+-        style={{ transform: scaleTransform(scale) }}
++        data-fsx={opt}
++        className={cn(
++          "flex flex-col items-center gap-3",
++          opt !== "today" &&
++            "w-80 shrink-0 data-[tier=icon]:[&_[data-slot=empty-content]]:hidden data-[tier=icon]:[&_[data-slot=empty-description]]:hidden data-[tier=icon]:[&_[data-slot=empty-title]]:hidden data-[tier=none]:invisible data-[tier=no-desc]:[&_[data-slot=empty-description]]:hidden data-[tier=title]:[&_[data-slot=empty-content]]:hidden data-[tier=title]:[&_[data-slot=empty-description]]:hidden"
++        )}
++        style={{ transform: opt === "today" ? scaleTransform(scale) : undefined }}
+       >
+-        <EmptyHeader>
++        <EmptyHeader className={cn(opt !== "today" && "w-full")}>
+           <EmptyMedia variant="icon" className="mb-1">
+             {progress ? (
+               <Spinner
+diff --git a/apps/app/screenshots/fixtures/world.ts b/apps/app/screenshots/fixtures/world.ts
+index 1a5c7ba..128e079 100644
+--- a/apps/app/screenshots/fixtures/world.ts
++++ b/apps/app/screenshots/fixtures/world.ts
+@@ -1518,6 +1518,10 @@ function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
+     frame("layer-frames-unassigned", "No Workspace"),
+     frame("layer-frames-ready", "Ready", b.framesReady),
+     frame("layer-frames-live", "Boot to ready", b.framesLive),
++    { ...frame("layer-empty-desktop", "Desktop"), width: 1280, height: 800 },
++    { ...frame("layer-empty-phone", "iPhone 17 Pro"), width: 402, height: 874 },
++    { ...frame("layer-empty-narrow", "Narrow"), width: 200, height: 360 },
++    { ...frame("layer-empty-small", "Small"), width: 320, height: 200 },
+   ]
+   const member = (id: string) => ({ kind: "iframe-layer" as const, id })
+   return {
+@@ -1562,6 +1566,19 @@ function frameStatesRoom(now: number, previewOrigin: string): FixtureRoom {
+           members: [member("layer-frames-live")],
+           sidebarOrder: 2,
+         },
++        {
++          id: "grp-empty-sizes",
++          name: "Empty",
++          x: 0,
++          y: 1600,
++          members: [
++            member("layer-empty-desktop"),
++            member("layer-empty-phone"),
++            member("layer-empty-narrow"),
++            member("layer-empty-small"),
++          ],
++          sidebarOrder: 3,
++        },
+       ],
+       // Clear of the top chrome, so the first row's labels show and take clicks.
+       savedViewport: { x: 40, y: 110, zoom: 0.75 },

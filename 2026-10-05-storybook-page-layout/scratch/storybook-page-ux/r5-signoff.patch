@@ -1,0 +1,761 @@
+diff --git a/packages/skill-templates/src/shared/kit.tsx b/packages/skill-templates/src/shared/kit.tsx
+index 25e7384..f06270b 100644
+--- a/packages/skill-templates/src/shared/kit.tsx
++++ b/packages/skill-templates/src/shared/kit.tsx
+@@ -50,7 +50,11 @@ export function Shell({
+   theme: [dark, toggleTheme],
+   bar,
+   children,
++  width = WIDTH,
++  titleExtra,
+ }: {
++  titleExtra?: React.ReactNode
++  width?: string
+   title: string
+   tabs: Tab[]
+   tab: string
+@@ -91,14 +95,17 @@ export function Shell({
+           >
+             <div
+               className="mx-auto flex flex-wrap items-center gap-x-4 md:flex-nowrap"
+-              style={{ maxWidth: WIDTH }}
++              style={{ maxWidth: width }}
+             >
+-              <h1
+-                title={title}
+-                className="min-w-0 flex-1 truncate py-3 font-heading text-title-sm"
+-              >
+-                {title}
+-              </h1>
++              <div className="flex min-w-0 flex-1 items-center gap-1.5">
++                <h1
++                  title={title}
++                  className="min-w-0 truncate py-3 font-heading text-title-sm"
++                >
++                  {title}
++                </h1>
++                {titleExtra}
++              </div>
+               <span className="flex md:order-last">
+                 <ThemeButton dark={dark} toggle={toggleTheme} />
+               </span>
+@@ -131,7 +138,7 @@ export function Shell({
+               </div>
+             </div>
+           </div>
+-          <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6 px-4 md:px-6">
++          <div className="mx-auto flex w-full flex-col gap-6 px-4 md:px-6" style={{ maxWidth: `calc(${width} + 48px)` }}>
+             {children}
+           </div>
+         </Tabs>
+diff --git a/packages/skill-templates/src/shared/page.tsx b/packages/skill-templates/src/shared/page.tsx
+index 742e016..4e1adc4 100644
+--- a/packages/skill-templates/src/shared/page.tsx
++++ b/packages/skill-templates/src/shared/page.tsx
+@@ -78,6 +78,7 @@ export function CopyBar({
+   text,
+   maxWidth = "832px",
+   send,
++  noteLabel = "Note",
+ }: {
+   status: React.ReactNode
+   note: string
+@@ -91,6 +92,7 @@ export function CopyBar({
+   text: () => string
+   maxWidth?: string
+   send?: boolean
++  noteLabel?: string
+ }) {
+   const sends = send && onCanvas()
+   const [flash, setFlash] = React.useState<string | null>(null)
+@@ -162,7 +164,7 @@ export function CopyBar({
+             variant="outline"
+             onClick={() => setNoteOpen(!noteOpen)}
+           >
+-            Note
++            {noteLabel}
+           </Button>
+           {/* Keeps its width while it says Copied: the labels share one grid cell */}
+           <Button type="button" onClick={copy} className="inline-grid">
+diff --git a/packages/skill-templates/src/storybook/storybook.tsx b/packages/skill-templates/src/storybook/storybook.tsx
+index a30c574..d465fd1 100644
+--- a/packages/skill-templates/src/storybook/storybook.tsx
++++ b/packages/skill-templates/src/storybook/storybook.tsx
+@@ -17,11 +17,25 @@ import { Textarea } from "@workspace/ui/components/textarea"
+ import { cn } from "@workspace/ui/lib/utils"
+ 
+ import { Intro, Segmented, Shell } from "../shared/kit.tsx"
++import { ToggleGroup, ToggleGroupItem } from "@workspace/ui/components/toggle-group"
++import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@workspace/ui/components/tooltip"
++import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@workspace/ui/components/select"
++import { ButtonGroup, ButtonGroupText } from "@workspace/ui/components/button-group"
++import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@workspace/ui/components/dropdown-menu"
++import { Popover, PopoverContent, PopoverTrigger } from "@workspace/ui/components/popover"
++import { CaretDownIcon, InfoIcon } from "@workspace/ui/components/icons"
++import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
+ import { CopyBar, Html, Label, load, store } from "../shared/page.tsx"
+ import { Shots } from "../shared/shots.tsx"
+ import { useTheme } from "../shared/theme.tsx"
+ import type { Control, Page, Render, State, Value } from "./types.ts"
+ 
++// SCRATCH round 2: ?q1= ?q2= ?q3= pick a variant; any of them turns on round 1's A (Note in the name row)
++const QS = typeof location === "undefined" ? new URLSearchParams() : new URLSearchParams(location.search)
++const M4 = QS.get("m") ?? "", I4 = QS.get("i") ?? "", R4 = !!(M4 || I4)
++const S3 = R4 ? "m" : QS.get("s") ?? "", K3 = R4 ? "b" : QS.get("k") ?? "", R3 = !!(S3 || K3)
++const L = R3 ? "a" : QS.get("l") ?? "", Q1 = QS.get("q1") ?? "", Q2 = QS.get("q2") ?? "", Q3 = QS.get("q3") ?? ""
++const R2 = !!(QS.get("r2") || L || Q1 || Q2 || Q3)
+ type Values = Record<string, Value>
+ type Notes = Record<string, string>
+ 
+@@ -125,7 +139,9 @@ export function Storybook({
+   const stageRef = React.useRef<HTMLDivElement>(null)
+   const controlsRef = React.useRef<HTMLDivElement>(null)
+   const nameRef = React.useRef<HTMLDivElement>(null)
++  const belowRef = React.useRef<HTMLDivElement>(null)
+   const [ratio, setRatio] = React.useState(0)
++  const [wide, setWide] = React.useState(() => typeof matchMedia !== "undefined" && matchMedia("(min-width: 64rem)").matches)
+   React.useEffect(() => {
+     let live = true
+     const srcs = all.flatMap((s) =>
+@@ -153,7 +169,9 @@ export function Storybook({
+       const stage = stageRef.current
+       if (!stage) return
+       const bar = document.getElementById("copy-bar")?.offsetHeight ?? 0
+-      const below =
++      const isWide = matchMedia("(min-width: 64rem)").matches
++      setWide(isWide)
++      const below = L && isWide ? (L === "a" ? 0 : L === "b" ? 196 : (belowRef.current?.offsetHeight ?? 0) + 16) + 24 + bar : R2 ? (belowRef.current?.offsetHeight ?? 0) + 16 * 2 + bar :
+         (controlsRef.current?.offsetHeight ?? 0) +
+         (nameRef.current?.offsetHeight ?? 0) +
+         16 * 3 + // the gaps, and room above the bar
+@@ -161,7 +179,7 @@ export function Storybook({
+       const top = stage.getBoundingClientRect().top + scrollY
+       setBox({
+         width: stage.clientWidth,
+-        room: matchMedia("(min-width: 48rem)").matches
++        room: matchMedia("(min-width: 48rem)").matches || (L && isWide)
+           ? Math.max(240, innerHeight - top - below)
+           : Infinity,
+       })
+@@ -180,7 +198,7 @@ export function Storybook({
+       ? Math.round(Math.min(box.width * ratio, box.room))
+       : undefined
+ 
+-  const go = (s?: { vals: Values }) => s && setVals({ ...s.vals })
++  const go = (s?: { vals: Values }) => { setJumped(null); if (s) setVals({ ...s.vals }) }
+   const step = (d: number) => go(all[(index + d + all.length) % all.length])
+   // Arrow keys step through the states, except while typing
+   React.useEffect(() => {
+@@ -195,16 +213,27 @@ export function Storybook({
+   })
+ 
+   // Captured: a value lands on the closest state that has it. Live: any combination renders.
+-  const choose = (c: Control, v: Value) => {
++  const [jumped, setJumped] = React.useState<string | null>(null)
++  const target = (c: Control, v: Value) => {
+     const next = { ...vals, [c.key]: v }
+-    if (render) return setVals(next)
+     const score = (s: { vals: Values }) =>
+       controls.filter((o) => s.vals[o.key] === next[o.key]).length
+-    go(
+-      all
++    return all
+         .filter((s) => s.vals[c.key] === v)
+         .sort((a, b) => score(b) - score(a))[0]
+-    )
++  }
++  const alsoSets = (c: Control, v: Value) => {
++    const t = target(c, v)
++    return t ? controls.filter((o) => o !== c && t.vals[o.key] !== vals[o.key]).map((o) => `${o.label} to ${t.vals[o.key]}`) : []
++  }
++  const choose = (c: Control, v: Value) => {
++    const next = { ...vals, [c.key]: v }
++    if (render) return setVals(next)
++    const also = alsoSets(c, v)
++    go(target(c, v))
++    const t = target(c, v)
++    const changed = t ? controls.filter((o) => o !== c && t.vals[o.key] !== vals[o.key]) : []
++    setJumped(changed.length ? `${changed.map((o) => `${o.label} changed to ${t!.vals[o.key]}`).join(", ")}: no capture has ${v} with ${changed.map((o) => String(vals[o.key])).join(" and ")}.` : null)
+   }
+   const reachable = (c: Control, v: Value) =>
+     !!render ||
+@@ -239,12 +268,368 @@ export function Storybook({
+       ? `${noted.length} ${noted.length === 1 ? "note" : "notes"}`
+       : "No notes yet") + (general.trim() ? " · general note" : "")
+ 
++
++  // ---------- SCRATCH round 2 ----------
++  const [stateNoteOpen, setStateNoteOpen] = React.useState(false)
++  const noteOpen = stateNoteOpen || !!notes[noteKey]?.trim()
++  const arrows = (
++    <>
++      <Button type="button" variant="outline" size="icon" aria-label="Previous state" onClick={() => step(-1)}><CaretLeftIcon /></Button>
++      <Button type="button" variant="outline" size="icon" aria-label="Next state" onClick={() => step(1)}><CaretRightIcon /></Button>
++    </>
++  )
++  const count = (
++    <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums">
++      {current ? `${index + 1} of ${all.length}` : "Custom"}
++    </span>
++  )
++  const fixedText = Q1 === "a" || Q1 === "c" || Q1 === "b"
++  const nameRow2 = (
++    <div className="flex min-w-0 items-center gap-2">
++      <h2 className={cn("min-w-0 flex-1 text-lg font-medium", fixedText ? "truncate" : "text-balance")}>
++        {current ? current.name : label(vals)}
++      </h2>
++      {Q2 !== "c" && count}
++      {Q2 !== "c" && Q2 !== "a" && arrows}
++      {Q2 === "a" && null}
++      <Button type="button" variant="ghost" className="text-muted-foreground" onClick={() => setStateNoteOpen(!noteOpen)}>Note</Button>
++    </div>
++  )
++  const why2 = fixedText ? (
++    <div className="line-clamp-4 min-h-20 max-w-[72ch] text-sm md:line-clamp-2 md:min-h-10">
++      {current?.why ? <Html as="span" html={current.why} /> : <span className="text-muted-foreground">Nothing to point out on this state.</span>}
++    </div>
++  ) : current?.why ? (
++    <Html as="p" html={current.why} className="max-w-[72ch] text-sm" />
++  ) : null
++  const noteField = (
++    <Textarea
++      hidden={!noteOpen}
++      aria-label="Note on this state"
++      placeholder="Note on this state"
++      value={notes[noteKey] ?? ""}
++      onChange={(e) => setNote(e.target.value)}
++      className="min-h-14 max-w-[72ch] resize-y text-sm md:text-sm"
++    />
++  )
++  const controlRows =
++    Q3 === "c" && !render ? (
++      <StateChips all={all} controls={controls} current={current} go={go} notes={notes} />
++    ) : Q1 === "b" ? (
++      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
++        {controls.map((c) => (
++          <MenuControl key={c.key} control={c} value={vals[c.key]!} choose={(v) => choose(c, v)} reachable={(v) => reachable(c, v)} />
++        ))}
++      </div>
++    ) : (
++      <div className="flex flex-col gap-3">
++        {controls.map((c) => (
++          <ControlRow2 key={c.key} control={c} value={vals[c.key]!} choose={(v) => choose(c, v)} reachable={(v) => reachable(c, v)} mode={Q3} also={(v) => alsoSets(c, v)} />
++        ))}
++        {Q3 === "a" && jumped && <p className="m-0 text-sm text-muted-foreground md:pl-[124px]">{jumped}</p>}
++      </div>
++    )
++  const film = Q2 === "b" && (
++    <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
++      {all.map((s) => (
++        <button
++          key={s.id}
++          type="button"
++          aria-label={s.name}
++          aria-current={s === current}
++          onClick={() => go(s)}
++          className={cn("relative grid h-10 w-16 flex-none place-items-center overflow-hidden border bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50", s === current ? "border-foreground" : "opacity-70 hover:opacity-100")}
++        >
++          {s.shots && <img src={dark && s.shots.dk ? s.shots.dk : s.shots.p} alt="" className="max-h-full max-w-full object-contain" />}
++          {notes[s.id]?.trim() && <span aria-label="has a note" className="absolute top-1 right-1 size-1.5 rounded-full bg-foreground ring-2 ring-background" />}
++        </button>
++      ))}
++    </div>
++  )
++  const stage2 = (
++    <div className={Q2 === "a" ? "relative" : "contents"}>
++      <Stage state={current} caption={label(vals)} render={render} vals={vals} dark={dark} height={stageHeight} stageRef={stageRef} />
++      {Q2 === "a" && (
++        <>
++          <Button type="button" variant="outline" size="icon-lg" aria-label="Previous state" onClick={() => step(-1)} className="absolute top-1/2 left-2 -translate-y-1/2 rounded-full bg-background shadow-sm"><CaretLeftIcon /></Button>
++          <Button type="button" variant="outline" size="icon-lg" aria-label="Next state" onClick={() => step(1)} className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full bg-background shadow-sm"><CaretRightIcon /></Button>
++        </>
++      )}
++    </div>
++  )
++  const r2Story = (
++    <TabsContent value="story" className="flex min-w-0 flex-col gap-4">
++      {Q1 === "c" ? (
++        <>
++          <div ref={belowRef} className="flex flex-col gap-1">{nameRow2}{why2}</div>
++          {stage2}
++          {film}
++          {controlRows}
++        </>
++      ) : (
++        <>
++          {stage2}
++          <div ref={belowRef} className="flex flex-col gap-4">
++            {film}
++            {Q1 === "a" || Q1 === "b" ? (
++              <>
++                <div className="flex flex-col gap-1">{nameRow2}{why2}</div>
++                {controlRows}
++              </>
++            ) : (
++              <>
++                {controlRows}
++                {nameRow2}
++              </>
++            )}
++          </div>
++        </>
++      )}
++      {!(Q1 === "a" || Q1 === "b" || Q1 === "c") && why2}
++      {noteField}
++      <About page={page} />
++    </TabsContent>
++  )
++
++  const why3 = current?.why ? <Html as="p" html={current.why} className="m-0 max-w-[72ch] text-sm" /> : null
++  const nameRow3 = (
++    <div className="flex min-w-0 items-center gap-2">
++      <h2 className="min-w-0 flex-1 text-lg font-medium text-balance">{current ? current.name : label(vals)}</h2>
++      {count}
++      {arrows}
++    </div>
++  )
++  const openNote = (
++    <label className="flex flex-col gap-1.5">
++      <Label>Note on this state</Label>
++      <Textarea placeholder="What should change here" value={notes[noteKey] ?? ""} onChange={(e) => setNote(e.target.value)} className="min-h-18 resize-y text-sm md:text-sm" />
++    </label>
++  )
++  const stackedControls = (
++    <div className="flex flex-col gap-3">
++      {controls.map((c) => (
++        <ControlRow2 key={c.key} control={c} value={vals[c.key]!} choose={(v) => choose(c, v)} reachable={(v) => reachable(c, v)} mode={Q3} also={(v) => alsoSets(c, v)} stacked />
++      ))}
++      {Q3 === "a" && jumped && <p className="m-0 text-sm text-muted-foreground">{jumped}</p>}
++    </div>
++  )
++  const stage3 = <Stage state={current} caption={label(vals)} render={render} vals={vals} dark={dark} height={stageHeight} stageRef={stageRef} />
++
++  // ---------- SCRATCH round 4: the menu in the stepper, the intro ----------
++  const thumb = (x: { shots?: { p: string; dk?: string } }) => x.shots ? (dark && x.shots.dk ? x.shots.dk : x.shots.p) : ""
++  const groups4 = controls[0]!.values!.map((g) => [g, all.filter((x) => x.vals[controls[0]!.key] === g)] as const).filter(([, l]) => l.length)
++  const dot = (id: string) => notes[id]?.trim() ? <span aria-label="has a note" className="size-1.5 flex-none rounded-full bg-current" /> : null
++  const [menuOpen, setMenuOpen] = React.useState(QS.get("open") === "1")
++  const trigger4 = (
++    <Button type="button" variant="outline" className="min-w-0 flex-1 justify-between gap-2 px-2.5 font-normal">
++      <span className="min-w-0 truncate">{current ? current.name : "Custom"}</span>
++      <span className="flex flex-none items-center gap-1.5 text-muted-foreground">
++        <CaretDownIcon className="size-3.5" />
++      </span>
++    </Button>
++  )
++  const menu4 =
++    M4 === "c" ? (
++      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
++        <PopoverTrigger asChild>{trigger4}</PopoverTrigger>
++        <PopoverContent align="end" className="w-[480px] max-w-[calc(100vw-32px)] p-3">
++          <div className="grid max-h-[60vh] grid-cols-3 gap-x-2 gap-y-3 overflow-y-auto p-1">
++            {all.map((x, n) => (
++              <button key={x.id} type="button" aria-current={x === current} onClick={() => { go(x); setMenuOpen(false) }} className="group flex min-w-0 flex-col gap-1 text-left outline-none">
++                <span className={cn("grid aspect-[8/5] place-items-center overflow-hidden rounded-sm bg-muted ring-1 ring-foreground/10 group-focus-visible:ring-2 group-focus-visible:ring-ring", x === current && "ring-2 ring-foreground")}>
++                  {x.shots && <img src={thumb(x)} alt="" className="max-h-full max-w-full object-contain" />}
++                </span>
++                <span className={cn("flex min-w-0 items-baseline gap-1.5 text-xs leading-4", x === current && "font-medium font-stretch-[98.8%]")}>
++                  <span className="font-mono text-muted-foreground tabular-nums">{n + 1}</span>
++                  <span className="min-w-0 text-pretty">{x.name}{notes[x.id]?.trim() ? <span aria-label="has a note" className="ml-1.5 inline-block size-1.5 -translate-y-px rounded-full bg-current align-middle" /> : null}</span>
++                </span>
++              </button>
++            ))}
++          </div>
++        </PopoverContent>
++      </Popover>
++    ) : (
++      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
++        <DropdownMenuTrigger asChild>{trigger4}</DropdownMenuTrigger>
++        <DropdownMenuContent align="end">
++          <DropdownMenuRadioGroup value={current?.id ?? ""} onValueChange={(id) => go(all.find((x) => x.id === id))}>
++            {groups4.map(([g, list]) => (
++              <DropdownMenuGroup key={g}>
++                <DropdownMenuLabel className="px-1.5 pt-2 pb-1 font-mono text-xs font-normal tracking-wider text-muted-foreground uppercase">{g}</DropdownMenuLabel>
++                {list.map((x) => (
++                  <DropdownMenuRadioItem key={x.id} value={x.id} className={cn("gap-2", M4 === "b" && "py-1")}>
++                    {M4 === "b" && (
++                      <span className="grid h-7 w-11 flex-none place-items-center overflow-hidden rounded-sm bg-muted ring-1 ring-foreground/10">
++                        {x.shots && <img src={thumb(x)} alt="" className="max-h-full max-w-full object-contain" />}
++                      </span>
++                    )}
++                    <span className="flex-1">{x.name}</span>
++                    {x.id !== current?.id && notes[x.id]?.trim() && (
++                      <span aria-label="has a note" className="pointer-events-none absolute right-2 grid size-4 place-items-center"><span className="size-1.5 rounded-full bg-current" /></span>
++                    )}
++                  </DropdownMenuRadioItem>
++                ))}
++              </DropdownMenuGroup>
++            ))}
++          </DropdownMenuRadioGroup>
++        </DropdownMenuContent>
++      </DropdownMenu>
++    )
++  const stepper4 = (
++    <ButtonGroup className="w-full">
++      <Button type="button" variant="outline" size="icon" aria-label="Previous state" onClick={() => step(-1)}><CaretLeftIcon /></Button>
++      {menu4}
++      <Button type="button" variant="outline" size="icon" aria-label="Next state" onClick={() => step(1)}><CaretRightIcon /></Button>
++    </ButtonGroup>
++  )
++  const about4 = (
++    <div className="flex flex-col gap-2 text-sm">
++      <p className="m-0 font-mono text-xs tracking-wider text-muted-foreground uppercase">{`Design storybook · ${page.date}`}</p>
++      <blockquote className="m-0 border-l-2 pl-3 text-muted-foreground">{page.quote}</blockquote>
++      {page.where && <Html as="p" html={page.where} className="m-0 text-muted-foreground" />}
++    </div>
++  )
++  const infoButton4 = I4 === "a" ? (
++    <Popover defaultOpen={QS.get("info") === "1"}>
++      <PopoverTrigger asChild>
++        <Button type="button" variant="ghost" size="icon-sm" aria-label="About this storybook" className="text-muted-foreground"><InfoIcon /></Button>
++      </PopoverTrigger>
++      <PopoverContent align="start" className="w-80">{about4}</PopoverContent>
++    </Popover>
++  ) : null
++  // ---------- SCRATCH round 3: the right panel ----------
++  const stepper3 =
++    S3 === "m" ? stepper4 : S3 === "a" ? (
++      <ButtonGroup className="w-full">
++        <Button type="button" variant="outline" size="icon" aria-label="Previous state" onClick={() => step(-1)}><CaretLeftIcon /></Button>
++        <ButtonGroupText className="flex-1 justify-center bg-transparent font-mono text-xs text-muted-foreground tabular-nums">{current ? `State ${index + 1} of ${all.length}` : "Custom"}</ButtonGroupText>
++        <Button type="button" variant="outline" size="icon" aria-label="Next state" onClick={() => step(1)}><CaretRightIcon /></Button>
++      </ButtonGroup>
++    ) : S3 === "b" ? (
++      <div className="flex min-w-0 items-center gap-1">
++        <Select value={current?.id ?? ""} onValueChange={(id) => go(all.find((x) => x.id === id))}>
++          <SelectTrigger aria-label="State" className="min-w-0 flex-1 text-sm"><SelectValue placeholder="Custom" /></SelectTrigger>
++          <SelectContent>
++            {controls[0]!.values!.map((g) => {
++              const list = all.filter((x) => x.vals[controls[0]!.key] === g)
++              return list.length ? (
++                <SelectGroup key={g}>
++                  <SelectLabel>{g}</SelectLabel>
++                  {list.map((x) => <SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>)}
++                </SelectGroup>
++              ) : null
++            })}
++          </SelectContent>
++        </Select>
++        <Button type="button" variant="ghost" size="icon" aria-label="Previous state" onClick={() => step(-1)}><CaretLeftIcon /></Button>
++        <Button type="button" variant="ghost" size="icon" aria-label="Next state" onClick={() => step(1)}><CaretRightIcon /></Button>
++      </div>
++    ) : null
++  const controls3 =
++    K3 === "b" || K3 === "c" ? (
++      <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3">
++        {controls.map((c, i) => {
++          const opts = c.values ?? []
++          const asTabs = K3 === "b" && opts.length <= 3
++          const v = String(vals[c.key])
++          return (
++            <div key={c.key} className={cn("col-span-2 grid min-h-10 grid-cols-subgrid items-center py-1.5", i < controls.length - 1 && "border-b border-foreground/5")}>
++              <span id={`k-${c.key}`} className="text-xs leading-4 text-muted-foreground">{c.label}</span>
++              {asTabs ? (
++                <Tabs value={v} onValueChange={(x) => choose(c, x)} className="min-w-0">
++                  <TabsList aria-labelledby={`k-${c.key}`} className="w-full group-data-horizontal/tabs:h-7">
++                    {opts.map((o) => <TabsTrigger key={o} value={o} disabled={!reachable(c, o)} className="flex-1 justify-center text-xs">{o}</TabsTrigger>)}
++                  </TabsList>
++                </Tabs>
++              ) : (
++                <Select value={v} onValueChange={(x) => choose(c, x)}>
++                  <SelectTrigger aria-labelledby={`k-${c.key}`} size="sm" className="w-full text-xs data-[size=sm]:h-7"><SelectValue /></SelectTrigger>
++                  <SelectContent>
++                    {opts.map((o) => <SelectItem key={o} value={o} disabled={!reachable(c, o)}>{o}</SelectItem>)}
++                  </SelectContent>
++                </Select>
++              )}
++            </div>
++          )
++        })}
++      </div>
++    ) : stackedControls
++  const desc3 = (
++    <div className="flex flex-col gap-1">
++      {S3 !== "b" && S3 !== "m" && <h2 className="m-0 text-sm font-medium text-balance">{current ? current.name : label(vals)}</h2>}
++      {current?.why ? <Html as="p" html={current.why} className="m-0 text-sm text-muted-foreground" /> : null}
++    </div>
++  )
++  const panel3 = (
++    <div className="flex min-w-0 flex-col gap-4">
++      {stepper3}
++      {controls3}
++      <div className="flex flex-col gap-4 border-t pt-4">
++        {desc3}
++        {openNote}
++      </div>
++      {R4 ? (I4 === "d" ? <div className="border-t pt-4">{about4}</div> : null) : <About page={page} />}
++    </div>
++  )
++
++  const lStory = (
++    <TabsContent value="story" className="min-w-0">
++      {L === "a" ? (
++        <div className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-8">
++          <div className="min-w-0 lg:sticky lg:top-[calc(var(--top-bar)+24px)]">{stage3}</div>
++          {R3 ? panel3 : <div className="flex min-w-0 flex-col gap-4">
++            {stackedControls}
++            <div className="flex flex-col gap-1 border-t pt-4">{nameRow3}{why3}</div>
++            {openNote}
++            <About page={page} />
++          </div>}
++        </div>
++      ) : L === "b" ? (
++        <div className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[232px_minmax(0,1fr)] lg:items-start lg:gap-8">
++          {wide && (
++            <nav aria-label="States" className="lg:sticky lg:top-[calc(var(--top-bar)+24px)] lg:max-h-[calc(100vh-var(--top-bar)-120px)] lg:overflow-y-auto">
++              <StateList all={all} controls={controls} current={current} go={go} notes={notes} />
++            </nav>
++          )}
++          <div className="flex min-w-0 flex-col gap-4">
++            {stage3}
++            {!wide && <StateChips all={all} controls={controls} current={current} go={go} notes={notes} />}
++            <div ref={belowRef} className="flex flex-col gap-1">{nameRow3}{why3}</div>
++            {openNote}
++            <About page={page} />
++          </div>
++        </div>
++      ) : (
++        <div className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-8">
++          <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(var(--top-bar)+24px)]">
++            {stage3}
++            <div ref={belowRef}>
++              <div className="flex flex-col gap-3">
++                {controls.map((c) => (
++                  <ControlRow2 key={c.key} control={c} value={vals[c.key]!} choose={(v) => choose(c, v)} reachable={(v) => reachable(c, v)} mode={Q3} also={(v) => alsoSets(c, v)} />
++                ))}
++              </div>
++            </div>
++          </div>
++          <div className="flex min-w-0 flex-col gap-4">
++            {nameRow3}
++            {why3}
++            {openNote}
++            <About page={page} />
++          </div>
++        </div>
++      )}
++    </TabsContent>
++  )
+   return (
+     <Shell
++      width={L ? "1232px" : undefined}
++      titleExtra={R4 ? infoButton4 : undefined}
+       title={page.title}
+       tabs={[
+         { value: "story", label: "Story" },
+         { value: "all", label: "All states", count: all.length },
++        ...(I4 === "b" ? [{ value: "about", label: "About" }] : []),
+       ]}
+       tab={tab}
+       setTab={setTab}
+@@ -252,7 +637,9 @@ export function Storybook({
+       theme={theme}
+       bar={
+         <CopyBar
+-          status={status}
++          status={Q2 === "c" ? (<span className="flex items-center gap-2"><Button type="button" variant="outline" size="icon" aria-label="Previous state" onClick={() => step(-1)}><CaretLeftIcon /></Button><span className="font-mono text-xs text-foreground tabular-nums">{current ? `${index + 1} of ${all.length}` : "Custom"}</span><Button type="button" variant="outline" size="icon" aria-label="Next state" onClick={() => step(1)}><CaretRightIcon /></Button><span className="truncate pl-1">{noted.length ? `${noted.length} ${noted.length === 1 ? "note" : "notes"}` : "No notes yet"}</span></span>) : status}
++          noteLabel={R2 ? "General note" : undefined}
++          maxWidth={L ? "1232px" : undefined}
+           note={general}
+           setNote={setGeneral}
+           noteOpen={generalOpen}
+@@ -264,7 +651,7 @@ export function Storybook({
+         />
+       }
+     >
+-      <TabsContent value="story" className="flex min-w-0 flex-col gap-4">
++      {L ? lStory : R2 ? r2Story : (<TabsContent value="story" className="flex min-w-0 flex-col gap-4">
+         <Stage
+           state={current}
+           caption={label(vals)}
+@@ -333,7 +720,8 @@ export function Storybook({
+           />
+         </label>
+         <About page={page} />
+-      </TabsContent>
++      </TabsContent>)}
++      {I4 === "b" && <TabsContent value="about" className="max-w-[72ch]">{about4}</TabsContent>}
+       <TabsContent value="all" className="flex flex-col gap-6">
+         <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+           {all.map((s) => (
+@@ -458,7 +846,9 @@ function ControlRow({
+   value,
+   choose,
+   reachable,
++  stacked,
+ }: {
++  stacked?: boolean
+   control: Control
+   value: Value
+   choose: (v: Value) => void
+@@ -490,7 +880,7 @@ function ControlRow({
+       : c.values!.map((v) => [v, v])
+   return (
+     // On a wide screen the label sits beside its control, a row shorter each
+-    <div className="flex min-w-0 flex-col gap-1.5 md:grid md:grid-cols-[112px_minmax(0,1fr)] md:items-center md:gap-3">
++    <div className={stacked ? "flex min-w-0 flex-col gap-1.5" : "flex min-w-0 flex-col gap-1.5 md:grid md:grid-cols-[112px_minmax(0,1fr)] md:items-center md:gap-3"}>
+       <Label id={id}>{c.label}</Label>
+       <Segmented
+         aria-labelledby={id}
+@@ -503,9 +893,111 @@ function ControlRow({
+           label: l,
+           dim: !reachable(v),
+         }))}
+-        className="flex w-full flex-wrap"
+-        itemClassName="flex-[1_0_auto] px-2.5"
++        className={stacked ? "flex w-fit max-w-full flex-wrap" : "flex w-full flex-wrap"}
++        itemClassName={stacked ? "px-2.5" : "flex-[1_0_auto] px-2.5"}
+       />
+     </div>
+   )
+ }
++
++
++/** SCRATCH round 2: a segmented control whose unreachable values say what they change (a), or are disabled (b). */
++function ControlRow2({ control: c, value, choose, reachable, mode, also, stacked }: { stacked?: boolean; control: Control; value: Value; choose: (v: Value) => void; reachable: (v: Value) => boolean; mode: string; also: (v: Value) => string[] }) {
++  if (mode !== "a" && mode !== "b") return <ControlRow control={c} value={value} choose={choose} reachable={reachable} stacked={stacked} />
++  const id = `control-${c.key}`
++  const options: [Value, string][] = c.type === "toggle" ? [[false, "Off"], [true, "On"]] : c.values!.map((v) => [v, v])
++  return (
++    <div className={stacked ? "flex min-w-0 flex-col gap-1.5" : "flex min-w-0 flex-col gap-1.5 md:grid md:grid-cols-[112px_minmax(0,1fr)] md:items-center md:gap-3"}>
++      <Label id={id}>{c.label}</Label>
++      <ToggleGroup type="single" aria-labelledby={id} value={String(options.findIndex(([v]) => v === value))} onValueChange={(i) => i && choose(options[Number(i)]![0])} className={stacked ? "flex w-fit max-w-full flex-wrap" : "flex w-full flex-wrap"}>
++        {options.map(([v, l], i) => {
++          const ok = reachable(v)
++          const item = (
++            <ToggleGroupItem key={i} value={String(i)} disabled={mode === "b" && !ok} className={cn(stacked ? "gap-1.5 px-2.5" : "flex-[1_0_auto] gap-1.5 px-2.5", mode === "a" && !ok && "text-muted-foreground")}>
++              {l}
++            </ToggleGroupItem>
++          )
++          if (mode !== "a" || ok) return item
++          return (
++            <TooltipProvider key={i}><Tooltip>
++              <TooltipTrigger asChild>{item}</TooltipTrigger>
++              <TooltipContent>{"Also sets " + also(v).join(" and ")}</TooltipContent>
++            </Tooltip></TooltipProvider>
++          )
++        })}
++      </ToggleGroup>
++    </div>
++  )
++}
++
++/** SCRATCH round 2 Q1 B: each control as a menu, all in one row. */
++function MenuControl({ control: c, value, choose, reachable }: { control: Control; value: Value; choose: (v: Value) => void; reachable: (v: Value) => boolean }) {
++  const id = `control-${c.key}`
++  return (
++    <div className="flex items-center gap-2">
++      <Label id={id}>{c.label}</Label>
++      <Select value={String(value)} onValueChange={(v) => choose(c.values!.includes(v) ? v : v)}>
++        <SelectTrigger aria-labelledby={id} size="sm"><SelectValue /></SelectTrigger>
++        <SelectContent>
++          {c.values!.map((v) => (
++            <SelectItem key={v} value={v} className={cn(!reachable(v) && "text-muted-foreground")}>{v}</SelectItem>
++          ))}
++        </SelectContent>
++      </Select>
++    </div>
++  )
++}
++
++/** SCRATCH round 2 Q3 C: the captured states as chips, grouped by the first control. */
++function StateChips({ all, controls, current, go, notes }: { all: (State & { vals: Values })[]; controls: Control[]; current: (State & { vals: Values }) | null; go: (s: State & { vals: Values }) => void; notes: Notes }) {
++  const [first, ...rest] = controls
++  const groups = first!.values!.map((g) => [g, all.filter((s) => s.vals[first!.key] === g)] as const).filter(([, l]) => l.length)
++  const name = (s: State & { vals: Values }) => {
++    const parts = rest.filter((c) => s.vals[c.key] !== c.values![0]).map((c) => String(s.vals[c.key]))
++    return parts.length ? parts.join(", ") : "Default"
++  }
++  return (
++    <div className="flex flex-col gap-2">
++      {groups.map(([g, list]) => (
++        <div key={g} className="flex min-w-0 flex-col gap-1.5 md:grid md:grid-cols-[136px_minmax(0,1fr)] md:items-center md:gap-3">
++          <p className="m-0 text-sm text-muted-foreground">{g}</p>
++          <ToggleGroup type="single" value={current && list.includes(current) ? current.id : ""} onValueChange={(id) => { const s = list.find((x) => x.id === id); if (s) go(s) }} className="flex w-fit max-w-full flex-wrap">
++            {list.map((s) => (
++              <ToggleGroupItem key={s.id} value={s.id} className="gap-1.5 px-2.5">
++                {name(s)}
++                {notes[s.id]?.trim() && <span aria-label="has a note" className="size-1.5 rounded-full bg-foreground" />}
++              </ToggleGroupItem>
++            ))}
++          </ToggleGroup>
++        </div>
++      ))}
++    </div>
++  )
++}
++
++
++/** SCRATCH round 2 layout B: every captured state in a list, grouped by the first control, like Storybook's sidebar. */
++function StateList({ all, controls, current, go, notes }: { all: (State & { vals: Values })[]; controls: Control[]; current: (State & { vals: Values }) | null; go: (s: State & { vals: Values }) => void; notes: Notes }) {
++  const [first, ...rest] = controls
++  const groups = first!.values!.map((g) => [g, all.filter((s) => s.vals[first!.key] === g)] as const).filter(([, l]) => l.length)
++  const name = (s: State & { vals: Values }) => {
++    const parts = rest.filter((c) => s.vals[c.key] !== c.values![0]).map((c) => String(s.vals[c.key]))
++    return parts.length ? parts.join(", ") : "Default"
++  }
++  return (
++    <div className="flex flex-col gap-3">
++      {groups.map(([g, list]) => (
++        <div key={g} className="flex flex-col">
++          <Label className="px-2 pb-1">{g}</Label>
++          {list.map((s) => (
++            <button key={s.id} type="button" aria-current={s === current} onClick={() => go(s)}
++              className={cn("flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50", s === current && "bg-muted font-medium font-stretch-[98.8%]")}>
++              <span className="min-w-0 flex-1 truncate">{name(s)}</span>
++              {notes[s.id]?.trim() && <span aria-label="has a note" className="size-1.5 flex-none rounded-full bg-foreground" />}
++            </button>
++          ))}
++        </div>
++      ))}
++    </div>
++  )
++}
+diff --git a/packages/skill-templates/src/styles.css b/packages/skill-templates/src/styles.css
+index 1aed524..e5d9aa4 100644
+--- a/packages/skill-templates/src/styles.css
++++ b/packages/skill-templates/src/styles.css
+@@ -11,7 +11,7 @@
+ @source "./**/*.{ts,tsx}";
+ /* Only the shared components the templates import, so the page carries their
+    classes and not the whole library's. Add a line when you import another. */
+-@source "../../ui/src/components/{alert,badge,button,collapsible,icons,input,label,questionnaire,tabs,textarea,toggle,toggle-group}.tsx";
++@source "../../ui/src/components/{alert,badge,button,collapsible,icons,input,label,questionnaire,tabs,textarea,toggle,toggle-group,tooltip,select,button-group,separator,dropdown-menu,popover}.tsx";
+ 
+ /* Fonts come from the readable token block, so another repo can swap them. */
+ @theme inline {
+diff --git a/packages/skill-templates/vite.config.ts b/packages/skill-templates/vite.config.ts
+index e892e3b..5dfa5e0 100644
+--- a/packages/skill-templates/vite.config.ts
++++ b/packages/skill-templates/vite.config.ts
+@@ -2,7 +2,7 @@
+ // /<name>/ serves one with its sample data, hot reloading as you edit.
+ // `pnpm build` (scripts/build.ts) writes the committed pages.
+ 
+-import { readFileSync } from "node:fs"
++import { existsSync, readFileSync } from "node:fs"
+ import tailwind from "@tailwindcss/postcss"
+ import react from "@vitejs/plugin-react"
+ import { defineConfig, type Plugin } from "vite"
+@@ -34,6 +34,12 @@ function pages(): Plugin {
+         }
+         if (!t) return next()
+         const rest = url.pathname.slice(t.name.length + 2)
++        const REAL = process.env.REAL_DIR
++        if (REAL && /\.(png|webp|jpe?g|gif)$/.test(rest) && existsSync(`${REAL}/${t.name}/${rest}`)) {
++          res.setHeader("content-type", rest.endsWith("png") ? "image/png" : rest.endsWith("webp") ? "image/webp" : "image/jpeg")
++          res.end(readFileSync(`${REAL}/${t.name}/${rest}`))
++          return
++        }
+         if (/\.(png|webp|jpe?g|gif)$/.test(rest)) {
+           res.setHeader("content-type", "image/svg+xml")
+           res.end(placeholder(rest))
+@@ -43,7 +49,7 @@ function pages(): Plugin {
+         const html = assemble({
+           ...t,
+           tokens: tokenBlock(),
+-          data: readFileSync(`src/${t.name}/data.js`, "utf8"),
++          data: readFileSync(process.env.REAL_DIR && existsSync(`${process.env.REAL_DIR}/${t.name}/data.js`) ? `${process.env.REAL_DIR}/${t.name}/data.js` : `src/${t.name}/data.js`, "utf8"),
+           body: `<div id="app"></div><script type="module" src="/src/${t.name}/main.tsx"></script>`,
+         })
+         res.setHeader("content-type", "text/html")

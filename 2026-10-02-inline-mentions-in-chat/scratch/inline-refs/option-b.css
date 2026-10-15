@@ -1,0 +1,4 @@
+/* B: Info ink. Text and icons in the info hue, bold; a Workspace's state glyph keeps its own colour. */
+.inline-ref { color: var(--info) !important; }
+.inline-ref:not([data-inline-ref="workspace"]) > .inline-ref-icon { color: var(--info) !important; }
+.inline-ref[data-inline-ref-css]::before { background-color: var(--info) !important; }
