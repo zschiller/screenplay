@@ -26,6 +26,11 @@ The link preview (`app/og/page.tsx`) is captured into `app/opengraph-image.jpg` 
 
 Shoot a production build (`next build && next start`): `next dev` draws Next’s “N” indicator over the page. Use `playwright-core` (the package depends on it) with Chromium at `/opt/pw-browsers/chromium` in a cloud container.
 
+- Wait for `load`, not `networkidle`, which never settles on this page.
+- The page sets `scroll-behavior: smooth`, so scroll with `scrollTo({ behavior: "instant" })`, or the shot catches the scroll mid-way.
+- An element screenshot of a section includes the sticky header over its top. Add `header { position: relative !important }` before you crop.
+- Kill the old `next-server` before restarting, or it serves stale CSS. Find its PID with `ps aux | grep -E "next-serve[r]"`; `pkill -f next-server` can kill your own shell.
+
 ## Claims the homepage must not make
 
 Each of these was on the page once and was false. Check the code before writing anything near them.

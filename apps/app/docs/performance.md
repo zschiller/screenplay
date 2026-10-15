@@ -1,6 +1,6 @@
 # Canvas performance
 
-How to measure the canvas’s cost and what earlier rounds of tuning learned. The canvas was made 3–5× cheaper for drags, marquee and drawing (PR #1764), then for frame resize (PRs #1767, #1768); read this before changing anything on a gesture’s hot path.
+How to measure the canvas’s cost and what earlier rounds of tuning learned. The canvas was made 3–5× cheaper for drags, marquee and drawing (PR #1764), then for frame resize (PRs #1767, #1768); read this before changing anything on a gesture’s hot path. Desktop launch time has its own notes and measuring recipe in [`apps/desktop/README.md`](../../desktop/README.md#launch-speed).
 
 ## Measuring
 

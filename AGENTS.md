@@ -24,6 +24,22 @@ Testing on Linux versus the Mac, local dev fixes, held dependency pins, publishi
 
 Design and copy rules and rejected directions: read before designing, building or reviewing anything people see. See `docs/design/README.md`.
 
+### Design archive
+
+Finished design explorations, audits and storybooks, with their captures, on the orphan branch `claude/design-archive`: one folder per page with a README holding its record, and the root `README.md` as the index. See `.agents/skills/design-exploration/ARCHIVE.md`.
+
+### Screenshot harness
+
+Before/after PR screenshots and the docs screenshots, from a seeded fixture world, and its gotchas. See `apps/app/screenshots/README.md`.
+
+### ADRs
+
+Decisions that are hard to reverse or surprising without context: read before a larger change in `apps/app`. See `apps/app/docs/adr/`.
+
+### Repo skills
+
+How agents work in this repo (design exploration, audit and storybook, TDD, triage and more): `.agents/skills/`, linked into `.claude/skills/`.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know

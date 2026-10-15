@@ -20,9 +20,10 @@ npm dist-tag. Each run:
 4. publishes to npm through Trusted Publishing (no npm token), and
 5. opens a “Release …” pull request. Merge it so `main` catches up.
 
-A pull request that changes a package doesn’t bump its version; publish
-after it merges. Publishing can’t be undone, so wait until the changes you
-want in a release have all merged.
+Agents don’t run these workflows: the maintainer publishes. A pull request
+that changes a package doesn’t bump its version; publish after it merges.
+Publishing can’t be undone, so wait until the changes you want in a release
+have all merged.
 
 ### Recovering from a failed run
 
@@ -56,3 +57,10 @@ homepage are opt-in, because they cost build credits.
   preview.
 
 A skipped deploy shows “Canceled by Ignored Build Step” on the pull request.
+
+The orphan branches `claude/pr-screenshots` and `claude/design-archive` hold
+images, not app code, so each carries a `vercel.json` with
+`"git": { "deploymentEnabled": false }` at its root and in each project’s
+folder (`apps/app`, `apps/docs`, `apps/homepage`). Vercel reads it from the
+commit it deploys, so no setting on `main` can turn these builds off. Keep the
+files, and add them first if either branch is ever recreated.

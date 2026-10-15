@@ -251,7 +251,11 @@ export function Label({
   )
 }
 
-/** An arrowhead with its tip on `tip`, pointing away from `from`. */
+/**
+ * An arrowhead with its tip on `tip`, pointing away from `from`. A drawn path
+ * rather than an SVG `<marker>`: the kit renders inside MDX pages, which are
+ * server components, so it has no React context to share marker ids through.
+ */
 function Head({ tip, from }: { tip: Point; from: Point }) {
   const [x, y] = tip
   const angle = Math.atan2(y - from[1], x - from[0])

@@ -59,16 +59,16 @@ When the owner reacts:
 
 After each round:
 
-1. Write or update the exploration's topic file in memory (`<subject>-exploration`): the owner's quote, the Artifact link, the options, each round's feedback, the picks, the never-re-offer list, and how the captures were made.
+1. Update the exploration's topic file in memory (`<subject>-exploration`), its live state while it runs: the owner's quote, the Artifact link, the options, each round's feedback, the picks, the never-re-offer list, and how the captures were made. Keep it short; the archive holds the record once the exploration ends.
 2. Go back to step 1 for the next round on the same Artifact, carrying the picks forward as Today's direction.
 
-Done with a round when memory holds its feedback and picks and the next round is under way. The exploration continues until the owner says it is done. Tickets, triage labels and builds come only from the owner's own ask, so the tracker stays unchanged throughout.
+Done with a round when the topic file holds its feedback and picks and the next round is under way. The exploration continues until the owner says it is done. Tickets, triage labels and builds come only from the owner's own ask, so the tracker stays unchanged throughout.
 
 ## 7. Archive the page
 
-When the exploration ends (the owner says it is done, a picked option's PR is up, or its spec is filed), archive the page as [`ARCHIVE.md`](ARCHIVE.md) describes, then add the archive folder's link to the topic file.
+When the exploration ends (the owner says it is done, a picked option's PR is up, or its spec is filed), archive the page and close out its record as [`ARCHIVE.md`](ARCHIVE.md) describes: the archive folder's README becomes the record, a rejected direction that applies beyond this exploration goes to the design guide by PR, and the memory topic file is deleted.
 
-Done when the page's row is in the archive index, or the repo keeps no archive.
+Done when the page's row is in the archive index and the topic file is gone, or the repo keeps no archive.
 
 ## When the owner asks to build an option
 
@@ -84,4 +84,4 @@ Done when the PR is up with the summary and its shots. Reply with the PR link, w
 
 ## When the owner asks for a spec
 
-Only when the owner says to: write one spec from the topic file with the repo's spec skill (such as `to-spec`), linking the Artifact and naming each pick, and show it to the owner before filing. The spec holds only behaviour an exploration page showed and the owner picked or signed off; anything else goes in as an open question, never as a story. Labels, tickets and dependencies follow the tracker's docs and the owner's answer. Building happens in its own threads and PRs, with the screenshots RULES.md's PR evidence rule asks for.
+Only when the owner says to: write one spec from the exploration's record (its topic file, or its archive README once archived) with the repo's spec skill (such as `to-spec`), linking the Artifact and naming each pick, and show it to the owner before filing. The spec holds only behaviour an exploration page showed and the owner picked or signed off; anything else goes in as an open question, never as a story. Labels, tickets and dependencies follow the tracker's docs and the owner's answer. Building happens in its own threads and PRs, with the screenshots RULES.md's PR evidence rule asks for.

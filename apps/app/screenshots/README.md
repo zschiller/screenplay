@@ -423,3 +423,44 @@ Shoot each option under its own `--label` so the sets sit side by side.
 - **Streams open twice in dev.** Strict Mode mounts twice, so a
   `beforeNavigate` stub that counts requests is off by one. Key stubs on the
   request itself (a query parameter, the path).
+- **Captures are at 2x.** Every context uses a device scale factor of 2
+  (`lib/browser.ts`), so a `--no-frame` docs capture of the 1280×800 docs
+  viewport is 2560×1600. Double CSS coordinates when you crop one.
+- **Run captures one at a time.** Parallel runs show each other’s cursors.
+- **Settings detection on a GitHub repository always fails in a capture**,
+  because the fixture world has no GitHub token. Shoot detected settings from
+  a folder pick (`fixtureCheckouts()` and `openAddProject(page, "folder")`).
+- **A delete confirm’s first open compiles its server actions.** It reads the
+  chat’s git state through one, so a shot taken too early shows a spinner where
+  the warning or checkbox goes. Wait for them before shooting.
+- **Open a dialog over Settings or Canvas settings by clicking in `prepare`.**
+  A URL can pick a Settings section (`?section=`) but can’t open a dialog on
+  top, and `openCanvasSettings` can’t find Canvas settings once a second
+  dialog covers it.
+- **Element boxes inside a frame ignore the canvas zoom.** To click something
+  in an iframe on a zoomed canvas, start from the iframe’s own box and scale
+  the offset inside it by the zoom.
+- **Far-zoom canvas screens need `canvasPanels({ chatPct: 30 })`.** Without
+  the cookie the chat panel opens at a different width from shot to shot.
+- **Hosted runs end up with “Preview stopped” on every frame** after about ten
+  runs, even with `--fresh`. Fixture mode is off in the hosted build, so
+  Sandbox Reconnect runs, fails to recreate each Workspace and writes
+  “stopped” into the Canvas. In a scratch screen, call
+  `holdServerActions(page, "hang")` from `beforeNavigate` and run with
+  `--fresh`.
+- **Injected style tags don’t reach `::selection`.** To try a selection colour,
+  edit `apps/app/app/globals.css` and re-shoot.
+- **The hosted fixture user has no photo.** For avatar shots, stub
+  `/api/auth/get-session` with `page.route` to add an `image` (and email).
+- **A `__TAURI_INTERNALS__` stub changes more than you stubbed.** Without one,
+  the local build guesses the traffic lights from the window size and leaves
+  the sidebar’s spacer off. With one, `useTrafficLightsPresent` asks it
+  `plugin:window|is_fullscreen`, and any falsy answer turns the spacer on.
+- **Crop with Pillow or sharp, not ffmpeg.** The ffmpeg Playwright downloads
+  can’t decode PNG. A sharp script outside `apps/app` needs
+  `NODE_PATH=apps/app/node_modules`.
+- **`pnpm install --ignore-scripts` leaves node-pty unbuilt**, and `boot`
+  fails. Run `npx node-gyp rebuild` in node-pty’s package folder.
+- **A running `--boot` doesn’t pick up a stashed CSS change.** For a
+  before/after of a CSS or token change, shoot each side as its own fresh run
+  (stash, run, pop) rather than against one `boot`.
