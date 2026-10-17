@@ -1,16 +1,13 @@
 // Every template this package builds. `src/<name>/` holds its React entry
 // (main.tsx) and its sample data (data.js), which the built page carries as
-// the data script an agent fills. `out` is the committed page, relative to
-// the repo root, with the bundle inlined so it publishes as an Artifact.
-// `skill` is the App Skill that ships the template as a Mockup folder's page,
-// its sample data script, and a runtime file the page loads with a `skill:`
-// reference (see appOutputs).
+// the data script an agent fills. `skill` is the App Skill that ships the
+// template as a Mockup folder's page, its sample data script, and a runtime
+// file the page loads with a `skill:` reference (see appOutputs).
 
 export type Template = {
   name: string
   title: string
   about: string
-  out: string
   skill: string
 }
 
@@ -43,7 +40,6 @@ export const templates: Template[] = [
     title: "{{TITLE}}",
     about:
       "Design exploration page. Fill PAGE, TODAY and ROUNDS in the data script; the page renders from them.",
-    out: ".agents/skills/design-exploration/exploration-template.html",
     skill: "screenplay-design-exploration",
   },
   {
@@ -51,7 +47,6 @@ export const templates: Template[] = [
     title: "{{TITLE}}",
     about:
       "Design audit findings page. Fill PAGE, DEPTHS, NOTICES, FINDINGS and EXTRA in the data script; the page renders from them.",
-    out: ".agents/skills/design-audit/audit-template.html",
     skill: "screenplay-design-audit",
   },
   {
@@ -59,7 +54,6 @@ export const templates: Template[] = [
     title: "{{TITLE}}",
     about:
       "Design audit decisions page. Fill PAGE, SURFACES and RUNS in the data script; the page renders from them.",
-    out: ".agents/skills/design-audit/decisions-template.html",
     skill: "screenplay-design-audit",
   },
   {
@@ -67,7 +61,6 @@ export const templates: Template[] = [
     title: "{{TITLE}}",
     about:
       "Design storybook page. Fill PAGE, CONTROLS and STATES in the data script; the page renders from them.",
-    out: ".agents/skills/design-storybook/storybook-template.html",
     skill: "screenplay-design-storybook",
   },
 ]

@@ -1,0 +1,9 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-process": {
+      "source": { "source": "github", "repo": "zschiller/claude-process" },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": { "zack@claude-process": true }
+}

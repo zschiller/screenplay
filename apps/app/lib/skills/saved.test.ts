@@ -1,13 +1,9 @@
-import { readFileSync, readdirSync } from "node:fs"
-import { join } from "node:path"
-
 import { describe, expect, it } from "vitest"
 
 import { memoryFileIndex } from "@/lib/files/files"
 import { memoryFileStore } from "@/lib/files/store"
 import {
   createSavedSkills,
-  prepareSkill,
   SKILL_MAX_BYTES,
   stripSkillPrivileges,
 } from "@/lib/skills/saved"
@@ -130,33 +126,6 @@ describe("saved skills", () => {
     expect(read.ok && read.value.content).toBe(
       "---\nname: deploy\ndescription: Ship it.\n---\nThen ship."
     )
-  })
-
-  it("fits a copy of each design skill with its built page templates (#1642)", () => {
-    // The repository's design skills hold the same built templates the App
-    // Skills ship, so a copy saved to an account or canvas must fit.
-    const skillsDir = join(process.cwd(), "..", "..", ".agents", "skills")
-    for (const name of [
-      "design-audit",
-      "design-exploration",
-      "design-storybook",
-    ]) {
-      const dir = join(skillsDir, name)
-      const files = readdirSync(dir)
-        .filter((f) => f !== "SKILL.md")
-        .map((path) => ({
-          path,
-          content: readFileSync(join(dir, path), "utf8"),
-        }))
-      expect(
-        files.some((f) => f.path.endsWith(".html")),
-        name
-      ).toBe(true)
-      const content = readFileSync(join(dir, "SKILL.md"), "utf8")
-      expect(prepareSkill({ name, content, files }), name).toMatchObject({
-        ok: true,
-      })
-    }
   })
 
   it("refuses an invalid name, a mismatched name and a Skill over 1 MB", async () => {

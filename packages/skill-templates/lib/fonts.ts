@@ -1,5 +1,5 @@
 // The app's faces for the App Skill pages: a Mockup loads nothing from the
-// network, so the Google Fonts link the repo skills' pages carry would leave
+// network, so the Google Fonts link the dev page carries would leave
 // a canvas on the system fonts. `fontsCss` is a stylesheet with the Latin
 // files (fonts/) as data URLs, which the Mockup's CSP allows; each App
 // Skill holds it once, and its data pages link it by a `skill:` reference.
