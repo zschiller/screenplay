@@ -1,8 +1,7 @@
 // Renders one template, from a Vite build of its React entry as a single IIFE
-// plus CSS, into its outputs: the repo skill's page with the bundle inlined
-// under the readable top (lib/page.ts), so it publishes as an Artifact, and
-// the App Skill's Mockup page, its sample data and the runtime file the page
-// loads by reference.
+// plus CSS, into the App Skill's outputs: the Mockup page (the readable top
+// from lib/page.ts), its sample data and the runtime file the page loads by
+// reference.
 
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
@@ -15,10 +14,6 @@ import { fontsCss } from "./fonts.ts"
 import { assemble, stripTokens, tokenBlock } from "./page.ts"
 
 const pkg = fileURLToPath(new URL("../", import.meta.url))
-
-// A closing tag inside inlined code would end the element early
-const inline = (code: string, tag: "script" | "style") =>
-  code.replace(new RegExp(`</(${tag})`, "gi"), "<\\/$1")
 
 // @screenplay.space/state only runs in development builds. The pages are
 // production builds, so switch its gate on: it still stays inert unless the
@@ -75,18 +70,6 @@ export async function render(t: Template): Promise<Output[]> {
   }
   const app = appOutputs(t)
   return [
-    {
-      path: t.out,
-      content: assemble({
-        ...top,
-        body: [
-          `<style>${inline(css.trim(), "style")}</style>`,
-          `<div id="app"></div>`,
-          `<script>${inline(js.trim(), "script")}</script>`,
-          "",
-        ].join("\n"),
-      }),
-    },
     // A Mockup folder holds this page as its index.html beside its data.js
     // and captures (#1889); the canvas swaps the reference for the runtime
     // from the Skill when it renders (#1643)

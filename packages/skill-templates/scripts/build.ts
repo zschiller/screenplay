@@ -1,6 +1,5 @@
 // Builds every template into its outputs (lib/build.ts) and writes them: the
-// repo skill's self-contained page, and the App Skill's data page and
-// runtime. `--check` writes nothing and fails when a committed file is out
+// App Skill's page, sample data, runtime and fonts. `--check` writes nothing and fails when a committed file is out
 // of date (the package's test runs it).
 
 import { readFileSync, writeFileSync } from "node:fs"

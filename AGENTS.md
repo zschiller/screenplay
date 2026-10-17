@@ -26,7 +26,7 @@ Design and copy rules and rejected directions: read before designing, building o
 
 ### Design archive
 
-Finished design explorations, audits and storybooks, with their captures, on the orphan branch `claude/design-archive`: one folder per page with a README holding its record, and the root `README.md` as the index. See `.agents/skills/design-exploration/ARCHIVE.md`.
+Finished design explorations, audits and storybooks, with their captures, on the orphan branch `claude/design-archive`: one folder per page with a README holding its record, and the root `README.md` as the index. See the shared `design-exploration` skill's `ARCHIVE.md` (under Shared design skills).
 
 ### Screenshot harness
 
@@ -38,7 +38,11 @@ Decisions that are hard to reverse or surprising without context: read before a 
 
 ### Repo skills
 
-How agents work in this repo (design exploration, audit and storybook, TDD, triage and more): `.agents/skills/`, linked into `.claude/skills/`.
+How agents work in this repo (TDD, triage, code review and more): `.agents/skills/`, linked into `.claude/skills/`.
+
+### Shared design skills
+
+Design exploration, audit and storybook, shared from `zschiller/claude-process`: in a cloud session read `skills/<name>/SKILL.md` there; locally the `zack` plugin (`.claude/settings.json`) provides `zack:design-exploration`, `zack:design-audit` and `zack:design-storybook`. Not the app's built-in `screenplay-design-*` App Skills (`apps/app/lib/skills/`).
 
 <!-- BEGIN:turborepo-agent-rules -->
 

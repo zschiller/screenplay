@@ -28,8 +28,7 @@ const isTokenRule = (rule: Rule) =>
 
 /**
  * The light and dark token values from packages/ui, one rule per line, keeping
- * only the variables `css` reads (all of them without it, as in dev). Agents
- * swap these for another repo's brand.
+ * only the variables `css` reads (all of them without it, as in dev).
  */
 export function tokenBlock(css?: string) {
   const used = css ? new Set(css.match(/--[\w-]+/g)) : null

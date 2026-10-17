@@ -25,10 +25,8 @@ describe("skill templates", () => {
   }, 120_000)
 
   it.each(templates)("$name keeps the part agents read short", (t) => {
-    for (const path of [t.out, appOutputs(t).page]) {
-      const top = read(path).split(MARKER)[0]!
-      expect(top.split("\n").length).toBeLessThan(120)
-    }
+    const top = read(appOutputs(t).page).split(MARKER)[0]!
+    expect(top.split("\n").length).toBeLessThan(120)
   })
 
   it.each(templates)(
@@ -49,10 +47,9 @@ describe("skill templates", () => {
   )
 
   it.each(templates)("$name paints its own page over a host's", (t) => {
-    // An Artifact wraps the page in an unlayered `body` rule (cream, dark
-    // text, a system font) that beats anything in a cascade layer
-    const bundle = read(t.out).split(MARKER)[1]!
-    expect(bundle).toContain(
+    // A host may wrap the page in an unlayered `body` rule (an Artifact's is
+    // cream, dark text, a system font) that beats anything in a cascade layer
+    expect(read(appOutputs(t).runtime)).toContain(
       "html body{background-color:var(--background);color:var(--foreground);font:inherit}"
     )
   })
